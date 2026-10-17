@@ -412,14 +412,15 @@ function antennaRows(el) {
 
 /* a graded-index lens: the beam it carries, as an RF lens's readout gives it */
 function grinReadout(el) {
+  // the beam arriving at the disc's first face from outside it (the disc is traced as a slab: inside it the beam is in the plastic)
   let best = null;
   for (const b of lastTrace.beams || []) {
     const s = b.ev && b.ev.surf;
-    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0)) continue;
+    if (b.endEl !== el.id || !(b.nm > 1e5) || !(b.qi > 0) || b.n > 1.0001 || (s && s.el && s.el.id === el.id)) continue;
     if (!best || b.w > best.w) best = b;
   }
   if (!best) return null;
-  const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
+  const B = beamAt(best.qr + best.len, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
   if (!(w > 0)) return null;
   const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
   const [aRows, aNote] = antennaRows(el);

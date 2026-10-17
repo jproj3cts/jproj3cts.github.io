@@ -246,6 +246,8 @@ export function surfPoints(s, n = 48, reverse = false, f = null) {
     if (hi > lo) for (let i = 0; i <= 200; i++) ys.push(lo + (hi - lo) * i / 200);
     ys.sort((a, b) => a - b);
   }
+  // a zoned face: a point either side of each step, so its walls are drawn sheer
+  if (s.zone) { for (const r of s.zone.steps) for (const sg of [1, -1]) ys.push(sg * (r - 1e-6), sg * (r + 1e-6)); ys.sort((a, b) => a - b); }
   if (reverse) ys.reverse();
   return ys.map(y => [s.z + sagFn(s, y), y]);
 }

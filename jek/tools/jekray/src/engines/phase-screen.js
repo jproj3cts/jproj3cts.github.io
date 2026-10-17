@@ -1,5 +1,5 @@
 import { linesPerMm } from '../core/modulators.js';
-import { rawDsag, rawSag } from '../core/geometry.js';
+import { rawDsag, rawSag, zoneHit } from '../core/geometry.js';
 import { dpBend, dpPhase, dpSlopeOverR } from '../core/diffractive.js';
 import { faceFrame, rollFrame, tipFrame, zOf } from './trace.js';
 
@@ -51,6 +51,20 @@ function dpRefract(s, lam0, u, v, d, nrm, n1, n2, e) {
   return true;
 }
 const dpPath = (s, lam0, u, v) => s.dm * lam0 / (2 * Math.PI) * dpPhase(s.ph, u * u + v * v);
+/* a sample ray at a zoned face (its steps in s.zone): Newton's answer t stands when it is on the face and the ray met no
+   step's wall on the way; else the face is searched along the ray with its steps (core/geometry.js zoneHit), over the
+   face's own depth. { t, wall }: wall true where the ray ran into a wall, so the sample is lost (the step's shadow) */
+function zoneCheck(s, px, py, pz, dx, dy, dz, t, ok) {
+  const sag = u => rawSag(s, Math.hypot(py + u * dy, pz + u * dz)) - (s.y0 ? s.sag0 : 0);
+  if (Math.abs(dx) < 1e-12) return null;
+  const xa = (s.xmin - s.z - px) / dx, xb = (s.xmax - s.z - px) / dx, t0 = Math.min(xa, xb) - 1e-6, t1 = Math.max(xa, xb) + 1e-6;
+  if (ok && Math.abs(px + t * dx - sag(t)) < 1e-7 * (1 + Math.abs(t))) {
+    const Z = zoneHit(s, px, py, pz, dx, dy, dz, t0, Math.min(t1, t + 1e-6));
+    if (Z && Z.t <= t + 1e-6) return Z;                    // the first thing the ray meets: this face here, or a wall before it
+    return { t, wall: false };
+  }
+  return zoneHit(s, px, py, pz, dx, dy, dz, t0, t1);
+}
 function popScreen3(ev, invRx, invRy, lam0) {
   const s = ev.surf;
   const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
@@ -92,6 +106,7 @@ function popScreen3(ev, invRx, invRy, lam0) {
       if (it === 39) ok = false;
     }
     if (!isFinite(t)) return [0, 0, 0, -1, false];
+    if (s.zone) { const z = zoneCheck(s, px, py, pz, ldx, ldy, ldz, t, ok); if (!z) return [0, 0, 0, -1, false]; t = z.t; ok = ok && !z.wall; }
     ly = py + t * ldy; lz = pz + t * ldz;
     sagAt(ly + y0, lz);
     let ex = ldx, ey = ldy, ez = ldz, nx = 1, ny = -sY, nz = -sZ;
@@ -178,6 +193,7 @@ export function popScreen(ev, invRx, invRy, lam0) {
       if (it === 39) ok = false;
     }
     if (!isFinite(t)) return [0, 0, 0, -1, false];
+    if (s.zone) { const z = zoneCheck(s, px, py, pz, ldx, ldy, ldz, t, ok); if (!z) return [0, 0, 0, -1, false]; t = z.t; ok = ok && !z.wall; }
     ly = py + t * ldy; lz = pz + t * ldz;
     sagAt(ly + y0, lz);
     const Sy = sY, Sz = sZ;

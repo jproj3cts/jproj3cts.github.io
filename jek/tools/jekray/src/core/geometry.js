@@ -3,6 +3,7 @@ import { rollFrame } from '../engines/trace.js';
 import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
 import { sagR2 } from './sag.js';
+import { lensZones } from './rf.js';
 
 /* ==========================================================================
    Geometry
@@ -18,7 +19,49 @@ export function sagFn(s, y) {
 }
 export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL, 0, y + (s.y0 || 0))[1] : 0); }
 
-export const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true);
+/* the sag; a zoned RF lens's cut face (s.zone, from lensSurfaces) is the smooth face stepped back by the whole layers
+   taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
+export const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
+/* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
+   (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
+   runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
+   jumps split the search: a root is found on a continuous stretch, a wall where the sign changes across a jump.
+   Null when the ray misses. */
+export function zoneHit(s, px, py, pz, dx, dy, dz, t0, t1) {
+  const g = t => px + t * dx - rawSag(s, Math.hypot(py + t * dy, pz + t * dz));
+  const N = 64, step = (t1 - t0) / N, eps = 1e-9 * (1 + Math.abs(t1));
+  let ta = t0, fa = g(ta);
+  for (let i = 1; i <= N; i++) {
+    const tb = t0 + i * step, fb = g(tb);
+    if (fa === 0) return { t: ta, wall: false };
+    if (fa * fb <= 0) {
+      // the steps' walls crossed within the bracket, in order along the ray
+      const cuts = [], a2 = dy * dy + dz * dz, b2 = 2 * (py * dy + pz * dz);
+      if (a2 > 1e-30) for (const rs of s.zone.steps) {
+        const c2 = py * py + pz * pz - rs * rs, disc = b2 * b2 - 4 * a2 * c2;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        for (const t of [(-b2 - sq) / (2 * a2), (-b2 + sq) / (2 * a2)]) if (t > ta + eps && t < tb - eps) cuts.push(t);
+      }
+      cuts.sort((u, v) => u - v);
+      let lo = ta, flo = fa;
+      for (const u of [...cuts, tb]) {
+        const hi = u === tb ? tb : u - eps, fhi = u === tb ? fb : g(hi);
+        if (flo * fhi <= 0) {
+          let a = lo, b = hi, fA = flo;
+          for (let it = 0; it < 60; it++) { const m = (a + b) / 2, fm = g(m); if ((fm < 0) === (fA < 0)) { a = m; fA = fm; } else b = m; if (b - a < 1e-12) break; }
+          return { t: (a + b) / 2, wall: false };
+        }
+        if (u === tb) break;
+        const fj = g(u + eps);
+        if (fhi * fj < 0) return { t: u, wall: true };
+        lo = u + eps; flo = fj;
+      }
+    }
+    ta = tb; fa = fb;
+  }
+  return null;
+}
 export function rawDsag(s, y) {
   const y2 = y * y;
   let v = 0;
@@ -76,13 +119,14 @@ export function makeSurf(el, z, c, k, a2, A, semi, extra) {
   }
   s.semi = semi;
   s.sag0 = s.y0 ? rawSag(s, s.y0) : 0;
-  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL;
+  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL && !s.zone;
   s.flat = (c === 0 && a2 === 0 && plain && !s.y0);
   s.conicOnly = !s.flat && a2 === 0 && plain && !s.y0;
   let lo = 0, hi = 0;
   if (!s.flat) {
-    for (let i = 0; i <= 64; i++) {
-      const v = sagFn(s, semi * (i / 32 - 1));
+    const M = s.zone ? 512 : 64;
+    for (let i = 0; i <= M; i++) {
+      const v = sagFn(s, semi * (2 * i / M - 1));
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
@@ -103,6 +147,8 @@ export function lensSurfaces(el) {
   const T = el.gaps.reduce((a, b) => a + b, 0);
   let z = -T / 2;
   const out = [];
+  // a zoned RF lens (core/rf.js lensZones): its curved face cut back where whole layers come out, as it is made
+  const Z = !el.cyl && el.zoned ? lensZones(el) : null, zone = Z && Z.steps.length ? { k: Z.k, dz: Z.dz, steps: Z.steps, sg: Z.face === 0 ? 1 : -1 } : null;
   for (let i = 0; i < el.surfaces.length; i++) {
     const sd = el.surfaces[i];
     const c = sd.R === null ? 0 : 1 / sd.R;
@@ -113,7 +159,7 @@ export function lensSurfaces(el) {
       sd.semi || el.diameter / 2, {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
-        kind: 'refract', coat: sd.coat,
+        kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],

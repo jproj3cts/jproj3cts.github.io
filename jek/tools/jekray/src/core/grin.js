@@ -19,9 +19,9 @@ import { solveLinear } from './numeric.js';
    The index profile makes the disc's optical path fall from its centre as an ideal lens's
    does, sqrt(r^2 + f^2) - f (no spherical aberration for a collimated beam), or as a
    parabola, r^2 / 2f. The disc's thickness is what that fall needs between its highest and
-   lowest index. On the bench it is a thin plate (a mask) with that delay and the amplitude
-   its loss and its faces' reflection leave: a disc thin against its focal length is modelled
-   well; the panel says when it is not. */
+   lowest index. On the bench it is traced as a slab of graded plastic between two flat faces
+   (grinSlab, below), as the RF designer and the lens engine take it; its thin-plate formulas
+   (applyGrin) stay on the part for its paraxial focal length and the closed forms. */
 export const GRIN_LINE = 0.45;            // mm, an extrusion line's width (0.4 mm nozzle)
 export const GRIN_FLOOR = 10;             // %: the lowest density that still holds together
 export const GRIN_PROFILES = { ideal: 'Ideal lens (no spherical aberration)', parabolic: 'Parabolic' };
@@ -97,7 +97,7 @@ export function grinDesign(g, dia) {
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
     if (dia > PRINTER.maxDia || tTot > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
-    if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
+    if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): its focus is where the bench\u2019s rays through the graded slab put it, not quite its design focal length from its centre. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
   return { M, eps, lam, a, t, tm, tTot, match, ghzMax, band, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
@@ -108,6 +108,8 @@ export function grinDesign(g, dia) {
    its design (its densities and thickness), and its delay is what that plastic gives them */
 export function applyGrin(el, nAs) {
   el.grin = normGrin(el.grin);
+  // the bench's slab (grinSlab) takes the as-printed index from here while a tolerance check holds it
+  if (nAs) el.nAs = nAs; else delete el.nAs;
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
   // the core's index at r: exact without matching layers; with them, the linear grade across the
@@ -139,25 +141,38 @@ export function applyGrin(el, nAs) {
   return D;
 }
 
-/* ---------- The disc in a design's prescription ----------
-   As the RF designer and the lens engine take it: a slab between two flat faces, as thick as the whole disc
-   (its layers with it), of the plastic graded from the axis so its optical path at r is the disc's own,
-   n(r) = n₀ − opd(r)/T: n₀ the centre's mean index through the slab (core and layers), held as the
-   plastic's index plus dn, and the fall fitted over the disc as g₂r² + g₄r⁴ + g₆r⁶ (the lens engine's
-   graded glass, so its rays and its paraxial power are those of the disc). Null when the disc cannot be made. */
-export function grinSlab(g, dia) {
+/* ---------- The disc as a slab: on the bench, in the RF designer and in the lens engine ----------
+   A slab between two flat faces, as thick as the whole disc (its layers with it), of the plastic graded from the
+   axis so its optical path at r is the disc's own, n(r) = n₀ − opd(r)/T: n₀ the centre's mean index through the
+   slab (core and layers), held as the plastic's index plus dn, and the fall fitted over the disc as
+   g₂r² + g₄r⁴ + g₆r⁶ (the graded glass the bench's rays and the lens engine trace, so the bench, the designer
+   and the engine agree by construction). With it, for the bench: alpha(r, lam), the power the slab absorbs per
+   mm at r (the core's and the layers' loss at their densities, through the slab's thickness), and coat(r), the
+   matching layer a face carries at r (null for a bare disc). nAs: the plastic's index as printed, when that
+   differs from the design's (a tolerance check: the densities and thickness stay the design's, the indices are
+   what that plastic gives them). Null when the disc cannot be made. */
+export function grinSlab(g, dia, nAs) {
   const D = grinDesign(g, dia);
   if (!D.usable || !isFinite(D.t)) return null;
-  const T = D.tTot, n0 = (D.t * D.nHi + (D.match ? 2 * D.tm * D.nmAt(0) : 0)) / T, a = D.a;
-  const opd = g.profile === 'parabolic' ? r => r * r / (2 * g.f) : r => Math.sqrt(r * r + g.f * g.f) - g.f;
+  const M = D.M, T = D.tTot, a = D.a, mA = mixA(M);
+  // each part's index as printed: the mixing rule at the same density with the plastic's permittivity as it is
+  const sA = nAs ? (Math.pow(nAs * nAs, mA) - 1) / (Math.pow(D.eps, mA) - 1) : 1;
+  const asN = n => (nAs ? Math.pow(1 + (Math.pow(n * n, mA) - 1) * sA, 1 / (2 * mA)) : n);
+  const nCore = r => asN(D.nAt(r)), nLay = r => (D.match ? asN(D.nmAt(r)) : 0);
+  const pathAt = r => D.t * nCore(r) + 2 * D.tm * nLay(r);
+  const p0 = pathAt(0), n0 = p0 / T;
   // least squares in r², r⁴, r⁶ (scaled by a, so the sums stay well conditioned), weighted by the area at r
   const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0], K = 64;
   for (let k = 0; k < K; k++) {
-    const u = (k + 0.5) / K, r = u * a, w = u, y = -opd(r) / T, ph = [u * u, u ** 4, u ** 6];
+    const u = (k + 0.5) / K, r = u * a, w = u, y = (pathAt(r) - p0) / T, ph = [u * u, u ** 4, u ** 6];
     for (let i = 0; i < 3; i++) { b[i] += w * ph[i] * y; for (let j = 0; j < 3; j++) A[i][j] += w * ph[i] * ph[j]; }
   }
   const c = solveLinear(A, b) || [NaN, NaN, NaN], grad = [c[0] / a ** 2, c[1] / a ** 4, c[2] / a ** 6];
-  return { D, T, n0, dn: n0 - D.M.n, grad, a };
+  // the loss at r: each part's density gives its loss (core/rf.js mixEps), the plastic's loss tangent as designed
+  const alphaOf = (n, lam) => { const f = mixFill(M, n * n); return 2 * Math.PI * mixEps(M, f).epsI / (n * lam); };
+  const alpha = (r, lam) => { r = Math.min(Math.abs(r), a); return (alphaOf(D.nAt(r), lam) * D.t + (D.match ? alphaOf(D.nmAt(r), lam) * 2 * D.tm : 0)) / T; };
+  const coat = D.match ? r => ({ mode: 'stack', layers: [{ n: asN(D.nmAt(Math.min(Math.abs(r), a))), d: D.tm * 1e6 }] }) : null;
+  return { D, T, n0, dn: n0 - M.n, grad, a, alpha, coat };
 }
 /* the disc's losses at ghz over a beam of radius w (power weighted): its two faces' reflection (bare, or through its
    layers at that frequency) and its absorption, core and layers, as the share of power each lets through */

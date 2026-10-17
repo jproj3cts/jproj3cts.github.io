@@ -5862,9 +5862,9 @@ function lensZones(el) {
    The index profile makes the disc's optical path fall from its centre as an ideal lens's
    does, sqrt(r^2 + f^2) - f (no spherical aberration for a collimated beam), or as a
    parabola, r^2 / 2f. The disc's thickness is what that fall needs between its highest and
-   lowest index. On the bench it is a thin plate (a mask) with that delay and the amplitude
-   its loss and its faces' reflection leave: a disc thin against its focal length is modelled
-   well; the panel says when it is not. */
+   lowest index. On the bench it is traced as a slab of graded plastic between two flat faces
+   (grinSlab, below), as the RF designer and the lens engine take it; its thin-plate formulas
+   (applyGrin) stay on the part for its paraxial focal length and the closed forms. */
 const GRIN_LINE = 0.45;            // mm, an extrusion line's width (0.4 mm nozzle)
 const GRIN_FLOOR = 10;             // %: the lowest density that still holds together
 const GRIN_PROFILES = { ideal: 'Ideal lens (no spherical aberration)', parabolic: 'Parabolic' };
@@ -5940,7 +5940,7 @@ function grinDesign(g, dia) {
   if (!usable) checks.push('The density range leaves nothing to grade: at ' + fmt(g.ghz) + ' GHz the lowest density is ' + fillLo.toFixed(0) + '%, so the density at the centre must be well above it.');
   else {
     if (dia > PRINTER.maxDia || tTot > PRINTER.maxHeight) checks.push('Too large to make in one piece: up to ' + PRINTER.maxDia + ' mm across and ' + PRINTER.maxHeight + ' mm thick can be made.');
-    if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): modelled as a thin plate, its focus is only roughly placed. A longer focal length, or a wider density range, makes it thinner.');
+    if (tTot / g.f > 0.3) checks.push('The disc is thick against its focal length (' + (tTot / g.f).toFixed(2) + ' of it): its focus is where the bench\u2019s rays through the graded slab put it, not quite its design focal length from its centre. A longer focal length, or a wider density range, makes it thinner.');
     if (dia / lam < 5) checks.push('It is only ' + (dia / lam).toFixed(1) + ' wavelengths across: the Gaussian-beam picture is rough at this size.');
   }
   return { M, eps, lam, a, t, tm, tTot, match, ghzMax, band, nmAt, layerFillAt, rMatch, reflM, nHi, nLo, fillHi, fillLo, fillFreq, raised: fillFreq > g.fillMin, usable, nAt, fillAt, lossDb, vol, grams, checks,
@@ -5951,6 +5951,8 @@ function grinDesign(g, dia) {
    its design (its densities and thickness), and its delay is what that plastic gives them */
 function applyGrin(el, nAs) {
   el.grin = normGrin(el.grin);
+  // the bench's slab (grinSlab) takes the as-printed index from here while a tolerance check holds it
+  if (nAs) el.nAs = nAs; else delete el.nAs;
   const D = grinDesign(el.grin, el.length);
   if (!D.usable) { el.amp = 'circ(r/' + fmt(D.a) + ')'; el.delay = '0'; el.preset = 'grin'; return D; }
   // the core's index at r: exact without matching layers; with them, the linear grade across the
@@ -5982,25 +5984,38 @@ function applyGrin(el, nAs) {
   return D;
 }
 
-/* ---------- The disc in a design's prescription ----------
-   As the RF designer and the lens engine take it: a slab between two flat faces, as thick as the whole disc
-   (its layers with it), of the plastic graded from the axis so its optical path at r is the disc's own,
-   n(r) = n₀ − opd(r)/T: n₀ the centre's mean index through the slab (core and layers), held as the
-   plastic's index plus dn, and the fall fitted over the disc as g₂r² + g₄r⁴ + g₆r⁶ (the lens engine's
-   graded glass, so its rays and its paraxial power are those of the disc). Null when the disc cannot be made. */
-function grinSlab(g, dia) {
+/* ---------- The disc as a slab: on the bench, in the RF designer and in the lens engine ----------
+   A slab between two flat faces, as thick as the whole disc (its layers with it), of the plastic graded from the
+   axis so its optical path at r is the disc's own, n(r) = n₀ − opd(r)/T: n₀ the centre's mean index through the
+   slab (core and layers), held as the plastic's index plus dn, and the fall fitted over the disc as
+   g₂r² + g₄r⁴ + g₆r⁶ (the graded glass the bench's rays and the lens engine trace, so the bench, the designer
+   and the engine agree by construction). With it, for the bench: alpha(r, lam), the power the slab absorbs per
+   mm at r (the core's and the layers' loss at their densities, through the slab's thickness), and coat(r), the
+   matching layer a face carries at r (null for a bare disc). nAs: the plastic's index as printed, when that
+   differs from the design's (a tolerance check: the densities and thickness stay the design's, the indices are
+   what that plastic gives them). Null when the disc cannot be made. */
+function grinSlab(g, dia, nAs) {
   const D = grinDesign(g, dia);
   if (!D.usable || !isFinite(D.t)) return null;
-  const T = D.tTot, n0 = (D.t * D.nHi + (D.match ? 2 * D.tm * D.nmAt(0) : 0)) / T, a = D.a;
-  const opd = g.profile === 'parabolic' ? r => r * r / (2 * g.f) : r => Math.sqrt(r * r + g.f * g.f) - g.f;
+  const M = D.M, T = D.tTot, a = D.a, mA = mixA(M);
+  // each part's index as printed: the mixing rule at the same density with the plastic's permittivity as it is
+  const sA = nAs ? (Math.pow(nAs * nAs, mA) - 1) / (Math.pow(D.eps, mA) - 1) : 1;
+  const asN = n => (nAs ? Math.pow(1 + (Math.pow(n * n, mA) - 1) * sA, 1 / (2 * mA)) : n);
+  const nCore = r => asN(D.nAt(r)), nLay = r => (D.match ? asN(D.nmAt(r)) : 0);
+  const pathAt = r => D.t * nCore(r) + 2 * D.tm * nLay(r);
+  const p0 = pathAt(0), n0 = p0 / T;
   // least squares in r², r⁴, r⁶ (scaled by a, so the sums stay well conditioned), weighted by the area at r
   const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0], K = 64;
   for (let k = 0; k < K; k++) {
-    const u = (k + 0.5) / K, r = u * a, w = u, y = -opd(r) / T, ph = [u * u, u ** 4, u ** 6];
+    const u = (k + 0.5) / K, r = u * a, w = u, y = (pathAt(r) - p0) / T, ph = [u * u, u ** 4, u ** 6];
     for (let i = 0; i < 3; i++) { b[i] += w * ph[i] * y; for (let j = 0; j < 3; j++) A[i][j] += w * ph[i] * ph[j]; }
   }
   const c = solveLinear(A, b) || [NaN, NaN, NaN], grad = [c[0] / a ** 2, c[1] / a ** 4, c[2] / a ** 6];
-  return { D, T, n0, dn: n0 - D.M.n, grad, a };
+  // the loss at r: each part's density gives its loss (core/rf.js mixEps), the plastic's loss tangent as designed
+  const alphaOf = (n, lam) => { const f = mixFill(M, n * n); return 2 * Math.PI * mixEps(M, f).epsI / (n * lam); };
+  const alpha = (r, lam) => { r = Math.min(Math.abs(r), a); return (alphaOf(D.nAt(r), lam) * D.t + (D.match ? alphaOf(D.nmAt(r), lam) * 2 * D.tm : 0)) / T; };
+  const coat = D.match ? r => ({ mode: 'stack', layers: [{ n: asN(D.nmAt(Math.min(Math.abs(r), a))), d: D.tm * 1e6 }] }) : null;
+  return { D, T, n0, dn: n0 - M.n, grad, a, alpha, coat };
 }
 /* the disc's losses at ghz over a beam of radius w (power weighted): its two faces' reflection (bare, or through its
    layers at that frequency) and its absorption, core and layers, as the share of power each lets through */
@@ -7832,7 +7847,7 @@ const LENS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.',
-    zoned: 'optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces the smooth lens; the RF designer, its weight and its quote take it as cut.' },
+    zoned: 'optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces it as cut (a ray meeting a step\u2019s wall is lost); the RF designer, its weight and its quote take it as cut too.' },
   },
 };
 /* Grating: A diffraction grating, reflecting or transmitting. */
@@ -8828,7 +8843,49 @@ function sagFn(s, y) {
 }
 function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL, 0, y + (s.y0 || 0))[1] : 0); }
 
-const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true);
+/* the sag; a zoned RF lens's cut face (s.zone, from lensSurfaces) is the smooth face stepped back by the whole layers
+   taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
+const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
+/* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
+   (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
+   runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
+   jumps split the search: a root is found on a continuous stretch, a wall where the sign changes across a jump.
+   Null when the ray misses. */
+function zoneHit(s, px, py, pz, dx, dy, dz, t0, t1) {
+  const g = t => px + t * dx - rawSag(s, Math.hypot(py + t * dy, pz + t * dz));
+  const N = 64, step = (t1 - t0) / N, eps = 1e-9 * (1 + Math.abs(t1));
+  let ta = t0, fa = g(ta);
+  for (let i = 1; i <= N; i++) {
+    const tb = t0 + i * step, fb = g(tb);
+    if (fa === 0) return { t: ta, wall: false };
+    if (fa * fb <= 0) {
+      // the steps' walls crossed within the bracket, in order along the ray
+      const cuts = [], a2 = dy * dy + dz * dz, b2 = 2 * (py * dy + pz * dz);
+      if (a2 > 1e-30) for (const rs of s.zone.steps) {
+        const c2 = py * py + pz * pz - rs * rs, disc = b2 * b2 - 4 * a2 * c2;
+        if (disc < 0) continue;
+        const sq = Math.sqrt(disc);
+        for (const t of [(-b2 - sq) / (2 * a2), (-b2 + sq) / (2 * a2)]) if (t > ta + eps && t < tb - eps) cuts.push(t);
+      }
+      cuts.sort((u, v) => u - v);
+      let lo = ta, flo = fa;
+      for (const u of [...cuts, tb]) {
+        const hi = u === tb ? tb : u - eps, fhi = u === tb ? fb : g(hi);
+        if (flo * fhi <= 0) {
+          let a = lo, b = hi, fA = flo;
+          for (let it = 0; it < 60; it++) { const m = (a + b) / 2, fm = g(m); if ((fm < 0) === (fA < 0)) { a = m; fA = fm; } else b = m; if (b - a < 1e-12) break; }
+          return { t: (a + b) / 2, wall: false };
+        }
+        if (u === tb) break;
+        const fj = g(u + eps);
+        if (fhi * fj < 0) return { t: u, wall: true };
+        lo = u + eps; flo = fj;
+      }
+    }
+    ta = tb; fa = fb;
+  }
+  return null;
+}
 function rawDsag(s, y) {
   const y2 = y * y;
   let v = 0;
@@ -8886,13 +8943,14 @@ function makeSurf(el, z, c, k, a2, A, semi, extra) {
   }
   s.semi = semi;
   s.sag0 = s.y0 ? rawSag(s, s.y0) : 0;
-  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL;
+  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL && !s.zone;
   s.flat = (c === 0 && a2 === 0 && plain && !s.y0);
   s.conicOnly = !s.flat && a2 === 0 && plain && !s.y0;
   let lo = 0, hi = 0;
   if (!s.flat) {
-    for (let i = 0; i <= 64; i++) {
-      const v = sagFn(s, semi * (i / 32 - 1));
+    const M = s.zone ? 512 : 64;
+    for (let i = 0; i <= M; i++) {
+      const v = sagFn(s, semi * (2 * i / M - 1));
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
@@ -8913,6 +8971,8 @@ function lensSurfaces(el) {
   const T = el.gaps.reduce((a, b) => a + b, 0);
   let z = -T / 2;
   const out = [];
+  // a zoned RF lens (core/rf.js lensZones): its curved face cut back where whole layers come out, as it is made
+  const Z = !el.cyl && el.zoned ? lensZones(el) : null, zone = Z && Z.steps.length ? { k: Z.k, dz: Z.dz, steps: Z.steps, sg: Z.face === 0 ? 1 : -1 } : null;
   for (let i = 0; i < el.surfaces.length; i++) {
     const sd = el.surfaces[i];
     const c = sd.R === null ? 0 : 1 / sd.R;
@@ -8923,7 +8983,7 @@ function lensSurfaces(el) {
       sd.semi || el.diameter / 2, {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
-        kind: 'refract', coat: sd.coat,
+        kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],
@@ -9253,6 +9313,16 @@ function elementSurfaces(el) {
   }
   if (el.type === 'polariser' && el.grid) return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grid' })];   // a wire grid reflects what it stops
   if (el.type === 'waveplate' || el.type === 'polariser') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
+  if (el.type === 'mask' && el.grin) {
+    // a graded-index RF disc: a slab of its plastic graded from the axis between two flat faces (core/grin.js
+    // grinSlab), as the RF designer and the lens engine take it; each face's matching layer at the radius met.
+    // One that cannot be made stays a plate that passes everything
+    const G = grinSlab(el.grin, el.length, el.nAs);
+    if (G) {
+      const a = el.length / 2, air = { glass: 'AIR' }, mat = { glass: el.grin.mat, dn: G.dn, grad: G.grad, gh: grH(el.length) };
+      return [0, 1].map(i => makeSurf(el, (i ? 1 : -1) * G.T / 2, 0, 0, 0, [], a, { kind: 'refract', coat: null, coatAt: G.coat, grin: G, front: i ? mat : air, back: i ? air : mat }));
+    }
+  }
   if (el.type === 'mask') {
     const s = makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'mask' });
     s.maskFn = maskFns(el).fn;
@@ -9627,7 +9697,10 @@ function bypassEvent(s, base) {
   const ev = Object.assign(base, { bypass: true, mask: { shape: 'disc', a: s.semi, o: 0, ext: s.semi } });
   return Object.defineProperty(ev, 'surf', { value: surf, enumerable: false, configurable: true });
 }
+// set by intersectSurf: the hit it last found was a zoned face's step wall, where the light is lost (see zoneHit)
+let wallHit = false;
 function intersectSurf(s, px, py, dx, dy, tmin) {
+  wallHit = false;
   px -= s.z;
   const xmin = s.xmin - s.z, xmax = s.xmax - s.z;
   let t0 = tmin, t1 = Infinity;
@@ -9676,6 +9749,13 @@ function intersectSurf(s, px, py, dx, dy, tmin) {
       if (Math.abs(px + t*dx - sagFn(s, y)) < 1e-6 * (1 + Math.abs(px))) return t;
     }
     return null;
+  }
+  if (s.zone) {
+    // a zoned face: its steps' walls split the search (core/geometry.js zoneHit); at a wall the light is lost
+    const Z = zoneHit(s, px, py, 0, dx, dy, 0, t0, t1);
+    if (!Z || Math.abs(py + Z.t * dy) > s.semi + 1e-9) return null;
+    wallHit = Z.wall;
+    return Z.t;
   }
   // general asphere: bracket the first root of f(t) = x(t) − sag(y(t)), then Illinois
   const f = t => px + t*dx - sagFn(s, py + t*dy);
@@ -10020,6 +10100,16 @@ function grLocal(s, X) {
   return [faceFrame(s, qx, qy, true)[1], qz];
 }
 function grN(gr, X) { const [y, z] = grLocal(gr.s, X); return gr.nb + grDelta(gr.G, y * y + z * z); }
+/* the ray going into a graded glass through face s (material m, index nb on the axis): its terms, the step it takes
+   (the part's, or one short against its width), the slab the field is split into, and, for a graded disc, the power
+   it absorbs per mm where the ray is (core/grin.js grinSlab: each density's own loss) */
+function grInto(s, m, nb, isQ, nm) {
+  const dia = s.el.grin ? s.el.length : s.el.diameter, h = m.gh > 0 ? Math.min(m.gh, grH(dia) * 5) : grH(dia), G = s.grin;
+  const slab = G ? Math.max(h, Math.min(dia / 6, G.T / 6)) : Math.max(h, Math.min(0.25, dia / 6));
+  const gr = { s, G: m.grad, nb, h, slab, steps: 0, len: 0, done: 0, at: isQ ? true : null, aAt: null, aR2: null };
+  if (G) { const L = nm * 1e-6; gr.aR2 = r2 => G.alpha(Math.sqrt(r2), L); gr.aAt = X => { const [y, z] = grLocal(s, X); return gr.aR2(y * y + z * z); }; }
+  return gr;
+}
 function grGrad(gr, X) {
   const s = gr.s, [y, z] = grLocal(s, X), g = grSlopeOverR(gr.G, y * y + z * z);
   const L = s.tilt ? faceToLocal(s, 0, g * y, g * z) : [0, g * y, g * z], [wx, wy] = toWorldDir(s.f, L[0], L[1]);
@@ -10138,7 +10228,7 @@ function traceSceneOnce() {
     const idx = new Map();
     const nOf = (m, tag, th) => {
       if (m.bire) return birefIndex(m, tag, nm, th);      // a crystal: each polarisation its own index
-      const k = m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd; if (!idx.has(k)) idx.set(k, refIndex(m, nm)); return idx.get(k);
+      const k = m.glass + '|' + m.n + '|' + m.nd + '|' + m.vd + '|' + m.dn; if (!idx.has(k)) idx.set(k, refIndex(m, nm) + (m.dn || 0)); return idx.get(k);
     };
     // the group index, n - lambda dn/dlambda: what sets how far apart two paths can be and still interfere
     const gIdx = new Map();
@@ -10252,6 +10342,27 @@ function traceSceneOnce() {
         const l = Math.hypot(dx, dy), up = l < 1e-9;
         return { dx: up ? 1 : dx / l, dy: up ? 0 : dy / l, len: L * l, uz: up ? 0 : uz / l, len3: L, d3: [dx, dy, uz] };
       };
+      // The beam in a graded glass, split-step: every slab of the way a segment of plain glass (its index on the
+      // axis) ends, and a thin plate with the path the grading adds over it (Δ (n(r) - n₀)) bends the field and
+      // the pilot; the field engine carries the beam through these as through any phase plate. Called every
+      // slab along the way, at the middle of each slab (so the plate stands for the half slab behind it and the half
+      // ahead, second order in the slab), and once more at the face the ray leaves by, for what is left of the way
+      const grPlate = Dz => {
+        const A0 = gr.at, cx = px - A0.x, cy = py - A0.y, cz = anyZ ? zh - A0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
+        const sd = cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 };
+        beams.push(Object.assign({ x0: A0.x, y0: A0.y, qr: A0.qr, qi: A0.qi, n: gr.nb, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: gr.s.el.id,
+          J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: A0.opl, gpl, ng: gCur, bench: bn, fo, z0: A0.z, ...(hole > 0 ? { hole } : {}) }, sd));
+        bid = beams.length - 1;
+        const Gs = gr.G, lam0 = nm * 1e-6, C = 2 * Gs[0] * Dz / gr.nb;
+        // a disc's loss across the plate against the beam's own ray's, which the ray itself carries
+        const aR2 = gr.aR2, aC = aR2 ? gr.aAt([px, py, anyZ ? zh : zOf(gr.s.el)]) : 0;
+        const [lxs] = toLocal(gr.s.f, px, py), ms = Object.assign(Object.create(gr.s), { kind: 'mask', z: lxs, flat: true, c: 0, ph: null, coatAt: null,
+          maskFn: (u, v, lam) => [aR2 ? Math.exp(-0.5 * Dz * (aR2(u * u + v * v) - aC)) : 1, Dz * grDelta(Gs, u * u + v * v) / (lam || lam0)] });
+        evt = Object.defineProperty({ el: gr.s.el.id, kind: 'mask', semi: gr.s.semi, ly: toLocal(gr.s.f, px, py)[1], cth: 1, A: 1, C, D: 1, n1: gr.nb, n2: gr.nb, mode: 'M',
+          hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy], ...(anyZ ? { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh } : {}) }, 'surf', { value: ms, enumerable: false });
+        if (chief) { const dr = C * qr + 1, di = C * qi, den = dr * dr + di * di; [qr, qi] = [(qr * dr + qi * di) / den, (qi * dr - qr * di) / den]; }
+        gr.at = { x: px, y: py, z: zh, qr, qi, opl }; gr.done += Dz;
+      };
       // the surface met before the last one: a ray at two parts' faces in contact (a doublet of two
       // lenses touching) goes on through the second face at no distance at all, but never back to either
       let lastSeen = last, lastPrev = null;
@@ -10281,12 +10392,13 @@ function traceSceneOnce() {
           const forced = forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
           const h3 = anyZ && !forced && zCurved(s) ? zh - zOf(s.el) : 0;
+          wallHit = false;
           let tt = s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
             : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, tMin(s))
             : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
           if (anyZ && tt !== null && !forced && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
-          if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = false; }
+          if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
           if (splits && tt === null && !forced && !s.tilt && splittable(s)) {
             let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
             // a beam passing above or below a part does not reach round its edge either
@@ -10317,7 +10429,8 @@ function traceSceneOnce() {
           if (++gr.steps > GR_STEPS) break;
           const X = [px, py, anyZ ? zh : zOf(gr.s.el)], n0 = grN(gr, X), P = [dx * n0, dy * n0, (uz || 0) * n0];
           opl += grStep(X, P, gr.h, Q => grN(gr, Q), Q => grGrad(gr, Q));
-          if (aCur > 0) { const a = Math.exp(-0.5 * aCur * gr.h); sr *= a; si *= a; pr *= a; pi *= a; ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
+          const aH = gr.aAt ? gr.aAt(X) : aCur;
+          if (aH > 0) { const a = Math.exp(-0.5 * aH * gr.h); sr *= a; si *= a; pr *= a; pi *= a; ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
           gpl += gCur * gr.h;
           [px, py] = X; if (anyZ) zh = X[2];
           const pl = anyZ ? Math.hypot(P[0], P[1], P[2]) : Math.hypot(P[0], P[1]);
@@ -10328,20 +10441,8 @@ function traceSceneOnce() {
           // The beam in it, split-step: every GRIN_SLAB of the way a segment of plain glass (its index on the
           // axis) ends, and a thin plate with the path the grading adds over it (Δ (n(r) - n₀)) bends the
           // field and the pilot; the field engine carries the beam through these as through any phase plate
-          if (isQ && gr.at && (gr.sub = (gr.sub || 0) + gr.h) >= gr.slab) {
-            const A0 = gr.at, cx = px - A0.x, cy = py - A0.y, cz = anyZ ? zh - A0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
-            const sd = cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 };
-            beams.push(Object.assign({ x0: A0.x, y0: A0.y, qr: A0.qr, qi: A0.qi, n: gr.nb, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: gr.s.el.id,
-              J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: A0.opl, gpl, ng: gCur, bench: bn, fo, z0: A0.z, ...(hole > 0 ? { hole } : {}) }, sd));
-            bid = beams.length - 1;
-            const Dz = gr.sub, Gs = gr.G, lam0 = nm * 1e-6, C = 2 * Gs[0] * Dz / gr.nb;
-            const [lxs] = toLocal(gr.s.f, px, py), ms = Object.assign(Object.create(gr.s), { kind: 'mask', z: lxs, flat: true, c: 0, ph: null,
-              maskFn: (u, v, lam) => [1, Dz * grDelta(Gs, u * u + v * v) / (lam || lam0)] });
-            evt = Object.defineProperty({ el: gr.s.el.id, kind: 'mask', semi: gr.s.semi, ly: toLocal(gr.s.f, px, py)[1], cth: 1, A: 1, C, D: 1, n1: gr.nb, n2: gr.nb, mode: 'M',
-              hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy], ...(anyZ ? { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh } : {}) }, 'surf', { value: ms, enumerable: false });
-            if (chief) { const dr = C * qr + 1, di = C * qi, den = dr * dr + di * di; [qr, qi] = [(qr * dr + qi * di) / den, (qi * dr - qr * di) / den]; }
-            gr.at = { x: px, y: py, z: zh, qr, qi, opl }; gr.sub = 0;
-          }
+          gr.len += gr.h;
+          if (isQ && gr.at && gr.at !== true && gr.len - gr.done >= gr.slab / 2) grPlate(gr.slab);
           bounce--;
           continue;
         }
@@ -10353,6 +10454,9 @@ function traceSceneOnce() {
           pts.push(px + dx * FAR, py + dy * FAR);
           break;
         }
+        // the last stretch of a graded glass, to the face the ray leaves by: its plate here, a step short of the face
+        // at most, carrying what is left of the way, so the slab's whole grading is counted whatever its thickness
+        if (isQ && gr && gr.at && gr.at !== true && hit.el === gr.s.el) grPlate(gr.len + best - gr.done);
         if (isQ) {
           // through a graded glass, one segment from where the beam came into it: the chord of its curve
           const G0 = gr && gr.at, ex = px + dx * best, ey = py + dy * best;
@@ -10994,7 +11098,7 @@ function traceSceneOnce() {
           // on the way in, that of the light refracted (found by going round twice)
           const thFrom = tc && mFrom.bire && tag === mFrom.ePol ? angTo(mFrom, [ldx, ldy, ldz]) : undefined;
           // a face of a graded glass: its index where the ray meets the face
-          const grF = s.el && s.el.graded && (mFrom.grad || mInto.grad), grR2 = grF ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
+          const grF = s.el && (s.el.graded || s.el.grin) && (mFrom.grad || mInto.grad), grR2 = grF ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
           const n1 = nOf(mFrom, tag, thFrom) + (grF && mFrom.grad ? grDelta(mFrom.grad, grR2) : 0);
           let thInto;
           if (tc && mInto.bire && tag === mInto.ePol) for (let it = 0, nn = nOf(mInto, tag, Math.PI / 2); it < 3; it++) {
@@ -11007,7 +11111,7 @@ function traceSceneOnce() {
           const k = 1 - eta * eta * (1 - ci * ci);
           // the face's own amplitudes, reflected and passed (core/face-pol.js: the same numbers the field, the lens
           // designer and the RF designer take)
-          const F = faceAmps(s, n1, n2, ci, nm), total = F.tir;
+          const F = faceAmps(s.coatAt ? { coat: s.coatAt(Math.sqrt(grR2)) } : s, n1, n2, ci, nm), total = F.tir;
           const rsr = F.rs[0], rsi = F.rs[1], rpr = F.rp[0], rpi = F.rp[1];
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm
@@ -11031,9 +11135,9 @@ function traceSceneOnce() {
             }
             nCur = n2;               // the ray is now travelling in the second medium
             // into a graded glass, the ray curves from here (see grStep); out of one, no longer
-            gr = grF && mInto.grad ? { s, G: mInto.grad, nb: nOf(mInto, tag), h: grH(s.el.diameter), slab: Math.max(grH(s.el.diameter), Math.min(0.25, s.el.diameter / 6)), steps: 0, at: isQ ? true : null } : null;
+            gr = grF && mInto.grad ? grInto(s, mInto, nOf(mInto, tag), isQ, nm) : null;
             gCur = ngOf(goingBack ? s.back : s.front, tag, thInto);
-            aCur = absorbAt(goingBack ? s.back : s.front, nm);
+            aCur = gr && gr.aAt ? gr.aAt([px, py, anyZ ? zh : zOf(s.el)]) : absorbAt(goingBack ? s.back : s.front, nm);
             const mNow = goingBack ? s.back : s.front;
             if (!mNow.bire) tag = undefined;                     // out of the crystal
             else if (tc && tag === mNow.ePol) {
@@ -11426,6 +11530,8 @@ function surfPoints(s, n = 48, reverse = false, f = null) {
     if (hi > lo) for (let i = 0; i <= 200; i++) ys.push(lo + (hi - lo) * i / 200);
     ys.sort((a, b) => a - b);
   }
+  // a zoned face: a point either side of each step, so its walls are drawn sheer
+  if (s.zone) { for (const r of s.zone.steps) for (const sg of [1, -1]) ys.push(sg * (r - 1e-6), sg * (r + 1e-6)); ys.sort((a, b) => a - b); }
   if (reverse) ys.reverse();
   return ys.map(y => [s.z + sagFn(s, y), y]);
 }
@@ -21782,14 +21888,15 @@ function antennaRows(el) {
 
 /* a graded-index lens: the beam it carries, as an RF lens's readout gives it */
 function grinReadout(el) {
+  // the beam arriving at the disc's first face from outside it (the disc is traced as a slab: inside it the beam is in the plastic)
   let best = null;
   for (const b of lastTrace.beams || []) {
     const s = b.ev && b.ev.surf;
-    if (!s || !s.el || s.el.id !== el.id || !(b.nm > 1e5) || !(b.qi > 0)) continue;
+    if (b.endEl !== el.id || !(b.nm > 1e5) || !(b.qi > 0) || b.n > 1.0001 || (s && s.el && s.el.id === el.id)) continue;
     if (!best || b.w > best.w) best = b;
   }
   if (!best) return null;
-  const B = beamAt(best.qr, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
+  const B = beamAt(best.qr + best.len, best.qi, best.n, best.nm), w = B && B.w, a = el.length / 2;
   if (!(w > 0)) return null;
   const taper = 8.686 * (a / w) ** 2, spill = Math.exp(-2 * (a / w) ** 2);
   const [aRows, aNote] = antennaRows(el);
@@ -30370,7 +30477,8 @@ function polCoeff(ev, nm) {
   if (s.kind === 'grating') return mode === 'R' ? () => [-1, 0, -1, 0] : () => [1, 0, 1, 0];
   const n1 = ev.nIn, n2 = ev.nOut;
   if (!(n1 > 0 && n2 > 0)) return () => [1, 0, 1, 0];
-  // the face's own amplitudes (core/face-pol.js), as the tracer takes them
+  // the face's own amplitudes (core/face-pol.js), as the tracer takes them; a graded disc's matching layer at the radius met
+  if (s.coatAt) return (ci, u, v) => pick(faceAmps({ coat: s.coatAt(Math.hypot(u || 0, v || 0)) }, n1, n2, ci, nm));
   return ci => pick(faceAmps(s, n1, n2, ci, nm));
 }
 /* A waveplate's or polariser's Jones matrix in the (p, s) basis, as the tracer applies it:
@@ -30410,7 +30518,7 @@ function polMatrix(coef, d, nrm, d2, eIn, eOut, cIn) {
 const dot3s = (a0, a1, a2, b0, b1, b2) => a0 * b0 + a1 * b1 + a2 * b2;
 /* The same, into M as [ss, sp, ps, pp], each re then im, from the vectors' components: no
    arrays, as the 2D surface step works it out for every sample */
-function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0, c1, c2) {
+function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0, c1, c2, su, sv) {
   // the s direction, across the plane of incidence
   let s0 = d1 * n2 - d2 * n1, s1 = d2 * n0 - d0 * n2, s2 = d0 * n1 - d1 * n0;
   const L = Math.hypot(s0, s1, s2);
@@ -30419,7 +30527,7 @@ function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0,
   const gi = eIn.sg, go = eOut.sg;
   const pi0 = (s1 * d2 - s2 * d1) * gi, pi1 = (s2 * d0 - s0 * d2) * gi, pi2 = (s0 * d1 - s1 * d0) * gi;
   const po0 = (s1 * e2 - s2 * e1) * go, po1 = (s2 * e0 - s0 * e2) * go, po2 = (s0 * e1 - s1 * e0) * go;
-  const c = coef(Math.abs(dot3s(d0, d1, d2, n0, n1, n2)));
+  const c = coef(Math.abs(dot3s(d0, d1, d2, n0, n1, n2)), su, sv);
   const cs0 = c[0], cs1 = -c[1], cp0 = c[2], cp1 = -c[3];          // conjugated into the field's convention
   // The field is stored as its two components across the beam's axis; a ray tilted to that
   // axis carries a small part along it too, fixed by the field being square to the ray. Put
@@ -30850,6 +30958,20 @@ function dpRefract(s, lam0, u, v, d, nrm, n1, n2, e) {
   return true;
 }
 const dpPath = (s, lam0, u, v) => s.dm * lam0 / (2 * Math.PI) * dpPhase(s.ph, u * u + v * v);
+/* a sample ray at a zoned face (its steps in s.zone): Newton's answer t stands when it is on the face and the ray met no
+   step's wall on the way; else the face is searched along the ray with its steps (core/geometry.js zoneHit), over the
+   face's own depth. { t, wall }: wall true where the ray ran into a wall, so the sample is lost (the step's shadow) */
+function zoneCheck(s, px, py, pz, dx, dy, dz, t, ok) {
+  const sag = u => rawSag(s, Math.hypot(py + u * dy, pz + u * dz)) - (s.y0 ? s.sag0 : 0);
+  if (Math.abs(dx) < 1e-12) return null;
+  const xa = (s.xmin - s.z - px) / dx, xb = (s.xmax - s.z - px) / dx, t0 = Math.min(xa, xb) - 1e-6, t1 = Math.max(xa, xb) + 1e-6;
+  if (ok && Math.abs(px + t * dx - sag(t)) < 1e-7 * (1 + Math.abs(t))) {
+    const Z = zoneHit(s, px, py, pz, dx, dy, dz, t0, Math.min(t1, t + 1e-6));
+    if (Z && Z.t <= t + 1e-6) return Z;                    // the first thing the ray meets: this face here, or a wall before it
+    return { t, wall: false };
+  }
+  return zoneHit(s, px, py, pz, dx, dy, dz, t0, t1);
+}
 function popScreen3(ev, invRx, invRy, lam0) {
   const s = ev.surf;
   const edge = s.maskMargin || ((u, v) => s.semi - Math.sqrt(u * u + v * v));
@@ -30891,6 +31013,7 @@ function popScreen3(ev, invRx, invRy, lam0) {
       if (it === 39) ok = false;
     }
     if (!isFinite(t)) return [0, 0, 0, -1, false];
+    if (s.zone) { const z = zoneCheck(s, px, py, pz, ldx, ldy, ldz, t, ok); if (!z) return [0, 0, 0, -1, false]; t = z.t; ok = ok && !z.wall; }
     ly = py + t * ldy; lz = pz + t * ldz;
     sagAt(ly + y0, lz);
     let ex = ldx, ey = ldy, ez = ldz, nx = 1, ny = -sY, nz = -sZ;
@@ -30977,6 +31100,7 @@ function popScreen(ev, invRx, invRy, lam0) {
       if (it === 39) ok = false;
     }
     if (!isFinite(t)) return [0, 0, 0, -1, false];
+    if (s.zone) { const z = zoneCheck(s, px, py, pz, ldx, ldy, ldz, t, ok); if (!z) return [0, 0, 0, -1, false]; t = z.t; ok = ok && !z.wall; }
     ly = py + t * ldy; lz = pz + t * ldz;
     sagAt(ly + y0, lz);
     const Sy = sY, Sz = sZ;
@@ -31641,7 +31765,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
             // turned it in the bench plane
             const cc = coef(1);
             pmS[0] = cc[0]; pmS[1] = -cc[1]; pmS[2] = 0; pmS[3] = 0; pmS[4] = 0; pmS[5] = 0; pmS[6] = cc[2]; pmS[7] = -cc[3];
-          } else polMatrixTo(pmS, coef, d0, d1, d2, r[11], r[12], r[13], e0, e1, e2, eIn, eOut, ...(eIn.d || [ev.dIn[0], ev.dIn[1], 0]));
+          } else polMatrixTo(pmS, coef, d0, d1, d2, r[11], r[12], r[13], e0, e1, e2, eIn, eOut, ...(eIn.d || [ev.dIn[0], ev.dIn[1], 0]), r[6], r[7]);
           PM = pmS;
         }
         if (!r[4]) { prev = null; continue; }
@@ -44515,6 +44639,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A graded-index disc and a zoned lens, traced as they are made.</b> The bench now traces a graded-index RF disc as a slab of graded plastic between two flat faces (the same slab the RF designer and the lens engine take, so the three agree on where it focuses), with each part\u2019s loss at its own density and each face\u2019s matching layer at the radius met; and a zoned lens as it is cut, its curved face stepped back where whole layers come out, each step a sheer wall that shadows the rays and the diffracted field behind it. The 2D outline shows the steps.',
     'The bench\u2019s <b>Tolerance the bench</b> study is now seeded by the number of builds asked for, so running it again gives the same spread; the lens designer\u2019s and the RF designer\u2019s Monte Carlo draw from the same seeded source. Under the surface, one copy each of the surface sag, the Bessel functions, the small linear solvers and the complex arithmetic now serves the bench, both designers and the drawings, and the RF designer\u2019s gain is checked against the bench\u2019s closed form for a lens antenna.',
     '<b>One set of numbers for every face</b>: the bench\u2019s rays, its diffracted field and focus, the lens designer\u2019s polarisation trace and the RF designer\u2019s reflections now take a face\u2019s s and p amplitudes from one place, so they agree exactly. Light through a <b>coated face</b> now keeps the coating\u2019s own phase, so a beamsplitter or AR stack met at a slant retards p against s on the way through, as a real one does; a coated face now reflects s and p with the same sign square on (p was turned over before); the lens designer\u2019s mirrors reflect their own reflectance; and the RF designer counts any coating stack on a lens, not only a single matching layer.',
     'A tidier interface: <b>three kinds of button</b> (one solid button for the main action, outlined ones for the others, and plain words for menus and toggles), <b>Save</b> marked with a dot when the bench has changed since it was opened or saved, and the designers\u2019 tabs drawn as tabs. On a <b>phone</b> the top bar is one row: the bench\u2019s name, <b>+</b>, <b>Save</b> and <b>\u22ef</b>, a menu holding the rest. The <b>RF designer</b> lists its system down the left as the beam meets it (the frequency, the feed horn, each lens, the goal) and edits the one chosen beside the beam; <b>Add a lens</b> puts another after the last and designs it, and a lens can be taken out again.',

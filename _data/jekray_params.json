@@ -263,7 +263,7 @@
     {
      "k": "zoned",
      "def": null,
-     "meaning": "optional, a made-to-order RF lens of two faces only: {\"ghz\": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces the smooth lens; the RF designer, its weight and its quote take it as cut."
+     "meaning": "optional, a made-to-order RF lens of two faces only: {\"ghz\": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces it as cut (a ray meeting a step’s wall is lost); the RF designer, its weight and its quote take it as cut too."
     },
     {
      "k": "asphere",

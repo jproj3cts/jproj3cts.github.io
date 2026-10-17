@@ -68,6 +68,6 @@ export const LENS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.',
-    zoned: 'optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces the smooth lens; the RF designer, its weight and its quote take it as cut.' },
+    zoned: 'optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces it as cut (a ray meeting a step\u2019s wall is lost); the RF designer, its weight and its quote take it as cut too.' },
   },
 };

@@ -22,7 +22,8 @@ export function polCoeff(ev, nm) {
   if (s.kind === 'grating') return mode === 'R' ? () => [-1, 0, -1, 0] : () => [1, 0, 1, 0];
   const n1 = ev.nIn, n2 = ev.nOut;
   if (!(n1 > 0 && n2 > 0)) return () => [1, 0, 1, 0];
-  // the face's own amplitudes (core/face-pol.js), as the tracer takes them
+  // the face's own amplitudes (core/face-pol.js), as the tracer takes them; a graded disc's matching layer at the radius met
+  if (s.coatAt) return (ci, u, v) => pick(faceAmps({ coat: s.coatAt(Math.hypot(u || 0, v || 0)) }, n1, n2, ci, nm));
   return ci => pick(faceAmps(s, n1, n2, ci, nm));
 }
 /* A waveplate's or polariser's Jones matrix in the (p, s) basis, as the tracer applies it:
@@ -62,7 +63,7 @@ export function polMatrix(coef, d, nrm, d2, eIn, eOut, cIn) {
 const dot3s = (a0, a1, a2, b0, b1, b2) => a0 * b0 + a1 * b1 + a2 * b2;
 /* The same, into M as [ss, sp, ps, pp], each re then im, from the vectors' components: no
    arrays, as the 2D surface step works it out for every sample */
-export function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0, c1, c2) {
+export function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eOut, c0, c1, c2, su, sv) {
   // the s direction, across the plane of incidence
   let s0 = d1 * n2 - d2 * n1, s1 = d2 * n0 - d0 * n2, s2 = d0 * n1 - d1 * n0;
   const L = Math.hypot(s0, s1, s2);
@@ -71,7 +72,7 @@ export function polMatrixTo(M, coef, d0, d1, d2, n0, n1, n2, e0, e1, e2, eIn, eO
   const gi = eIn.sg, go = eOut.sg;
   const pi0 = (s1 * d2 - s2 * d1) * gi, pi1 = (s2 * d0 - s0 * d2) * gi, pi2 = (s0 * d1 - s1 * d0) * gi;
   const po0 = (s1 * e2 - s2 * e1) * go, po1 = (s2 * e0 - s0 * e2) * go, po2 = (s0 * e1 - s1 * e0) * go;
-  const c = coef(Math.abs(dot3s(d0, d1, d2, n0, n1, n2)));
+  const c = coef(Math.abs(dot3s(d0, d1, d2, n0, n1, n2)), su, sv);
   const cs0 = c[0], cs1 = -c[1], cp0 = c[2], cp1 = -c[3];          // conjugated into the field's convention
   // The field is stored as its two components across the beam's axis; a ray tilted to that
   // axis carries a small part along it too, fixed by the field being square to the ray. Put

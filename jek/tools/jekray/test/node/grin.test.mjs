@@ -45,20 +45,32 @@ test('its plate: a thin lens of the design focal length near the axis', () => {
   assert.ok(fn(70, 0, lam)[0] === 0 && fn(0, 0, lam)[0] > 0.8, 'clear inside, opaque outside');
 });
 
-test('a Gaussian beam is focused where a thin lens of that focal length focuses it', () => {
-  const lam = C_NM_GHZ / 24 * 1e-6, w0 = 40, zR = Math.PI * w0 * w0 / lam, f = 150;
+test('a Gaussian beam is focused where the graded slab’s own paraxial matrix puts it, near a thin lens of its focal length', async () => {
+  const { grinSlab } = await import('../../src/core/grin.js'), { grMatrix } = await import('../../src/core/gradient.js');
+  const lam = C_NM_GHZ / 24 * 1e-6, w0 = 40, zR = Math.PI * w0 * w0 / lam, f = 150, d0 = 200;
+  const grin = { f, ghz: 24, mat: 'ABS', fillMin: 15 }, G = grinSlab(normGrin(grin), 200);
   loadProject({ format: 'jekray', version: 1, minPower: 1e-6, elements: [
-    // an ideal Gaussian feed horn, its waist w0 at its aperture (a very long horn: no curvature)
-    { type: 'source', name: 'S', x: -1, y: 0, angle: 0, rays: 1, mmw: { kind: 'gauss', ghz: 24, dbm: 0, a: w0 / 0.6435, L: 1e9 } },
-    { type: 'mask', name: 'G', x: 0, y: 0, angle: 0, length: 200, mmw: { part: true }, grin: { f, ghz: 24, mat: 'ABS', fillMin: 15 } },
+    // an ideal Gaussian feed horn, its waist w0 at its aperture (a very long horn: no curvature), 200 mm before the disc's centre
+    { type: 'source', name: 'S', x: -d0, y: 0, angle: 0, rays: 1, mmw: { kind: 'gauss', ghz: 24, dbm: 0, a: w0 / 0.6435, L: 1e9 } },
+    { type: 'mask', name: 'G', x: 0, y: 0, angle: 0, length: 200, mmw: { part: true }, grin },
     { type: 'screen', name: 'T', x: 400, y: 0, angle: 180, length: 200 }] });
   TRACE.setLastTraceKey(null); TRACE.traceScene();
-  const G = STATE.project.elements.find(e => e.name === 'G');
-  const b = TRACE.lastTrace.beams.find(x => x.ev && x.ev.surf && x.ev.surf.el && x.ev.surf.el.id === G.id && x.qi > 0);
+  const Ge = STATE.project.elements.find(e => e.name === 'G');
+  // the beam leaving the disc's back face (the one inside it is in the plastic)
+  const b = TRACE.lastTrace.beams.find(x => x.ev && x.ev.surf && x.ev.surf.el && x.ev.surf.el.id === Ge.id && x.qi > 0 && x.n <= 1.0001);
   assert.ok(b, 'a beam leaves the lens');
-  // the waist after a thin lens, for a waist (nearly) at it: f / (1 + (f / zR)^2)
-  const want = f / (1 + (f / zR) ** 2), got = -b.qr;
-  assert.ok(Math.abs(got - want) < 0.02 * want, 'waist ' + got.toFixed(1) + ' mm after the lens, a thin lens puts it at ' + want.toFixed(1));
+  // the slab's paraxial matrix on the beam's q (real height and slope): free space to the front face, in through a flat face
+  // (q scaled by the index), the graded slab's r² term (core/gradient.js grMatrix), out through the back face
+  let q = [d0 - G.T / 2, zR];
+  q = [q[0] * G.n0, q[1] * G.n0];
+  const [A, B, C, D] = grMatrix(G.grad[0], G.n0, G.T), nr = C * q[0] + D, ni = C * q[1], den = nr * nr + ni * ni, ar = A * q[0] + B, ai = A * q[1];
+  q = [(ar * nr + ai * ni) / den / G.n0, (ai * nr - ar * ni) / den / G.n0];
+  const want = -q[0], got = -b.qr;
+  assert.ok(Math.abs(got - want) < 0.02 * want, 'waist ' + got.toFixed(1) + ' mm after the back face, the slab’s matrix puts it at ' + want.toFixed(1));
+  // and near where a thin lens of the focal length would, measured from the disc's centre: within the disc's own thickness
+  const u = d0, thin = 1 / (1 / f - 1 / u) ;                     // the image of the waist's place, u before the lens (the beam is nearly collimated: zR ≫ f)
+  const thinWaist = f / (1 + (f / zR) ** 2);
+  assert.ok(Math.abs(got + G.T / 2 - thinWaist) < G.T && isFinite(thin), 'the waist ' + (got + G.T / 2).toFixed(1) + ' mm from the centre, a thin lens ' + thinWaist.toFixed(1) + ', the disc ' + G.T.toFixed(1) + ' thick');
 });
 
 test('a measured mixing rule: the density for an index inverts it, the default is the mean by volume, and the plate carries its loss', async () => {

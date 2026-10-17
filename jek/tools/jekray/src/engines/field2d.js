@@ -627,7 +627,7 @@ export function popSurface2(F, ev, gain, paraxial, tNext, pol) {
             // turned it in the bench plane
             const cc = coef(1);
             pmS[0] = cc[0]; pmS[1] = -cc[1]; pmS[2] = 0; pmS[3] = 0; pmS[4] = 0; pmS[5] = 0; pmS[6] = cc[2]; pmS[7] = -cc[3];
-          } else polMatrixTo(pmS, coef, d0, d1, d2, r[11], r[12], r[13], e0, e1, e2, eIn, eOut, ...(eIn.d || [ev.dIn[0], ev.dIn[1], 0]));
+          } else polMatrixTo(pmS, coef, d0, d1, d2, r[11], r[12], r[13], e0, e1, e2, eIn, eOut, ...(eIn.d || [ev.dIn[0], ev.dIn[1], 0]), r[6], r[7]);
           PM = pmS;
         }
         if (!r[4]) { prev = null; continue; }

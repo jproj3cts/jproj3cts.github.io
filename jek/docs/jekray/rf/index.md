@@ -162,7 +162,7 @@ $$
 
 At a given frequency the lowest density is raised, if need be, so that its structure stays fine against the wavelength: at 24 GHz, to about 24%; at 10 GHz, 15% stands.
 
-Its panel gives the thickness, the index and density from centre to edge, the loss at the centre and at the edge, its weight, and whether it is manufacturable; below them, the beam at the lens and its edge taper, as for an RF lens. On the bench it is a thin plate with that delay and the transmission its loss and its faces leave; a disc thick against its focal length, over 0.3 of it, is only roughly placed, and the panel says so.
+Its panel gives the thickness, the index and density from centre to edge, the loss at the centre and at the edge, its weight, and whether it is manufacturable; below them, the beam at the lens and its edge taper, as for an RF lens. On the bench it is traced as what it is: a slab of the plastic between two flat faces, graded from the axis so its optical path is the design's, with each part's loss at its own density and each face's matching layer at the radius the ray meets it. Its rays curve through the slab as they do through any graded glass, so its focus is where a disc of that thickness puts it, and the bench, the RF designer and the lens engine take the same slab; a disc thick against its focal length, over 0.3 of it, focuses a little short of its design focal length from its centre, and the panel says so.
 
 The example **Graded-index lens, 24 GHz** shows one 120 mm across on a 24 GHz horn.
 
@@ -339,7 +339,7 @@ deep, a wave of path at its zone frequency $$\lambda_z$$. Its thickness at $$r$$
 
 At the zone frequency the zoned lens bends the wave exactly as the smooth one does, since each step delays it by a whole wave. Away from it, each step delays it by $$k\lambda_z$$, not $$k\lambda$$: the phase slips by $$k(\lambda_z - \lambda)$$, a whole wave less, across the zones. The RF designer counts this from real rays, each ray's $$k$$ where it meets the cut face, in the phase error. The more zones, the narrower the band: **Analyses › Over the band** shows the phase error falling away either side of the zone frequency, and the gain with it.
 
-The steps' walls also shadow a little of the beam, which is not counted. On the bench a zoned lens is traced as the smooth lens it is cut from (the same at its zone frequency). A lens's own page sets it zoned and its zone frequency, and gives its steps and its thickness as cut; **Design this lens** can cut the lens it makes; **Make it**, the 3D view, the drawing (the steps' depth and radii) and the quote all take the lens as cut.
+On the bench a zoned lens is traced as it is cut: its curved face stepped back by the whole layers taken out, each step a sheer wall. A ray that runs into a wall is lost to the beam (the wall's shadow, a band inside each step as wide as the step is deep times the slope of the rays there), the diffracted field loses the same band, and the rays through each zone meet the smooth face moved back a step, so they are bent a little differently from the smooth lens's: a small defocus of its own, which the RF designer does not count. At the zone frequency the bench's lens therefore comes a little short of the designer's aperture efficiency, and absorbs less, as the designer has it. A lens's own page sets it zoned and its zone frequency, and gives its steps and its thickness as cut; **Design this lens** can cut the lens it makes; **Make it**, the 3D view, the drawing (the steps' depth and radii) and the quote all take the lens as cut.
 
 ### Worked examples
 

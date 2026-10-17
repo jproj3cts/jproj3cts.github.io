@@ -3,6 +3,8 @@ import { CRYSTALS, bireMat } from './crystals.js';
 import { deg, num } from '../state/project.js';
 import { faceSurf, lensSurfaces, makeSurf, polySurfaces } from './geometry.js';
 import { maskFns, stopBlades } from './mask.js';
+import { grinSlab } from './grin.js';
+import { grH } from './gradient.js';
 import { zOf } from '../engines/trace.js';
 import { ELEC } from '../engines/elec.js';
 
@@ -275,6 +277,16 @@ export function elementSurfaces(el) {
   }
   if (el.type === 'polariser' && el.grid) return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grid' })];   // a wire grid reflects what it stops
   if (el.type === 'waveplate' || el.type === 'polariser') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
+  if (el.type === 'mask' && el.grin) {
+    // a graded-index RF disc: a slab of its plastic graded from the axis between two flat faces (core/grin.js
+    // grinSlab), as the RF designer and the lens engine take it; each face's matching layer at the radius met.
+    // One that cannot be made stays a plate that passes everything
+    const G = grinSlab(el.grin, el.length, el.nAs);
+    if (G) {
+      const a = el.length / 2, air = { glass: 'AIR' }, mat = { glass: el.grin.mat, dn: G.dn, grad: G.grad, gh: grH(el.length) };
+      return [0, 1].map(i => makeSurf(el, (i ? 1 : -1) * G.T / 2, 0, 0, 0, [], a, { kind: 'refract', coat: null, coatAt: G.coat, grin: G, front: i ? mat : air, back: i ? air : mat }));
+    }
+  }
   if (el.type === 'mask') {
     const s = makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'mask' });
     s.maskFn = maskFns(el).fn;

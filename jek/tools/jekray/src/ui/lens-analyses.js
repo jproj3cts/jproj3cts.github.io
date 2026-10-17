@@ -654,7 +654,8 @@ function seidelView(body, asm, P, F) {
 /* ---------- Ghosts ---------- */
 // each surface's coating, from its part (a lens's faces; any other surface bare)
 function coatsOf(P) {
-  return P.surfaces.map(s => { const e = s.from && getEl(s.from.id); return e && e.surfaces && e.surfaces[s.from.i] ? e.surfaces[s.from.i].coat || null : null; });
+  // a mirror: its reflectance, as the bench takes it
+  return P.surfaces.map(s => { const e = s.from && getEl(s.from.id); return e && s.mirror ? { mode: 'mirror', R: e.reflect === undefined ? 100 : e.reflect } : e && e.surfaces && e.surfaces[s.from.i] ? e.surfaces[s.from.i].coat || null : null; });
 }
 const coatKey = P => JSON.stringify(coatsOf(P));
 const ghPct = v => v >= 0.01 ? anFmt(100 * v, 3) + '%' : v >= 1e-5 ? anFmt(1e6 * v, 3) + ' ppm' : v > 0 ? v.toExponential(2) : '0';

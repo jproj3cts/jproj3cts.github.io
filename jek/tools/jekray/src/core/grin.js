@@ -1,3 +1,4 @@
+import { faceRNormal } from './face-pol.js';
 import { clamp } from './constants.js';
 import { C_NM_GHZ, PRINTER, RF_MAT, mixA, mixEps, mixFill } from './rf.js';
 
@@ -67,12 +68,10 @@ export function grinDesign(g, dia) {
   if (match && Math.sqrt(nLo) < nLo) { let lo = 0, hi = a; for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (Math.sqrt(nAt(m)) >= nLo) lo = m; else hi = m; } rMatch = lo; }
   // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)) in the core and the layers, and reflected at the two faces
   const alpha = (n, fill) => 2 * Math.PI * mixEps(M, fill / 100).epsI / (n * lam);
-  const refl = n => ((n - 1) / (n + 1)) ** 2;
-  // a face with a layer of index nm, tm thick, between air and n: the single-layer film's reflectance at lambda
-  const reflM = (n, nm, lamX) => {
-    const r1 = (1 - nm) / (1 + nm), r2 = (nm - n) / (nm + n), c = Math.cos(4 * Math.PI * nm * tm / lamX);
-    return (r1 * r1 + r2 * r2 + 2 * r1 * r2 * c) / (1 + r1 * r1 * r2 * r2 + 2 * r1 * r2 * c);
-  };
+  // a face square on, as the bench takes it (core/face-pol.js): bare, or with a layer of index nm, tm thick (mm), at
+  // the wavelength lamX (mm)
+  const refl = n => faceRNormal(1, n, 1, null);
+  const reflM = (n, nm, lamX) => faceRNormal(1, n, lamX * 1e6, { mode: 'stack', layers: [{ n: nm, d: tm * 1e6 }] });
   const lossDb = r => {
     const n = nAt(r), core = 4.343 * alpha(n, fillOf(n)) * t;
     if (!match) return { abs: core, refl: -20 * Math.log10(1 - refl(n)) };

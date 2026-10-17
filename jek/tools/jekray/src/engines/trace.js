@@ -16,7 +16,7 @@ import { beamAt, isHigherMode, m2Env, srcModes } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
-import { stackAmp } from '../core/coatings.js';
+import { faceAmps } from '../core/face-pol.js';
 import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn } from '../core/geometry.js';
@@ -1298,7 +1298,8 @@ function traceSceneOnce() {
         // at a surface, so each keeps its own complex reflection coefficient.
         // a chirped mirror adds its GDD to what it reflects (about its source's centre)
         const reflExtra = s.kind === 'mirror' && s.el.gdd && cosd < 0 ? gddPath(s.el.gdd, nm, (pulseOf(src) || src).wavelength) : 0;
-        const branch = (rsr, rsi, rpr, rpi) => {
+        // T: what the face passes, s and p, with its phase (core/face-pol.js); else √(1 - R), no phase
+        const branch = (rsr, rsi, rpr, rpi, T) => {
           const brs = sr * rsr - si * rsi, bsi = sr * rsi + si * rsr;
           const bpr = pr * rpr - pi * rpi, bpi = pr * rpi + pi * rpr;
           const wr = brs * brs + bsi * bsi + bpr * bpr + bpi * bpi;
@@ -1327,8 +1328,13 @@ function traceSceneOnce() {
           }
           // what continues keeps the remaining energy, with no extra phase
           if (wr > 0) path += 't' + bounce;
-          const ts = Math.sqrt(Math.max(0, 1 - Rs)), tp = Math.sqrt(Math.max(0, 1 - Rp));
-          sr *= ts; si *= ts; pr *= tp; pi *= tp;
+          if (T) {
+            const [tsr, tsi] = T.ts, [tpr, tpi] = T.tp;
+            [sr, si, pr, pi] = [sr * tsr - si * tsi, sr * tsi + si * tsr, pr * tpr - pi * tpi, pr * tpi + pi * tpr];
+          } else {
+            const ts = Math.sqrt(Math.max(0, 1 - Rs)), tp = Math.sqrt(Math.max(0, 1 - Rp));
+            sr *= ts; si *= ts; pr *= tp; pi *= tp;
+          }
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
         };
         // tangential ABCD for this surface, q = (A q + B) / (C q + D): one for the light that
@@ -1468,44 +1474,10 @@ function traceSceneOnce() {
           const n2 = nOf(mInto, tag, thInto) + (grF && mInto.grad ? grDelta(mInto.grad, grR2) : 0);
           const eta = n1 / n2;
           const k = 1 - eta * eta * (1 - ci * ci);
-          let rsr = 0, rsi = 0, rpr = 0, rpi = 0, total = false;
-          if (k < 0) {
-            // total internal reflection: everything comes back, each component with its own phase
-            const b = Math.sqrt(-k);
-            const phs = -2 * Math.atan2(n2 * b, n1 * ci);
-            const php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;   // p in the parity convention, see below
-            rsr = Math.cos(phs); rsi = Math.sin(phs);
-            rpr = Math.cos(php); rpi = Math.sin(php);
-            total = true;
-          } else if (s.kind === 'split') {
-            // a coating: the reflected field leads the transmitted one by a quarter wave
-            rsi = Math.sqrt(s.Rs); rpi = Math.sqrt(s.Rp);
-            if (s.Rs >= 1 && s.Rp >= 1) total = true;
-          } else if (s.coat && s.coat.mode === 'band' && nm >= s.coat.lo && nm <= s.coat.hi) {
-            rsi = rpi = Math.sqrt(s.coat.R / 100);
-          } else if (s.coat && s.coat.mode === 'band') {
-            // out of band: no coating worth the name, so trace the bare surface
-            const ct = Math.sqrt(k);
-            rsr = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct);
-            rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
-          } else if (s.coat && s.coat.mode === 'stack' && s.coat.layers.length) {
-            // layers are listed from the outside in, so a ray arriving through the
-            // substrate meets the same stack in reverse order
-            const stack = n1 > n2 ? s.coat.layers.slice().reverse() : s.coat.layers;
-            const rs = stackAmp(stack, n1, n2, ci, nm, 's');
-            const rp = stackAmp(stack, n1, n2, ci, nm, 'p');
-            rsr = rs[0]; rsi = rs[1]; rpr = -rp[0]; rpi = -rp[1];
-          } else if (s.coat && s.coat.mode !== 'bare') {
-            rsi = rpi = Math.sqrt(s.coat.R / 100);
-          } else {
-            // Bare glass: real Fresnel coefficients, so a sign change is half a wave. p is in
-            // the parity convention used throughout: its direction is the in-plane normal to
-            // the ray, reversed at each reflection, so a mirror turns s and p over alike and
-            // at normal incidence r_p = r_s, as it must when s and p cannot be told apart.
-            const ct = Math.sqrt(k);
-            rsr = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct);
-            rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
-          }
+          // the face's own amplitudes, reflected and passed (core/face-pol.js: the same numbers the field, the lens
+          // designer and the RF designer take)
+          const F = faceAmps(s, n1, n2, ci, nm), total = F.tir;
+          const rsr = F.rs[0], rsi = F.rs[1], rpr = F.rp[0], rpi = F.rp[1];
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm
             wentR = true;
@@ -1516,7 +1488,7 @@ function traceSceneOnce() {
             const npr = pr * rpr - pi * rpi, npi = pr * rpi + pi * rpr;
             sr = nsr; si = nsi; pr = npr; pi = npi;
           } else {
-            if (rsr || rsi || rpr || rpi) branch(rsr, rsi, rpr, rpi);
+            branch(rsr, rsi, rpr, rpi, F);
             if (s.ph) {
               // a diffractive face: Snell's law with its phase's pull along it, and its path
               const D = dpPull(s, ...(s.tilt ? toLocal(s.ef, px, py) : [lx, ly]), hS, nm * 1e-6), o = [0, 0, 0];

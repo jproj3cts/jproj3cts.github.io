@@ -49,7 +49,7 @@ test('aperture efficiency, coupling and a matched face against their formulas', 
   assert.ok(RF.apertureEff(50, 40, 2000, lam) < RF.apertureEff(50, 40, Infinity, lam), 'a curved phase spreads the beam');
   assert.ok(Math.abs(RF.gaussCoupling(10, Infinity, 10, Infinity, lam) - 1) < 1e-12);
   assert.ok(Math.abs(RF.gaussCoupling(10, Infinity, 20, Infinity, lam) - 16 / 25) < 1e-12);
-  const n = 1.526, nm = C.C_NM_GHZ / ghz, coat = { label: 'Matching layer', design: nm, layers: [{ n: Math.sqrt(n), d: nm / (4 * Math.sqrt(n)) }] };
+  const n = 1.526, nm = C.C_NM_GHZ / ghz, coat = { mode: 'stack', label: 'Matching layer', design: nm, layers: [{ n: Math.sqrt(n), d: nm / (4 * Math.sqrt(n)) }] };
   assert.ok(RF.faceR(1, n, nm, coat) < 1e-20);
   assert.ok(Math.abs(RF.faceR(1, n, nm, null) - ((n - 1) / (n + 1)) ** 2) < 1e-15);
   assert.ok(RF.faceR(1, n, nm * 1.2, coat) > 1e-4 && RF.faceR(1, n, nm * 1.2, coat) < RF.faceR(1, n, nm, null));

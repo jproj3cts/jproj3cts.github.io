@@ -1,6 +1,6 @@
 import { filterT } from '../core/crystals.js';
 import { deg } from '../state/project.js';
-import { stackAmp } from '../core/coatings.js';
+import { faceAmps, mirrorAmps } from '../core/face-pol.js';
 import { benchNms } from '../state/elements.js';
 import { modJonesM } from './mods.js';
 
@@ -12,14 +12,9 @@ import { modJonesM } from './mods.js';
 export function polCoeff(ev, nm) {
   const s = ev.surf, mode = ev.mode;
   if (!s || mode === 'P' || mode === 'M') return () => [1, 0, 1, 0];
-  if (s.kind === 'mirror') {
-    const R = s.el.reflect / 100;
-    const r = ev.back ? Math.sqrt(R) : -Math.sqrt(R);           // from behind, the other way up (as the tracer)
-    return mode === 'R' ? () => [r, 0, r, 0] : () => [Math.sqrt(1 - R), 0, Math.sqrt(1 - R), 0];
-  }
-  if (s.kind === 'split') {
-    return mode === 'R' ? () => [0, Math.sqrt(s.Rs), 0, Math.sqrt(s.Rp)] : () => [Math.sqrt(1 - s.Rs), 0, Math.sqrt(1 - s.Rp), 0];
-  }
+  const pick = F => (mode === 'R' ? [F.rs[0], F.rs[1], F.rp[0], F.rp[1]] : [F.ts[0], F.ts[1], F.tp[0], F.tp[1]]);
+  if (s.kind === 'mirror') { const F = mirrorAmps(s.el.reflect / 100, ev.back); return () => pick(F); }   // from behind, the other way up (as the tracer)
+  if (s.kind === 'split') { const F = faceAmps(s, 1, 1, 1, nm); return () => pick(F); }
   if (s.kind === 'filter') {
     const T = filterT(s.el, nm), r = ev.back ? Math.sqrt(1 - T) : -Math.sqrt(1 - T);
     return mode === 'R' ? () => [r, 0, r, 0] : () => [Math.sqrt(T), 0, Math.sqrt(T), 0];
@@ -27,29 +22,8 @@ export function polCoeff(ev, nm) {
   if (s.kind === 'grating') return mode === 'R' ? () => [-1, 0, -1, 0] : () => [1, 0, 1, 0];
   const n1 = ev.nIn, n2 = ev.nOut;
   if (!(n1 > 0 && n2 > 0)) return () => [1, 0, 1, 0];
-  const refl = ci => {
-    const eta = n1 / n2, k = 1 - eta * eta * (1 - ci * ci);
-    if (k < 0) {
-      const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
-      return [Math.cos(phs), Math.sin(phs), Math.cos(php), Math.sin(php), true];
-    }
-    const ct = Math.sqrt(k), bare = () => [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0, (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0, false];
-    const c = s.coat;
-    if (c && c.mode === 'band') return nm >= c.lo && nm <= c.hi ? [0, Math.sqrt(c.R / 100), 0, Math.sqrt(c.R / 100), false] : bare();
-    if (c && c.mode === 'stack' && c.layers.length) {
-      const stack = n1 > n2 ? c.layers.slice().reverse() : c.layers;
-      const rs = stackAmp(stack, n1, n2, ci, nm, 's'), rp = stackAmp(stack, n1, n2, ci, nm, 'p');
-      return [rs[0], rs[1], -rp[0], -rp[1], false];
-    }
-    if (c && c.mode !== 'bare') return [0, Math.sqrt(c.R / 100), 0, Math.sqrt(c.R / 100), false];
-    return bare();
-  };
-  if (mode === 'R') return ci => { const r = refl(ci); return [r[0], r[1], r[2], r[3]]; };
-  return ci => {
-    const r = refl(ci);
-    if (r[4]) return [0, 0, 0, 0];
-    return [Math.sqrt(Math.max(0, 1 - r[0] * r[0] - r[1] * r[1])), 0, Math.sqrt(Math.max(0, 1 - r[2] * r[2] - r[3] * r[3])), 0];
-  };
+  // the face's own amplitudes (core/face-pol.js), as the tracer takes them
+  return ci => pick(faceAmps(s, n1, n2, ci, nm));
 }
 /* A waveplate's or polariser's Jones matrix in the (p, s) basis, as the tracer applies it:
    [[pp, ps], [sp, ss]], each [re, im] */

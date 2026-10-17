@@ -5764,12 +5764,10 @@ function grinDesign(g, dia) {
   if (match && Math.sqrt(nLo) < nLo) { let lo = 0, hi = a; for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (Math.sqrt(nAt(m)) >= nLo) lo = m; else hi = m; } rMatch = lo; }
   // loss: absorbed (power per mm, 2 pi eps'' / (n lambda)) in the core and the layers, and reflected at the two faces
   const alpha = (n, fill) => 2 * Math.PI * mixEps(M, fill / 100).epsI / (n * lam);
-  const refl = n => ((n - 1) / (n + 1)) ** 2;
-  // a face with a layer of index nm, tm thick, between air and n: the single-layer film's reflectance at lambda
-  const reflM = (n, nm, lamX) => {
-    const r1 = (1 - nm) / (1 + nm), r2 = (nm - n) / (nm + n), c = Math.cos(4 * Math.PI * nm * tm / lamX);
-    return (r1 * r1 + r2 * r2 + 2 * r1 * r2 * c) / (1 + r1 * r1 * r2 * r2 + 2 * r1 * r2 * c);
-  };
+  // a face square on, as the bench takes it (core/face-pol.js): bare, or with a layer of index nm, tm thick (mm), at
+  // the wavelength lamX (mm)
+  const refl = n => faceRNormal(1, n, 1, null);
+  const reflM = (n, nm, lamX) => faceRNormal(1, n, lamX * 1e6, { mode: 'stack', layers: [{ n: nm, d: tm * 1e6 }] });
   const lossDb = r => {
     const n = nAt(r), core = 4.343 * alpha(n, fillOf(n)) * t;
     if (!match) return { abs: core, refl: -20 * Math.log10(1 - refl(n)) };
@@ -8320,6 +8318,88 @@ function coatR(coat, n1, n2, nm) {
   }
   return (coat.R || 0) / 100;
 }
+/* ==========================================================================
+   One face: what it does to light's two polarisations
+   The bench's rays, its diffracted field and focus, the optical lens designer's polarisation trace and the RF
+   designer's losses all take a face's amplitudes from here, so none of them can disagree with another.
+   The tracer's convention throughout: fields as e^{+ikL}; s across the plane of incidence; p the in-plane
+   normal to the ray with the parity sign, turned over at each reflection, so that r_p = r_s at normal incidence
+   and a mirror is -√R for both. Transmitted amplitudes are normalised to power: |t|² is the share of the
+   power the face passes (the field's t times √(n' cos θ' / n cos θ)), so |r|² + |t|² = 1 where nothing is
+   absorbed. Each amplitude is [re, im].
+   ========================================================================== */
+
+const cAbs2 = a => a[0] * a[0] + a[1] * a[1];
+
+/* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
+   n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
+function stackT(layers, n0, ns, c0, nm, pol) {
+  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
+  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
+  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
+  let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
+  for (const L of layers) {
+    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
+    // times the layer's [[c, i sn/e], [i e sn, c]]
+    const n11r = m11r * c - m12i * e * sn, n11i = m11i * c + m12r * e * sn;
+    const n12r = -m11i * sn / e + m12r * c, n12i = m11r * sn / e + m12i * c;
+    const n21r = m21r * c - m22i * e * sn, n21i = m21i * c + m22r * e * sn;
+    const n22r = -m21i * sn / e + m22r * c, n22i = m21r * sn / e + m22i * c;
+    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i; m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
+  }
+  const es = eta(ns), e0 = eta(n0), Br = m11r + m12r * es, Bi = m11i + m12i * es, Cr = m21r + m22r * es, Ci = m21i + m22i * es;
+  const dr = e0 * Br + Cr, di = e0 * Bi + Ci, dd = dr * dr + di * di;
+  if (!dd) return [0, 0];
+  const t = [2 * e0 * dr / dd, -2 * e0 * di / dd];
+  // p: the field's ratio, not the tangential component's
+  if (pol === 's') return t;
+  const k = c0 / cosIn(ns);
+  return [t[0] * k, t[1] * k];
+}
+
+/* A refracting face (bare, coated, a film splitter): light from index n1 into n2 meeting it at cosine ci (> 0) at
+   nm. face: { coat } and, for a film splitter, { kind: 'split', Rs, Rp } (as the tracer's surfaces have them).
+   Returns { rs, rp, ts, tp, tir }: tir when everything comes back (total internal reflection, or a splitter that
+   passes nothing). Each case as the tracer has always traced it, and a coating's stack now passes its own phase. */
+function faceAmps(face, n1, n2, ci, nm) {
+  const coat = face && face.coat, k = 1 - (n1 / n2) * (n1 / n2) * (1 - ci * ci);
+  if (k < 0) {
+    // total internal reflection: everything comes back, each component with its own phase
+    const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
+    return { rs: [Math.cos(phs), Math.sin(phs)], rp: [Math.cos(php), Math.sin(php)], ts: [0, 0], tp: [0, 0], tir: true };
+  }
+  const ct = Math.sqrt(k), norm = Math.sqrt(n2 * ct / (n1 * ci));
+  // known by its reflectance alone: the reflected field leads the transmitted by a quarter wave, nothing absorbed
+  const byR = (Rs, Rp) => ({ rs: [0, Math.sqrt(Rs)], rp: [0, Math.sqrt(Rp)], ts: [Math.sqrt(Math.max(0, 1 - Rs)), 0], tp: [Math.sqrt(Math.max(0, 1 - Rp)), 0], tir: Rs >= 1 && Rp >= 1 });
+  if (face && face.kind === 'split') return byR(face.Rs, face.Rp);
+  // bare: Fresnel's, real, so a sign change is half a wave (p in the parity convention, so r_p = r_s square on)
+  const bare = () => ({
+    rs: [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0], rp: [(n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0],
+    ts: [2 * n1 * ci / (n1 * ci + n2 * ct) * norm, 0], tp: [2 * n1 * ci / (n2 * ci + n1 * ct) * norm, 0], tir: false });
+  if (!coat || coat.mode === 'bare') return bare();
+  if (coat.mode === 'band') { if (!(nm >= coat.lo && nm <= coat.hi)) return bare(); const R = coat.R / 100; return byR(R, R); }
+  if (coat.mode === 'stack') {
+    if (!coat.layers || !coat.layers.length) return bare();
+    // the layers are listed from the outside in, so light through the substrate meets them in reverse
+    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
+    const rs = stackAmp(L, n1, n2, ci, nm, 's'), rp = stackAmp(L, n1, n2, ci, nm, 'p');
+    const ts = stackT(L, n1, n2, ci, nm, 's'), tp = stackT(L, n1, n2, ci, nm, 'p');
+    // stackAmp's p is already the parity convention's: r_p = r_s square on, and a layer of nothing is a bare face
+    return { rs, rp, ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], tir: false };
+  }
+  const R = Math.max(0, Math.min(1, (coat.R || 0) / 100));
+  return byR(R, R);
+}
+
+/* A mirror of reflectance R (0 to 1): -√R for s and p alike (the parity convention), √R met from behind (the
+   other way up); what it does not reflect passes, as the tracer has it */
+function mirrorAmps(R, back) {
+  const r = back ? Math.sqrt(R) : -Math.sqrt(R), t = Math.sqrt(Math.max(0, 1 - R));
+  return { rs: [r, 0], rp: [r, 0], ts: [t, 0], tp: [t, 0], tir: false };
+}
+
+/* a face's power reflection square on (s and p alike there), as the RF designer and a graded disc count it */
+const faceRNormal = (n1, n2, nm, coat) => cAbs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
 function normSurface(s) {
   s = s || {};
   const R = (s.R === null || s.R === undefined || s.R === '' || !isFinite(s.R) || s.R === 0) ? null : +s.R;
@@ -10632,7 +10712,8 @@ function traceSceneOnce() {
         // at a surface, so each keeps its own complex reflection coefficient.
         // a chirped mirror adds its GDD to what it reflects (about its source's centre)
         const reflExtra = s.kind === 'mirror' && s.el.gdd && cosd < 0 ? gddPath(s.el.gdd, nm, (pulseOf(src) || src).wavelength) : 0;
-        const branch = (rsr, rsi, rpr, rpi) => {
+        // T: what the face passes, s and p, with its phase (core/face-pol.js); else √(1 - R), no phase
+        const branch = (rsr, rsi, rpr, rpi, T) => {
           const brs = sr * rsr - si * rsi, bsi = sr * rsi + si * rsr;
           const bpr = pr * rpr - pi * rpi, bpi = pr * rpi + pi * rpr;
           const wr = brs * brs + bsi * bsi + bpr * bpr + bpi * bpi;
@@ -10661,8 +10742,13 @@ function traceSceneOnce() {
           }
           // what continues keeps the remaining energy, with no extra phase
           if (wr > 0) path += 't' + bounce;
-          const ts = Math.sqrt(Math.max(0, 1 - Rs)), tp = Math.sqrt(Math.max(0, 1 - Rp));
-          sr *= ts; si *= ts; pr *= tp; pi *= tp;
+          if (T) {
+            const [tsr, tsi] = T.ts, [tpr, tpi] = T.tp;
+            [sr, si, pr, pi] = [sr * tsr - si * tsi, sr * tsi + si * tsr, pr * tpr - pi * tpi, pr * tpi + pi * tpr];
+          } else {
+            const ts = Math.sqrt(Math.max(0, 1 - Rs)), tp = Math.sqrt(Math.max(0, 1 - Rp));
+            sr *= ts; si *= ts; pr *= tp; pi *= tp;
+          }
           ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp;
         };
         // tangential ABCD for this surface, q = (A q + B) / (C q + D): one for the light that
@@ -10802,44 +10888,10 @@ function traceSceneOnce() {
           const n2 = nOf(mInto, tag, thInto) + (grF && mInto.grad ? grDelta(mInto.grad, grR2) : 0);
           const eta = n1 / n2;
           const k = 1 - eta * eta * (1 - ci * ci);
-          let rsr = 0, rsi = 0, rpr = 0, rpi = 0, total = false;
-          if (k < 0) {
-            // total internal reflection: everything comes back, each component with its own phase
-            const b = Math.sqrt(-k);
-            const phs = -2 * Math.atan2(n2 * b, n1 * ci);
-            const php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;   // p in the parity convention, see below
-            rsr = Math.cos(phs); rsi = Math.sin(phs);
-            rpr = Math.cos(php); rpi = Math.sin(php);
-            total = true;
-          } else if (s.kind === 'split') {
-            // a coating: the reflected field leads the transmitted one by a quarter wave
-            rsi = Math.sqrt(s.Rs); rpi = Math.sqrt(s.Rp);
-            if (s.Rs >= 1 && s.Rp >= 1) total = true;
-          } else if (s.coat && s.coat.mode === 'band' && nm >= s.coat.lo && nm <= s.coat.hi) {
-            rsi = rpi = Math.sqrt(s.coat.R / 100);
-          } else if (s.coat && s.coat.mode === 'band') {
-            // out of band: no coating worth the name, so trace the bare surface
-            const ct = Math.sqrt(k);
-            rsr = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct);
-            rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
-          } else if (s.coat && s.coat.mode === 'stack' && s.coat.layers.length) {
-            // layers are listed from the outside in, so a ray arriving through the
-            // substrate meets the same stack in reverse order
-            const stack = n1 > n2 ? s.coat.layers.slice().reverse() : s.coat.layers;
-            const rs = stackAmp(stack, n1, n2, ci, nm, 's');
-            const rp = stackAmp(stack, n1, n2, ci, nm, 'p');
-            rsr = rs[0]; rsi = rs[1]; rpr = -rp[0]; rpi = -rp[1];
-          } else if (s.coat && s.coat.mode !== 'bare') {
-            rsi = rpi = Math.sqrt(s.coat.R / 100);
-          } else {
-            // Bare glass: real Fresnel coefficients, so a sign change is half a wave. p is in
-            // the parity convention used throughout: its direction is the in-plane normal to
-            // the ray, reversed at each reflection, so a mirror turns s and p over alike and
-            // at normal incidence r_p = r_s, as it must when s and p cannot be told apart.
-            const ct = Math.sqrt(k);
-            rsr = (n1 * ci - n2 * ct) / (n1 * ci + n2 * ct);
-            rpr = (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct);
-          }
+          // the face's own amplitudes, reflected and passed (core/face-pol.js: the same numbers the field, the lens
+          // designer and the RF designer take)
+          const F = faceAmps(s, n1, n2, ci, nm), total = F.tir;
+          const rsr = F.rs[0], rsi = F.rs[1], rpr = F.rp[0], rpi = F.rp[1];
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm
             wentR = true;
@@ -10850,7 +10902,7 @@ function traceSceneOnce() {
             const npr = pr * rpr - pi * rpi, npi = pr * rpi + pi * rpr;
             sr = nsr; si = nsi; pr = npr; pi = npi;
           } else {
-            if (rsr || rsi || rpr || rpi) branch(rsr, rsi, rpr, rpi);
+            branch(rsr, rsi, rpr, rpi, F);
             if (s.ph) {
               // a diffractive face: Snell's law with its phase's pull along it, and its path
               const D = dpPull(s, ...(s.tilt ? toLocal(s.ef, px, py) : [lx, ly]), hS, nm * 1e-6), o = [0, 0, 0];
@@ -24491,7 +24543,8 @@ function seidelView(body, asm, P, F) {
 /* ---------- Ghosts ---------- */
 // each surface's coating, from its part (a lens's faces; any other surface bare)
 function coatsOf(P) {
-  return P.surfaces.map(s => { const e = s.from && getEl(s.from.id); return e && e.surfaces && e.surfaces[s.from.i] ? e.surfaces[s.from.i].coat || null : null; });
+  // a mirror: its reflectance, as the bench takes it
+  return P.surfaces.map(s => { const e = s.from && getEl(s.from.id); return e && s.mirror ? { mode: 'mirror', R: e.reflect === undefined ? 100 : e.reflect } : e && e.surfaces && e.surfaces[s.from.i] ? e.surfaces[s.from.i].coat || null : null; });
 }
 const coatKey = P => JSON.stringify(coatsOf(P));
 const ghPct = v => v >= 0.01 ? anFmt(100 * v, 3) + '%' : v >= 1e-5 ? anFmt(1e6 * v, 3) + ' ppm' : v > 0 ? v.toExponential(2) : '0';
@@ -30258,14 +30311,9 @@ function gaussFromFan(el) {
 function polCoeff(ev, nm) {
   const s = ev.surf, mode = ev.mode;
   if (!s || mode === 'P' || mode === 'M') return () => [1, 0, 1, 0];
-  if (s.kind === 'mirror') {
-    const R = s.el.reflect / 100;
-    const r = ev.back ? Math.sqrt(R) : -Math.sqrt(R);           // from behind, the other way up (as the tracer)
-    return mode === 'R' ? () => [r, 0, r, 0] : () => [Math.sqrt(1 - R), 0, Math.sqrt(1 - R), 0];
-  }
-  if (s.kind === 'split') {
-    return mode === 'R' ? () => [0, Math.sqrt(s.Rs), 0, Math.sqrt(s.Rp)] : () => [Math.sqrt(1 - s.Rs), 0, Math.sqrt(1 - s.Rp), 0];
-  }
+  const pick = F => (mode === 'R' ? [F.rs[0], F.rs[1], F.rp[0], F.rp[1]] : [F.ts[0], F.ts[1], F.tp[0], F.tp[1]]);
+  if (s.kind === 'mirror') { const F = mirrorAmps(s.el.reflect / 100, ev.back); return () => pick(F); }   // from behind, the other way up (as the tracer)
+  if (s.kind === 'split') { const F = faceAmps(s, 1, 1, 1, nm); return () => pick(F); }
   if (s.kind === 'filter') {
     const T = filterT(s.el, nm), r = ev.back ? Math.sqrt(1 - T) : -Math.sqrt(1 - T);
     return mode === 'R' ? () => [r, 0, r, 0] : () => [Math.sqrt(T), 0, Math.sqrt(T), 0];
@@ -30273,29 +30321,8 @@ function polCoeff(ev, nm) {
   if (s.kind === 'grating') return mode === 'R' ? () => [-1, 0, -1, 0] : () => [1, 0, 1, 0];
   const n1 = ev.nIn, n2 = ev.nOut;
   if (!(n1 > 0 && n2 > 0)) return () => [1, 0, 1, 0];
-  const refl = ci => {
-    const eta = n1 / n2, k = 1 - eta * eta * (1 - ci * ci);
-    if (k < 0) {
-      const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
-      return [Math.cos(phs), Math.sin(phs), Math.cos(php), Math.sin(php), true];
-    }
-    const ct = Math.sqrt(k), bare = () => [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0, (n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0, false];
-    const c = s.coat;
-    if (c && c.mode === 'band') return nm >= c.lo && nm <= c.hi ? [0, Math.sqrt(c.R / 100), 0, Math.sqrt(c.R / 100), false] : bare();
-    if (c && c.mode === 'stack' && c.layers.length) {
-      const stack = n1 > n2 ? c.layers.slice().reverse() : c.layers;
-      const rs = stackAmp(stack, n1, n2, ci, nm, 's'), rp = stackAmp(stack, n1, n2, ci, nm, 'p');
-      return [rs[0], rs[1], -rp[0], -rp[1], false];
-    }
-    if (c && c.mode !== 'bare') return [0, Math.sqrt(c.R / 100), 0, Math.sqrt(c.R / 100), false];
-    return bare();
-  };
-  if (mode === 'R') return ci => { const r = refl(ci); return [r[0], r[1], r[2], r[3]]; };
-  return ci => {
-    const r = refl(ci);
-    if (r[4]) return [0, 0, 0, 0];
-    return [Math.sqrt(Math.max(0, 1 - r[0] * r[0] - r[1] * r[1])), 0, Math.sqrt(Math.max(0, 1 - r[2] * r[2] - r[3] * r[3])), 0];
-  };
+  // the face's own amplitudes (core/face-pol.js), as the tracer takes them
+  return ci => pick(faceAmps(s, n1, n2, ci, nm));
 }
 /* A waveplate's or polariser's Jones matrix in the (p, s) basis, as the tracer applies it:
    [[pp, ps], [sp, ss]], each [re, im] */
@@ -36992,11 +37019,10 @@ function imsimRun(A, src, o) {
    Each ray carries a 3 x 3 complex matrix (a polarisation ray trace): at each face, with k the ray's direction either
    side, s square to the plane of incidence and p = k x s on each side,
        P_face = τs s sᵀ + τp p' pᵀ + k' kᵀ,
-   τ the amplitude transmission of that face for s and p, scaled by √(n' cos θ' / n cos θ) so that |τ|² is the share of
-   the power it passes. A face's τ: a bare face by Fresnel; a thin-film stack by its characteristic matrix (tilted
-   admittances; t = 2η₀ / (η₀B + C), and for p times cos θ₀ / cos θ'); a coating given only by its reflectance
-   passes 1 - R, s and p alike, with no change of phase. A mirror reflects all of it, s with -1 and p with +1 (no
-   change of polarisation from its own). The glass between faces takes exp(-α L / 2) of the amplitude, α its absorption.
+   τ the face's power-normalised amplitude for s and p, the very numbers the bench's rays take (core/face-pol.js: a
+   bare face by Fresnel, a thin-film stack by its characteristic matrix with its phase, a coating known by its
+   reflectance passing 1 - R). A mirror reflects its reflectance, s with -√R and p with +√R here (the bench's -√R
+   for both, in its parity convention). The glass between faces takes exp(-α L / 2) of the amplitude, α its absorption.
    The product over the faces, between the ray's directions in object and image space, is read as a Jones matrix
    in the bases x and y each side (the double-pole basis: the axis's x turned along the great circle to the ray): its transmission for any polarisation in, its
    diattenuation (from the eigenvalues of J†J) and its retardance (from the unitary part of its polar decomposition).
@@ -37006,47 +37032,6 @@ const plAbs2 = a => a[0] * a[0] + a[1] * a[1];
 const plDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const plCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const plUnit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
-
-/* a thin-film stack's complex amplitude transmission (the whole E field), for s or p, from n0 into ns at cosine c0 */
-function stackT(layers, n0, ns, c0, nm, pol) {
-  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
-  let m11 = [1, 0], m12 = [0, 0], m21 = [0, 0], m22 = [1, 0];
-  for (const L of layers) {
-    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    const a11 = [c, 0], a12 = [0, sn / e], a21 = [0, e * sn], a22 = [c, 0];
-    const add = (p, q) => [p[0] + q[0], p[1] + q[1]];
-    [m11, m12, m21, m22] = [add(plCmul(m11, a11), plCmul(m12, a21)), add(plCmul(m11, a12), plCmul(m12, a22)), add(plCmul(m21, a11), plCmul(m22, a21)), add(plCmul(m21, a12), plCmul(m22, a22))];
-  }
-  const es = eta(ns), e0 = eta(n0), B = [m11[0] + m12[0] * es, m11[1] + m12[1] * es], C = [m21[0] + m22[0] * es, m21[1] + m22[1] * es];
-  const den = [e0 * B[0] + C[0], e0 * B[1] + C[1]], dd = plAbs2(den);
-  const t = [2 * e0 * den[0] / dd, -2 * e0 * den[1] / dd];
-  if (pol === 's') return t;
-  const k = c0 / cosIn(ns);
-  return [t[0] * k, t[1] * k];
-}
-/* a face's power-normalised amplitude transmissions [τs, τp] (complex), and its reflectances [Rs, Rp], light from
-   index n1 into n2 meeting it at cosine c1 (> 0) */
-function faceAmps(coat, n1, n2, c1, nm) {
-  const s1 = Math.sqrt(Math.max(0, 1 - c1 * c1)), s2 = n1 / n2 * s1, c2 = Math.sqrt(Math.max(0, 1 - s2 * s2)), norm = Math.sqrt(n2 * c2 / (n1 * c1));
-  const bare = () => {
-    const ts = 2 * n1 * c1 / (n1 * c1 + n2 * c2), tp = 2 * n1 * c1 / (n2 * c1 + n1 * c2);
-    const rs = (n1 * c1 - n2 * c2) / (n1 * c1 + n2 * c2), rp = (n2 * c1 - n1 * c2) / (n2 * c1 + n1 * c2);
-    return { ts: [ts * norm, 0], tp: [tp * norm, 0], Rs: rs * rs, Rp: rp * rp };
-  };
-  if (!coat || coat.mode === 'bare') return bare();
-  if (coat.mode === 'band' && !(nm >= coat.lo && nm <= coat.hi)) return bare();
-  if (coat.mode === 'stack') {
-    if (!coat.layers || !coat.layers.length) return bare();
-    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
-    const ts = stackT(L, n1, n2, c1, nm, 's'), tp = stackT(L, n1, n2, c1, nm, 'p'), rs = stackAmp(L, n1, n2, c1, nm, 's'), rp = stackAmp(L, n1, n2, c1, nm, 'p');
-    return { ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], Rs: plAbs2(rs), Rp: plAbs2(rp) };
-  }
-  // a coating known by its reflectance alone: 1 - R through, s and p alike
-  const R = Math.max(0, Math.min(1, (coat.R || 0) / 100)), t = Math.sqrt(1 - R);
-  return { ts: [t, 0], tp: [t, 0], Rs: R, Rp: R };
-}
 
 /* 3 x 3 complex matrices, row-major, [re, im] pairs */
 const plEye = () => Array.from({ length: 9 }, (_, k) => [k % 4 === 0 ? 1 : 0, 0]);
@@ -37074,8 +37059,11 @@ function polRay(S, P, coats, th, px, py) {
     const r = rec[i];
     let ts, tp, Rs, Rp;
     const c1 = Math.abs(plDot(r.kIn, r.n));
-    if (r.mirror) { ts = [-1, 0]; tp = [1, 0]; Rs = Rp = 1; }
-    else ({ ts, tp, Rs, Rp } = faceAmps(coats && coats[i], r.nIn, r.nOut, Math.min(1, c1), S.nm));
+    // the face's amplitudes as the bench takes them (core/face-pol.js); this trace's p is k × s on each side, not the
+    // bench's parity convention, so a reflection's p is the bench's turned over
+    const c = coats && coats[i];
+    if (r.mirror) { const F = mirrorAmps(c && c.mode === 'mirror' ? c.R / 100 : 1, false); ts = F.rs; tp = [-F.rp[0], -F.rp[1]]; Rs = Rp = plAbs2(F.rs); }
+    else { const F = faceAmps({ coat: c }, r.nIn, r.nOut, Math.min(1, c1), S.nm); ts = F.ts; tp = F.tp; Rs = plAbs2(F.rs); Rp = plAbs2(F.rp); }
     // the glass after this face, up to the next: its absorption over the ray's path in it
     let a = 1;
     if (i < S.N - 1 && P.materials[i]) { const al = absorbAt(P.materials[i], S.nm); if (al > 0) { const q = rec[i + 1].at, o = r.at; a = Math.exp(-al * Math.hypot(q[0] - o[0], q[1] - o[1], q[2] - o[2]) / 2); } }
@@ -37407,15 +37395,9 @@ function apertureEff(a, w, R, lam) {
   const ex = Math.exp(-t), re = 1 - ex * Math.cos(t * psi), im = ex * Math.sin(t * psi);
   return 2 * (re * re + im * im) / (t * (1 + psi * psi));
 }
-/* a face's power reflection at nm, from index n0 into n2: Fresnel, or through a single layer (n1, d nm) */
-function faceR(n0, n2, nm, coat) {
-  if (!isMatchCoat(coat)) { const r = (n0 - n2) / (n0 + n2); return r * r; }
-  const L = coat.layers[0], n1 = L.n, r01 = (n0 - n1) / (n0 + n1), r12 = (n1 - n2) / (n1 + n2), d = 4 * Math.PI * n1 * L.d / nm;
-  const e = [Math.cos(d), -Math.sin(d)];
-  const num = [r01 + r12 * e[0], r12 * e[1]], den = [1 + r01 * r12 * e[0], r01 * r12 * e[1]];
-  const r = rfCdiv(num, den);
-  return r[0] * r[0] + r[1] * r[1];
-}
+/* a face's power reflection at nm, from index n0 into n2, square on: bare, through its matching layer, or through any
+   stack, as the bench takes it (core/face-pol.js) */
+function faceR(n0, n2, nm, coat) { return faceRNormal(n0, n2, nm, coat); }
 /* the RF conditions as the shared lens conditions have them: the band's wavelengths, the design's primary, an
    object at the feed's phase centre, the first lens's aperture */
 function rfSyncCond(asm, P) {
@@ -37757,27 +37739,20 @@ function rfSlabs(P, ghz) {
     }
     const coatOf = s => { const el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null; };
     const c1 = coatOf(P.surfaces[i]), c2 = coatOf(P.surfaces[i + 1]);
-    if (isMatchCoat(c1)) layers.push([c1.layers[0].n, c1.layers[0].d]);
+    // each face's coating, its layers listed from the outside in (so the back face's in reverse)
+    const lay = c => (c && c.mode === 'stack' && c.layers && c.layers.length ? c.layers.map(L => [L.n, L.d]) : []);
+    layers.push(...lay(c1));
     const Zc = rfZonesAt(P, i);
     layers.push([n, (Zc ? Zc.t(0) : P.gaps[i]) * 1e6]);
-    if (isMatchCoat(c2)) layers.push([c2.layers[0].n, c2.layers[0].d]);
+    layers.push(...lay(c2).reverse());
     out.push({ i, pi: sps[i].pi, R: rfSlabR(layers, nm) });
   }
   return out;
 }
-/* a stack of layers [index, thickness nm] in air at normal incidence: its power reflection at nm */
+/* a stack of layers [index, thickness nm] in air at normal incidence: its power reflection at nm (the slab as one
+   stack, as the bench's faces take theirs: core/face-pol.js) */
 function rfSlabR(layers, nm) {
-  // M = Π [[cos δ, i sin δ / n], [i n sin δ, cos δ]], δ = 2π n d / λ; r = (M11 + M12 - M21 - M22) / (M11 + M12 + M21 + M22) for air either side
-  let a = [1, 0], b = [0, 0], c = [0, 0], d = [1, 0];
-  const mul = (x, y) => [x[0] * y[0] - x[1] * y[1], x[0] * y[1] + x[1] * y[0]], add = (x, y) => [x[0] + y[0], x[1] + y[1]];
-  for (const [nl, dl] of layers) {
-    const del = 2 * Math.PI * nl * dl / nm, cs = Math.cos(del), sn = Math.sin(del);
-    const A = [cs, 0], B = [0, sn / nl], C = [0, nl * sn], Dm = [cs, 0];
-    [a, b, c, d] = [add(mul(a, A), mul(b, C)), add(mul(a, B), mul(b, Dm)), add(mul(c, A), mul(d, C)), add(mul(c, B), mul(d, Dm))];
-  }
-  const num = [a[0] + b[0] - c[0] - d[0], a[1] + b[1] - c[1] - d[1]], den = [a[0] + b[0] + c[0] + d[0], a[1] + b[1] + c[1] + d[1]];
-  const r = rfCdiv(num, den);
-  return r[0] * r[0] + r[1] * r[1];
+  return faceRNormal(1, 1, nm, { mode: 'stack', layers: layers.map(([n, d]) => ({ n, d })) });
 }
 
 /* ---------- Optimise ----------
@@ -44611,6 +44586,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>One set of numbers for every face</b>: the bench\u2019s rays, its diffracted field and focus, the lens designer\u2019s polarisation trace and the RF designer\u2019s reflections now take a face\u2019s s and p amplitudes from one place, so they agree exactly. Light through a <b>coated face</b> now keeps the coating\u2019s own phase, so a beamsplitter or AR stack met at a slant retards p against s on the way through, as a real one does; a coated face now reflects s and p with the same sign square on (p was turned over before); the lens designer\u2019s mirrors reflect their own reflectance; and the RF designer counts any coating stack on a lens, not only a single matching layer.',
     'A tidier interface: <b>three kinds of button</b> (one solid button for the main action, outlined ones for the others, and plain words for menus and toggles), <b>Save</b> marked with a dot when the bench has changed since it was opened or saved, and the designers\u2019 tabs drawn as tabs. On a <b>phone</b> the top bar is one row: the bench\u2019s name, <b>+</b>, <b>Save</b> and <b>\u22ef</b>, a menu holding the rest. The <b>RF designer</b> lists its system down the left as the beam meets it (the frequency, the feed horn, each lens, the goal) and edits the one chosen beside the beam; <b>Add a lens</b> puts another after the last and designs it, and a lens can be taken out again.',
     '<b>Quote now</b>: an RF lens or disc that can be made has an orange <b>Quote now</b> button, which puts it in your quote cart and opens the cart in a new tab, ready to send; <b>Add to quote cart</b> gathers several first. <b>Cart</b>, at the top beside your account, opens the cart and shows how many are in it. Your JEKray account now works across the JEK Systems site: sign in from any page, see it on <b>Your account</b>, and the quote form fills in your name and email.',
     '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, saves its drawing (PDF or SVG, with its permittivity, profile tolerance and matching layers), and quotes it: the request gives each face\u2019s conic and links to the whole system. A lens can be a <b>graded-index disc</b>, flat, its focal length solved through its thickness, or <b>cut in zones</b>, thinner and lighter, the phase each step slips away from its zone frequency counted over the band. Two worked examples, a 24 GHz lens antenna and a 150 GHz Gaussian beam telescope, are in the gallery. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',

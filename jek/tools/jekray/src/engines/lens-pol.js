@@ -1,4 +1,4 @@
-import { stackAmp } from '../core/coatings.js';
+import { faceAmps, mirrorAmps } from '../core/face-pol.js';
 import { absorbAt } from '../core/glass.js';
 import { aimRay, lensLaunch, traceRay } from './lens-engine.js';
 
@@ -7,11 +7,10 @@ import { aimRay, lensLaunch, traceRay } from './lens-engine.js';
    Each ray carries a 3 x 3 complex matrix (a polarisation ray trace): at each face, with k the ray's direction either
    side, s square to the plane of incidence and p = k x s on each side,
        P_face = τs s sᵀ + τp p' pᵀ + k' kᵀ,
-   τ the amplitude transmission of that face for s and p, scaled by √(n' cos θ' / n cos θ) so that |τ|² is the share of
-   the power it passes. A face's τ: a bare face by Fresnel; a thin-film stack by its characteristic matrix (tilted
-   admittances; t = 2η₀ / (η₀B + C), and for p times cos θ₀ / cos θ'); a coating given only by its reflectance
-   passes 1 - R, s and p alike, with no change of phase. A mirror reflects all of it, s with -1 and p with +1 (no
-   change of polarisation from its own). The glass between faces takes exp(-α L / 2) of the amplitude, α its absorption.
+   τ the face's power-normalised amplitude for s and p, the very numbers the bench's rays take (core/face-pol.js: a
+   bare face by Fresnel, a thin-film stack by its characteristic matrix with its phase, a coating known by its
+   reflectance passing 1 - R). A mirror reflects its reflectance, s with -√R and p with +√R here (the bench's -√R
+   for both, in its parity convention). The glass between faces takes exp(-α L / 2) of the amplitude, α its absorption.
    The product over the faces, between the ray's directions in object and image space, is read as a Jones matrix
    in the bases x and y each side (the double-pole basis: the axis's x turned along the great circle to the ray): its transmission for any polarisation in, its
    diattenuation (from the eigenvalues of J†J) and its retardance (from the unitary part of its polar decomposition).
@@ -21,47 +20,6 @@ const plAbs2 = a => a[0] * a[0] + a[1] * a[1];
 const plDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const plCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const plUnit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
-
-/* a thin-film stack's complex amplitude transmission (the whole E field), for s or p, from n0 into ns at cosine c0 */
-export function stackT(layers, n0, ns, c0, nm, pol) {
-  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
-  let m11 = [1, 0], m12 = [0, 0], m21 = [0, 0], m22 = [1, 0];
-  for (const L of layers) {
-    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    const a11 = [c, 0], a12 = [0, sn / e], a21 = [0, e * sn], a22 = [c, 0];
-    const add = (p, q) => [p[0] + q[0], p[1] + q[1]];
-    [m11, m12, m21, m22] = [add(plCmul(m11, a11), plCmul(m12, a21)), add(plCmul(m11, a12), plCmul(m12, a22)), add(plCmul(m21, a11), plCmul(m22, a21)), add(plCmul(m21, a12), plCmul(m22, a22))];
-  }
-  const es = eta(ns), e0 = eta(n0), B = [m11[0] + m12[0] * es, m11[1] + m12[1] * es], C = [m21[0] + m22[0] * es, m21[1] + m22[1] * es];
-  const den = [e0 * B[0] + C[0], e0 * B[1] + C[1]], dd = plAbs2(den);
-  const t = [2 * e0 * den[0] / dd, -2 * e0 * den[1] / dd];
-  if (pol === 's') return t;
-  const k = c0 / cosIn(ns);
-  return [t[0] * k, t[1] * k];
-}
-/* a face's power-normalised amplitude transmissions [τs, τp] (complex), and its reflectances [Rs, Rp], light from
-   index n1 into n2 meeting it at cosine c1 (> 0) */
-export function faceAmps(coat, n1, n2, c1, nm) {
-  const s1 = Math.sqrt(Math.max(0, 1 - c1 * c1)), s2 = n1 / n2 * s1, c2 = Math.sqrt(Math.max(0, 1 - s2 * s2)), norm = Math.sqrt(n2 * c2 / (n1 * c1));
-  const bare = () => {
-    const ts = 2 * n1 * c1 / (n1 * c1 + n2 * c2), tp = 2 * n1 * c1 / (n2 * c1 + n1 * c2);
-    const rs = (n1 * c1 - n2 * c2) / (n1 * c1 + n2 * c2), rp = (n2 * c1 - n1 * c2) / (n2 * c1 + n1 * c2);
-    return { ts: [ts * norm, 0], tp: [tp * norm, 0], Rs: rs * rs, Rp: rp * rp };
-  };
-  if (!coat || coat.mode === 'bare') return bare();
-  if (coat.mode === 'band' && !(nm >= coat.lo && nm <= coat.hi)) return bare();
-  if (coat.mode === 'stack') {
-    if (!coat.layers || !coat.layers.length) return bare();
-    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
-    const ts = stackT(L, n1, n2, c1, nm, 's'), tp = stackT(L, n1, n2, c1, nm, 'p'), rs = stackAmp(L, n1, n2, c1, nm, 's'), rp = stackAmp(L, n1, n2, c1, nm, 'p');
-    return { ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], Rs: plAbs2(rs), Rp: plAbs2(rp) };
-  }
-  // a coating known by its reflectance alone: 1 - R through, s and p alike
-  const R = Math.max(0, Math.min(1, (coat.R || 0) / 100)), t = Math.sqrt(1 - R);
-  return { ts: [t, 0], tp: [t, 0], Rs: R, Rp: R };
-}
 
 /* 3 x 3 complex matrices, row-major, [re, im] pairs */
 const plEye = () => Array.from({ length: 9 }, (_, k) => [k % 4 === 0 ? 1 : 0, 0]);
@@ -89,8 +47,11 @@ export function polRay(S, P, coats, th, px, py) {
     const r = rec[i];
     let ts, tp, Rs, Rp;
     const c1 = Math.abs(plDot(r.kIn, r.n));
-    if (r.mirror) { ts = [-1, 0]; tp = [1, 0]; Rs = Rp = 1; }
-    else ({ ts, tp, Rs, Rp } = faceAmps(coats && coats[i], r.nIn, r.nOut, Math.min(1, c1), S.nm));
+    // the face's amplitudes as the bench takes them (core/face-pol.js); this trace's p is k × s on each side, not the
+    // bench's parity convention, so a reflection's p is the bench's turned over
+    const c = coats && coats[i];
+    if (r.mirror) { const F = mirrorAmps(c && c.mode === 'mirror' ? c.R / 100 : 1, false); ts = F.rs; tp = [-F.rp[0], -F.rp[1]]; Rs = Rp = plAbs2(F.rs); }
+    else { const F = faceAmps({ coat: c }, r.nIn, r.nOut, Math.min(1, c1), S.nm); ts = F.ts; tp = F.tp; Rs = plAbs2(F.rs); Rp = plAbs2(F.rp); }
     // the glass after this face, up to the next: its absorption over the ray's path in it
     let a = 1;
     if (i < S.N - 1 && P.materials[i]) { const al = absorbAt(P.materials[i], S.nm); if (al > 0) { const q = rec[i + 1].at, o = r.at; a = Math.exp(-al * Math.hypot(q[0] - o[0], q[1] - o[1], q[2] - o[2]) / 2); } }

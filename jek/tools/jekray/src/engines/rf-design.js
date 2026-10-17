@@ -1,4 +1,5 @@
 import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, rfBeam, rfTanD } from '../core/rf.js';
+import { faceRNormal } from '../core/face-pol.js';
 import { normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
@@ -55,15 +56,9 @@ export function apertureEff(a, w, R, lam) {
   const ex = Math.exp(-t), re = 1 - ex * Math.cos(t * psi), im = ex * Math.sin(t * psi);
   return 2 * (re * re + im * im) / (t * (1 + psi * psi));
 }
-/* a face's power reflection at nm, from index n0 into n2: Fresnel, or through a single layer (n1, d nm) */
-export function faceR(n0, n2, nm, coat) {
-  if (!isMatchCoat(coat)) { const r = (n0 - n2) / (n0 + n2); return r * r; }
-  const L = coat.layers[0], n1 = L.n, r01 = (n0 - n1) / (n0 + n1), r12 = (n1 - n2) / (n1 + n2), d = 4 * Math.PI * n1 * L.d / nm;
-  const e = [Math.cos(d), -Math.sin(d)];
-  const num = [r01 + r12 * e[0], r12 * e[1]], den = [1 + r01 * r12 * e[0], r01 * r12 * e[1]];
-  const r = rfCdiv(num, den);
-  return r[0] * r[0] + r[1] * r[1];
-}
+/* a face's power reflection at nm, from index n0 into n2, square on: bare, through its matching layer, or through any
+   stack, as the bench takes it (core/face-pol.js) */
+export function faceR(n0, n2, nm, coat) { return faceRNormal(n0, n2, nm, coat); }
 /* the RF conditions as the shared lens conditions have them: the band's wavelengths, the design's primary, an
    object at the feed's phase centre, the first lens's aperture */
 export function rfSyncCond(asm, P) {
@@ -405,27 +400,20 @@ export function rfSlabs(P, ghz) {
     }
     const coatOf = s => { const el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null; };
     const c1 = coatOf(P.surfaces[i]), c2 = coatOf(P.surfaces[i + 1]);
-    if (isMatchCoat(c1)) layers.push([c1.layers[0].n, c1.layers[0].d]);
+    // each face's coating, its layers listed from the outside in (so the back face's in reverse)
+    const lay = c => (c && c.mode === 'stack' && c.layers && c.layers.length ? c.layers.map(L => [L.n, L.d]) : []);
+    layers.push(...lay(c1));
     const Zc = rfZonesAt(P, i);
     layers.push([n, (Zc ? Zc.t(0) : P.gaps[i]) * 1e6]);
-    if (isMatchCoat(c2)) layers.push([c2.layers[0].n, c2.layers[0].d]);
+    layers.push(...lay(c2).reverse());
     out.push({ i, pi: sps[i].pi, R: rfSlabR(layers, nm) });
   }
   return out;
 }
-/* a stack of layers [index, thickness nm] in air at normal incidence: its power reflection at nm */
+/* a stack of layers [index, thickness nm] in air at normal incidence: its power reflection at nm (the slab as one
+   stack, as the bench's faces take theirs: core/face-pol.js) */
 function rfSlabR(layers, nm) {
-  // M = Π [[cos δ, i sin δ / n], [i n sin δ, cos δ]], δ = 2π n d / λ; r = (M11 + M12 - M21 - M22) / (M11 + M12 + M21 + M22) for air either side
-  let a = [1, 0], b = [0, 0], c = [0, 0], d = [1, 0];
-  const mul = (x, y) => [x[0] * y[0] - x[1] * y[1], x[0] * y[1] + x[1] * y[0]], add = (x, y) => [x[0] + y[0], x[1] + y[1]];
-  for (const [nl, dl] of layers) {
-    const del = 2 * Math.PI * nl * dl / nm, cs = Math.cos(del), sn = Math.sin(del);
-    const A = [cs, 0], B = [0, sn / nl], C = [0, nl * sn], Dm = [cs, 0];
-    [a, b, c, d] = [add(mul(a, A), mul(b, C)), add(mul(a, B), mul(b, Dm)), add(mul(c, A), mul(d, C)), add(mul(c, B), mul(d, Dm))];
-  }
-  const num = [a[0] + b[0] - c[0] - d[0], a[1] + b[1] - c[1] - d[1]], den = [a[0] + b[0] + c[0] + d[0], a[1] + b[1] + c[1] + d[1]];
-  const r = rfCdiv(num, den);
-  return r[0] * r[0] + r[1] * r[1];
+  return faceRNormal(1, 1, nm, { mode: 'stack', layers: layers.map(([n, d]) => ({ n, d })) });
 }
 
 /* ---------- Optimise ----------

@@ -59,6 +59,7 @@ import './parts/registry.js';
 import './state/project.js';
 import './state/packs.js';
 import './core/coatings.js';
+import './core/face-pol.js';
 import './state/elements.js';
 import './state/tabs.js';
 import './core/geometry.js';

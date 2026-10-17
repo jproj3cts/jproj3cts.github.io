@@ -59,6 +59,7 @@
  "state/project.js",
  "state/packs.js",
  "core/coatings.js",
+ "core/face-pol.js",
  "state/elements.js",
  "state/tabs.js",
  "core/geometry.js",

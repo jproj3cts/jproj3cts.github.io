@@ -13,6 +13,9 @@ workerShim();
 const E = await import('../../src/engines/lens-engine.js');
 const PL = await import('../../src/engines/lens-pol.js');
 const C = await import('../../src/core/coatings.js');
+const FP = await import('../../src/core/face-pol.js');
+// a face's amplitudes as the bench takes them, with its reflectances
+const fa = (coat, ...a) => { const F = FP.faceAmps({ coat }, ...a); return Object.assign(F, { Rs: F.rs[0] ** 2 + F.rs[1] ** 2, Rp: F.rp[0] ** 2 + F.rp[1] ** 2 }); };
 
 const surf = (R, x) => ({ R, k: 0, a2: 0, A: [], odd: null, semi: 20, ...x });
 const sys = (P, fields, nm, epd) => { const S = E.lensSystem(P, nm || 587.56, { epd: epd || 2, image: P.image }); return { c: { fields: fields.map(deg => ({ deg })), waves: [{ nm: nm || 587.56, w: 1 }], primary: 0 }, S: [S], Sp: S, P }; };
@@ -35,13 +38,13 @@ test('a bare face passes 1 - R square on, and at Brewster’s angle p whole and 
 
 test('a quarter-wave MgF2 layer passes as its closed form; every face passes what it does not reflect', () => {
   const ns = 1.5, nc = 1.38, nm = 550, coat = { mode: 'stack', layers: C.coatPreset('mgf2', nm) };
-  const a = PL.faceAmps(coat, 1, ns, 1, nm), want = 1 - ((ns - nc * nc) / (ns + nc * nc)) ** 2;
+  const a = fa(coat, 1, ns, 1, nm), want = 1 - ((ns - nc * nc) / (ns + nc * nc)) ** 2;
   assert.ok(Math.abs((a.ts[0] ** 2 + a.ts[1] ** 2) - want) < 1e-12 && Math.abs((a.tp[0] ** 2 + a.tp[1] ** 2) - want) < 1e-12, JSON.stringify(a));
   const coats = [null, coat, { mode: 'stack', layers: C.coatPreset('vcoat', nm) }, { mode: 'stack', layers: C.coatPreset('bs5050', nm) }, { mode: 'stack', layers: C.coatPreset('hr', nm) }];
   for (const ct of coats) for (const [n1, n2] of [[1, 1.52], [1.52, 1], [1, 1.8]]) for (const deg of [0, 20, 40]) {
     const c1 = Math.cos(deg * Math.PI / 180);
     if (n1 > n2 && n1 * Math.sin(deg * Math.PI / 180) >= n2) continue;
-    const f = PL.faceAmps(ct, n1, n2, c1, nm), Ts = f.ts[0] ** 2 + f.ts[1] ** 2, Tp = f.tp[0] ** 2 + f.tp[1] ** 2;
+    const f = fa(ct, n1, n2, c1, nm), Ts = f.ts[0] ** 2 + f.ts[1] ** 2, Tp = f.tp[0] ** 2 + f.tp[1] ** 2;
     assert.ok(Math.abs(Ts + f.Rs - 1) < 1e-9 && Math.abs(Tp + f.Rp - 1) < 1e-9, `${JSON.stringify(ct && ct.layers.length)} ${n1}→${n2} at ${deg}°: s ${Ts + f.Rs}, p ${Tp + f.Rp}`);
   }
 });
@@ -56,7 +59,7 @@ test('a stack at a slant: the retardance and diattenuation its own s and p ampli
   const nm = 587.56, coat = { mode: 'stack', layers: C.coatPreset('bs5050', 550) }, n = 1.52, th = 35 * Math.PI / 180;
   const P = { surfaces: [surf(null, { stop: true, semi: 1 }), surf(null, { semi: 100 })], gaps: [10], materials: [{ glass: 'AIR' }], stopIndex: 0, image: 10 };
   const S = E.lensSystem(P, nm, { epd: 0.2, image: 10, imageMaterial: glass(n) }), r = PL.polRay(S, P, [null, coat], th, 0, 0), f = PL.jonesFigures(r.J);
-  const a = PL.faceAmps(coat, 1, n, Math.cos(th), nm), Ts = a.ts[0] ** 2 + a.ts[1] ** 2, Tp = a.tp[0] ** 2 + a.tp[1] ** 2;
+  const a = fa(coat, 1, n, Math.cos(th), nm), Ts = a.ts[0] ** 2 + a.ts[1] ** 2, Tp = a.tp[0] ** 2 + a.tp[1] ** 2;
   let dph = Math.abs(Math.atan2(a.tp[1], a.tp[0]) - Math.atan2(a.ts[1], a.ts[0])); if (dph > Math.PI) dph = 2 * Math.PI - dph;
   assert.ok(Math.abs(f.D - Math.abs(Ts - Tp) / (Ts + Tp)) < 1e-9, `D ${f.D} against ${Math.abs(Ts - Tp) / (Ts + Tp)}`);
   assert.ok(dph > 0.05 && Math.abs(f.ret - dph) < 1e-6, `retardance ${f.ret} against ${dph}`);
@@ -87,4 +90,19 @@ test('faces that reflect nothing: a meridional ray’s matrix the identity, a sk
     if (px === 0) assert.ok(Math.abs(c[0]) < 1e-9, `meridional ${py}: turned ${c[0]}`);
     else assert.ok(Math.abs(c[0]) > 1e-4, `skew ${px}, ${py}: turned only ${c[0]}`);
   }
+});
+
+test('the designer and the bench take the same face: a coated window at 45° passes s and p, and retards them, as the bench’s amplitudes give', () => {
+  const nm = 633, n = 1.515, th = Math.PI / 4, coat = { mode: 'stack', layers: [{ n: 2.35, d: 67.3 }, { n: 1.46, d: 108.4 }, { n: 2.35, d: 67.3 }] };
+  const P = { surfaces: [surf(null, { stop: true, semi: 1 }), surf(null, { semi: 100 }), surf(null, { semi: 100 })], gaps: [10, 3], materials: [{ glass: 'AIR' }, glass(n)], stopIndex: 0, image: 10 };
+  const S = E.lensSystem(P, nm, { epd: 0.2, image: 10 }), r = PL.polRay(S, P, [null, coat, null], th, 0, 0);
+  // the bench's two faces, as its tracer multiplies them (core/face-pol.js)
+  const c1 = Math.cos(th), c2 = Math.sqrt(1 - (Math.sin(th) / n) ** 2), F1 = FP.faceAmps({ coat }, 1, n, c1, nm), F2 = FP.faceAmps({}, n, 1, c2, nm);
+  const mul = (x, y) => [x[0] * y[0] - x[1] * y[1], x[0] * y[1] + x[1] * y[0]], s = mul(F1.ts, F2.ts), p = mul(F1.tp, F2.tp);
+  const Ts = s[0] ** 2 + s[1] ** 2, Tp = p[0] ** 2 + p[1] ** 2;
+  let ret = Math.abs(Math.atan2(p[1], p[0]) - Math.atan2(s[1], s[0])); if (ret > Math.PI) ret = 2 * Math.PI - ret;
+  const f = PL.jonesFigures(r.J), Tx = PL.jonesFigures(r.J, PL.POL_IN.x).T, Ty = PL.jonesFigures(r.J, PL.POL_IN.y).T;
+  // the field tilts in y, so x is s and y is p
+  assert.ok(Math.abs(Tx - Ts) < 1e-12 && Math.abs(Ty - Tp) < 1e-12, `s ${Tx} against ${Ts}, p ${Ty} against ${Tp}`);
+  assert.ok(ret > 0.05 && Math.abs(f.ret - ret) < 1e-9, `retardance ${f.ret} against ${ret}`);
 });

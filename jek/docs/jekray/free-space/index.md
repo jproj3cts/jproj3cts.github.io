@@ -57,7 +57,15 @@ $$
 r = \frac{\eta_0 B - C}{\eta_0 B + C}.
 $$
 
-The phase of $$r$$ is kept, so a coated mirror in an interferometer or cavity shifts the fringes as a real one does.
+and passes
+
+$$
+t = \frac{2\eta_0}{\eta_0 B + C}
+$$
+
+(for p, times $$\cos\theta_0/\cos\theta_\text{sub}$$), scaled by $$\sqrt{n_\text{sub}\cos\theta_\text{sub}/(n_0\cos\theta_0)}$$ so that $$|r|^2 + |t|^2 = 1$$. The phases of both are kept: a coated mirror in an interferometer or cavity shifts the fringes as a real one does, and light through a coated face at a slant comes out with s and p retarded against each other, as through a real beamsplitter or AR coating.
+
+Every face's amplitudes come from one place: the bench's rays, its diffracted field and focus, the [lens designer's polarisation trace](/jek/docs/jekray/lens-design/#polarisation-and-coatings) and the [RF designer's reflections](/jek/docs/jekray/rf/) all take the same numbers, so they cannot disagree.
 
 ### Glass
 

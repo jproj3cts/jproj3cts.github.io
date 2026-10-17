@@ -546,12 +546,12 @@ Each ray of a 25 × 25 grid across the pupil is traced with its polarisation: a 
 
 $$P = \tau_s\,\hat s\hat s^{\mathsf T} + \tau_p\,\hat p'\hat p^{\mathsf T} + \hat k'\hat k^{\mathsf T}.$$
 
-Each $$\tau$$ is the face's amplitude transmission, scaled by $$\sqrt{n'\cos\theta'/(n\cos\theta)}$$ so that $$|\tau|^2$$ is the share of the power it passes.
+Each $$\tau$$ is the face's amplitude transmission, the same numbers the bench's rays take (see [Coatings](/jek/docs/jekray/free-space/#coatings)), scaled by $$\sqrt{n'\cos\theta'/(n\cos\theta)}$$ so that $$|\tau|^2$$ is the share of the power it passes.
 
 - **Bare face:** Fresnel's.
 - **Thin-film stack:** by its characteristic matrix (the same as the bench's): $$t = 2\eta_0/(\eta_0 B + C)$$ in the tilted admittances, times $$\cos\theta_0/\cos\theta'$$ for p. This gives its phase, so it gives retardance as well as diattenuation.
 - **Coating known only by its reflectance:** passes $$1 - R$$, s and p alike.
-- **Mirror:** reflects all of it, changing no polarisation of its own.
+- **Mirror:** reflects its reflectance, $$\sqrt{R}$$ for s and p alike, changing no polarisation of its own.
 - **The glass between faces:** takes $$e^{-\alpha L}$$ of the power, $$\alpha$$ its absorption.
 
 The product is read as a Jones matrix in x and y on each side, the axis's x turned along the great circle to each ray (the double-pole basis). For each ray it gives:

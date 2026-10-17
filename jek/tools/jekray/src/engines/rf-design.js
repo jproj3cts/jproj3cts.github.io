@@ -439,3 +439,93 @@ export function rfOptStep(prob, st) {
   if (m0 - st.m < 1e-10 * Math.max(1, m0)) st.done = true;
   return st;
 }
+
+/* ---------- Tolerancing ----------
+   A printed lens is not made exactly: its plastic's permittivity is known to a few per cent until measured (and the
+   printer's flow moves it the same way), its thickness and its faces' curvature to the printer's accuracy, and it is
+   mounted only so near where it was designed. Each error, for each lens (each face, for a radius) or each air gap:
+     eps   the lens's permittivity, ± v %  (its index by √(1 + v/100))
+     thk   its centre thickness, ± v mm
+     rad   each face's curvature, ± v %
+     gap   the air after it, ± v mm
+     feed  the feed horn's distance, ± v mm
+   The figure: to collimate, the gain (dBi); otherwise the efficiency (dB). Sensitivity: each error at its limit, either
+   way, alone, at the design frequency. Monte Carlo: builds with every error drawn at once, uniform within its limits
+   or normal with its limit at two standard deviations, each build's figure at the design frequency and its worst over
+   the band; the share that meet a specification, with its 95% interval (Wilson's). Off-axis errors (a lens decentred
+   or tilted, the feed moved across) are not in it: the Gaussian beam here is on its axis. */
+export const RF_TOL_KINDS = { eps: { label: 'Permittivity', unit: '%', v: 5 }, thk: { label: 'Centre thickness', unit: 'mm', v: 0.2 }, rad: { label: 'Face curvature', unit: '%', v: 1 }, gap: { label: 'Air gap', unit: 'mm', v: 0.5 }, feed: { label: 'Feed distance', unit: 'mm', v: 1 } };
+export function normRfTol(o) {
+  o = o && typeof o === 'object' ? o : {};
+  const out = {};
+  for (const [k, d] of Object.entries(RF_TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on !== false, v: Math.max(0, isFinite(+x.v) && x.v !== null && x.v !== '' ? +x.v : d.v) }; }
+  out.trials = Math.round(Math.min(5000, Math.max(20, isFinite(+o.trials) ? +o.trials : 200)));
+  out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
+  out.spec = isFinite(+o.spec) && o.spec !== null && o.spec !== '' ? +o.spec : null;
+  out.seed = Math.round(isFinite(+o.seed) && +o.seed > 0 ? +o.seed : 1);
+  return out;
+}
+/* the errors a system can have: each { kind, i (the surface or gap it is on), label } */
+export function rfTolItems(asm, P, T) {
+  const sps = surfaceParts(P), out = [], tol = normRfTol(T);
+  P.parts.forEach((p, pi) => {
+    const i0 = sps.findIndex(s => s.pi === pi), el = getEl(p.id), nm = el ? el.name : 'Part ' + (pi + 1);
+    if (p.kind === 'lens') {
+      if (tol.eps.on) out.push({ kind: 'eps', i: i0, label: nm + ': permittivity' });
+      if (tol.thk.on && p.n === 2) out.push({ kind: 'thk', i: i0, label: nm + ': centre thickness' });
+      if (tol.rad.on) for (let j = 0; j < p.n; j++) if (P.surfaces[i0 + j].R !== null && isFinite(P.surfaces[i0 + j].R)) out.push({ kind: 'rad', i: i0 + j, label: nm + ': ' + (j ? 'back' : 'front') + ' face' });
+    }
+    if (tol.gap.on && i0 + p.n - 1 < P.surfaces.length - 1) out.push({ kind: 'gap', i: i0 + p.n - 1, label: nm + ': air after' });
+  });
+  if (tol.feed.on) out.push({ kind: 'feed', i: -1, label: 'Feed horn: distance' });
+  return out.map(e => Object.assign(e, { v: tol[e.kind].v }));
+}
+/* the system with errors e (each item with its value x, in its own unit) */
+export function rfTolApply(asm, P, items, xs) {
+  const Q = Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
+  const A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)) });
+  items.forEach((e, k) => {
+    const x = xs[k];
+    if (!x) return;
+    if (e.kind === 'eps') { const m = Q.materials[e.i], n = refIndex(m, rfNm(A.rf.ghz)); m.dn = (m.dn || 0) + n * (Math.sqrt(Math.max(0.01, 1 + x / 100)) - 1); }
+    else if (e.kind === 'thk' || e.kind === 'gap') Q.gaps[e.i] = Math.max(0, Q.gaps[e.i] + x);
+    else if (e.kind === 'rad') { const s = Q.surfaces[e.i]; if (s.R) s.R = s.R / (1 + x / 100); }
+    else if (e.kind === 'feed') A.rf.feed.d = Math.max(0, A.rf.feed.d + x);
+  });
+  return { asm: A, P: Q };
+}
+const rfFigOf = t => t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff));
+/* each error at its limit, either way, alone: the figure's change at the design frequency */
+export function rfSensitivity(asm, P, T) {
+  const items = rfTolItems(asm, P, T), R = normRfCond(asm.rf), f0 = rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 }));
+  return { nominal: f0, rows: items.map((e, k) => {
+    const at = sgn => { const xs = items.map((_, j) => (j === k ? sgn * e.v : 0)), c = rfTolApply(asm, P, items, xs); return rfFigOf(rfTrace(c.asm, c.P, R.ghz, { steps: 2 })) - f0; };
+    const up = at(1), dn = at(-1);
+    return { label: e.label, kind: e.kind, v: e.v, up, dn, worst: Math.min(up, dn) };
+  }).sort((a, b) => a.worst - b.worst) };
+}
+/* Monte Carlo, a batch of builds at a time: plan (its state), run(n) to go on, the builds so far */
+export function rfMcPlan(asm, P, T) {
+  const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
+  let s = tol.seed >>> 0 || 1;
+  const rnd = () => { s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0; s ^= s >>> 13; return ((s >>> 0) + 0.5) / 4294967296; };
+  const draw = v => tol.dist === 'normal' ? (v / 2) * Math.sqrt(-2 * Math.log(rnd())) * Math.cos(2 * Math.PI * rnd()) : v * (2 * rnd() - 1);
+  const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 })), done: false };
+  plan.run = n => {
+    for (let k = 0; k < n && plan.builds.length < tol.trials; k++) {
+      const xs = items.map(e => draw(e.v)), c = rfTolApply(asm, P, items, xs);
+      const figs = [R.lo, R.ghz, R.hi].map(g => rfFigOf(rfTrace(c.asm, c.P, g, { steps: 2 })));
+      plan.builds.push({ at: figs[1], worst: Math.min(...figs) });
+    }
+    plan.done = plan.builds.length >= tol.trials;
+    return plan;
+  };
+  return plan;
+}
+/* the share of builds meeting a specification (the figure at least spec, over the whole band), with its 95% interval */
+export function rfYield(builds, spec) {
+  const n = builds.length, k = builds.filter(b => b.worst >= spec).length, z = 1.959964;
+  if (!n) return { k, n, p: NaN, lo: NaN, hi: NaN };
+  const p = k / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, w = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return { k, n, p, lo: Math.max(0, c - w), hi: Math.min(1, c + w) };
+}

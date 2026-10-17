@@ -77,7 +77,7 @@ export function normAssemblies(list, els) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf), ...(a.rfTol && typeof a.rfTol === 'object' ? { rfTol: JSON.parse(JSON.stringify(a.rfTol)) } : {}), ...(a.rfOpt && typeof a.rfOpt === 'object' ? { rfOpt: JSON.parse(JSON.stringify(a.rfOpt)) } : {}) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
   }
   return out;
 }

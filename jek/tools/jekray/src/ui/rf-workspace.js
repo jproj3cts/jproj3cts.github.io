@@ -1,10 +1,12 @@
 import { asmAxisAt, asmCheck, asmMembers, normCond, normRfCond } from '../core/assembly.js';
-import { C_NM_GHZ, RF_HORNS, RF_MAT, applyRf, hornGeom, rfBeam } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_HORNS, RF_MAT, applyRf, hornGeom, mountVolume, mountedDia, normMount, printedMatch, rfBeam } from '../core/rf.js';
+import { lensThickness, lensVolume } from './readouts.js';
+import { orderRow } from '../io/order.js';
 import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { commitDesign, designOf, designPrescription, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { RF_LENS_TYPES, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfSynth, rfSyncCond } from '../engines/rf-design.js';
+import { RF_LENS_TYPES, RF_TOL_KINDS, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfSynth, rfSyncCond } from '../engines/rf-design.js';
 import { linePlot } from './lens-analyses.js';
 import { h } from './panel.js';
 import { matchLayer } from './panels.js';
@@ -167,7 +169,7 @@ function rwDraw() {
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
   body.append(rwCondCard(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwTabs(),
-    RW.tab === 'synth' ? rwSynthCard(asm, P) : RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : rwLensCard(asm, P, T.mid)));
+    RW.tab === 'synth' ? rwSynthCard(asm, P) : RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : rwLensCard(asm, P, T.mid)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -342,7 +344,7 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('lenses', 'Lenses'), tab('synth', 'Design a lens'), tab('opt', 'Optimise'), tab('ana', 'Analyses'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('lenses', 'Lenses'), tab('synth', 'Design a lens'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
 /* ---------- The lenses: each its material, size and faces, and the air after it ---------- */
@@ -612,3 +614,139 @@ function rwOptStop(note) {
     });
   } else if (RW) { R.note = note + ' No better design found.'; rwRender(); }
 }
+
+
+/* ---------- Make it: each lens checked against what can be made, and its quote ---------- */
+function rwMakeCard(asm, P, T) {
+  const R = asm.rf, card = h('section', { class: 'rt-lcard rt-rfmake', role: 'tabpanel', 'aria-label': 'Make it' }, h('h3', null, 'Make it'));
+  card.append(h('p', { class: 'rt-lsub' }, 'Each lens checked against what can be made to order: its plastic, its size and thinnest point, and its matching layers across the band. A lens that passes can be quoted for: the request goes into your quote cart with its figures and a link to the design.'));
+  const coll = R.goal.kind === 'collimate', perf = coll ? 'gain ' + rwFmt(T.mid.gain, 4) + ' dBi' : 'coupling ' + rwPct(T.mid.coupling);
+  P.parts.forEach((p, pi) => {
+    if (p.kind !== 'lens') return;
+    const el = getEl(p.id); if (!el) return;
+    const box = h('div', { class: 'rt-rflens' }, h('h4', null, el.name));
+    const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
+    const geo = lensThickness(el), outside = mountedDia(el.diameter, el.mount), grams = M ? (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2) : NaN;
+    const skins = M ? el.surfaces.map(s => printedMatch(M, s.coat)).filter(Boolean) : [];
+    const skinMax = skins.length ? Math.min(...skins.map(k => k.ghzMax)) : Infinity, lamMin = C_NM_GHZ / R.hi * 1e-6;
+    const pIdx = surfaceParts(P).findIndex(sp => sp.pi === pi), taper = Math.min(T.lo.surf[pIdx].taper, T.mid.surf[pIdx].taper, T.hi.surf[pIdx].taper);
+    const checks = [
+      [!!(M && M.print), 'A made-to-order plastic', M ? (M.print ? M.name : M.name + ' is not one we print: PLA, ABS, PETG, ASA or polypropylene are') : 'Its material is not an RF plastic'],
+      [outside <= PRINTER.maxDia, 'Fits across', rwFmt(outside, 4) + ' mm' + (el.mount ? ' with its flange' : '') + ', up to ' + PRINTER.maxDia + ' mm'],
+      [geo.thickest <= PRINTER.maxHeight, 'Fits in height', rwFmt(geo.thickest, 4) + ' mm thick, up to ' + PRINTER.maxHeight + ' mm'],
+      [geo.thinnest >= PRINTER.minWall, 'Thick enough everywhere', 'thinnest ' + rwFmt(geo.thinnest, 3) + ' mm, at least ' + PRINTER.minWall + ' mm'],
+      [skins.every(k => k.ok), 'Matching layers can be printed', skins.length ? skins.map(k => (+k.fill.toFixed(0)) + '% dense, ' + k.thick.toFixed(2) + ' mm').join('; ') : 'bare faces'],
+      [skinMax >= R.hi * 0.9995, 'Holds to the top of the band', skins.length ? 'its layers by the design rule up to ' + rwFmt(skinMax, 4) + ' GHz; the band to ' + rwFmt(R.hi, 4) + ' GHz' : 'solid plastic throughout'],
+    ];
+    const advice = [];
+    if (el.diameter / lamMin < 5) advice.push('Only ' + (el.diameter / lamMin).toFixed(1) + ' wavelengths across at the top of the band: the Gaussian-beam figures are rough at this size.');
+    if (taper < 10) advice.push('Its edge taper is ' + taper.toFixed(1) + ' dB at worst across the band: the light past its rim is lost and its edge diffracts.');
+    const ok = checks.every(c => c[0]);
+    const list = h('ul', { class: 'rt-rfchecks' }, ...checks.map(([pass, what, why]) => h('li', { class: pass ? 'ok' : 'bad' }, h('span', { class: 'mark', 'aria-hidden': 'true' }, pass ? '✓' : '✗'), h('b', null, what), ' ', h('span', { class: 'rt-lsub' }, why))));
+    box.append(h('p', { class: 'rt-rfverdict ' + (ok ? 'ok' : 'bad') }, ok ? 'Manufacturable' : 'Not manufacturable as it is'), list);
+    box.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Material', M ? M.name : '—'], ['Centre thickness', rwFmt(geo.centre, 4) + ' mm'], ['Edge thickness', rwFmt(geo.edge, 4) + ' mm'],
+      ['Weight', isFinite(grams) ? 'about ' + Math.round(grams) + ' g' : '—'], ['Outside diameter', rwFmt(outside, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+    for (const a of advice) box.append(h('p', { class: 'rt-lnote' }, a));
+    // its mounting: a flange with bolt holes, or none
+    const m = el.mount, mset = (k, v) => rwEdit(() => { el.mount = normMount(Object.assign({ kind: 'flange' }, el.mount || {}, { [k]: v })); return false; });
+    box.append(h('div', { class: 'rt-rfgrid' },
+      rwRow('Mounting', rwSelect({ none: 'None', flange: 'Flange with bolt holes' }, m ? 'flange' : 'none', v => rwEdit(() => { el.mount = v === 'flange' ? normMount({ kind: 'flange' }) : undefined; return false; }), el.name + ' mounting')),
+      ...(m ? [rwRow('Flange width (mm)', rwNum(m.width, v => mset('width', v), el.name + ' flange width (mm)')), rwRow('Flange thickness (mm)', rwNum(m.thick, v => mset('thick', v), el.name + ' flange thickness (mm)')),
+        rwRow('Bolt holes', rwNum(m.holes, v => mset('holes', v), el.name + ' bolt holes')), rwRow('Hole diameter (mm)', rwNum(m.hole, v => mset('hole', v), el.name + ' hole diameter (mm)'))] : [])));
+    if (ok) {
+      const row = orderRow(el, { ghz: R.ghz, extra: ['Designed in the RF designer for ' + rwFmt(R.lo, 4) + ' to ' + rwFmt(R.hi, 4) + ' GHz: ' + perf + ' at ' + rwFmt(R.ghz, 4) + ' GHz, the feed ' + rwFmt(R.feed.d, 4) + ' mm before it'] });
+      if (row) box.append(row);
+    } else box.append(h('p', { class: 'rt-lnote' }, 'Put right what is marked and the quote button appears here.'));
+    card.append(box);
+  });
+  if (!P.parts.some(p => p.kind === 'lens')) card.append(h('p', { class: 'rt-lsub' }, 'This system has no lenses to make.'));
+  return card;
+}
+
+/* ---------- Tolerance ---------- */
+let RW_MC = null;             // { asm, plan, running }
+function rwTolCard(asm, P) {
+  const tol = asm.rfTol = normRfTol(asm.rfTol), R = asm.rf, coll = R.goal.kind === 'collimate', unit = coll ? 'dBi' : 'dB', fig = coll ? 'gain' : 'efficiency';
+  const card = h('section', { class: 'rt-lcard rt-rftol', role: 'tabpanel', 'aria-label': 'Tolerance' }, h('h3', null, 'Tolerance'));
+  card.append(h('p', { class: 'rt-lsub' }, 'How far each error may go, and what it does to the ' + fig + ': each alone at its limit (Sensitivity), and all at once in many builds (Monte Carlo), with the share that meet a specification. A printed plastic’s permittivity is known to a few per cent until measured. Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here: the RF lens’s own panel on the bench traces them.'));
+  const st = RW.tolSt || (RW.tolSt = {});
+  // a change to the errors makes the results stale; to the Monte Carlo's settings, only its builds (the specification, nothing)
+  const set = (fn, what) => { const t = JSON.parse(JSON.stringify(asm.rfTol)); fn(t); asm.rfTol = normRfTol(t); if (what !== 'mc' && what !== 'spec') st.sens = null; if (what !== 'spec' && RW_MC && RW_MC.asm === asm && !RW_MC.running) RW_MC = null; rwRender(); };
+  const tbl = h('table', { class: 'rt-ltable rt-rftolk' });
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Error', 'Within ±', ''].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  for (const [k, d] of Object.entries(RF_TOL_KINDS)) tb.append(h('tr', null,
+    h('td', null, h('input', { type: 'checkbox', checked: tol[k].on ? '' : null, 'aria-label': d.label + ' on', onchange: e => set(t => { t[k].on = e.target.checked; }) })),
+    h('th', { scope: 'row' }, d.label), h('td', null, rwNum(tol[k].v, v => set(t => { t[k].v = Math.max(0, v); }), d.label + ' within (' + d.unit + ')')), h('td', { class: 'rt-lsub' }, d.unit)));
+  tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // sensitivity
+  card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => { st.sens = rfSensitivity(asm, designPrescription(asm), asm.rfTol); rwRender(); } }, 'Sensitivity')));
+  if (st.sens) {
+    const S = st.sens, t2 = h('table', { class: 'rt-ltable' });
+    t2.append(h('thead', null, h('tr', null, ...['Error', 'Within ±', 'Its ' + fig + ', +', '−', 'Worse by'].map(t => h('th', { scope: 'col' }, t)))));
+    const b2 = h('tbody');
+    for (const r of S.rows) b2.append(h('tr', null, h('th', { scope: 'row' }, r.label), h('td', { class: 'mono' }, rwFmt(r.v, 3) + ' ' + RF_TOL_KINDS[r.kind].unit), h('td', { class: 'mono' }, (r.up >= 0 ? '+' : '') + r.up.toFixed(3) + ' dB'), h('td', { class: 'mono' }, (r.dn >= 0 ? '+' : '') + r.dn.toFixed(3) + ' dB'), h('td', { class: 'mono' + (r.worst < -0.5 ? ' warn' : '') }, Math.max(0, -r.worst).toFixed(3) + ' dB')));
+    t2.append(b2);
+    card.append(h('p', { class: 'rt-lsub mono' }, 'Nominal ' + fig + ' at ' + rwFmt(R.ghz, 4) + ' GHz: ' + rwFmt(S.nominal, 4) + ' ' + unit + '. Worst first.'), h('div', { class: 'rt-ltwrap' }, t2));
+  }
+  // Monte Carlo
+  card.append(h('h3', null, 'Monte Carlo'), h('div', { class: 'rt-rfgrid' },
+    rwRow('Builds', rwNum(tol.trials, v => set(t => { t.trials = v; }, 'mc'), 'Builds')),
+    rwRow('Errors drawn', rwSelect({ uniform: 'Evenly within their limits', normal: 'Normally, limits at 2σ' }, tol.dist, v => set(t => { t.dist = v; }, 'mc'), 'Errors drawn')),
+    rwRow('Specification: at least (' + unit + ')', rwNum(tol.spec, v => set(t => { t.spec = v; }, 'spec'), 'Specification (' + unit + ')'))));
+  const mc = RW_MC && RW_MC.asm === asm ? RW_MC : null, running = !!(mc && mc.running);
+  card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo')));
+  if (mc) {
+    const B = mc.plan.builds, n = B.length;
+    card.append(h('p', { class: 'rt-lsub', role: 'status' }, (running ? 'Building… ' : '') + n + ' of ' + mc.plan.tol.trials + ' builds.'));
+    if (n >= 5) {
+      const worst = B.map(b => b.worst).sort((a, b) => a - b), at = B.map(b => b.at).sort((a, b) => a - b), q = (A, p) => A[Math.min(A.length - 1, Math.max(0, Math.floor(p * (A.length - 1))))];
+      const mean = A => A.reduce((a, b) => a + b, 0) / A.length;
+      card.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[
+        ['Nominal, at ' + rwFmt(R.ghz, 4) + ' GHz', rwFmt(mc.plan.nominal, 4) + ' ' + unit],
+        ['Builds, mean at ' + rwFmt(R.ghz, 4) + ' GHz', rwFmt(mean(at), 4) + ' ' + unit],
+        ['Builds, worst over the band: mean', rwFmt(mean(worst), 4) + ' ' + unit],
+        ['9 in 10 builds at least', rwFmt(q(worst, 0.1), 4) + ' ' + unit + ' over the band'],
+        ['The worst build', rwFmt(worst[0], 4) + ' ' + unit]].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+      rwHist(card, worst, tol.spec, unit);
+      if (tol.spec !== null) {
+        const Y = rfYield(B, tol.spec);
+        card.append(h('p', { class: 'rt-lnote' + (Y.p >= 0.9 ? ' good' : '') }, 'Yield: ' + (100 * Y.p).toFixed(1) + ' % of builds have a ' + fig + ' of at least ' + rwFmt(tol.spec, 4) + ' ' + unit + ' across the whole band (' + (100 * Y.lo).toFixed(1) + ' to ' + (100 * Y.hi).toFixed(1) + ' %, 95% confidence).'));
+      }
+    }
+  }
+  return card;
+}
+/* the builds' worst figure over the band, as a histogram, the specification marked */
+function rwHist(parent, xs, spec, unit) {
+  const cv = h('canvas', { role: 'img', 'aria-label': 'Histogram of the builds’ worst figure over the band' }), wrap = h('div', { class: 'rt-lplot' }, cv);
+  parent.append(wrap);
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1, W = Math.max(240, wrap.clientWidth || 500), H = 180, g = cv.getContext('2d');
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    let lo = Math.min(...xs), hi = Math.max(...xs); if (spec !== null) { lo = Math.min(lo, spec); hi = Math.max(hi, spec); }
+    if (hi - lo < 1e-6) { lo -= 0.05; hi += 0.05; }
+    const nb = 24, bins = new Array(nb).fill(0); for (const x of xs) bins[Math.min(nb - 1, Math.floor((x - lo) / (hi - lo) * nb))]++;
+    const top = Math.max(...bins), L = 36, B = 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 8), bw = (W - L - 8) / nb;
+    g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 10); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
+    g.strokeStyle = '#888'; g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
+    g.fillStyle = '#555'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
+    for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g.textAlign = k === 0 ? 'left' : k === 4 ? 'right' : 'center'; g.fillText(v.toFixed(2), X(v), H - 6); }
+    g.textAlign = 'right'; g.fillText('builds by their worst ' + unit + ' over the band', W - 8, 12);
+    if (spec !== null) { g.strokeStyle = '#b42318'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(spec) + 0.5, 18); g.lineTo(X(spec) + 0.5, H - B); g.stroke(); g.setLineDash([]); g.fillStyle = '#b42318'; g.textAlign = 'left'; g.fillText('specification', X(spec) + 4, 30); }
+  });
+}
+function rwMcGo(asm) {
+  const plan = rfMcPlan(asm, designPrescription(asm), asm.rfTol);
+  RW_MC = { asm, plan, running: true };
+  const tick = () => {
+    if (!RW_MC || RW_MC.plan !== plan || !RW_MC.running) return;
+    const t0 = performance.now();
+    while (performance.now() - t0 < 60 && !plan.done) plan.run(4);
+    if (plan.done) RW_MC.running = false;
+    rwRender();
+    if (!plan.done) setTimeout(tick, 0);
+  };
+  rwRender(); setTimeout(tick, 0);
+}
+function rwMcStop() { if (RW_MC) RW_MC.running = false; rwRender(); }

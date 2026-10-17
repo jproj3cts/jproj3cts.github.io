@@ -20,7 +20,8 @@ const ghzOf = el => el.grin ? el.grin.ghz : (() => { const nm = benchNms().find(
 /* its mounting, as the order gives it */
 const mountLine = (dia, m) => m ? 'Mounting: flange ' + mm(m.width) + ' wide, ' + mm(m.thick) + ' thick' + (m.holes ? ', ' + m.holes + ' holes of ' + mm(m.hole) + ' on a ' + mm(dia + m.width) + ' circle' : ', no holes') : null;
 /* what the order says of it, or null when it is not a lens that can be ordered */
-export function orderSpec(el) {
+export function orderSpec(el, opts) {
+  opts = opts || {};
   if (!el || !el.mmw) return null;
   if (el.type === 'mask' && el.grin) {
     const g = el.grin, D = grinDesign(g, el.length);
@@ -41,7 +42,7 @@ export function orderSpec(el) {
     if (mountedDia(el.diameter, el.mount) > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
     const skins = el.surfaces.map(s => printedMatch(M, s.coat));
     if (skins.some(k => k && !k.ok)) return null;
-    const ghz = ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
+    const ghz = opts.ghz ? +(+opts.ghz).toPrecision(4) : ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
     const R = el.surfaces.map(s => s.R === null || !isFinite(s.R) ? 'flat' : mm(Math.abs(s.R)) + (s.R > 0 ? ' convex' : ' concave'));
     const R2 = el.surfaces.length === 2 ? (el.surfaces[1].R === null || !isFinite(el.surfaces[1].R) ? 'flat' : mm(Math.abs(el.surfaces[1].R)) + (el.surfaces[1].R < 0 ? ' convex' : ' concave')) : null;
     const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
@@ -52,7 +53,7 @@ export function orderSpec(el) {
         'Faces: ' + (R2 ? R[0] + ', ' + R2 : R.join(', ')),
         skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
         mountLine(el.diameter, el.mount),
-        'Weight: about ' + Math.round(grams) + ' g'].filter(Boolean),
+        'Weight: about ' + Math.round(grams) + ' g', ...(opts.extra || [])].filter(Boolean),
     };
   }
   return null;
@@ -68,8 +69,8 @@ export async function orderLink(el) {
 }
 const hash = s => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619) >>> 0; return x.toString(36).toUpperCase().padStart(6, '0').slice(-6); };
 /* into the quote cart: a new line for a new design, more of one already there */
-export async function requestQuote(el, qty) {
-  const S = orderSpec(el);
+export async function requestQuote(el, qty, opts) {
+  const S = orderSpec(el, opts);
   if (!S) { toast('This lens cannot be made as it is: see its panel.', true); return false; }
   const url = await orderLink(el), part = 'RFL-' + hash(S.spec.join('|')), n = Math.max(1, Math.round(+qty || 1));
   let items = [];
@@ -84,12 +85,12 @@ export async function requestQuote(el, qty) {
 }
 
 /* the panel's row: how many, and the orange button, for a lens that can be made */
-export function orderRow(el) {
-  if (!orderSpec(el)) return null;
+export function orderRow(el, opts) {
+  if (!orderSpec(el, opts)) return null;
   const qty = h('input', { type: 'number', min: '1', step: '1', value: '1', 'aria-label': 'How many', class: 'rt-order-qty' });
   const btn = h('button', { type: 'button', class: 'rt-btn rt-order', onclick: async () => {
     btn.disabled = true;
-    try { if (await requestQuote(el, qty.value)) { btn.textContent = 'Added to your quote'; setTimeout(() => { btn.textContent = 'Request a quote for this lens'; }, 2400); } }
+    try { if (await requestQuote(el, qty.value, opts)) { btn.textContent = 'Added to your quote'; setTimeout(() => { btn.textContent = 'Request a quote for this lens'; }, 2400); } }
     finally { btn.disabled = false; }
   } }, 'Request a quote for this lens');
   return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), btn,

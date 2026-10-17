@@ -118,3 +118,30 @@ test('optimising a spherical lens finds the hyperbola again: its phase error gon
   assert.ok(t.sigma / t.lam < 0.01, String(t.sigma / t.lam));
   assert.ok(Math.abs(t.gain - ideal.gain) < 0.05, t.gain + ' against ' + ideal.gain);
 });
+
+test('tolerancing: each error moves the figure as it should, Monte Carlo is repeatable, and the yield its Wilson interval', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.HDPE.n;
+  const { a, P } = system((n - 1) * Rg, -n * n, null, 0, 30, { kind: 'collimate', d: 300 });
+  const T = { eps: { v: 5 }, thk: { v: 0.2 }, rad: { v: 1 }, gap: { v: 0.5 }, feed: { v: 1 }, trials: 60, seed: 7 };
+  const S = RF.rfSensitivity(a, P, T);
+  // the hyperbola is exact for its plastic's index: the permittivity off either way puts phase error in, so the gain falls
+  // both ways, and it matters most; a lens's thickness, its beam flat inside, all but nothing
+  const row = kd => S.rows.find(r => r.kind === kd);
+  assert.equal(S.rows[0].kind, 'eps');
+  assert.ok(row('eps').up < -0.01 && row('eps').dn < -0.01, JSON.stringify(row('eps')));
+  assert.ok(Math.abs(row('thk').up) < 1e-3 && Math.abs(row('thk').dn) < 1e-3, JSON.stringify(row('thk')));
+  // an error of nothing changes nothing
+  const items = RF.rfTolItems(a, P, T), c0 = RF.rfTolApply(a, P, items, items.map(() => 0));
+  assert.ok(Math.abs(RF.rfTrace(c0.asm, c0.P, ghz).gain - RF.rfTrace(a, P, ghz).gain) < 1e-12);
+  // the permittivity up by 5%: the index by √1.05
+  const k = items.findIndex(e => e.kind === 'eps'), c1 = RF.rfTolApply(a, P, items, items.map((_, j) => (j === k ? 5 : 0)));
+  assert.ok(Math.abs((n + c1.P.materials[0].dn) / n - Math.sqrt(1.05)) < 1e-12);
+  const run = () => { const p = RF.rfMcPlan(a, P, T); while (!p.done) p.run(10); return p.builds; };
+  const b1 = run(), b2 = run();
+  assert.equal(b1.length, 60);
+  assert.deepEqual(b1, b2);
+  assert.ok(b1.every(b => b.worst <= b.at + 1e-12));
+  // Wilson's interval: 5 of 10 is 23.7% to 76.3%
+  const Y = RF.rfYield(Array.from({ length: 10 }, (_, i) => ({ worst: i < 5 ? 1 : 0 })), 0.5);
+  assert.ok(Math.abs(Y.p - 0.5) < 1e-12 && Math.abs(Y.lo - 0.2366) < 1e-3 && Math.abs(Y.hi - 0.7634) < 1e-3, JSON.stringify(Y));
+});

@@ -9166,6 +9166,46 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: Make it checks the lens and quotes it at the design frequency; Tolerance gives sensitivity, Monte Carlo and a yield',
+    why: 'the new design’s lens is manufacturable and its quote goes into the cart named for 24 GHz with its gain; widened to 230 mm it fails Fits across and the quote button goes; Sensitivity lists its errors, permittivity worst; Monte Carlo makes the builds asked for and gives a yield against a specification (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), CART = 'JEK_QUOTE_CART';
+      let saved = null; try { saved = W.localStorage.getItem(CART); W.localStorage.removeItem(CART); } catch (e) { /* none */ }
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs');
+      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
+      const tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      try {
+        tab('Make it');
+        const ok1 = /Manufacturable/.test(ws().querySelector('.rt-rfverdict').textContent) && ws().querySelector('.rt-rfverdict').classList.contains('ok');
+        const q = ws().querySelector('.rt-rfmake .rt-order');
+        q.click();
+        let cart = [];
+        for (let k = 0; k < 60 && !cart.length; k++) { await new Promise(r => setTimeout(r, 50)); try { cart = JSON.parse(W.localStorage.getItem(CART) || '[]'); } catch (e) { cart = []; } }
+        const line = cart[0], quoted = !!line && /24 GHz/.test(line.name) && line.spec.some(x => /Design frequency: 24 GHz/.test(x)) && line.spec.some(x => /RF designer/.test(x) && /dBi/.test(x));
+        tab('Lenses');
+        set('RF lens diameter (mm)', '230');
+        tab('Make it');
+        const bad = !ws().querySelector('.rt-rfverdict').classList.contains('ok') && !ws().querySelector('.rt-rfmake .rt-order') && [...ws().querySelectorAll('.rt-rfchecks li.bad')].some(li => /Fits across/.test(li.textContent));
+        rigDoc().querySelector('#rfWs header .rt-btn[title^="Undo"]').click();
+        tab('Tolerance');
+        [...ws().querySelectorAll('button')].find(b => b.textContent === 'Sensitivity').click();
+        const rows = [...ws().querySelectorAll('.rt-rftol tbody tr')].map(r => r.firstChild.textContent);
+        const sens = rows.some(r => /permittivity/.test(r));
+        set('Builds', '40');
+        set('Specification (dBi)', '20');
+        [...ws().querySelectorAll('button')].find(b => b.textContent === 'Run Monte Carlo').click();
+        for (let k = 0; k < 400 && !/40 of 40 builds\./.test(ws().querySelector('.rt-rftol').textContent); k++) await new Promise(r => setTimeout(r, 50));
+        const mcDone = /40 of 40 builds\./.test(ws().querySelector('.rt-rftol').textContent), yieldOk = /Yield: 100\.0 %/.test(ws().querySelector('.rt-rftol').textContent);
+        const ok = ok1 && quoted && bad && sens && mcDone && yieldOk;
+        if (!ok) console.log('RF make/tol', { ok1, quoted, line, bad, rows, mcDone, yieldOk });
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); try { if (saved === null) W.localStorage.removeItem(CART); else W.localStorage.setItem(CART, saved); } catch (e) { /* none */ } }
+    },
+  },
+  {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
     want: 1, tol: 0, unit: '',

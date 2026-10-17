@@ -260,6 +260,37 @@ at the band's edges and its centre, with its half-power beamwidth and first side
 
 The search is quasi-Newton (BFGS) on the sum of the squares of the efficiency's shortfall at each frequency (and its spread, and the bounds), each variable in its own scale, its gradient by central differences, each step shortened until the merit falls enough. The efficiency can't reach 1, so a least-squares step, which assumes the merit's least is nought, would stall; this one doesn't. It runs a step at a time with the page live; **Stop** keeps what it has. The result goes into the design as one change, which **Undo** takes back.
 
+### Tolerance
+
+A printed lens is not made exactly, nor mounted exactly where it was designed. **Tolerance** takes each error within limits you set:
+
+| Error | On | Default |
+|---|---|---|
+| Permittivity | each lens's plastic, its index by $$\sqrt{1 + v/100}$$ | ± 5 % |
+| Centre thickness | each lens | ± 0.2 mm |
+| Face curvature | each curved face | ± 1 % |
+| Air gap | after each part | ± 0.5 mm |
+| Feed distance | the feed horn | ± 1 mm |
+
+A printed plastic's permittivity is known to a few per cent until tiles of it are measured, and the printer's flow moves it the same way, so it is usually the error that matters most. The figure is the gain (to collimate) or the efficiency, with every loss and the phase error from real rays.
+
+- **Sensitivity**: each error alone at its limit, either way, and what it does to the figure at the design frequency, the worst first.
+- **Monte Carlo**: builds with every error drawn at once, evenly within its limits or normally with its limit at two standard deviations, from a fixed seed so a run can be repeated. For each build, its figure at the design frequency and its worst over the band; the mean, the figure nine builds in ten reach, the worst build, and a histogram.
+- **Yield**: give a specification (the figure at least so much across the whole band) and the share of builds that meet it, with its 95 % interval (Wilson's).
+
+Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here, since the Gaussian beam the designer follows is on its axis: the RF lens's own panel on the bench traces those.
+
+### Make it
+
+**Make it** checks each lens against what can be made to order:
+
+- a made-to-order plastic (PLA, ABS, PETG, ASA or polypropylene);
+- up to 210 mm across (with its flange) and 260 mm thick;
+- nowhere thinner than 0.45 mm;
+- matching layers that can be printed, and that hold, by the design rule, to the top of the band.
+
+It gives the lens's centre and edge thickness, its weight and its outside diameter, and notes a lens only a few wavelengths across or one whose edge taper is low. Its **Mounting** can be a flange with bolt holes, as on the bench. A lens that passes has the orange **Request a quote for this lens** button, as in its panel: the request goes into the quote cart named for the design frequency, with the lens's figures and what the system does (its gain or coupling over the band), and a link to the design. See [Custom RF Lenses](/jek/products/signal-processing/custom-rf-lenses/).
+
 ### Design a lens
 
 **Design a lens** makes a lens to suit the beam that reaches it and the goal after it, as millimetre-wave lenses are designed. Each curved face is a hyperbola of eccentricity $$n$$ (conic $$-n^2$$, vertex radius $$(n-1)F$$), which turns a point at its focus $$F$$ into a plane wave in the plastic, or a plane wave in the plastic into a point in air. The point is the beam's phase centre: $$F$$ is the phase radius of the beam reaching the lens, and on the far side the phase radius the beam must leave with to make its waist where it is wanted,
@@ -288,6 +319,7 @@ You give the **material**, **diameter**, **edge thickness** and whether its face
 - a nearly uniform aperture's pattern: its half-power beamwidth $$58.9\,\lambda/D$$ degrees and its first sidelobe at −17.6 dB, the Airy pattern's, to 1% and 0.1 dB; a tapered one wider, its sidelobes under −24 dB;
 - a plain slab reflecting nothing when half a wave thick inside, and $$\left(\frac{n^2-1}{n^2+1}\right)^2$$ at a quarter;
 - a lens given a sphere where its hyperbola was, optimised with its radius and conic free: its phase error back under $$0.01\lambda$$ and its gain the designed lens's, within 0.05 dB.
+- tolerancing a hyperbolic lens: its permittivity off by 5 % either way lowers the gain both ways and matters most, its centre thickness (the beam flat inside) all but nothing; an error of nothing changes nothing; the same seed gives the same builds; and Wilson's interval for 5 of 10 is 23.7 % to 76.3 %.
 
 ## The parts
 

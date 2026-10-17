@@ -18,6 +18,13 @@
 (function (window, document) {
   "use strict";
 
+  // the site has one address: www.jeksys.net is sent to the same page on jeksys.net, the address the
+  // account service accepts (on jeksys.net itself, or anywhere else, this does nothing)
+  if (window.location.hostname === "www.jeksys.net") {
+    window.location.replace("https://jeksys.net" + window.location.pathname + window.location.search + window.location.hash);
+    return;
+  }
+
   var API_BASE = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? "http://localhost:8787" : "https://api.jeksys.net";
   var KEY = "JEK_ME";                                   // sessionStorage: { name, avatar } or "out"
   var ACCOUNT_PAGE = "/jek/account.html";

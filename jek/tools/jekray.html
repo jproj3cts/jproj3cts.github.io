@@ -8,6 +8,8 @@
      policy adds is that nothing here can send data, or load images or code, from anywhere else. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>JEKray</title>
+<!-- one address: www.jeksys.net to the same page on jeksys.net, the one the account service accepts -->
+<script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
 <style>

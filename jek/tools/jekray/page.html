@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>JEKray</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261015b">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
 <style>
 {{STYLE}}
 </style>
@@ -136,6 +136,7 @@
             </div>
             <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
           </div>
+          <a class="rt-btn rt-cartbtn" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
           <div class="rt-more" id="acct" hidden>
             <button class="rt-btn rt-acct" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>

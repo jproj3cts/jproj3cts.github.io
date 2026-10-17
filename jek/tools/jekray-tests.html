@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex" />
 <title>JEKray regression tests</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261015b">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
 <style>
   .tt-wrap { width: 100%; max-width: 1100px; text-align: left; }
   .tt-bar {
@@ -8482,8 +8482,8 @@ const TESTS = [
       try {
         win.localStorage.removeItem('JEK_QUOTE_CART');
         J.load(JSON.parse(getDemo('rf-24ghz-grin-lens'))); J.select('GRIN lens');
-        const btn = doc.querySelector('#panel .rt-order');
-        if (!btn) return 0;
+        const btn = doc.querySelector('#panel .rt-orderadd');
+        if (!btn || !doc.querySelector('#panel .rt-order') || doc.querySelector('#panel .rt-order').textContent !== 'Quote now') return 0;
         doc.querySelector('#panel .rt-order-qty').value = '2';
         btn.click();
         for (let i = 0; i < 50 && !win.localStorage.getItem('JEK_QUOTE_CART'); i++) await new Promise(r => setTimeout(r, 40));
@@ -8493,7 +8493,9 @@ const TESTS = [
         const abs = !!doc.querySelector('#panel .rt-order');
         J.load(JSON.parse(getDemo('mm-wave-link'))); J.select('Lens 1');
         const hdpe = !doc.querySelector('#panel .rt-order');
-        return okItem && abs && hdpe ? 1 : 0;
+        // the top bar's Cart counts it
+        const counted = doc.getElementById('cartCount').textContent === '2' && !doc.getElementById('cartCount').hidden && /cart\.html$/.test(doc.getElementById('btnCart').getAttribute('href'));
+        return okItem && abs && hdpe && counted ? 1 : 0;
       } finally { if (saved === null) win.localStorage.removeItem('JEK_QUOTE_CART'); else win.localStorage.setItem('JEK_QUOTE_CART', saved); }
     },
   },
@@ -9180,7 +9182,7 @@ const TESTS = [
       try {
         tab('Make it');
         const ok1 = /Manufacturable/.test(ws().querySelector('.rt-rfverdict').textContent) && ws().querySelector('.rt-rfverdict').classList.contains('ok');
-        const q = ws().querySelector('.rt-rfmake .rt-order');
+        const q = ws().querySelector('.rt-rfmake .rt-orderadd');
         q.click();
         let cart = [];
         for (let k = 0; k < 60 && !cart.length; k++) { await new Promise(r => setTimeout(r, 50)); try { cart = JSON.parse(W.localStorage.getItem(CART) || '[]'); } catch (e) { cart = []; } }
@@ -9251,7 +9253,7 @@ const TESTS = [
         const ok = ws().querySelector('.rt-rfverdict').classList.contains('ok') && [...ws().querySelectorAll('.rt-rfchecks li.ok')].some(li => /Holds to the top of the band/.test(li.textContent));
         const has3d = !!ws().querySelector('.rt-rfmake .rt-rf3d') && !/no lenses to make/.test(ws().querySelector('.rt-rfmake').textContent);
         const svg = J.lensDrawingSvg('New RF design', 0), drawn = /Permittivity across the disc/.test(svg) && /graded as below/.test(svg) && !/fringes/.test(svg);
-        ws().querySelector('.rt-rfmake .rt-order').click();
+        ws().querySelector('.rt-rfmake .rt-orderadd').click();
         let cart = [];
         for (let k = 0; k < 60 && !cart.length; k++) { await new Promise(r => setTimeout(r, 50)); try { cart = JSON.parse(W.localStorage.getItem(CART) || '[]'); } catch (e) { cart = []; } }
         const line = cart[0], quoted = !!line && /Graded-index RF lens/.test(line.name) && line.spec.some(x => /RF designer/.test(x) && /dBi/.test(x));
@@ -9296,7 +9298,7 @@ const TESTS = [
         tab('Make it');
         const made = [...ws().querySelectorAll('.rt-rfchecks li.ok')].some(li => /Cut in zones/.test(li.textContent) && /2 zones for 24 GHz/.test(li.textContent));
         const svg = J.lensDrawingSvg('New RF design', 0), drawn = /is cut in 2 zones for 24 GHz/.test(svg);
-        ws().querySelector('.rt-rfmake .rt-order').click();
+        ws().querySelector('.rt-rfmake .rt-orderadd').click();
         let cart = [];
         for (let k = 0; k < 60 && !cart.length; k++) { await new Promise(r => setTimeout(r, 50)); try { cart = JSON.parse(W.localStorage.getItem(CART) || '[]'); } catch (e) { cart = []; } }
         const quoted = !!cart[0] && cart[0].spec.some(x => /^Zoned: front face cut in 2 zones for 24 GHz/.test(x));
@@ -10776,5 +10778,6 @@ document.getElementById('rig').addEventListener('load', () => setTimeout(runAll,
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>
+<script src="/jek/assets/js/account.js?v=20261017"></script>
 </body>
 </html>

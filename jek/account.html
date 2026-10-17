@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your Account | JEK Systems</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div>
+  <div class="bar bar2"></div>
+  <div class="bar bar3"></div>
+  <div class="bar bar4"></div>
+  <div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <span class="nav-drop" data-nav-drop>
+      <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+      <span class="nav-drop-menu">
+        <a href="/jek/calculators/">Calculators</a>
+        <a href="/jek/tools/jekray.html">JEKray</a>
+      </span>
+    </span> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <a class="text-overlay" href="/jek/">JEK Systems</a>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title" data-eyebrow="JEK Systems">Your account</h1>
+
+  <div class="acct-panel">
+    <p id="acctLoading" class="acct-sub">Looking for your account…</p>
+
+    <!-- signed out -->
+    <section id="acctOut" class="acct-card" hidden>
+      <h2>Sign in</h2>
+      <p>One account for the JEK Systems site and JEKray: your benches and parts in JEKrayPro, your team, and more to come. Sign in with the account you already use; we never see its password.</p>
+      <div class="acct-providers">
+        <button type="button" data-signin="google">Sign in with Google</button>
+        <button type="button" data-signin="microsoft">Sign in with Microsoft</button>
+      </div>
+      <p class="acct-sub">Signing in for the first time makes your account. See our <a href="/jek/privacy.html">Privacy Policy</a> for what we keep and why.</p>
+      <p id="acctDown" class="acct-msg err" hidden>The account service could not be reached just now. Please try again in a moment.</p>
+    </section>
+
+    <!-- signed in -->
+    <div id="acctIn" hidden>
+      <section class="acct-card" aria-labelledby="hProfile">
+        <h2 id="hProfile">Profile</h2>
+        <div class="acct-who"><span id="acctPic"></span><div><div class="acct-name" id="acctName"></div><div class="acct-email" id="acctEmail"></div><div class="acct-sub" id="acctSince"></div></div></div>
+        <form class="acct-row" id="nameForm">
+          <label class="acct-sub" for="nameInput">Your name, as JEKray and your team see it</label>
+          <input type="text" id="nameInput" maxlength="80" autocomplete="name" required>
+          <button type="submit" class="acct-btn">Save</button>
+        </form>
+        <p id="nameMsg" class="acct-msg" role="status"></p>
+        <p class="acct-sub">Your picture is set in JEKray: <a href="/jek/tools/jekray.html">open JEKray</a>, then your name at the top right.</p>
+      </section>
+
+      <section class="acct-card" aria-labelledby="hSignin">
+        <h2 id="hSignin">Ways to sign in</h2>
+        <ul class="acct-list" id="idList"></ul>
+        <div class="acct-providers" id="idAdd"></div>
+        <p id="idMsg" class="acct-msg" role="status"></p>
+      </section>
+
+      <section class="acct-card" aria-labelledby="hJekray">
+        <h2 id="hJekray">JEKray</h2>
+        <p id="planLine"></p>
+        <ul class="acct-list" id="teamList"></ul>
+        <div class="acct-row">
+          <a class="acct-btn primary" href="/jek/tools/jekray.html#benches">My benches</a>
+          <a class="acct-btn" href="/jek/tools/jekray.html#pro" id="planBtn">JEKrayPro</a>
+          <a class="acct-btn" href="/jek/tools/jekray.html">Open JEKray</a>
+        </div>
+      </section>
+
+      <section class="acct-card" aria-labelledby="hQuotes">
+        <h2 id="hQuotes">Quotes</h2>
+        <p id="cartLine"></p>
+        <p class="acct-sub">Signed in, the quote form fills in your name and email for you.</p>
+      </section>
+
+      <section class="acct-card" aria-labelledby="hData">
+        <h2 id="hData">Your data</h2>
+        <div class="acct-row">
+          <a class="acct-btn" id="exportLink" href="#">Download everything (.zip)</a>
+          <button type="button" class="acct-btn" id="signOutBtn">Sign out</button>
+        </div>
+        <details style="margin-top: 1rem">
+          <summary class="acct-btn danger" style="list-style: none">Delete my account…</summary>
+          <p>This deletes your account, your benches, your parts and any team you alone are in, and ends any subscription you pay for. It cannot be undone. To go ahead, type <b>delete my account</b>.</p>
+          <form class="acct-row" id="delForm">
+            <input type="text" id="delInput" autocomplete="off" aria-label="Type delete my account to confirm">
+            <button type="submit" class="acct-btn danger">Delete my account</button>
+          </form>
+          <p id="delMsg" class="acct-msg err" role="alert"></p>
+        </details>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script src="/jek/assets/js/cart.js?v=20261015b"></script>
+<script src="/jek/assets/js/account.js?v=20261017"></script>
+<script>
+(function () {
+  var A = window.JEKAccount, $ = function (id) { return document.getElementById(id); };
+  var NAMES = { google: "Google", microsoft: "Microsoft", orcid: "ORCID" }, OFFER = ["google", "microsoft"];
+  var back = new URLSearchParams(location.search).get("back");
+  // where signing in comes back to: the page they came from (a page of this site), or here
+  var ret = back && /^\/jek\//.test(back) ? location.origin + back : location.origin + location.pathname;
+  function el(tag, attrs, text) { var n = document.createElement(tag); for (var k in attrs || {}) n.setAttribute(k, attrs[k]); if (text) n.textContent = text; return n; }
+  function date(t) { return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }); }
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-signin]"), function (b) {
+    b.addEventListener("click", function () { A.signIn(b.getAttribute("data-signin"), ret); });
+  });
+
+  function planText(m) {
+    var p = (m.workspaces || []).find(function (w) { return w.kind === "personal"; });
+    if (m.team_seat) return "JEKrayPro, through your team.";
+    if (m.licence) return "JEKrayPro, through " + m.licence.name + ".";
+    if (p && p.active && p.plan) return (p.plan.plan === "academic" ? "JEKrayPro (academic)" : "JEKrayPro") + (p.plan.cancel_at ? ", ends " + date(p.plan.cancel_at) : p.plan.period_end ? ", renews " + date(p.plan.period_end) : "") + ".";
+    if (m.academic) return "Free academic JEKrayPro until " + date(m.academic.until) + ".";
+    return "JEKray, free. JEKrayPro keeps your benches online with their history, your own parts, and teams.";
+  }
+
+  function show(m) {
+    $("acctLoading").hidden = true;
+    if (!m) { $("acctOut").hidden = false; $("acctIn").hidden = true; $("acctDown").hidden = A.status() !== "unknown"; return; }
+    $("acctOut").hidden = true; $("acctIn").hidden = false;
+    var u = m.user;
+    $("acctPic").replaceChildren(A.avatarNode(u, "lg"));
+    $("acctName").textContent = u.name || "";
+    $("acctEmail").textContent = u.email || "";
+    $("acctSince").textContent = u.created_at ? "Member since " + date(u.created_at) : "";
+    $("nameInput").value = u.name || "";
+    // ways to sign in
+    var ids = m.identities || [], list = $("idList");
+    list.replaceChildren();
+    ids.forEach(function (i) {
+      var li = el("li"), left = el("span", null, NAMES[i.provider] || i.provider);
+      li.appendChild(left);
+      if (ids.length > 1) {
+        var rm = el("button", { type: "button", class: "acct-btn" }, "Remove");
+        rm.addEventListener("click", function () {
+          rm.disabled = true;
+          A.api("/v1/me/identities/" + encodeURIComponent(i.provider), { method: "DELETE" })
+            .then(function () { return A.me(true); }).then(show)
+            .catch(function (e) { $("idMsg").textContent = e.message; $("idMsg").className = "acct-msg err"; rm.disabled = false; });
+        });
+        li.appendChild(rm);
+      } else li.appendChild(el("span", { class: "acct-sub" }, "your only way in"));
+      list.appendChild(li);
+    });
+    var add = $("idAdd"); add.replaceChildren();
+    OFFER.filter(function (p) { return !ids.some(function (i) { return i.provider === p; }); }).forEach(function (p) {
+      var b = el("button", { type: "button" }, "Add " + NAMES[p]);
+      b.addEventListener("click", function () { A.signIn(p, location.origin + location.pathname, true); });
+      add.appendChild(b);
+    });
+    // JEKray
+    $("planLine").textContent = planText(m);
+    var teams = (m.workspaces || []).filter(function (w) { return w.kind === "team"; }), tl = $("teamList");
+    tl.replaceChildren();
+    teams.forEach(function (w) { tl.appendChild(el("li", null, w.name + " \u00b7 " + (w.role === "owner" ? "owner" : w.role === "admin" ? "admin" : "member"))); });
+    $("planBtn").textContent = planText(m).indexOf("JEKray, free") === 0 ? "Get JEKrayPro" : "Manage JEKrayPro";
+    // quotes
+    var n = window.JEKCart ? window.JEKCart.count() : 0;
+    $("cartLine").replaceChildren(document.createTextNode(n ? "Your quote cart has " + n + (n === 1 ? " item" : " items") + ": " : "Your quote cart is empty. "), el("a", { href: "/jek/cart.html" }, "Open the cart"));
+    $("exportLink").href = A.API_BASE + "/v1/me/export";
+  }
+
+  $("nameForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = $("nameInput").value.trim(), msg = $("nameMsg");
+    if (!v) return;
+    A.api("/v1/me", { method: "PATCH", body: { name: v } }).then(function (m) { msg.className = "acct-msg"; msg.textContent = "Saved."; A.me(true).then(function (mm) { show(mm); A.render({ name: mm.user.name, avatar: mm.user.avatar }); }); void m; })
+      .catch(function (err) { msg.className = "acct-msg err"; msg.textContent = err.message; });
+  });
+  $("signOutBtn").addEventListener("click", function () { A.signOut().then(function () { show(null); }); });
+  $("delForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = $("delInput").value.trim().toLowerCase(), msg = $("delMsg");
+    if (v !== "delete my account") { msg.textContent = "Type delete my account to confirm."; return; }
+    A.api("/v1/me", { method: "DELETE", body: { confirm: v } }).then(function () {
+      try { sessionStorage.removeItem("JEK_ME"); } catch (err) { /* none */ }
+      A.render(null); show(null);
+      $("acctOut").insertBefore(el("p", { class: "acct-msg" }, "Your account is deleted."), $("acctOut").firstChild.nextSibling);
+    }).catch(function (err) { msg.textContent = err.message; });
+  });
+
+  A.me().then(show);
+})();
+</script>
+
+</body>
+</html>

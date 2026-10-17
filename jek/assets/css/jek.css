@@ -1950,3 +1950,70 @@ button.buy-button {
 
 /* a custom part's figures in the quote cart */
 .cart-spec { display: block; margin-top: 0.3rem; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft, #5a5a55); }
+
+/* ==========================================================================
+   Your account (assets/js/account.js): Sign in, or your picture and name, beside
+   Cart in the masthead; the account page; and the note after signing in
+   ========================================================================== */
+/* room on the right of the nav for the group: Sign in (or a picture and a name) and Cart */
+.top-container .bar6 { padding-right: 14rem; }
+.top-container .bar6 .nav-right {
+  position: absolute;
+  right: var(--jek-gutter, 0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.top-container .bar6 .nav-right .nav-cart { position: static; transform: none; }
+/* the bar's own text is sized to nothing (its separators); its links are sized themselves, these with them */
+.top-container .bar6 .nav-right > a { font-size: 0.78rem; }
+.top-container .bar6 .nav-acct { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0.7rem; }
+.top-container .bar6 .nav-right .nav-cart { margin: 0 0 0 0.7rem; }
+.top-container .bar6 .nav-acct[hidden] { display: none; }
+.acct-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 2.6rem; height: 2.6rem; border-radius: 50%; overflow: hidden;
+  background: var(--jek-cyan); color: #fff; font-weight: 700; font-size: 1rem; letter-spacing: 0.02em;
+}
+.acct-avatar.sm { width: 1.45rem; height: 1.45rem; font-size: 0.62rem; }
+.acct-avatar.lg { width: 4.5rem; height: 4.5rem; font-size: 1.5rem; }
+.acct-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.acct-toast {
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 60;
+  background: var(--jek-ink); color: #fff; padding: 0.65rem 1rem; border-radius: 3px;
+  font-size: 0.9rem; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25); transition: opacity 0.6s;
+}
+.acct-toast.warn { background: #8a3b12; }
+.acct-toast.gone { opacity: 0; }
+
+.acct-panel { max-width: 46rem; margin: 0 auto 2rem; }
+.acct-card { background: #fffdf9; border: 1px solid var(--jek-line); padding: 1.25rem 1.4rem 1.4rem; margin-bottom: 1.1rem; }
+.acct-card h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+.acct-card p { margin: 0.4rem 0; }
+.acct-who { display: flex; align-items: center; gap: 1rem; }
+.acct-who .acct-name { font-size: 1.2rem; font-weight: 700; }
+.acct-who .acct-email { color: var(--jek-ink-soft); font-size: 0.9rem; }
+.acct-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
+.acct-row input[type=text] { flex: 1 1 14rem; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line-2); font: inherit; }
+.acct-list { list-style: none; padding: 0; margin: 0; }
+.acct-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-top: 1px solid var(--jek-line); }
+.acct-list li:first-child { border-top: 0; }
+.acct-sub { color: var(--jek-ink-soft); font-size: 0.88rem; }
+.acct-providers { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0 0.5rem; }
+.acct-providers button, .acct-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; font: inherit; font-weight: 600;
+  background: #fff; color: var(--jek-ink); border: 1px solid var(--jek-line-2); cursor: pointer;
+}
+.acct-providers button:hover, .acct-btn:hover { border-color: var(--jek-cyan); }
+.acct-btn.primary { background: var(--jek-cyan); color: #fff; border-color: var(--jek-cyan); }
+.acct-btn.danger { color: #9b2c1a; }
+.acct-msg { font-size: 0.9rem; margin-top: 0.5rem; }
+.acct-msg.err { color: #9b2c1a; }
+
+@media (max-width: 760px) {
+  .top-container .bar6 { padding-right: 0.75rem; }
+  .top-container .bar6 .nav-right { position: static; transform: none; }
+  .top-container .bar6 .nav-acct { margin: 0 0.3rem; }
+}

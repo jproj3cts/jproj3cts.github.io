@@ -218,6 +218,7 @@ export function fillAccount() {
     // a university's licence, for those who look after it there
     for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
     rows.push(item('user', 'Your account\u2026', showAccount));
+    rows.push(h('a', { role: 'menuitem', href: '/jek/account.html', target: '_blank', rel: 'noopener', 'data-icon': 'home' }, 'Your account on the JEK Systems site'));
     // their teams, and a new one
     for (const w of ws) if (w.kind === 'team') rows.push(item('users', w.name + '…', () => showTeam(w.id)));
     rows.push(item('users', 'Create a team…', createTeam));

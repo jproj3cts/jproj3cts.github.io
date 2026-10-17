@@ -87,6 +87,7 @@ import { MINE, partContent, placeMine } from './myparts.js';
 import { normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
 import { account, accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
+import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
@@ -108,7 +109,7 @@ installHooks({
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods(); wireView3d();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods(); wireView3d(); wireCart();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

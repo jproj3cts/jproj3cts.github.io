@@ -14,6 +14,7 @@ import { h } from '../ui/panel.js';
    the horns and receivers on its tab, nothing else of the bench; a graded-index lens travels
    as its design, its plate rebuilt from it on opening. */
 const CART = 'JEK_QUOTE_CART';
+export const CART_PAGE = '/jek/cart.html';
 const mm = v => (+v).toFixed(v < 10 ? 2 : 1).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') + ' mm';
 const ghzOf = el => el.grin ? el.grin.ghz : (() => { const nm = benchNms().find(v => v > 1e5); return nm ? +(C_NM_GHZ / nm).toPrecision(4) : null; })();
 
@@ -82,6 +83,22 @@ export async function orderLink(el) {
 }
 const hash = s => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619) >>> 0; return x.toString(36).toUpperCase().padStart(6, '0').slice(-6); };
 /* into the quote cart: a new line for a new design, more of one already there */
+/* the quote cart's count, as the top bar shows it: every line's quantity */
+export function cartCount() {
+  try { const items = JSON.parse(localStorage.getItem(CART) || '[]'); return Array.isArray(items) ? items.reduce((n, it) => n + (it && it.qty > 0 ? it.qty : 0), 0) : 0; } catch (err) { return 0; }
+}
+/* the top bar's Cart: its count kept current (this tab's additions, and another tab's through the storage event) */
+export function cartChanged() {
+  const n = cartCount(), c = document.getElementById('cartCount');
+  if (!c) return;
+  c.textContent = String(n); c.hidden = !n;
+  const b = document.getElementById('btnCart'); if (b) b.setAttribute('aria-label', 'Quote cart' + (n ? ', ' + n + (n === 1 ? ' item' : ' items') : ', empty'));
+}
+export function wireCart() {
+  cartChanged();
+  window.addEventListener('storage', e => { if (e.key === CART || e.key === null) cartChanged(); });
+  window.addEventListener('focus', cartChanged);
+}
 export async function requestQuote(el, qty, opts) {
   const S = orderSpec(el, opts);
   if (!S) { toast('This lens cannot be made as it is: see its panel.', true); return false; }
@@ -93,20 +110,33 @@ export async function requestQuote(el, qty, opts) {
   else items.push({ part, name: S.name, price: null, currency: '', note: '', url, qty: n, spec: S.spec });
   try { localStorage.setItem(CART, JSON.stringify(items)); }
   catch (err) { toast('Your browser is blocking site storage, so the quote cart cannot be saved.', true); return false; }
-  toast('Added to your quote cart: open Cart on the JEK Systems site to send the request.');
+  if (!(opts && opts.quiet)) toast('Added to your quote cart: Cart, at the top, opens it to send the request.');
+  cartChanged();
   return part;
 }
 
-/* the panel's row: how many, and the orange button, for a lens that can be made */
+/* the panel's row: how many, and the two buttons for a lens that can be made: Quote now (orange: into the cart, and
+   the cart opened in a new tab, its request ready to send) and Add to quote cart (to gather several first) */
 export function orderRow(el, opts) {
   if (!orderSpec(el, opts)) return null;
   const qty = h('input', { type: 'number', min: '1', step: '1', value: '1', 'aria-label': 'How many', class: 'rt-order-qty' });
-  const btn = h('button', { type: 'button', class: 'rt-btn rt-order', onclick: async () => {
-    btn.disabled = true;
-    try { if (await requestQuote(el, qty.value, opts)) { btn.textContent = 'Added to your quote'; setTimeout(() => { btn.textContent = 'Request a quote for this lens'; }, 2400); } }
-    finally { btn.disabled = false; }
-  } }, 'Request a quote for this lens');
-  return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), btn,
-    h('p', { class: 'note' }, 'Made to order to this design. The request goes into your quote cart with its figures and a link to the design; send it from Cart on the JEK Systems site and we reply with a price. ',
+  const add = h('button', { type: 'button', class: 'rt-btn rt-orderadd', onclick: async () => {
+    add.disabled = true;
+    try { if (await requestQuote(el, qty.value, opts)) { add.textContent = 'Added to your quote cart'; setTimeout(() => { add.textContent = 'Add to quote cart'; }, 2400); } }
+    finally { add.disabled = false; }
+  } }, 'Add to quote cart');
+  const now = h('button', { type: 'button', class: 'rt-btn rt-order', title: 'Puts it in your quote cart and opens the cart in a new tab, ready to send', onclick: async () => {
+    // the tab opened at once, while the click still counts as the person's (a pop-up blocker allows it), then sent to the cart
+    const tab = window.open('', '_blank');
+    now.disabled = true;
+    try {
+      const part = await requestQuote(el, qty.value, Object.assign({}, opts, { quiet: true }));
+      if (!part) { if (tab) tab.close(); return; }
+      if (tab) { tab.opener = null; tab.location.href = CART_PAGE + '#send'; }
+      else location.href = CART_PAGE + '#send';
+    } finally { now.disabled = false; }
+  } }, 'Quote now');
+  return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), now, add,
+    h('p', { class: 'note' }, 'Made to order to this design. Quote now opens your quote cart with it, ready to send; or add it and send several together from Cart. The request carries its figures and a link to the design, and we reply with a price. ',
       h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'));
 }

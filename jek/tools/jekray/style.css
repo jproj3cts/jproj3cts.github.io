@@ -1227,6 +1227,9 @@
   .rt-btn.rt-order { background: var(--jek-orange, #f07e26); border-color: var(--jek-orange, #f07e26); color: #fff; font-weight: 700; }
   .rt-btn.rt-order:hover { background: #d96a14; border-color: #d96a14; }
   .rt-btn.rt-order:disabled { opacity: 0.6; }
+  .rt-orderrow .rt-orderadd { margin-left: 0.4rem; }
+  .rt-cartbtn { text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .rt-cartcount { background: var(--jek-orange, #f07e26); color: #fff; border-radius: 999px; font-size: 0.72rem; font-weight: 700; min-width: 1.15rem; padding: 0 0.32rem; line-height: 1.15rem; text-align: center; }
 
   /* the maker's view of a graded-index lens's bands */
   .rt-grin-rings { width: 100%; margin-top: 0.4rem; border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }

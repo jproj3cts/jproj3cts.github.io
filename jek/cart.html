@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Quote Cart</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261015b">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
 </head>
 <body>
 
@@ -132,6 +132,7 @@
 </footer>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>
+<script src="/jek/assets/js/account.js?v=20261017"></script>
 <script>
 (function () {
   var rowsEl    = document.getElementById("cartRows");
@@ -298,6 +299,13 @@
   if (window.location.hash === "#send" && JEKCart.read().length) {
     window.addEventListener("load", function () { form.elements.name.focus(); });
   }
+  // signed in: their name and email filled in, where the form is still empty
+  if (window.JEKAccount) window.JEKAccount.me().then(function (m) {
+    if (!m || !m.user) return;
+    var nm = form.elements.name, em = form.elements.email;
+    if (nm && !nm.value) nm.value = m.user.name || "";
+    if (em && !em.value) em.value = m.user.email || "";
+  });
 })();
 </script>
 

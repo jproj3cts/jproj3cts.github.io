@@ -24,6 +24,7 @@ import { saveReport } from './lens-report.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
+import { isRfAsm, openRfDesign } from './rf-workspace.js';
 
 /* ==========================================================================
    The lens design workspace
@@ -48,6 +49,8 @@ export function asmBenchLight(asm, P) {
 }
 
 export function openLensDesign(asm, opts) {
+  // a system of RF parts opens in the RF designer, unless the optical one is asked for
+  if (!(opts && opts.optical) && isRfAsm(asm)) return openRfDesign(asm, opts);
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
   designOf(asm);
@@ -140,6 +143,7 @@ function drawWs() {
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
     h('span', { class: 'rt-lgap' }),
     ...cfgPicker(asm),
+    ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
     h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Undo (Ctrl+Z)', onclick: () => { undo(); afterUndo(); } }, 'Undo'),
     h('button', { class: 'rt-btn', type: 'button', title: 'Redo (Ctrl+Y)', onclick: () => { redo(); afterUndo(); } }, 'Redo'),

@@ -1256,6 +1256,19 @@
   .rt-lnum { width: 5.6rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: inherit; text-align: right; box-sizing: border-box; }
   .rt-lnum.fixed { background: var(--jek-well); color: var(--jek-ink-soft); font-style: italic; }
   .rt-lcond .rt-lnum { width: 5rem; }
+  /* the RF designer: its conditions in labelled rows, the spec as a grid, its tables */
+  .rt-rfcond .rt-lrow, .rt-rfgrid .rt-lrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; }
+  .rt-rfcond .rt-lrow > span:first-child, .rt-rfgrid .rt-lrow > span:first-child { font-size: 0.85rem; }
+  .rt-rfcond .rt-lrow select, .rt-rfgrid .rt-lrow select { max-width: 12rem; }
+  .rt-rfcond .rt-btn { margin-top: 0.8rem; align-self: flex-start; }
+  .rt-rfcond .rt-lsub.mono { margin-top: 0.3rem; font-size: 0.75rem; }
+  .rt-rfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.25rem 2rem; margin: 0.6rem 0; }
+  .rt-rftable td, .rt-rftable th { white-space: nowrap; }
+  .rt-rftable .rt-lnum { width: 5rem; }
+  .rt-rftable select { max-width: 10rem; font: inherit; font-size: 0.82rem; }
+  .rt-rfsum { min-width: 0; max-width: 40rem; margin: 0.4rem 0 0.8rem; }
+  .rt-rfsum th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); padding-right: 1rem; }
+  .rt-rfpill { background: #fff3d6; color: #8a5a00; }
   .rt-lswatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
   .rt-lx { width: 1.6rem; height: 1.6rem; flex: none; border: 0; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; cursor: pointer; border-radius: 2px; }
   .rt-lx:hover { background: var(--jek-well); color: var(--jek-red); }

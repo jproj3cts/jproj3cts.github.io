@@ -192,6 +192,79 @@ $$f_\text{max} = \frac{c\,F_\text{min}}{4\,n_\text{plastic} \times 0.45\ \text{m
 
 which its panel gives, with the band over which its matching layers reflect under 1%. Above $$f_\text{max}$$ the structure scatters, which the bench does not model, and the readout says its figures no longer hold. A quarter wave is the usual margin for an effective medium; the measured coupon is the check. A lens designed at a frequency raises its least density to suit, so it holds to its design frequency at least.
 
+## The RF designer
+
+A system of RF lenses and mirrors is designed as a whole in the **RF designer**: a feed horn's beam through the lenses to what it is for. Open it with **Design the RF system…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, or from the menu with **New RF design…**, which starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [lens design workspace](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
+
+### Its conditions
+
+- **Frequency**: the design frequency and the band either side of it, in GHz.
+- **Feed horn**: its kind, aperture radius and slant length, and its distance from its aperture to the first lens.
+- **Goal**: what comes after the last lens. **Collimate the beam** (an antenna); **Focus to a waist** of a given radius at a given distance; or **Into a receiving horn**, of a given kind and size, its aperture at a given distance.
+
+**Take from the bench** reads the feed horn lighting the first lens and any receiving horn on the axis after the last. Those horns then follow the conditions: change the feed's distance or size here and the horn on the bench moves and changes with it. **Place on a bench**, for a new design, puts its feed horn on the bench, and at its goal a receiving horn or an absorber load.
+
+### The beam
+
+At millimetre waves a lens is tens of wavelengths across, so the designer follows the beam as a Gaussian beam rather than as rays. Its complex beam parameter $$q$$ is carried in reduced form, $$\hat q = q/n$$, through each part by its first-order matrix: a gap $$d$$ of index $$n$$ adds $$d/n$$; a face of paraxial curvature $$c$$ between indices $$n$$ and $$n'$$ takes $$1/\hat q$$ to $$1/\hat q - (n'-n)\,c$$; a mirror to $$1/\hat q + 2c$$. The beam's radius anywhere, in air or in the plastic, is then
+
+$$
+w^2 = \frac{\lambda\,|\hat q|^2}{\pi\,\operatorname{Im}\hat q},
+$$
+
+with $$\lambda$$ the wavelength in vacuum. The feed horn's beam is its own Gaussian (see [Feed horns](#feed-horns)), starting from its waist behind its aperture.
+
+The layout draws the horns, the lenses and the beam's $$1/e^2$$ radius along the axis: filled at the design frequency, dashed at the band's edges. Over each lens is its **edge taper**, $$8.686\,(a/w)^2$$ dB.
+
+### Its figures
+
+To collimate, the beam leaving the last lens is measured by its **aperture efficiency**: its Gaussian field, with the phase radius $$R$$ it has there, over the lens's aperture $$a$$ against a uniform field,
+
+$$
+\eta_a = \frac{2\,\left|1 - e^{-t(1+i\psi)}\right|^2}{t\,\left|1+i\psi\right|^2}, \qquad t = \frac{a^2}{w^2},\quad \psi = \frac{\pi w^2}{\lambda R},
+$$
+
+at most 81.5% for a flat phase, at an edge taper of about 11 dB. The **gain** on the axis is then $$\eta\,(\pi D/\lambda)^2$$, with $$\eta$$ that efficiency times the losses before it. The beam's waist and its divergence are given too.
+
+To focus or to couple, the beam is measured by its **coupling** to the Gaussian it should be at its goal, the target waist or the receiving horn's own beam:
+
+$$
+K = \frac{4}{\left(\frac{w_1}{w_2}+\frac{w_2}{w_1}\right)^2 + \left(\frac{\pi w_1 w_2}{\lambda}\right)^2\left(\frac{1}{R_1}-\frac{1}{R_2}\right)^2},
+$$
+
+with the waist it makes and the one wanted beside it.
+
+The **efficiency** is all of it together, at the design frequency and over the band: the share of the feed's power in its Gaussian, each face's **reflection** (Fresnel's, or through its quarter-wave matching layer at each frequency, as a thin film), each lens's **absorption** (its plastic's loss tangent, through its thickness over the beam's profile), the **spillover** past each aperture, $$e^{-2a^2/w^2}$$, and the coupling (with the receiving horn's own share) or the aperture efficiency.
+
+### Its lenses
+
+**Lenses** lists each lens in the order the beam meets it: its material, diameter, centre thickness, each face's radius and conic, whether its faces have matching layers, and the air after it. A change is made on the part on the bench, and can be undone.
+
+### Design a lens
+
+**Design a lens** makes a lens to suit the beam that reaches it and the goal after it, as millimetre-wave lenses are designed. Each curved face is a hyperbola of eccentricity $$n$$ (conic $$-n^2$$, vertex radius $$(n-1)F$$), which turns a point at its focus $$F$$ into a plane wave in the plastic, or a plane wave in the plastic into a point in air. The point is the beam's phase centre: $$F$$ is the phase radius of the beam reaching the lens, and on the far side the phase radius the beam must leave with to make its waist where it is wanted,
+
+$$
+F_2 = \frac{d_2^2 + z_R^2}{d_2}, \qquad z_R = \frac{\pi w_t^2}{\lambda},
+$$
+
+for a target waist $$w_t$$ a distance $$d_2$$ beyond the lens. So the faces suit the Gaussian beam, not only its rays, and inside the lens the beam is flat, so the thickness changes nothing but the loss.
+
+- **Hyperbolic, flat back**: one hyperbolic face toward the feed. It collimates exactly; to focus as well, its curvature is solved so the beam leaving the flat back, through the lens's own thickness, has the phase radius wanted.
+- **Two hyperbolic faces**: the beam focused from one phase centre to the other.
+- **Plano-convex, spherical**: a sphere and a flat, the simplest to make.
+
+You give the **material**, **diameter**, **edge thickness** and whether its faces get **matching layers**, and **where it stands**: where it is; where the feed's beam has the **edge taper** asked for (the first lens); or, to focus or couple, where the beam's width there matches the width the target's beam has at the lens, the coupling's best. The centre thickness follows from the edge thickness and the faces' sags. **Use this lens** puts it in, and the feed horn moves to its distance.
+
+**Checked against.**
+
+- a feed horn's beam through free space, and through a flat plate as a gap of $$d/n$$, against the Gaussian beam's own formula, to $$10^{-9}$$;
+- the aperture efficiency at most 81.5% at an edge taper of 10.9 dB, as Goldsmith gives it, and lower for a curved phase;
+- the coupling of a beam to itself, 1, and to one twice as wide, 16/25;
+- a quarter-wave matching layer reflecting nothing at its own frequency, and Fresnel's reflection without it;
+- a hyperbolic lens with its focus at the feed's phase centre leaving the beam's waist at its curved face;
+- a horn's beam into an identical horn 300 mm on: a lens of two hyperbolic faces, matched to the goal, couples it completely (to five places); one hyperbolic face, and a plano-convex lens, each to within half a per cent.
+
 ## The parts
 
 | Part | What it is |

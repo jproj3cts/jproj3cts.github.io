@@ -94,6 +94,7 @@ import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } 
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { reportPdfBlob } from './lens-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
+import { closeRfDesign, newRfDesign } from './rf-workspace.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 
@@ -368,7 +369,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTraceRaw(name, nm, rays) { const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm); return { origin: P.origin, dir: P.dir, out: rays.map(r => Array.from(traceRay(S, Float64Array.from([...r, 0, 0]), 0, S.N - 1))) }; },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
     openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
-    closeLensDesign() { closeLensDesign(); },
+    closeLensDesign() { closeLensDesign(); closeRfDesign(); },
     selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
@@ -392,6 +393,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensFigures(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), F = designFigures(a, P); return { efl: F.efl, bfl: F.bfl, fno: F.fno, epd: F.epd, image: P.image, track: F.track, seidel: F.seidel.sum, surfaces: P.surfaces.length, design: JSON.parse(JSON.stringify(a.design || null)), cond: JSON.parse(JSON.stringify(a.cond)) }; },
     lensSpot(name, nm, field, epd) { const a = assemblies().find(x => x.name === name), S = lensSystem(asmPrescription(a), nm, { epd }); const s = spotOf(S, field, pupilRings(4, 12)); return s && { rms: s.rms, wfeRms: s.wfeRms, chief: s.chief, efl: S.par.efl, bfl: S.par.bfl }; },
     newLensDesign() { const a = newLensDesign(); traceScene(); return a.name; },
+    newRfDesign() { const a = newRfDesign(); traceScene(); return a.name; },
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
     exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },

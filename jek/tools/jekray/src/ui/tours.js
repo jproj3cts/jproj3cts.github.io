@@ -1,5 +1,6 @@
 import { BEAM_Z, EMBED, IN_WORKER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { newLensDesign } from './assembly.js';
+import { newRfDesign } from './rf-workspace.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { curBench, ensureBenches, onTab } from '../state/tabs.js';
@@ -241,6 +242,7 @@ export function wireTours() {
   document.getElementById('btnImport').addEventListener('click', () => { setZmxAsDesign(false); openZmx(false); });
   document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
+  document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 

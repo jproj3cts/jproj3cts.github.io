@@ -34,7 +34,7 @@ export function normCond(c) {
   const fields = (Array.isArray(c.fields) && c.fields.length ? c.fields : [{ deg: 0, w: 1 }]).slice(0, ASM_FIELDS_MAX)
     .map(f => ({ deg: ob ? clamp(num(f && f.deg, 0), -1e5, 1e5) : clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
   const waves = (Array.isArray(c.waves) && c.waves.length ? c.waves : [{ nm: 587.56, w: 1 }]).slice(0, ASM_WAVES_MAX)
-    .map(v => ({ nm: clamp(num(v && v.nm, 587.56), 100, 1e7), w: clamp(num(v && v.w, 1), 0, 1e3) }));
+    .map(v => ({ nm: clamp(num(v && v.nm, 587.56), 100, 3e8), w: clamp(num(v && v.w, 1), 0, 1e3) }));
   return {
     ...(ob ? { object: ob } : {}),
     aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : kind === 'na' ? clamp(num(ap.v, 0.1), 1e-4, 0.99) : clamp(num(ap.v, 10), 1e-3, 1e5) },
@@ -48,13 +48,36 @@ export function condSummary(c) {
   const ap = c.aperture.kind === 'fno' ? 'f/' + cfmt(c.aperture.v) : c.aperture.kind === 'na' ? 'NA ' + cfmt(c.aperture.v) + ' at the object' : cfmt(c.aperture.v) + ' mm entrance pupil';
   return (fin ? 'an object ' + cfmt(c.object.d) + ' mm before it, ' : 'light from infinity, ') + ap + ', fields to ' + cfmt(fmax) + (fin ? ' mm' : '°') + ', ' + c.waves.map(v => cfmt(v.nm)).join(', ') + ' nm';
 }
+/* ---------- An RF system's conditions (the RF designer's: ui/rf-workspace.js) ----------
+   An assembly of RF parts is designed as a quasi-optical system: a feed horn's beam through its lenses and
+   mirrors to what it is for. Its conditions: the design frequency and the band (GHz); the feed horn (its kind,
+   aperture radius a and slant length L, mm) and the distance d from its aperture to the first vertex; and the
+   goal after the last vertex: the beam collimated, focused to a waist of radius w at distance d, or taken in
+   by a receiving horn whose aperture is at distance d. feed.id and goal.rx.id name the horns on the bench the
+   conditions were taken from, which follow them. */
+export const RF_HORN_KINDS = ['corrugated', 'smooth', 'diagonal', 'gauss'];
+export const RF_GOALS = ['collimate', 'focus', 'couple'];
+const horn = (h, a, L) => ({ kind: RF_HORN_KINDS.includes(h && h.kind) ? h.kind : 'corrugated', a: clamp(num(h && h.a, a), 0.05, 2000), L: clamp(num(h && h.L, L), 0.5, 1e5), ...(h && typeof h.id === 'string' ? { id: h.id } : {}) });
+export function normRfCond(r) {
+  r = r && typeof r === 'object' ? r : {};
+  const ghz = clamp(num(r.ghz, 24), 1, 3000);
+  let lo = clamp(num(r.lo, ghz * 0.9), 1, 3000), hi = clamp(num(r.hi, ghz * 1.1), 1, 3000);
+  if (lo > hi) [lo, hi] = [hi, lo];
+  lo = Math.min(lo, ghz); hi = Math.max(hi, ghz);
+  const f = r.feed && typeof r.feed === 'object' ? r.feed : {}, g = r.goal && typeof r.goal === 'object' ? r.goal : {};
+  const kind = RF_GOALS.includes(g.kind) ? g.kind : 'collimate';
+  const goal = { kind, d: clamp(num(g.d, 300), 0, 1e6) };
+  if (kind === 'focus') goal.w = clamp(num(g.w, 10), 0.01, 1e4);
+  if (kind === 'couple') goal.rx = horn(g.rx, 15, 80);
+  return { ghz, lo, hi, feed: Object.assign(horn(f, 15, 80), { d: clamp(num(f.d, 150), 0, 1e6) }), goal };
+}
 export function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
   for (const a of Array.isArray(list) ? list : []) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
   }
   return out;
 }

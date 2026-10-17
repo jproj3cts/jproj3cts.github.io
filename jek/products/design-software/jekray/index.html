@@ -13,6 +13,16 @@
   .rt-video .rt-links { margin: 0.9rem 0 0; font-size: 0.95rem; }
   .rt-video .rt-links a { color: var(--jek-cyan-dark); font-weight: 600; }
 
+  /* Everything else it models: one wide block, its groups in columns */
+  .jek-feature.rt-modelsfeat { grid-template-columns: 1fr; gap: 1.2rem; align-items: start; }
+  .rt-modelsfeat p { max-width: 70ch; }
+  .rt-models { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4rem 2rem; }
+  .rt-models h3 { margin: 0 0 0.45rem; font-size: 1rem; }
+  .rt-models ul { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
+  .rt-models li + li { margin-top: 0.3rem; }
+  @media (max-width: 900px) { .rt-models { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .rt-models { grid-template-columns: 1fr; } }
+
   /* Examples: each opens in the tool with #demo=<name> */
   .rt-examples > p { margin: 0 0 1.25rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
   .rt-examples > p a { color: var(--jek-cyan-dark); }
@@ -123,35 +133,31 @@
     <section class="jek-section" style="padding-top: 0">
       <div class="jek-wrap">
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">Waves, not just rays</span><h2>Interference, cavities and polarisation</h2><p>Each ray carries its polarisation and optical path, so interferometers show fringes and cavities resonate. A Gaussian beam is followed through every branch, and the diffracted field is worked out where the rays cannot tell the story: slits, masks, a tight focus, a vortex beam.</p></div>
-          <figure class="jek-shot"><img src="img/michelson.png" alt="A Michelson interferometer on the bench" loading="lazy"></figure>
+          <div><span class="jek-eyebrow">One bench</span><h2>Simulate the whole bench</h2><p>Free-space optics, fibre and the electronics after the detector, with photonic chips too, solved together on one bench across as many tabs as you like. Light leaves a fibre and enters free space, lands on a photodiode and carries on as a signal through amplifiers, mixers and lock-ins to an oscilloscope.</p></div>
+          <figure class="jek-shot"><img src="img/fibre-michelson.png" alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">Real glass</span><h2>The makers&rsquo; catalogues, built in</h2><p>Schott, Ohara, Hoya, CDGM and Sumita, some 1,200 glasses by their own dispersion formulas, plus the crystals and optical plastics. Import a Thorlabs or Edmund lens file and it traces in the glass its maker chose; export a lens as a prescription your lens-design program opens.</p></div>
-          <figure class="jek-shot"><img src="img/lens-aberrations.png" alt="Ray fans through a thick lens, showing its aberrations" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature">
-          <div><span class="jek-eyebrow">Lens design</span><h2>Design the lens, not just place it</h2><p>Open any group of lenses as a design: its prescription, solves and pickups, aspheres, freeforms, diffractive surfaces and graded glass, and zooms as configurations. Optimise for a merit function you build, search for new starting points, and substitute real glasses. Then look at it from every side: spots, fans, wavefront and Zernike terms, PSF and MTF (through focus too), relative illumination, footprints, ghosts, polarisation through the coatings, the design at another temperature, and a picture as the lens would form it.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
-          <figure class="jek-shot"><img src="img/lens-design.png" alt="The lens-design workspace for a Cooke triplet: the analyses chips, and a test chart beside the same chart as the design forms it" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature">
-          <div><span class="jek-eyebrow">To the workshop</span><h2>Tolerance it, draw it, build it</h2><p>Sensitivity, Monte Carlo and inverse sensitivity, with compensators and a yield against your specification. Each lens drawn on an A4 sheet in the manner of ISO 10110, every drawing in one PDF, and the whole design in a report. Export the design as a .zmx file, or as STEP solids and an STL mesh for the mechanical design. Bring your own stock lens files and it finds which could stand in for each lens, and how well.</p></div>
-          <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, its surfaces, glass and tolerances, and a title block" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature">
-          <div><span class="jek-eyebrow">Three dimensions</span><h2>The diffracted field in 3D</h2><p>Raise, tip and roll any part and the light follows, periscopes and misaligned cavities included. The field glows along each beam in calibrated W/cm&sup2;, interference and all; point at it to read it. Bring mounts and housings in from CAD as STL files.</p></div>
+          <div><span class="jek-eyebrow">Waves, not just rays</span><h2>Rays, Gaussian beams and the full diffracted field</h2><p>Exact rays through real glass, each carrying its polarisation and optical path. Gaussian beams followed through every branch, so interferometers show fringes and cavities resonate. And the diffracted field where rays cannot tell the story: slits, masks, a tight focus, a vortex beam. Raise, tip and roll any part and the light follows in 3D, the field glowing along each beam in calibrated W/cm&sup2;.</p></div>
           <figure class="jek-shot"><img src="img/field-3d.png" alt="The diffracted field drawn as a glowing volume in the 3D view" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">One bench</span><h2>Fibre, free space and the signals between</h2><p>Fibre subsystems, free-space optics and the electronics after the detector on one bench, across as many tabs as you like: photodiode signals, oscilloscopes, lock-ins and lock error signals. Spectra, ultrafast pulses, nonlinear optics, vapour cells, optical traps and photonic chips.</p></div>
-          <figure class="jek-shot"><img src="img/fibre-michelson.png" alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" loading="lazy"></figure>
+          <div><span class="jek-eyebrow">Lens design</span><h2>Design lenses from scratch</h2><p>From a singlet to a multi-element assembly: build the prescription with solves and pickups, aspheres, freeforms, diffractive surfaces and graded glass, and zooms as configurations. Optimise for a merit function you build, search for new starting points, and choose from some 1,200 glasses in the makers&rsquo; catalogues. Then look at it from every side: spots, fans, wavefront, PSF and MTF, relative illumination, ghosts, polarisation, temperature, and a picture as the lens would form it.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <figure class="jek-shot"><img src="img/lens-design.png" alt="The lens-design workspace for a Cooke triplet: the analyses chips, and a test chart beside the same chart as the design forms it" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><span class="jek-eyebrow">To the workshop</span><h2>From design to drawing to CAD</h2><p>Tolerance it with sensitivity, Monte Carlo and inverse sensitivity, with compensators and a yield against your specification. Draw each lens in the manner of ISO 10110 and the whole design as a report. Export a .zmx file, or STEP solids and an STL mesh for the mechanical design. And bring your own stock lens files to find which could stand in for each lens, and how well.</p></div>
+          <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, its surfaces, glass and tolerances, and a title block" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature rt-modelsfeat">
+          <div><span class="jek-eyebrow">The physics</span><h2>Everything else it models</h2><p>Beyond the rays and the field, each part carries the physics that makes it work, so a bench behaves as it would in the lab.</p></div>
+          <div class="rt-models"><div><h3>Lasers and cavities</h3><ul><li>Gain media, laser threshold and the best output coupler</li><li>Cavity modes, finesse and linewidth, misaligned cavities included</li><li>A cavity finding its own mode, as Fox and Li found it</li><li>Line widths and coherence length: fringes that fade as they should</li></ul></div><div><h3>Pulses</h3><ul><li>Ultrafast pulses through glass, gratings and compressors</li><li>Dispersion and chirp, pulse by pulse</li><li>Self-phase modulation and solitons in fibre</li></ul></div><div><h3>Nonlinear and active optics</h3><ul><li>Frequency doubling in PPLN and PPKTP, by Boyd and Kleinman&rsquo;s theory</li><li>EOMs and AOMs with their sidebands and frequency shifts</li><li>Fibre amplifiers and semiconductor optical amplifiers</li></ul></div><div><h3>Atoms and traps</h3><ul><li>Rubidium, caesium and potassium vapour cells: hyperfine lines, Doppler broadening, saturated absorption and the Zeeman effect</li><li>Optical forces on atoms and particles: tweezers, dipole traps and lattices</li><li>Levitated nanoparticles, with their trap frequencies and damping</li></ul></div><div><h3>Polarisation and shaping</h3><ul><li>Waveplates, polarisers, Wollaston prisms and birefringent crystals</li><li>Faraday rotators and isolators</li><li>Masks, spatial light modulators and vortex beams</li><li>Vector fields at a tight focus</li></ul></div><div><h3>Signals and workflow</h3><ul><li>Photodiodes, transimpedance amplifiers, mixers, lock-ins, oscilloscopes and spectrum analysers, with their noise</li><li>Pound&ndash;Drever&ndash;Hall and other lock error signals</li><li>Sweep any setting and watch the bench change</li><li>Mounts from CAD as STL, part packs and your own models as mods</li></ul></div></div>
         </div>
         <div class="jek-feature">
           <div><span class="jek-eyebrow">RF and millimetre waves</span><h2>Quasi-optics from 1 GHz to 3 THz</h2><p>Feed horns, RF lenses, mirrors, wire grids and mesh filters, with the beam&rsquo;s diffraction worked out properly at these wavelengths. Plastic lenses made to order, solid or graded in density, show their loss, how well the beam fits them, and whether they are manufacturable. Sweep a link across frequency for its S21 and link budget, steer the beam off axis, and take the signal on to a mixer and a spectrum analyser.</p><p><a href="/jek/docs/jekray/rf/">RF on the bench</a></p></div>
           <figure class="jek-shot"><img src="img/rf-grin-lens.png" alt="A 24 GHz feed horn and a graded-index RF lens focusing its beam onto a target 400 mm away" loading="lazy"></figure>
         </div>
         <div class="jek-feature" id="pro">
-          <div><span class="jek-eyebrow">JEKrayPro</span><h2>Your benches in the cloud, for you or a team</h2><p>Sign in with Google or Microsoft and benches save as you work, with their whole history. Fork one to try an idea and merge it back. Keep your own parts in My parts. A team shares one workspace with roles, invitations by email, one editor at a time and an activity record. Export everything at any time, and delete your account whenever you like.</p><p><a href="/jek/tools/jekray.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
+          <div><span class="jek-eyebrow">JEKrayPro</span><h2>Your benches online, alone or as a team</h2><p>Sign in with Google or Microsoft and benches save as you work, with their whole history. Fork one to try an idea and merge it back. Keep your own parts in My parts. A team shares one workspace with roles, invitations by email, one editor at a time and an activity record. Export everything at any time, and delete your account whenever you like.</p><p><a href="/jek/tools/jekray.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
           <figure class="jek-shot" style="background: var(--jek-panel)"><img src="img/jekray-pro.png" alt="My benches in JEKrayPro: folders down the side and saved benches as cards with their pictures" loading="lazy"></figure>
         </div>
       </div>

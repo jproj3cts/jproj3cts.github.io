@@ -261,6 +261,11 @@
      "meaning": "optional, a made-to-order RF lens only: {\"kind\": \"flange\", \"width\": mm out from the rim, \"thick\": mm along the axis, \"holes\": bolt holes (0 to 12), \"hole\": their diameter, mm}, on the circle through the flange’s middle. Outside the lens: not traced."
     },
     {
+     "k": "zoned",
+     "def": null,
+     "meaning": "optional, a made-to-order RF lens of two faces only: {\"ghz\": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces the smooth lens; the RF designer, its weight and its quote take it as cut."
+    },
+    {
      "k": "asphere",
      "def": null,
      "meaning": "true for an asphere: only an asphere’s surfaces take a conic (\"k\"), aspheric terms (\"A\") and freeform terms (\"F\": {\"mn\": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; \"20\", \"02\", \"21\", \"03\", \"40\", \"22\", \"04\", \"41\", \"23\", \"05\", \"60\", \"42\", \"24\", \"06\"); a plain lens’s are spheres."

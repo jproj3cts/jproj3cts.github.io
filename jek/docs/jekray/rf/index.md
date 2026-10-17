@@ -291,6 +291,13 @@ Errors across the axis (a lens decentred or tilted, the feed moved sideways) are
 
 It gives the lens's centre and edge thickness, its weight and its outside diameter, and notes a lens only a few wavelengths across or one whose edge taper is low. Beside them the lens turns in 3D as it would be made, its flange and bolt holes with it; drag to turn it by hand. Its **Mounting** can be a flange with bolt holes, as on the bench. A lens that passes has the orange **Request a quote for this lens** button, as in its panel: the request goes into the quote cart named for the design frequency, with the lens's figures (each face's radius with its conic and any aspheric terms, so the shape is in the request itself), what the system does (its gain or coupling over the band), and a link that opens the whole system in the RF designer as it was left. See [Custom RF Lenses](/jek/products/signal-processing/custom-rf-lenses/).
 
+Each lens's design can be saved as files for your own records and mechanical design:
+
+- **Drawing (PDF)** or **Drawing (SVG)**: the lens on an A4 sheet, in section to a standard scale, with its flange. The sheet gives its diameters and centre and edge thickness, and each face's radius, conic and clear aperture. It also gives the plastic's permittivity at the design frequency and its loss tangent, and each face's matching layer (its permittivity and thickness, laid over the face drawn). Tolerances come from the Tolerance tab's settings: thickness, face curvature as a share of the radius, and permittivity. Each face has a profile tolerance $$t$$, the width of the zone it must lie within. $$t$$ is chosen so that $$t\,(n-1) \le \lambda/8$$ at the top of the band, and it is never more than 0.5 mm.
+- **Shape (STL)**: the lens as a binary STL mesh, flange and bolt holes included. It is in millimetres, with its axis along $$z$$ and its front vertex at the origin.
+
+These describe the lens as designed. They are not files to make it from: how it is made is ours to work out when you order it.
+
 ### Design a lens
 
 **Design a lens** makes a lens to suit the beam that reaches it and the goal after it, as millimetre-wave lenses are designed. Each curved face is a hyperbola of eccentricity $$n$$ (conic $$-n^2$$, vertex radius $$(n-1)F$$), which turns a point at its focus $$F$$ into a plane wave in the plastic, or a plane wave in the plastic into a point in air. The point is the beam's phase centre: $$F$$ is the phase radius of the beam reaching the lens, and on the far side the phase radius the beam must leave with to make its waist where it is wanted,

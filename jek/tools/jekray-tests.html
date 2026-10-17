@@ -9166,8 +9166,8 @@ const TESTS = [
     },
   },
   {
-    name: 'RF designer: Make it checks the lens and quotes it at the design frequency; Tolerance gives sensitivity, Monte Carlo and a yield',
-    why: 'the new design’s lens is manufacturable and its quote goes into the cart named for 24 GHz with its gain; widened to 230 mm it fails Fits across and the quote button goes; Sensitivity lists its errors, permittivity worst; Monte Carlo makes the builds asked for and gives a yield against a specification (1 when all hold)',
+    name: 'RF designer: Make it checks the lens, draws it and quotes it at the design frequency; Tolerance gives sensitivity, Monte Carlo and a yield',
+    why: 'the new design’s lens is manufacturable and its quote goes into the cart named for 24 GHz with its gain; its drawing gives its permittivity, profile tolerance and matching layers, and its STL is binary and whole; widened to 230 mm it fails Fits across and the quote button goes; Sensitivity lists its errors, permittivity worst; Monte Carlo makes the builds asked for and gives a yield against a specification (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), CART = 'JEK_QUOTE_CART';
@@ -9189,6 +9189,12 @@ const TESTS = [
         const faces = !!line && line.spec.some(x => /^Faces: front [\d.]+ mm convex, conic -2\.\d+; back flat$/.test(x));
         const has3d = !!ws().querySelector('.rt-rfmake .rt-rf3d');
         const sys = !!line && /#p=/.test(line.url) && JSON.stringify(await rigWin().JEKray.shareDecode(line.url.split('#p=')[1])).includes('"kind":"rf"');
+        // its drawing, in RF terms (permittivity at 24 GHz, a profile tolerance, the matching layers, no fringes or Abbe number), and its shape as binary STL
+        const D = J.lensDrawings('New RF design')[0], svg = J.lensDrawingSvg('New RF design', 0);
+        const drawn = !!D.rf && Math.abs(D.rf.eps - 1.643 * 1.643) < 1e-6 && D.surfaces.every(s => s.profile > 0 && s.match && Math.abs(s.match.eps - 1.643) < 1e-3) && /Permittivity/.test(svg) && !/fringes|Abbe/.test(svg);
+        const elId = J.serialize().elements.find(e => e.type === 'lens').id, stl = await J.lensStl(elId);
+        const shape = !!stl && stl.tris > 1000 && stl.bytes === 84 + 50 * stl.count && stl.count === stl.tris && stl.bytes < 4e6;
+        const files = ['Drawing (PDF)', 'Drawing (SVG)', 'Shape (STL)'].every(t => [...ws().querySelectorAll('.rt-rffiles button')].some(b => b.textContent === t));
         tab('Lenses');
         set('RF lens diameter (mm)', '230');
         tab('Make it');
@@ -9203,8 +9209,8 @@ const TESTS = [
         [...ws().querySelectorAll('button')].find(b => b.textContent === 'Run Monte Carlo').click();
         for (let k = 0; k < 400 && !/40 of 40 builds\./.test(ws().querySelector('.rt-rftol').textContent); k++) await new Promise(r => setTimeout(r, 50));
         const mcDone = /40 of 40 builds\./.test(ws().querySelector('.rt-rftol').textContent), yieldOk = /Yield: 100\.0 %/.test(ws().querySelector('.rt-rftol').textContent);
-        const ok = ok1 && quoted && faces && has3d && sys && bad && sens && mcDone && yieldOk;
-        if (!ok) console.log('RF make/tol', { ok1, quoted, faces, has3d, sys, line, bad, rows, mcDone, yieldOk });
+        const ok = ok1 && quoted && faces && has3d && sys && drawn && shape && files && bad && sens && mcDone && yieldOk;
+        if (!ok) console.log('RF make/tol', { ok1, quoted, faces, has3d, sys, drawn, shape, stl, files, line, bad, rows, mcDone, yieldOk });
         return ok ? 1 : 0;
       } finally { J.closeLensDesign(); try { if (saved === null) W.localStorage.removeItem(CART); else W.localStorage.setItem(CART, saved); } catch (e) { /* none */ } }
     },

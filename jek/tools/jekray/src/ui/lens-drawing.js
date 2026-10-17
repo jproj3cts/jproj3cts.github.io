@@ -1,7 +1,8 @@
 import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { designPrescription } from '../engines/lens-design.js';
-import { drawableParts, drawingData, drawSag } from '../engines/lens-drawing.js';
+import { normRfTol } from '../engines/rf-design.js';
+import { drawableParts, drawingData, drawSag, rfDrawingData } from '../engines/lens-drawing.js';
 import { VecCtx, layoutSvg, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { h } from './panel.js';
@@ -24,8 +25,8 @@ const sgn = v => (v < 0 ? '−' : '') + dfmt(Math.abs(v));
 export function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol;
   return drawableParts(P).map(pi => {
-    const e = getEl(P.parts[pi].id);
-    return drawingData(P, pi, { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.size) : 0, T });
+    const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.size) : 0, T };
+    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null })) : drawingData(P, pi, o);
   });
 }
 
@@ -53,9 +54,9 @@ export function drawSheet(g, D, meta) {
   g.strokeStyle = SH_INK; g.lineWidth = 1.2; g.strokeRect(18, 18, SHEET_W - 36, SHEET_H - 36);
   g.lineWidth = 0.5; g.strokeRect(22, 22, SHEET_W - 44, SHEET_H - 44);
   // ---- the section, to scale ----
-  const box = { x: 40, y: 50, w: 400, h: 330 }, r = D.dia / 2;
+  const box = { x: 40, y: 50, w: 400, h: 330 }, r = D.dia / 2, RF = D.rf || null, fl = RF && RF.mount, ro = fl ? r + fl.width : r;
   const span = D.length + 2 * Math.max(0, ...D.surfaces.map(s => isFinite(s.sagRim) ? Math.abs(s.sagRim) : 0));
-  const [sa, sb] = SH_SCALES.find(([a, b]) => D.dia * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
+  const [sa, sb] = SH_SCALES.find(([a, b]) => 2 * ro * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
   const k = sa / sb * PT, cx = box.x + box.w / 2 - D.length * k / 2, cy = box.y + box.h / 2;
   const zs = [0]; D.elements.forEach(e => zs.push(zs[zs.length - 1] + e.ct));
   const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z) * k; };
@@ -68,6 +69,20 @@ export function drawSheet(g, D, meta) {
     g.beginPath(); a.forEach(([x, y], q) => q ? g.lineTo(x, y) : g.moveTo(x, y)); b.forEach(([x, y]) => g.lineTo(x, y)); g.closePath();
     g.fillStyle = SH_GLASS; g.fill(); g.strokeStyle = SH_INK; g.lineWidth = 1.1; g.stroke();
   });
+  // an RF lens's flange: a ring outside its rim, centred on the rim along the axis, in section through two of its holes
+  if (fl) {
+    const zm = (zs[0] + D.surfaces[0].sagRim + zs[zs.length - 1] + D.surfaces[D.surfaces.length - 1].sagRim) / 2, xa = cx + (zm - fl.thick / 2) * k, xb = cx + (zm + fl.thick / 2) * k;
+    for (const q of [1, -1]) {
+      g.beginPath(); g.rect(xa, Math.min(Y(q * r), Y(q * ro)), xb - xa, Math.abs(Y(q * ro) - Y(q * r)));
+      g.fillStyle = SH_GLASS; g.fill(); g.strokeStyle = SH_INK; g.lineWidth = 1.1; g.stroke();
+      if (fl.holes) {
+        const yc = q * (r + fl.width / 2);
+        g.strokeStyle = SH_SOFT; g.lineWidth = 0.5; g.setLineDash([3, 2]);
+        for (const y of [yc - fl.hole / 2, yc + fl.hole / 2]) { g.beginPath(); g.moveTo(xa, Y(y)); g.lineTo(xb, Y(y)); g.stroke(); }
+        g.setLineDash([8, 2, 2, 2]); g.beginPath(); g.moveTo(xa - 6, Y(yc)); g.lineTo(xb + 6, Y(yc)); g.stroke(); g.setLineDash([]);
+      }
+    }
+  }
   // the axis, dash-dot
   g.strokeStyle = SH_SOFT; g.lineWidth = 0.5; g.setLineDash([14, 3, 2, 3]);
   g.beginPath(); g.moveTo(cx - 30, cy); g.lineTo(cx + D.length * k + 30, cy); g.stroke(); g.setLineDash([]);
@@ -80,9 +95,15 @@ export function drawSheet(g, D, meta) {
   for (const y of [r, -r]) { g.beginPath(); g.moveTo(X(0, y) - 3, Y(y)); g.lineTo(xl - 5, Y(y)); g.stroke(); }
   arrowLine(g, xl, Y(r), xl, Y(-r));
   g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia), 0, 0, { align: 'center', size: 9 }); g.restore();
+  if (fl) {
+    const xo = xl - 26, xf = cx + Math.min(...zs) * k;
+    for (const y of [ro, -ro]) { g.beginPath(); g.moveTo(Math.min(xf, X(0, r)) - 3, Y(y)); g.lineTo(xo - 5, Y(y)); g.stroke(); }
+    arrowLine(g, xo, Y(ro), xo, Y(-ro));
+    g.save(); g.translate(xo - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(2 * ro), 0, 0, { align: 'center', size: 9 }); g.restore();
+  }
   D.elements.forEach((e, i) => {
     if (e.air) return;
-    const xa = X(i, 0), xb = X(i + 1, 0), yb = Y(-r) + 22 + 14 * (i % 2), yt = Y(r) - 22 - 14 * (i % 2);
+    const xa = X(i, 0), xb = X(i + 1, 0), yb = Y(-ro) + 22 + 14 * (i % 2), yt = Y(ro) - 22 - 14 * (i % 2);
     for (const x of [xa, xb]) { g.beginPath(); g.moveTo(x, cy + 3); g.lineTo(x, yb + 4); g.stroke(); }
     arrowLine(g, xa, yb, xb, yb);
     text(g, dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''), (xa + xb) / 2, yb + 11, { align: 'center', size: 8.5 });
@@ -95,7 +116,7 @@ export function drawSheet(g, D, meta) {
   });
   // each surface's number on its face
   D.surfaces.forEach((s, j) => text(g, 'S' + s.n, X(j, 0) + (j === 0 ? -4 : 4), cy - 4, { align: j === 0 ? 'right' : 'left', size: 7, ink: SH_SOFT }));
-  text(g, 'Light from the left. Scale ' + sa + ':' + sb + '.', box.x, box.y + box.h + 6, { size: 7.5, ink: SH_SOFT });
+  text(g, (RF ? 'The feed on the left. Scale ' : 'Light from the left. Scale ') + sa + ':' + sb + '.', box.x, box.y + box.h + 6, { size: 7.5, ink: SH_SOFT });
 
   // ---- the table ----
   const tx = 462, tw = SHEET_W - 40 - tx, cols = D.surfaces.length, c0 = 104, cw = (tw - c0) / cols;
@@ -114,23 +135,39 @@ export function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
+  if (D.surfaces.some(s => s.profile)) row('Profile tolerance', D.surfaces.map(s => s.profile ? '⌓ ' + dfmt(s.profile, 2) : '—'));
+  if (D.surfaces.some(s => s.match)) {
+    row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) : '—'));
+    row('  thickness', D.surfaces.map(s => s.match ? dfmt(s.match.thick, 3) : '—'));
+  }
   if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
   ty += 10;
-  text(g, D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
+  text(g, RF ? 'Material' : D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
   const gl = D.elements.filter(e => !e.air), gw = (tw - c0) / Math.max(1, gl.length);
   const grow = (label, f) => { text(g, label, tx, ty, { size: 8, ink: SH_SOFT }); gl.forEach((e, q) => text(g, f(e), tx + c0 + q * gw, ty, { size: 8, mono: true })); ty += 4; g.strokeStyle = '#c8ced4'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty); g.stroke(); ty += 10; };
   grow('Between', e => 'S' + D.surfaces[e.from].n + '–S' + D.surfaces[e.from + 1].n);
   grow('Material', e => e.glass);
-  grow('Index nd', e => dfmt(e.nd, 5) + (e.ndTol ? ' ± ' + dfmt(e.ndTol, 4) : ''));
-  grow('Abbe number Vd', e => dfmt(e.vd, 2) + (e.vdTol ? ' ± ' + dfmt(e.vdTol, 2) : ''));
+  if (RF) {
+    grow('Permittivity εr', () => dfmt(RF.eps, 3) + (RF.epsTol ? ' ± ' + dfmt(RF.epsTol, 1) + ' %' : '') + ' at ' + dfmt(RF.ghz, 4) + ' GHz');
+    grow('Loss tangent', () => isFinite(RF.tand) ? String(+RF.tand.toPrecision(2)) : '—');
+  } else {
+    grow('Index nd', e => dfmt(e.nd, 5) + (e.ndTol ? ' ± ' + dfmt(e.ndTol, 4) : ''));
+    grow('Abbe number Vd', e => dfmt(e.vd, 2) + (e.vdTol ? ' ± ' + dfmt(e.vdTol, 2) : ''));
+  }
   grow('Centre thickness', e => dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''));
   grow('Edge thickness', e => '(' + dfmt(e.et) + ')');
 
   // ---- notes ----
   ty += 8;
   text(g, 'Notes', tx, ty, { size: 9.5, bold: true }); ty += 13;
-  const notes = ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
+  const notes = RF ? ['Dimensions in millimetres. The feed on the left: a radius is positive with its centre of curvature to the right.',
+    'Edge thickness, in brackets, is a reference dimension at the lens’s full diameter.',
+    'Designed for ' + dfmt(RF.lo, 4) + ' to ' + dfmt(RF.hi, 4) + ' GHz. Profile tolerance (⌓): each face lies within a zone that wide about its true form, which changes the path through the lens by no more than λ/8 at ' + dfmt(RF.hi, 4) + ' GHz.',
+    ...(D.surfaces.some(s => s.match) ? ['A matching layer is a quarter wave thick at the design frequency, of the permittivity given, laid over its face: the faces and thicknesses drawn are those beneath it.'] : []),
+    ...(RF.mount ? ['Flange: Ø ' + dfmt(RF.outer) + ' outside, ' + dfmt(RF.mount.thick) + ' thick, centred on the lens’s rim along the axis' + (RF.mount.holes ? '; ' + RF.mount.holes + ' holes Ø ' + dfmt(RF.mount.hole) + ' through it, equally spaced on Ø ' + dfmt(D.dia + RF.mount.width) : '') + '.'] : []),
+    'A drawing of the design, for reference: how it is made is the maker’s.']
+  : ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the full diameter.',
     D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
   D.surfaces.forEach(s => {
@@ -152,7 +189,7 @@ export function drawSheet(g, D, meta) {
   g.beginPath(); g.moveTo(bx, by + 40); g.lineTo(bx + 330, by + 40); g.moveTo(bx, by + 66); g.lineTo(bx + 330, by + 66);
   g.moveTo(bx + 110, by + 40); g.lineTo(bx + 110, by + 92); g.moveTo(bx + 220, by + 40); g.lineTo(bx + 220, by + 92); g.stroke();
   text(g, D.name, bx + 8, by + 18, { size: 14, bold: true });
-  text(g, (D.kind === 'window' ? 'Window' : 'Lens') + (meta.assembly ? ' in ' + meta.assembly : ''), bx + 8, by + 32, { size: 8.5, ink: SH_SOFT });
+  text(g, (RF ? 'RF lens' : D.kind === 'window' ? 'Window' : 'Lens') + (meta.assembly ? ' in ' + meta.assembly : ''), bx + 8, by + 32, { size: 8.5, ink: SH_SOFT });
   const cell = (x, y, label, v) => { text(g, label, x + 6, y + 10, { size: 6.5, ink: SH_SOFT }); text(g, v, x + 6, y + 21, { size: 8.5 }); };
   cell(bx, by + 40, 'Scale', sa + ':' + sb); cell(bx + 110, by + 40, 'Units', 'mm'); cell(bx + 220, by + 40, 'Sheet', (meta.sheet || 1) + ' of ' + (meta.of || 1));
   cell(bx, by + 66, 'Date', meta.date || new Date().toISOString().slice(0, 10)); cell(bx + 110, by + 66, 'Bench', meta.bench || project.name || '');

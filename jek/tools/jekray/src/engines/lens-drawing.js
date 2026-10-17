@@ -1,6 +1,7 @@
 import { refIndex, matLabel } from '../core/glass.js';
 import { surfaceParts } from './lens-design.js';
 import { dpPhase, dpSlopeOverR } from '../core/diffractive.js';
+import { C_NM_GHZ, RF_MAT, mountedDia, normMount, printedMatch } from '../core/rf.js';
 
 /* ==========================================================================
    A lens drawn to be made: what its drawing says
@@ -95,4 +96,37 @@ export function drawingData(P, pi, opts) {
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
   return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
+}
+
+/* An RF lens's drawing: the same sheet, with what an RF lens is made to in place of an optical shop's terms.
+   opts as drawingData's, with rf (the RF designer's conditions), tol (its tolerance settings) and mount (the
+   lens's flange, if any) and coats (its faces' coatings, front first). In place of fringes, nd and νd:
+     the plastic's permittivity εr and loss tangent at the design frequency (± the permittivity tolerance);
+     each face's radius ± the face-curvature tolerance (as a share of its curvature), and a profile
+       tolerance t: the face may lie anywhere within a zone t wide about its true form, t chosen so that the
+       path through the lens changes by no more than λ/8 at the top of the band, t (n − 1) ≤ λ/8, and no more
+       than 0.5 mm however long the wavelength;
+     each face's matching layer, if it has one: its permittivity and thickness;
+     the flange, if any, drawn in the section, with its outside diameter, thickness and bolt holes.
+   It is a drawing of the design, not a file to make it from: how the plastic is laid down is the maker's. */
+export function rfDrawingData(P, pi, opts) {
+  const D = drawingData(P, pi, Object.assign({}, opts, { T: null }));
+  const R = opts.rf, tol = opts.tol || {}, on = k => tol[k] && tol[k].on && tol[k].v > 0 ? tol[k].v : null;
+  const sps = surfaceParts(P), k0 = sps.findIndex(s => s.pi === pi), S = P.surfaces.slice(k0, k0 + P.parts[pi].n);
+  const glass = D.elements.find(e => !e.air), m = glass ? P.materials[k0 + glass.from] : null, M = m && RF_MAT[m.glass];
+  const nm = C_NM_GHZ / R.ghz, n = m ? refIndex(m, nm) : NaN, lamHi = C_NM_GHZ / R.hi * 1e-6;
+  const prof = isFinite(n) && n > 1 ? Math.min(0.5, Math.floor(lamHi / (8 * (n - 1)) / 0.05) * 0.05) : null;
+  const rad = on('rad'), thk = on('thk'), eps = on('eps');
+  D.surfaces.forEach((s, j) => {
+    s.dR = rad !== null && s.R !== null ? Math.abs(s.R) * rad / 100 : undefined;
+    s.profile = prof;
+    const mk = M ? printedMatch(M, (opts.coats && opts.coats[j]) || S[j].coat) : null;
+    if (mk) s.match = { eps: mk.n * mk.n, thick: mk.thick };
+  });
+  D.elements.forEach(e => { if (!e.air) e.ctTol = thk; });
+  const mount = normMount(opts.mount);
+  D.rf = { ghz: R.ghz, lo: R.lo, hi: R.hi, lamHi, material: M ? M.name : glass ? glass.glass : '—', eps: n * n, epsTol: eps, tand: M ? M.tand : NaN,
+    mount, outer: mountedDia(D.dia, mount) };
+  D.toleranced = [rad, thk, eps].some(v => v !== null) || prof !== null;
+  return D;
 }

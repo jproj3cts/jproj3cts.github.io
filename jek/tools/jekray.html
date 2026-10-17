@@ -24626,8 +24626,8 @@ const sgn = v => (v < 0 ? '−' : '') + dfmt(Math.abs(v));
 function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol;
   return drawableParts(P).map(pi => {
-    const e = getEl(P.parts[pi].id);
-    return drawingData(P, pi, { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.size) : 0, T });
+    const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.size) : 0, T };
+    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null })) : drawingData(P, pi, o);
   });
 }
 
@@ -24655,9 +24655,9 @@ function drawSheet(g, D, meta) {
   g.strokeStyle = SH_INK; g.lineWidth = 1.2; g.strokeRect(18, 18, SHEET_W - 36, SHEET_H - 36);
   g.lineWidth = 0.5; g.strokeRect(22, 22, SHEET_W - 44, SHEET_H - 44);
   // ---- the section, to scale ----
-  const box = { x: 40, y: 50, w: 400, h: 330 }, r = D.dia / 2;
+  const box = { x: 40, y: 50, w: 400, h: 330 }, r = D.dia / 2, RF = D.rf || null, fl = RF && RF.mount, ro = fl ? r + fl.width : r;
   const span = D.length + 2 * Math.max(0, ...D.surfaces.map(s => isFinite(s.sagRim) ? Math.abs(s.sagRim) : 0));
-  const [sa, sb] = SH_SCALES.find(([a, b]) => D.dia * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
+  const [sa, sb] = SH_SCALES.find(([a, b]) => 2 * ro * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
   const k = sa / sb * PT, cx = box.x + box.w / 2 - D.length * k / 2, cy = box.y + box.h / 2;
   const zs = [0]; D.elements.forEach(e => zs.push(zs[zs.length - 1] + e.ct));
   const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z) * k; };
@@ -24670,6 +24670,20 @@ function drawSheet(g, D, meta) {
     g.beginPath(); a.forEach(([x, y], q) => q ? g.lineTo(x, y) : g.moveTo(x, y)); b.forEach(([x, y]) => g.lineTo(x, y)); g.closePath();
     g.fillStyle = SH_GLASS; g.fill(); g.strokeStyle = SH_INK; g.lineWidth = 1.1; g.stroke();
   });
+  // an RF lens's flange: a ring outside its rim, centred on the rim along the axis, in section through two of its holes
+  if (fl) {
+    const zm = (zs[0] + D.surfaces[0].sagRim + zs[zs.length - 1] + D.surfaces[D.surfaces.length - 1].sagRim) / 2, xa = cx + (zm - fl.thick / 2) * k, xb = cx + (zm + fl.thick / 2) * k;
+    for (const q of [1, -1]) {
+      g.beginPath(); g.rect(xa, Math.min(Y(q * r), Y(q * ro)), xb - xa, Math.abs(Y(q * ro) - Y(q * r)));
+      g.fillStyle = SH_GLASS; g.fill(); g.strokeStyle = SH_INK; g.lineWidth = 1.1; g.stroke();
+      if (fl.holes) {
+        const yc = q * (r + fl.width / 2);
+        g.strokeStyle = SH_SOFT; g.lineWidth = 0.5; g.setLineDash([3, 2]);
+        for (const y of [yc - fl.hole / 2, yc + fl.hole / 2]) { g.beginPath(); g.moveTo(xa, Y(y)); g.lineTo(xb, Y(y)); g.stroke(); }
+        g.setLineDash([8, 2, 2, 2]); g.beginPath(); g.moveTo(xa - 6, Y(yc)); g.lineTo(xb + 6, Y(yc)); g.stroke(); g.setLineDash([]);
+      }
+    }
+  }
   // the axis, dash-dot
   g.strokeStyle = SH_SOFT; g.lineWidth = 0.5; g.setLineDash([14, 3, 2, 3]);
   g.beginPath(); g.moveTo(cx - 30, cy); g.lineTo(cx + D.length * k + 30, cy); g.stroke(); g.setLineDash([]);
@@ -24682,9 +24696,15 @@ function drawSheet(g, D, meta) {
   for (const y of [r, -r]) { g.beginPath(); g.moveTo(X(0, y) - 3, Y(y)); g.lineTo(xl - 5, Y(y)); g.stroke(); }
   arrowLine(g, xl, Y(r), xl, Y(-r));
   g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia), 0, 0, { align: 'center', size: 9 }); g.restore();
+  if (fl) {
+    const xo = xl - 26, xf = cx + Math.min(...zs) * k;
+    for (const y of [ro, -ro]) { g.beginPath(); g.moveTo(Math.min(xf, X(0, r)) - 3, Y(y)); g.lineTo(xo - 5, Y(y)); g.stroke(); }
+    arrowLine(g, xo, Y(ro), xo, Y(-ro));
+    g.save(); g.translate(xo - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(2 * ro), 0, 0, { align: 'center', size: 9 }); g.restore();
+  }
   D.elements.forEach((e, i) => {
     if (e.air) return;
-    const xa = X(i, 0), xb = X(i + 1, 0), yb = Y(-r) + 22 + 14 * (i % 2), yt = Y(r) - 22 - 14 * (i % 2);
+    const xa = X(i, 0), xb = X(i + 1, 0), yb = Y(-ro) + 22 + 14 * (i % 2), yt = Y(ro) - 22 - 14 * (i % 2);
     for (const x of [xa, xb]) { g.beginPath(); g.moveTo(x, cy + 3); g.lineTo(x, yb + 4); g.stroke(); }
     arrowLine(g, xa, yb, xb, yb);
     text(g, dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''), (xa + xb) / 2, yb + 11, { align: 'center', size: 8.5 });
@@ -24697,7 +24717,7 @@ function drawSheet(g, D, meta) {
   });
   // each surface's number on its face
   D.surfaces.forEach((s, j) => text(g, 'S' + s.n, X(j, 0) + (j === 0 ? -4 : 4), cy - 4, { align: j === 0 ? 'right' : 'left', size: 7, ink: SH_SOFT }));
-  text(g, 'Light from the left. Scale ' + sa + ':' + sb + '.', box.x, box.y + box.h + 6, { size: 7.5, ink: SH_SOFT });
+  text(g, (RF ? 'The feed on the left. Scale ' : 'Light from the left. Scale ') + sa + ':' + sb + '.', box.x, box.y + box.h + 6, { size: 7.5, ink: SH_SOFT });
 
   // ---- the table ----
   const tx = 462, tw = SHEET_W - 40 - tx, cols = D.surfaces.length, c0 = 104, cw = (tw - c0) / cols;
@@ -24716,23 +24736,39 @@ function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
+  if (D.surfaces.some(s => s.profile)) row('Profile tolerance', D.surfaces.map(s => s.profile ? '⌓ ' + dfmt(s.profile, 2) : '—'));
+  if (D.surfaces.some(s => s.match)) {
+    row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) : '—'));
+    row('  thickness', D.surfaces.map(s => s.match ? dfmt(s.match.thick, 3) : '—'));
+  }
   if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
   ty += 10;
-  text(g, D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
+  text(g, RF ? 'Material' : D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
   const gl = D.elements.filter(e => !e.air), gw = (tw - c0) / Math.max(1, gl.length);
   const grow = (label, f) => { text(g, label, tx, ty, { size: 8, ink: SH_SOFT }); gl.forEach((e, q) => text(g, f(e), tx + c0 + q * gw, ty, { size: 8, mono: true })); ty += 4; g.strokeStyle = '#c8ced4'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty); g.stroke(); ty += 10; };
   grow('Between', e => 'S' + D.surfaces[e.from].n + '–S' + D.surfaces[e.from + 1].n);
   grow('Material', e => e.glass);
-  grow('Index nd', e => dfmt(e.nd, 5) + (e.ndTol ? ' ± ' + dfmt(e.ndTol, 4) : ''));
-  grow('Abbe number Vd', e => dfmt(e.vd, 2) + (e.vdTol ? ' ± ' + dfmt(e.vdTol, 2) : ''));
+  if (RF) {
+    grow('Permittivity εr', () => dfmt(RF.eps, 3) + (RF.epsTol ? ' ± ' + dfmt(RF.epsTol, 1) + ' %' : '') + ' at ' + dfmt(RF.ghz, 4) + ' GHz');
+    grow('Loss tangent', () => isFinite(RF.tand) ? String(+RF.tand.toPrecision(2)) : '—');
+  } else {
+    grow('Index nd', e => dfmt(e.nd, 5) + (e.ndTol ? ' ± ' + dfmt(e.ndTol, 4) : ''));
+    grow('Abbe number Vd', e => dfmt(e.vd, 2) + (e.vdTol ? ' ± ' + dfmt(e.vdTol, 2) : ''));
+  }
   grow('Centre thickness', e => dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''));
   grow('Edge thickness', e => '(' + dfmt(e.et) + ')');
 
   // ---- notes ----
   ty += 8;
   text(g, 'Notes', tx, ty, { size: 9.5, bold: true }); ty += 13;
-  const notes = ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
+  const notes = RF ? ['Dimensions in millimetres. The feed on the left: a radius is positive with its centre of curvature to the right.',
+    'Edge thickness, in brackets, is a reference dimension at the lens’s full diameter.',
+    'Designed for ' + dfmt(RF.lo, 4) + ' to ' + dfmt(RF.hi, 4) + ' GHz. Profile tolerance (⌓): each face lies within a zone that wide about its true form, which changes the path through the lens by no more than λ/8 at ' + dfmt(RF.hi, 4) + ' GHz.',
+    ...(D.surfaces.some(s => s.match) ? ['A matching layer is a quarter wave thick at the design frequency, of the permittivity given, laid over its face: the faces and thicknesses drawn are those beneath it.'] : []),
+    ...(RF.mount ? ['Flange: Ø ' + dfmt(RF.outer) + ' outside, ' + dfmt(RF.mount.thick) + ' thick, centred on the lens’s rim along the axis' + (RF.mount.holes ? '; ' + RF.mount.holes + ' holes Ø ' + dfmt(RF.mount.hole) + ' through it, equally spaced on Ø ' + dfmt(D.dia + RF.mount.width) : '') + '.'] : []),
+    'A drawing of the design, for reference: how it is made is the maker’s.']
+  : ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the full diameter.',
     D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
   D.surfaces.forEach(s => {
@@ -24754,7 +24790,7 @@ function drawSheet(g, D, meta) {
   g.beginPath(); g.moveTo(bx, by + 40); g.lineTo(bx + 330, by + 40); g.moveTo(bx, by + 66); g.lineTo(bx + 330, by + 66);
   g.moveTo(bx + 110, by + 40); g.lineTo(bx + 110, by + 92); g.moveTo(bx + 220, by + 40); g.lineTo(bx + 220, by + 92); g.stroke();
   text(g, D.name, bx + 8, by + 18, { size: 14, bold: true });
-  text(g, (D.kind === 'window' ? 'Window' : 'Lens') + (meta.assembly ? ' in ' + meta.assembly : ''), bx + 8, by + 32, { size: 8.5, ink: SH_SOFT });
+  text(g, (RF ? 'RF lens' : D.kind === 'window' ? 'Window' : 'Lens') + (meta.assembly ? ' in ' + meta.assembly : ''), bx + 8, by + 32, { size: 8.5, ink: SH_SOFT });
   const cell = (x, y, label, v) => { text(g, label, x + 6, y + 10, { size: 6.5, ink: SH_SOFT }); text(g, v, x + 6, y + 21, { size: 8.5 }); };
   cell(bx, by + 40, 'Scale', sa + ':' + sb); cell(bx + 110, by + 40, 'Units', 'mm'); cell(bx + 220, by + 40, 'Sheet', (meta.sheet || 1) + ' of ' + (meta.of || 1));
   cell(bx, by + 66, 'Date', meta.date || new Date().toISOString().slice(0, 10)); cell(bx + 110, by + 66, 'Bench', meta.bench || project.name || '');
@@ -25182,6 +25218,52 @@ function r3load() {
   return R3loading;
 }
 const r3sag = (s, r) => (s.R === null || !isFinite(s.R) || !s.R) && !s.k && !(s.A && s.A.some(a => a)) ? 0 : surfSag({ R: s.R, k: s.k || 0, a2: s.a2 || 0, A: s.A || [], odd: s.odd || null }, r);
+/* the lens's solids: its body turned from its outline, and its flange (a ring with its holes, extruded along the axis,
+   centred on the rim), in its own frame: the axis along y, the front vertex at 0 */
+function r3geoms(T, el, seg) {
+  const P = r3profile(el), out = [new T.LatheGeometry(P.pts.map(([r, z]) => new T.Vector2(Math.max(r, 1e-6), z)), seg)];
+  const m = el.mount;
+  if (m && m.kind === 'flange') {
+    const shape = new T.Shape(), ro = P.a + m.width;
+    shape.absarc(0, 0, ro, 0, 2 * Math.PI, false);
+    const inner = new T.Path(); inner.absarc(0, 0, P.a, 0, 2 * Math.PI, true); shape.holes.push(inner);
+    for (let k = 0; k < m.holes; k++) { const t = 2 * Math.PI * k / m.holes, c = P.a + m.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(t), c * Math.sin(t), m.hole / 2, 0, 2 * Math.PI, true); shape.holes.push(hp); }
+    const g = new T.ExtrudeGeometry(shape, { depth: m.thick, bevelEnabled: false, curveSegments: Math.max(48, seg / 2) });
+    g.rotateX(-Math.PI / 2); g.translate(0, P.mid - m.thick / 2, 0);
+    out.push(g);
+  }
+  return out;
+}
+/* the lens as an STL mesh (the shape it is to have, not a file to print from: no density, layers or supports), in
+   mm, its axis along z, the front vertex at the origin: every triangle of its solids, as binary STL */
+async function lensStl(el) {
+  const T = await r3load(), tris = [];
+  for (const g0 of r3geoms(T, el, 128)) {
+    const g = g0.index ? g0.toNonIndexed() : g0, p = g.attributes.position.array;
+    for (let i = 0; i < p.length; i += 9) {
+      // y (the axis) to z: (x, y, z) -> (x, -z, y), a right-handed turn, so the faces still face out
+      const v = [0, 3, 6].map(k => [p[i + k], -p[i + k + 2], p[i + k + 1]]);
+      const u = [v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2]], w = [v[2][0] - v[0][0], v[2][1] - v[0][1], v[2][2] - v[0][2]];
+      const nrm = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], l = Math.hypot(...nrm);
+      if (!(l > 1e-12)) continue;
+      tris.push([nrm.map(x => x / l), ...v]);
+    }
+    g.dispose(); if (g !== g0) g0.dispose();
+  }
+  const buf = new ArrayBuffer(84 + 50 * tris.length), dv = new DataView(buf), head = ('JEKray RF lens ' + (el.name || '')).slice(0, 80);
+  for (let i = 0; i < head.length; i++) dv.setUint8(i, head.charCodeAt(i) & 0x7f);
+  dv.setUint32(80, tris.length, true);
+  tris.forEach((t, k) => { let o = 84 + 50 * k; for (const q of t) for (const x of q) { dv.setFloat32(o, x, true); o += 4; } });
+  return { bytes: buf, tris: tris.length };
+}
+async function saveLensStl(el) {
+  try {
+    const out = await lensStl(el), name = safeFileName(el.name || 'RF lens') + '.stl';
+    downloadFile(name, new Blob([out.bytes], { type: 'model/stl' }));
+    toast('Saved ' + name + ': the lens' + (el.mount ? ' and its flange' : '') + ', ' + out.tris + ' triangles, in mm.');
+    return out;
+  } catch (err) { toast('Could not make the STL: ' + err.message, true); return null; }
+}
 /* the lens's outline in (r, z), front face to back, for a lathe */
 function r3profile(el) {
   const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, n = 64, pts = [];
@@ -25195,18 +25277,8 @@ function r3build(T, v, el) {
   const P = r3profile(el), M = RF_MAT[el.materials[0] && el.materials[0].glass], col = M && /ABS|ASA/.test(M.name) ? 0xe9e4d4 : M && /PETG/.test(M.name) ? 0xcfe6ef : 0xf0eee6;
   const mat = new T.MeshStandardMaterial({ color: col, roughness: 0.55, metalness: 0, side: T.DoubleSide });
   const group = new T.Group();
-  group.add(new T.Mesh(new T.LatheGeometry(P.pts.map(([r, z]) => new T.Vector2(Math.max(r, 1e-6), z)), 96), mat));
-  // the flange: a ring with its holes, extruded along the axis, centred on the rim
+  for (const g of r3geoms(T, el, 96)) group.add(new T.Mesh(g, mat));
   const m = el.mount;
-  if (m && m.kind === 'flange') {
-    const shape = new T.Shape(), ro = P.a + m.width;
-    shape.absarc(0, 0, ro, 0, 2 * Math.PI, false);
-    const inner = new T.Path(); inner.absarc(0, 0, P.a, 0, 2 * Math.PI, true); shape.holes.push(inner);
-    for (let k = 0; k < m.holes; k++) { const t = 2 * Math.PI * k / m.holes, c = P.a + m.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(t), c * Math.sin(t), m.hole / 2, 0, 2 * Math.PI, true); shape.holes.push(hp); }
-    const g = new T.ExtrudeGeometry(shape, { depth: m.thick, bevelEnabled: false, curveSegments: 48 });
-    g.rotateX(-Math.PI / 2); g.translate(0, P.mid - m.thick / 2, 0);
-    group.add(new T.Mesh(g, mat));
-  }
   // the axis along y: centred, and sized to the view
   group.position.y = -P.T / 2;
   v.scene.add(group); v.group = group;
@@ -25895,6 +25967,12 @@ function rwMakeCard(asm, P, T) {
       rwRow('Mounting', rwSelect({ none: 'None', flange: 'Flange with bolt holes' }, m ? 'flange' : 'none', v => rwEdit(() => { el.mount = v === 'flange' ? normMount({ kind: 'flange' }) : undefined; return false; }), el.name + ' mounting')),
       ...(m ? [rwRow('Flange width (mm)', rwNum(m.width, v => mset('width', v), el.name + ' flange width (mm)')), rwRow('Flange thickness (mm)', rwNum(m.thick, v => mset('thick', v), el.name + ' flange thickness (mm)')),
         rwRow('Bolt holes', rwNum(m.holes, v => mset('holes', v), el.name + ' bolt holes')), rwRow('Hole diameter (mm)', rwNum(m.hole, v => mset('hole', v), el.name + ' hole diameter (mm)'))] : [])));
+    // its drawing and its shape, for the customer's own records and mechanical design: not files to print from
+    const di = drawableParts(P).indexOf(pi);
+    box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Files of its design:'),
+      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'),
+      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)'),
+      h('button', { type: 'button', class: 'rt-btn', title: 'Its shape as a mesh, flange included, in mm, its axis along z: for your mechanical design (not a file to print from)', onclick: () => saveLensStl(el) }, 'Shape (STL)')));
     if (ok) {
       const row = orderRow(el, { ghz: R.ghz, extra: ['Designed in the RF designer for ' + rwFmt(R.lo, 4) + ' to ' + rwFmt(R.hi, 4) + ' GHz: ' + perf + ' at ' + rwFmt(R.ghz, 4) + ' GHz, the feed ' + rwFmt(R.feed.d, 4) + ' mm before it'] });
       if (row) box.append(row);
@@ -37802,6 +37880,39 @@ function drawingData(P, pi, opts) {
   elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
   return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
 }
+
+/* An RF lens's drawing: the same sheet, with what an RF lens is made to in place of an optical shop's terms.
+   opts as drawingData's, with rf (the RF designer's conditions), tol (its tolerance settings) and mount (the
+   lens's flange, if any) and coats (its faces' coatings, front first). In place of fringes, nd and νd:
+     the plastic's permittivity εr and loss tangent at the design frequency (± the permittivity tolerance);
+     each face's radius ± the face-curvature tolerance (as a share of its curvature), and a profile
+       tolerance t: the face may lie anywhere within a zone t wide about its true form, t chosen so that the
+       path through the lens changes by no more than λ/8 at the top of the band, t (n − 1) ≤ λ/8, and no more
+       than 0.5 mm however long the wavelength;
+     each face's matching layer, if it has one: its permittivity and thickness;
+     the flange, if any, drawn in the section, with its outside diameter, thickness and bolt holes.
+   It is a drawing of the design, not a file to make it from: how the plastic is laid down is the maker's. */
+function rfDrawingData(P, pi, opts) {
+  const D = drawingData(P, pi, Object.assign({}, opts, { T: null }));
+  const R = opts.rf, tol = opts.tol || {}, on = k => tol[k] && tol[k].on && tol[k].v > 0 ? tol[k].v : null;
+  const sps = surfaceParts(P), k0 = sps.findIndex(s => s.pi === pi), S = P.surfaces.slice(k0, k0 + P.parts[pi].n);
+  const glass = D.elements.find(e => !e.air), m = glass ? P.materials[k0 + glass.from] : null, M = m && RF_MAT[m.glass];
+  const nm = C_NM_GHZ / R.ghz, n = m ? refIndex(m, nm) : NaN, lamHi = C_NM_GHZ / R.hi * 1e-6;
+  const prof = isFinite(n) && n > 1 ? Math.min(0.5, Math.floor(lamHi / (8 * (n - 1)) / 0.05) * 0.05) : null;
+  const rad = on('rad'), thk = on('thk'), eps = on('eps');
+  D.surfaces.forEach((s, j) => {
+    s.dR = rad !== null && s.R !== null ? Math.abs(s.R) * rad / 100 : undefined;
+    s.profile = prof;
+    const mk = M ? printedMatch(M, (opts.coats && opts.coats[j]) || S[j].coat) : null;
+    if (mk) s.match = { eps: mk.n * mk.n, thick: mk.thick };
+  });
+  D.elements.forEach(e => { if (!e.air) e.ctTol = thk; });
+  const mount = normMount(opts.mount);
+  D.rf = { ghz: R.ghz, lo: R.lo, hi: R.hi, lamHi, material: M ? M.name : glass ? glass.glass : '—', eps: n * n, epsTol: eps, tand: M ? M.tand : NaN,
+    mount, outer: mountedDia(D.dia, mount) };
+  D.toleranced = [rad, thk, eps].some(v => v !== null) || prof !== null;
+  return D;
+}
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
    allows, which for a good cavity is far short of its steady state. A diode that light
@@ -43918,7 +44029,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, and quotes it: the request gives each face\u2019s conic and links to the whole system. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
+    '<b>The RF designer</b>: a system of RF lenses designed as a whole, from a feed horn\u2019s beam to what it is for (collimated, focused to a waist, or into a receiving horn). It follows the beam as a Gaussian beam and gives the gain and aperture efficiency, or the coupling, over the band, with every loss on the way; <b>Design a lens</b> makes a lens with hyperbolic faces to suit the beam, placed for an edge taper or to match the goal, with matching layers. <b>Analyses</b> give the gain or coupling over the band, the far-field pattern, each aperture\u2019s taper and spillover, each lens\u2019s reflection ripple and a loss budget, with the faces\u2019 phase error from real rays; <b>Optimise</b> finds the radii, conics, thicknesses, spacings and feed distance for the most efficiency across the band. <b>Tolerance</b> gives each error\u2019s effect, a Monte Carlo of builds and the yield against a specification; <b>Make it</b> checks each lens can be made, shows it in 3D as it would be made, with its weight and flange, saves its drawing (PDF or SVG, with its permittivity, profile tolerance and matching layers) and its shape as STL, and quotes it: the request gives each face\u2019s conic and links to the whole system. Share links now keep a bench\u2019s assemblies and their designs. Open it from an RF lens\u2019s panel or with <b>New RF design\u2026</b>; the horns on the bench follow its conditions.',
     '<b>Stock lenses</b> in lens design: add lens files you have (.zmx or .zar, such as lens makers publish for their parts; kept in your browser only) and the <b>Stock lenses</b> tab finds, for each lens of the design, those with the right focal length, faces and room for the beam, tries each in the design either way round with the air about it optimised, and ranks them by the design\u2019s merit; <b>Use</b> puts one in.',
     '<b>Export for CAD</b>: an assembly\u2019s panel exports its lenses, windows, mirrors and stops as solids for mechanical design, placed as the design has them (folds and tilts too): <b>Export for CAD (.step)</b> writes exact spheres and planes and each asphere as its profile turned, and <b>Export as a mesh (.stl)</b> the same in triangles.',
     '<b>Thermal analysis</b> in lens design: <b>Analyses \u203a Thermal</b> takes the design from one temperature to another, at any pressure, in an aluminium, steel, brass, titanium or Invar housing: each glass\u2019s index by its maker\u2019s thermal data (over 1,100 glasses) and the air\u2019s, the lenses growing with their glasses and the spacers and detector with the housing. It gives the focal length, the focus against the detector, each field\u2019s spot and the focus drift per kelvin.',
@@ -45777,6 +45888,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTolRun(mode, sync) { return lensTolRun(mode, sync); },
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },
+    async lensStl(id) { const e = getEl(id); if (!e) return null; const o = await lensStl(e); return { bytes: o.bytes.byteLength, tris: o.tris, count: new DataView(o.bytes).getUint32(80, true) }; },
     lensDrawingSvg(name, i) { const a = assemblies().find(x => x.name === name); return a ? drawingSvgText(a, i || 0) : null; },
     async lensReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await reportPdfBlob(a, { raw: true })).text() : null; },
     async lensDrawingsPdf(name, i) { const a = assemblies().find(x => x.name === name); return a ? await (await drawingsPdfBlob(a, i)).text() : null; },

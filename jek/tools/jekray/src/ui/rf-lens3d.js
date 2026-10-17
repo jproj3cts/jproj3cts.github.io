@@ -1,6 +1,7 @@
 import { surfSag } from '../engines/lens-design.js';
 import { RF_MAT } from '../core/rf.js';
 import { h } from './panel.js';
+import { downloadFile, safeFileName, toast } from './actions.js';
 
 /* ---------- A lens to be made, in 3D: a quick look before it is ordered ----------
    The lens as it would be printed: its faces turned about its axis to their full diameter (the sags as the bench
@@ -20,6 +21,52 @@ function r3load() {
   return R3loading;
 }
 const r3sag = (s, r) => (s.R === null || !isFinite(s.R) || !s.R) && !s.k && !(s.A && s.A.some(a => a)) ? 0 : surfSag({ R: s.R, k: s.k || 0, a2: s.a2 || 0, A: s.A || [], odd: s.odd || null }, r);
+/* the lens's solids: its body turned from its outline, and its flange (a ring with its holes, extruded along the axis,
+   centred on the rim), in its own frame: the axis along y, the front vertex at 0 */
+function r3geoms(T, el, seg) {
+  const P = r3profile(el), out = [new T.LatheGeometry(P.pts.map(([r, z]) => new T.Vector2(Math.max(r, 1e-6), z)), seg)];
+  const m = el.mount;
+  if (m && m.kind === 'flange') {
+    const shape = new T.Shape(), ro = P.a + m.width;
+    shape.absarc(0, 0, ro, 0, 2 * Math.PI, false);
+    const inner = new T.Path(); inner.absarc(0, 0, P.a, 0, 2 * Math.PI, true); shape.holes.push(inner);
+    for (let k = 0; k < m.holes; k++) { const t = 2 * Math.PI * k / m.holes, c = P.a + m.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(t), c * Math.sin(t), m.hole / 2, 0, 2 * Math.PI, true); shape.holes.push(hp); }
+    const g = new T.ExtrudeGeometry(shape, { depth: m.thick, bevelEnabled: false, curveSegments: Math.max(48, seg / 2) });
+    g.rotateX(-Math.PI / 2); g.translate(0, P.mid - m.thick / 2, 0);
+    out.push(g);
+  }
+  return out;
+}
+/* the lens as an STL mesh (the shape it is to have, not a file to print from: no density, layers or supports), in
+   mm, its axis along z, the front vertex at the origin: every triangle of its solids, as binary STL */
+export async function lensStl(el) {
+  const T = await r3load(), tris = [];
+  for (const g0 of r3geoms(T, el, 128)) {
+    const g = g0.index ? g0.toNonIndexed() : g0, p = g.attributes.position.array;
+    for (let i = 0; i < p.length; i += 9) {
+      // y (the axis) to z: (x, y, z) -> (x, -z, y), a right-handed turn, so the faces still face out
+      const v = [0, 3, 6].map(k => [p[i + k], -p[i + k + 2], p[i + k + 1]]);
+      const u = [v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2]], w = [v[2][0] - v[0][0], v[2][1] - v[0][1], v[2][2] - v[0][2]];
+      const nrm = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], l = Math.hypot(...nrm);
+      if (!(l > 1e-12)) continue;
+      tris.push([nrm.map(x => x / l), ...v]);
+    }
+    g.dispose(); if (g !== g0) g0.dispose();
+  }
+  const buf = new ArrayBuffer(84 + 50 * tris.length), dv = new DataView(buf), head = ('JEKray RF lens ' + (el.name || '')).slice(0, 80);
+  for (let i = 0; i < head.length; i++) dv.setUint8(i, head.charCodeAt(i) & 0x7f);
+  dv.setUint32(80, tris.length, true);
+  tris.forEach((t, k) => { let o = 84 + 50 * k; for (const q of t) for (const x of q) { dv.setFloat32(o, x, true); o += 4; } });
+  return { bytes: buf, tris: tris.length };
+}
+export async function saveLensStl(el) {
+  try {
+    const out = await lensStl(el), name = safeFileName(el.name || 'RF lens') + '.stl';
+    downloadFile(name, new Blob([out.bytes], { type: 'model/stl' }));
+    toast('Saved ' + name + ': the lens' + (el.mount ? ' and its flange' : '') + ', ' + out.tris + ' triangles, in mm.');
+    return out;
+  } catch (err) { toast('Could not make the STL: ' + err.message, true); return null; }
+}
 /* the lens's outline in (r, z), front face to back, for a lathe */
 function r3profile(el) {
   const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, n = 64, pts = [];
@@ -33,18 +80,8 @@ function r3build(T, v, el) {
   const P = r3profile(el), M = RF_MAT[el.materials[0] && el.materials[0].glass], col = M && /ABS|ASA/.test(M.name) ? 0xe9e4d4 : M && /PETG/.test(M.name) ? 0xcfe6ef : 0xf0eee6;
   const mat = new T.MeshStandardMaterial({ color: col, roughness: 0.55, metalness: 0, side: T.DoubleSide });
   const group = new T.Group();
-  group.add(new T.Mesh(new T.LatheGeometry(P.pts.map(([r, z]) => new T.Vector2(Math.max(r, 1e-6), z)), 96), mat));
-  // the flange: a ring with its holes, extruded along the axis, centred on the rim
+  for (const g of r3geoms(T, el, 96)) group.add(new T.Mesh(g, mat));
   const m = el.mount;
-  if (m && m.kind === 'flange') {
-    const shape = new T.Shape(), ro = P.a + m.width;
-    shape.absarc(0, 0, ro, 0, 2 * Math.PI, false);
-    const inner = new T.Path(); inner.absarc(0, 0, P.a, 0, 2 * Math.PI, true); shape.holes.push(inner);
-    for (let k = 0; k < m.holes; k++) { const t = 2 * Math.PI * k / m.holes, c = P.a + m.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(t), c * Math.sin(t), m.hole / 2, 0, 2 * Math.PI, true); shape.holes.push(hp); }
-    const g = new T.ExtrudeGeometry(shape, { depth: m.thick, bevelEnabled: false, curveSegments: 48 });
-    g.rotateX(-Math.PI / 2); g.translate(0, P.mid - m.thick / 2, 0);
-    group.add(new T.Mesh(g, mat));
-  }
   // the axis along y: centred, and sized to the view
   group.position.y = -P.T / 2;
   v.scene.add(group); v.group = group;

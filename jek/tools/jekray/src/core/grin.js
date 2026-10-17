@@ -138,3 +138,50 @@ export function applyGrin(el, nAs) {
   el.preset = 'grin';
   return D;
 }
+
+/* ---------- The disc in a design's prescription ----------
+   As the RF designer and the lens engine take it: a slab between two flat faces, as thick as the whole disc
+   (its layers with it), of the plastic graded from the axis so its optical path at r is the disc's own,
+   n(r) = n₀ − opd(r)/T: n₀ the centre's mean index through the slab (core and layers), held as the
+   plastic's index plus dn, and the fall fitted over the disc as g₂r² + g₄r⁴ + g₆r⁶ (the lens engine's
+   graded glass, so its rays and its paraxial power are those of the disc). Null when the disc cannot be made. */
+export function grinSlab(g, dia) {
+  const D = grinDesign(g, dia);
+  if (!D.usable || !isFinite(D.t)) return null;
+  const T = D.tTot, n0 = (D.t * D.nHi + (D.match ? 2 * D.tm * D.nmAt(0) : 0)) / T, a = D.a;
+  const opd = g.profile === 'parabolic' ? r => r * r / (2 * g.f) : r => Math.sqrt(r * r + g.f * g.f) - g.f;
+  // least squares in r², r⁴, r⁶ (scaled by a, so the sums stay well conditioned), weighted by the area at r
+  const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0], K = 64;
+  for (let k = 0; k < K; k++) {
+    const u = (k + 0.5) / K, r = u * a, w = u, y = -opd(r) / T, ph = [u * u, u ** 4, u ** 6];
+    for (let i = 0; i < 3; i++) { b[i] += w * ph[i] * y; for (let j = 0; j < 3; j++) A[i][j] += w * ph[i] * ph[j]; }
+  }
+  const c = gSolve3(A, b), grad = [c[0] / a ** 2, c[1] / a ** 4, c[2] / a ** 6];
+  return { D, T, n0, dn: n0 - D.M.n, grad, a };
+}
+function gSolve3(A, b) {
+  const M = A.map((r, i) => r.concat([b[i]]));
+  for (let i = 0; i < 3; i++) {
+    let p = i; for (let k = i + 1; k < 3; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k;
+    [M[i], M[p]] = [M[p], M[i]];
+    for (let k = i + 1; k < 3; k++) { const f = M[k][i] / M[i][i]; for (let j = i; j < 4; j++) M[k][j] -= f * M[i][j]; }
+  }
+  const x = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) { let s = M[i][3]; for (let j = i + 1; j < 3; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
+  return x;
+}
+/* the disc's losses at ghz over a beam of radius w (power weighted): its two faces' reflection (bare, or through its
+   layers at that frequency) and its absorption, core and layers, as the share of power each lets through */
+export function grinLoss(D, ghz, w) {
+  const lam = C_NM_GHZ / ghz * 1e-6, M = D.M;
+  const alpha = n => { const f = mixFill(M, n * n); return 2 * Math.PI * mixEps(M, f).epsI / (n * lam); };
+  let num = 0, numA = 0, den = 0;
+  for (let k = 0; k < 48; k++) {
+    const r = (k + 0.5) / 48 * D.a, wt = r * Math.exp(-2 * r * r / (w * w)), n = D.nAt(r);
+    let R, A = Math.exp(-alpha(n) * D.t);
+    if (D.match) { const nm = D.nmAt(r); R = D.reflM(n, nm, lam); A *= Math.exp(-alpha(nm) * 2 * D.tm); }
+    else R = ((n - 1) / (n + 1)) ** 2;
+    num += wt * (1 - R) * (1 - R); numA += wt * A; den += wt;
+  }
+  return { refl: den ? num / den : 1, absorb: den ? numA / den : 1 };
+}

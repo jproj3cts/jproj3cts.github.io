@@ -1,5 +1,6 @@
 import { surfSag } from '../engines/lens-design.js';
 import { RF_MAT } from '../core/rf.js';
+import { grinDesign } from '../core/grin.js';
 import { h } from './panel.js';
 
 /* ---------- A lens to be made, in 3D: a quick look before it is ordered ----------
@@ -38,15 +39,20 @@ function r3geoms(T, el, seg) {
 }
 /* the lens's outline in (r, z), front face to back, for a lathe */
 function r3profile(el) {
+  // a graded-index disc: flat both sides, as thick as its design makes it
+  if (el.grin) {
+    const D = grinDesign(el.grin, el.length), a = el.length / 2, T = D.usable ? D.tTot : 1;
+    return { pts: [[0, 0], [a, 0], [a, T], [0, T]], a, mid: T / 2, T };
+  }
   const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, n = 64, pts = [];
   for (let i = 0; i <= n; i++) { const r = a * i / n; pts.push([r, r3sag(f, r)]); }
   for (let i = n; i >= 0; i--) { const r = a * i / n; pts.push([r, T + r3sag(b, r)]); }
   return { pts, a, mid: (r3sag(f, a) + T + r3sag(b, a)) / 2, T };
 }
-const r3key = el => JSON.stringify([el.diameter, el.surfaces.map(s => [s.R, s.k, s.a2, s.A]), el.gaps, el.materials, el.mount]);
+const r3key = el => JSON.stringify(el.grin ? [el.length, el.grin, el.mount] : [el.diameter, el.surfaces.map(s => [s.R, s.k, s.a2, s.A]), el.gaps, el.materials, el.mount]);
 function r3build(T, v, el) {
   if (v.group) { v.scene.remove(v.group); v.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
-  const P = r3profile(el), M = RF_MAT[el.materials[0] && el.materials[0].glass], col = M && /ABS|ASA/.test(M.name) ? 0xe9e4d4 : M && /PETG/.test(M.name) ? 0xcfe6ef : 0xf0eee6;
+  const P = r3profile(el), M = RF_MAT[el.grin ? el.grin.mat : el.materials[0] && el.materials[0].glass], col = M && /ABS|ASA/.test(M.name) ? 0xe9e4d4 : M && /PETG/.test(M.name) ? 0xcfe6ef : 0xf0eee6;
   const mat = new T.MeshStandardMaterial({ color: col, roughness: 0.55, metalness: 0, side: T.DoubleSide });
   const group = new T.Group();
   for (const g of r3geoms(T, el, 96)) group.add(new T.Mesh(g, mat));

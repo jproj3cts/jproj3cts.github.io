@@ -145,3 +145,26 @@ test('tolerancing: each error moves the figure as it should, Monte Carlo is repe
   const Y = RF.rfYield(Array.from({ length: 10 }, (_, i) => ({ worst: i < 5 ? 1 : 0 })), 0.5);
   assert.ok(Math.abs(Y.p - 0.5) < 1e-12 && Math.abs(Y.lo - 0.2366) < 1e-3 && Math.abs(Y.hi - 0.7634) < 1e-3, JSON.stringify(Y));
 });
+
+test('a graded-index disc: its grading holds its path, and designed to collimate it leaves the beam flat', async () => {
+  const G = await import('../../src/core/grin.js');
+  const grin = { f: 150, ghz, mat: 'PLA', fillMax: 100, fillMin: 15, profile: 'ideal', match: true };
+  // the slab's path, centre index and fitted terms, against the disc's own sqrt(r² + f²) − f over its face
+  const S = G.grinSlab(grin, 120);
+  let worst = 0;
+  for (let r = 0; r <= 60; r += 2) { const d = -(S.grad[0] * r ** 2 + S.grad[1] * r ** 4 + S.grad[2] * r ** 6) * S.T, want = Math.sqrt(r * r + 150 * 150) - 150; worst = Math.max(worst, Math.abs(d - want)); }
+  assert.ok(worst < 0.01 * lam, 'path within ' + worst + ' mm');
+  loadProject({ format: 'jekray', version: 1, elements: [{ type: 'mask', id: 'L', name: 'Disc', x: 0, y: 0, angle: 0, length: 120, grin, mmw: { part: true }, group: 'g' }],
+    assemblies: [{ id: 'g', name: 'RF', ref: 'L', kind: 'rf', rf: { ghz, feed, goal: { kind: 'collimate', d: 300 } } }] });
+  const a = ST.project.assemblies[0], P = D.designPrescription(a);
+  RF.rfSyncCond(a, P);
+  assert.equal(P.parts[0].kind, 'grin');
+  const o = RF.rfSynth(a, P, { pi: 0, type: 'grin', mat: 'PLA', D: 120, place: 'keep', match: true });
+  assert.ok(!o.error && o.f > 0 && o.t > 0);
+  RF.rfGrinInto(P, 0, o.grin, 120);
+  const t = RF.rfTrace(a, P, ghz);
+  assert.ok(Math.abs(t.waist.at) < 1e-6, 'waist at ' + t.waist.at);
+  assert.ok(t.apEff > 0.7 && t.phaseEff > 0.999 && t.refl > 0.99, JSON.stringify({ ap: t.apEff, ph: t.phaseEff, refl: t.refl }));
+  // its least density raised to hold to the top of the band
+  assert.ok(G.grinDesign(o.grin, 120).ghzMax >= a.rf.hi);
+});

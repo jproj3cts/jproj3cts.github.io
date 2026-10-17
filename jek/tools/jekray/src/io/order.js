@@ -32,7 +32,7 @@ export function orderSpec(el, opts) {
         'Material: ' + D.M.name, 'Thickness: ' + mm(D.tTot), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge',
         'Highest frequency (design rule): ' + (+D.ghzMax.toPrecision(3)) + ' GHz' + (D.band ? ', matched ' + (+D.band[0].toPrecision(3)) + ' to ' + (+D.band[1].toPrecision(3)) + ' GHz' : ''),
         D.match ? 'Faces: quarter-wave matching layers at ' + g.ghz + ' GHz, ' + mm(D.tm) + ' each' : null, mountLine(el.length, el.mount),
-        'Weight: about ' + Math.round(D.grams + mountVolume(el.length, el.mount) / 1000 * (D.M.density || 1.2)) + ' g'].filter(Boolean),
+        'Weight: about ' + Math.round(D.grams + mountVolume(el.length, el.mount) / 1000 * (D.M.density || 1.2)) + ' g', ...(opts.extra || [])].filter(Boolean),
     };
   }
   if (el.type === 'lens') {

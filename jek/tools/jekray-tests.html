@@ -9214,6 +9214,60 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: a graded-index disc designed to collimate, made, drawn, quoted, and turned back into a lens',
+    why: 'Design a lens \u203a Graded-index disc on the new design\u2019s lens makes the part a disc in its place, its focal length solved through its thickness so the beam leaves flat (its waist at the disc) with over 78% aperture efficiency, its least density raised to hold to the top of the band; the Lenses tab edits its focal length; Optimise offers its focal length; Tolerance lists its permittivity; Make it passes it with its 3D view, its drawing gives its permittivity across it, its quote names it graded with the system\u2019s line; designed as a hyperbolic lens again it is a lens, and Undo brings the disc back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), CART = 'JEK_QUOTE_CART';
+      let saved = null; try { saved = W.localStorage.getItem(CART); W.localStorage.removeItem(CART); } catch (e) { /* none */ }
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs');
+      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
+      const tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      const btn = t => [...ws().querySelectorAll('button')].find(b => b.textContent === t);
+      const lensEl = () => J.serialize().elements.find(e => e.group);
+      try {
+        tab('Design a lens');
+        set('Lens kind', 'grin');
+        const raised = /lowest density is raised to \d+%/.test(ws().querySelector('.rt-rfsynth').textContent);
+        btn('Use this disc').click();
+        const el = lensEl(), disc = el.type === 'mask' && !!el.grin && el.grin.mat === 'PLA' && el.grin.match === true;
+        const fig = ws().querySelector('.rt-lfig').textContent;
+        const m = /waist [\d.]+ mm, (-?[\d.e+-]+) mm after/.exec(fig), flat = !!m && Math.abs(+m[1]) < 1e-6;
+        const ap = /Aperture efficiency([\d.]+) %/.exec(fig), apOk = !!ap && +ap[1] > 78;
+        tab('Lenses');
+        const f0 = el.grin.f;
+        set('GRIN disc focal length (mm)', String(Math.round(f0 + 20)));
+        const fEdit = Math.abs(lensEl().grin.f - Math.round(f0 + 20)) < 1e-9;
+        rigDoc().querySelector('#rfWs header .rt-btn[title^="Undo"]').click();
+        const fUndo = Math.abs(lensEl().grin.f - f0) < 1e-9;
+        tab('Optimise');
+        const optF = !!ws().querySelector('[aria-label="GRIN disc focal length"]');
+        tab('Tolerance');
+        btn('Sensitivity').click();
+        const tolEps = [...ws().querySelectorAll('.rt-rftol tbody tr')].some(r => /GRIN disc: permittivity/.test(r.textContent));
+        tab('Make it');
+        const ok = ws().querySelector('.rt-rfverdict').classList.contains('ok') && [...ws().querySelectorAll('.rt-rfchecks li.ok')].some(li => /Holds to the top of the band/.test(li.textContent));
+        const has3d = !!ws().querySelector('.rt-rfmake .rt-rf3d') && !/no lenses to make/.test(ws().querySelector('.rt-rfmake').textContent);
+        const svg = J.lensDrawingSvg('New RF design', 0), drawn = /Permittivity across the disc/.test(svg) && /graded as below/.test(svg) && !/fringes/.test(svg);
+        ws().querySelector('.rt-rfmake .rt-order').click();
+        let cart = [];
+        for (let k = 0; k < 60 && !cart.length; k++) { await new Promise(r => setTimeout(r, 50)); try { cart = JSON.parse(W.localStorage.getItem(CART) || '[]'); } catch (e) { cart = []; } }
+        const line = cart[0], quoted = !!line && /Graded-index RF lens/.test(line.name) && line.spec.some(x => /RF designer/.test(x) && /dBi/.test(x));
+        tab('Design a lens');
+        set('Lens kind', 'hyperbolic');
+        btn('Use this lens').click();
+        const back = lensEl().type === 'lens' && lensEl().surfaces[0].k < -2 && !!ws().querySelector('#rfWs header [title^="The same parts in the optical"]');
+        rigDoc().querySelector('#rfWs header .rt-btn[title^="Undo"]').click();
+        const undone = lensEl().type === 'mask' && !!lensEl().grin;
+        const all = raised && disc && flat && apOk && fEdit && fUndo && optF && tolEps && ok && has3d && drawn && quoted && back && undone;
+        if (!all) console.log('RF grin', { raised, disc, flat, fig, apOk, fEdit, fUndo, optF, tolEps, ok, has3d, drawn, quoted, line, back, undone });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); try { if (saved === null) W.localStorage.removeItem(CART); else W.localStorage.setItem(CART, saved); } catch (e) { /* none */ } }
+    },
+  },
+  {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
     want: 1, tol: 0, unit: '',

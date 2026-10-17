@@ -2,6 +2,7 @@ import { clamp } from './constants.js';
 import { ffTurn } from './freeform.js';
 import { normOrder, normPh } from './diffractive.js';
 import { grH } from './gradient.js';
+import { applyGrin, grinSlab } from './grin.js';
 import { deg, normCoat, num, project } from '../state/project.js';
 
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
@@ -17,7 +18,7 @@ import { deg, normCoat, num, project } from '../state/project.js';
    cond: its design conditions }. Its parts are found by their group, so a record whose group has
    lost them all is dropped. */
 export const ASM_FIELDS_MAX = 12, ASM_WAVES_MAX = 12;
-export const asmKind = e => e.type === 'lens' ? 'lens' : e.type === 'stop' ? 'stop' : e.type === 'prism' && e.shape === 'window' ? 'window' : e.type === 'mirror' ? 'mirror' : null;
+export const asmKind = e => e.type === 'lens' ? 'lens' : e.type === 'mask' && e.grin ? 'grin' : e.type === 'stop' ? 'stop' : e.type === 'prism' && e.shape === 'window' ? 'window' : e.type === 'mirror' ? 'mirror' : null;
 
 /* design conditions: the aperture (an entrance pupil diameter, mm, or an F-number), the fields
    (angles of the incoming light, degrees, each with a weight) and the wavelengths (nm, each with a
@@ -269,7 +270,7 @@ export function asmOfSelection(list) {
 const ang = a => ((a % 360) + 360) % 360;
 const sameAng = (a, b, tol) => { const d = ang(a - b); return Math.min(d, 360 - d) <= tol; };
 const TILT_MAX = 30;
-const halfW = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'stop' ? (e.outer || e.aperture) / 2 : e.type === 'mirror' ? e.length / 2 : e.size / 2;
+const halfW = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mask' ? e.length / 2 : e.type === 'stop' ? (e.outer || e.aperture) / 2 : e.type === 'mirror' ? e.length / 2 : e.size / 2;
 const v2 = deg2 => [Math.cos(deg2 * deg), Math.sin(deg2 * deg)];
 const lperp = d => [-d[1], d[0]];
 const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
@@ -316,7 +317,7 @@ export function asmCheck(els, opts) {
   if (seg) return { ok: false, why: name(seg) + (seg.film ? ' is a film beam splitter' : ' is an off-axis segment') + ': an assembly’s mirrors are whole mirrors.' };
   // out of the plane: a lens or a window may be tipped (within the same limit as a tilt across) and any part
   // raised or lowered from the others by less than its own half-width; a mirror folds in the bench's plane only
-  const zOf = e => e.z === undefined ? 75 : e.z, halfOf = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mirror' ? e.length / 2 : e.type === 'stop' ? Math.max(e.aperture / 2, 1) : (e.size || 10) / 2;
+  const zOf = e => e.z === undefined ? 75 : e.z, halfOf = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mask' ? e.length / 2 : e.type === 'mirror' ? e.length / 2 : e.type === 'stop' ? Math.max(e.aperture / 2, 1) : (e.size || 10) / 2;
   for (const e of els) {
     if (e.tip && asmKind(e) !== 'lens' && asmKind(e) !== 'window') return { ok: false, why: name(e) + ' is tipped out of the plane: in an assembly only a lens or a window may be.' };
     if (e.tip && Math.abs(e.tip) > TILT_MAX + 1e-9) return { ok: false, why: name(e) + ' is tipped ' + (+Math.abs(e.tip).toPrecision(3)) + '° out of the plane: an assembly’s parts face along its axis, within ' + TILT_MAX + '°.' };
@@ -356,7 +357,7 @@ export function asmCheck(els, opts) {
   for (let i = 1; i < chain.length; i++) {
     const p = chain[i - 1], c = chain[i];
     if (asmKind(p.e) === 'mirror' || asmKind(c.e) === 'mirror') continue;
-    const span = x => { const t = dot2([x.e.x - ref.x, x.e.y - ref.y], x.d), T = asmKind(x.e) === 'lens' ? x.e.gaps.reduce((u, v) => u + v, 0) : asmKind(x.e) === 'window' ? x.e.thickness : 0; return [t - T / 2, t + T / 2]; };
+    const span = x => { const t = dot2([x.e.x - ref.x, x.e.y - ref.y], x.d), T = G0sum(x.e); return [t - T / 2, t + T / 2]; };
     if (span(c)[0] < span(p)[1] - 1e-6) return { ok: false, why: name(c.e) + ' overlaps ' + name(p.e) + '.' };
   }
   const folded = chain.some(c => asmKind(c.e) === 'mirror');
@@ -425,6 +426,11 @@ export function asmPrescription(asm, els) {
         G2 = e.gaps.slice();
         // a graded lens's glass keeps its terms, and the step its rays take in it (as the bench's do); another's is plain
         M2 = e.materials.map(m => { const c = Object.assign({}, m); if (e.graded) { if (m.grad) c.grad = m.grad.slice(); c.gh = grH(e.diameter); } else delete c.grad; return c; });
+      } else if (kind === 'grin') {
+        // a graded-index RF disc: a slab graded as its design's path (core/grin.js grinSlab); its focal length on its first face
+        const G = grinSlab(e.grin, e.length);
+        S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.length / 2, from: { id: e.id, i }, ...(i ? {} : { grin: { f: e.grin.f } }) }));
+        G2 = [G ? G.T : 1]; M2 = [G ? { glass: e.grin.mat, dn: G.dn, grad: G.grad.slice(), gh: grH(e.length) } : { glass: e.grin.mat }];
       } else {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
         G2 = [e.thickness]; M2 = [Object.assign({}, e.material)];
@@ -466,7 +472,9 @@ export function asmPrescription(asm, els) {
   const h0 = firstT / 2 * Math.cos(tb0), fv = [first.x - ax0[0] * h0, first.y - ax0[1] * h0], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
   return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror'), axisZ: zA };
 }
-const G0sum = e => asmKind(e) === 'lens' ? e.gaps.reduce((u, v) => u + v, 0) : asmKind(e) === 'window' ? e.thickness : 0;
+const G0sum = e => asmKind(e) === 'lens' ? e.gaps.reduce((u, v) => u + v, 0) : asmKind(e) === 'window' ? e.thickness : asmKind(e) === 'grin' ? grinT(e) : 0;
+/* a graded-index RF disc's whole thickness (1 mm where it cannot be made, so it still has a place) */
+const grinT = e => { const G = grinSlab(e.grin, e.length); return G ? G.T : 1; };
 function firstDir(order, ref, asm) {
   const a0 = ref.angle, D0 = asmKind(ref) === 'mirror' ? v2(a0 + 180) : v2(a0);
   let dd = asm.rev ? [-D0[0], -D0[1]] : D0;
@@ -546,6 +554,8 @@ export function asmApply(asm, P, els) {
         e.gaps = (p.flip ? G.slice().reverse() : G).slice();
         e.materials = (p.flip ? M.slice().reverse() : M).map(m => { const c = Object.assign({}, m); delete c.gh; if (c.grad) c.grad = c.grad.slice(); return c; });
       } else if (p.kind === 'window') { e.thickness = G[0]; e.material = Object.assign({}, M[0]); }
+      // a graded-index disc: its design's focal length, as the prescription has it (its thickness and grading follow from it)
+      else if (p.kind === 'grin' && S[0].grin && isFinite(S[0].grin.f) && S[0].grin.f > 0 && Math.abs(S[0].grin.f - e.grin.f) > 1e-9) { e.grin = Object.assign({}, e.grin, { f: S[0].grin.f }); applyGrin(e); }
     }
     k += p.n;
   });

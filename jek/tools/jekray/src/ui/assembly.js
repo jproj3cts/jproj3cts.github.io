@@ -21,7 +21,7 @@ const sources = () => project.elements.filter(e => e.type === 'source' && onTab(
 const nextAsmName = () => { let n = 1; while ((project.assemblies || []).some(a => a.name === 'Assembly ' + n)) n++; return 'Assembly ' + n; };
 /* conditions to start from: the aperture its stop (or smallest part) sets, the axis alone, the bench's wavelengths */
 function startCond(els) {
-  const ap = Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.type === 'lens' ? e.diameter : e.size));
+  const ap = Math.min(...els.map(e => e.type === 'stop' ? e.aperture : e.type === 'lens' ? e.diameter : e.type === 'mask' ? e.length : e.size));
   const nms = benchNms().filter(nm => nm < 1e5).slice(0, 3);
   return normCond({ aperture: { kind: 'epd', v: ap }, fields: [{ deg: 0, w: 1 }], waves: (nms.length ? nms : [587.56]).map(nm => ({ nm, w: 1 })) });
 }

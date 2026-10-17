@@ -1,4 +1,4 @@
-import { ASM_FIELDS_MAX, ASM_WAVES_MAX, ASPH_ORDERS, MERIT_AT_FIELD, MERIT_AT_FREQ, MERIT_AT_PUPIL, MERIT_OPS, SOLVE_KINDS, asmAxisAt, asmCheck, asmMembers, normCond, normLims, normMerit } from '../core/assembly.js';
+import { ASM_FIELDS_MAX, ASM_WAVES_MAX, ASPH_ORDERS, MERIT_AT_FIELD, MERIT_AT_FREQ, MERIT_AT_PUPIL, MERIT_OPS, SOLVE_KINDS, asmAxisAt, asmCheck, asmKind, asmMembers, normCond, normLims, normMerit } from '../core/assembly.js';
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
@@ -51,6 +51,8 @@ export function asmBenchLight(asm, P) {
 export function openLensDesign(asm, opts) {
   // a system of RF parts opens in the RF designer, unless the optical one is asked for
   if (!(opts && opts.optical) && isRfAsm(asm)) return openRfDesign(asm, opts);
+  // a graded-index RF disc is the RF designer's alone (the optical designer has no such part)
+  if (asmMembers(asm).some(e => asmKind(e) === 'grin')) { toast(isRfAsm(asm) ? 'A graded-index RF disc is designed in the RF designer only.' : 'A graded-index RF disc can be designed only with RF parts, in the RF designer.', true); return false; }
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
   designOf(asm);

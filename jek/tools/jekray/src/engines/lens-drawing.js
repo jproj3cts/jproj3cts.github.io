@@ -2,6 +2,7 @@ import { refIndex, matLabel } from '../core/glass.js';
 import { surfaceParts } from './lens-design.js';
 import { dpPhase, dpSlopeOverR } from '../core/diffractive.js';
 import { C_NM_GHZ, RF_MAT, mountedDia, normMount, printedMatch } from '../core/rf.js';
+import { grinDesign } from '../core/grin.js';
 
 /* ==========================================================================
    A lens drawn to be made: what its drawing says
@@ -38,6 +39,8 @@ export function drawSag(s, y) {
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
 
 /* the parts of P a drawing can be made of: its lenses and windows, by index into P.parts */
+/* an RF design's: its lenses and windows, and its graded-index discs */
+export function rfDrawableParts(P) { return P.parts.map((p, pi) => p.kind === 'lens' || p.kind === 'window' || p.kind === 'grin' ? pi : -1).filter(pi => pi >= 0); }
 export function drawableParts(P) { return P.parts.map((p, pi) => p.kind === 'lens' || p.kind === 'window' ? pi : -1).filter(pi => pi >= 0); }
 
 /* the drawing's content for part pi of P: opts { name, dia (its full diameter, mm), T (the tolerance
@@ -111,6 +114,7 @@ export function drawingData(P, pi, opts) {
    It is a drawing of the design, not a file to make it from: how the plastic is laid down is the maker's. */
 export function rfDrawingData(P, pi, opts) {
   const D = drawingData(P, pi, Object.assign({}, opts, { T: null }));
+  if (P.parts[pi].kind === 'grin' && opts.grin) return rfGrinDrawing(D, opts);
   const R = opts.rf, tol = opts.tol || {}, on = k => tol[k] && tol[k].on && tol[k].v > 0 ? tol[k].v : null;
   const sps = surfaceParts(P), k0 = sps.findIndex(s => s.pi === pi), S = P.surfaces.slice(k0, k0 + P.parts[pi].n);
   const glass = D.elements.find(e => !e.air), m = glass ? P.materials[k0 + glass.from] : null, M = m && RF_MAT[m.glass];
@@ -128,5 +132,23 @@ export function rfDrawingData(P, pi, opts) {
   D.rf = { ghz: R.ghz, lo: R.lo, hi: R.hi, lamHi, material: M ? M.name : glass ? glass.glass : '—', eps: n * n, epsTol: eps, tand: M ? M.tand : NaN,
     mount, outer: mountedDia(D.dia, mount) };
   D.toleranced = [rad, thk, eps].some(v => v !== null) || prof !== null;
+  return D;
+}
+
+/* a graded-index disc's drawing: a flat disc, its permittivity falling from its centre to its edge as its design grades
+   it (given at five radii, for its focal length and profile), its layers' at the centre, and the RF sheet's tolerances
+   (its thickness, its plastic's permittivity, its faces' flatness by the same λ/8 rule) */
+function rfGrinDrawing(D, opts) {
+  const R = opts.rf, tol = opts.tol || {}, on = k => tol[k] && tol[k].on && tol[k].v > 0 ? tol[k].v : null;
+  const g = opts.grin, Dg = grinDesign(g, D.dia), lamHi = C_NM_GHZ / R.hi * 1e-6, n0 = Dg.nHi;
+  const prof = Dg.usable ? Math.min(0.5, Math.floor(lamHi / (8 * (n0 - 1)) / 0.05) * 0.05) : null;
+  D.surfaces.forEach(s => { s.profile = prof; if (Dg.match) s.match = { eps: Dg.nmAt(0) ** 2, thick: Dg.tm, centre: true }; });
+  D.elements.forEach(e => { if (!e.air) { e.ctTol = on('thk'); e.et = e.ct; } });
+  const mount = normMount(opts.mount);
+  D.rf = { ghz: R.ghz, lo: R.lo, hi: R.hi, lamHi, material: Dg.M.name, eps: n0 * n0, epsTol: on('eps'), tand: Dg.M.tand, mount, outer: mountedDia(D.dia, mount),
+    grin: { f: g.f, profile: g.profile, match: !!Dg.match, rows: [0, 0.25, 0.5, 0.75, 1].map(u => [u * Dg.a, Dg.usable ? Dg.nAt(u * Dg.a) ** 2 : NaN]) } };
+  D.toleranced = true;
+  // its grading is given as permittivity across it, not as the engine's fit of its index
+  D.notes = [];
   return D;
 }

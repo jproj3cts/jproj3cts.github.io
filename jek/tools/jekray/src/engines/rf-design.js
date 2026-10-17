@@ -5,6 +5,8 @@ import { getEl } from '../state/elements.js';
 import { lensSystem, traceRay } from './lens-engine.js';
 import { besselJ01 } from './field.js';
 import { surfSag, surfaceParts } from './lens-design.js';
+import { grMatrix } from '../core/gradient.js';
+import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
 
 /* ==========================================================================
    An RF system as its designer sees it: a feed horn's Gaussian beam through the lenses and mirrors
@@ -29,6 +31,14 @@ import { surfSag, surfaceParts } from './lens-design.js';
    ========================================================================== */
 export const rfNm = ghz => C_NM_GHZ / ghz;
 const rfCdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+/* the reduced beam parameter across a gap g of index n: straight, or through a graded glass (a graded-index disc's)
+   by its r² term's matrix, on (y, n u): [[A, B/n], [n C, D]] */
+function rfGap(q, g, n, GR) {
+  if (!GR || !GR.G || !GR.G[0]) return [q[0] + g / n, q[1]];
+  const m = grMatrix(GR.G[0], n, g), A = m[0], B = m[1] / n, C = m[2] * n, D = m[3];
+  return rfCdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
+}
+const rfGR = (S, i) => S.GR ? S.GR[i] : null;
 /* a beam parameter's radius and phase radius (mm; R Infinity at a waist) */
 export function beamOf(q, lam) {
   const m = q[0] * q[0] + q[1] * q[1];
@@ -111,9 +121,9 @@ export function rfTrace(asm, P, ghz, opts) {
     // 1/q' = 1/q - phi, in reduced form
     const iq = rfCdiv([1, 0], q); q = rfCdiv([1, 0], [iq[0] - phi, iq[1]]);
     if (i < N - 1) {
-      const g = P.gaps[i], n = S.n[i + 1], n2 = 12;
-      for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, [q[0] + t / n, q[1]]); }
-      q = [q[0] + g / n, q[1]];
+      const g = P.gaps[i], n = S.n[i + 1], n2 = 12, GR = rfGR(S, i);
+      for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR)); }
+      q = rfGap(q, g, n, GR);
     }
   }
   const zL = S.z[N - 1], out = beamOf(q, lam);
@@ -123,9 +133,10 @@ export function rfTrace(asm, P, ghz, opts) {
   // the losses: each face's reflection, each lens's absorption over the beam, each aperture's spillover
   let refl = 1, absorb = 1, spill = 1;
   const faces = [], lenses = [];
+  const isGrin = i => P.parts[sps[i].pi].kind === 'grin';
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
-    if (S.mir[i] || s.stop) continue;
+    if (S.mir[i] || s.stop || isGrin(i)) continue;
     const before = i ? P.materials[i - 1] : null, after = i < N - 1 ? P.materials[i] : null;
     if (!isGlass(before) && !isGlass(after)) continue;
     const el = s.from && getEl(s.from.id), coat = el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null;
@@ -135,6 +146,15 @@ export function rfTrace(asm, P, ghz, opts) {
   for (let i = 0; i < N - 1; i++) {
     const m = P.materials[i];
     if (!isGlass(m)) continue;
+    // a graded-index disc: its faces and its plastic by its own design (each density's index and loss), over the beam
+    if (isGrin(i) && sps[i + 1].pi === sps[i].pi) {
+      const el = getEl(sps[i].id), G = el && el.grin ? grinSlab(el.grin, el.length) : null;
+      if (!G) continue;
+      const L = grinLoss(G.D, ghz, (surf[i].w + surf[i + 1].w) / 2), rf = 1 - Math.sqrt(L.refl);
+      faces.push({ i, R: rf, matched: !!G.D.match }, { i: i + 1, R: rf, matched: !!G.D.match }); refl *= L.refl;
+      lenses.push({ i, alpha: 0, T: L.absorb, mat: m.glass, grin: true }); absorb *= L.absorb;
+      continue;
+    }
     const M = RF_MAT[m.glass], alpha = M ? 2 * Math.PI * M.n * rfTanD(M, ghz) / lam : 0;
     // the beam's profile at the lens (its radius on the two faces' mean): the share of power through each ring
     const w = (surf[i].w + surf[i + 1].w) / 2, a = Math.min(surf[i].semi, surf[i + 1].semi);
@@ -207,22 +227,31 @@ export function rfQBefore(asm, P, ghz, idx, feedD) {
   for (let i = 0; i < idx; i++) {
     const pc = S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     const iq = rfCdiv([1, 0], q); q = rfCdiv([1, 0], [iq[0] - phi, iq[1]]);
-    q = [q[0] + P.gaps[i] / S.n[i + 1], q[1]];
+    q = rfGap(q, P.gaps[i], S.n[i + 1], rfGR(S, i));
   }
   return q;
 }
-export const RF_LENS_TYPES = { hyperbolic: 'Hyperbolic, flat back', biconvex: 'Two hyperbolic faces', planoconvex: 'Plano-convex, spherical' };
+/* a graded-index disc of design g and diameter dia written into prescription P at its first face i: its thickness,
+   its graded plastic and its focal length (marked bad, and left as it was, where it can't be graded) */
+export function rfGrinInto(P, i, g, dia) {
+  const G = grinSlab(g, dia);
+  if (!G) { P.surfaces[i] = Object.assign({}, P.surfaces[i], { grin: { f: g.f, bad: true } }); return false; }
+  P.surfaces[i] = Object.assign({}, P.surfaces[i], { grin: { f: g.f }, semi: dia / 2 });
+  P.surfaces[i + 1] = Object.assign({}, P.surfaces[i + 1], { semi: dia / 2 });
+  P.gaps[i] = G.T; P.materials[i] = { glass: g.mat, dn: G.dn, grad: G.grad.slice(), gh: P.materials[i] && P.materials[i].gh || 0.05 };
+  return true;
+}
+export const RF_LENS_TYPES = { hyperbolic: 'Hyperbolic, flat back', biconvex: 'Two hyperbolic faces', planoconvex: 'Plano-convex, spherical', grin: 'Graded-index disc (flat)' };
 export function rfSynth(asm, P, spec) {
   const R = normRfCond(asm.rf), ghz = R.ghz, lam = rfNm(ghz) * 1e-6, notes = [];
   const sps = surfaceParts(P), part = P.parts[spec.pi];
-  if (!part || part.kind !== 'lens' || part.n !== 2) return { error: 'Pick a lens of two faces to design.' };
+  if (!part || !((part.kind === 'lens' || part.kind === 'grin') && part.n === 2)) return { error: 'Pick a lens of two faces, or a graded-index disc, to design.' };
   let i0 = 0; for (let k = 0; k < spec.pi; k++) i0 += P.parts[k].n;
   const M = RF_MAT[spec.mat];
   if (!M) return { error: 'Pick a material for the lens.' };
   const n = M.n, a = spec.D / 2, B = rfBeam(R.feed, ghz);
-  const lensIdx = P.parts.map((p, k) => p.kind === 'lens' ? k : -1).filter(k => k >= 0);
-  const isFirst = lensIdx[0] === spec.pi && !P.parts.slice(0, spec.pi).some(p => p.kind === 'mirror' || p.kind === 'lens');
-  const isLast = lensIdx[lensIdx.length - 1] === spec.pi && !P.parts.slice(spec.pi + 1).some(p => p.kind === 'mirror' || p.kind === 'lens');
+  const focusing = p => p.kind === 'mirror' || p.kind === 'lens' || p.kind === 'grin';
+  const isFirst = !P.parts.slice(0, spec.pi).some(focusing), isLast = !P.parts.slice(spec.pi + 1).some(focusing);
   // what the beam leaving it is for: the goal if it is the last; collimated between lenses
   const goal = isLast ? R.goal : { kind: 'collimate' };
   let d2 = null, wt = null;
@@ -242,6 +271,7 @@ export function rfSynth(asm, P, spec) {
   const q = rfQBefore(asm, P, ghz, i0, feedD), bin = beamOf(q, lam);
   if (!(bin.R > 0) || !isFinite(bin.R)) return { error: 'The beam reaching this lens is not diverging from a phase centre before it, so a lens can’t be made to suit it.' };
   const F1 = bin.R, F2 = d2 === null ? Infinity : (d2 * d2 + zRt * zRt) / d2;
+  if (spec.type === 'grin') return rfSynthGrin(Object.assign({}, spec, { ghz, hi: R.hi }), M, q, i0, { F1, F2, d2, zRt, feedD, w: bin.w, a, notes });
   let s1, s2;
   if (spec.type === 'biconvex' && isFinite(F2)) { s1 = { R: (n - 1) * F1, k: -n * n }; s2 = { R: -(n - 1) * F2, k: -n * n }; }
   else if (spec.type === 'planoconvex') { const f = 1 / (1 / F1 + (isFinite(F2) ? 1 / F2 : 0)); s1 = { R: (n - 1) * f, k: 0 }; s2 = { R: null, k: 0 }; }
@@ -276,6 +306,38 @@ export function rfSynth(asm, P, spec) {
   return { i0, s1, s2, t, n, F1, F2, feedD, w: bin.w, taper, notes };
 }
 
+/* A graded-index disc to suit the beam: its focal length the thin lens's between the beam's phase centre before it and
+   the one wanted after it, then solved through the disc's own thickness and grading (a thick disc's focus is nearer
+   than its focal length) so the beam leaves it with the phase radius the goal asks for. Its density runs from spec.fillMax
+   at the centre to spec.fillMin at the edge (no lower than the frequency allows), its profile the ideal lens's. */
+function rfSynthGrin(spec, M, q, i0, o) {
+  if (!M.print) return { error: M.name + ' is not one of the plastics a graded-index disc is made in: PLA, ABS, PETG, ASA or polypropylene.' };
+  const { F1, F2, d2, zRt, feedD, a, notes } = o;
+  // its least density no lower than the top of the band allows (its structure fine against the shortest wavelength)
+  const fillAsked = spec.fillMin === undefined ? 15 : spec.fillMin, fillTop = spec.hi > spec.ghz ? 100 * GRIN_LINE / (C_NM_GHZ / spec.hi * 1e-6 / (4 * M.n)) * 1.001 : 0;
+  const fillMin = Math.max(fillAsked, fillTop);
+  if (fillMin > fillAsked) notes.push('Its lowest density is raised to ' + fillMin.toFixed(0) + '%, so its structure stays fine against the wavelength to the top of the band, ' + (+spec.hi.toPrecision(4)) + ' GHz.');
+  const grin = f => normGrin({ f, ghz: spec.ghz, mat: spec.mat, fillMax: spec.fillMax === undefined ? 100 : spec.fillMax, fillMin, profile: 'ideal', match: spec.match ? true : undefined });
+  const want = isFinite(F2) ? -d2 / (d2 * d2 + zRt * zRt) : 0;
+  // the beam leaving the disc of focal length f: 1/q̂'s real part, short of what is wanted
+  const miss = f => {
+    const G = grinSlab(grin(f), spec.D);
+    if (!G) return NaN;
+    const n = G.n0, qq = rfGap(q, G.T, n, { G: G.grad });
+    return rfCdiv([1, 0], qq)[0] - want;
+  };
+  let f0 = 1 / (1 / F1 + (isFinite(F2) ? 1 / F2 : 0));
+  if (!(f0 > 0) || !isFinite(f0)) return { error: 'The beam reaching it and the goal after it need no focusing a disc can give.' };
+  let f1 = f0 * 0.97, m0 = miss(f0), m1 = miss(f1);
+  if (!isFinite(m0)) return { error: 'A disc ' + spec.D + ' mm across of this focal length can’t be graded: widen its density range, or lower its frequency.' };
+  for (let k = 0; k < 40 && isFinite(m0) && isFinite(m1) && Math.abs(m1) > 1e-13 && m1 !== m0; k++) { const f2 = f1 - m1 * (f1 - f0) / (m1 - m0); f0 = f1; m0 = m1; f1 = Math.max(1, f2); m1 = miss(f1); }
+  const f = isFinite(m1) && Math.abs(m1) < 1e-9 ? f1 : 1 / (1 / F1 + (isFinite(F2) ? 1 / F2 : 0));
+  const g = grin(f), G = grinSlab(g, spec.D), Dg = G.D, taper = 8.686 * (a / o.w) ** 2;
+  if (!(isFinite(m1) && Math.abs(m1) < 1e-9)) notes.push('Its focal length could not be solved through its thickness: the thin disc’s is used.');
+  for (const c of Dg.checks) notes.push(c);
+  if (taper < 10) notes.push('The beam at the disc is ' + (+(2 * o.w).toPrecision(3)) + ' mm across (1/e²), so its edge is only ' + taper.toFixed(1) + ' dB down and ' + (100 * Math.exp(-2 * (a / o.w) ** 2)).toFixed(1) + '% of the power spills past it.');
+  return { kind: 'grin', i0, grin: g, f, t: G.T, n: G.n0, F1, F2, feedD, w: o.w, taper, nHi: Dg.nHi, nLo: Dg.nLo, grams: Dg.grams, ghzMax: Dg.ghzMax, notes };
+}
 
 /* ---------- Analyses over the band ----------
    The figures at n frequencies across the band and a tenth beyond each edge; the far-field pattern of the last
@@ -319,25 +381,37 @@ export function rfSlabs(P, ghz) {
   for (let i = 0; i < P.surfaces.length - 1; i++) {
     const m = P.materials[i];
     if (!isGlass(m) || sps[i].pi !== sps[i + 1].pi) continue;
-    const n = refIndex(m, nm), layers = [];
+    const n = refIndex(m, nm) + (m.dn || 0), layers = [];
+    // a graded-index disc at its centre: its core, and its layers if it has them
+    if (P.parts[sps[i].pi].kind === 'grin') {
+      const el = getEl(sps[i].id), G = el && el.grin ? grinSlab(el.grin, el.length) : null;
+      if (!G) continue;
+      const D = G.D, Ls = D.match ? [[D.nmAt(0), D.tm * 1e6], [D.nHi, D.t * 1e6], [D.nmAt(0), D.tm * 1e6]] : [[D.nHi, D.t * 1e6]];
+      out.push({ i, pi: sps[i].pi, R: rfSlabR(Ls, nm) });
+      continue;
+    }
     const coatOf = s => { const el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null; };
     const c1 = coatOf(P.surfaces[i]), c2 = coatOf(P.surfaces[i + 1]);
     if (isMatchCoat(c1)) layers.push([c1.layers[0].n, c1.layers[0].d]);
     layers.push([n, P.gaps[i] * 1e6]);
     if (isMatchCoat(c2)) layers.push([c2.layers[0].n, c2.layers[0].d]);
-    // M = Π [[cos δ, i sin δ / n], [i n sin δ, cos δ]], δ = 2π n d / λ; r = (M11 + M12 - M21 - M22) / (M11 + M12 + M21 + M22) for air either side
-    let a = [1, 0], b = [0, 0], c = [0, 0], d = [1, 0];
-    const mul = (x, y) => [x[0] * y[0] - x[1] * y[1], x[0] * y[1] + x[1] * y[0]], add = (x, y) => [x[0] + y[0], x[1] + y[1]];
-    for (const [nl, dl] of layers) {
-      const del = 2 * Math.PI * nl * dl / nm, cs = Math.cos(del), sn = Math.sin(del);
-      const A = [cs, 0], B = [0, sn / nl], C = [0, nl * sn], Dm = [cs, 0];
-      [a, b, c, d] = [add(mul(a, A), mul(b, C)), add(mul(a, B), mul(b, Dm)), add(mul(c, A), mul(d, C)), add(mul(c, B), mul(d, Dm))];
-    }
-    const num = [a[0] + b[0] - c[0] - d[0], a[1] + b[1] - c[1] - d[1]], den = [a[0] + b[0] + c[0] + d[0], a[1] + b[1] + c[1] + d[1]];
-    const r = rfCdiv(num, den);
-    out.push({ i, pi: sps[i].pi, R: r[0] * r[0] + r[1] * r[1] });
+    out.push({ i, pi: sps[i].pi, R: rfSlabR(layers, nm) });
   }
   return out;
+}
+/* a stack of layers [index, thickness nm] in air at normal incidence: its power reflection at nm */
+function rfSlabR(layers, nm) {
+  // M = Π [[cos δ, i sin δ / n], [i n sin δ, cos δ]], δ = 2π n d / λ; r = (M11 + M12 - M21 - M22) / (M11 + M12 + M21 + M22) for air either side
+  let a = [1, 0], b = [0, 0], c = [0, 0], d = [1, 0];
+  const mul = (x, y) => [x[0] * y[0] - x[1] * y[1], x[0] * y[1] + x[1] * y[0]], add = (x, y) => [x[0] + y[0], x[1] + y[1]];
+  for (const [nl, dl] of layers) {
+    const del = 2 * Math.PI * nl * dl / nm, cs = Math.cos(del), sn = Math.sin(del);
+    const A = [cs, 0], B = [0, sn / nl], C = [0, nl * sn], Dm = [cs, 0];
+    [a, b, c, d] = [add(mul(a, A), mul(b, C)), add(mul(a, B), mul(b, Dm)), add(mul(c, A), mul(d, C)), add(mul(c, B), mul(d, Dm))];
+  }
+  const num = [a[0] + b[0] - c[0] - d[0], a[1] + b[1] - c[1] - d[1]], den = [a[0] + b[0] + c[0] + d[0], a[1] + b[1] + c[1] + d[1]];
+  const r = rfCdiv(num, den);
+  return r[0] * r[0] + r[1] * r[1];
 }
 
 /* ---------- Optimise ----------
@@ -355,13 +429,18 @@ export function rfOptVars(P) {
       out.push({ key: 'c:' + i0, part: name, label: 'Front radius' }, { key: 'k:' + i0, part: name, label: 'Front conic' },
         { key: 'c:' + (i0 + 1), part: name, label: 'Back radius' }, { key: 'k:' + (i0 + 1), part: name, label: 'Back conic' }, { key: 't:' + i0, part: name, label: 'Centre thickness' });
     }
+    if (p.kind === 'grin') out.push({ key: 'p:' + i0, part: name, label: 'Focal length' });
     if (i0 + p.n - 1 < P.surfaces.length - 1) out.push({ key: 't:' + (i0 + p.n - 1), part: name, label: 'Air after' });
   });
   out.push({ key: 'feed', part: null, label: 'Feed to the first lens' });
   return out;
 }
-const rfGet = (P, asm, key) => { if (key === 'feed') return asm.rf.feed.d; const [q, i] = key.split(':'); const s = P.surfaces[+i]; return q === 'c' ? (s.R === null || !isFinite(s.R) || !s.R ? 0 : 1 / s.R) : q === 'k' ? (s.k || 0) : P.gaps[+i]; };
-const rfSet = (P, asm, key, v) => { if (key === 'feed') { asm.rf.feed.d = v; return; } const [q, i] = key.split(':'); const s = P.surfaces[+i]; if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else P.gaps[+i] = v; };
+const rfGet = (P, asm, key) => { if (key === 'feed') return asm.rf.feed.d; const [q, i] = key.split(':'); const s = P.surfaces[+i]; return q === 'p' ? 1 / s.grin.f : q === 'c' ? (s.R === null || !isFinite(s.R) || !s.R ? 0 : 1 / s.R) : q === 'k' ? (s.k || 0) : P.gaps[+i]; };
+const rfSet = (P, asm, key, v) => {
+  if (key === 'feed') { asm.rf.feed.d = v; return; }
+  const [q, i] = key.split(':'), s = P.surfaces[+i];
+  if (q === 'p') { const el = getEl(s.from.id); if (el && el.grin) rfGrinInto(P, +i, Object.assign({}, el.grin, { f: v > 1e-6 ? 1 / v : 1e6 }), el.length); return; }
+  if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else P.gaps[+i] = v; };
 export function rfOptProblem(asm, P, spec) {
   const keys = spec.keys.slice(), sps = surfaceParts(P);
   const clone = () => ({ P: Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) }), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)) }) });
@@ -384,6 +463,8 @@ export function rfOptProblem(asm, P, spec) {
       } else r.push(10 * Math.max(0, 0.5 - (isFinite(edge) ? Math.min(edge, g) : -10)));
     }
     r.push(10 * Math.max(0, 1 - c.asm.rf.feed.d) / 10);
+    // a graded-index disc its focal length can't be graded for
+    r.push(c.P.surfaces.some(s => s.grin && s.grin.bad) ? 1 : 0);
     return { r, effs, mean };
   };
   return { keys, x0, at, res, fs };
@@ -392,7 +473,7 @@ export function rfOptProblem(asm, P, spec) {
    curvature in 1/1000 mm, a conic in units, a length in mm, the feed's distance in 10 mm), its gradient by central
    differences, each step shortened until the merit falls enough (Armijo). The efficiency can't reach 1, so the
    merit's least is not zero, which a least-squares step assumes; this finds it all the same. */
-const RF_SCALE = { c: 1e-3, k: 1, t: 1, feed: 10 };
+const RF_SCALE = { c: 1e-3, p: 1e-3, k: 1, t: 1, feed: 10 };
 const rfScale = k => k === 'feed' ? RF_SCALE.feed : RF_SCALE[k[0]] || 1;
 export function rfOptStart(prob) {
   const sc = prob.keys.map(rfScale), u = prob.x0.map((v, j) => v / sc[j]);
@@ -475,6 +556,11 @@ export function rfTolItems(asm, P, T) {
       if (tol.thk.on && p.n === 2) out.push({ kind: 'thk', i: i0, label: nm + ': centre thickness' });
       if (tol.rad.on) for (let j = 0; j < p.n; j++) if (P.surfaces[i0 + j].R !== null && isFinite(P.surfaces[i0 + j].R)) out.push({ kind: 'rad', i: i0 + j, label: nm + ': ' + (j ? 'back' : 'front') + ' face' });
     }
+    // a graded-index disc: its plastic's permittivity (every density's with it) and its thickness
+    if (p.kind === 'grin') {
+      if (tol.eps.on) out.push({ kind: 'eps', i: i0, label: nm + ': permittivity' });
+      if (tol.thk.on) out.push({ kind: 'thk', i: i0, label: nm + ': thickness' });
+    }
     if (tol.gap.on && i0 + p.n - 1 < P.surfaces.length - 1) out.push({ kind: 'gap', i: i0 + p.n - 1, label: nm + ': air after' });
   });
   if (tol.feed.on) out.push({ kind: 'feed', i: -1, label: 'Feed horn: distance' });
@@ -487,7 +573,13 @@ export function rfTolApply(asm, P, items, xs) {
   items.forEach((e, k) => {
     const x = xs[k];
     if (!x) return;
-    if (e.kind === 'eps') { const m = Q.materials[e.i], n = refIndex(m, rfNm(A.rf.ghz)); m.dn = (m.dn || 0) + n * (Math.sqrt(Math.max(0.01, 1 + x / 100)) - 1); }
+    if (e.kind === 'eps' && Q.materials[e.i].grad) {
+      // a graded disc: the plastic's permittivity scaled, every density's eps − 1 with it (the mean by volume), so its
+      // grading (its power) scales as well as its centre's index
+      const m = Q.materials[e.i], M = RF_MAT[m.glass], em = M ? M.n * M.n : 2.5, k = (em * Math.max(0.01, 1 + x / 100) - 1) / (em - 1);
+      const n0 = refIndex(m, rfNm(A.rf.ghz)) + (m.dn || 0), n1 = Math.sqrt(1 + k * (n0 * n0 - 1));
+      m.dn = (m.dn || 0) + n1 - n0; m.grad = m.grad.map(v => v * k * n0 / n1);
+    } else if (e.kind === 'eps') { const m = Q.materials[e.i], n = refIndex(m, rfNm(A.rf.ghz)); m.dn = (m.dn || 0) + n * (Math.sqrt(Math.max(0.01, 1 + x / 100)) - 1); }
     else if (e.kind === 'thk' || e.kind === 'gap') Q.gaps[e.i] = Math.max(0, Q.gaps[e.i] + x);
     else if (e.kind === 'rad') { const s = Q.surfaces[e.i]; if (s.R) s.R = s.R / (1 + x / 100); }
     else if (e.kind === 'feed') A.rf.feed.d = Math.max(0, A.rf.feed.d + x);

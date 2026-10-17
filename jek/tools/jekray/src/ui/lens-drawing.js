@@ -2,7 +2,7 @@ import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { designPrescription } from '../engines/lens-design.js';
 import { normRfTol } from '../engines/rf-design.js';
-import { drawableParts, drawingData, drawSag, rfDrawingData } from '../engines/lens-drawing.js';
+import { drawableParts, drawingData, drawSag, rfDrawableParts, rfDrawingData } from '../engines/lens-drawing.js';
 import { VecCtx, layoutSvg, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { h } from './panel.js';
@@ -23,10 +23,10 @@ const sgn = v => (v < 0 ? '−' : '') + dfmt(Math.abs(v));
 
 /* the drawing data of each drawable part of the assembly, in order */
 export function lensDrawings(asm) {
-  const P = designPrescription(asm), T = asm.design && asm.design.tol;
-  return drawableParts(P).map(pi => {
-    const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.size) : 0, T };
-    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null })) : drawingData(P, pi, o);
+  const P = designPrescription(asm), T = asm.design && asm.design.tol, rf = asm.kind === 'rf' && asm.rf;
+  return (rf ? rfDrawableParts(P) : drawableParts(P)).map(pi => {
+    const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.type === 'mask' ? e.length : e.size) : 0, T };
+    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin })) : drawingData(P, pi, o);
   });
 }
 
@@ -137,7 +137,7 @@ export function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
   if (D.surfaces.some(s => s.profile)) row('Profile tolerance', D.surfaces.map(s => s.profile ? '⌓ ' + dfmt(s.profile, 2) : '—'));
   if (D.surfaces.some(s => s.match)) {
-    row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) : '—'));
+    row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) + (s.match.centre ? ' at centre' : '') : '—'));
     row('  thickness', D.surfaces.map(s => s.match ? dfmt(s.match.thick, 3) : '—'));
   }
   if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
@@ -149,7 +149,7 @@ export function drawSheet(g, D, meta) {
   grow('Between', e => 'S' + D.surfaces[e.from].n + '–S' + D.surfaces[e.from + 1].n);
   grow('Material', e => e.glass);
   if (RF) {
-    grow('Permittivity εr', () => dfmt(RF.eps, 3) + (RF.epsTol ? ' ± ' + dfmt(RF.epsTol, 1) + ' %' : '') + ' at ' + dfmt(RF.ghz, 4) + ' GHz');
+    grow('Permittivity εr', () => RF.grin ? 'graded as below, at ' + dfmt(RF.ghz, 4) + ' GHz' + (RF.epsTol ? '; ± ' + dfmt(RF.epsTol, 1) + ' %' : '') : dfmt(RF.eps, 3) + (RF.epsTol ? ' ± ' + dfmt(RF.epsTol, 1) + ' %' : '') + ' at ' + dfmt(RF.ghz, 4) + ' GHz');
     grow('Loss tangent', () => isFinite(RF.tand) ? String(+RF.tand.toPrecision(2)) : '—');
   } else {
     grow('Index nd', e => dfmt(e.nd, 5) + (e.ndTol ? ' ± ' + dfmt(e.ndTol, 4) : ''));
@@ -157,6 +157,13 @@ export function drawSheet(g, D, meta) {
   }
   grow('Centre thickness', e => dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''));
   grow('Edge thickness', e => '(' + dfmt(e.et) + ')');
+  // a graded-index disc: its permittivity across it, at five radii
+  if (RF && RF.grin) {
+    ty += 10; text(g, 'Permittivity across the disc', tx, ty, { size: 9.5, bold: true }); ty += 14;
+    const rw = (tw - c0) / RF.grin.rows.length, line = () => { ty += 4; g.strokeStyle = '#c8ced4'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty); g.stroke(); ty += 10; };
+    text(g, 'Radius r', tx, ty, { size: 8, ink: SH_SOFT }); RF.grin.rows.forEach(([r], q) => text(g, dfmt(r, 1), tx + c0 + q * rw, ty, { size: 8, mono: true })); line();
+    text(g, 'Permittivity εr', tx, ty, { size: 8, ink: SH_SOFT }); RF.grin.rows.forEach(([, e], q) => text(g, dfmt(e, 3), tx + c0 + q * rw, ty, { size: 8, mono: true })); line();
+  }
 
   // ---- notes ----
   ty += 8;
@@ -164,6 +171,7 @@ export function drawSheet(g, D, meta) {
   const notes = RF ? ['Dimensions in millimetres. The feed on the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the lens’s full diameter.',
     'Designed for ' + dfmt(RF.lo, 4) + ' to ' + dfmt(RF.hi, 4) + ' GHz. Profile tolerance (⌓): each face lies within a zone that wide about its true form, which changes the path through the lens by no more than λ/8 at ' + dfmt(RF.hi, 4) + ' GHz.',
+    ...(RF.grin ? ['A graded-index disc, flat: its permittivity falls from ' + dfmt(RF.grin.rows[0][1], 3) + ' at its centre to ' + dfmt(RF.grin.rows[RF.grin.rows.length - 1][1], 3) + ' at its edge as the table gives it, smoothly between, so it focuses as a lens of focal length ' + dfmt(RF.grin.f, 1) + ' (' + (RF.grin.profile === 'parabolic' ? 'a parabolic profile' : 'an ideal lens’s profile') + ').'] : []),
     ...(D.surfaces.some(s => s.match) ? ['A matching layer is a quarter wave thick at the design frequency, of the permittivity given, laid over its face: the faces and thicknesses drawn are those beneath it.'] : []),
     ...(RF.mount ? ['Flange: Ø ' + dfmt(RF.outer) + ' outside, ' + dfmt(RF.mount.thick) + ' thick, centred on the lens’s rim along the axis' + (RF.mount.holes ? '; ' + RF.mount.holes + ' holes Ø ' + dfmt(RF.mount.hole) + ' through it, equally spaced on Ø ' + dfmt(D.dia + RF.mount.width) : '') + '.'] : []),
     'A drawing of the design, for reference: how it is made is the maker’s.']

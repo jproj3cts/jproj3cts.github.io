@@ -6,7 +6,7 @@ import { CRYSTALS, bireMat, filterT, gainAt, walkOff } from '../core/crystals.js
 import { cellPolar } from '../core/zeeman.js';
 import { cellPlanFor, evalPlan, gratingOrders } from '../core/nlc.js';
 import { eomSidebands } from '../core/modulators.js';
-import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, mountedDia, pdResp, printedMatch, responsivity, rfBeam } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, lensZones, mountedDia, pdResp, printedMatch, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
 import { antennaLater } from '../engines/antenna-field.js';
 import { grinDesign, normGrin } from '../core/grin.js';
@@ -293,6 +293,13 @@ const sagAt = (s, r) => {
   return base + (s.a2 || 0) * r * r + (s.A || []).reduce((a, cc, j) => a + cc * r ** (4 + 2 * j), 0);
 };
 export function lensThickness(el) {
+  // a zoned lens: as cut, each whole layer taken out where it was thick (core/rf.js lensZones)
+  const Z = lensZones(el);
+  if (Z) {
+    const R = el.diameter / 2; let tMin = Infinity, tMax = -Infinity;
+    for (let i = 0; i <= 400; i++) { const t = Z.t(R * i / 400); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
+    return { centre: Z.t(0), thinnest: tMin, thickest: tMax, edge: Z.t(R) };
+  }
   const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2;
   let tMin = Infinity, tMax = -Infinity;
   for (let i = 0; i <= 60; i++) { const r = R * i / 60, t = T + sagAt(S[S.length - 1], r) - sagAt(S[0], r); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
@@ -300,8 +307,9 @@ export function lensThickness(el) {
 }
 /* its volume, mm^3: the thickness at each radius over the disc */
 export function lensVolume(el) {
-  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2, N = 200;
+  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2, N = 200, Z = lensZones(el);
   let v = 0;
+  if (Z) { for (let i = 0; i < N; i++) { const r = (i + 0.5) * R / N; v += Math.max(0, Z.t(r)) * 2 * Math.PI * r * R / N; } return v; }
   for (let i = 0; i < N; i++) { const r = (i + 0.5) * R / N; v += Math.max(0, T + sagAt(S[S.length - 1], r) - sagAt(S[0], r)) * 2 * Math.PI * r * R / N; }
   return v;
 }

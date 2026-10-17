@@ -5570,6 +5570,39 @@ function responsivity(el, nm) {
   return R[i - 1] + (R[i] - R[i - 1]) * (nm - W[i - 1]) / (W[i] - W[i - 1]);
 }
 
+
+/* ---------- A zoned lens ----------
+   A made-to-order lens made thinner by taking out of it, where it is thick, whole layers a wave of path deep at its
+   zone frequency: each dz = λz / (n − 1) of plastic delays the wave by exactly λz, so at that frequency the zoned lens
+   and the smooth one it is cut from bend the wave alike. Its thickness at r is the smooth lens's less k(r) dz, k the
+   whole layers it is thicker there than at its thinnest, so it lies between its thinnest and that plus dz: lighter,
+   and less lossy. The steps are cut in its curved face (the front, or the back if the front is flat). Away from the
+   zone frequency each step delays the wave by k λz, not k λ: the phase slips by k (λz − λ) across the zones, which
+   narrows its band. The bench traces the smooth lens (the same at the zone frequency); the RF designer the zoned. */
+function normZoned(z) { return z && typeof z === 'object' && isFinite(+z.ghz) && +z.ghz > 0 ? { ghz: clamp(+z.ghz, 1, 1000) } : undefined; }
+const zSag = (s, r) => {
+  const asph = (s.a2 || 0) * r * r + (s.A || []).reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0);
+  if (s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return asph;
+  const c = 1 / s.R, q = 1 - (1 + (s.k || 0)) * c * c * r * r;
+  return (q > 0 ? c * r * r / (1 + Math.sqrt(q)) : Math.sign(c) * Math.abs(s.R)) + asph;
+};
+function lensZones(el) {
+  if (!el || el.type !== 'lens' || !el.zoned || el.surfaces.length !== 2) return null;
+  const M = RF_MAT[el.materials[0] && el.materials[0].glass];
+  if (!M || !(M.n > 1)) return null;
+  const S = el.surfaces, T = el.gaps[0], a = el.diameter / 2, lam = C_NM_GHZ / el.zoned.ghz * 1e-6, dz = lam / (M.n - 1);
+  const face = S[0].R !== null && S[0].R ? 0 : 1, ts = r => T + zSag(S[1], r) - zSag(S[0], r);
+  let tMin = Infinity;
+  for (let i = 0; i <= 400; i++) tMin = Math.min(tMin, ts(a * i / 400));
+  const k = r => Math.max(0, Math.floor((ts(Math.min(r, a)) - tMin) / dz + 1e-9));
+  // the radii the steps stand at: where the whole layers taken out change
+  const steps = [];
+  for (let i = 1, kp = k(0); i <= 2000; i++) {
+    const r1 = a * i / 2000, k1 = k(r1);
+    if (k1 !== kp) { let lo = a * (i - 1) / 2000, hi = r1; for (let q = 0; q < 40; q++) { const m = (lo + hi) / 2; if (k(m) === kp) lo = m; else hi = m; } steps.push((lo + hi) / 2); kp = k1; }
+  }
+  return { ghz: el.zoned.ghz, lam, dz, face, n: M.n, tMin, steps, k, ts, t: r => ts(r) - k(r) * dz, kMax: k(0) };
+}
 /* ---------- A graded-index RF lens, printed ----------
    A flat disc whose index falls from its centre to its edge: printed in one material, the
    index set by how dense each part of it is printed. Its design is a focal length, a diameter,
@@ -7553,6 +7586,7 @@ const LENS = {
       source: typeof e.source === 'string' ? e.source : undefined,
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
       mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
+      zoned: normZoned(e.zoned),                                         // a made-to-order RF lens cut in zones (core/rf.js lensZones)
       // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
       // before the two were told apart is an asphere if any surface has them
       asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a) || s.F)) ? true : undefined,
@@ -21364,6 +21398,13 @@ const sagAt = (s, r) => {
   return base + (s.a2 || 0) * r * r + (s.A || []).reduce((a, cc, j) => a + cc * r ** (4 + 2 * j), 0);
 };
 function lensThickness(el) {
+  // a zoned lens: as cut, each whole layer taken out where it was thick (core/rf.js lensZones)
+  const Z = lensZones(el);
+  if (Z) {
+    const R = el.diameter / 2; let tMin = Infinity, tMax = -Infinity;
+    for (let i = 0; i <= 400; i++) { const t = Z.t(R * i / 400); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
+    return { centre: Z.t(0), thinnest: tMin, thickest: tMax, edge: Z.t(R) };
+  }
   const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2;
   let tMin = Infinity, tMax = -Infinity;
   for (let i = 0; i <= 60; i++) { const r = R * i / 60, t = T + sagAt(S[S.length - 1], r) - sagAt(S[0], r); tMin = Math.min(tMin, t); tMax = Math.max(tMax, t); }
@@ -21371,8 +21412,9 @@ function lensThickness(el) {
 }
 /* its volume, mm^3: the thickness at each radius over the disc */
 function lensVolume(el) {
-  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2, N = 200;
+  const S = el.surfaces, T = (el.gaps || []).reduce((a, g) => a + g, 0), R = el.diameter / 2, N = 200, Z = lensZones(el);
   let v = 0;
+  if (Z) { for (let i = 0; i < N; i++) { const r = (i + 0.5) * R / N; v += Math.max(0, Z.t(r)) * 2 * Math.PI * r * R / N; } return v; }
   for (let i = 0; i < N; i++) { const r = (i + 0.5) * R / N; v += Math.max(0, T + sagAt(S[S.length - 1], r) - sagAt(S[0], r)) * 2 * Math.PI * r * R / N; }
   return v;
 }
@@ -24686,7 +24728,7 @@ function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol, rf = asm.kind === 'rf' && asm.rf;
   return (rf ? rfDrawableParts(P) : drawableParts(P)).map(pi => {
     const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.type === 'mask' ? e.length : e.size) : 0, T };
-    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin })) : drawingData(P, pi, o);
+    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin, zoned: e && e.zoned })) : drawingData(P, pi, o);
   });
 }
 
@@ -24719,10 +24761,12 @@ function drawSheet(g, D, meta) {
   const [sa, sb] = SH_SCALES.find(([a, b]) => 2 * ro * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
   const k = sa / sb * PT, cx = box.x + box.w / 2 - D.length * k / 2, cy = box.y + box.h / 2;
   const zs = [0]; D.elements.forEach(e => zs.push(zs[zs.length - 1] + e.ct));
-  const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z) * k; };
+  // a zoned lens's cut face: stepped back by the whole layers taken out (zs[0] is its uncut vertex; its thickness is the cut one's)
+  const ZN = D.zones, zcut = (j, y) => ZN && ZN.face === j ? (j ? -1 : 1) * (ZN.k(Math.abs(y)) - ZN.k(0)) * ZN.dz : 0;
+  const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z + zcut(j, y)) * k; };
   const Y = y => cy - y * k;
   // each glass between its two surfaces, the rim straight across
-  const prof = j => { const out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = rr(D.surfaces[j]); for (let q = 0; q <= 40; q++) { const y = -h0 + 2 * h0 * q / 40; out.push([X(j, y), Y(y)]); } return out; };
+  const prof = j => { const out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = rr(D.surfaces[j]), nq = ZN ? 400 : 40; for (let q = 0; q <= nq; q++) { const y = -h0 + 2 * h0 * q / nq; out.push([X(j, y), Y(y)]); } return out; };
   D.elements.forEach((e, i) => {
     if (e.air) return;
     const a = prof(i), b = prof(i + 1).reverse();
@@ -24795,6 +24839,7 @@ function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
+  if (ZN) row('Zones', D.surfaces.map((s, j) => ZN.face === j ? (ZN.steps.length + 1) + ', steps ' + dfmt(ZN.dz, 3) + ' deep' : '—'));
   if (D.surfaces.some(s => s.profile)) row('Profile tolerance', D.surfaces.map(s => s.profile ? '⌓ ' + dfmt(s.profile, 2) : '—'));
   if (D.surfaces.some(s => s.match)) {
     row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) + (s.match.centre ? ' at centre' : '') : '—'));
@@ -24831,6 +24876,7 @@ function drawSheet(g, D, meta) {
   const notes = RF ? ['Dimensions in millimetres. The feed on the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the lens’s full diameter.',
     'Designed for ' + dfmt(RF.lo, 4) + ' to ' + dfmt(RF.hi, 4) + ' GHz. Profile tolerance (⌓): each face lies within a zone that wide about its true form, which changes the path through the lens by no more than λ/8 at ' + dfmt(RF.hi, 4) + ' GHz.',
+    ...(ZN ? ['S' + D.surfaces[ZN.face].n + ' is cut in ' + (ZN.steps.length + 1) + ' zones for ' + dfmt(ZN.ghz, 4) + ' GHz: steps ' + dfmt(ZN.dz, 3) + ' deep (a wave of path in the plastic), at radii ' + ZN.steps.map(v => dfmt(v, 2)).join(', ') + '. Its radius and conic are of the face before it is cut; the centre thickness is as cut.'] : []),
     ...(RF.grin ? ['A graded-index disc, flat: its permittivity falls from ' + dfmt(RF.grin.rows[0][1], 3) + ' at its centre to ' + dfmt(RF.grin.rows[RF.grin.rows.length - 1][1], 3) + ' at its edge as the table gives it, smoothly between, so it focuses as a lens of focal length ' + dfmt(RF.grin.f, 1) + ' (' + (RF.grin.profile === 'parabolic' ? 'a parabolic profile' : 'an ideal lens’s profile') + ').'] : []),
     ...(D.surfaces.some(s => s.match) ? ['A matching layer is a quarter wave thick at the design frequency, of the permittivity given, laid over its face: the faces and thicknesses drawn are those beneath it.'] : []),
     ...(RF.mount ? ['Flange: Ø ' + dfmt(RF.outer) + ' outside, ' + dfmt(RF.mount.thick) + ' thick, centred on the lens’s rim along the axis' + (RF.mount.holes ? '; ' + RF.mount.holes + ' holes Ø ' + dfmt(RF.mount.hole) + ' through it, equally spaced on Ø ' + dfmt(D.dia + RF.mount.width) : '') + '.'] : []),
@@ -25308,12 +25354,16 @@ function r3profile(el) {
     const D = grinDesign(el.grin, el.length), a = el.length / 2, T = D.usable ? D.tTot : 1;
     return { pts: [[0, 0], [a, 0], [a, T], [0, T]], a, mid: T / 2, T };
   }
-  const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, n = 64, pts = [];
-  for (let i = 0; i <= n; i++) { const r = a * i / n; pts.push([r, r3sag(f, r)]); }
-  for (let i = n; i >= 0; i--) { const r = a * i / n; pts.push([r, T + r3sag(b, r)]); }
+  const S = el.surfaces, f = S[0], b = S[S.length - 1], T = el.gaps.reduce((u, v) => u + v, 0), a = el.diameter / 2, pts = [];
+  // a zoned lens: its curved face stepped back where whole layers come out, each step a sheer wall
+  const Z = lensZones(el), cut = (q, r) => Z && Z.face === q ? Z.k(r) * Z.dz : 0, n = Z ? 160 : 64;
+  const rs = []; for (let i = 0; i <= n; i++) rs.push(a * i / n);
+  if (Z) { for (const r of Z.steps) rs.push(r - 1e-4, r + 1e-4); rs.sort((u, v) => u - v); }
+  for (const r of rs) pts.push([r, r3sag(f, r) + cut(0, r)]);
+  for (const r of rs.slice().reverse()) pts.push([r, T + r3sag(b, r) - cut(1, r)]);
   return { pts, a, mid: (r3sag(f, a) + T + r3sag(b, a)) / 2, T };
 }
-const r3key = el => JSON.stringify(el.grin ? [el.length, el.grin, el.mount] : [el.diameter, el.surfaces.map(s => [s.R, s.k, s.a2, s.A]), el.gaps, el.materials, el.mount]);
+const r3key = el => JSON.stringify(el.grin ? [el.length, el.grin, el.mount] : [el.diameter, el.surfaces.map(s => [s.R, s.k, s.a2, s.A]), el.gaps, el.materials, el.mount, el.zoned]);
 function r3build(T, v, el) {
   if (v.group) { v.scene.remove(v.group); v.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
   const P = r3profile(el), M = RF_MAT[el.grin ? el.grin.mat : el.materials[0] && el.materials[0].glass], col = M && /ABS|ASA/.test(M.name) ? 0xe9e4d4 : M && /PETG/.test(M.name) ? 0xcfe6ef : 0xf0eee6;
@@ -25648,9 +25698,11 @@ function rwDrawLayout(cv, asm, P, T) {
     if (s.mirror) { g.strokeStyle = '#e4ebf0'; g.lineWidth = 2; g.beginPath(); for (let q = 0; q <= 20; q++) { const y = -s.semi + 2 * s.semi * q / 20; const z = z0 + surfSag(s, Math.abs(y)); q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); } g.stroke(); continue; }
     if (i < P.surfaces.length - 1 && P.materials[i] && P.materials[i].glass !== 'AIR' && sps[i].pi === sps[i + 1].pi) {
       const a = Math.min(s.semi, P.surfaces[i + 1].semi), z1 = S[i + 1].z, b = P.surfaces[i + 1];
+      // a zoned lens: its curved face stepped back by the layers taken out
+      const Zl = rfZonesAt(P, i), cut = (f, y) => Zl && Zl.face === f ? Zl.k(Math.abs(y)) * Zl.dz : 0, nq = Zl ? 400 : 40;
       g.beginPath();
-      for (let q = 0; q <= 40; q++) { const y = -a + 2 * a * q / 40; const z = z0 + surfSag(s, Math.abs(y)); q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); }
-      for (let q = 40; q >= 0; q--) { const y = -a + 2 * a * q / 40; g.lineTo(X(z1 + surfSag(b, Math.abs(y))), Y(y)); }
+      for (let q = 0; q <= nq; q++) { const y = -a + 2 * a * q / nq; const z = z0 + surfSag(s, Math.abs(y)) + cut(0, y); q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); }
+      for (let q = nq; q >= 0; q--) { const y = -a + 2 * a * q / nq; g.lineTo(X(z1 + surfSag(b, Math.abs(y)) - cut(1, y)), Y(y)); }
       g.closePath();
       // a graded-index disc: denser at its centre, shaded so
       if (sps[i].kind === 'grin') { const gr = g.createLinearGradient(0, Y(a), 0, Y(-a)); gr.addColorStop(0, 'rgba(242,242,236,0.08)'); gr.addColorStop(0.5, 'rgba(242,242,236,0.5)'); gr.addColorStop(1, 'rgba(242,242,236,0.08)'); g.fillStyle = gr; }
@@ -25752,6 +25804,19 @@ function rwLensCard(asm, P, Tm) {
   });
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // each lens cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
+  const zl = P.parts.filter(p => p.kind === 'lens' && p.n === 2).map(p => getEl(p.id)).filter(Boolean);
+  if (zl.length) {
+    card.append(h('h3', null, 'Zones'));
+    card.append(h('p', { class: 'rt-lsub' }, 'A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'));
+    for (const el of zl) {
+      const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
+      card.append(h('div', { class: 'rt-lchips rt-rfzone' },
+        h('label', null, h('input', { type: 'checkbox', checked: el.zoned ? '' : null, 'aria-label': el.name + ' cut in zones', onchange: e => zs(e.target.checked, (el.zoned && el.zoned.ghz) || RW.asm.rf.ghz) }), ' ' + el.name + ': cut in zones'),
+        ...(el.zoned ? [h('span', null, 'at ', rwNum(el.zoned.ghz, v => { if (v > 0) zs(true, v); }, el.name + ' zone frequency (GHz)'), ' GHz')] : []),
+        h('span', { class: 'rt-lsub mono' }, Z ? (Z.steps.length ? Z.steps.length + ' step' + (Z.steps.length > 1 ? 's' : '') + ', each ' + rwFmt(Z.dz, 3) + ' mm deep, at ' + Z.steps.map(r => rwFmt(r, 3)).join(', ') + ' mm; ' + rwFmt(lensThickness(el).thickest, 3) + ' mm at its thickest' : 'thinner than one step (' + rwFmt(Z.dz, 3) + ' mm): nothing to cut') : '')));
+    }
+  }
   return card;
 }
 /* a lens's two faces matched, or not: a quarter-wave layer of index √n at the design frequency on each */
@@ -25781,7 +25846,8 @@ function rwSynthCard(asm, P) {
     rwRow('Material', rwSelect(isG ? RW_GRIN_MATS() : RW_MATS(), sp.mat, v => set('mat', v), 'Lens material')),
     rwRow('Diameter (mm)', rwNum(sp.D, v => set('D', Math.max(1, v)), 'Lens diameter (mm)')),
     ...(isG ? [rwRow('Density at the centre (%)', rwNum(sp.fillMax, v => set('fillMax', v), 'Density at the centre (%)')), rwRow('Lowest density (%)', rwNum(sp.fillMin, v => set('fillMin', v), 'Lowest density (%)'))]
-      : [rwRow('Edge thickness (mm)', rwNum(sp.edge, v => set('edge', Math.max(0, v)), 'Edge thickness (mm)'))]),
+      : [rwRow('Edge thickness (mm)', rwNum(sp.edge, v => set('edge', Math.max(0, v)), 'Edge thickness (mm)')),
+        rwRow('Cut in zones', h('input', { type: 'checkbox', checked: sp.zoned ? '' : null, 'aria-label': 'Cut in zones at the design frequency', onchange: e => set('zoned', e.target.checked) }))]),
     rwRow('Where it stands', rwSelect({ keep: 'Where it is', taper: 'For an edge taper', ...(asm.rf.goal.kind !== 'collimate' ? { match: 'Matched to the goal' } : {}) }, sp.place, v => set('place', v), 'Where it stands')),
     ...(sp.place === 'taper' ? [rwRow('Edge taper (dB)', rwNum(sp.taper, v => set('taper', Math.max(0.5, v)), 'Edge taper (dB)'))] : []),
     rwRow('Matching layers', h('input', { type: 'checkbox', checked: sp.match ? '' : null, 'aria-label': 'Matching layers on both faces', onchange: e => set('match', e.target.checked) })));
@@ -25801,7 +25867,7 @@ function rwSynthCard(asm, P) {
   else card.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null,
     ...[['Face to the feed', out.s1.R === null ? 'flat' : 'R ' + rwFmt(out.s1.R, 5) + ' mm, conic ' + rwFmt(out.s1.k, 4)],
       ['Other face', out.s2.R === null ? 'flat' : 'R ' + rwFmt(out.s2.R, 5) + ' mm, conic ' + rwFmt(out.s2.k, 4)],
-      ['Centre thickness', rwFmt(out.t, 4) + ' mm'],
+      ['Centre thickness', rwFmt(out.t, 4) + ' mm' + (sp.zoned ? rwZoneNote(out, sp) : '')],
       ['Its phase centres', 'feed side ' + rwFmt(out.F1, 5) + ' mm' + (isFinite(out.F2) ? ', far side ' + rwFmt(out.F2, 5) + ' mm' : ', far side at infinity')],
       ['Feed to the lens', rwFmt(out.feedD, 5) + ' mm' + (Math.abs(out.feedD - asm.rf.feed.d) > 1e-6 ? ' (now ' + rwFmt(asm.rf.feed.d, 5) + ')' : '')],
       ['Beam at the lens', rwFmt(out.w, 4) + ' mm, edge taper −' + out.taper.toFixed(1) + ' dB'],
@@ -25841,13 +25907,22 @@ function rwApplySynth(out, sp) {
     Object.assign(Pd.surfaces[i], { R: out.s1.R, k: out.s1.k, a2: 0, A: [], odd: null, semi: sp.D / 2 });
     Object.assign(Pd.surfaces[i + 1], { R: out.s2.R, k: out.s2.k, a2: 0, A: [], odd: null, semi: sp.D / 2 });
     Pd.gaps[i] = out.t; Pd.materials[i] = { glass: sp.mat };
-    if (el) { el.diameter = sp.D; if (out.s1.k || out.s2.k) el.asphere = true; }
+    if (el) { el.diameter = sp.D; if (out.s1.k || out.s2.k) el.asphere = true; if (sp.zoned) el.zoned = normZoned({ ghz: asm.rf.ghz }); else delete el.zoned; }
     asm.rf.feed.d = out.feedD;
   });
   // the faces' matching layers at the design frequency (on the part, after its shape is written)
   const P = designPrescription(asm), el = getEl(P.surfaces[out.i0].from.id);
   if (el) { const nm = C_NM_GHZ / asm.rf.ghz; el.surfaces.forEach(s => { s.coat = sp.match ? matchLayer(out.n, nm) : normCoat({}); }); changed(false); rwRender(); }
   toast('The lens is designed: ' + (out.s1.k ? 'hyperbolic' : 'spherical') + ', ' + rwFmt(out.t, 4) + ' mm thick at its centre.');
+}
+
+/* what cutting the designed lens in zones at the design frequency comes to */
+function rwZoneNote(out, sp) {
+  const Z = lensZones({ type: 'lens', zoned: { ghz: RW.asm.rf.ghz }, surfaces: [out.s1, out.s2], gaps: [out.t], materials: [{ glass: sp.mat }], diameter: sp.D });
+  if (!Z) return '';
+  if (!Z.steps.length) return '; thinner than one zone (' + rwFmt(Z.dz, 3) + ' mm): it stays whole';
+  let tMax = 0; for (let i = 0; i <= 200; i++) tMax = Math.max(tMax, Z.t(sp.D / 2 * i / 200));
+  return '; cut in ' + (Z.steps.length + 1) + ' zones, ' + rwFmt(tMax, 3) + ' mm at its thickest';
 }
 
 /* ---------- A new RF design, and placing one on a bench ---------- */
@@ -26076,7 +26151,7 @@ function rwMakeLens(el, R) {
   const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
   const geo = lensThickness(el), outside = mountedDia(el.diameter, el.mount), grams = M ? (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2) : NaN;
   const skins = M ? el.surfaces.map(s => printedMatch(M, s.coat)).filter(Boolean) : [];
-  const skinMax = skins.length ? Math.min(...skins.map(k => k.ghzMax)) : Infinity;
+  const skinMax = skins.length ? Math.min(...skins.map(k => k.ghzMax)) : Infinity, Z = lensZones(el);
   return { M, geo, outside, grams, checks: [
     [!!(M && M.print), 'A made-to-order plastic', M ? (M.print ? M.name : M.name + ' is not one we print: PLA, ABS, PETG, ASA or polypropylene are') : 'Its material is not an RF plastic'],
     [outside <= PRINTER.maxDia, 'Fits across', rwFmt(outside, 4) + ' mm' + (el.mount ? ' with its flange' : '') + ', up to ' + PRINTER.maxDia + ' mm'],
@@ -26084,6 +26159,7 @@ function rwMakeLens(el, R) {
     [geo.thinnest >= PRINTER.minWall, 'Thick enough everywhere', 'thinnest ' + rwFmt(geo.thinnest, 3) + ' mm, at least ' + PRINTER.minWall + ' mm'],
     [skins.every(k => k.ok), 'Matching layers can be printed', skins.length ? skins.map(k => (+k.fill.toFixed(0)) + '% dense, ' + k.thick.toFixed(2) + ' mm').join('; ') : 'bare faces'],
     [skinMax >= R.hi * 0.9995, 'Holds to the top of the band', skins.length ? 'its layers by the design rule up to ' + rwFmt(skinMax, 4) + ' GHz; the band to ' + rwFmt(R.hi, 4) + ' GHz' : 'solid plastic throughout'],
+    ...(Z ? [[true, 'Cut in zones', Z.steps.length ? (Z.steps.length + 1) + ' zones for ' + rwFmt(Z.ghz, 4) + ' GHz, steps ' + rwFmt(Z.dz, 3) + ' mm deep in its ' + (Z.face ? 'back' : 'front') + ' face' : 'thinner than one step: whole']] : []),
   ] };
 }
 /* the same for a graded-index disc: its density range, and the frequency its least dense part holds to */
@@ -37145,7 +37221,16 @@ const isGlass = m => m && m.glass !== 'AIR';
    from the incoming beam's phase centre through every surface, their optical paths to the sphere about the
    outgoing beam's phase centre (or to a plane, for a beam leaving flat), the piston and the defocus taken out by a
    least-squares fit in h², and the rest's RMS over the beam's power (h e^{-2h²/w²}); its loss exp(-(2πσ/λ)²) */
-function rfAberr(P, S, Rin, Rout, w, lam) {
+/* a zoned lens in prescription P, its first face at i: its zones as the prescription's own faces and thickness make them
+   (so a trial design's are its own, not the part's), or null */
+function rfZonesAt(P, i) {
+  const sps = surfaceParts(P), sp = sps[i];
+  if (!sp || sp.kind !== 'lens' || sp.n !== 2 || sp.j !== 0) return null;
+  const el = getEl(sp.id);
+  if (!el || !el.zoned) return null;
+  return lensZones({ type: 'lens', zoned: el.zoned, surfaces: [P.surfaces[i], P.surfaces[i + 1]], gaps: [P.gaps[i]], materials: [P.materials[i]], diameter: 2 * Math.min(P.surfaces[i].semi, P.surfaces[i + 1].semi) });
+}
+function rfAberr(P, S, Rin, Rout, w, lam, zones) {
   const N = S.N, semi = Math.min(...P.surfaces.map(s => s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity)), a = isFinite(semi) ? semi : 3 * w;
   const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
   const hs = [], ws = [], W = [], R = new Float64Array(8);
@@ -37153,9 +37238,12 @@ function rfAberr(P, S, Rin, Rout, w, lam) {
     const h = a * (k + 0.5) / 32;
     if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, 0, h / L, src / L, 0, 0]); }
     else R.set([0, h, -1, 0, 0, 1, 0, 0]);
-    traceRay(S, R, 0, N - 1, true);
+    const rec = zones && zones.length ? [] : null;
+    traceRay(S, R, 0, N - 1, true, rec);
     if (R[7] || !isFinite(R[6])) continue;
     let opl = R[6];
+    // a zoned lens: its whole layers k λz taken out where the ray met it, less the whole waves at λ they come to
+    if (rec) for (const { i, Z } of zones) { const at = rec[i] && rec[i].at; if (!at) continue; const kl = Z.k(Math.hypot(at[0], at[1])) * Z.lam; opl -= kl - lam * Math.round(kl / lam); }
     if (tgt !== null) opl += Math.hypot(R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
     hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
   }
@@ -37201,7 +37289,7 @@ function rfTrace(asm, P, ghz, opts) {
   for (let k = 1; k <= steps; k++) { const t = (zEnd - zL) * k / steps; push(zL + t, [q[0] + t, q[1]]); }
   // the losses: each face's reflection, each lens's absorption over the beam, each aperture's spillover
   let refl = 1, absorb = 1, spill = 1;
-  const faces = [], lenses = [];
+  const faces = [], lenses = [], zones = [];
   const isGrin = i => P.parts[sps[i].pi].kind === 'grin';
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -37226,11 +37314,12 @@ function rfTrace(asm, P, ghz, opts) {
     }
     const M = RF_MAT[m.glass], alpha = M ? 2 * Math.PI * M.n * rfTanD(M, ghz) / lam : 0;
     // the beam's profile at the lens (its radius on the two faces' mean): the share of power through each ring
-    const w = (surf[i].w + surf[i + 1].w) / 2, a = Math.min(surf[i].semi, surf[i + 1].semi);
+    const w = (surf[i].w + surf[i + 1].w) / 2, a = Math.min(surf[i].semi, surf[i + 1].semi), Z = rfZonesAt(P, i);
+    if (Z) zones.push({ i, Z });
     let num = 0, den = 0;
     for (let k = 0; k < 48; k++) {
       const r = (k + 0.5) / 48 * (isFinite(a) ? a : 3 * w), wt = r * Math.exp(-2 * r * r / (w * w));
-      const t = P.gaps[i] + surfSag(P.surfaces[i + 1], r) - surfSag(P.surfaces[i], r);
+      const t = Z ? Z.t(r) : P.gaps[i] + surfSag(P.surfaces[i + 1], r) - surfSag(P.surfaces[i], r);
       num += wt * Math.exp(-alpha * Math.max(0, t)); den += wt;
     }
     const T = den ? num / den : 1;
@@ -37244,7 +37333,7 @@ function rfTrace(asm, P, ghz, opts) {
   for (const s of apert) byPart.set(s.pi, Math.max(byPart.get(s.pi) || 0, s.spill));
   for (const [pi, sp] of byPart) if (!(g.kind === 'collimate' && pi === lastPi)) spill *= 1 - sp;
   // the phase error beyond first order, from real rays (not when asked for the beam alone)
-  const ab = opts.noAberr ? { sigma: 0, eff: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam);
+  const ab = opts.noAberr ? { sigma: 0, eff: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones);
   const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff };
   if (g.kind === 'collimate') {
     const last = apert[apert.length - 1], a = last ? last.semi : out.w * 1.5;
@@ -37462,7 +37551,8 @@ function rfSlabs(P, ghz) {
     const coatOf = s => { const el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null; };
     const c1 = coatOf(P.surfaces[i]), c2 = coatOf(P.surfaces[i + 1]);
     if (isMatchCoat(c1)) layers.push([c1.layers[0].n, c1.layers[0].d]);
-    layers.push([n, P.gaps[i] * 1e6]);
+    const Zc = rfZonesAt(P, i);
+    layers.push([n, (Zc ? Zc.t(0) : P.gaps[i]) * 1e6]);
     if (isMatchCoat(c2)) layers.push([c2.layers[0].n, c2.layers[0].d]);
     out.push({ i, pi: sps[i].pi, R: rfSlabR(layers, nm) });
   }
@@ -38119,6 +38209,9 @@ function rfDrawingData(P, pi, opts) {
     if (mk) s.match = { eps: mk.n * mk.n, thick: mk.thick };
   });
   D.elements.forEach(e => { if (!e.air) e.ctTol = thk; });
+  // a zoned lens: drawn as cut, its centre thickness the cut one's; its zones given
+  const Z = opts.zoned && S.length === 2 ? lensZones({ type: 'lens', zoned: opts.zoned, surfaces: S, gaps: P.gaps.slice(k0, k0 + 1), materials: [m], diameter: D.dia }) : null;
+  if (Z && Z.steps.length) { D.elements[0].ct = Z.t(0); D.zones = { face: Z.face, dz: Z.dz, ghz: Z.ghz, steps: Z.steps, k: Z.k }; }
   const mount = normMount(opts.mount);
   D.rf = { ghz: R.ghz, lo: R.lo, hi: R.hi, lamHi, material: M ? M.name : glass ? glass.glass : '—', eps: n * n, epsTol: eps, tand: M ? M.tand : NaN,
     mount, outer: mountedDia(D.dia, mount) };
@@ -40444,11 +40537,13 @@ function orderSpec(el, opts) {
     };
     const faces = el.surfaces.map((f, i) => (el.surfaces.length > 1 ? (i === 0 ? 'front ' : i === el.surfaces.length - 1 ? 'back ' : 'face ' + (i + 1) + ' ') : '') + face(f, i > 0 && i === el.surfaces.length - 1));
     const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
+    const Z = lensZones(el);
     return {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
         'Faces: ' + faces.join('; '),
+        Z && Z.steps.length ? 'Zoned: ' + (Z.face ? 'back' : 'front') + ' face cut in ' + (Z.steps.length + 1) + ' zones for ' + (+Z.ghz.toPrecision(4)) + ' GHz, steps ' + mm(Z.dz) + ' deep at radii ' + Z.steps.map(r => mm(r)).join(', ') + ' (the faces above are before it is cut; thickest ' + mm(geo.thickest) + ' as cut)' : null,
         skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
         mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g', ...(opts.extra || [])].filter(Boolean),

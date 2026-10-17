@@ -248,3 +248,36 @@ export function responsivity(el, nm) {
   return R[i - 1] + (R[i] - R[i - 1]) * (nm - W[i - 1]) / (W[i] - W[i - 1]);
 }
 
+
+/* ---------- A zoned lens ----------
+   A made-to-order lens made thinner by taking out of it, where it is thick, whole layers a wave of path deep at its
+   zone frequency: each dz = λz / (n − 1) of plastic delays the wave by exactly λz, so at that frequency the zoned lens
+   and the smooth one it is cut from bend the wave alike. Its thickness at r is the smooth lens's less k(r) dz, k the
+   whole layers it is thicker there than at its thinnest, so it lies between its thinnest and that plus dz: lighter,
+   and less lossy. The steps are cut in its curved face (the front, or the back if the front is flat). Away from the
+   zone frequency each step delays the wave by k λz, not k λ: the phase slips by k (λz − λ) across the zones, which
+   narrows its band. The bench traces the smooth lens (the same at the zone frequency); the RF designer the zoned. */
+export function normZoned(z) { return z && typeof z === 'object' && isFinite(+z.ghz) && +z.ghz > 0 ? { ghz: clamp(+z.ghz, 1, 1000) } : undefined; }
+const zSag = (s, r) => {
+  const asph = (s.a2 || 0) * r * r + (s.A || []).reduce((a, c, j) => a + c * r ** (4 + 2 * j), 0);
+  if (s.R === null || s.R === undefined || !isFinite(s.R) || !s.R) return asph;
+  const c = 1 / s.R, q = 1 - (1 + (s.k || 0)) * c * c * r * r;
+  return (q > 0 ? c * r * r / (1 + Math.sqrt(q)) : Math.sign(c) * Math.abs(s.R)) + asph;
+};
+export function lensZones(el) {
+  if (!el || el.type !== 'lens' || !el.zoned || el.surfaces.length !== 2) return null;
+  const M = RF_MAT[el.materials[0] && el.materials[0].glass];
+  if (!M || !(M.n > 1)) return null;
+  const S = el.surfaces, T = el.gaps[0], a = el.diameter / 2, lam = C_NM_GHZ / el.zoned.ghz * 1e-6, dz = lam / (M.n - 1);
+  const face = S[0].R !== null && S[0].R ? 0 : 1, ts = r => T + zSag(S[1], r) - zSag(S[0], r);
+  let tMin = Infinity;
+  for (let i = 0; i <= 400; i++) tMin = Math.min(tMin, ts(a * i / 400));
+  const k = r => Math.max(0, Math.floor((ts(Math.min(r, a)) - tMin) / dz + 1e-9));
+  // the radii the steps stand at: where the whole layers taken out change
+  const steps = [];
+  for (let i = 1, kp = k(0); i <= 2000; i++) {
+    const r1 = a * i / 2000, k1 = k(r1);
+    if (k1 !== kp) { let lo = a * (i - 1) / 2000, hi = r1; for (let q = 0; q < 40; q++) { const m = (lo + hi) / 2; if (k(m) === kp) lo = m; else hi = m; } steps.push((lo + hi) / 2); kp = k1; }
+  }
+  return { ghz: el.zoned.ghz, lam, dz, face, n: M.n, tMin, steps, k, ts, t: r => ts(r) - k(r) * dz, kMax: k(0) };
+}

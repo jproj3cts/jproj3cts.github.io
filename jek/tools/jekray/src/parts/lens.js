@@ -1,6 +1,6 @@
 import { deg, nextName, normMat, num } from '../state/project.js';
 import { normSurface } from '../state/elements.js';
-import { normMount } from '../core/rf.js';
+import { normMount, normZoned } from '../core/rf.js';
 import { normOrder } from '../core/diffractive.js';
 
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
@@ -45,6 +45,7 @@ export const LENS = {
       source: typeof e.source === 'string' ? e.source : undefined,
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
       mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
+      zoned: normZoned(e.zoned),                                         // a made-to-order RF lens cut in zones (core/rf.js lensZones)
       // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
       // before the two were told apart is an asphere if any surface has them
       asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a) || s.F)) ? true : undefined,

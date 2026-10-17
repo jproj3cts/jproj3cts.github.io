@@ -1,7 +1,7 @@
 import { refIndex, matLabel } from '../core/glass.js';
 import { surfaceParts } from './lens-design.js';
 import { dpPhase, dpSlopeOverR } from '../core/diffractive.js';
-import { C_NM_GHZ, RF_MAT, mountedDia, normMount, printedMatch } from '../core/rf.js';
+import { C_NM_GHZ, RF_MAT, lensZones, mountedDia, normMount, printedMatch } from '../core/rf.js';
 import { grinDesign } from '../core/grin.js';
 
 /* ==========================================================================
@@ -128,6 +128,9 @@ export function rfDrawingData(P, pi, opts) {
     if (mk) s.match = { eps: mk.n * mk.n, thick: mk.thick };
   });
   D.elements.forEach(e => { if (!e.air) e.ctTol = thk; });
+  // a zoned lens: drawn as cut, its centre thickness the cut one's; its zones given
+  const Z = opts.zoned && S.length === 2 ? lensZones({ type: 'lens', zoned: opts.zoned, surfaces: S, gaps: P.gaps.slice(k0, k0 + 1), materials: [m], diameter: D.dia }) : null;
+  if (Z && Z.steps.length) { D.elements[0].ct = Z.t(0); D.zones = { face: Z.face, dz: Z.dz, ghz: Z.ghz, steps: Z.steps, k: Z.k }; }
   const mount = normMount(opts.mount);
   D.rf = { ghz: R.ghz, lo: R.lo, hi: R.hi, lamHi, material: M ? M.name : glass ? glass.glass : '—', eps: n * n, epsTol: eps, tand: M ? M.tand : NaN,
     mount, outer: mountedDia(D.dia, mount) };

@@ -168,3 +168,28 @@ test('a graded-index disc: its grading holds its path, and designed to collimate
   // its least density raised to hold to the top of the band
   assert.ok(G.grinDesign(o.grin, 120).ghzMax >= a.rf.hi);
 });
+
+test('a zoned lens: steps a wave deep, thinner, the same at its zone frequency and slipping away from it', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.PLA.n, R1 = (n - 1) * Rg, k1 = -n * n;
+  const sg = r => r * r / R1 / (1 + Math.sqrt(1 - (1 + k1) * r * r / R1 / R1)), t = 2 + sg(100);
+  const make = zoned => {
+    loadProject({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 200, asphere: true, surfaces: [{ R: R1, k: k1 }, { R: null }], gaps: [t], materials: [{ glass: 'PLA' }], mmw: { part: true }, group: 'g', zoned }],
+      assemblies: [{ id: 'g', name: 'RF', ref: 'L', kind: 'rf', rf: { ghz, feed, goal: { kind: 'collimate', d: 300 } } }] });
+    const a = ST.project.assemblies[0], P = D.designPrescription(a); RF.rfSyncCond(a, P);
+    return { a, P, el: ST.project.elements[0] };
+  };
+  // the smooth lens first (each loaded in turn: the trace finds its parts on the bench)
+  const s = make(undefined), a0 = RF.rfTrace(s.a, s.P, ghz), s20 = RF.rfTrace(s.a, s.P, 20);
+  const zz = make({ ghz }), Z = C.lensZones(zz.el);
+  // a step is a wave of path at the zone frequency; the lens as cut lies between its thinnest and that plus one step
+  assert.ok(Math.abs(Z.dz * (n - 1) - lam) < 1e-12);
+  assert.ok(Z.steps.length >= 1 && Z.t(0) < t);
+  for (let r = 0; r <= 100; r += 0.5) assert.ok(Z.t(r) >= Z.tMin - 1e-9 && Z.t(r) < Z.tMin + Z.dz + 1e-9, 'r ' + r);
+  // at its zone frequency the beam is the smooth lens's, its phase error none, and it absorbs less
+  const a1 = RF.rfTrace(zz.a, zz.P, ghz);
+  assert.ok(Math.abs(a0.apEff - a1.apEff) < 1e-12 && Math.abs(a1.sigma - a0.sigma) < 1e-6 * lam && a1.absorb > a0.absorb + 0.05, JSON.stringify([a0.apEff, a1.apEff, a0.sigma, a1.sigma, a0.absorb, a1.absorb]));
+  // away from it each step slips the phase: an error that grows with the distance from it, and none for the smooth lens
+  const e = f => RF.rfTrace(zz.a, zz.P, f).sigma / RF.rfTrace(zz.a, zz.P, f).lam;
+  assert.ok(e(22) > 0.01 && e(20) > e(22) && e(26) > 0.01 && e(28) > e(26), [e(20), e(22), e(26), e(28)].join(', '));
+  assert.ok(s20.sigma / s20.lam < 1e-3);
+});

@@ -26,7 +26,7 @@ export function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol, rf = asm.kind === 'rf' && asm.rf;
   return (rf ? rfDrawableParts(P) : drawableParts(P)).map(pi => {
     const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.type === 'mask' ? e.length : e.size) : 0, T };
-    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin })) : drawingData(P, pi, o);
+    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin, zoned: e && e.zoned })) : drawingData(P, pi, o);
   });
 }
 
@@ -59,10 +59,12 @@ export function drawSheet(g, D, meta) {
   const [sa, sb] = SH_SCALES.find(([a, b]) => 2 * ro * a / b * PT <= box.h - 90 && span * a / b * PT <= box.w - 140) || SH_SCALES[SH_SCALES.length - 1];
   const k = sa / sb * PT, cx = box.x + box.w / 2 - D.length * k / 2, cy = box.y + box.h / 2;
   const zs = [0]; D.elements.forEach(e => zs.push(zs[zs.length - 1] + e.ct));
-  const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z) * k; };
+  // a zoned lens's cut face: stepped back by the whole layers taken out (zs[0] is its uncut vertex; its thickness is the cut one's)
+  const ZN = D.zones, zcut = (j, y) => ZN && ZN.face === j ? (j ? -1 : 1) * (ZN.k(Math.abs(y)) - ZN.k(0)) * ZN.dz : 0;
+  const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z + zcut(j, y)) * k; };
   const Y = y => cy - y * k;
   // each glass between its two surfaces, the rim straight across
-  const prof = j => { const out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = rr(D.surfaces[j]); for (let q = 0; q <= 40; q++) { const y = -h0 + 2 * h0 * q / 40; out.push([X(j, y), Y(y)]); } return out; };
+  const prof = j => { const out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = rr(D.surfaces[j]), nq = ZN ? 400 : 40; for (let q = 0; q <= nq; q++) { const y = -h0 + 2 * h0 * q / nq; out.push([X(j, y), Y(y)]); } return out; };
   D.elements.forEach((e, i) => {
     if (e.air) return;
     const a = prof(i), b = prof(i + 1).reverse();
@@ -135,6 +137,7 @@ export function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
+  if (ZN) row('Zones', D.surfaces.map((s, j) => ZN.face === j ? (ZN.steps.length + 1) + ', steps ' + dfmt(ZN.dz, 3) + ' deep' : '—'));
   if (D.surfaces.some(s => s.profile)) row('Profile tolerance', D.surfaces.map(s => s.profile ? '⌓ ' + dfmt(s.profile, 2) : '—'));
   if (D.surfaces.some(s => s.match)) {
     row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) + (s.match.centre ? ' at centre' : '') : '—'));
@@ -171,6 +174,7 @@ export function drawSheet(g, D, meta) {
   const notes = RF ? ['Dimensions in millimetres. The feed on the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the lens’s full diameter.',
     'Designed for ' + dfmt(RF.lo, 4) + ' to ' + dfmt(RF.hi, 4) + ' GHz. Profile tolerance (⌓): each face lies within a zone that wide about its true form, which changes the path through the lens by no more than λ/8 at ' + dfmt(RF.hi, 4) + ' GHz.',
+    ...(ZN ? ['S' + D.surfaces[ZN.face].n + ' is cut in ' + (ZN.steps.length + 1) + ' zones for ' + dfmt(ZN.ghz, 4) + ' GHz: steps ' + dfmt(ZN.dz, 3) + ' deep (a wave of path in the plastic), at radii ' + ZN.steps.map(v => dfmt(v, 2)).join(', ') + '. Its radius and conic are of the face before it is cut; the centre thickness is as cut.'] : []),
     ...(RF.grin ? ['A graded-index disc, flat: its permittivity falls from ' + dfmt(RF.grin.rows[0][1], 3) + ' at its centre to ' + dfmt(RF.grin.rows[RF.grin.rows.length - 1][1], 3) + ' at its edge as the table gives it, smoothly between, so it focuses as a lens of focal length ' + dfmt(RF.grin.f, 1) + ' (' + (RF.grin.profile === 'parabolic' ? 'a parabolic profile' : 'an ideal lens’s profile') + ').'] : []),
     ...(D.surfaces.some(s => s.match) ? ['A matching layer is a quarter wave thick at the design frequency, of the permittivity given, laid over its face: the faces and thicknesses drawn are those beneath it.'] : []),
     ...(RF.mount ? ['Flange: Ø ' + dfmt(RF.outer) + ' outside, ' + dfmt(RF.mount.thick) + ' thick, centred on the lens’s rim along the axis' + (RF.mount.holes ? '; ' + RF.mount.holes + ' holes Ø ' + dfmt(RF.mount.hole) + ' through it, equally spaced on Ø ' + dfmt(D.dia + RF.mount.width) : '') + '.'] : []),

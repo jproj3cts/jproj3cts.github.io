@@ -1,4 +1,4 @@
-import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, rfBeam, rfTanD } from '../core/rf.js';
+import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, rfBeam, rfTanD } from '../core/rf.js';
 import { normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
@@ -76,7 +76,16 @@ const isGlass = m => m && m.glass !== 'AIR';
    from the incoming beam's phase centre through every surface, their optical paths to the sphere about the
    outgoing beam's phase centre (or to a plane, for a beam leaving flat), the piston and the defocus taken out by a
    least-squares fit in h², and the rest's RMS over the beam's power (h e^{-2h²/w²}); its loss exp(-(2πσ/λ)²) */
-export function rfAberr(P, S, Rin, Rout, w, lam) {
+/* a zoned lens in prescription P, its first face at i: its zones as the prescription's own faces and thickness make them
+   (so a trial design's are its own, not the part's), or null */
+export function rfZonesAt(P, i) {
+  const sps = surfaceParts(P), sp = sps[i];
+  if (!sp || sp.kind !== 'lens' || sp.n !== 2 || sp.j !== 0) return null;
+  const el = getEl(sp.id);
+  if (!el || !el.zoned) return null;
+  return lensZones({ type: 'lens', zoned: el.zoned, surfaces: [P.surfaces[i], P.surfaces[i + 1]], gaps: [P.gaps[i]], materials: [P.materials[i]], diameter: 2 * Math.min(P.surfaces[i].semi, P.surfaces[i + 1].semi) });
+}
+export function rfAberr(P, S, Rin, Rout, w, lam, zones) {
   const N = S.N, semi = Math.min(...P.surfaces.map(s => s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity)), a = isFinite(semi) ? semi : 3 * w;
   const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
   const hs = [], ws = [], W = [], R = new Float64Array(8);
@@ -84,9 +93,12 @@ export function rfAberr(P, S, Rin, Rout, w, lam) {
     const h = a * (k + 0.5) / 32;
     if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, 0, h / L, src / L, 0, 0]); }
     else R.set([0, h, -1, 0, 0, 1, 0, 0]);
-    traceRay(S, R, 0, N - 1, true);
+    const rec = zones && zones.length ? [] : null;
+    traceRay(S, R, 0, N - 1, true, rec);
     if (R[7] || !isFinite(R[6])) continue;
     let opl = R[6];
+    // a zoned lens: its whole layers k λz taken out where the ray met it, less the whole waves at λ they come to
+    if (rec) for (const { i, Z } of zones) { const at = rec[i] && rec[i].at; if (!at) continue; const kl = Z.k(Math.hypot(at[0], at[1])) * Z.lam; opl -= kl - lam * Math.round(kl / lam); }
     if (tgt !== null) opl += Math.hypot(R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
     hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
   }
@@ -132,7 +144,7 @@ export function rfTrace(asm, P, ghz, opts) {
   for (let k = 1; k <= steps; k++) { const t = (zEnd - zL) * k / steps; push(zL + t, [q[0] + t, q[1]]); }
   // the losses: each face's reflection, each lens's absorption over the beam, each aperture's spillover
   let refl = 1, absorb = 1, spill = 1;
-  const faces = [], lenses = [];
+  const faces = [], lenses = [], zones = [];
   const isGrin = i => P.parts[sps[i].pi].kind === 'grin';
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
@@ -157,11 +169,12 @@ export function rfTrace(asm, P, ghz, opts) {
     }
     const M = RF_MAT[m.glass], alpha = M ? 2 * Math.PI * M.n * rfTanD(M, ghz) / lam : 0;
     // the beam's profile at the lens (its radius on the two faces' mean): the share of power through each ring
-    const w = (surf[i].w + surf[i + 1].w) / 2, a = Math.min(surf[i].semi, surf[i + 1].semi);
+    const w = (surf[i].w + surf[i + 1].w) / 2, a = Math.min(surf[i].semi, surf[i + 1].semi), Z = rfZonesAt(P, i);
+    if (Z) zones.push({ i, Z });
     let num = 0, den = 0;
     for (let k = 0; k < 48; k++) {
       const r = (k + 0.5) / 48 * (isFinite(a) ? a : 3 * w), wt = r * Math.exp(-2 * r * r / (w * w));
-      const t = P.gaps[i] + surfSag(P.surfaces[i + 1], r) - surfSag(P.surfaces[i], r);
+      const t = Z ? Z.t(r) : P.gaps[i] + surfSag(P.surfaces[i + 1], r) - surfSag(P.surfaces[i], r);
       num += wt * Math.exp(-alpha * Math.max(0, t)); den += wt;
     }
     const T = den ? num / den : 1;
@@ -175,7 +188,7 @@ export function rfTrace(asm, P, ghz, opts) {
   for (const s of apert) byPart.set(s.pi, Math.max(byPart.get(s.pi) || 0, s.spill));
   for (const [pi, sp] of byPart) if (!(g.kind === 'collimate' && pi === lastPi)) spill *= 1 - sp;
   // the phase error beyond first order, from real rays (not when asked for the beam alone)
-  const ab = opts.noAberr ? { sigma: 0, eff: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam);
+  const ab = opts.noAberr ? { sigma: 0, eff: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones);
   const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff };
   if (g.kind === 'collimate') {
     const last = apert[apert.length - 1], a = last ? last.semi : out.w * 1.5;
@@ -393,7 +406,8 @@ export function rfSlabs(P, ghz) {
     const coatOf = s => { const el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null; };
     const c1 = coatOf(P.surfaces[i]), c2 = coatOf(P.surfaces[i + 1]);
     if (isMatchCoat(c1)) layers.push([c1.layers[0].n, c1.layers[0].d]);
-    layers.push([n, P.gaps[i] * 1e6]);
+    const Zc = rfZonesAt(P, i);
+    layers.push([n, (Zc ? Zc.t(0) : P.gaps[i]) * 1e6]);
     if (isMatchCoat(c2)) layers.push([c2.layers[0].n, c2.layers[0].d]);
     out.push({ i, pi: sps[i].pi, R: rfSlabR(layers, nm) });
   }

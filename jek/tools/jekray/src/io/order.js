@@ -1,4 +1,4 @@
-import { C_NM_GHZ, PRINTER, RF_MAT, mountVolume, mountedDia, printedMatch } from '../core/rf.js';
+import { C_NM_GHZ, PRINTER, RF_MAT, lensZones, mountVolume, mountedDia, printedMatch } from '../core/rf.js';
 import { grinDesign } from '../core/grin.js';
 import { benchNms } from '../state/elements.js';
 import { paraxial } from '../engines/trace.js';
@@ -52,11 +52,13 @@ export function orderSpec(el, opts) {
     };
     const faces = el.surfaces.map((f, i) => (el.surfaces.length > 1 ? (i === 0 ? 'front ' : i === el.surfaces.length - 1 ? 'back ' : 'face ' + (i + 1) + ' ') : '') + face(f, i > 0 && i === el.surfaces.length - 1));
     const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
+    const Z = lensZones(el);
     return {
       name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
       spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
         'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
         'Faces: ' + faces.join('; '),
+        Z && Z.steps.length ? 'Zoned: ' + (Z.face ? 'back' : 'front') + ' face cut in ' + (Z.steps.length + 1) + ' zones for ' + (+Z.ghz.toPrecision(4)) + ' GHz, steps ' + mm(Z.dz) + ' deep at radii ' + Z.steps.map(r => mm(r)).join(', ') + ' (the faces above are before it is cut; thickest ' + mm(geo.thickest) + ' as cut)' : null,
         skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
         mountLine(el.diameter, el.mount),
         'Weight: about ' + Math.round(grams) + ' g', ...(opts.extra || [])].filter(Boolean),

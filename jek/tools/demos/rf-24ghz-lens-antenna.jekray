@@ -1,0 +1,326 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "24 GHz lens antenna",
+ "view": {
+  "cx": 234,
+  "cy": 0,
+  "scale": 1.18
+ },
+ "snap": 1,
+ "maxBounces": 40,
+ "minPower": 0.000001,
+ "ghosts": false,
+ "light": {
+  "rays": true,
+  "envelope": true,
+  "field": false,
+  "scale": "lin"
+ },
+ "library": [],
+ "cavityLock": {},
+ "benches": [
+  {
+   "id": "b1",
+   "name": "Bench 1",
+   "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 4
+   }
+  }
+ ],
+ "tab": "b1",
+ "elements": [
+  {
+   "id": "tx",
+   "type": "source",
+   "name": "Feed horn, 24 GHz",
+   "x": -131.004,
+   "y": 0,
+   "angle": 0,
+   "bench": "b1",
+   "mmw": {
+    "kind": "corrugated",
+    "a": 15,
+    "L": 80,
+    "ghz": 24,
+    "dbm": 0,
+    "tx": "cw"
+   },
+   "wavelength": 12491352.416666666,
+   "colourAuto": false,
+   "colour": "#e0a030",
+   "width": 20.143975228018416,
+   "divergence": 14.351549710306976,
+   "gauss": true,
+   "w0": 9.263305053070368,
+   "z0": -6.321241591305404,
+   "popN": 256,
+   "popModel": "auto",
+   "traceRays": true,
+   "pol": "unpolarised",
+   "polAngle": 45,
+   "lines": [],
+   "rays": 3,
+   "power": 0.9990740007854202,
+   "coh": 0,
+   "splitFrom": null,
+   "splitPhase": 0,
+   "splitPath": 0,
+   "lineshape": "lorentz",
+   "cmode": "single",
+   "bw": 40,
+   "m2": 1,
+   "tem": "horn",
+   "hm": 1,
+   "hn": 0,
+   "lp": 0,
+   "ll": 1,
+   "tau": 0,
+   "pshape": "sech2",
+   "rep": 80,
+   "gdd0": 0,
+   "sweeps": {}
+  },
+  {
+   "id": "l1",
+   "type": "lens",
+   "name": "Lens",
+   "x": -4.711047063448964,
+   "y": 0,
+   "angle": 0,
+   "bench": "b1",
+   "group": "g",
+   "mmw": {
+    "part": true
+   },
+   "diameter": 120,
+   "surfaces": [
+    {
+     "R": 81.10318231436192,
+     "k": -2.699449,
+     "a2": 0,
+     "A": [],
+     "semi": null,
+     "coat": {
+      "mode": "stack",
+      "label": "Matching layer",
+      "design": 12491352.416666666,
+      "layers": [
+       {
+        "n": 1.2817956155331474,
+        "d": 2436299.5678275586
+       }
+      ]
+     }
+    },
+    {
+     "R": null,
+     "k": 0,
+     "a2": 0,
+     "A": [],
+     "semi": null,
+     "coat": {
+      "mode": "stack",
+      "label": "Matching layer",
+      "design": 12491352.416666666,
+      "layers": [
+       {
+        "n": 1.2817956155331474,
+        "d": 2436299.5678275586
+       }
+      ]
+     }
+    }
+   ],
+   "gaps": [
+    20.577905873102072
+   ],
+   "materials": [
+    {
+     "glass": "PLA",
+     "abs": 0
+    }
+   ],
+   "mount": {
+    "kind": "flange",
+    "width": 10,
+    "thick": 4,
+    "holes": 4,
+    "hole": 3.4
+   },
+   "asphere": true,
+   "sweeps": {}
+  },
+  {
+   "id": "scr",
+   "type": "screen",
+   "name": "Absorber load",
+   "x": 600,
+   "y": 0,
+   "angle": 180,
+   "bench": "b1",
+   "mmw": {
+    "part": true
+   },
+   "length": 300,
+   "absorb": true,
+   "R": null,
+   "binWidth": 0,
+   "binInterp": true,
+   "mapScale": "lin",
+   "vectorFocus": "auto",
+   "trap": "none",
+   "trapF": "avg",
+   "trapMat": "Fused silica",
+   "trapR": 100,
+   "trapRho": 2200,
+   "trapMed": "bench",
+   "trapP": 1013.25,
+   "trapT": 295,
+   "mtfFreq": 50,
+   "abSrc": "",
+   "abAng": 2,
+   "abH": 1,
+   "abN": 7,
+   "abRays": 61,
+   "sweeps": {}
+  }
+ ],
+ "fibres": [],
+ "assemblies": [
+  {
+   "id": "g",
+   "name": "24 GHz lens antenna",
+   "bench": "b1",
+   "ref": "l1",
+   "rev": false,
+   "cond": {
+    "object": {
+     "kind": "finite",
+     "d": 122.32507017117965
+    },
+    "aperture": {
+     "kind": "epd",
+     "v": 120
+    },
+    "fields": [
+     {
+      "deg": 0,
+      "w": 1
+     }
+    ],
+    "waves": [
+     {
+      "nm": 13879280.462962963,
+      "w": 1
+     },
+     {
+      "nm": 12491352.416666666,
+      "w": 1
+     },
+     {
+      "nm": 11355774.924242424,
+      "w": 1
+     }
+    ],
+    "primary": 1
+   },
+   "kind": "rf",
+   "rf": {
+    "ghz": 24,
+    "lo": 21.6,
+    "hi": 26.400000000000002,
+    "feed": {
+     "kind": "corrugated",
+     "a": 15,
+     "L": 80,
+     "id": "tx",
+     "d": 116.00382857987424
+    },
+    "goal": {
+     "kind": "collimate",
+     "d": 400
+    }
+   },
+   "rfTol": {
+    "spec": 27
+   },
+   "design": {
+    "image": -4064.9327586849313,
+    "vars": [],
+    "solves": {
+     "t:image": {
+      "kind": "focus"
+     }
+    },
+    "pickups": {},
+    "merit": {
+     "crit": "spot",
+     "rings": 3,
+     "arms": 6,
+     "bounds": {
+      "glassMin": 1,
+      "glassMax": 0,
+      "edgeMin": 0.5,
+      "airMin": 0.1,
+      "aspMax": 0.5,
+      "slopeMax": 0
+     },
+     "ops": []
+    },
+    "tol": {
+     "rad": {
+      "on": true,
+      "v": 3
+     },
+     "thk": {
+      "on": true,
+      "v": 0.05
+     },
+     "dec": {
+      "on": true,
+      "v": 0.025
+     },
+     "tilt": {
+      "on": true,
+      "v": 1
+     },
+     "ind": {
+      "on": true,
+      "v": 0.001
+     },
+     "abbe": {
+      "on": true,
+      "v": 0.5
+     },
+     "irr": {
+      "on": false,
+      "v": 1
+     },
+     "wedge": {
+      "on": false,
+      "v": 1
+     },
+     "sdec": {
+      "on": false,
+      "v": 0.01
+     },
+     "comp": true,
+     "dist": "uniform",
+     "pivot": "first",
+     "trials": 200,
+     "seed": 1,
+     "inv": {
+      "by": "pct",
+      "v": 10
+     }
+    }
+   },
+   "z": 75
+  }
+ ],
+ "measures": [],
+ "notes": "A worked example of the RF designer: a lens antenna for 24 GHz radar (12.5 mm), a corrugated feed horn behind a 120 mm PLA lens, made to order, with a flange to mount it. Design a lens made it: the feed 116 mm away for an 11 dB edge taper (the most aperture efficiency a Gaussian beam gives), the lens’s face to the feed a hyperbola that leaves the beam flat, 20.6 mm thick at its centre, both faces with a quarter-wave matching layer. Select the lens and press Design the RF system to open it. Its gain is 27.3 to 28.9 dBi across 21.6 to 26.4 GHz (28.19 dBi at 24 GHz), 81.4% aperture efficiency, a 8.5° beam. PLA’s loss tangent takes -0.51 dB; the matched faces next to nothing. Tolerance has a specification of 27 dBi set: run Monte Carlo for the share of builds that meet it. Make it checks the lens can be made, shows it in 3D with its flange, saves its drawing and asks for a quote. Try it as a graded-index disc, or cut in zones, in Design a lens."
+}

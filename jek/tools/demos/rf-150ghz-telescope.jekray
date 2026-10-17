@@ -1,0 +1,357 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Gaussian beam telescope, 150 GHz",
+ "view": {
+  "cx": 218,
+  "cy": 0,
+  "scale": 1.05
+ },
+ "snap": 1,
+ "maxBounces": 40,
+ "minPower": 0.000001,
+ "ghosts": false,
+ "light": {
+  "rays": true,
+  "envelope": true,
+  "field": false,
+  "scale": "lin"
+ },
+ "library": [],
+ "cavityLock": {},
+ "benches": [
+  {
+   "id": "b1",
+   "name": "Bench 1",
+   "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 4
+   }
+  }
+ ],
+ "tab": "b1",
+ "elements": [
+  {
+   "id": "tx",
+   "type": "source",
+   "name": "Feed horn",
+   "x": -205.428,
+   "y": 0,
+   "angle": 0,
+   "bench": "b1",
+   "mmw": {
+    "kind": "corrugated",
+    "a": 7.5,
+    "L": 60,
+    "ghz": 150,
+    "dbm": 0,
+    "tx": "cw"
+   },
+   "wavelength": 1998616.3866666667,
+   "colourAuto": false,
+   "colour": "#e0a030",
+   "width": 10.071987614009208,
+   "divergence": 9.59554900148631,
+   "gauss": true,
+   "w0": 4.11977795291939,
+   "z0": -16.28009200014878,
+   "popN": 256,
+   "popModel": "auto",
+   "traceRays": true,
+   "pol": "unpolarised",
+   "polAngle": 45,
+   "lines": [],
+   "rays": 3,
+   "power": 0.9990740007854202,
+   "coh": 0,
+   "splitFrom": null,
+   "splitPhase": 0,
+   "splitPath": 0,
+   "lineshape": "lorentz",
+   "cmode": "single",
+   "bw": 40,
+   "m2": 1,
+   "tem": "horn",
+   "hm": 1,
+   "hn": 0,
+   "lp": 0,
+   "ll": 1,
+   "tau": 0,
+   "pshape": "sech2",
+   "rep": 80,
+   "gdd0": 0,
+   "sweeps": {}
+  },
+  {
+   "id": "l1",
+   "type": "lens",
+   "name": "Lens 1",
+   "x": -3.3517065294210626,
+   "y": 0,
+   "angle": 0,
+   "bench": "b1",
+   "group": "g",
+   "mmw": {
+    "part": true
+   },
+   "diameter": 100,
+   "surfaces": [
+    {
+     "R": 103.87895446461641,
+     "k": -2.1992890000000003,
+     "a2": 0,
+     "A": [],
+     "semi": null,
+     "coat": {
+      "mode": "bare",
+      "R": 4
+     }
+    },
+    {
+     "R": null,
+     "k": 0,
+     "a2": 0,
+     "A": [],
+     "semi": null,
+     "coat": {
+      "mode": "bare",
+      "R": 4
+     }
+    }
+   ],
+   "gaps": [
+    13.296586941157875
+   ],
+   "materials": [
+    {
+     "glass": "PP",
+     "abs": 0
+    }
+   ],
+   "asphere": true,
+   "sweeps": {}
+  },
+  {
+   "id": "l2",
+   "type": "lens",
+   "name": "Lens 2",
+   "x": 440.08547860890616,
+   "y": 0,
+   "angle": 0,
+   "bench": "b1",
+   "group": "g",
+   "mmw": {
+    "part": true
+   },
+   "diameter": 100,
+   "surfaces": [
+    {
+     "R": null,
+     "k": 0,
+     "a2": 0,
+     "A": [],
+     "semi": null,
+     "coat": {
+      "mode": "bare",
+      "R": 4
+     }
+    },
+    {
+     "R": -103.87895446461641,
+     "k": -2.1992890000000003,
+     "a2": 0,
+     "A": [],
+     "semi": null,
+     "coat": {
+      "mode": "bare",
+      "R": 4
+     }
+    }
+   ],
+   "gaps": [
+    13.296586941157875
+   ],
+   "materials": [
+    {
+     "glass": "PP",
+     "abs": 0
+    }
+   ],
+   "asphere": true,
+   "sweeps": {}
+  },
+  {
+   "id": "rx",
+   "type": "detector",
+   "name": "Receiver",
+   "x": 642.162,
+   "y": 0,
+   "angle": 180,
+   "bench": "b1",
+   "mmw": {
+    "kind": "corrugated",
+    "a": 7.5,
+    "L": 60,
+    "span": 40,
+    "points": 61,
+    "pol": "both",
+    "rx": "video",
+    "tant": 295,
+    "rv": 1000,
+    "nep": 5,
+    "vbw": 1
+   },
+   "length": 15,
+   "material": "custom",
+   "resp": 0.5,
+   "gain": 10000,
+   "bandwidth": 1000000,
+   "dark": 1,
+   "ampNoise": 2,
+   "vmax": 10,
+   "demodF": 0,
+   "demodPhase": 0,
+   "absorb": true,
+   "sweeps": {}
+  }
+ ],
+ "fibres": [],
+ "assemblies": [
+  {
+   "id": "g",
+   "name": "Gaussian beam telescope",
+   "bench": "b1",
+   "ref": "l1",
+   "rev": false,
+   "cond": {
+    "object": {
+     "kind": "finite",
+     "d": 211.70829514888075
+    },
+    "aperture": {
+     "kind": "epd",
+     "v": 100
+    },
+    "fields": [
+     {
+      "deg": 0,
+      "w": 1
+     }
+    ],
+    "waves": [
+     {
+      "nm": 2220684.874074074,
+      "w": 1
+     },
+     {
+      "nm": 1998616.3866666667,
+      "w": 1
+     },
+     {
+      "nm": 1816923.9878787878,
+      "w": 1
+     }
+    ],
+    "primary": 1
+   },
+   "kind": "rf",
+   "rf": {
+    "ghz": 150,
+    "lo": 135,
+    "hi": 165,
+    "feed": {
+     "kind": "corrugated",
+     "a": 7.5,
+     "L": 60,
+     "id": "tx",
+     "d": 195.42820314873197
+    },
+    "goal": {
+     "kind": "couple",
+     "d": 195.42820314873197,
+     "rx": {
+      "kind": "corrugated",
+      "a": 7.5,
+      "L": 60,
+      "id": "rx"
+     }
+    }
+   },
+   "design": {
+    "image": 218.42792683070658,
+    "vars": [],
+    "solves": {
+     "t:image": {
+      "kind": "focus"
+     }
+    },
+    "pickups": {},
+    "merit": {
+     "crit": "spot",
+     "rings": 3,
+     "arms": 6,
+     "bounds": {
+      "glassMin": 1,
+      "glassMax": 0,
+      "edgeMin": 0.5,
+      "airMin": 0.1,
+      "aspMax": 0.5,
+      "slopeMax": 0
+     },
+     "ops": []
+    },
+    "tol": {
+     "rad": {
+      "on": true,
+      "v": 3
+     },
+     "thk": {
+      "on": true,
+      "v": 0.05
+     },
+     "dec": {
+      "on": true,
+      "v": 0.025
+     },
+     "tilt": {
+      "on": true,
+      "v": 1
+     },
+     "ind": {
+      "on": true,
+      "v": 0.001
+     },
+     "abbe": {
+      "on": true,
+      "v": 0.5
+     },
+     "irr": {
+      "on": false,
+      "v": 1
+     },
+     "wedge": {
+      "on": false,
+      "v": 1
+     },
+     "sdec": {
+      "on": false,
+      "v": 0.01
+     },
+     "comp": true,
+     "dist": "uniform",
+     "pivot": "first",
+     "trials": 200,
+     "seed": 1,
+     "inv": {
+      "by": "pct",
+      "v": 10
+     }
+    }
+   },
+   "z": 75
+  }
+ ],
+ "measures": [],
+ "notes": "A worked example of the RF designer: a Gaussian beam telescope at 150 GHz (2 mm), a corrugated feed horn’s beam through two plano-hyperbolic lenses in polypropylene into an identical receiving horn. Lens 1 was made with Design a lens: placed where the feed’s beam has a 20 dB edge taper on its 100 mm aperture (195 mm from the horn), its hyperbolic face (conic −n²) turning the beam’s phase centre into a flat wavefront. Lens 2 is its mirror image, 430 mm on (twice the phase radius), so the receiver sees the feed imaged on itself. Select a lens and press Design the RF system to open it. It couples 94.9% to 99.8% of the beam into the receiver across 135 to 165 GHz; all told 75.8% (-1.20 dB) at 150 GHz. The largest loss is reflection, -0.67 dB from the four bare faces (3.8% each for n = 1.483): at 150 GHz a printed matching layer would be coarser than a quarter wave, so Make it leaves the faces bare. Absorption takes -0.35 dB and the edges -0.10 dB. Try Analyses for the coupling over the band, Tolerance for what a millimetre of spacing costs, or Make it for the quote."
+}

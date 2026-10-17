@@ -311,6 +311,43 @@ for a target waist $$w_t$$ a distance $$d_2$$ beyond the lens. So the faces suit
 
 You give the **material**, **diameter**, **edge thickness** and whether its faces get **matching layers**, and **where it stands**: where it is; where the feed's beam has the **edge taper** asked for (the first lens); or, to focus or couple, where the beam's width there matches the width the target's beam has at the lens, the coupling's best. The centre thickness follows from the edge thickness and the faces' sags. **Use this lens** puts it in, and the feed horn moves to its distance.
 
+- **Graded-index disc (flat)**: a flat disc, solid at its centre and less dense toward its edge (below).
+
+Designing a lens as a disc makes that part a graded-index disc in the same place, and designing a disc as one of the lens kinds makes it a lens again.
+
+### Graded-index discs
+
+A graded-index disc on the bench (the RF tab's **GRIN lens**) can be part of a system: select it and press **Design the RF system…**, or design any lens of the system as one. To the RF designer it is a slab between two flat faces, as thick as the whole disc with its matching layers, of the plastic graded so that its optical path at radius $$r$$ is the disc's own:
+
+$$
+n(r) = n_0 - \frac{\mathrm{opd}(r)}{T}, \qquad \mathrm{opd}(r) = \sqrt{r^2 + f^2} - f,
+$$
+
+for a disc $$T$$ thick of focal length $$f$$, fitted over the disc as $$n_0 + g_2 r^2 + g_4 r^4 + g_6 r^6$$. So the Gaussian beam takes its power from its $$r^2$$ term (the graded slab's own matrix), real rays bend through it, and the phase error counts what the fit leaves. Its losses are its own: at each radius the index and loss of the density there, through its core and its layers, and its faces' reflection at that index (or through its layers at the frequency), each weighted over the beam.
+
+**Design a lens** makes one to suit the beam: its focal length starts as the thin lens's between the beam's phase centre before it and the one wanted after it, $$1/f = 1/F_1 + 1/F_2$$, and is then solved through the disc's own thickness and grading, because a thick disc's focus is nearer than its focal length. The density runs from the centre's (100 % by default) to the lowest asked for, raised if need be so that its least dense structure stays fine against the wavelength at the top of the band. In the **Lenses** tab its plastic, diameter, focal length, density range and matching layers can be set; **Optimise** can vary its focal length; **Tolerance** varies its plastic's permittivity, which scales every density's (its grading with it), and its thickness. **Make it** checks that its density can be graded, that it fits, and that it holds to the top of the band; its drawing gives its permittivity at five radii.
+
+### Zones
+
+A made-to-order lens can be **cut in zones** (a zoned, or Fresnel, lens): wherever it is thick, whole layers come out of its curved face, each
+
+$$
+\Delta z = \frac{\lambda_z}{n - 1}
+$$
+
+deep, a wave of path at its zone frequency $$\lambda_z$$. Its thickness at $$r$$ is the smooth lens's less $$k(r)\,\Delta z$$, $$k$$ the whole layers it is thicker there than at its thinnest, so it lies between its thinnest and that plus one step: much thinner and lighter for a large lens, and it absorbs less.
+
+At the zone frequency the zoned lens bends the wave exactly as the smooth one does, since each step delays it by a whole wave. Away from it, each step delays it by $$k\lambda_z$$, not $$k\lambda$$: the phase slips by $$k(\lambda_z - \lambda)$$, a whole wave less, across the zones. The RF designer counts this from real rays, each ray's $$k$$ where it meets the cut face, in the phase error. The more zones, the narrower the band: **Analyses › Over the band** shows the phase error falling away either side of the zone frequency, and the gain with it.
+
+The steps' walls also shadow a little of the beam, which is not counted. On the bench a zoned lens is traced as the smooth lens it is cut from (the same at its zone frequency). **Lenses** sets a lens zoned and its zone frequency, and gives its steps and its thickness as cut; **Design a lens** can cut the lens it makes; **Make it**, the 3D view, the drawing (the steps' depth and radii) and the quote all take the lens as cut.
+
+### Worked examples
+
+Two examples in the gallery's **RF and millimetre waves** group are designed in the RF designer; select a lens and press **Design the RF system…** to open each.
+
+- **Lens antenna, 24 GHz**: a 120 mm PLA lens on a corrugated horn, made with **Design a lens**: the feed 116 mm away for an 11 dB edge taper, its face to the feed a hyperbola, both faces matched. It gives 28.19 dBi at 24 GHz (27.3 to 28.9 dBi across 21.6 to 26.4 GHz) at 81.4 % aperture efficiency; PLA's loss takes about 0.5 dB. It has a flange, and a gain specification of 27 dBi set in **Tolerance** for the Monte Carlo.
+- **Gaussian beam telescope, 150 GHz**: two plano-hyperbolic polypropylene lenses, 100 mm across, between two identical corrugated horns. Lens 1 is placed for a 20 dB edge taper (195 mm from the feed); lens 2 is its mirror image, 430 mm on, so the receiver sees the feed imaged on itself. It couples 94.9 % to 99.8 % of the beam across 135 to 165 GHz (98.3 % at 150 GHz), 75.8 % (−1.20 dB) all told: the four bare faces reflect 0.67 dB of it, since at 150 GHz a printed matching layer would be coarser than a quarter wave.
+
 **Checked against.**
 
 - a feed horn's beam through free space, and through a flat plate as a gap of $$d/n$$, against the Gaussian beam's own formula, to $$10^{-9}$$;
@@ -323,6 +360,8 @@ You give the **material**, **diameter**, **edge thickness** and whether its face
 - a nearly uniform aperture's pattern: its half-power beamwidth $$58.9\,\lambda/D$$ degrees and its first sidelobe at −17.6 dB, the Airy pattern's, to 1% and 0.1 dB; a tapered one wider, its sidelobes under −24 dB;
 - a plain slab reflecting nothing when half a wave thick inside, and $$\left(\frac{n^2-1}{n^2+1}\right)^2$$ at a quarter;
 - a lens given a sphere where its hyperbola was, optimised with its radius and conic free: its phase error back under $$0.01\lambda$$ and its gain the designed lens's, within 0.05 dB.
+- a graded-index disc's fitted grading against its own path $$\sqrt{r^2+f^2}-f$$, within $$0.01\lambda$$ over its face; and a disc designed to collimate leaving the beam's waist at its far face (to $$10^{-6}$$ mm), with its least density raised to hold to the top of the band;
+- a zoned lens: its steps a wave of path deep, its thickness as cut never outside its thinnest and that plus one step; at its zone frequency its aperture efficiency the smooth lens's and its phase error no more, absorbing less; away from it a phase error that grows either way, where the smooth lens has none;
 - tolerancing a hyperbolic lens: its permittivity off by 5 % either way lowers the gain both ways and matters most, its centre thickness (the beam flat inside) all but nothing; an error of nothing changes nothing; the same seed gives the same builds; and Wilson's interval for 5 of 10 is 23.7 % to 76.3 %.
 
 ## The parts

@@ -37,10 +37,8 @@
   .rt-example h3 { margin: 0; font-size: 1rem; color: var(--jek-ink); }
   .rt-example p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); flex: 1; }
   .rt-example .rt-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
-  .rt-example-grid.rt-featured { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
   /* every example, by topic: white boxes that open */
   .rt-exdrop { margin-top: 0.75rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
-  .rt-examples > .rt-example-grid + .rt-exdrop { margin-top: 2rem; }
   .rt-exdrop > summary { display: flex; align-items: center; gap: 0.75rem; padding: 0.95rem 1.15rem; cursor: pointer; list-style: none; user-select: none; }
   .rt-exdrop > summary::-webkit-details-marker { display: none; }
   .rt-exdrop > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
@@ -195,58 +193,7 @@
     <!-- Examples: moved here from the editor -->
     <div class="rt-examples" id="examples">
       <h2 style="margin: 0 0 0.6rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
-      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results. A few to start with, then every example by topic, or <a href="/jek/tools/jekray.html#examples">browse them all in the editor’s gallery</a>.</p>
-      <h3 class="rt-exgroup">Key examples</h3>
-      <div class="rt-example-grid rt-featured">
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=michelson">
-          <img src="img/michelson.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Michelson interferometer</h3>
-            <p>A 50/50 cube with one fixed and one moving mirror. Sweep the moving mirror to see the output port go light and dark.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=fabry-perot">
-          <img src="img/fabry-perot.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Fabry–Perot cavity</h3>
-            <p>Two mirrors with screens on the reflected and transmitted light. Shows finesse, linewidth and the resonance scan.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=pdh-lock">
-          <img src="img/pdh-lock.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Pound–Drever–Hall lock</h3>
-            <p>A 20 MHz EOM, a pick-off and a Fabry–Perot cavity. The photodiode’s mixer gives the PDH error signal: zero when locked, changing sign either side of resonance.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=vortex-beams">
-          <img src="img/vortex-beams.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Vortex beams: mode converter and SLM</h3>
-            <p>A Laguerre–Gauss vortex through a cylindrical-lens mode converter comes out as a Hermite–Gauss mode turned 45°. A fork hologram on an SLM focuses to a dark-centred ring.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=optical-tweezers">
-          <img src="img/optical-tweezers.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Optical tweezers in water</h3>
-            <p>A water-immersion objective, NA 1.2, holding a 120 nm polystyrene bead: stiffer across the polarisation than along it, and overdamped by the water.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=levitated-trap">
-          <img src="img/levitated-trap.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Levitated nanorod trap</h3>
-            <p>The optics of Hu et al., Nat. Commun. 2023: two counter-propagating 1550 nm beams focused to a standing wave. Play the sweep to see it tilt.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-      </div>
+      <p>Each example opens in the editor, ready to explore. Click any part to see its settings and results. Here they are by topic, or <a href="/jek/tools/jekray.html#examples">browse them all in the editor’s gallery</a>.</p>
       <details class="rt-exdrop">
         <summary><span class="rt-exdrop-title">Interference and cavities</span><span class="rt-exdrop-count">6 examples</span></summary>
         <div class="rt-example-grid">
@@ -603,7 +550,7 @@
         <summary><span class="rt-exdrop-title">RF and millimetre waves</span><span class="rt-exdrop-count">7 examples</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-10ghz-pla-lens">
-          <img src="/jek/tools/demos/thumbs/rf-10ghz-pla-lens.webp" alt="" loading="lazy">
+          <img src="img/rf-10ghz-pla-lens.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>PLA lens, 10 GHz</h3>
             <p>A horn’s beam collimated by a PLA lens: its loss, its edge taper, and whether it is manufacturable.</p>
@@ -611,7 +558,7 @@
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-grin-lens">
-          <img src="/jek/tools/demos/thumbs/rf-24ghz-grin-lens.webp" alt="" loading="lazy">
+          <img src="img/rf-24ghz-grin-lens.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Graded-index lens, 24 GHz</h3>
             <p>A flat disc whose density falls from its centre to its edge focuses a horn’s beam.</p>
@@ -619,7 +566,7 @@
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-abs-lens">
-          <img src="/jek/tools/demos/thumbs/rf-24ghz-abs-lens.webp" alt="" loading="lazy">
+          <img src="img/rf-24ghz-abs-lens.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>ABS lens, 24 GHz radar</h3>
             <p>A radar horn behind an ABS lens: the band where plastic RF lenses of this size work best.</p>
@@ -627,7 +574,7 @@
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-link">
-          <img src="/jek/tools/demos/thumbs/mm-wave-link.webp" alt="" loading="lazy">
+          <img src="img/mm-wave-link.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Millimetre-wave link, 150 GHz</h3>
             <p>Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.</p>
@@ -635,7 +582,7 @@
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-mesh-filter">
-          <img src="/jek/tools/demos/thumbs/mm-wave-mesh-filter.webp" alt="" loading="lazy">
+          <img src="img/mm-wave-mesh-filter.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Mesh filter, swept</h3>
             <p>A band-pass mesh in a Gaussian beam telescope: the receiver’s S21 against frequency, and its link budget.</p>
@@ -643,7 +590,7 @@
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-grid-diplexer">
-          <img src="/jek/tools/demos/thumbs/mm-wave-grid-diplexer.webp" alt="" loading="lazy">
+          <img src="img/mm-wave-grid-diplexer.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Wire-grid diplexer, 150 GHz</h3>
             <p>A wire grid at 45° reflects the field along its wires and passes the other.</p>
@@ -651,7 +598,7 @@
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-heterodyne">
-          <img src="/jek/tools/demos/thumbs/mm-wave-heterodyne.webp" alt="" loading="lazy">
+          <img src="img/mm-wave-heterodyne.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Heterodyne link, 150 GHz</h3>
             <p>A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.</p>
@@ -664,7 +611,7 @@
         <summary><span class="rt-exdrop-title">Photonic circuits</span><span class="rt-exdrop-count">1 example</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray.html#demo=ring-filter">
-          <img src="/jek/tools/demos/thumbs/ring-filter.webp" alt="" loading="lazy">
+          <img src="img/ring-filter.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Ring filter on a chip</h3>
             <p>A ring between two waveguides drops one line of a laser tuned across it.</p>

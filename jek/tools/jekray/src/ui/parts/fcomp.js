@@ -11,7 +11,7 @@ import { FSYM, bodyFill, ctx, drawPorts, getCss, pathLocal, roundRect, selInk, s
 import { snapVal } from '../pointer.js';
 import { FC, FC_W, fcH, thruPartner } from '../../engines/fibre.js';
 import { osaSection, signalSection } from '../instruments.js';
-import { bindSync, coherenceFields, coherenceNote, h, panel, param, renderPanel, selectField, textField } from '../panel.js';
+import { helpLine, bindSync, coherenceFields, coherenceNote, h, panel, param, renderPanel, selectField, textField } from '../panel.js';
 import { pulseLine, pulseToggle, readoutBox } from '../panels.js';
 import { changed } from '../actions.js';
 import { addBench, checkpoint, selectEl } from '../tabs.js';
@@ -45,7 +45,7 @@ function fcompPanel(el) {
     if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp'));
     if (el.balanced) rows.append(param('Common-mode rejection (dB)', el, 'cmrr', { wide: true }));
     panel.append(rows);
-    if (el.balanced) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Two photodiodes, the second\u2019s current taken from the first\u2019s: what is the same on both (the light\u2019s intensity noise, an amplifier\u2019s ASE beating with itself) cancels to the common-mode rejection, what differs (the interference between them, opposite in the two outputs of a coupler) doubles. Shot noise from both adds.'));
+    if (el.balanced) panel.append(helpLine('What is common to both cancels; what differs doubles.', ['Two photodiodes, the second\u2019s current taken from the first\u2019s: what is the same on both (the light\u2019s intensity noise, an amplifier\u2019s ASE beating with itself) cancels to the common-mode rejection, what differs (the interference between them, opposite in the two outputs of a coupler) doubles. Shot noise from both adds.'], 'note', 'margin-top:0.5rem'));
     if (el.diode) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));
     else panel.append(h('h3', null, 'Amplifier'), h('div', { class: 'rt-rows' }, param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
       param('Dark (nA)', el, 'dark'), param('Noise (pA/\u221aHz)', el, 'ampNoise'), param('Output limit (V)', el, 'vmax', { wide: true })));

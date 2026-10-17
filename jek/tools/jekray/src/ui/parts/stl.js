@@ -2,7 +2,7 @@ import { STL_UNITS, meshHull, meshHullCache } from '../../core/stl.js';
 import { frame } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
 import { inPolygon } from '../pointer.js';
-import { fid, h, panel, param, selectField, setFid } from '../panel.js';
+import { helpLine, fid, h, panel, param, selectField, setFid } from '../panel.js';
 import { readoutBox } from '../panels.js';
 import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
@@ -38,7 +38,7 @@ function stlPanel(el) {
   const M = el.mesh;
   if (M) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, M.n + ' triangles' + (M.orig ? ', simplified from the file\u2019s ' + M.orig + ' (to detail of ' + M.cell + ' file units) so it saves with the bench' : '') +
     ', ' + Math.max(1, Math.round(M.data.length / 1024)) + ' KB with the bench' + (M.file ? ', from ' + M.file : '') + '.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'An opaque object brought in from CAD (a mount, a housing, a baffle): every ray that meets it stops there, met against its triangles in 3D, and a Gaussian beam whose centre meets it ends there. Size, colour and place are yours; its facing, tip and roll turn it as any part. A beam that only grazes its edge is not cut by it: use a stop for that.'));
+  panel.append(helpLine('An opaque CAD object: rays and beams that meet it stop there.', ['An opaque object brought in from CAD (a mount, a housing, a baffle): every ray that meets it stops there, met against its triangles in 3D, and a Gaussian beam whose centre meets it ends there. Size, colour and place are yours; its facing, tip and roll turn it as any part. A beam that only grazes its edge is not cut by it: use a stop for that.'], 'note', 'margin-top:0.5rem'));
 }
 
 const hitStl = (el, lx, ly, tol) => inPolygon(meshHull(el), lx, ly, tol);

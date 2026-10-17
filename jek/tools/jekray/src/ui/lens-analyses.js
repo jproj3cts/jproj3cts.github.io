@@ -9,7 +9,7 @@ import { normCoat } from '../state/project.js';
 import { changed } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { getEl } from '../state/elements.js';
-import { h } from './panel.js';
+import { helpLine, h } from './panel.js';
 import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 
 /* ==========================================================================
@@ -215,7 +215,7 @@ function longView(body, A, L) {
     series: [{ label: 'shift', colour: '#444', xs: L.shift, ys: L.lam }], hoverY: true, yName: 'nm', H: 260 });
   body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)])));
   const lo = Math.min(...L.shift), hi = Math.max(...L.shift);
-  body.append(h('p', { class: 'rt-lsub' }, 'Left: where rays from each height in the pupil, on the axis, cross it, from the primary wavelength’s paraxial focus. Right: the paraxial focus over the wavelengths; it spans ' + um(hi - lo) + ' here.'));
+  body.append(helpLine('Longitudinal aberration (left) and the focus over the wavelengths (right).', ['Left: where rays from each height in the pupil, on the axis, cross it, from the primary wavelength’s paraxial focus. Right: the paraxial focus over the wavelengths; it spans ' + um(hi - lo) + ' here.'], 'rt-lsub'));
 }
 const DIV = [[0x2a, 0x78, 0xd6], [0xf0, 0xef, 0xec], [0xe3, 0x49, 0x48]];
 const diverge = t => { t = Math.max(-1, Math.min(1, t)); const [a, b] = t < 0 ? [DIV[1], DIV[0]] : [DIV[1], DIV[2]], u = Math.abs(t); return a.map((v, i) => Math.round(v + (b[i] - v) * u)); };
@@ -312,7 +312,7 @@ function huyView(body, A, H) {
     series: [{ label: 'x (sagittal)', colour: WAVE_COLOURS[1], dash: true, xs, ys: xs.map((_, i) => H.I[pj * M + i] / H.peak) }, { label: 'y (tangential)', colour: WAVE_COLOURS[0], xs, ys: xs.map((_, j) => H.I[j * M + pi] / H.peak) }], xName: 'mm', H: 240,
     csv: { name: 'huygens psf sections', cols: ['position (mm)', 'x section', 'y section'], rows: () => xs.map((v, k) => [v, H.I[pj * M + k] / H.peak, H.I[k * M + pi] / H.peak]) } });
   right.append(legend([['y (tangential)', WAVE_COLOURS[0]], ['x (sagittal)', WAVE_COLOURS[1], true]]));
-  right.append(h('p', { class: 'rt-lsub' }, 'Each ray’s crossing of the reference sphere sends a wavelet, its phase the ray’s path, its strength its share of the light over the sphere it covers; their sum on the image plane is the PSF, the plane as it is, square to the axis. The Airy disc’s radius here: ' + um(H.airy) + '.'));
+  right.append(helpLine('The point spread function, summed from each ray’s wavelet.', ['Each ray’s crossing of the reference sphere sends a wavelet, its phase the ray’s path, its strength its share of the light over the sphere it covers; their sum on the image plane is the PSF, the plane as it is, square to the axis. The Airy disc’s radius here: ' + um(H.airy) + '.'], 'rt-lsub'));
 }
 function mtfView(body, A, M) {
   const v = M.freqs;
@@ -329,15 +329,15 @@ function riView(body, A, I) {
     series: [{ label: 'relative illumination', colour: WAVE_COLOURS[0], xs: g, ys: I.ri }, { label: 'unvignetted', colour: WAVE_COLOURS[1], dash: true, xs: g, ys: I.vig }, { label: 'cos⁴', colour: '#666', xs: g, ys: I.cos4 }],
     xName: 'field', H: 280, csv: { name: 'relative illumination', cols: ['field (' + FU_CSV + ')', 'relative illumination', 'unvignetted share', 'cos4 of chief ray'], rows: () => g.map((v, j) => [v, I.ri[j], I.vig[j], I.cos4[j]]) } });
   body.append(legend([['relative illumination', WAVE_COLOURS[0]], ['unvignetted share of the pupil', WAVE_COLOURS[1], true], ['cos⁴ of the chief ray', '#666']]));
-  body.append(h('p', { class: 'rt-lsub' }, 'The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
-    'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'));
+  body.append(helpLine('The image’s brightness across the field, against its centre.', ['The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
+    'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'], 'rt-lsub'));
 }
 function footView(body, A, P, F, st, redraw) {
   const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1), L = F.surfaces, fin = v => isFinite(v) && v > 0;
   if (!(st.surf >= 0 && st.surf < L.length)) st.surf = L.reduce((b, u, i) => fin(u.semi) && (!fin(L[b].semi) || u.beam / u.semi > L[b].beam / L[b].semi) ? i : b, 0);
   body.append(h('h3', null, 'Footprints: where the beam crosses each surface'));
-  body.append(h('p', { class: 'rt-lsub' }, 'Every field and wavelength, ' + F.rays + ' rays each (a grid across the pupil and a ring at its edge). The beam: the farthest any ray lands from the surface’s vertex, in its own frame; the margin, its clear radius less that. ' +
-    'Choose a surface to see each field’s rays on it at ' + anFmt(F.nm, 5) + ' nm, those it stops as crosses.'));
+  body.append(helpLine('Each surface’s beam footprint against its clear radius.', ['Every field and wavelength, ' + F.rays + ' rays each (a grid across the pupil and a ring at its edge). The beam: the farthest any ray lands from the surface’s vertex, in its own frame; the margin, its clear radius less that. ' +
+    'Choose a surface to see each field’s rays on it at ' + anFmt(F.nm, 5) + ' nm, those it stops as crosses.'], 'rt-lsub'));
   const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lfoot' });
   tbl.append(h('thead', null, h('tr', null, ...[['Surface', 'Choose one to draw its footprint'], ['Clear radius', 'The surface’s clear (semi-) diameter'], ['Beam', 'The farthest any ray lands from its vertex'], ['Margin', 'The clear radius less the beam; below 0 it stops rays'], ['Used', 'The beam over the clear radius'], ['Rays stopped', 'Of those reaching it, over every field and wavelength']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
   const tb = h('tbody');
@@ -394,9 +394,9 @@ function tfmView(body, A, asm, P, key, st, redraw) {
     series, xName: 'focus', H: 280, csv: { name: 'through-focus MTF', cols: ['focus shift (mm)'].concat(T.fields.flatMap(f => [f.deg + ' ' + FU_CSV + ' T', f.deg + ' ' + FU_CSV + ' S'])), rows: () => xs.map((d, i) => [d, ...T.fields.flatMap(f => [f.tan[i], f.sag[i]])]) } });
   body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
   const fb = T.fields.map(f => anFmt(f.deg, 4) + FU + ' ' + ghLen(f.best.at)).join(', ');
-  body.append(h('p', { class: 'rt-lsub' }, 'The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
+  body.append(helpLine('Best focus ' + ghLen(T.best.at) + ' from the design’s image plane.', ['The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
     'Best focus, the mean over the fields of tangential and sagittal at its peak (' + anFmt(T.best.v, 3) + '): ' + ghLen(T.best.at) + ' from the design’s image plane' +
-    (T.dof ? '; it stays above 80% of that from ' + ghLen(T.dof[0]) + ' to ' + ghLen(T.dof[1]) + ' (' + ghLen(T.dof[1] - T.dof[0]) + ' deep)' : '') + '. Each field’s own best: ' + fb + '.'));
+    (T.dof ? '; it stays above 80% of that from ' + ghLen(T.dof[0]) + ' to ' + ghLen(T.dof[1]) + ' (' + ghLen(T.dof[1] - T.dof[0]) + ' deep)' : '') + '. Each field’s own best: ' + fb + '.'], 'rt-lsub'));
   if (T.fields.some(f => Math.abs(Math.abs(f.best.at) - T.span) < 1e-9 * T.span) || Math.abs(Math.abs(T.best.at) - T.span) < 1e-9 * T.span) body.append(h('div', { class: 'rt-lnote' }, 'A best focus is at an end of the range: it may lie beyond it. Widen the range to find it.'));
 }
 
@@ -427,9 +427,9 @@ function thermView(body, A, asm, P, key, st, redraw) {
   for (const r of R.rows) tb.append(h('tr', { class: Math.abs(r.T - T_NOMINAL) < 1e-9 ? 'on' : '' }, h('td', null, anFmt(r.T, 4) + ' °C'), h('td', { class: 'mono' }, anFmt(r.efl, 6) + ' mm'), h('td', { class: 'mono' }, ghLen(r.defl)), h('td', { class: 'mono' }, ghLen(r.defocus)), ...r.rms.map(v => h('td', { class: 'mono' }, um(v)))));
   tbl.append(tb);
   body.append(h('div', { class: 'rt-ltwrap' }, tbl));
-  body.append(h('p', { class: 'rt-lsub' }, 'Against the design at ' + T_NOMINAL + ' °C and one atmosphere, here at ' + anFmt(R.p, 3) + ' atm in ' + H[1].toLowerCase() + ': the focus moves ' + ghLen(R.drift) + ' per kelvin against the detector (' + (Math.abs(R.drift) < 1e-4 ? 'near athermal' : R.drift > 0 ? 'beyond it as it warms' : 'short of it as it warms') + '), the focal length ' + ghLen(R.eflDrift) + ' per kelvin. ' +
+  body.append(helpLine('The focus moves ' + ghLen(R.drift) + ' per kelvin against the detector.', ['Against the design at ' + T_NOMINAL + ' °C and one atmosphere, here at ' + anFmt(R.p, 3) + ' atm in ' + H[1].toLowerCase() + ': the focus moves ' + ghLen(R.drift) + ' per kelvin against the detector (' + (Math.abs(R.drift) < 1e-4 ? 'near athermal' : R.drift > 0 ? 'beyond it as it warms' : 'short of it as it warms') + '), the focal length ' + ghLen(R.eflDrift) + ' per kelvin. ' +
     'Each glass’s index by its maker’s formula and the air’s at that temperature and pressure; the lenses grow with their glasses, the spacers, the stop and the detector’s distance with the housing.' +
-    (R.missing.length ? ' No data for ' + R.missing.join(', ') + ': taken as not changing.' : '')));
+    (R.missing.length ? ' No data for ' + R.missing.join(', ') + ': taken as not changing.' : '')], 'rt-lsub'));
 }
 
 /* ---------- Polarisation ---------- */
@@ -459,9 +459,9 @@ function polView(body, A, P, st, R, redraw) {
   body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Polarisation in' }, h('span', { class: 'rt-lsub' }, 'In'),
     ...POL_CHOICES.map(([k, t]) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String((st.polIn || 'none') === k), onclick: () => { st.polIn = k; redraw(); } }, t))));
   const pin = R.pin, deg = d => anFmt(d * 180 / Math.PI, 3) + '°';
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(R.deg, 4) + FU + ', ' + (pin === 'none' ? 'unpolarised' : POL_CHOICES.find(c => c[0] === pin)[1] + ' polarised') + ' light in: ' +
+  body.append(helpLine(anFmt(100 * R.T, 4) + '% of the light reaches the image; mean diattenuation ' + anFmt(R.D, 3) + ', mean retardance ' + deg(R.ret) + '.', ['At ' + anFmt(nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(R.deg, 4) + FU + ', ' + (pin === 'none' ? 'unpolarised' : POL_CHOICES.find(c => c[0] === pin)[1] + ' polarised') + ' light in: ' +
     anFmt(100 * R.T, 4) + '% of it reaches the image, over the rays that get there (' + anFmt(100 * R.reach, 3) + '% of the pupil); mean diattenuation ' + anFmt(R.D, 3) + ', mean retardance ' + deg(R.ret) + '. ' +
-    'Each ray traced with its polarisation through every face (its coating’s s and p amplitudes, or Fresnel’s) and the glass between (its absorption), read in x and y each side.'));
+    'Each ray traced with its polarisation through every face (its coating’s s and p amplitudes, or Fresnel’s) and the glass between (its absorption), read in x and y each side.'], 'rt-lsub'));
   const row = h('div', { class: 'rt-lpolmaps' });
   body.append(row);
   const n = R.n, size = 170;
@@ -631,17 +631,17 @@ function imsimView(body, A, P, st, key, redraw) {
   plotCsv(cv, 'image simulation', ['x (mm)', 'y (mm)', 'R', 'G', 'B'], () => { const out = []; for (let j = 0; j < R.H; j++) for (let i = 0; i < R.W; i++) { const q = j * R.W + i; out.push([R.atOut[0] + (i - (R.W - 1) / 2) * R.pitch, R.atOut[1] + ((R.H - 1) / 2 - j) * R.pitch, R.ch[0][q], R.ch[1][q], R.ch[2][q]]); } return out; });
   right.append(plotSaveRow(cv));
   const geo = R.nodes.some(n => n.geometric), cols = ['R', 'G', 'B'].map((t, i) => t + ' ' + anFmt(R.nm[i], 5) + ' nm').join(', ');
-  body.append(h('p', { class: 'rt-lsub' }, (whole ? 'The picture fills the field: its corners at ' + anFmt(Math.max(...c.fields.map(f => Math.abs(f.deg))), 4) + FU + ', '
+  body.append(helpLine('The test chart as the design images it.', [(whole ? 'The picture fills the field: its corners at ' + anFmt(Math.max(...c.fields.map(f => Math.abs(f.deg))), 4) + FU + ', '
     : 'A patch about the image of ' + anFmt(fAt, 4) + FU + (moved ? ', moved in to lie within the largest field, ' : ', ')) + R.W + ' × ' + R.H + ' pixels of ' + um(R.pitch) + ' on the image. ' +
     (R.mono ? 'One wavelength, ' + anFmt(R.nm[0], 5) + ' nm, for every colour. ' : 'Each colour at the design’s wavelength nearest it: ' + cols + '. ') +
     'Moved by the distortion of each wavelength (lateral colour shows), dimmed by the relative illumination, and blurred by the PSF at ' + R.grid * R.grid + ' points, each turned to its place about the axis and blended between them' +
-    (geo ? '; where a spot is too large for the PSF’s window, by the spot itself' : '') + '. In linear light, shown as sRGB; the CSV gives it in linear light, 1 the picture\u2019s white.'));
+    (geo ? '; where a spot is too large for the PSF’s window, by the spot itself' : '') + '. In linear light, shown as sRGB; the CSV gives it in linear light, 1 the picture\u2019s white.'], 'rt-lsub'));
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   body.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + FU + ', the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
-    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
+  body.append(helpLine('Seidel sums, surface by surface.', ['At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + FU + ', the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
+    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'], 'rt-lsub'));
   const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
   tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
   const tb = h('tbody'), f = v => Math.abs(v) < 5e-13 ? '0' : v.toExponential(4).replace(/e\+0$/, '').replace(/e([+-])(\d)$/, 'e$1$2');
@@ -667,9 +667,9 @@ function ghostView(body, A, P, G, st, redraw) {
     return;
   }
   const L = G.ghosts.filter(g => g.R > 0);
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(G.nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(G.deg, 4) + FU + ': ' + L.length + ' ghosts, the brightest against the image first. ' +
+  body.append(helpLine(L.length + (L.length === 1 ? ' ghost' : ' ghosts') + ' at ' + anFmt(G.nm, 5) + ' nm, the brightest first.', ['At ' + anFmt(G.nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(G.deg, 4) + FU + ': ' + L.length + ' ghosts, the brightest against the image first. ' +
     'The image\u2019s own spot: RMS ' + um(G.main.rms) + ', the Airy disc ' + um(G.main.airy) + '. Each surface reflects as its coating does, square to it (bare glass by Fresnel). ' +
-    'Against the image: the ghost\u2019s light over its area on the image, over the image\u2019s over its spot (each as an even disc), an estimate. Choose a ghost to see its rays in the layout.'));
+    'Against the image: the ghost\u2019s light over its area on the image, over the image\u2019s over its spot (each as an even disc), an estimate. Choose a ghost to see its rays in the layout.'], 'rt-lsub'));
   if (!L.length) return;
   if (!st.ghost || !L.some(g => g.a === st.ghost[0] && g.b === st.ghost[1])) st.ghost = [L[0].a, L[0].b];
   const tbl = h('table', { class: 'rt-ltable rt-lghost' });
@@ -710,5 +710,5 @@ function ghostView(body, A, P, G, st, redraw) {
   plotCsv(cv, 'ghosts', ['first surface', 'second surface', 'reflectance first', 'reflectance second', 'share reaching the image', 'focus from image (mm)', 'paraxial height on image (mm)', 'RMS on image (mm)', 'against the image', 'focus inside, from surface', 'distance (mm)'],
     () => L.map(q => [name(q.a), name(q.b), q.Ra, q.Rb, q.R * q.reach, q.focus, q.yImg, q.rms, q.rel, q.near ? name(q.near.surf) : '', q.near ? q.near.d : '']));
   cell.append(plotSaveRow(cv));
-  body.append(h('p', { class: 'rt-lsub' }, 'The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'));
+  body.append(helpLine('Scaled to the ghost; one that focuses near a surface is marked.', ['The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'], 'rt-lsub'));
 }

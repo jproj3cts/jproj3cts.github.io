@@ -12,7 +12,7 @@ import { benchName } from '../state/tabs.js';
 import { commitDesign, designOf, designPrescription, surfSag, surfaceParts } from '../engines/lens-design.js';
 import { RF_LENS_TYPES, RF_TOL_KINDS, rfGrinInto, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfSynth, rfSyncCond } from '../engines/rf-design.js';
 import { linePlot } from './lens-analyses.js';
-import { h } from './panel.js';
+import { helpLine, h } from './panel.js';
 import { matchLayer } from './panels.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
@@ -365,7 +365,7 @@ const RW_GRIN_MATS = () => Object.fromEntries(Object.entries(RF_MAT).filter(([, 
 const RW_MATS = () => Object.fromEntries(Object.entries(RF_MAT).sort((a, b) => (b[1].print ? 1 : 0) - (a[1].print ? 1 : 0)).map(([k, M]) => [k, M.name + (M.print ? ' (made to order)' : '')]));
 function rwLensCard(asm, P, Tm) {
   const card = h('section', { class: 'rt-lcard', role: 'tabpanel', 'aria-label': 'Lenses' }, h('h3', null, 'Lenses'));
-  card.append(h('p', { class: 'rt-lsub' }, 'In the order the beam meets them, the front face toward the feed. A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer. A graded-index disc is flat: its focal length comes from its plastic, solid at its centre and less dense toward its edge, and its thickness follows from its focal length and its density range.'));
+  card.append(helpLine('The lenses, in the order the beam meets them.', ['In the order the beam meets them, the front face toward the feed. A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer. A graded-index disc is flat: its focal length comes from its plastic, solid at its centre and less dense toward its edge, and its thickness follows from its focal length and its density range.'], 'rt-lsub'));
   const tbl = h('table', { class: 'rt-ltable rt-rftable' });
   tbl.append(h('thead', null, h('tr', null, ...['Part', 'Material', 'Diameter (mm)', 'Centre (mm)', 'Front R (mm)', 'Front conic', 'Back R (mm)', 'Back conic', 'Matched', 'Air after (mm)'].map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
@@ -408,7 +408,7 @@ function rwLensCard(asm, P, Tm) {
   const zl = P.parts.filter(p => p.kind === 'lens' && p.n === 2).map(p => getEl(p.id)).filter(Boolean);
   if (zl.length) {
     card.append(h('h3', null, 'Zones'));
-    card.append(h('p', { class: 'rt-lsub' }, 'A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'));
+    card.append(helpLine('Cutting a lens in zones makes it thinner and lighter, and narrows its band.', ['A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'], 'rt-lsub'));
     for (const el of zl) {
       const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
       card.append(h('div', { class: 'rt-lchips rt-rfzone' },
@@ -438,7 +438,7 @@ function rwSynthCard(asm, P) {
   if (!lenses.some(x => x.pi === sp.pi)) sp.pi = first.pi;
   const isG = sp.type === 'grin';
   if (isG && !(RF_MAT[sp.mat] && RF_MAT[sp.mat].print)) sp.mat = 'PLA';
-  card.append(h('p', { class: 'rt-lsub' }, 'A lens made to suit the beam that reaches it and the goal after it: each curved face the hyperbola that turns the beam’s phase centre into a flat wavefront in the plastic, or the flat wavefront into the waist wanted. A graded-index disc does it with a flat disc instead, solid at its centre and less dense toward its edge: its focal length is solved through its own thickness. Designing a lens as a disc, or a disc as a lens, makes the part that kind, in the same place. Then refine it by hand, or in the optical designer.'));
+  card.append(helpLine('A lens, or a graded-index disc, made to suit the beam and the goal.', ['A lens made to suit the beam that reaches it and the goal after it: each curved face the hyperbola that turns the beam’s phase centre into a flat wavefront in the plastic, or the flat wavefront into the waist wanted. A graded-index disc does it with a flat disc instead, solid at its centre and less dense toward its edge: its focal length is solved through its own thickness. Designing a lens as a disc, or a disc as a lens, makes the part that kind, in the same place. Then refine it by hand, or in the optical designer.'], 'rt-lsub'));
   const set = (k, v) => { sp[k] = v; rwRender(); };
   const grid = h('div', { class: 'rt-rfgrid' },
     rwRow('Lens', rwSelect(Object.fromEntries(lenses.map(x => [String(x.pi), getEl(x.p.id).name])), String(sp.pi), v => set('pi', +v), 'Lens to design')),
@@ -594,14 +594,14 @@ function rwAnaCard(asm, P, T) {
     const pats = [T.lo, T.mid, T.hi].map(t => rfPattern(t.apAt, t.lam, Math.min(60, 8 * Math.atan(t.lam / t.D) * 180 / Math.PI + 4)));
     const th1 = Math.max(...pats.map(p => p.th[p.th.length - 1]));
     const ps = [T.lo, T.mid, T.hi].map(t => rfPattern(t.apAt, t.lam, th1));
-    body.append(h('p', { class: 'rt-lsub' }, 'The far field of the last lens’s aperture: the Gaussian field it carries there, with its curvature, over its round aperture, at the band’s edges and its centre, in dB against the axis. Its phase error beyond first order and any cross-polar field are not in it.'));
+    body.append(helpLine('The far-field pattern of the last lens’s aperture.', ['The far field of the last lens’s aperture: the Gaussian field it carries there, with its curvature, over its round aperture, at the band’s edges and its centre, in dB against the axis. Its phase error beyond first order and any cross-polar field are not in it.'], 'rt-lsub'));
     body.append(h('div', { class: 'rt-llegend' }, ...[R.lo, R.ghz, R.hi].map((g, k) => h('span', null, h('i', { style: '--sw:' + RW_BAND_COLS[k], 'aria-hidden': 'true' }), rwFmt(g, 4) + ' GHz'))));
     linePlot(body, { label: 'Far-field pattern', H: 260, x: { kind: 'plain', title: 'angle from the axis, °' }, y: { kind: 'plain', title: 'dB' }, yr: [-50, 2], xName: '°', series: ps.map((p, k) => ({ label: rwFmt([R.lo, R.ghz, R.hi][k], 4) + ' GHz', colour: RW_BAND_COLS[k], xs: p.th, ys: p.db.map(v => Math.max(-50, v)) })),
       csv: { name: asm.name + ' pattern', cols: ['angle_deg', 'lo_dB', 'design_dB', 'hi_dB'], rows: () => ps[1].th.map((t, j) => [t, ps[0].db[j], ps[1].db[j], ps[2].db[j]]) } });
     const m = ps[1];
     body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Beamwidth, half power', rwFmt(m.hpbw, 3) + '°'], ['First sidelobe', m.sidelobe === null ? 'none within ' + rwFmt(th1, 3) + '°' : rwFmt(m.sidelobe, 3) + ' dB'], ['Gain on the axis', rwFmt(T.mid.gain, 4) + ' dBi']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
   } else if (st.view === 'apert') {
-    body.append(h('p', { class: 'rt-lsub' }, 'The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'));
+    body.append(helpLine('The beam at each face: its radius, edge taper and spillover.', ['The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'], 'rt-lsub'));
     const tbl = h('table', { class: 'rt-ltable' });
     tbl.append(h('thead', null, h('tr', null, ...['Face', 'Beam at ' + rwFmt(R.lo, 4) + ' GHz', 'at ' + rwFmt(R.ghz, 4), 'at ' + rwFmt(R.hi, 4), 'Clear radius', 'Edge taper', 'Spilled'].map(t => h('th', { scope: 'col' }, t)))));
     const sps = surfaceParts(P), tb = h('tbody');
@@ -613,7 +613,7 @@ function rwAnaCard(asm, P, T) {
     tbl.append(tb); body.append(h('div', { class: 'rt-ltwrap' }, tbl));
   } else if (st.view === 'refl') {
     const S = rfBandSweep(asm, P, 121), xs = S.map(s => s.ghz), nl = S[0].slab.length;
-    body.append(h('p', { class: 'rt-lsub' }, 'Each lens as a slab: its two faces, their matching layers and the plastic between, the reflections added coherently, so the ripple a lens shows across a band appears (the figures above take each face alone). In dB, shown down to \u221260 dB.'));
+    body.append(helpLine('Each lens’s reflection as a slab, across the band.', ['Each lens as a slab: its two faces, their matching layers and the plastic between, the reflections added coherently, so the ripple a lens shows across a band appears (the figures above take each face alone). In dB, shown down to \u221260 dB.'], 'rt-lsub'));
     const ser = [];
     for (let k = 0; k < nl; k++) { const el = getEl(P.parts[S[0].slab[k].pi].id); ser.push({ label: el ? el.name : 'Lens ' + (k + 1), colour: RW_BAND_COLS[k % 3], xs, ys: S.map(s => rwDbOf(s.slab[k].R)) }); }
     if (!nl) body.append(h('p', { class: 'rt-lsub' }, 'No lenses.'));
@@ -645,7 +645,7 @@ function rwOptCard(asm, P) {
   const vars = rfOptVars(P);
   if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
   o.keys = o.keys.filter(k => vars.some(v => v.key === k));
-  card.append(h('p', { class: 'rt-lsub' }, 'The values ticked are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'));
+  card.append(helpLine('The ticked values, changed for the most efficiency across the band.', ['The values ticked are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'], 'rt-lsub'));
   const running = RW_OPT && RW_OPT.running && RW_OPT.asm === asm;
   const groups = new Map();
   for (const v of vars) { const k = v.part || '_feed'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); }
@@ -705,7 +705,7 @@ function rwOptStop(note) {
 /* ---------- Make it: each lens checked against what can be made, and its quote ---------- */
 function rwMakeCard(asm, P, T) {
   const R = asm.rf, card = h('section', { class: 'rt-lcard rt-rfmake', role: 'tabpanel', 'aria-label': 'Make it' }, h('h3', null, 'Make it'));
-  card.append(h('p', { class: 'rt-lsub' }, 'Each lens checked against what can be made to order: its plastic, its size and thinnest point, and its matching layers across the band. A lens that passes can be quoted for: the request goes into your quote cart with its figures and a link to the design.'));
+  card.append(helpLine('Each lens checked against what can be made, then quoted.', ['Each lens checked against what can be made to order: its plastic, its size and thinnest point, and its matching layers across the band. A lens that passes can be quoted for: the request goes into your quote cart with its figures and a link to the design.'], 'rt-lsub'));
   const coll = R.goal.kind === 'collimate', perf = coll ? 'gain ' + rwFmt(T.mid.gain, 4) + ' dBi' : 'coupling ' + rwPct(T.mid.coupling);
   P.parts.forEach((p, pi) => {
     if (p.kind !== 'lens' && p.kind !== 'grin') return;
@@ -781,7 +781,7 @@ let RW_MC = null;             // { asm, plan, running }
 function rwTolCard(asm, P) {
   const tol = asm.rfTol = normRfTol(asm.rfTol), R = asm.rf, coll = R.goal.kind === 'collimate', unit = coll ? 'dBi' : 'dB', fig = coll ? 'gain' : 'efficiency';
   const card = h('section', { class: 'rt-lcard rt-rftol', role: 'tabpanel', 'aria-label': 'Tolerance' }, h('h3', null, 'Tolerance'));
-  card.append(h('p', { class: 'rt-lsub' }, 'How far each error may go, and what it does to the ' + fig + ': each alone at its limit (Sensitivity), and all at once in many builds (Monte Carlo), with the share that meet a specification. A printed plastic’s permittivity is known to a few per cent until measured. Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here: the RF lens’s own panel on the bench traces them.'));
+  card.append(helpLine('Each error alone (Sensitivity) and all together (Monte Carlo), with the yield.', ['How far each error may go, and what it does to the ' + fig + ': each alone at its limit (Sensitivity), and all at once in many builds (Monte Carlo), with the share that meet a specification. A printed plastic’s permittivity is known to a few per cent until measured. Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here: the RF lens’s own panel on the bench traces them.'], 'rt-lsub'));
   const st = RW.tolSt || (RW.tolSt = {});
   // a change to the errors makes the results stale; to the Monte Carlo's settings, only its builds (the specification, nothing)
   const set = (fn, what) => { const t = JSON.parse(JSON.stringify(asm.rfTol)); fn(t); asm.rfTol = normRfTol(t); if (what !== 'mc' && what !== 'spec') st.sens = null; if (what !== 'spec' && RW_MC && RW_MC.asm === asm && !RW_MC.running) RW_MC = null; rwRender(); };

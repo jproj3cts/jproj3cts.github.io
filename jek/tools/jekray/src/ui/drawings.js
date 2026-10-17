@@ -11,7 +11,7 @@ import {
 } from './render.js';
 import { drag, hitTest, inPolygon, setDrag, snapVal } from './pointer.js';
 import { FC_W, fcH } from '../engines/fibre.js';
-import { beginEdit, bindSync, endEdit, fid, h, numInput, panel, renderPanel, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, beginEdit, bindSync, endEdit, fid, h, numInput, panel, renderPanel, setFid, syncPanel, vs } from './panel.js';
 import { changed, moveEls, rotateEls, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { palette } from './experimental.js';
@@ -948,7 +948,7 @@ export function drawPanel(el) {
     panel.append(head('Arrange'), box(
         ...(el.m ? [row('Skew', h('button', { type: 'button', class: 'rt-btn', onclick: () => { checkpoint(); delete el.m; changed(true); } }, 'Take the skew off'))] : []),
       row('Layer', seg([['under', DI.under, 'Under', 'Under the light: beams and parts are drawn over it'], ['over', DI.over, 'Over', 'Over the light: it is drawn over beams and parts']], () => el.layer, v => { el.layer = v; }))),
-      h('p', { class: 'rt-hint' }, 'A drawing is for figures: the light goes through it as if it were not there. With the select tool its handles scale it; click it again and they rotate and skew it. Flip, rotate, raise and lower it, and line drawings up, from the bar along the top of the bench.'));
+      helpLine('A drawing is for figures: the light passes through it.', ['A drawing is for figures: the light goes through it as if it were not there. With the select tool its handles scale it; click it again and they rotate and skew it. Flip, rotate, raise and lower it, and line drawings up, from the bar along the top of the bench.'], 'rt-hint'));
     return;
   }
   // Fill, then Stroke paint, then Stroke style

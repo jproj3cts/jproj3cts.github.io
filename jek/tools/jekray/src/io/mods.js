@@ -7,7 +7,7 @@ import { normElement } from '../state/elements.js';
 import { setLastTraceKey } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
 import { modDefOf, modHash, modName, modPack, modReadoutResults, modStatus, normModDef } from '../engines/mods.js';
-import { h, panel, param, selectField } from '../ui/panel.js';
+import { helpLine, h, panel, param, selectField } from '../ui/panel.js';
 import { toast } from '../ui/actions.js';
 import { exp } from '../ui/experimental.js';
 import { palOf } from '../ui/myparts.js';
@@ -243,7 +243,7 @@ export function modConfirmText(pack, from) {
     h('p', { class: 'note warn' }, 'This pack is a module: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
     h('p', null, 'It defines:'),
     h('ul', null, ...pack.defs.map(D => h('li', null, h('b', null, D.name), ', ' + kinds[D.kind] + (D.summary ? ': ' + D.summary : '')))),
-    h('p', { class: 'rt-hint' }, 'Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'));
+    helpLine('Its code runs in a sandbox, cut off from your account, your files and the internet.', ['Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'], 'rt-hint'));
 }
 /* the mods in use: the installed packs with code, when mods are on */
 export function modsSync() {

@@ -11,7 +11,7 @@ import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk } from '../render.js
 import { applyFibre } from '../../engines/fibre-face.js';
 import {
   beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, h, panel, param, renderPanel,
-  selectField, setFid, textField
+  selectField, setFid, textField, helpLine
 } from '../panel.js';
 import { pulseLine, pulseToggle } from '../panels.js';
 import { gaussFromFan } from '../../engines/cavity.js';
@@ -88,8 +88,8 @@ function sourcePanel(el) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
       param('Divergence, full (°)', el, 'divergence')));
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
-  } else panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'));
+    panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
+  } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
 
   panel.append(h('h3', null, 'Beam propagation'));
   const gb = h('input', { type: 'checkbox' });
@@ -146,7 +146,7 @@ function sourcePanel(el) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel, v => { el.popModel = v; }),
       selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; })));
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Whether the rays, the beams\u2019 envelope and their diffracted field show is set for the whole bench: the ticks under the Bench panel\u2019s Light (click empty bench).'));
+    panel.append(helpLine('Rays, envelope and field are shown or hidden for the whole bench.', ['Whether the rays, the beams\u2019 envelope and their diffracted field show is set for the whole bench: the ticks under the Bench panel\u2019s Light (click empty bench).'], 'note', 'margin-top:0.4rem'));
     if (lightOf().field) {
       const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
       bindSync(pn, () => { pn.textContent = popNote(el); });

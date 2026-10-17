@@ -4,7 +4,7 @@ import { loadGen } from '../engines/trace.js';
 import { spectrum } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdSignalAll } from '../engines/detector.js';
-import { bindSync, fid, h, panel, param, setFid, vs } from './panel.js';
+import { helpLine, bindSync, fid, h, panel, param, setFid, vs } from './panel.js';
 import { axisFont, drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
 
 /* ==========================================================================
@@ -336,6 +336,6 @@ export function signalSection(el) {
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     draw();
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The spectrum and oscilloscope are the electronics\u2019 own, on this output: the spectrum each tone at its rms level over the noise in the resolution bandwidth; the oscilloscope in Normal a few periods of the slowest tone by itself (or the span set), tones too fast for it filling a band, with \u00b11\u03c3 of noise; in Roll the output as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen. Leave a setting blank for auto.'));
+  panel.append(helpLine('The beat between two frequencies, demodulated into an error signal.', ['Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The spectrum and oscilloscope are the electronics\u2019 own, on this output: the spectrum each tone at its rms level over the noise in the resolution bandwidth; the oscilloscope in Normal a few periods of the slowest tone by itself (or the span set), tones too fast for it filling a band, with \u00b11\u03c3 of noise; in Roll the output as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen. Leave a setting blank for auto.'], 'note', 'margin-top:0.4rem'));
 }
 

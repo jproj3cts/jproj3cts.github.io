@@ -4,7 +4,7 @@ import { getEl } from '../../state/elements.js';
 import { frame, toWorld } from '../../core/mask.js';
 import { lastTrace } from '../../engines/trace.js';
 import { ctx, pathLocal, selInk, sx, sy } from '../render.js';
-import { bindSync, h, panel, param, selectField } from '../panel.js';
+import { helpLine, bindSync, h, panel, param, selectField } from '../panel.js';
 import { drawNlcTuning } from '../panels.js';
 import { plotSaveRow } from '../plots.js';
 
@@ -47,7 +47,7 @@ export function nlcPanel(el) {
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     drawNlcTuning(cv, el, hits);
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Second-harmonic generation in a periodically poled crystal (quasi-phase-matched, type 0: light polarised along the crystal’s z axis makes a harmonic polarised the same way). The harmonic of a Gaussian beam is Boyd and Kleinman’s: it depends on how tightly the beam is focused inside (best when the crystal is 2.84 confocal parameters long) and on how well the poling period cancels the mismatch between the two wavelengths’ indices, which the temperature tunes. The fundamental is used up as P₂ = P₁ tanh²(√(ηP₁)). The harmonic leaves as a beam of its own, with the fundamental’s confocal parameter and waist position. The indices are MgO:LiNbO₃’s (Gayer et al. 2008) and KTP’s (Kato and Takaoka 2002, Emanueli and Arie 2003). The crystal is a block of its own index (along its z axis) with anti-reflection coated faces (0.1%, or bare): it moves a focus inside it by L(1 − 1/n), so focus the beam for its middle inside the glass; the harmonic leaves through the exit face. Left out: absorption and heating, walk-off, the index the other polarisation sees, a laser’s linewidth and a pulse’s peak power (a pulsed laser is taken at its average power). The plot shows the harmonic against the crystal’s temperature, the period held.'));
+  panel.append(helpLine('Second-harmonic generation in a poled crystal, by Boyd and Kleinman’s theory.', ['Second-harmonic generation in a periodically poled crystal (quasi-phase-matched, type 0: light polarised along the crystal’s z axis makes a harmonic polarised the same way). The harmonic of a Gaussian beam is Boyd and Kleinman’s: it depends on how tightly the beam is focused inside (best when the crystal is 2.84 confocal parameters long) and on how well the poling period cancels the mismatch between the two wavelengths’ indices, which the temperature tunes. The fundamental is used up as P₂ = P₁ tanh²(√(ηP₁)). The harmonic leaves as a beam of its own, with the fundamental’s confocal parameter and waist position. The indices are MgO:LiNbO₃’s (Gayer et al. 2008) and KTP’s (Kato and Takaoka 2002, Emanueli and Arie 2003). The crystal is a block of its own index (along its z axis) with anti-reflection coated faces (0.1%, or bare): it moves a focus inside it by L(1 − 1/n), so focus the beam for its middle inside the glass; the harmonic leaves through the exit face. Left out: absorption and heating, walk-off, the index the other polarisation sees, a laser’s linewidth and a pulse’s peak power (a pulsed laser is taken at its average power). The plot shows the harmonic against the crystal’s temperature, the period held.'], 'note', 'margin-top:0.5rem'));
 }
 
 const hitNlc = (el, lx, ly, tol) => Math.abs(lx) <= el.nlLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol;

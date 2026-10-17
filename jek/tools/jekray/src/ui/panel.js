@@ -60,6 +60,14 @@ export function h(tag, attrs, ...kids) {
   for (const k of kids) if (k !== null && k !== undefined) n.append(k);
   return n;
 }
+/* A line of help: a short line, with its fuller explanation folded behind an ⓘ that opens it in place (kept in the
+   page, so a screen reader and the page's search still find it). cls: the paragraph's class (rt-lsub by default); style, its own. */
+export function helpLine(short, long, cls, style) {
+  const more = h('span', { class: 'rt-helpmore', hidden: '' }, ' ', ...(Array.isArray(long) ? long : [long]));
+  const btn = h('button', { type: 'button', class: 'rt-helpbtn', 'aria-expanded': 'false', 'aria-label': 'More about this', title: 'More about this',
+    onclick: () => { const open = more.hidden; more.hidden = !open; btn.setAttribute('aria-expanded', String(open)); } }, '\u24d8');
+  return h('p', { class: cls || 'rt-lsub', ...(style ? { style } : {}) }, ...(Array.isArray(short) ? short : [short]), ' ', btn, more);
+}
 export function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */

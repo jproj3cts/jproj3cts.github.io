@@ -4,7 +4,7 @@ import { optProblem } from '../engines/lens-opt.js';
 import { designLenses, stockBaseline, stockCandidates, stockNominal, stockOf, stockTry } from '../engines/lens-stock.js';
 import { parseZmx, readZmxFile } from '../io/zmx-import.js';
 import { zmxPart } from '../io/zmx-export.js';
-import { h } from './panel.js';
+import { helpLine, h } from './panel.js';
 
 /* ---------- Stock lenses: the user's own lens files, matched to the lenses of a design ----------
    The lens files are the user's: chosen here, read in the browser, kept in this browser only (its local storage),
@@ -47,8 +47,8 @@ export function stockCard({ asm, P, redraw, edit, toast }) {
     RUN = null; redraw();
   } });
   card.append(h('h3', null, 'Stock lenses'),
-    h('p', { class: 'rt-lsub' }, 'Match the lenses of this design against stock lenses: lens files you have, such as the ones lens makers publish for their parts. Add them here; they are read and kept in this browser only, and never sent anywhere. ' +
-      'For each lens of the design, the stock lenses with as many faces, a focal length within 30% and room for the beam are ranked, and the best tried in the design either way round, the air either side and the image distance optimised for the design’s merit. The lenses are taken as made: the merit here leaves out the limits on glass thickness and edges, and keeps only the air between lenses from closing.'),
+    helpLine('Stock lenses that could stand in for this design’s, from lens files you add (kept in this browser only).', ['Match the lenses of this design against stock lenses: lens files you have, such as the ones lens makers publish for their parts. Add them here; they are read and kept in this browser only, and never sent anywhere. ' +
+      'For each lens of the design, the stock lenses with as many faces, a focal length within 30% and room for the beam are ranked, and the best tried in the design either way round, the air either side and the image distance optimised for the design’s merit. The lenses are taken as made: the merit here leaves out the limits on glass thickness and edges, and keeps only the air between lenses from closing.'], 'rt-lsub'),
     h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => file.click() }, 'Add lens files…'), file,
       h('span', { class: 'rt-lsub' }, L.length + ' stock lens' + (L.length === 1 ? '' : 'es') + ' kept'),
       ...(L.length ? [h('button', { type: 'button', class: 'rt-link', onclick: () => { stockClear(); RUN = null; redraw(); } }, 'Remove them all')] : [])));
@@ -98,7 +98,7 @@ export function stockCard({ asm, P, redraw, edit, toast }) {
     }
     t2.append(b2);
     card.append(h('div', { class: 'rt-ltwrap' }, t2));
-    card.append(h('p', { class: 'rt-lsub' }, 'A stock lens is only as its file describes it: check its maker’s specification before buying. Use puts it in the design (its shape, thickness, glass and diameter, and the air as optimised); Undo takes it back.'));
+    card.append(helpLine('Check a stock lens against its maker’s specification before buying.', ['A stock lens is only as its file describes it: check its maker’s specification before buying. Use puts it in the design (its shape, thickness, glass and diameter, and the air as optimised); Undo takes it back.'], 'rt-lsub'));
   }
   // the chosen stock lens into the design: its shape, thicknesses, glasses and diameter, and the air as optimised
   function use(run, r) {

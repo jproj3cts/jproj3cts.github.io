@@ -4,7 +4,7 @@ import { V, deg, project, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { paraxial } from '../engines/trace.js';
-import { h, numInput, panel, textField } from './panel.js';
+import { helpLine, h, numInput, panel, textField } from './panel.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
@@ -135,7 +135,7 @@ export function assemblyPanel(asm) {
     B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
     B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'));
+  panel.append(helpLine('Moved and traced as one. Ctrl-click a part to edit it alone; double-click to design it.', ['An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'], 'note', 'margin-top:0.6rem'));
 }
 const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
 

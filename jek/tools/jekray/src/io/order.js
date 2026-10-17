@@ -5,7 +5,7 @@ import { paraxial } from '../engines/trace.js';
 import { lensThickness, lensVolume } from '../ui/readouts.js';
 import { shareBase, shareData, shareHash } from './share.js';
 import { toast } from '../ui/actions.js';
-import { h } from '../ui/panel.js';
+import { helpLine, h } from '../ui/panel.js';
 
 /* ---------- A custom RF lens, asked for by quote ----------
    An RF lens in one of the made-to-order plastics, or a graded-index lens, that can be made:
@@ -137,6 +137,5 @@ export function orderRow(el, opts) {
     } finally { now.disabled = false; }
   } }, 'Quote now');
   return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), now, add,
-    h('p', { class: 'note' }, 'Made to order to this design. Quote now opens your quote cart with it, ready to send; or add it and send several together from Cart. The request carries its figures and a link to the design, and we reply with a price. ',
-      h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'));
+    helpLine(['Made to order to this design; ', h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'], ['Made to order to this design. Quote now opens your quote cart with it, ready to send; or add it and send several together from Cart. The request carries its figures and a link to the design, and we reply with a price. '], 'note'));
 }

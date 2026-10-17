@@ -23,7 +23,7 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { bindSync, fid, h, numInput, panel, param, renderPanel, selectField, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, bindSync, fid, h, numInput, panel, param, renderPanel, selectField, setFid, syncPanel, vs } from './panel.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
   plotCsv, plotFrame, plotSaveRow, plotZoom, removeSweeps, unknownGlass, unknownGlassNote,
@@ -84,7 +84,7 @@ function drawPulse(cv, el, view) {
 /* with nothing pulsed on the bench, the section is there but greyed, as the screens' Pulse tab is */
 export function pulseSectionEmpty() {
   panel.append(h('h3', { class: 'rt-muted' }, 'Pulse'),
-    h('p', { class: 'note rt-muted' }, 'No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'));
+    helpLine('No pulsed source on the bench.', ['No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'], 'note rt-muted'));
 }
 export function pulseSection(el) {
   const vsEl = vs(el);
@@ -120,7 +120,7 @@ export function pulseSection(el) {
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     draw();
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit. A pulse whose spectrum a fibre\u2019s nonlinearity reshaped (self-phase modulation) carries that spectrum and its phase on top.'));
+  panel.append(helpLine('From the spectral phase across each pulsed laser’s spectrum.', ['Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit. A pulse whose spectrum a fibre\u2019s nonlinearity reshaped (self-phase modulation) carries that spectrum and its phase on top.'], 'note', 'margin-top:0.4rem'));
 }
 /* The screen's Trap tab: an optical trap for a chosen atom or dielectric sphere where the light here is brightest */
 function trapSection(el) {
@@ -141,7 +141,7 @@ function trapSection(el) {
   }
   panel.append(rows0);
   if (el.trap === 'none') {
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Choose atoms or a dielectric sphere to read the optical trap the light here makes: where the particle sits, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'));
+    panel.append(helpLine('Choose atoms or a sphere to read the trap the light makes here.', ['Choose atoms or a dielectric sphere to read the optical trap the light here makes: where the particle sits, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'], 'note', 'margin-top:0.5rem'));
     return;
   }
   const box = h('div', { class: 'rt-readout' });
@@ -189,8 +189,8 @@ function trapSection(el) {
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
-    (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')));
+  panel.append(helpLine('The force on the particle from each beam’s full field near the focus.', ['Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+    (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')], 'note', 'margin-top:0.4rem'));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
 /* the checkbox that makes a laser pulsed (mode-locked) or continuous. Turning it on restores
@@ -356,11 +356,11 @@ function aberSection(el) {
     sig = s2;
     box.replaceChildren(...aberReadout(el, A));
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'The source is traced again at each field, ' +
+  panel.append(helpLine('How the fields, distortion and wavefront here are worked out.', ['The source is traced again at each field, ' +
     (point ? 'moved across by an object height and aimed back' : 'turned by a field angle') + ' about where its axis first meets an element that bends or cuts the light; with a stop further along, each field\u2019s chief ray is aimed through its centre, so the aperture stop stays filled wherever it is. ' +
     'On this screen, for each field: the chief ray (the fan’s middle) against its paraxial height gives the distortion; the spread about it the spot; the best focus along the normal the tangential field curve. ' +
     'The wavefront is each ray’s optical path carried back to a sphere about where the chief ray lands, through the last element it met (the exit pupil, near enough), in waves: positive where the wave leads, so a positive W040 is under-corrected. The pupil coordinate runs the same way as the image height, as in Welford\u2019s and lens design codes\u2019 convention, so the signs of coma and distortion are the usual ones. ' +
-    'Zernike terms are fitted along the meridian (fringe numbering, the tangential ones), and Seidel’s across the fields; H is the field over its largest. The bench is 2D, so this is the tangential section only: astigmatism and field curvature show together as W22T, a focus that moves with the field. One wavelength (the first) down the path most rays take.'));
+    'Zernike terms are fitted along the meridian (fringe numbering, the tangential ones), and Seidel’s across the fields; H is the field over its largest. The bench is 2D, so this is the tangential section only: astigmatism and field curvature show together as W22T, a focus that moves with the field. One wavelength (the first) down the path most rays take.'], 'note', 'margin-top:0.4rem'));
 }
 function aberReadout(el, A) {
   if (!A) return [h('p', { class: 'note' }, 'No rays of a fan reach this screen.')];
@@ -388,7 +388,7 @@ function aberReadout(el, A) {
   const zt = h('table', { class: 'rt-sens' }, h('tr', null, h('th', null, 'Field'), ...ok[0].zern.slice(1).map(z => h('th', { title: z.what }, z.name + ' ' + z.what))));
   for (const f of ok) zt.append(h('tr', null, h('td', { class: 'n' }, fld(f.f)), ...f.zern.slice(1).map(z => h('td', { class: 'n' }, w(z.c)))));
   const scroll = t => h('div', { style: 'overflow-x:auto;max-width:100%' }, t);
-  return [dl, scroll(tab), h('p', { class: 'note' }, 'Best focus: how far before the screen (+) the fan is narrowest. Strehl ratio from the RMS wavefront error about the best focus, exp(−(2πσ)²), where that is small. Zernike terms along the meridian, in waves:'), scroll(zt)];
+  return [dl, scroll(tab), helpLine('Best focus, Strehl ratio and Zernike terms (in waves):', ['Best focus: how far before the screen (+) the fan is narrowest. Strehl ratio from the RMS wavefront error about the best focus, exp(−(2πσ)²), where that is small. Zernike terms along the meridian, in waves:'], 'note'), scroll(zt)];
 }
 function drawAberPlot(cv, note, el) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200;
@@ -678,7 +678,7 @@ function rfReceiverSections(el) {
     box.replaceChildren(h('table', null, h('tbody', null,
       ...L.rows.map(r => h('tr', null, h('td', null, r.what + (r.note ? ', ' + r.note : '')), h('td', null, r.note === 'launched' ? fmtDbm(L.inMw) : f(r.db)))),
       h('tr', null, h('td', null, h('b', null, 'Received')), h('td', null, h('b', null, f(L.total) + ', ' + fmtDbm(L.mw)))))),
-      h('p', { class: 'note' }, 'Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'));
+      helpLine('What each part did to the power, down the strongest beam.', ['Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'], 'note'));
   });
 }
 /* a dielectric face matched at the bench's frequency: a quarter wave of index \u221an */
@@ -916,9 +916,9 @@ export function fibreLinkPanel(F) {
       [(A ? A.name : '?') + ' \u2192 ' + (B ? B.name : '?'), fmtMw(pa.out)], [(B ? B.name : '?') + ' \u2192 ' + (A ? A.name : '?'), fmtMw(pb.out)]];
     out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'A pulse strong enough to pick up a nonlinear phase of more than 0.01 rad goes through by the nonlinear Schr\u00f6dinger equation (split-step Fourier, with the loss, dispersion, its slope and \u03b3): self-phase modulation broadens its spectrum, and with anomalous dispersion (standard fibre above 1.31 \u00b5m) it can compress or hold its shape as a soliton. The spectrum it leaves with goes on with it, to a fibre tip and the Pulse tab of a screen beyond. Not modelled: Raman scattering, self-steepening, and nonlinearity in free-space glass.'));
+  panel.append(helpLine('A strong pulse goes through by the nonlinear Schrödinger equation.', ['A pulse strong enough to pick up a nonlinear phase of more than 0.01 rad goes through by the nonlinear Schr\u00f6dinger equation (split-step Fourier, with the loss, dispersion, its slope and \u03b3): self-phase modulation broadens its spectrum, and with anomalous dispersion (standard fibre above 1.31 \u00b5m) it can compress or hold its shape as a soliton. The spectrum it leaves with goes on with it, to a fibre tip and the Pulse tab of a screen beyond. Not modelled: Raman scattering, self-steepening, and nonlinearity in free-space glass.'], 'note', 'margin-top:0.5rem'));
   panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Index ' + FIBRE_N + ' (group ' + FIBRE_NG + '). Its length is this number, not the length drawn. Drag either end off its port to take it away, or onto another port to move it.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Shaping it: drag the fibre to pull a node out of it; drag a node (square) to move it, and its handles (round) to bend the curve through it, Shift to move one handle on its own; the handle at each port sets how far the fibre runs straight out of it. Double-click the fibre to add a node, a node to remove it.'));
+  panel.append(helpLine('Drag the fibre to shape it; double-click to add or remove a node.', ['Shaping it: drag the fibre to pull a node out of it; drag a node (square) to move it, and its handles (round) to bend the curve through it, Shift to move one handle on its own; the handle at each port sets how far the fibre runs straight out of it. Double-click the fibre to add a node, a node to remove it.'], 'note', 'margin-top:0.35rem'));
   if ((F.path && F.path.length) || F.ta != null || F.tb != null)
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('button', { class: 'rt-btn wide', type: 'button',
       onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
@@ -948,7 +948,7 @@ export function groupPanel(list) {
   if (mk) { panel.append(h('h3', null, 'Lens design')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'));
+  panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
 }
 /* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
 export function makeLinkPartner(el, benchId) {

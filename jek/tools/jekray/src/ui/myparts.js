@@ -7,7 +7,7 @@ import {
 } from './render.js';
 import { snapVal } from './pointer.js';
 import { V3D } from './view3d.js';
-import { h } from './panel.js';
+import { helpLine, h } from './panel.js';
 import { clipOf, pasteClip, showCtxMenu, toast } from './actions.js';
 import { PALETTE_NAMES, PART_DRAG } from './experimental.js';
 import { fillPicker, picker, pickerShown } from './picker.js';
@@ -153,7 +153,7 @@ export function mineBody(after) {
   const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
-    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
+    out.push(helpLine('Nothing kept yet: right-click a part and choose Save to My parts.', ['Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'], 'rt-pnone'));
     return out;
   }
   for (const pal of ['free', 'fibre', 'elec', 'rf', 'pic']) {

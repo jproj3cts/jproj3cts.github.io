@@ -12,7 +12,7 @@ import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, k
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { h } from './panel.js';
+import { helpLine, h } from './panel.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
 import { DP_KEYS, DP_N, dpLabel } from '../core/diffractive.js';
 import { GR_N, grLabel } from '../core/gradient.js';
@@ -648,8 +648,8 @@ function configsCard(asm, P) {
     checkpoint(); const r = mcAdd(asm); if (r !== true) { toast(r, true); return; } WS.tab = 'cfg'; changed(false); renderWs();
   } }, M ? 'Add a configuration' : 'Make configurations');
   if (!M) {
-    card.append(h('p', { class: 'rt-lsub' }, 'One design in several states: a zoom lens at each of its focal lengths, or a lens refocused for nearer objects. Each configuration has its own values for the radii, thicknesses and spacings you choose' +
-      (fin ? ', and its own object distance' : '') + '; everything else is shared. The merit function adds them up, each with a weight, and a variable that differs between them is optimised in each one.'), h('div', { class: 'rt-lbar' }, addBtn));
+    card.append(helpLine('One design in several states, such as a zoom lens at each focal length.', ['One design in several states: a zoom lens at each of its focal lengths, or a lens refocused for nearer objects. Each configuration has its own values for the radii, thicknesses and spacings you choose' +
+      (fin ? ', and its own object distance' : '') + '; everything else is shared. The merit function adds them up, each with a weight, and a variable that differs between them is optimised in each one.'], 'rt-lsub'), h('div', { class: 'rt-lbar' }, addBtn));
     if (!fin) card.append(h('p', { class: 'rt-lsub' }, 'To refocus for different object distances, set the object at a distance in the design conditions first.'));
     return card;
   }
@@ -719,7 +719,7 @@ function configsCard(asm, P) {
   card.append(h('div', { class: 'rt-lbar' }, pick, h('button', { class: 'rt-btn', type: 'button', disabled: opts.length ? null : '', title: 'Give each configuration its own value of it, starting from the one it has now', onclick: () => {
     checkpoint(); mcKey(asm, designPrescription(asm), pick.value, true); changed(false); renderWs();
   } }, 'Make it differ'), addBtn));
-  card.append(h('p', { class: 'rt-lsub' }, 'The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'));
+  card.append(helpLine('The configuration shown is the one on the bench.', ['The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'], 'rt-lsub'));
   return card;
 }
 
@@ -788,7 +788,7 @@ function meritCard(asm, P) {
     bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge'),
     bnum('Aspheric departure, at most', 'aspMax', 'The sag the aspheric terms add to a surface, anywhere over its clear radius; 0 for no limit'),
     bnum('Departure’s slope, at most (°)', 'slopeMax', 'How steep the aspheric terms’ own sag may get, in degrees; 0 for no limit')));
-  card.append(h('p', { class: 'rt-lsub' }, 'The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'));
+  card.append(helpLine('The merit: the weighted RMS of its terms.', ['The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'], 'rt-lsub'));
   return card;
 }
 
@@ -906,7 +906,7 @@ function limitsCard(asm, prob, V, running) {
   });
   const det = h('details', { class: 'rt-llims' }, h('summary', null, 'Limits on the variables' + (Object.keys(L).length ? ' (' + Object.keys(L).length + ' set)' : '')),
     h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
-    h('p', { class: 'rt-lsub' }, 'The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'));
+    helpLine('The optimiser keeps each value within its limits.', ['The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'], 'rt-lsub'));
   if (WS.limsOpen || Object.keys(L).length) det.open = true;
   det.addEventListener('toggle', () => { if (WS) WS.limsOpen = det.open; });
   return det;
@@ -964,7 +964,7 @@ function optCard(asm, P) {
     num.addEventListener('change', () => { const v = Math.round(+num.value); S.n = isFinite(v) ? Math.max(1, Math.min(200, v)) : 12; renderWs(); });
     card.append(h('div', { class: 'rt-lsubst' }, h('div', { class: 'rt-lrow', role: 'group', 'aria-label': 'Makers' }, h('span', { class: 'rt-lsub' }, 'From'), ...GLASS_MAKERS.map(box)),
       h('label', { class: 'rt-lrow' }, h('span', { class: 'rt-lsub' }, 'Candidates for each glass, nearest on the glass map'), num),
-      h('p', { class: 'rt-lsub' }, nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the lens data to substitute it.')));
+      helpLine(nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute.' : 'Mark a lens’s glass V in the lens data to substitute it.', [nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the lens data to substitute it.'], 'rt-lsub')));
   }
   card.append(h('div', { class: 'rt-lbar' }, running
     ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')

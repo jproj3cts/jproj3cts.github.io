@@ -1452,6 +1452,12 @@
     .rt-lcond { max-width: none; }
     .rt-lname { max-width: 10rem; }
   }
+
+  /* a line of help and its fuller explanation, folded behind an ⓘ (panel.js helpLine) */
+  .rt-helpbtn { border: 0; background: none; padding: 0 0.15rem; margin: 0; font: inherit; line-height: 1; color: var(--rt-accent, #0092b2); cursor: pointer; vertical-align: baseline; }
+  .rt-helpbtn:hover, .rt-helpbtn[aria-expanded="true"] { color: var(--jek-orange, #f07e26); }
+  .rt-helpmore { display: block; margin-top: 0.3rem; }
+  .rt-helpmore[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -13123,7 +13129,7 @@ function drawPanel(el) {
     panel.append(head('Arrange'), box(
         ...(el.m ? [row('Skew', h('button', { type: 'button', class: 'rt-btn', onclick: () => { checkpoint(); delete el.m; changed(true); } }, 'Take the skew off'))] : []),
       row('Layer', seg([['under', DI.under, 'Under', 'Under the light: beams and parts are drawn over it'], ['over', DI.over, 'Over', 'Over the light: it is drawn over beams and parts']], () => el.layer, v => { el.layer = v; }))),
-      h('p', { class: 'rt-hint' }, 'A drawing is for figures: the light goes through it as if it were not there. With the select tool its handles scale it; click it again and they rotate and skew it. Flip, rotate, raise and lower it, and line drawings up, from the bar along the top of the bench.'));
+      helpLine('A drawing is for figures: the light passes through it.', ['A drawing is for figures: the light goes through it as if it were not there. With the select tool its handles scale it; click it again and they rotate and skew it. Flip, rotate, raise and lower it, and line drawings up, from the bar along the top of the bench.'], 'rt-hint'));
     return;
   }
   // Fill, then Stroke paint, then Stroke style
@@ -19173,7 +19179,7 @@ function signalSection(el) {
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     draw();
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The spectrum and oscilloscope are the electronics\u2019 own, on this output: the spectrum each tone at its rms level over the noise in the resolution bandwidth; the oscilloscope in Normal a few periods of the slowest tone by itself (or the span set), tones too fast for it filling a band, with \u00b11\u03c3 of noise; in Roll the output as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen. Leave a setting blank for auto.'));
+  panel.append(helpLine('The beat between two frequencies, demodulated into an error signal.', ['Light of one laser at two frequencies (shifted by an AOM, or an EOM\u2019s sidebands) beats at their difference; the amplifier passes each beat through its bandwidth. The mixer multiplies the output by a cosine at the demodulation frequency and phase and keeps what averages out steady: with an EOM\u2019s drive frequency, off a cavity\u2019s reflection, that is the Pound\u2013Drever\u2013Hall error signal. The spectrum and oscilloscope are the electronics\u2019 own, on this output: the spectrum each tone at its rms level over the noise in the resolution bandwidth; the oscilloscope in Normal a few periods of the slowest tone by itself (or the span set), tones too fast for it filling a band, with \u00b11\u03c3 of noise; in Roll the output as the sweeps play, so slow changes (a mirror scanning, a wavelength tuning) show as they happen. Leave a setting blank for auto.'], 'note', 'margin-top:0.4rem'));
 }
 
 /* ==========================================================================
@@ -19377,9 +19383,9 @@ function instrumentSection(el) {
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block;margin-top:0.5rem' });
   panel.append(h('h3', null, el.kind === 'scope' ? 'Traces' : 'Spectrum'), cv, plotSaveRow(cv));
   bindSync(cv, () => { if (el.kind === 'scope') drawScope(cv, el); else drawSpectrum(cv, el); });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, el.kind === 'scope'
+  panel.append(helpLine(el.kind === 'scope' ? 'Channel 1 red, channel 2 blue, each on its own scale.' : 'Each tone a peak at its rms level, over the noise.', [el.kind === 'scope'
     ? 'Channel 1 red, channel 2 blue, each on its own scale (channel 1’s on the left, channel 2’s down the right), set as so much a division about an offset (the level at the centre line) or 0 for auto; a band of ±1σ for its noise up to 100 MHz, and a lighter band where a tone is too fast for the span. Normal shows the steady waveform, time starting where the generators’ cycles start; Roll shows the level as the sweeps play, over the last span of their clock (10 s on auto), flat with its bands when nothing changes.'
-    : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt; both axes auto (0) or set.'));
+    : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt; both axes auto (0) or set.'], 'note', 'margin-top:0.35rem'));
 }
 /* ---------- the optical parts' electrical side, on the bench and in their panels ---------- */
 function elecDrawExtras(el) {
@@ -19562,7 +19568,7 @@ function picPanelFor(el) {
     pd: 'Absorbs what reaches it and reads it as the fibre photodiodes do: DC, beat notes, the mixer. Its out port carries what it reads to the electronics.',
   };
   panel.append(h('p', { style: 'margin-top:0.6rem' }, notes[el.kind]));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Photonic circuits are experimental: TE only, near 1550 nm, each part a compact model, checked on the validation page against closed forms and SAX. Its settings are numbers, not a drawn layout: sizes on the bench are only a schematic.'));
+  panel.append(helpLine('Photonic circuits are experimental: TE only, near 1550 nm.', ['Photonic circuits are experimental: TE only, near 1550 nm, each part a compact model, checked on the validation page against closed forms and SAX. Its settings are numbers, not a drawn layout: sizes on the bench are only a schematic.'], 'note', 'margin-top:0.35rem'));
 }
 /* the chip's spectrum between two of its ports, and the lines in it */
 function spectrumSection(el) {
@@ -19699,7 +19705,7 @@ function picWgPanel(F) {
       ['Loss', (+(w.loss * w.len * 1e-4).toPrecision(3)) + ' dB']];
     out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Its length is this number, not the length drawn (a layout view, later, could measure it from the path). The index changes with wavelength through the group index: n(λ) = nₑ − (n_g − nₑ)(λ − 1550 nm)/1550 nm. Drag either end off its port to take it away.'));
+  panel.append(helpLine('Its length is this number, not the length drawn.', ['Its length is this number, not the length drawn (a layout view, later, could measure it from the path). The index changes with wavelength through the group index: n(λ) = nₑ − (n_g − nₑ)(λ − 1550 nm)/1550 nm. Drag either end off its port to take it away.'], 'note', 'margin-top:0.5rem'));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete waveguide')));
 }
 
@@ -19792,8 +19798,8 @@ function sourcePanel(el) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
       param('Divergence, full (°)', el, 'divergence')));
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'));
-  } else panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'));
+    panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
+  } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
 
   panel.append(h('h3', null, 'Beam propagation'));
   const gb = h('input', { type: 'checkbox' });
@@ -19850,7 +19856,7 @@ function sourcePanel(el) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel, v => { el.popModel = v; }),
       selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; })));
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Whether the rays, the beams\u2019 envelope and their diffracted field show is set for the whole bench: the ticks under the Bench panel\u2019s Light (click empty bench).'));
+    panel.append(helpLine('Rays, envelope and field are shown or hidden for the whole bench.', ['Whether the rays, the beams\u2019 envelope and their diffracted field show is set for the whole bench: the ticks under the Bench panel\u2019s Light (click empty bench).'], 'note', 'margin-top:0.4rem'));
     if (lightOf().field) {
       const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
       bindSync(pn, () => { pn.textContent = popNote(el); });
@@ -20473,9 +20479,9 @@ function grinPanel(el) {
     ['Manufacturable', mountedDia(el.length, el.mount) <= PRINTER.maxDia && D.tTot <= PRINTER.maxHeight ? 'yes' : 'no'],
   ] : [];
   panel.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
-    h('p', { class: 'note' }, 'Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
+    helpLine('Designed at ' + g.ghz + ' GHz; the plastic’s values are typical.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''), ['Designed at ' + g.ghz + ' GHz. The lens is solid at its centre and less dense towards its edge, which lowers its index there. ' +
       (D.raised ? 'At ' + g.ghz + ' GHz its density goes no lower than ' + pct(D.fillFreq) + ', so its structure stays fine against the wavelength. ' : '') +
-      D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : ''))));
+      D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : '')], 'note')));
   // the system it is part of, designed in the RF designer (made an assembly of its own first if it is not one)
   panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the disc and the system in the RF designer',
     onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design the RF system…')));
@@ -20693,7 +20699,7 @@ function stlPanel(el) {
   const M = el.mesh;
   if (M) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, M.n + ' triangles' + (M.orig ? ', simplified from the file\u2019s ' + M.orig + ' (to detail of ' + M.cell + ' file units) so it saves with the bench' : '') +
     ', ' + Math.max(1, Math.round(M.data.length / 1024)) + ' KB with the bench' + (M.file ? ', from ' + M.file : '') + '.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'An opaque object brought in from CAD (a mount, a housing, a baffle): every ray that meets it stops there, met against its triangles in 3D, and a Gaussian beam whose centre meets it ends there. Size, colour and place are yours; its facing, tip and roll turn it as any part. A beam that only grazes its edge is not cut by it: use a stop for that.'));
+  panel.append(helpLine('An opaque CAD object: rays and beams that meet it stop there.', ['An opaque object brought in from CAD (a mount, a housing, a baffle): every ray that meets it stops there, met against its triangles in 3D, and a Gaussian beam whose centre meets it ends there. Size, colour and place are yours; its facing, tip and roll turn it as any part. A beam that only grazes its edge is not cut by it: use a stop for that.'], 'note', 'margin-top:0.5rem'));
 }
 
 const hitStl = (el, lx, ly, tol) => inPolygon(meshHull(el), lx, ly, tol);
@@ -20837,8 +20843,8 @@ function cellPanel(el) {
   panel.append(tabs, cv, plotSaveRow(cv));
   bindSync(cv, draw);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Alkali vapour at the temperature set: its density from the vapour pressure, each hyperfine line of the D line with the Doppler width of the vapour and the natural width of the excited state (a Voigt profile), weighted by how many atoms sit in its lower level and how strong it is. The light is absorbed and delayed by the same lines, so a laser tuned through them sees the familiar Doppler-broadened dips, and a beam off to one side of a line picks up its phase. Tune the laser with its wavelength (a sweep scans it), or shift it with an AOM.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Saturation, worked out slice by slice along the cell and point by point across each beam: a beam bleaches the lines it is on where it is strong (its centre more than its edges, less as it fades), and a beam crossing the cell burns holes in the atoms\u2019 velocities for the others. Head on, a weak probe sees sub-Doppler Lamb dips at each transition and crossovers halfway between two that share a lower level; a pump a few milliradians off head-on broadens them (the atoms moving across it), one going the same way makes no narrow feature at all, and a probe only partly inside the pump, or crossing it at an angle, sees them only where the two overlap. The diffracted field and the photodiodes take all of this across the beam. The plot shows the weakest beam on its axis with the others scanning with it. The holes come from rate equations for each transition alone, with no optical pumping between levels: positions and widths are right, depths (crossovers above all) only roughly. No buffer gas, no windows.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'A magnetic field along the cell (positive along its +x axis, as a solenoid or ring magnets would put it) splits each line into its Zeeman components, worked out exactly from the weak field through the Paschen\u2013Back regime by diagonalising each level\u2019s hyperfine and Zeeman energy. Light along the field drives \u03c3+ and \u03c3\u2212 transitions, so the two hands of circular light see lines shifted apart: the cell absorbs them differently (circular dichroism, the signal of a DAVLL lock: a quarter-wave plate at 45\u00b0 and a polarising cube after the cell, a detector on each port, their difference the error signal) and delays them differently (Faraday rotation: between crossed polarisers, a Faraday filter passing light only near the lines). With no field, a circularly polarised pump against the probe saturates one hand more than the other, which is polarisation spectroscopy (the probe through a polariser at 45\u00b0, or a cube with two detectors); that comes from saturation alone here, no optical pumping, so its shape is right and its size only roughly. \u03c0 transitions, which light along the field cannot drive, are left out. With a field, the plot shows each hand\u2019s transmission on its own: \u03c3+ in blue, \u03c3\u2212 in orange.'));
+  panel.append(helpLine('Saturation, slice by slice: a strong pump shows sub-Doppler dips to a probe.', ['Saturation, worked out slice by slice along the cell and point by point across each beam: a beam bleaches the lines it is on where it is strong (its centre more than its edges, less as it fades), and a beam crossing the cell burns holes in the atoms\u2019 velocities for the others. Head on, a weak probe sees sub-Doppler Lamb dips at each transition and crossovers halfway between two that share a lower level; a pump a few milliradians off head-on broadens them (the atoms moving across it), one going the same way makes no narrow feature at all, and a probe only partly inside the pump, or crossing it at an angle, sees them only where the two overlap. The diffracted field and the photodiodes take all of this across the beam. The plot shows the weakest beam on its axis with the others scanning with it. The holes come from rate equations for each transition alone, with no optical pumping between levels: positions and widths are right, depths (crossovers above all) only roughly. No buffer gas, no windows.'], 'note', 'margin-top:0.4rem'));
+  panel.append(helpLine('A field along the cell splits each line into its Zeeman components.', ['A magnetic field along the cell (positive along its +x axis, as a solenoid or ring magnets would put it) splits each line into its Zeeman components, worked out exactly from the weak field through the Paschen\u2013Back regime by diagonalising each level\u2019s hyperfine and Zeeman energy. Light along the field drives \u03c3+ and \u03c3\u2212 transitions, so the two hands of circular light see lines shifted apart: the cell absorbs them differently (circular dichroism, the signal of a DAVLL lock: a quarter-wave plate at 45\u00b0 and a polarising cube after the cell, a detector on each port, their difference the error signal) and delays them differently (Faraday rotation: between crossed polarisers, a Faraday filter passing light only near the lines). With no field, a circularly polarised pump against the probe saturates one hand more than the other, which is polarisation spectroscopy (the probe through a polariser at 45\u00b0, or a cube with two detectors); that comes from saturation alone here, no optical pumping, so its shape is right and its size only roughly. \u03c0 transitions, which light along the field cannot drive, are left out. With a field, the plot shows each hand\u2019s transmission on its own: \u03c3+ in blue, \u03c3\u2212 in orange.'], 'note', 'margin-top:0.4rem'));
 }
 
 const hitCell = (el, lx, ly, tol) => Math.abs(lx) <= el.cellLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol;
@@ -20885,7 +20891,7 @@ function nlcPanel(el) {
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     drawNlcTuning(cv, el, hits);
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Second-harmonic generation in a periodically poled crystal (quasi-phase-matched, type 0: light polarised along the crystal’s z axis makes a harmonic polarised the same way). The harmonic of a Gaussian beam is Boyd and Kleinman’s: it depends on how tightly the beam is focused inside (best when the crystal is 2.84 confocal parameters long) and on how well the poling period cancels the mismatch between the two wavelengths’ indices, which the temperature tunes. The fundamental is used up as P₂ = P₁ tanh²(√(ηP₁)). The harmonic leaves as a beam of its own, with the fundamental’s confocal parameter and waist position. The indices are MgO:LiNbO₃’s (Gayer et al. 2008) and KTP’s (Kato and Takaoka 2002, Emanueli and Arie 2003). The crystal is a block of its own index (along its z axis) with anti-reflection coated faces (0.1%, or bare): it moves a focus inside it by L(1 − 1/n), so focus the beam for its middle inside the glass; the harmonic leaves through the exit face. Left out: absorption and heating, walk-off, the index the other polarisation sees, a laser’s linewidth and a pulse’s peak power (a pulsed laser is taken at its average power). The plot shows the harmonic against the crystal’s temperature, the period held.'));
+  panel.append(helpLine('Second-harmonic generation in a poled crystal, by Boyd and Kleinman’s theory.', ['Second-harmonic generation in a periodically poled crystal (quasi-phase-matched, type 0: light polarised along the crystal’s z axis makes a harmonic polarised the same way). The harmonic of a Gaussian beam is Boyd and Kleinman’s: it depends on how tightly the beam is focused inside (best when the crystal is 2.84 confocal parameters long) and on how well the poling period cancels the mismatch between the two wavelengths’ indices, which the temperature tunes. The fundamental is used up as P₂ = P₁ tanh²(√(ηP₁)). The harmonic leaves as a beam of its own, with the fundamental’s confocal parameter and waist position. The indices are MgO:LiNbO₃’s (Gayer et al. 2008) and KTP’s (Kato and Takaoka 2002, Emanueli and Arie 2003). The crystal is a block of its own index (along its z axis) with anti-reflection coated faces (0.1%, or bare): it moves a focus inside it by L(1 − 1/n), so focus the beam for its middle inside the glass; the harmonic leaves through the exit face. Left out: absorption and heating, walk-off, the index the other polarisation sees, a laser’s linewidth and a pulse’s peak power (a pulsed laser is taken at its average power). The plot shows the harmonic against the crystal’s temperature, the period held.'], 'note', 'margin-top:0.5rem'));
 }
 
 const hitNlc = (el, lx, ly, tol) => Math.abs(lx) <= el.nlLen / 2 + tol && Math.abs(ly) <= el.length / 2 + tol;
@@ -21024,7 +21030,7 @@ function fcompPanel(el) {
     if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp'));
     if (el.balanced) rows.append(param('Common-mode rejection (dB)', el, 'cmrr', { wide: true }));
     panel.append(rows);
-    if (el.balanced) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Two photodiodes, the second\u2019s current taken from the first\u2019s: what is the same on both (the light\u2019s intensity noise, an amplifier\u2019s ASE beating with itself) cancels to the common-mode rejection, what differs (the interference between them, opposite in the two outputs of a coupler) doubles. Shot noise from both adds.'));
+    if (el.balanced) panel.append(helpLine('What is common to both cancels; what differs doubles.', ['Two photodiodes, the second\u2019s current taken from the first\u2019s: what is the same on both (the light\u2019s intensity noise, an amplifier\u2019s ASE beating with itself) cancels to the common-mode rejection, what differs (the interference between them, opposite in the two outputs of a coupler) doubles. Shot noise from both adds.'], 'note', 'margin-top:0.5rem'));
     if (el.diode) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));
     else panel.append(h('h3', null, 'Amplifier'), h('div', { class: 'rt-rows' }, param('Gain (V/A)', el, 'gain'), param('Bandwidth (Hz)', el, 'bandwidth'),
       param('Dark (nA)', el, 'dark'), param('Noise (pA/\u221aHz)', el, 'ampNoise'), param('Output limit (V)', el, 'vmax', { wide: true })));
@@ -22059,6 +22065,14 @@ function h(tag, attrs, ...kids) {
   for (const k of kids) if (k !== null && k !== undefined) n.append(k);
   return n;
 }
+/* A line of help: a short line, with its fuller explanation folded behind an ⓘ that opens it in place (kept in the
+   page, so a screen reader and the page's search still find it). cls: the paragraph's class (rt-lsub by default); style, its own. */
+function helpLine(short, long, cls, style) {
+  const more = h('span', { class: 'rt-helpmore', hidden: '' }, ' ', ...(Array.isArray(long) ? long : [long]));
+  const btn = h('button', { type: 'button', class: 'rt-helpbtn', 'aria-expanded': 'false', 'aria-label': 'More about this', title: 'More about this',
+    onclick: () => { const open = more.hidden; more.hidden = !open; btn.setAttribute('aria-expanded', String(open)); } }, '\u24d8');
+  return h('p', { class: cls || 'rt-lsub', ...(style ? { style } : {}) }, ...(Array.isArray(short) ? short : [short]), ' ', btn, more);
+}
 function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */
@@ -22640,7 +22654,7 @@ function drawPulse(cv, el, view) {
 /* with nothing pulsed on the bench, the section is there but greyed, as the screens' Pulse tab is */
 function pulseSectionEmpty() {
   panel.append(h('h3', { class: 'rt-muted' }, 'Pulse'),
-    h('p', { class: 'note rt-muted' }, 'No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'));
+    helpLine('No pulsed source on the bench.', ['No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'], 'note rt-muted'));
 }
 function pulseSection(el) {
   const vsEl = vs(el);
@@ -22676,7 +22690,7 @@ function pulseSection(el) {
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     draw();
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit. A pulse whose spectrum a fibre\u2019s nonlinearity reshaped (self-phase modulation) carries that spectrum and its phase on top.'));
+  panel.append(helpLine('From the spectral phase across each pulsed laser’s spectrum.', ['Worked out from reference rays traced at ' + PULSE_SAMPLES + ' wavelengths across each pulsed laser’s spectrum: their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the spectral phase, taken at the centre of the arriving beam with each wavelength’s own wavefront tilt, so prism and grating compressors come out without formulas. Pulses by different paths of one laser add as fields (a delay line shows spectral fringes); separate lasers and the two polarisations add as powers. Group delay dispersion (GDD) and third-order dispersion (TOD) are from a fit to the phase; the plot uses the full fit. A pulse whose spectrum a fibre\u2019s nonlinearity reshaped (self-phase modulation) carries that spectrum and its phase on top.'], 'note', 'margin-top:0.4rem'));
 }
 /* The screen's Trap tab: an optical trap for a chosen atom or dielectric sphere where the light here is brightest */
 function trapSection(el) {
@@ -22697,7 +22711,7 @@ function trapSection(el) {
   }
   panel.append(rows0);
   if (el.trap === 'none') {
-    panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Choose atoms or a dielectric sphere to read the optical trap the light here makes: where the particle sits, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'));
+    panel.append(helpLine('Choose atoms or a sphere to read the trap the light makes here.', ['Choose atoms or a dielectric sphere to read the optical trap the light here makes: where the particle sits, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'], 'note', 'margin-top:0.5rem'));
     return;
   }
   const box = h('div', { class: 'rt-readout' });
@@ -22745,8 +22759,8 @@ function trapSection(el) {
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
-    (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')));
+  panel.append(helpLine('The force on the particle from each beam’s full field near the focus.', ['Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+    (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')], 'note', 'margin-top:0.4rem'));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
 /* the checkbox that makes a laser pulsed (mode-locked) or continuous. Turning it on restores
@@ -22912,11 +22926,11 @@ function aberSection(el) {
     sig = s2;
     box.replaceChildren(...aberReadout(el, A));
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'The source is traced again at each field, ' +
+  panel.append(helpLine('How the fields, distortion and wavefront here are worked out.', ['The source is traced again at each field, ' +
     (point ? 'moved across by an object height and aimed back' : 'turned by a field angle') + ' about where its axis first meets an element that bends or cuts the light; with a stop further along, each field\u2019s chief ray is aimed through its centre, so the aperture stop stays filled wherever it is. ' +
     'On this screen, for each field: the chief ray (the fan’s middle) against its paraxial height gives the distortion; the spread about it the spot; the best focus along the normal the tangential field curve. ' +
     'The wavefront is each ray’s optical path carried back to a sphere about where the chief ray lands, through the last element it met (the exit pupil, near enough), in waves: positive where the wave leads, so a positive W040 is under-corrected. The pupil coordinate runs the same way as the image height, as in Welford\u2019s and lens design codes\u2019 convention, so the signs of coma and distortion are the usual ones. ' +
-    'Zernike terms are fitted along the meridian (fringe numbering, the tangential ones), and Seidel’s across the fields; H is the field over its largest. The bench is 2D, so this is the tangential section only: astigmatism and field curvature show together as W22T, a focus that moves with the field. One wavelength (the first) down the path most rays take.'));
+    'Zernike terms are fitted along the meridian (fringe numbering, the tangential ones), and Seidel’s across the fields; H is the field over its largest. The bench is 2D, so this is the tangential section only: astigmatism and field curvature show together as W22T, a focus that moves with the field. One wavelength (the first) down the path most rays take.'], 'note', 'margin-top:0.4rem'));
 }
 function aberReadout(el, A) {
   if (!A) return [h('p', { class: 'note' }, 'No rays of a fan reach this screen.')];
@@ -22944,7 +22958,7 @@ function aberReadout(el, A) {
   const zt = h('table', { class: 'rt-sens' }, h('tr', null, h('th', null, 'Field'), ...ok[0].zern.slice(1).map(z => h('th', { title: z.what }, z.name + ' ' + z.what))));
   for (const f of ok) zt.append(h('tr', null, h('td', { class: 'n' }, fld(f.f)), ...f.zern.slice(1).map(z => h('td', { class: 'n' }, w(z.c)))));
   const scroll = t => h('div', { style: 'overflow-x:auto;max-width:100%' }, t);
-  return [dl, scroll(tab), h('p', { class: 'note' }, 'Best focus: how far before the screen (+) the fan is narrowest. Strehl ratio from the RMS wavefront error about the best focus, exp(−(2πσ)²), where that is small. Zernike terms along the meridian, in waves:'), scroll(zt)];
+  return [dl, scroll(tab), helpLine('Best focus, Strehl ratio and Zernike terms (in waves):', ['Best focus: how far before the screen (+) the fan is narrowest. Strehl ratio from the RMS wavefront error about the best focus, exp(−(2πσ)²), where that is small. Zernike terms along the meridian, in waves:'], 'note'), scroll(zt)];
 }
 function drawAberPlot(cv, note, el) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 200;
@@ -23234,7 +23248,7 @@ function rfReceiverSections(el) {
     box.replaceChildren(h('table', null, h('tbody', null,
       ...L.rows.map(r => h('tr', null, h('td', null, r.what + (r.note ? ', ' + r.note : '')), h('td', null, r.note === 'launched' ? fmtDbm(L.inMw) : f(r.db)))),
       h('tr', null, h('td', null, h('b', null, 'Received')), h('td', null, h('b', null, f(L.total) + ', ' + fmtDbm(L.mw)))))),
-      h('p', { class: 'note' }, 'Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'));
+      helpLine('What each part did to the power, down the strongest beam.', ['Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'], 'note'));
   });
 }
 /* a dielectric face matched at the bench's frequency: a quarter wave of index \u221an */
@@ -23472,9 +23486,9 @@ function fibreLinkPanel(F) {
       [(A ? A.name : '?') + ' \u2192 ' + (B ? B.name : '?'), fmtMw(pa.out)], [(B ? B.name : '?') + ' \u2192 ' + (A ? A.name : '?'), fmtMw(pb.out)]];
     out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'A pulse strong enough to pick up a nonlinear phase of more than 0.01 rad goes through by the nonlinear Schr\u00f6dinger equation (split-step Fourier, with the loss, dispersion, its slope and \u03b3): self-phase modulation broadens its spectrum, and with anomalous dispersion (standard fibre above 1.31 \u00b5m) it can compress or hold its shape as a soliton. The spectrum it leaves with goes on with it, to a fibre tip and the Pulse tab of a screen beyond. Not modelled: Raman scattering, self-steepening, and nonlinearity in free-space glass.'));
+  panel.append(helpLine('A strong pulse goes through by the nonlinear Schrödinger equation.', ['A pulse strong enough to pick up a nonlinear phase of more than 0.01 rad goes through by the nonlinear Schr\u00f6dinger equation (split-step Fourier, with the loss, dispersion, its slope and \u03b3): self-phase modulation broadens its spectrum, and with anomalous dispersion (standard fibre above 1.31 \u00b5m) it can compress or hold its shape as a soliton. The spectrum it leaves with goes on with it, to a fibre tip and the Pulse tab of a screen beyond. Not modelled: Raman scattering, self-steepening, and nonlinearity in free-space glass.'], 'note', 'margin-top:0.5rem'));
   panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Index ' + FIBRE_N + ' (group ' + FIBRE_NG + '). Its length is this number, not the length drawn. Drag either end off its port to take it away, or onto another port to move it.'));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Shaping it: drag the fibre to pull a node out of it; drag a node (square) to move it, and its handles (round) to bend the curve through it, Shift to move one handle on its own; the handle at each port sets how far the fibre runs straight out of it. Double-click the fibre to add a node, a node to remove it.'));
+  panel.append(helpLine('Drag the fibre to shape it; double-click to add or remove a node.', ['Shaping it: drag the fibre to pull a node out of it; drag a node (square) to move it, and its handles (round) to bend the curve through it, Shift to move one handle on its own; the handle at each port sets how far the fibre runs straight out of it. Double-click the fibre to add a node, a node to remove it.'], 'note', 'margin-top:0.35rem'));
   if ((F.path && F.path.length) || F.ta != null || F.tb != null)
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('button', { class: 'rt-btn wide', type: 'button',
       onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
@@ -23504,7 +23518,7 @@ function groupPanel(list) {
   if (mk) { panel.append(h('h3', null, 'Lens design')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'));
+  panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
 }
 /* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
 function makeLinkPartner(el, benchId) {
@@ -23713,7 +23727,7 @@ function assemblyPanel(asm) {
     B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
     B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'));
+  panel.append(helpLine('Moved and traced as one. Ctrl-click a part to edit it alone; double-click to design it.', ['An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'], 'note', 'margin-top:0.6rem'));
 }
 const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
 
@@ -23942,7 +23956,7 @@ function longView(body, A, L) {
     series: [{ label: 'shift', colour: '#444', xs: L.shift, ys: L.lam }], hoverY: true, yName: 'nm', H: 260 });
   body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)])));
   const lo = Math.min(...L.shift), hi = Math.max(...L.shift);
-  body.append(h('p', { class: 'rt-lsub' }, 'Left: where rays from each height in the pupil, on the axis, cross it, from the primary wavelength’s paraxial focus. Right: the paraxial focus over the wavelengths; it spans ' + um(hi - lo) + ' here.'));
+  body.append(helpLine('Longitudinal aberration (left) and the focus over the wavelengths (right).', ['Left: where rays from each height in the pupil, on the axis, cross it, from the primary wavelength’s paraxial focus. Right: the paraxial focus over the wavelengths; it spans ' + um(hi - lo) + ' here.'], 'rt-lsub'));
 }
 const DIV = [[0x2a, 0x78, 0xd6], [0xf0, 0xef, 0xec], [0xe3, 0x49, 0x48]];
 const diverge = t => { t = Math.max(-1, Math.min(1, t)); const [a, b] = t < 0 ? [DIV[1], DIV[0]] : [DIV[1], DIV[2]], u = Math.abs(t); return a.map((v, i) => Math.round(v + (b[i] - v) * u)); };
@@ -24039,7 +24053,7 @@ function huyView(body, A, H) {
     series: [{ label: 'x (sagittal)', colour: WAVE_COLOURS[1], dash: true, xs, ys: xs.map((_, i) => H.I[pj * M + i] / H.peak) }, { label: 'y (tangential)', colour: WAVE_COLOURS[0], xs, ys: xs.map((_, j) => H.I[j * M + pi] / H.peak) }], xName: 'mm', H: 240,
     csv: { name: 'huygens psf sections', cols: ['position (mm)', 'x section', 'y section'], rows: () => xs.map((v, k) => [v, H.I[pj * M + k] / H.peak, H.I[k * M + pi] / H.peak]) } });
   right.append(legend([['y (tangential)', WAVE_COLOURS[0]], ['x (sagittal)', WAVE_COLOURS[1], true]]));
-  right.append(h('p', { class: 'rt-lsub' }, 'Each ray’s crossing of the reference sphere sends a wavelet, its phase the ray’s path, its strength its share of the light over the sphere it covers; their sum on the image plane is the PSF, the plane as it is, square to the axis. The Airy disc’s radius here: ' + um(H.airy) + '.'));
+  right.append(helpLine('The point spread function, summed from each ray’s wavelet.', ['Each ray’s crossing of the reference sphere sends a wavelet, its phase the ray’s path, its strength its share of the light over the sphere it covers; their sum on the image plane is the PSF, the plane as it is, square to the axis. The Airy disc’s radius here: ' + um(H.airy) + '.'], 'rt-lsub'));
 }
 function mtfView(body, A, M) {
   const v = M.freqs;
@@ -24056,15 +24070,15 @@ function riView(body, A, I) {
     series: [{ label: 'relative illumination', colour: WAVE_COLOURS[0], xs: g, ys: I.ri }, { label: 'unvignetted', colour: WAVE_COLOURS[1], dash: true, xs: g, ys: I.vig }, { label: 'cos⁴', colour: '#666', xs: g, ys: I.cos4 }],
     xName: 'field', H: 280, csv: { name: 'relative illumination', cols: ['field (' + FU_CSV + ')', 'relative illumination', 'unvignetted share', 'cos4 of chief ray'], rows: () => g.map((v, j) => [v, I.ri[j], I.vig[j], I.cos4[j]]) } });
   body.append(legend([['relative illumination', WAVE_COLOURS[0]], ['unvignetted share of the pupil', WAVE_COLOURS[1], true], ['cos⁴ of the chief ray', '#666']]));
-  body.append(h('p', { class: 'rt-lsub' }, 'The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
-    'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'));
+  body.append(helpLine('The image’s brightness across the field, against its centre.', ['The image’s brightness across the field against its centre: the solid angle the exit pupil fills, seen from where the chief ray lands, projected on the image plane, with the vignetted rays left out. ' +
+    'At ' + anFmt(g[k], 4) + FU + ' it is ' + anFmt(100 * I.ri[k], 3) + '%; ' + anFmt(100 * I.vig[k], 3) + '% of the pupil gets through, and cos⁴ of the chief ray’s angle in image space is ' + anFmt(I.cos4[k] === null ? null : 100 * I.cos4[k], 3) + '%.'], 'rt-lsub'));
 }
 function footView(body, A, P, F, st, redraw) {
   const sps = surfaceParts(P), name = i => sps[i].kind === 'stop' ? 'STO' : String(i + 1), L = F.surfaces, fin = v => isFinite(v) && v > 0;
   if (!(st.surf >= 0 && st.surf < L.length)) st.surf = L.reduce((b, u, i) => fin(u.semi) && (!fin(L[b].semi) || u.beam / u.semi > L[b].beam / L[b].semi) ? i : b, 0);
   body.append(h('h3', null, 'Footprints: where the beam crosses each surface'));
-  body.append(h('p', { class: 'rt-lsub' }, 'Every field and wavelength, ' + F.rays + ' rays each (a grid across the pupil and a ring at its edge). The beam: the farthest any ray lands from the surface’s vertex, in its own frame; the margin, its clear radius less that. ' +
-    'Choose a surface to see each field’s rays on it at ' + anFmt(F.nm, 5) + ' nm, those it stops as crosses.'));
+  body.append(helpLine('Each surface’s beam footprint against its clear radius.', ['Every field and wavelength, ' + F.rays + ' rays each (a grid across the pupil and a ring at its edge). The beam: the farthest any ray lands from the surface’s vertex, in its own frame; the margin, its clear radius less that. ' +
+    'Choose a surface to see each field’s rays on it at ' + anFmt(F.nm, 5) + ' nm, those it stops as crosses.'], 'rt-lsub'));
   const tbl = h('table', { class: 'rt-ltable rt-lghost rt-lfoot' });
   tbl.append(h('thead', null, h('tr', null, ...[['Surface', 'Choose one to draw its footprint'], ['Clear radius', 'The surface’s clear (semi-) diameter'], ['Beam', 'The farthest any ray lands from its vertex'], ['Margin', 'The clear radius less the beam; below 0 it stops rays'], ['Used', 'The beam over the clear radius'], ['Rays stopped', 'Of those reaching it, over every field and wavelength']].map(([t, tip]) => h('th', { scope: 'col', title: tip }, t)))));
   const tb = h('tbody');
@@ -24121,9 +24135,9 @@ function tfmView(body, A, asm, P, key, st, redraw) {
     series, xName: 'focus', H: 280, csv: { name: 'through-focus MTF', cols: ['focus shift (mm)'].concat(T.fields.flatMap(f => [f.deg + ' ' + FU_CSV + ' T', f.deg + ' ' + FU_CSV + ' S'])), rows: () => xs.map((d, i) => [d, ...T.fields.flatMap(f => [f.tan[i], f.sag[i]])]) } });
   body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
   const fb = T.fields.map(f => anFmt(f.deg, 4) + FU + ' ' + ghLen(f.best.at)).join(', ');
-  body.append(h('p', { class: 'rt-lsub' }, 'The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
+  body.append(helpLine('Best focus ' + ghLen(T.best.at) + ' from the design’s image plane.', ['The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
     'Best focus, the mean over the fields of tangential and sagittal at its peak (' + anFmt(T.best.v, 3) + '): ' + ghLen(T.best.at) + ' from the design’s image plane' +
-    (T.dof ? '; it stays above 80% of that from ' + ghLen(T.dof[0]) + ' to ' + ghLen(T.dof[1]) + ' (' + ghLen(T.dof[1] - T.dof[0]) + ' deep)' : '') + '. Each field’s own best: ' + fb + '.'));
+    (T.dof ? '; it stays above 80% of that from ' + ghLen(T.dof[0]) + ' to ' + ghLen(T.dof[1]) + ' (' + ghLen(T.dof[1] - T.dof[0]) + ' deep)' : '') + '. Each field’s own best: ' + fb + '.'], 'rt-lsub'));
   if (T.fields.some(f => Math.abs(Math.abs(f.best.at) - T.span) < 1e-9 * T.span) || Math.abs(Math.abs(T.best.at) - T.span) < 1e-9 * T.span) body.append(h('div', { class: 'rt-lnote' }, 'A best focus is at an end of the range: it may lie beyond it. Widen the range to find it.'));
 }
 
@@ -24154,9 +24168,9 @@ function thermView(body, A, asm, P, key, st, redraw) {
   for (const r of R.rows) tb.append(h('tr', { class: Math.abs(r.T - T_NOMINAL) < 1e-9 ? 'on' : '' }, h('td', null, anFmt(r.T, 4) + ' °C'), h('td', { class: 'mono' }, anFmt(r.efl, 6) + ' mm'), h('td', { class: 'mono' }, ghLen(r.defl)), h('td', { class: 'mono' }, ghLen(r.defocus)), ...r.rms.map(v => h('td', { class: 'mono' }, um(v)))));
   tbl.append(tb);
   body.append(h('div', { class: 'rt-ltwrap' }, tbl));
-  body.append(h('p', { class: 'rt-lsub' }, 'Against the design at ' + T_NOMINAL + ' °C and one atmosphere, here at ' + anFmt(R.p, 3) + ' atm in ' + H[1].toLowerCase() + ': the focus moves ' + ghLen(R.drift) + ' per kelvin against the detector (' + (Math.abs(R.drift) < 1e-4 ? 'near athermal' : R.drift > 0 ? 'beyond it as it warms' : 'short of it as it warms') + '), the focal length ' + ghLen(R.eflDrift) + ' per kelvin. ' +
+  body.append(helpLine('The focus moves ' + ghLen(R.drift) + ' per kelvin against the detector.', ['Against the design at ' + T_NOMINAL + ' °C and one atmosphere, here at ' + anFmt(R.p, 3) + ' atm in ' + H[1].toLowerCase() + ': the focus moves ' + ghLen(R.drift) + ' per kelvin against the detector (' + (Math.abs(R.drift) < 1e-4 ? 'near athermal' : R.drift > 0 ? 'beyond it as it warms' : 'short of it as it warms') + '), the focal length ' + ghLen(R.eflDrift) + ' per kelvin. ' +
     'Each glass’s index by its maker’s formula and the air’s at that temperature and pressure; the lenses grow with their glasses, the spacers, the stop and the detector’s distance with the housing.' +
-    (R.missing.length ? ' No data for ' + R.missing.join(', ') + ': taken as not changing.' : '')));
+    (R.missing.length ? ' No data for ' + R.missing.join(', ') + ': taken as not changing.' : '')], 'rt-lsub'));
 }
 
 /* ---------- Polarisation ---------- */
@@ -24186,9 +24200,9 @@ function polView(body, A, P, st, R, redraw) {
   body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Polarisation in' }, h('span', { class: 'rt-lsub' }, 'In'),
     ...POL_CHOICES.map(([k, t]) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String((st.polIn || 'none') === k), onclick: () => { st.polIn = k; redraw(); } }, t))));
   const pin = R.pin, deg = d => anFmt(d * 180 / Math.PI, 3) + '°';
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(R.deg, 4) + FU + ', ' + (pin === 'none' ? 'unpolarised' : POL_CHOICES.find(c => c[0] === pin)[1] + ' polarised') + ' light in: ' +
+  body.append(helpLine(anFmt(100 * R.T, 4) + '% of the light reaches the image; mean diattenuation ' + anFmt(R.D, 3) + ', mean retardance ' + deg(R.ret) + '.', ['At ' + anFmt(nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(R.deg, 4) + FU + ', ' + (pin === 'none' ? 'unpolarised' : POL_CHOICES.find(c => c[0] === pin)[1] + ' polarised') + ' light in: ' +
     anFmt(100 * R.T, 4) + '% of it reaches the image, over the rays that get there (' + anFmt(100 * R.reach, 3) + '% of the pupil); mean diattenuation ' + anFmt(R.D, 3) + ', mean retardance ' + deg(R.ret) + '. ' +
-    'Each ray traced with its polarisation through every face (its coating’s s and p amplitudes, or Fresnel’s) and the glass between (its absorption), read in x and y each side.'));
+    'Each ray traced with its polarisation through every face (its coating’s s and p amplitudes, or Fresnel’s) and the glass between (its absorption), read in x and y each side.'], 'rt-lsub'));
   const row = h('div', { class: 'rt-lpolmaps' });
   body.append(row);
   const n = R.n, size = 170;
@@ -24358,17 +24372,17 @@ function imsimView(body, A, P, st, key, redraw) {
   plotCsv(cv, 'image simulation', ['x (mm)', 'y (mm)', 'R', 'G', 'B'], () => { const out = []; for (let j = 0; j < R.H; j++) for (let i = 0; i < R.W; i++) { const q = j * R.W + i; out.push([R.atOut[0] + (i - (R.W - 1) / 2) * R.pitch, R.atOut[1] + ((R.H - 1) / 2 - j) * R.pitch, R.ch[0][q], R.ch[1][q], R.ch[2][q]]); } return out; });
   right.append(plotSaveRow(cv));
   const geo = R.nodes.some(n => n.geometric), cols = ['R', 'G', 'B'].map((t, i) => t + ' ' + anFmt(R.nm[i], 5) + ' nm').join(', ');
-  body.append(h('p', { class: 'rt-lsub' }, (whole ? 'The picture fills the field: its corners at ' + anFmt(Math.max(...c.fields.map(f => Math.abs(f.deg))), 4) + FU + ', '
+  body.append(helpLine('The test chart as the design images it.', [(whole ? 'The picture fills the field: its corners at ' + anFmt(Math.max(...c.fields.map(f => Math.abs(f.deg))), 4) + FU + ', '
     : 'A patch about the image of ' + anFmt(fAt, 4) + FU + (moved ? ', moved in to lie within the largest field, ' : ', ')) + R.W + ' × ' + R.H + ' pixels of ' + um(R.pitch) + ' on the image. ' +
     (R.mono ? 'One wavelength, ' + anFmt(R.nm[0], 5) + ' nm, for every colour. ' : 'Each colour at the design’s wavelength nearest it: ' + cols + '. ') +
     'Moved by the distortion of each wavelength (lateral colour shows), dimmed by the relative illumination, and blurred by the PSF at ' + R.grid * R.grid + ' points, each turned to its place about the axis and blended between them' +
-    (geo ? '; where a spot is too large for the PSF’s window, by the spot itself' : '') + '. In linear light, shown as sRGB; the CSV gives it in linear light, 1 the picture\u2019s white.'));
+    (geo ? '; where a spot is too large for the PSF’s window, by the spot itself' : '') + '. In linear light, shown as sRGB; the CSV gives it in linear light, 1 the picture\u2019s white.'], 'rt-lsub'));
 }
 function seidelView(body, asm, P, F) {
   const sd = F.seidel, sps = surfaceParts(P), cols = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   body.append(h('h3', null, 'Third-order aberrations (Seidel sums, mm)'));
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + FU + ', the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
-    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'));
+  body.append(helpLine('Seidel sums, surface by surface.', ['At ' + anFmt(primaryNm(asm.cond), 5) + ' nm over fields to ' + anFmt(F.fmax, 3) + FU + ', the colour terms from ' + anFmt(F.lo, 5) + ' to ' + anFmt(F.hi, 5) + ' nm. ' +
+    'SI spherical, SII coma, SIII astigmatism, SIV Petzval, SV distortion; CL axial and CT lateral colour. Signs as in the usual convention: an uncorrected positive singlet has SI above 0.'], 'rt-lsub'));
   const tbl = h('table', { class: 'rt-ltable rt-lseidel' });
   tbl.append(h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Surface'), ...cols.map(c => h('th', { scope: 'col' }, c)))));
   const tb = h('tbody'), f = v => Math.abs(v) < 5e-13 ? '0' : v.toExponential(4).replace(/e\+0$/, '').replace(/e([+-])(\d)$/, 'e$1$2');
@@ -24394,9 +24408,9 @@ function ghostView(body, A, P, G, st, redraw) {
     return;
   }
   const L = G.ghosts.filter(g => g.R > 0);
-  body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(G.nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(G.deg, 4) + FU + ': ' + L.length + ' ghosts, the brightest against the image first. ' +
+  body.append(helpLine(L.length + (L.length === 1 ? ' ghost' : ' ghosts') + ' at ' + anFmt(G.nm, 5) + ' nm, the brightest first.', ['At ' + anFmt(G.nm, 5) + ' nm, ' + (A.finite ? 'object height ' : 'field ') + anFmt(G.deg, 4) + FU + ': ' + L.length + ' ghosts, the brightest against the image first. ' +
     'The image\u2019s own spot: RMS ' + um(G.main.rms) + ', the Airy disc ' + um(G.main.airy) + '. Each surface reflects as its coating does, square to it (bare glass by Fresnel). ' +
-    'Against the image: the ghost\u2019s light over its area on the image, over the image\u2019s over its spot (each as an even disc), an estimate. Choose a ghost to see its rays in the layout.'));
+    'Against the image: the ghost\u2019s light over its area on the image, over the image\u2019s over its spot (each as an even disc), an estimate. Choose a ghost to see its rays in the layout.'], 'rt-lsub'));
   if (!L.length) return;
   if (!st.ghost || !L.some(g => g.a === st.ghost[0] && g.b === st.ghost[1])) st.ghost = [L[0].a, L[0].b];
   const tbl = h('table', { class: 'rt-ltable rt-lghost' });
@@ -24437,7 +24451,7 @@ function ghostView(body, A, P, G, st, redraw) {
   plotCsv(cv, 'ghosts', ['first surface', 'second surface', 'reflectance first', 'reflectance second', 'share reaching the image', 'focus from image (mm)', 'paraxial height on image (mm)', 'RMS on image (mm)', 'against the image', 'focus inside, from surface', 'distance (mm)'],
     () => L.map(q => [name(q.a), name(q.b), q.Ra, q.Rb, q.R * q.reach, q.focus, q.yImg, q.rms, q.rel, q.near ? name(q.near.surf) : '', q.near ? q.near.d : '']));
   cell.append(plotSaveRow(cv));
-  body.append(h('p', { class: 'rt-lsub' }, 'The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'));
+  body.append(helpLine('Scaled to the ghost; one that focuses near a surface is marked.', ['The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'], 'rt-lsub'));
 }
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
@@ -24612,7 +24626,7 @@ function tolCard(ctx) {
     }
     right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
   }
-  card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
+  card.append(helpLine('Tolerances the design against its own conditions.', ['Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'], 'rt-lsub'));
   return card;
 }
 
@@ -24635,7 +24649,7 @@ function invView(ctx, I, T, unit, set) {
     h('td', { class: 'mono' }, (r.beyond ? '\u2265 ' : '') + tolFmt(r.inv, 3) + ' ' + KIND_UNIT[r.kind]), h('td', { class: 'rt-lsub' }, (r.beyond ? 'beyond a thousand times the limit' : '') + (r.closes ? (r.beyond ? '; ' : '') + 'the ' + (r.label.startsWith('Air') ? 'gap' : 'glass') + ' has closed on its \u2212 side' : ''))));
   out.push(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-ltolsens' }, h('thead', null, h('tr', null, ...['Tolerance', 'Set now', 'Allowed', ''].map(t => h('th', { scope: 'col' }, t)))), tb)));
   if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
-  out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
+  out.push(helpLine('Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ', tightest first.', ['Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'], 'rt-lsub'));
   return out;
 }
 /* a merit operand as the yield names it, and its specification */
@@ -24656,7 +24670,7 @@ function yieldCard(D, T, wf, set) {
     });
     wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Merit operand', '', 'Within, on each build'].map(t => h('th', { scope: 'col' }, t)))), tb)));
   }
-  wrap.append(h('p', { class: 'rt-lsub' }, 'Monte Carlo gives the share of its builds, each compensated, that meet every part of this, with the range it is within at 95% confidence, and each part\u2019s own share. Change it after a run and the yield is worked out again from the same builds.'));
+  wrap.append(helpLine('Monte Carlo gives the share of builds that meet this.', ['Monte Carlo gives the share of its builds, each compensated, that meet every part of this, with the range it is within at 95% confidence, and each part\u2019s own share. Change it after a run and the yield is worked out again from the same builds.'], 'rt-lsub'));
   return wrap;
 }
 /* a compensator's name, in this prescription */
@@ -24687,8 +24701,8 @@ function compsCard(P, T, set) {
   sel.addEventListener('change', () => { const o = free[+sel.value]; if (!o) return; set(t => { t.comps = (t.comps || []).concat([Object.assign({}, o, { range: o.kind === 'tilt' ? 10 : 0.5 })]); }); });
   wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Compensators'), sel));
   if (have.length) wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, rows)));
-  wrap.append(h('p', { class: 'rt-lsub' }, have.length ? 'For each build, ' + (T.comp ? 'the focus and ' : '') + 'these are set to make it as good as it can be (damped least squares on the criterion), each within its range: what an assembler adjusting them would do.'
-    : 'Beyond the focus, an air gap, or a lens\u2019s decentre or tilt, can be set for each build to make it as good as it can be, within a range: as an assembler adjusts them.'));
+  wrap.append(helpLine(have.length ? 'Set in each build, as an assembler would adjust them.' : 'Add values an assembler would adjust in each build.', [have.length ? 'For each build, ' + (T.comp ? 'the focus and ' : '') + 'these are set to make it as good as it can be (damped least squares on the criterion), each within its range: what an assembler adjusting them would do.'
+    : 'Beyond the focus, an air gap, or a lens\u2019s decentre or tilt, can be set for each build to make it as good as it can be, within a range: as an assembler adjusts them.'], 'rt-lsub'));
   return wrap;
 }
 /* the builds' criterion, binned; the nominal and the 90% line marked */
@@ -25250,8 +25264,8 @@ function stockCard({ asm, P, redraw, edit, toast }) {
     RUN = null; redraw();
   } });
   card.append(h('h3', null, 'Stock lenses'),
-    h('p', { class: 'rt-lsub' }, 'Match the lenses of this design against stock lenses: lens files you have, such as the ones lens makers publish for their parts. Add them here; they are read and kept in this browser only, and never sent anywhere. ' +
-      'For each lens of the design, the stock lenses with as many faces, a focal length within 30% and room for the beam are ranked, and the best tried in the design either way round, the air either side and the image distance optimised for the design’s merit. The lenses are taken as made: the merit here leaves out the limits on glass thickness and edges, and keeps only the air between lenses from closing.'),
+    helpLine('Stock lenses that could stand in for this design’s, from lens files you add (kept in this browser only).', ['Match the lenses of this design against stock lenses: lens files you have, such as the ones lens makers publish for their parts. Add them here; they are read and kept in this browser only, and never sent anywhere. ' +
+      'For each lens of the design, the stock lenses with as many faces, a focal length within 30% and room for the beam are ranked, and the best tried in the design either way round, the air either side and the image distance optimised for the design’s merit. The lenses are taken as made: the merit here leaves out the limits on glass thickness and edges, and keeps only the air between lenses from closing.'], 'rt-lsub'),
     h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => file.click() }, 'Add lens files…'), file,
       h('span', { class: 'rt-lsub' }, L.length + ' stock lens' + (L.length === 1 ? '' : 'es') + ' kept'),
       ...(L.length ? [h('button', { type: 'button', class: 'rt-link', onclick: () => { stockClear(); RUN = null; redraw(); } }, 'Remove them all')] : [])));
@@ -25301,7 +25315,7 @@ function stockCard({ asm, P, redraw, edit, toast }) {
     }
     t2.append(b2);
     card.append(h('div', { class: 'rt-ltwrap' }, t2));
-    card.append(h('p', { class: 'rt-lsub' }, 'A stock lens is only as its file describes it: check its maker’s specification before buying. Use puts it in the design (its shape, thickness, glass and diameter, and the air as optimised); Undo takes it back.'));
+    card.append(helpLine('Check a stock lens against its maker’s specification before buying.', ['A stock lens is only as its file describes it: check its maker’s specification before buying. Use puts it in the design (its shape, thickness, glass and diameter, and the air as optimised); Undo takes it back.'], 'rt-lsub'));
   }
   // the chosen stock lens into the design: its shape, thicknesses, glasses and diameter, and the air as optimised
   function use(run, r) {
@@ -25772,7 +25786,7 @@ const RW_GRIN_MATS = () => Object.fromEntries(Object.entries(RF_MAT).filter(([, 
 const RW_MATS = () => Object.fromEntries(Object.entries(RF_MAT).sort((a, b) => (b[1].print ? 1 : 0) - (a[1].print ? 1 : 0)).map(([k, M]) => [k, M.name + (M.print ? ' (made to order)' : '')]));
 function rwLensCard(asm, P, Tm) {
   const card = h('section', { class: 'rt-lcard', role: 'tabpanel', 'aria-label': 'Lenses' }, h('h3', null, 'Lenses'));
-  card.append(h('p', { class: 'rt-lsub' }, 'In the order the beam meets them, the front face toward the feed. A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer. A graded-index disc is flat: its focal length comes from its plastic, solid at its centre and less dense toward its edge, and its thickness follows from its focal length and its density range.'));
+  card.append(helpLine('The lenses, in the order the beam meets them.', ['In the order the beam meets them, the front face toward the feed. A radius is positive with its centre beyond the face; a conic of −n² makes it the hyperbola that suits a point source. Every surface, with its aspheric terms, is in the optical designer. A graded-index disc is flat: its focal length comes from its plastic, solid at its centre and less dense toward its edge, and its thickness follows from its focal length and its density range.'], 'rt-lsub'));
   const tbl = h('table', { class: 'rt-ltable rt-rftable' });
   tbl.append(h('thead', null, h('tr', null, ...['Part', 'Material', 'Diameter (mm)', 'Centre (mm)', 'Front R (mm)', 'Front conic', 'Back R (mm)', 'Back conic', 'Matched', 'Air after (mm)'].map(t => h('th', { scope: 'col' }, t)))));
   const tb = h('tbody');
@@ -25815,7 +25829,7 @@ function rwLensCard(asm, P, Tm) {
   const zl = P.parts.filter(p => p.kind === 'lens' && p.n === 2).map(p => getEl(p.id)).filter(Boolean);
   if (zl.length) {
     card.append(h('h3', null, 'Zones'));
-    card.append(h('p', { class: 'rt-lsub' }, 'A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'));
+    card.append(helpLine('Cutting a lens in zones makes it thinner and lighter, and narrows its band.', ['A lens cut in zones is thinner and lighter: wherever it is thick, whole layers a wave deep at its zone frequency come out of its curved face, so at that frequency it bends the beam as the smooth lens does, with less plastic to absorb. Away from it each step slips the phase, which narrows the band (see the phase error, and Analyses over the band).'], 'rt-lsub'));
     for (const el of zl) {
       const Z = lensZones(el), zs = (on, ghz) => rwEdit(() => { if (on) el.zoned = normZoned({ ghz }); else delete el.zoned; return false; });
       card.append(h('div', { class: 'rt-lchips rt-rfzone' },
@@ -25845,7 +25859,7 @@ function rwSynthCard(asm, P) {
   if (!lenses.some(x => x.pi === sp.pi)) sp.pi = first.pi;
   const isG = sp.type === 'grin';
   if (isG && !(RF_MAT[sp.mat] && RF_MAT[sp.mat].print)) sp.mat = 'PLA';
-  card.append(h('p', { class: 'rt-lsub' }, 'A lens made to suit the beam that reaches it and the goal after it: each curved face the hyperbola that turns the beam’s phase centre into a flat wavefront in the plastic, or the flat wavefront into the waist wanted. A graded-index disc does it with a flat disc instead, solid at its centre and less dense toward its edge: its focal length is solved through its own thickness. Designing a lens as a disc, or a disc as a lens, makes the part that kind, in the same place. Then refine it by hand, or in the optical designer.'));
+  card.append(helpLine('A lens, or a graded-index disc, made to suit the beam and the goal.', ['A lens made to suit the beam that reaches it and the goal after it: each curved face the hyperbola that turns the beam’s phase centre into a flat wavefront in the plastic, or the flat wavefront into the waist wanted. A graded-index disc does it with a flat disc instead, solid at its centre and less dense toward its edge: its focal length is solved through its own thickness. Designing a lens as a disc, or a disc as a lens, makes the part that kind, in the same place. Then refine it by hand, or in the optical designer.'], 'rt-lsub'));
   const set = (k, v) => { sp[k] = v; rwRender(); };
   const grid = h('div', { class: 'rt-rfgrid' },
     rwRow('Lens', rwSelect(Object.fromEntries(lenses.map(x => [String(x.pi), getEl(x.p.id).name])), String(sp.pi), v => set('pi', +v), 'Lens to design')),
@@ -26001,14 +26015,14 @@ function rwAnaCard(asm, P, T) {
     const pats = [T.lo, T.mid, T.hi].map(t => rfPattern(t.apAt, t.lam, Math.min(60, 8 * Math.atan(t.lam / t.D) * 180 / Math.PI + 4)));
     const th1 = Math.max(...pats.map(p => p.th[p.th.length - 1]));
     const ps = [T.lo, T.mid, T.hi].map(t => rfPattern(t.apAt, t.lam, th1));
-    body.append(h('p', { class: 'rt-lsub' }, 'The far field of the last lens’s aperture: the Gaussian field it carries there, with its curvature, over its round aperture, at the band’s edges and its centre, in dB against the axis. Its phase error beyond first order and any cross-polar field are not in it.'));
+    body.append(helpLine('The far-field pattern of the last lens’s aperture.', ['The far field of the last lens’s aperture: the Gaussian field it carries there, with its curvature, over its round aperture, at the band’s edges and its centre, in dB against the axis. Its phase error beyond first order and any cross-polar field are not in it.'], 'rt-lsub'));
     body.append(h('div', { class: 'rt-llegend' }, ...[R.lo, R.ghz, R.hi].map((g, k) => h('span', null, h('i', { style: '--sw:' + RW_BAND_COLS[k], 'aria-hidden': 'true' }), rwFmt(g, 4) + ' GHz'))));
     linePlot(body, { label: 'Far-field pattern', H: 260, x: { kind: 'plain', title: 'angle from the axis, °' }, y: { kind: 'plain', title: 'dB' }, yr: [-50, 2], xName: '°', series: ps.map((p, k) => ({ label: rwFmt([R.lo, R.ghz, R.hi][k], 4) + ' GHz', colour: RW_BAND_COLS[k], xs: p.th, ys: p.db.map(v => Math.max(-50, v)) })),
       csv: { name: asm.name + ' pattern', cols: ['angle_deg', 'lo_dB', 'design_dB', 'hi_dB'], rows: () => ps[1].th.map((t, j) => [t, ps[0].db[j], ps[1].db[j], ps[2].db[j]]) } });
     const m = ps[1];
     body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Beamwidth, half power', rwFmt(m.hpbw, 3) + '°'], ['First sidelobe', m.sidelobe === null ? 'none within ' + rwFmt(th1, 3) + '°' : rwFmt(m.sidelobe, 3) + ' dB'], ['Gain on the axis', rwFmt(T.mid.gain, 4) + ' dBi']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
   } else if (st.view === 'apert') {
-    body.append(h('p', { class: 'rt-lsub' }, 'The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'));
+    body.append(helpLine('The beam at each face: its radius, edge taper and spillover.', ['The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'], 'rt-lsub'));
     const tbl = h('table', { class: 'rt-ltable' });
     tbl.append(h('thead', null, h('tr', null, ...['Face', 'Beam at ' + rwFmt(R.lo, 4) + ' GHz', 'at ' + rwFmt(R.ghz, 4), 'at ' + rwFmt(R.hi, 4), 'Clear radius', 'Edge taper', 'Spilled'].map(t => h('th', { scope: 'col' }, t)))));
     const sps = surfaceParts(P), tb = h('tbody');
@@ -26020,7 +26034,7 @@ function rwAnaCard(asm, P, T) {
     tbl.append(tb); body.append(h('div', { class: 'rt-ltwrap' }, tbl));
   } else if (st.view === 'refl') {
     const S = rfBandSweep(asm, P, 121), xs = S.map(s => s.ghz), nl = S[0].slab.length;
-    body.append(h('p', { class: 'rt-lsub' }, 'Each lens as a slab: its two faces, their matching layers and the plastic between, the reflections added coherently, so the ripple a lens shows across a band appears (the figures above take each face alone). In dB, shown down to \u221260 dB.'));
+    body.append(helpLine('Each lens’s reflection as a slab, across the band.', ['Each lens as a slab: its two faces, their matching layers and the plastic between, the reflections added coherently, so the ripple a lens shows across a band appears (the figures above take each face alone). In dB, shown down to \u221260 dB.'], 'rt-lsub'));
     const ser = [];
     for (let k = 0; k < nl; k++) { const el = getEl(P.parts[S[0].slab[k].pi].id); ser.push({ label: el ? el.name : 'Lens ' + (k + 1), colour: RW_BAND_COLS[k % 3], xs, ys: S.map(s => rwDbOf(s.slab[k].R)) }); }
     if (!nl) body.append(h('p', { class: 'rt-lsub' }, 'No lenses.'));
@@ -26052,7 +26066,7 @@ function rwOptCard(asm, P) {
   const vars = rfOptVars(P);
   if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
   o.keys = o.keys.filter(k => vars.some(v => v.key === k));
-  card.append(h('p', { class: 'rt-lsub' }, 'The values ticked are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'));
+  card.append(helpLine('The ticked values, changed for the most efficiency across the band.', ['The values ticked are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'], 'rt-lsub'));
   const running = RW_OPT && RW_OPT.running && RW_OPT.asm === asm;
   const groups = new Map();
   for (const v of vars) { const k = v.part || '_feed'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); }
@@ -26112,7 +26126,7 @@ function rwOptStop(note) {
 /* ---------- Make it: each lens checked against what can be made, and its quote ---------- */
 function rwMakeCard(asm, P, T) {
   const R = asm.rf, card = h('section', { class: 'rt-lcard rt-rfmake', role: 'tabpanel', 'aria-label': 'Make it' }, h('h3', null, 'Make it'));
-  card.append(h('p', { class: 'rt-lsub' }, 'Each lens checked against what can be made to order: its plastic, its size and thinnest point, and its matching layers across the band. A lens that passes can be quoted for: the request goes into your quote cart with its figures and a link to the design.'));
+  card.append(helpLine('Each lens checked against what can be made, then quoted.', ['Each lens checked against what can be made to order: its plastic, its size and thinnest point, and its matching layers across the band. A lens that passes can be quoted for: the request goes into your quote cart with its figures and a link to the design.'], 'rt-lsub'));
   const coll = R.goal.kind === 'collimate', perf = coll ? 'gain ' + rwFmt(T.mid.gain, 4) + ' dBi' : 'coupling ' + rwPct(T.mid.coupling);
   P.parts.forEach((p, pi) => {
     if (p.kind !== 'lens' && p.kind !== 'grin') return;
@@ -26188,7 +26202,7 @@ let RW_MC = null;             // { asm, plan, running }
 function rwTolCard(asm, P) {
   const tol = asm.rfTol = normRfTol(asm.rfTol), R = asm.rf, coll = R.goal.kind === 'collimate', unit = coll ? 'dBi' : 'dB', fig = coll ? 'gain' : 'efficiency';
   const card = h('section', { class: 'rt-lcard rt-rftol', role: 'tabpanel', 'aria-label': 'Tolerance' }, h('h3', null, 'Tolerance'));
-  card.append(h('p', { class: 'rt-lsub' }, 'How far each error may go, and what it does to the ' + fig + ': each alone at its limit (Sensitivity), and all at once in many builds (Monte Carlo), with the share that meet a specification. A printed plastic’s permittivity is known to a few per cent until measured. Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here: the RF lens’s own panel on the bench traces them.'));
+  card.append(helpLine('Each error alone (Sensitivity) and all together (Monte Carlo), with the yield.', ['How far each error may go, and what it does to the ' + fig + ': each alone at its limit (Sensitivity), and all at once in many builds (Monte Carlo), with the share that meet a specification. A printed plastic’s permittivity is known to a few per cent until measured. Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here: the RF lens’s own panel on the bench traces them.'], 'rt-lsub'));
   const st = RW.tolSt || (RW.tolSt = {});
   // a change to the errors makes the results stale; to the Monte Carlo's settings, only its builds (the specification, nothing)
   const set = (fn, what) => { const t = JSON.parse(JSON.stringify(asm.rfTol)); fn(t); asm.rfTol = normRfTol(t); if (what !== 'mc' && what !== 'spec') st.sens = null; if (what !== 'spec' && RW_MC && RW_MC.asm === asm && !RW_MC.running) RW_MC = null; rwRender(); };
@@ -26892,8 +26906,8 @@ function configsCard(asm, P) {
     checkpoint(); const r = mcAdd(asm); if (r !== true) { toast(r, true); return; } WS.tab = 'cfg'; changed(false); renderWs();
   } }, M ? 'Add a configuration' : 'Make configurations');
   if (!M) {
-    card.append(h('p', { class: 'rt-lsub' }, 'One design in several states: a zoom lens at each of its focal lengths, or a lens refocused for nearer objects. Each configuration has its own values for the radii, thicknesses and spacings you choose' +
-      (fin ? ', and its own object distance' : '') + '; everything else is shared. The merit function adds them up, each with a weight, and a variable that differs between them is optimised in each one.'), h('div', { class: 'rt-lbar' }, addBtn));
+    card.append(helpLine('One design in several states, such as a zoom lens at each focal length.', ['One design in several states: a zoom lens at each of its focal lengths, or a lens refocused for nearer objects. Each configuration has its own values for the radii, thicknesses and spacings you choose' +
+      (fin ? ', and its own object distance' : '') + '; everything else is shared. The merit function adds them up, each with a weight, and a variable that differs between them is optimised in each one.'], 'rt-lsub'), h('div', { class: 'rt-lbar' }, addBtn));
     if (!fin) card.append(h('p', { class: 'rt-lsub' }, 'To refocus for different object distances, set the object at a distance in the design conditions first.'));
     return card;
   }
@@ -26963,7 +26977,7 @@ function configsCard(asm, P) {
   card.append(h('div', { class: 'rt-lbar' }, pick, h('button', { class: 'rt-btn', type: 'button', disabled: opts.length ? null : '', title: 'Give each configuration its own value of it, starting from the one it has now', onclick: () => {
     checkpoint(); mcKey(asm, designPrescription(asm), pick.value, true); changed(false); renderWs();
   } }, 'Make it differ'), addBtn));
-  card.append(h('p', { class: 'rt-lsub' }, 'The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'));
+  card.append(helpLine('The configuration shown is the one on the bench.', ['The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'], 'rt-lsub'));
   return card;
 }
 
@@ -27032,7 +27046,7 @@ function meritCard(asm, P) {
     bnum('Glass at the edge, at least', 'edgeMin'), bnum('Air between lenses, at least', 'airMin', 'At the centre and at the edge'),
     bnum('Aspheric departure, at most', 'aspMax', 'The sag the aspheric terms add to a surface, anywhere over its clear radius; 0 for no limit'),
     bnum('Departure’s slope, at most (°)', 'slopeMax', 'How steep the aspheric terms’ own sag may get, in degrees; 0 for no limit')));
-  card.append(h('p', { class: 'rt-lsub' }, 'The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'));
+  card.append(helpLine('The merit: the weighted RMS of its terms.', ['The merit is the square root of the sum of the squared terms over the image’s weight and the terms’ weights. A boundary counts only while it is broken. Rays are traced through every surface whatever its clear radius.'], 'rt-lsub'));
   return card;
 }
 
@@ -27150,7 +27164,7 @@ function limitsCard(asm, prob, V, running) {
   });
   const det = h('details', { class: 'rt-llims' }, h('summary', null, 'Limits on the variables' + (Object.keys(L).length ? ' (' + Object.keys(L).length + ' set)' : '')),
     h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
-    h('p', { class: 'rt-lsub' }, 'The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'));
+    helpLine('The optimiser keeps each value within its limits.', ['The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'], 'rt-lsub'));
   if (WS.limsOpen || Object.keys(L).length) det.open = true;
   det.addEventListener('toggle', () => { if (WS) WS.limsOpen = det.open; });
   return det;
@@ -27208,7 +27222,7 @@ function optCard(asm, P) {
     num.addEventListener('change', () => { const v = Math.round(+num.value); S.n = isFinite(v) ? Math.max(1, Math.min(200, v)) : 12; renderWs(); });
     card.append(h('div', { class: 'rt-lsubst' }, h('div', { class: 'rt-lrow', role: 'group', 'aria-label': 'Makers' }, h('span', { class: 'rt-lsub' }, 'From'), ...GLASS_MAKERS.map(box)),
       h('label', { class: 'rt-lrow' }, h('span', { class: 'rt-lsub' }, 'Candidates for each glass, nearest on the glass map'), num),
-      h('p', { class: 'rt-lsub' }, nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the lens data to substitute it.')));
+      helpLine(nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute.' : 'Mark a lens’s glass V in the lens data to substitute it.', [nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the lens data to substitute it.'], 'rt-lsub')));
   }
   card.append(h('div', { class: 'rt-lbar' }, running
     ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')
@@ -40629,8 +40643,7 @@ function orderRow(el, opts) {
     } finally { now.disabled = false; }
   } }, 'Quote now');
   return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), now, add,
-    h('p', { class: 'note' }, 'Made to order to this design. Quote now opens your quote cart with it, ready to send; or add it and send several together from Cart. The request carries its figures and a link to the design, and we reply with a price. ',
-      h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'));
+    helpLine(['Made to order to this design; ', h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'], ['Made to order to this design. Quote now opens your quote cart with it, ready to send; or add it and send several together from Cart. The request carries its figures and a link to the design, and we reply with a price. '], 'note'));
 }
 /* ---------- Opening a project someone (or something) else wrote ----------
    A file from outside the tool, an AI assistant's above all, is read as leniently as it
@@ -42349,7 +42362,7 @@ function mineBody(after) {
   const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
-    out.push(h('p', { class: 'rt-pnone' }, 'Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'));
+    out.push(helpLine('Nothing kept yet: right-click a part and choose Save to My parts.', ['Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'], 'rt-pnone'));
     return out;
   }
   for (const pal of ['free', 'fibre', 'elec', 'rf', 'pic']) {
@@ -44004,7 +44017,7 @@ async function fillHome() {
       h('div', { class: 'rt-actions' },
         h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id) }, 'Open'),
         can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
-      h('p', { class: 'rt-subsmall' }, 'A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'));
+      helpLine('Versions are kept as you work: the last 50, then one a day for 90 days.', ['A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'], 'rt-subsmall'));
     // the events, newest first: a fork comes just after the version it was made from
     const ev = [...data.versions.map(v => ({ kind: 'v', t: v.created_at, v })), ...data.forks.map(f => ({ kind: 'f', t: f.created_at, f }))]
       .sort((x, y) => y.t - x.t || (x.kind === 'f' ? -1 : 1));
@@ -44129,7 +44142,7 @@ async function fillHome() {
     box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
       : [h('p', { class: 'rt-hempty' }, P.q ? 'No part matches “' + P.q + '”.'
         : 'No parts kept yet. On the bench, set up a part as you want it (a lens of your own, a tuned laser) or a whole assembly, select it, right-click and choose Save to My parts; or import lens files with Import .zmx files above. They are then on every bench, under + Add part › My parts and the rail’s ★.')]),
-      h('p', { class: 'rt-subsmall' }, 'Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'));
+      helpLine('Your parts, on every bench and on any computer.', ['Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'], 'rt-subsmall'));
     return;
   }
   // folders, then benches, as cards
@@ -45570,7 +45583,7 @@ function modConfirmText(pack, from) {
     h('p', { class: 'note warn' }, 'This pack is a module: it has code (' + Math.ceil(pack.code.length / 1024) + ' KB) that runs whenever one of its parts is on a bench. ' + (from ? 'From ' + from + '. ' : '') + 'Install it only if you trust where it came from.'),
     h('p', null, 'It defines:'),
     h('ul', null, ...pack.defs.map(D => h('li', null, h('b', null, D.name), ', ' + kinds[D.kind] + (D.summary ? ': ' + D.summary : '')))),
-    h('p', { class: 'rt-hint' }, 'Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'));
+    helpLine('Its code runs in a sandbox, cut off from your account, your files and the internet.', ['Its code runs in a sandbox, apart from this page: it cannot reach your account, your benches, your files or the internet. It is given only the settings of its own parts and what it is asked to work out, and a part can only send back numbers. Code ' + pack.hash.slice(0, 12) + '…'], 'rt-hint'));
 }
 /* the mods in use: the installed packs with code, when mods are on */
 function modsSync() {

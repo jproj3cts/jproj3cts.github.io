@@ -11,7 +11,7 @@ import {
   linesGen, picPortList, portLabel, ringLine, samplesFor, spectrum
 } from '../engines/pic.js';
 import { signalSection } from './instruments.js';
-import { bindSync, fid, h, numInput, panel, param, selectField, setFid, vs } from './panel.js';
+import { helpLine, bindSync, fid, h, numInput, panel, param, selectField, setFid, vs } from './panel.js';
 import { portRows, readoutBox } from './panels.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
 
@@ -79,7 +79,7 @@ function picPanelFor(el) {
     pd: 'Absorbs what reaches it and reads it as the fibre photodiodes do: DC, beat notes, the mixer. Its out port carries what it reads to the electronics.',
   };
   panel.append(h('p', { style: 'margin-top:0.6rem' }, notes[el.kind]));
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, 'Photonic circuits are experimental: TE only, near 1550 nm, each part a compact model, checked on the validation page against closed forms and SAX. Its settings are numbers, not a drawn layout: sizes on the bench are only a schematic.'));
+  panel.append(helpLine('Photonic circuits are experimental: TE only, near 1550 nm.', ['Photonic circuits are experimental: TE only, near 1550 nm, each part a compact model, checked on the validation page against closed forms and SAX. Its settings are numbers, not a drawn layout: sizes on the bench are only a schematic.'], 'note', 'margin-top:0.35rem'));
 }
 /* the chip's spectrum between two of its ports, and the lines in it */
 function spectrumSection(el) {
@@ -216,7 +216,7 @@ function picWgPanel(F) {
       ['Loss', (+(w.loss * w.len * 1e-4).toPrecision(3)) + ' dB']];
     out.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
   });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Its length is this number, not the length drawn (a layout view, later, could measure it from the path). The index changes with wavelength through the group index: n(λ) = nₑ − (n_g − nₑ)(λ − 1550 nm)/1550 nm. Drag either end off its port to take it away.'));
+  panel.append(helpLine('Its length is this number, not the length drawn.', ['Its length is this number, not the length drawn (a layout view, later, could measure it from the path). The index changes with wavelength through the group index: n(λ) = nₑ − (n_g − nₑ)(λ − 1550 nm)/1550 nm. Drag either end off its port to take it away.'], 'note', 'margin-top:0.5rem'));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete waveguide')));
 }
 

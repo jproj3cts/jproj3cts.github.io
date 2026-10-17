@@ -5,7 +5,7 @@ import { designOf } from '../engines/lens-design.js';
 import { cloneP, optProblem } from '../engines/lens-opt.js';
 import { compensated, compsFor, mcStats, opValues, rssEstimate, tolOps, tolRun, yieldOf } from '../engines/lens-tol.js';
 import { surfaceParts } from '../engines/lens-design.js';
-import { h } from './panel.js';
+import { helpLine, h } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
 
 /* ==========================================================================
@@ -181,7 +181,7 @@ export function tolCard(ctx) {
     }
     right.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rr.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
   }
-  card.append(h('p', { class: 'rt-lsub' }, 'Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'));
+  card.append(helpLine('Tolerances the design against its own conditions.', ['Tolerance the bench, in the Sweeps menu, varies the bench’s parts as they stand there; this tab tolerances the lens design against its own conditions.'], 'rt-lsub'));
   return card;
 }
 
@@ -204,7 +204,7 @@ function invView(ctx, I, T, unit, set) {
     h('td', { class: 'mono' }, (r.beyond ? '\u2265 ' : '') + tolFmt(r.inv, 3) + ' ' + KIND_UNIT[r.kind]), h('td', { class: 'rt-lsub' }, (r.beyond ? 'beyond a thousand times the limit' : '') + (r.closes ? (r.beyond ? '; ' : '') + 'the ' + (r.label.startsWith('Air') ? 'gap' : 'glass') + ' has closed on its \u2212 side' : ''))));
   out.push(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable rt-ltolsens' }, h('thead', null, h('tr', null, ...['Tolerance', 'Set now', 'Allowed', ''].map(t => h('th', { scope: 'col' }, t)))), tb)));
   if (rows.length > 12) out.push(h('button', { class: 'rt-link', type: 'button', onclick: () => { ctx.state.allInv = !ctx.state.allInv; ctx.redraw(); } }, ctx.state.allInv ? 'Show the 12 tightest' : 'Show all ' + rows.length));
-  out.push(h('p', { class: 'rt-lsub' }, 'Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'));
+  out.push(helpLine('Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ', tightest first.', ['Each tolerance alone, ' + (T.comp ? 'each build refocused' : 'not refocused') + ': the limit at which the criterion is worse by the worsening allowed, the worse of its two signs, found to a part in a hundred. Sorted tightest first against the limit set now. Together the tolerances add (Sensitivity\u2019s estimate, Monte Carlo\u2019s spread), so a build with every one at its allowed limit is worse than this.'], 'rt-lsub'));
   return out;
 }
 /* a merit operand as the yield names it, and its specification */
@@ -225,7 +225,7 @@ function yieldCard(D, T, wf, set) {
     });
     wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Merit operand', '', 'Within, on each build'].map(t => h('th', { scope: 'col' }, t)))), tb)));
   }
-  wrap.append(h('p', { class: 'rt-lsub' }, 'Monte Carlo gives the share of its builds, each compensated, that meet every part of this, with the range it is within at 95% confidence, and each part\u2019s own share. Change it after a run and the yield is worked out again from the same builds.'));
+  wrap.append(helpLine('Monte Carlo gives the share of builds that meet this.', ['Monte Carlo gives the share of its builds, each compensated, that meet every part of this, with the range it is within at 95% confidence, and each part\u2019s own share. Change it after a run and the yield is worked out again from the same builds.'], 'rt-lsub'));
   return wrap;
 }
 /* a compensator's name, in this prescription */
@@ -256,8 +256,8 @@ function compsCard(P, T, set) {
   sel.addEventListener('change', () => { const o = free[+sel.value]; if (!o) return; set(t => { t.comps = (t.comps || []).concat([Object.assign({}, o, { range: o.kind === 'tilt' ? 10 : 0.5 })]); }); });
   wrap.append(h('div', { class: 'rt-lrow' }, h('b', null, 'Compensators'), sel));
   if (have.length) wrap.append(h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, rows)));
-  wrap.append(h('p', { class: 'rt-lsub' }, have.length ? 'For each build, ' + (T.comp ? 'the focus and ' : '') + 'these are set to make it as good as it can be (damped least squares on the criterion), each within its range: what an assembler adjusting them would do.'
-    : 'Beyond the focus, an air gap, or a lens\u2019s decentre or tilt, can be set for each build to make it as good as it can be, within a range: as an assembler adjusts them.'));
+  wrap.append(helpLine(have.length ? 'Set in each build, as an assembler would adjust them.' : 'Add values an assembler would adjust in each build.', [have.length ? 'For each build, ' + (T.comp ? 'the focus and ' : '') + 'these are set to make it as good as it can be (damped least squares on the criterion), each within its range: what an assembler adjusting them would do.'
+    : 'Beyond the focus, an air gap, or a lens\u2019s decentre or tilt, can be set for each build to make it as good as it can be, within a range: as an assembler adjusts them.'], 'rt-lsub'));
   return wrap;
 }
 /* the builds' criterion, binned; the nominal and the 90% line marked */

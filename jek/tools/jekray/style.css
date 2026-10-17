@@ -1437,3 +1437,9 @@
     .rt-lcond { max-width: none; }
     .rt-lname { max-width: 10rem; }
   }
+
+  /* a line of help and its fuller explanation, folded behind an ⓘ (panel.js helpLine) */
+  .rt-helpbtn { border: 0; background: none; padding: 0 0.15rem; margin: 0; font: inherit; line-height: 1; color: var(--rt-accent, #0092b2); cursor: pointer; vertical-align: baseline; }
+  .rt-helpbtn:hover, .rt-helpbtn[aria-expanded="true"] { color: var(--jek-orange, #f07e26); }
+  .rt-helpmore { display: block; margin-top: 0.3rem; }
+  .rt-helpmore[hidden] { display: none; }

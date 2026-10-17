@@ -11,7 +11,7 @@ import {
   elecNoiseRms, elecPsdAt, inputOf, isDet, isLaser, line, partner, portList, signalOf, solve
 } from '../engines/elec.js';
 import { INST } from './instruments.js';
-import { bindSync, h, panel, param, selectField, textField } from './panel.js';
+import { helpLine, bindSync, h, panel, param, selectField, textField } from './panel.js';
 import { readoutBox } from './panels.js';
 import { plotSaveRow } from './plots.js';
 import { changed } from './actions.js';
@@ -218,9 +218,9 @@ function instrumentSection(el) {
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block;margin-top:0.5rem' });
   panel.append(h('h3', null, el.kind === 'scope' ? 'Traces' : 'Spectrum'), cv, plotSaveRow(cv));
   bindSync(cv, () => { if (el.kind === 'scope') drawScope(cv, el); else drawSpectrum(cv, el); });
-  panel.append(h('p', { class: 'note', style: 'margin-top:0.35rem' }, el.kind === 'scope'
+  panel.append(helpLine(el.kind === 'scope' ? 'Channel 1 red, channel 2 blue, each on its own scale.' : 'Each tone a peak at its rms level, over the noise.', [el.kind === 'scope'
     ? 'Channel 1 red, channel 2 blue, each on its own scale (channel 1’s on the left, channel 2’s down the right), set as so much a division about an offset (the level at the centre line) or 0 for auto; a band of ±1σ for its noise up to 100 MHz, and a lighter band where a tone is too fast for the span. Normal shows the steady waveform, time starting where the generators’ cycles start; Roll shows the level as the sweeps play, over the last span of their clock (10 s on auto), flat with its bands when nothing changes.'
-    : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt; both axes auto (0) or set.'));
+    : 'Each tone a peak at its rms level, over the noise in the resolution bandwidth (the noise density times it), in dB of a volt; both axes auto (0) or set.'], 'note', 'margin-top:0.35rem'));
 }
 /* ---------- the optical parts' electrical side, on the bench and in their panels ---------- */
 function elecDrawExtras(el) {

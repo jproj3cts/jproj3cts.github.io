@@ -4,7 +4,7 @@ import { serialize } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { setExporting } from '../engines/trace.js';
 import { H, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
-import { h } from '../ui/panel.js';
+import { helpLine, h } from '../ui/panel.js';
 import { setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from './merge.js';
@@ -607,7 +607,7 @@ export async function fillHome() {
       h('div', { class: 'rt-actions' },
         h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id) }, 'Open'),
         can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
-      h('p', { class: 'rt-subsmall' }, 'A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'));
+      helpLine('Versions are kept as you work: the last 50, then one a day for 90 days.', ['A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'], 'rt-subsmall'));
     // the events, newest first: a fork comes just after the version it was made from
     const ev = [...data.versions.map(v => ({ kind: 'v', t: v.created_at, v })), ...data.forks.map(f => ({ kind: 'f', t: f.created_at, f }))]
       .sort((x, y) => y.t - x.t || (x.kind === 'f' ? -1 : 1));
@@ -732,7 +732,7 @@ export async function fillHome() {
     box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
       : [h('p', { class: 'rt-hempty' }, P.q ? 'No part matches “' + P.q + '”.'
         : 'No parts kept yet. On the bench, set up a part as you want it (a lens of your own, a tuned laser) or a whole assembly, select it, right-click and choose Save to My parts; or import lens files with Import .zmx files above. They are then on every bench, under + Add part › My parts and the rail’s ★.')]),
-      h('p', { class: 'rt-subsmall' }, 'Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'));
+      helpLine('Your parts, on every bench and on any computer.', ['Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'], 'rt-subsmall'));
     return;
   }
   // folders, then benches, as cards

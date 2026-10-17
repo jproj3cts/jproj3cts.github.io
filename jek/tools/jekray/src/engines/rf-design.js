@@ -2,7 +2,8 @@ import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, rfBeam, rfTanD } from '../core
 import { normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
-import { lensSystem } from './lens-engine.js';
+import { lensSystem, traceRay } from './lens-engine.js';
+import { besselJ01 } from './field.js';
 import { surfSag, surfaceParts } from './lens-design.js';
 
 /* ==========================================================================
@@ -61,6 +62,33 @@ export function rfSyncCond(asm, P) {
     fields: [{ deg: 0, w: 1 }], waves: [R.lo, R.ghz, R.hi].map(g => ({ nm: rfNm(g), w: 1 })), primary: 1 });
 }
 const isGlass = m => m && m.glass !== 'AIR';
+/* the phase error the parts add beyond what the Gaussian beam's first order holds: real rays (meridional, exact)
+   from the incoming beam's phase centre through every surface, their optical paths to the sphere about the
+   outgoing beam's phase centre (or to a plane, for a beam leaving flat), the piston and the defocus taken out by a
+   least-squares fit in h², and the rest's RMS over the beam's power (h e^{-2h²/w²}); its loss exp(-(2πσ/λ)²) */
+export function rfAberr(P, S, Rin, Rout, w, lam) {
+  const N = S.N, semi = Math.min(...P.surfaces.map(s => s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity)), a = isFinite(semi) ? semi : 3 * w;
+  const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
+  const hs = [], ws = [], W = [], R = new Float64Array(8);
+  for (let k = 0; k < 32; k++) {
+    const h = a * (k + 0.5) / 32;
+    if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, 0, h / L, src / L, 0, 0]); }
+    else R.set([0, h, -1, 0, 0, 1, 0, 0]);
+    traceRay(S, R, 0, N - 1, true);
+    if (R[7] || !isFinite(R[6])) continue;
+    let opl = R[6];
+    if (tgt !== null) opl += Math.hypot(R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
+    hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
+  }
+  if (hs.length < 4) return { sigma: 0, eff: 1 };
+  // weighted least squares: W ≈ c0 + c2 h²
+  let s0 = 0, s1 = 0, s2 = 0, t0 = 0, t1 = 0;
+  hs.forEach((h, k) => { const u = h * h, q = ws[k]; s0 += q; s1 += q * u; s2 += q * u * u; t0 += q * W[k]; t1 += q * u * W[k]; });
+  const det = s0 * s2 - s1 * s1, c2 = det ? (s0 * t1 - s1 * t0) / det : 0, c0 = (t0 - c2 * s1) / s0;
+  let v = 0; hs.forEach((h, k) => { const e = W[k] - c0 - c2 * h * h; v += ws[k] * e * e; });
+  const sigma = Math.sqrt(v / s0);
+  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)) };
+}
 /* the system at one frequency: the beam followed from the feed horn's aperture to the goal's plane, sampled
    along the unfolded axis (z from the first vertex, w the beam's radius); at each surface its radius, the
    aperture's, the edge taper (dB) and the share spilled; the beam leaving; and the figures for the goal */
@@ -101,7 +129,7 @@ export function rfTrace(asm, P, ghz, opts) {
     const before = i ? P.materials[i - 1] : null, after = i < N - 1 ? P.materials[i] : null;
     if (!isGlass(before) && !isGlass(after)) continue;
     const el = s.from && getEl(s.from.id), coat = el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null;
-    const Rf = faceR(S.n[i], S.n[i + 1], nm, isGlass(after) ? coat : null);
+    const Rf = faceR(S.n[i], S.n[i + 1], nm, coat);
     faces.push({ i, R: Rf, matched: isMatchCoat(coat) }); refl *= 1 - Rf;
   }
   for (let i = 0; i < N - 1; i++) {
@@ -121,15 +149,21 @@ export function rfTrace(asm, P, ghz, opts) {
   }
   const apert = surf.filter(s => isFinite(s.semi) && s.kind !== 'stop');
   // the apertures the beam passes through on the way; for a collimated beam the last is the antenna's own, counted in its efficiency
-  for (const s of apert) if (!(g.kind === 'collimate' && s === apert[apert.length - 1])) spill *= 1 - s.spill;
-  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill };
+  // each part's spillover once (the beam hardly changes across a lens: its widest loss); for a collimated beam the
+  // last part's is in its aperture efficiency
+  const lastPi = apert.length ? apert[apert.length - 1].pi : -1, byPart = new Map();
+  for (const s of apert) byPart.set(s.pi, Math.max(byPart.get(s.pi) || 0, s.spill));
+  for (const [pi, sp] of byPart) if (!(g.kind === 'collimate' && pi === lastPi)) spill *= 1 - sp;
+  // the phase error beyond first order, from real rays (not when asked for the beam alone)
+  const ab = opts.noAberr ? { sigma: 0, eff: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam);
+  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff };
   if (g.kind === 'collimate') {
     const last = apert[apert.length - 1], a = last ? last.semi : out.w * 1.5;
     // the field at the last lens: the beam leaving it, its radius and curvature there
     const wl = beamOf(q, lam).w, Rl = out.R;
     res.apEff = apertureEff(a, wl, Rl, lam);
-    res.D = 2 * a;
-    res.eff = H.g * refl * absorb * spill * res.apEff;
+    res.D = 2 * a; res.apAt = { a, w: wl, R: Rl };
+    res.eff = H.g * refl * absorb * spill * res.apEff * ab.eff;
     res.gain = 10 * Math.log10(res.eff * (Math.PI * 2 * a / lam) ** 2);
     res.waist = { w: Math.sqrt(lam * out.zR / Math.PI), at: -out.z };
     res.theta = Math.atan(lam / (Math.PI * res.waist.w)) / Math.PI * 180;
@@ -140,7 +174,7 @@ export function rfTrace(asm, P, ghz, opts) {
     res.waist = { w: Math.sqrt(lam * out.zR / Math.PI), at: -out.z };
     res.target = { w: wt, at: zEnd - zL };
     res.gRx = g.kind === 'couple' ? (RF_HORNS[g.rx.kind] || RF_HORNS.corrugated).g : 1;
-    res.eff = H.g * refl * absorb * spill * res.coupling * res.gRx;
+    res.eff = H.g * refl * absorb * spill * res.coupling * res.gRx * ab.eff;
   }
   return res;
 }
@@ -240,4 +274,168 @@ export function rfSynth(asm, P, spec) {
   // a lens narrow for its beam: what spills past it, and the diameter that would hold it (a 20 dB edge)
   if (taper < 10) notes.push('The beam at the lens is ' + (+(2 * bin.w).toPrecision(3)) + ' mm across (1/e²), so its edge is only ' + taper.toFixed(1) + ' dB down and ' + (100 * Math.exp(-2 * (a / bin.w) ** 2)).toFixed(1) + '% of the power spills past it. A lens about ' + Math.ceil(2 * bin.w * Math.sqrt(20 / 8.686)) + ' mm across would hold it (a 20 dB edge); or bring the goal nearer.');
   return { i0, s1, s2, t, n, F1, F2, feedD, w: bin.w, taper, notes };
+}
+
+
+/* ---------- Analyses over the band ----------
+   The figures at n frequencies across the band and a tenth beyond each edge; the far-field pattern of the last
+   lens's aperture; each lens's reflection as a slab (its two faces, with their layers, and the plastic between,
+   coherently: the ripple a plain lens shows across a band); and each aperture's beam, taper and spillover. */
+export function rfBandSweep(asm, P, n) {
+  const R = normRfCond(asm.rf), lo = R.lo - 0.1 * (R.hi - R.lo), hi = R.hi + 0.1 * (R.hi - R.lo), out = [];
+  n = n || 41;
+  for (let k = 0; k < n; k++) {
+    const ghz = Math.max(0.5, lo + (hi - lo) * k / (n - 1)), t = rfTrace(asm, P, ghz, { steps: 4 });
+    out.push({ ghz, eff: t.eff, coupling: t.coupling, gain: t.gain, apEff: t.apEff, refl: t.refl, absorb: t.absorb, spill: t.spill, phaseEff: t.phaseEff, sigma: t.sigma, lam: t.lam, slab: rfSlabs(P, ghz) });
+  }
+  return out;
+}
+/* the far field of a Gaussian field over a round aperture (radius a, its radius w and phase radius R there):
+   E(θ) ∝ (1 + cos θ)/2 ∫ exp(-r²/w² - iπr²/(λR)) J0(k r sin θ) r dr; in dB against the axis, from 0 to th1 degrees;
+   with the half-power beamwidth and the first sidelobe */
+export function rfPattern(ap, lam, th1, n) {
+  n = n || 361; th1 = th1 || 30;
+  const k = 2 * Math.PI / lam, M = 160, dr = ap.a / M, rs = [], er = [], ei = [];
+  for (let i = 0; i < M; i++) {
+    const r = (i + 0.5) * dr, ph = isFinite(ap.R) ? -Math.PI * r * r / (lam * ap.R) : 0, amp = Math.exp(-r * r / (ap.w * ap.w)) * r * dr;
+    rs.push(r); er.push(amp * Math.cos(ph)); ei.push(amp * Math.sin(ph));
+  }
+  const E = s => { let re = 0, im = 0; for (let i = 0; i < M; i++) { const J = besselJ01(k * rs[i] * s)[0]; re += er[i] * J; im += ei[i] * J; } return re * re + im * im; };
+  const p0 = E(0), th = [], db = [];
+  for (let j = 0; j < n; j++) {
+    const t = th1 * j / (n - 1), c = Math.cos(t * Math.PI / 180), ob = (1 + c) / 2;
+    th.push(t); db.push(10 * Math.log10(Math.max(1e-12, E(Math.sin(t * Math.PI / 180)) * ob * ob / p0)));
+  }
+  let hp = NaN, null1 = -1, side = -Infinity;
+  for (let j = 1; j < n; j++) if (db[j] <= -3.0103) { hp = th[j - 1] + (th[j] - th[j - 1]) * (-3.0103 - db[j - 1]) / (db[j] - db[j - 1]); break; }
+  for (let j = 1; j < n - 1; j++) if (db[j] < db[j - 1] && db[j] <= db[j + 1]) { null1 = j; break; }
+  if (null1 > 0) for (let j = null1; j < n; j++) side = Math.max(side, db[j]);
+  return { th, db, hpbw: 2 * hp, sidelobe: isFinite(side) ? side : null };
+}
+/* each lens as a slab at normal incidence: air, its first face's layer, the plastic (its centre thickness), its
+   second face's layer, air; its power reflection by the characteristic matrices */
+export function rfSlabs(P, ghz) {
+  const nm = rfNm(ghz), sps = surfaceParts(P), out = [];
+  for (let i = 0; i < P.surfaces.length - 1; i++) {
+    const m = P.materials[i];
+    if (!isGlass(m) || sps[i].pi !== sps[i + 1].pi) continue;
+    const n = refIndex(m, nm), layers = [];
+    const coatOf = s => { const el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null; };
+    const c1 = coatOf(P.surfaces[i]), c2 = coatOf(P.surfaces[i + 1]);
+    if (isMatchCoat(c1)) layers.push([c1.layers[0].n, c1.layers[0].d]);
+    layers.push([n, P.gaps[i] * 1e6]);
+    if (isMatchCoat(c2)) layers.push([c2.layers[0].n, c2.layers[0].d]);
+    // M = Π [[cos δ, i sin δ / n], [i n sin δ, cos δ]], δ = 2π n d / λ; r = (M11 + M12 - M21 - M22) / (M11 + M12 + M21 + M22) for air either side
+    let a = [1, 0], b = [0, 0], c = [0, 0], d = [1, 0];
+    const mul = (x, y) => [x[0] * y[0] - x[1] * y[1], x[0] * y[1] + x[1] * y[0]], add = (x, y) => [x[0] + y[0], x[1] + y[1]];
+    for (const [nl, dl] of layers) {
+      const del = 2 * Math.PI * nl * dl / nm, cs = Math.cos(del), sn = Math.sin(del);
+      const A = [cs, 0], B = [0, sn / nl], C = [0, nl * sn], Dm = [cs, 0];
+      [a, b, c, d] = [add(mul(a, A), mul(b, C)), add(mul(a, B), mul(b, Dm)), add(mul(c, A), mul(d, C)), add(mul(c, B), mul(d, Dm))];
+    }
+    const num = [a[0] + b[0] - c[0] - d[0], a[1] + b[1] - c[1] - d[1]], den = [a[0] + b[0] + c[0] + d[0], a[1] + b[1] + c[1] + d[1]];
+    const r = rfCdiv(num, den);
+    out.push({ i, pi: sps[i].pi, R: r[0] * r[0] + r[1] * r[1] });
+  }
+  return out;
+}
+
+/* ---------- Optimise ----------
+   Damped least squares on the system's own figures: at five frequencies across the band, the efficiency short of
+   1 (for a collimated beam that is the gain at its diameter; for the others the coupling and the losses), and, if
+   asked, how far each is from their mean (flatness). Each lens keeps its centre no thicker than a limit (if set),
+   its edge no thinner than one, and the air between parts open. The variables: each face's curvature (so a face
+   may pass through flat) and conic, each lens's centre thickness, each air gap after a part, and the feed's
+   distance. */
+export function rfOptVars(P) {
+  const sps = surfaceParts(P), out = [];
+  P.parts.forEach((p, pi) => {
+    const i0 = sps.findIndex(s => s.pi === pi), name = p.id;
+    if (p.kind === 'lens' && p.n === 2) {
+      out.push({ key: 'c:' + i0, part: name, label: 'Front radius' }, { key: 'k:' + i0, part: name, label: 'Front conic' },
+        { key: 'c:' + (i0 + 1), part: name, label: 'Back radius' }, { key: 'k:' + (i0 + 1), part: name, label: 'Back conic' }, { key: 't:' + i0, part: name, label: 'Centre thickness' });
+    }
+    if (i0 + p.n - 1 < P.surfaces.length - 1) out.push({ key: 't:' + (i0 + p.n - 1), part: name, label: 'Air after' });
+  });
+  out.push({ key: 'feed', part: null, label: 'Feed to the first lens' });
+  return out;
+}
+const rfGet = (P, asm, key) => { if (key === 'feed') return asm.rf.feed.d; const [q, i] = key.split(':'); const s = P.surfaces[+i]; return q === 'c' ? (s.R === null || !isFinite(s.R) || !s.R ? 0 : 1 / s.R) : q === 'k' ? (s.k || 0) : P.gaps[+i]; };
+const rfSet = (P, asm, key, v) => { if (key === 'feed') { asm.rf.feed.d = v; return; } const [q, i] = key.split(':'); const s = P.surfaces[+i]; if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else P.gaps[+i] = v; };
+export function rfOptProblem(asm, P, spec) {
+  const keys = spec.keys.slice(), sps = surfaceParts(P);
+  const clone = () => ({ P: Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) }), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)) }) });
+  const R = normRfCond(asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
+  const x0 = keys.map(k => rfGet(P, asm, k));
+  const at = x => { const c = clone(); keys.forEach((k, j) => rfSet(c.P, c.asm, k, x[j])); return c; };
+  const res = x => {
+    const c = at(x), r = [];
+    const effs = fs.map(f => { const t = rfTrace(c.asm, c.P, f, { steps: 2 }); return isFinite(t.eff) ? t.eff : 0; });
+    effs.forEach(e => r.push(1 - e));
+    const mean = effs.reduce((a, b) => a + b, 0) / effs.length;
+    effs.forEach(e => r.push((spec.flat || 0) * (e - mean)));
+    // the bounds: each lens's edge and centre, the air between parts, the feed's distance
+    for (let i = 0; i < c.P.surfaces.length - 1; i++) {
+      const g = c.P.gaps[i], a = c.P.surfaces[i], b = c.P.surfaces[i + 1], glass = isGlass(c.P.materials[i]);
+      const hh = Math.min(a.semi, b.semi), edge = g + surfSag(b, hh) - surfSag(a, hh);
+      if (glass && sps[i].pi === sps[i + 1].pi) {
+        r.push(10 * Math.max(0, (spec.edgeMin || 0) - (isFinite(edge) ? edge : -10)));
+        r.push(spec.tMax > 0 ? 10 * Math.max(0, g - spec.tMax) / spec.tMax : 0);
+      } else r.push(10 * Math.max(0, 0.5 - (isFinite(edge) ? Math.min(edge, g) : -10)));
+    }
+    r.push(10 * Math.max(0, 1 - c.asm.rf.feed.d) / 10);
+    return { r, effs, mean };
+  };
+  return { keys, x0, at, res, fs };
+}
+/* The search: quasi-Newton (BFGS) on the merit, the sum of the squares above, each variable in its own scale (a
+   curvature in 1/1000 mm, a conic in units, a length in mm, the feed's distance in 10 mm), its gradient by central
+   differences, each step shortened until the merit falls enough (Armijo). The efficiency can't reach 1, so the
+   merit's least is not zero, which a least-squares step assumes; this finds it all the same. */
+const RF_SCALE = { c: 1e-3, k: 1, t: 1, feed: 10 };
+const rfScale = k => k === 'feed' ? RF_SCALE.feed : RF_SCALE[k[0]] || 1;
+export function rfOptStart(prob) {
+  const sc = prob.keys.map(rfScale), u = prob.x0.map((v, j) => v / sc[j]);
+  const st = { sc, u, n: u.length, H: null, iter: 0, done: false };
+  rfOptEval(prob, st);
+  st.m0 = st.m;
+  return st;
+}
+function rfOptEval(prob, st) {
+  const x = st.u.map((v, j) => v * st.sc[j]), f = prob.res(x);
+  st.m = f.r.reduce((a, v) => a + v * v, 0); st.mean = f.mean; st.effs = f.effs; st.x = x;
+  const g = [];
+  for (let j = 0; j < st.n; j++) {
+    const h = 1e-4, up = st.u.slice(), dn = st.u.slice(); up[j] += h; dn[j] -= h;
+    const mu = prob.res(up.map((v, k) => v * st.sc[k])).r.reduce((a, v) => a + v * v, 0), md = prob.res(dn.map((v, k) => v * st.sc[k])).r.reduce((a, v) => a + v * v, 0);
+    g.push((mu - md) / (2 * h));
+  }
+  st.g = g;
+}
+export function rfOptStep(prob, st) {
+  if (st.done) return st;
+  const n = st.n;
+  if (!st.H) st.H = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, k) => (i === k ? 1 / Math.max(1e-6, Math.abs(st.g[i]) * 10 + 1e-3) : 0)));
+  const d = st.H.map(row => -row.reduce((a, v, k) => a + v * st.g[k], 0));
+  const slope = d.reduce((a, v, k) => a + v * st.g[k], 0);
+  if (!(slope < 0)) { st.H = null; st.stall = (st.stall || 0) + 1; if (st.stall > 2) st.done = true; return st; }
+  const u0 = st.u.slice(), m0 = st.m, g0 = st.g.slice();
+  let t = 1, ok = false;
+  for (let k = 0; k < 30; k++) {
+    st.u = u0.map((v, j) => v + t * d[j]);
+    const m = prob.res(st.u.map((v, j) => v * st.sc[j])).r.reduce((a, v) => a + v * v, 0);
+    if (isFinite(m) && m <= m0 + 1e-4 * t * slope) { ok = true; break; }
+    t *= 0.4;
+  }
+  if (!ok) { st.u = u0; st.H = null; st.stall = (st.stall || 0) + 1; if (st.stall > 2) st.done = true; return st; }
+  rfOptEval(prob, st);
+  st.iter++; st.stall = 0;
+  // the inverse Hessian, updated by the step and the change of gradient
+  const s = st.u.map((v, j) => v - u0[j]), y = st.g.map((v, j) => v - g0[j]), sy = s.reduce((a, v, j) => a + v * y[j], 0);
+  if (sy > 1e-16) {
+    const Hy = st.H.map(row => row.reduce((a, v, k) => a + v * y[k], 0)), yHy = y.reduce((a, v, j) => a + v * Hy[j], 0);
+    for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) st.H[i][k] += ((sy + yHy) * s[i] * s[k]) / (sy * sy) - (Hy[i] * s[k] + s[i] * Hy[k]) / sy;
+  }
+  if (m0 - st.m < 1e-10 * Math.max(1, m0)) st.done = true;
+  return st;
 }

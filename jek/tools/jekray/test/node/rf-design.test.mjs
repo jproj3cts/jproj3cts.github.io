@@ -82,3 +82,39 @@ test('lenses designed from a spec: two hyperbolic faces couple a horn into its t
   const o = RF.rfSynth(a, P, { pi: 0, type: 'hyperbolic', mat: 'PLA', D: 120, edge: 2, place: 'taper', taper: 11 });
   assert.ok(Math.abs(o.taper - 11) < 1e-9, String(o.taper));
 });
+
+test('the analyses: real-ray phase error, the far-field pattern and a lens as a slab, against their formulas', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.HDPE.n;
+  // a hyperbolic face on the beam's phase centre adds no phase error; a sphere of the same vertex radius does
+  let s = system((n - 1) * Rg, -n * n, null, 0, 30, { kind: 'collimate', d: 300 }), t = RF.rfTrace(s.a, s.P, ghz);
+  assert.ok(t.sigma / t.lam < 1e-9 && t.phaseEff > 1 - 1e-12, String(t.sigma));
+  s = system((n - 1) * Rg, 0, null, 0, 30, { kind: 'collimate', d: 300 }); t = RF.rfTrace(s.a, s.P, ghz);
+  assert.ok(t.sigma / t.lam > 0.05 && t.phaseEff < 0.9, String(t.sigma / t.lam));
+  // a nearly uniform aperture: half-power beamwidth 58.9 λ/D degrees and its first sidelobe at -17.6 dB (Airy)
+  const D = 300, pat = RF.rfPattern({ a: D / 2, w: 1e5, R: Infinity }, lam, 20, 2001);
+  assert.ok(Math.abs(pat.hpbw - 58.93 * lam / D) < 0.01 * 58.93 * lam / D, String(pat.hpbw));
+  assert.ok(Math.abs(pat.sidelobe + 17.57) < 0.1, String(pat.sidelobe));
+  // a tapered aperture: a wider beam and lower sidelobes
+  const tp = RF.rfPattern({ a: D / 2, w: D / 2 / Math.sqrt(11 / 8.686), R: Infinity }, lam, 20, 2001);
+  assert.ok(tp.hpbw > pat.hpbw && tp.sidelobe < -24, JSON.stringify([tp.hpbw, tp.sidelobe]));
+  // a plain slab: no reflection when half a wave thick inside; at a quarter, its most, ((n² - 1)/(n² + 1))²
+  const half = C.C_NM_GHZ / ghz * 1e-6 / (2 * n);
+  s = system(null, 0, null, 0, half, { kind: 'collimate', d: 300 });
+  assert.ok(RF.rfSlabs(s.P, ghz)[0].R < 1e-20);
+  s = system(null, 0, null, 0, half / 2, { kind: 'collimate', d: 300 });
+  assert.ok(Math.abs(RF.rfSlabs(s.P, ghz)[0].R - ((n * n - 1) / (n * n + 1)) ** 2) < 1e-12);
+});
+
+test('optimising a spherical lens finds the hyperbola again: its phase error gone and its gain the designed lens’s', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.HDPE.n;
+  const ideal = (() => { const s = system((n - 1) * Rg, -n * n, null, 0, 30, { kind: 'collimate', d: 300 }); return RF.rfTrace(s.a, s.P, ghz); })();
+  const { a, P } = system((n - 1) * Rg * 1.1, 0, null, 0, 30, { kind: 'collimate', d: 300 });
+  const prob = RF.rfOptProblem(a, P, { keys: ['c:0', 'k:0'], flat: 0, edgeMin: 1, tMax: 0 });
+  let st = RF.rfOptStart(prob);
+  const before = st.mean;
+  for (let i = 0; i < 200 && !st.done; i++) st = RF.rfOptStep(prob, st);
+  const c = prob.at(st.x), t = RF.rfTrace(c.asm, c.P, ghz);
+  assert.ok(st.mean > before + 0.05, before + ' → ' + st.mean);
+  assert.ok(t.sigma / t.lam < 0.01, String(t.sigma / t.lam));
+  assert.ok(Math.abs(t.gain - ideal.gain) < 0.05, t.gain + ' against ' + ideal.gain);
+});

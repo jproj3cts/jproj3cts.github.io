@@ -9133,6 +9133,39 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: Optimise takes a spherical lens back to the hyperbola, and every analysis is drawn',
+    why: 'the new design’s lens given a spherical face (its phase error over 0.1 λ); Optimise, with its radius and conic free, brings the phase error under 0.01 λ and the gain back to the designed lens’s, within 0.1 dB, as one change Undo takes back; the Analyses tab draws the band, the far-field pattern (its beamwidth and first sidelobe given), the apertures, the reflections and the loss budget, whose total is the Efficiency figure (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs');
+      const fig = label => { const d = [...ws().querySelectorAll('.rt-lfig > div')].find(x => x.firstChild.textContent === label); return d ? d.lastChild.textContent : ''; };
+      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (rigWin().Event)('change')); };
+      const btn = t => [...ws().querySelectorAll('button')].find(b => b.textContent === t);
+      try {
+        const gain0 = parseFloat(fig('Gain'));
+        set('RF lens face to the feed conic', '0');
+        const spoiled = parseFloat(fig('Phase error')) > 0.1;
+        [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === 'Optimise').click();
+        ws().querySelector('.rt-rfopt .rt-btn.primary').click();
+        for (let k = 0; k < 400 && /Optimising/.test(ws().querySelector('.rt-rfopt').textContent); k++) await new Promise(r => setTimeout(r, 50));
+        const pe = parseFloat(fig('Phase error')), gain1 = parseFloat(fig('Gain'));
+        const opt = pe < 0.01 && Math.abs(gain1 - gain0) < 0.1;
+        [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === 'Analyses').click();
+        const views = [];
+        for (const v of ['Over the band', 'Far-field pattern', 'Apertures', 'Reflections', 'Loss budget']) { btn(v).click(); await new Promise(r => setTimeout(r, 30)); views.push(!!ws().querySelector('.rt-rfana canvas, .rt-rfana table')); }
+        const total = ws().querySelector('.rt-rftotal td').textContent, eff = fig('Efficiency');
+        const budget = parseFloat(total) === parseFloat(eff);
+        btn('Undo').click();
+        const undone = parseFloat(fig('Phase error')) > 0.1;
+        const ok = spoiled && opt && views.every(Boolean) && budget && undone;
+        if (!ok) console.log('RF optimise', { gain0, spoiled, pe, gain1, views, total, eff, undone });
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -4,7 +4,8 @@ import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { commitDesign, designOf, designPrescription, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { RF_LENS_TYPES, rfBand, rfSynth, rfSyncCond } from '../engines/rf-design.js';
+import { RF_LENS_TYPES, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfSynth, rfSyncCond } from '../engines/rf-design.js';
+import { linePlot } from './lens-analyses.js';
 import { h } from './panel.js';
 import { matchLayer } from './panels.js';
 import { setSelection } from './render.js';
@@ -166,7 +167,7 @@ function rwDraw() {
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
   body.append(rwCondCard(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwTabs(),
-    RW.tab === 'synth' ? rwSynthCard(asm, P) : rwLensCard(asm, P, T.mid)));
+    RW.tab === 'synth' ? rwSynthCard(asm, P) : RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : rwLensCard(asm, P, T.mid)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -335,12 +336,13 @@ function rwFigures(asm, T) {
     row('Over the band', band(t => t.eff, rwPct)),
     row('Reflections', rwDb(m.refl), 'From every face: matched faces through their layer at each frequency'),
     row('Absorption', rwDb(m.absorb), 'In the lenses’ plastic, over the beam’s profile'),
-    row('Spillover', rwDb(m.spill), 'Past the apertures on the way' + (R.goal.kind === 'collimate' ? ' (the last lens’s own is in its aperture efficiency)' : '')));
+    row('Spillover', rwDb(m.spill), 'Past the apertures on the way' + (R.goal.kind === 'collimate' ? ' (the last lens’s own is in its aperture efficiency)' : '')),
+    row('Phase error', rwFmt(m.sigma / m.lam, 2) + ' λ RMS (' + rwDb(m.phaseEff) + ')', 'What the faces add beyond the Gaussian beam’s first order, from real rays: its RMS over the beam, and its loss exp(−(2πσ/λ)²)'));
   return h('div', { class: 'rt-lfig' }, ...items);
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('lenses', 'Lenses'), tab('synth', 'Design a lens'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('lenses', 'Lenses'), tab('synth', 'Design a lens'), tab('opt', 'Optimise'), tab('ana', 'Analyses'));
 }
 
 /* ---------- The lenses: each its material, size and faces, and the air after it ---------- */
@@ -476,4 +478,137 @@ function rwPlace(asm) {
     project.elements.push(normElement({ type: 'screen', id: uid(), name: 'Absorber load', x: A.p[0] + A.d[0] * R.goal.d, y: A.p[1] + A.d[1] * R.goal.d, angle: back, length: Math.max(50, 4 * rfBeam(R.feed, R.ghz).w0), mmw: { part: true }, bench: asm.bench }));
   }
   rwToBench(asm, P);
+}
+
+
+/* ---------- Analyses ---------- */
+const RW_BAND_COLS = ['#5aa9ff', '#e0a030', '#ff7a6b'];
+const rwDbOf = v => (v > 0 ? 10 * Math.log10(v) : null);
+function rwAnaCard(asm, P, T) {
+  const st = RW.ana || (RW.ana = { view: 'band' }), R = asm.rf, coll = R.goal.kind === 'collimate';
+  const card = h('section', { class: 'rt-lcard rt-lana rt-rfana', role: 'tabpanel', 'aria-label': 'Analyses' });
+  const chip = (id, label) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String(st.view === id), onclick: () => { st.view = id; rwRender(); } }, label);
+  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('budget', 'Loss budget')));
+  const body = h('div', { class: 'rt-lanabody' });
+  card.append(body);
+  if (st.view === 'pattern' && !coll) st.view = 'band';
+  if (st.view === 'band') {
+    const S = rfBandSweep(asm, P, 61), xs = S.map(s => s.ghz);
+    const main = coll ? { label: 'Gain', colour: '#e0a030', xs, ys: S.map(s => s.gain) } : { label: 'Coupling', colour: '#e0a030', xs, ys: S.map(s => rwDbOf(s.coupling)) };
+    body.append(h('p', { class: 'rt-lsub' }, coll ? 'The gain on the axis across the band and a tenth beyond each edge, and what each loss takes, in dB.' : 'The coupling to the goal across the band and a tenth beyond each edge (the S21 of the system, from the feed’s Gaussian to the goal’s), and what each loss takes, in dB.'));
+    linePlot(body, { label: coll ? 'Gain against frequency' : 'Coupling against frequency', H: 220, x: { kind: 'plain', title: 'frequency, GHz' }, y: { kind: 'plain', title: coll ? 'dBi' : 'dB' }, xName: 'GHz', series: [main],
+      csv: { name: asm.name + ' over the band', cols: ['GHz', coll ? 'gain_dBi' : 'coupling_dB', 'efficiency_dB', 'reflections_dB', 'absorption_dB', 'spillover_dB', 'phase_error_dB'], rows: () => S.map(s => [s.ghz, coll ? s.gain : rwDbOf(s.coupling), rwDbOf(s.eff), rwDbOf(s.refl), rwDbOf(s.absorb), rwDbOf(s.spill), rwDbOf(s.phaseEff)]) } });
+    const ser = [['Efficiency, all of it', '#e0a030', s => s.eff], ['Reflections', '#5aa9ff', s => s.refl], ['Absorption', '#7ee0a1', s => s.absorb], ['Spillover', '#c38bff', s => s.spill], ['Phase error', '#ff7a6b', s => s.phaseEff], ...(coll ? [['Aperture efficiency', '#b0b8c0', s => s.apEff]] : [])];
+    body.append(h('div', { class: 'rt-llegend' }, ...ser.map(([t, col]) => h('span', null, h('i', { style: '--sw:' + col, 'aria-hidden': 'true' }), t))));
+    linePlot(body, { label: 'Losses against frequency', H: 220, x: { kind: 'plain', title: 'frequency, GHz' }, y: { kind: 'plain', title: 'dB' }, xName: 'GHz', series: ser.map(([label, colour, f]) => ({ label, colour, xs, ys: S.map(s => rwDbOf(f(s))) })) });
+    const band = S.filter(s => s.ghz >= R.lo - 1e-9 && s.ghz <= R.hi + 1e-9), vals = band.map(s => coll ? s.gain : rwDbOf(s.coupling));
+    body.append(h('p', { class: 'rt-lsub mono' }, (coll ? 'Gain over the band ' : 'Coupling over the band ') + rwFmt(Math.min(...vals), 4) + ' to ' + rwFmt(Math.max(...vals), 4) + (coll ? ' dBi' : ' dB') + ': it varies by ' + rwFmt(Math.max(...vals) - Math.min(...vals), 3) + ' dB.'));
+  } else if (st.view === 'pattern') {
+    const pats = [T.lo, T.mid, T.hi].map(t => rfPattern(t.apAt, t.lam, Math.min(60, 8 * Math.atan(t.lam / t.D) * 180 / Math.PI + 4)));
+    const th1 = Math.max(...pats.map(p => p.th[p.th.length - 1]));
+    const ps = [T.lo, T.mid, T.hi].map(t => rfPattern(t.apAt, t.lam, th1));
+    body.append(h('p', { class: 'rt-lsub' }, 'The far field of the last lens’s aperture: the Gaussian field it carries there, with its curvature, over its round aperture, at the band’s edges and its centre, in dB against the axis. Its phase error beyond first order and any cross-polar field are not in it.'));
+    body.append(h('div', { class: 'rt-llegend' }, ...[R.lo, R.ghz, R.hi].map((g, k) => h('span', null, h('i', { style: '--sw:' + RW_BAND_COLS[k], 'aria-hidden': 'true' }), rwFmt(g, 4) + ' GHz'))));
+    linePlot(body, { label: 'Far-field pattern', H: 260, x: { kind: 'plain', title: 'angle from the axis, °' }, y: { kind: 'plain', title: 'dB' }, yr: [-50, 2], xName: '°', series: ps.map((p, k) => ({ label: rwFmt([R.lo, R.ghz, R.hi][k], 4) + ' GHz', colour: RW_BAND_COLS[k], xs: p.th, ys: p.db.map(v => Math.max(-50, v)) })),
+      csv: { name: asm.name + ' pattern', cols: ['angle_deg', 'lo_dB', 'design_dB', 'hi_dB'], rows: () => ps[1].th.map((t, j) => [t, ps[0].db[j], ps[1].db[j], ps[2].db[j]]) } });
+    const m = ps[1];
+    body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Beamwidth, half power', rwFmt(m.hpbw, 3) + '°'], ['First sidelobe', m.sidelobe === null ? 'none within ' + rwFmt(th1, 3) + '°' : rwFmt(m.sidelobe, 3) + ' dB'], ['Gain on the axis', rwFmt(T.mid.gain, 4) + ' dBi']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+  } else if (st.view === 'apert') {
+    body.append(h('p', { class: 'rt-lsub' }, 'The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'));
+    const tbl = h('table', { class: 'rt-ltable' });
+    tbl.append(h('thead', null, h('tr', null, ...['Face', 'Beam at ' + rwFmt(R.lo, 4) + ' GHz', 'at ' + rwFmt(R.ghz, 4), 'at ' + rwFmt(R.hi, 4), 'Clear radius', 'Edge taper', 'Spilled'].map(t => h('th', { scope: 'col' }, t)))));
+    const sps = surfaceParts(P), tb = h('tbody');
+    T.mid.surf.forEach((s, i) => {
+      const el = getEl(P.parts[sps[i].pi].id), nm = (el ? el.name : 'Part') + (P.parts[sps[i].pi].n > 1 ? (sps[i].j === 0 ? ', front' : ', back') : '');
+      tb.append(h('tr', null, h('th', { scope: 'row' }, nm), ...[T.lo, T.mid, T.hi].map(t => h('td', { class: 'mono' }, rwFmt(t.surf[i].w, 4) + ' mm')), h('td', { class: 'mono' }, rwFmt(s.semi, 4) + ' mm'),
+        h('td', { class: 'mono' + (s.taper < 10 ? ' warn' : '') }, isFinite(s.taper) ? '−' + s.taper.toFixed(1) + ' dB' : '—'), h('td', { class: 'mono' }, rwFmt(100 * s.spill, 3) + ' %')));
+    });
+    tbl.append(tb); body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  } else if (st.view === 'refl') {
+    const S = rfBandSweep(asm, P, 121), xs = S.map(s => s.ghz), nl = S[0].slab.length;
+    body.append(h('p', { class: 'rt-lsub' }, 'Each lens as a slab: its two faces, their matching layers and the plastic between, the reflections added coherently, so the ripple a lens shows across a band appears (the figures above take each face alone). In dB, shown down to \u221260 dB.'));
+    const ser = [];
+    for (let k = 0; k < nl; k++) { const el = getEl(P.parts[S[0].slab[k].pi].id); ser.push({ label: el ? el.name : 'Lens ' + (k + 1), colour: RW_BAND_COLS[k % 3], xs, ys: S.map(s => rwDbOf(s.slab[k].R)) }); }
+    if (!nl) body.append(h('p', { class: 'rt-lsub' }, 'No lenses.'));
+    else {
+      body.append(h('div', { class: 'rt-llegend' }, ...ser.map(s => h('span', null, h('i', { style: '--sw:' + s.colour, 'aria-hidden': 'true' }), s.label))));
+      linePlot(body, { label: 'Reflection against frequency', H: 240, x: { kind: 'plain', title: 'frequency, GHz' }, y: { kind: 'plain', title: 'dB' }, yr: [-60, 0], xName: 'GHz', series: ser.map(q => Object.assign({}, q, { ys: q.ys.map(v => v === null ? null : Math.max(-60, v)) })),
+        csv: { name: asm.name + ' reflections', cols: ['GHz', ...ser.map(s => s.label + '_dB')], rows: () => S.map((s, j) => [s.ghz, ...ser.map(q => q.ys[j])]) } });
+    }
+  } else {
+    const m = T.mid, rows = [['Feed horn: its power in the Gaussian', m.g]];
+    for (const f of m.faces) { const sp = surfaceParts(P)[f.i], el = getEl(P.parts[sp.pi].id); rows.push(['Reflection, ' + (el ? el.name : 'face') + (sp.j === 0 ? ' front' : ' back') + (f.matched ? ' (matched)' : ''), 1 - f.R]); }
+    for (const l of m.lenses) { const el = getEl(P.parts[surfaceParts(P)[l.i].pi].id); rows.push(['Absorption, ' + (el ? el.name : 'lens') + ' (' + l.mat + ')', l.T]); }
+    rows.push(['Spillover on the way', m.spill], ['Phase error, ' + rwFmt(m.sigma / m.lam, 2) + ' λ RMS', m.phaseEff]);
+    if (coll) rows.push(['Aperture efficiency of the last lens', m.apEff]);
+    else { rows.push(['Coupling to the goal’s beam', m.coupling]); if (R.goal.kind === 'couple') rows.push(['Receiving horn: the share its mode takes', m.gRx]); }
+    rows.push(['All of it', m.eff]);
+    body.append(h('p', { class: 'rt-lsub' }, 'Where the power goes, at ' + rwFmt(R.ghz, 4) + ' GHz: each factor the efficiency is the product of.'));
+    body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...rows.map(([a, v], k) => h('tr', { class: k === rows.length - 1 ? 'rt-rftotal' : '' }, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, rwPct(v)), h('td', { class: 'mono' }, rwDb(v)))))));
+    if (coll) body.append(h('p', { class: 'rt-lsub mono' }, 'Gain ' + rwFmt(m.gain, 4) + ' dBi = ' + rwFmt(10 * Math.log10((Math.PI * m.D / m.lam) ** 2), 4) + ' dBi for a uniform ' + rwFmt(m.D, 4) + ' mm aperture, ' + rwDb(m.eff) + '.'));
+  }
+  return card;
+}
+
+/* ---------- Optimise ---------- */
+let RW_OPT = null;           // { asm, prob, st, running, note }
+function rwOptCard(asm, P) {
+  const card = h('section', { class: 'rt-lcard rt-rfopt', role: 'tabpanel', 'aria-label': 'Optimise' }, h('h3', null, 'Optimise'));
+  const o = asm.rfOpt = Object.assign({ keys: null, flat: 0, edgeMin: 1, tMax: 0 }, asm.rfOpt || {});
+  const vars = rfOptVars(P);
+  if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
+  o.keys = o.keys.filter(k => vars.some(v => v.key === k));
+  card.append(h('p', { class: 'rt-lsub' }, 'The values ticked are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'));
+  const running = RW_OPT && RW_OPT.running && RW_OPT.asm === asm;
+  const groups = new Map();
+  for (const v of vars) { const k = v.part || '_feed'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); }
+  const grid = h('div', { class: 'rt-rfopts' });
+  for (const [part, vs] of groups) {
+    const el = part === '_feed' ? null : getEl(part);
+    grid.append(h('fieldset', { class: 'rt-rfvars' }, h('legend', null, el ? el.name : 'Feed horn'), ...vs.map(v => h('label', null, h('input', { type: 'checkbox', checked: o.keys.includes(v.key) ? '' : null, disabled: running ? '' : null, 'aria-label': (el ? el.name + ' ' : '') + v.label.toLowerCase(),
+      onchange: e => { const s2 = new Set(o.keys); if (e.target.checked) s2.add(v.key); else s2.delete(v.key); o.keys = vars.map(q => q.key).filter(k => s2.has(k)); rwRender(); } }), ' ' + v.label))));
+  }
+  card.append(grid);
+  card.append(h('div', { class: 'rt-rfgrid' },
+    rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => { o.flat = +v; rwRender(); }, 'Flat across the band')),
+    rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => { o.edgeMin = Math.max(0, v); rwRender(); }, 'Thinnest edge (mm)')),
+    rwRow('Thickest centre (mm, 0 for none)', rwNum(o.tMax, v => { o.tMax = Math.max(0, v); rwRender(); }, 'Thickest centre (mm)'))));
+  const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
+  card.append(h('div', { class: 'rt-lchips' }, btn));
+  if (RW_OPT && RW_OPT.asm === asm) {
+    const S = RW_OPT.st;
+    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running ? '' : '. Undo takes it back.')));
+  }
+  return card;
+}
+function rwOptGo(asm) {
+  const P = designPrescription(asm), o = asm.rfOpt;
+  const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax });
+  const st = rfOptStart(prob);
+  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '' };
+  rwRender();
+  const tick = () => {
+    if (!RW_OPT || !RW_OPT.running) return;
+    const t0 = performance.now();
+    while (performance.now() - t0 < 60 && !RW_OPT.st.done && RW_OPT.st.iter < 200) RW_OPT.st = rfOptStep(prob, RW_OPT.st);
+    if (RW_OPT.st.done || RW_OPT.st.iter >= 200) { rwOptStop(RW_OPT.st.done ? 'Done.' : 'Stopped after 200 steps.'); return; }
+    rwRender(); setTimeout(tick, 0);
+  };
+  setTimeout(tick, 0);
+}
+/* the run ended: its values into the design, as one change */
+function rwOptStop(note) {
+  if (!RW_OPT || !RW_OPT.running) return;
+  const R = RW_OPT; R.running = false; R.note = note;
+  const c = R.prob.at(R.st.x);
+  if (RW && RW.asm === R.asm && R.st.mean > R.mean0) {
+    rwEdit((Pd, asm) => {
+      R.prob.keys.forEach(k => {
+        if (k === 'feed') { asm.rf.feed.d = c.asm.rf.feed.d; return; }
+        const [q, i] = k.split(':'), j = +i;
+        if (q === 'c' || q === 'k') { Pd.surfaces[j].R = c.P.surfaces[j].R; Pd.surfaces[j].k = c.P.surfaces[j].k; if (q === 'k' && c.P.surfaces[j].k) { const el = getEl(Pd.surfaces[j].from.id); if (el) el.asphere = true; } }
+        else Pd.gaps[j] = c.P.gaps[j];
+      });
+    });
+  } else if (RW) { R.note = note + ' No better design found.'; rwRender(); }
 }

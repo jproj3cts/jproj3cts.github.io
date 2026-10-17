@@ -234,11 +234,31 @@ $$
 
 with the waist it makes and the one wanted beside it.
 
-The **efficiency** is all of it together, at the design frequency and over the band: the share of the feed's power in its Gaussian, each face's **reflection** (Fresnel's, or through its quarter-wave matching layer at each frequency, as a thin film), each lens's **absorption** (its plastic's loss tangent, through its thickness over the beam's profile), the **spillover** past each aperture, $$e^{-2a^2/w^2}$$, and the coupling (with the receiving horn's own share) or the aperture efficiency.
+The **efficiency** is all of it together, at the design frequency and over the band: the share of the feed's power in its Gaussian, each face's **reflection** (Fresnel's, or through its quarter-wave matching layer at each frequency, as a thin film), each lens's **absorption** (its plastic's loss tangent, through its thickness over the beam's profile), the **spillover** past each lens, $$e^{-2a^2/w^2}$$ (once for each lens; to collimate, the last lens's own is in its aperture efficiency), the **phase error**, and the coupling (with the receiving horn's own share) or the aperture efficiency.
+
+The Gaussian beam follows the system to first order, so it can't see what a face's shape does beyond that: a sphere where a hyperbola is wanted. The **phase error** is found from real rays: traced exactly from the incoming beam's phase centre through every surface, their optical paths taken to the sphere about the outgoing beam's phase centre (or to a plane, for a beam that leaves flat), the piston and defocus taken out by a least-squares fit in $$h^2$$, and what is left measured as an RMS $$\sigma$$ over the beam's power, weighted by $$h\,e^{-2h^2/w^2}$$. Its loss is Ruze's, $$e^{-(2\pi\sigma/\lambda)^2}$$.
 
 ### Its lenses
 
 **Lenses** lists each lens in the order the beam meets it: its material, diameter, centre thickness, each face's radius and conic, whether its faces have matching layers, and the air after it. A change is made on the part on the bench, and can be undone.
+
+### Analyses
+
+- **Over the band**: the gain (to collimate) or the coupling (the system's S21, from the feed's Gaussian to the goal's) across the band and a tenth beyond each edge, and beneath it what each loss takes, in dB: reflections, absorption, spillover, phase error and the aperture efficiency.
+- **Far-field pattern** (to collimate): the far field of the last lens's aperture, its Gaussian field with the phase radius it has there over the round aperture,
+$$
+E(\theta) \propto \frac{1+\cos\theta}{2}\int_0^a e^{-r^2/w^2 - i\pi r^2/(\lambda R)}\,J_0(kr\sin\theta)\,r\,dr,
+$$
+at the band's edges and its centre, with its half-power beamwidth and first sidelobe.
+- **Apertures**: at each face, the beam's radius at the band's edges and its centre, the clear radius, the edge taper and the share spilled.
+- **Reflections**: each lens as a slab, its two faces with their layers and the plastic between, its reflection worked out coherently by the characteristic matrices, so the ripple a plain lens shows across a band appears.
+- **Loss budget**: each factor the efficiency is the product of, at the design frequency, in per cent and dB; to collimate, the gain against a uniform aperture of the same diameter.
+
+### Optimise
+
+**Optimise** changes the values ticked (each lens's face radii and conics, its centre thickness, the air after each part, the feed's distance) to make the efficiency as high as it can be at five frequencies across the band; to collimate that is the gain at the lens's diameter. Every loss counts, the phase error from real rays among them, so a face's conic is found for what it does to the wavefront, not only to the lens's thickness. You can ask for the efficiency to be **flat across the band** as well, and set the **thinnest edge** a lens may have and the **thickest centre**. Each lens keeps that edge and the air between parts stays open.
+
+The search is quasi-Newton (BFGS) on the sum of the squares of the efficiency's shortfall at each frequency (and its spread, and the bounds), each variable in its own scale, its gradient by central differences, each step shortened until the merit falls enough. The efficiency can't reach 1, so a least-squares step, which assumes the merit's least is nought, would stall; this one doesn't. It runs a step at a time with the page live; **Stop** keeps what it has. The result goes into the design as one change, which **Undo** takes back.
 
 ### Design a lens
 
@@ -264,6 +284,10 @@ You give the **material**, **diameter**, **edge thickness** and whether its face
 - a quarter-wave matching layer reflecting nothing at its own frequency, and Fresnel's reflection without it;
 - a hyperbolic lens with its focus at the feed's phase centre leaving the beam's waist at its curved face;
 - a horn's beam into an identical horn 300 mm on: a lens of two hyperbolic faces, matched to the goal, couples it completely (to five places); one hyperbolic face, and a plano-convex lens, each to within half a per cent.
+- a hyperbolic face on the beam's phase centre adding no phase error (under $$10^{-9}\lambda$$), and a sphere of the same vertex radius adding over $$0.05\lambda$$;
+- a nearly uniform aperture's pattern: its half-power beamwidth $$58.9\,\lambda/D$$ degrees and its first sidelobe at −17.6 dB, the Airy pattern's, to 1% and 0.1 dB; a tapered one wider, its sidelobes under −24 dB;
+- a plain slab reflecting nothing when half a wave thick inside, and $$\left(\frac{n^2-1}{n^2+1}\right)^2$$ at a quarter;
+- a lens given a sphere where its hyperbola was, optimised with its radius and conic free: its phase error back under $$0.01\lambda$$ and its gain the designed lens's, within 0.05 dB.
 
 ## The parts
 

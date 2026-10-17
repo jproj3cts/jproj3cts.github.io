@@ -96,7 +96,7 @@ function legend(items) {
   return h('div', { class: 'rt-llegend' }, ...items.map(([t, col, dash]) => h('span', null, h('i', { class: dash ? 'dash' : '', style: '--sw:' + col, 'aria-hidden': 'true' }), t)));
 }
 /* a line plot: series of { label, colour, dash, xs, ys } (null for no value); xs across, ys up; x/y specs as drawAxes takes them */
-function linePlot(parent, o) {
+export function linePlot(parent, o) {
   const { cv, wrap } = canvasIn(parent, o.H || 260, o.label);
   const read = h('div', { class: 'rt-lread mono', 'aria-live': 'off' }, ' ');
   wrap.append(read);

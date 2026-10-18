@@ -6792,7 +6792,10 @@ function normRfCond(r) {
   const goal = { kind, d: clamp(num(g.d, 300), 0, 1e6) };
   if (kind === 'focus') goal.w = clamp(num(g.w, 10), 0.01, 1e4);
   if (kind === 'couple') goal.rx = horn(g.rx, 15, 80);
-  return { ghz, lo, hi, feed: Object.assign(horn(f, 15, 80), { d: clamp(num(f.d, 150), 0, 1e6) }), goal };
+  // the feed across the axis (mm, in the bench plane): aimed at the first vertex, unless pointed at a set angle (ang, degrees)
+  const feed = Object.assign(horn(f, 15, 80), { d: clamp(num(f.d, 150), 0, 1e6), off: clamp(num(f.off, 0), -1e4, 1e4) });
+  if (f.aim === false) { feed.aim = false; feed.ang = clamp(num(f.ang, 0), -89, 89); }
+  return { ghz, lo, hi, feed, goal };
 }
 function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
@@ -26291,7 +26294,11 @@ const rwLen = P => P.gaps.reduce((a, b) => a + b, 0);
 function rfFromBench(asm, P) {
   const R = normRfCond(asm.rf), notes = [];
   const f = rwNearest(rwSources(asm), P.origin, [-P.dir[0], -P.dir[1]]);
-  if (f) { const m = f.e.mmw; Object.assign(R.feed, { kind: m.kind, a: m.a, L: m.L, d: f.t, id: f.e.id }); R.ghz = m.ghz; R.lo = m.ghz * 0.9; R.hi = m.ghz * 1.1; }
+  if (f) {
+    const m = f.e.mmw, perp = [-P.dir[1], P.dir[0]], across = (f.e.x - P.origin[0]) * perp[0] + (f.e.y - P.origin[1]) * perp[1];
+    Object.assign(R.feed, { kind: m.kind, a: m.a, L: m.L, d: f.t, off: Math.abs(across) < 1e-6 ? 0 : across, id: f.e.id }); delete R.feed.aim; delete R.feed.ang;
+    R.ghz = m.ghz; R.lo = m.ghz * 0.9; R.hi = m.ghz * 1.1;
+  }
   else notes.push('No feed horn on the bench lights it: the feed is as set here.');
   const A = asmAxisAt(P, rwLen(P) + 1e-9), r = rwNearest(rwReceivers(asm), A.p, A.d);
   if (r) R.goal = { kind: 'couple', d: r.t, rx: { kind: r.e.mmw.kind, a: r.e.mmw.a, L: r.e.mmw.L, id: r.e.id } };
@@ -26302,8 +26309,10 @@ function rfFromBench(asm, P) {
 function rwToBench(asm, P) {
   const R = asm.rf, fe = R.feed.id && getEl(R.feed.id);
   if (fe && fe.type === 'source' && fe.mmw) {
-    fe.x = P.origin[0] - P.dir[0] * R.feed.d; fe.y = P.origin[1] - P.dir[1] * R.feed.d;
-    fe.angle = Math.atan2(P.dir[1], P.dir[0]) * 180 / Math.PI;
+    const perp = [-P.dir[1], P.dir[0]], off = R.feed.off || 0;
+    fe.x = P.origin[0] - P.dir[0] * R.feed.d + perp[0] * off; fe.y = P.origin[1] - P.dir[1] * R.feed.d + perp[1] * off;
+    // aimed at the first vertex, or pointed at its own angle off the axis
+    fe.angle = R.feed.aim === false ? Math.atan2(P.dir[1], P.dir[0]) * 180 / Math.PI + (R.feed.ang || 0) : Math.atan2(P.origin[1] - fe.y, P.origin[0] - fe.x) * 180 / Math.PI;
     Object.assign(fe.mmw, { kind: R.feed.kind, a: R.feed.a, L: R.feed.L, ghz: R.ghz });
     applyRf(fe);
   }
@@ -26526,8 +26535,10 @@ function rwFeedCard(asm) {
       rwRow('Kind', rwSelect(RW_HORN_NAMES, R.feed.kind, v => rwCondEdit(r => { r.feed.kind = v; }), 'Feed horn kind')),
       rwRow('Aperture radius (mm)', rwNum(R.feed.a, v => rwCondEdit(r => { r.feed.a = v; }), 'Feed aperture radius (mm)')),
       rwRow('Slant length (mm)', rwNum(R.feed.L, v => rwCondEdit(r => { r.feed.L = v; }), 'Feed slant length (mm)')),
-      rwRow('To the first lens (mm)', rwNum(R.feed.d, v => rwCondEdit(r => { r.feed.d = v; }), 'Feed to the first lens (mm)'))),
-    h('p', { class: 'rt-lsub mono' }, 'Its beam: waist ' + rwFmt(fb.w0, 4) + ' mm, ' + rwFmt(fb.dz, 3) + ' mm behind the aperture; ' + rwFmt((RF_HORNS[R.feed.kind] || RF_HORNS.corrugated).g * 100, 3) + ' % of its power Gaussian'));
+      rwRow('To the first lens (mm)', rwNum(R.feed.d, v => rwCondEdit(r => { r.feed.d = v; }), 'Feed to the first lens (mm)')),
+      rwRow('Off the axis (mm)', rwNum(R.feed.off || 0, v => rwCondEdit(r => { r.feed.off = v; delete r.feed.aim; delete r.feed.ang; }), 'Feed off the axis (mm)'))),
+    h('p', { class: 'rt-lsub mono' }, 'Its beam: waist ' + rwFmt(fb.w0, 4) + ' mm, ' + rwFmt(fb.dz, 3) + ' mm behind the aperture; ' + rwFmt((RF_HORNS[R.feed.kind] || RF_HORNS.corrugated).g * 100, 3) + ' % of its power Gaussian'),
+    h('p', { class: 'rt-lsub' }, 'Off the axis, the horn is aimed at the first lens’s centre and the beam leaves steered the other way: the figures give its direction and the scan loss, and Analyses › Scan takes it round.'));
 }
 function rwGoalCard(asm) {
   const R = asm.rf;
@@ -26566,9 +26577,9 @@ function rwDrawLayout(cv, asm, P, T) {
   let zEnd = Math.max(T.mid.zEnd, T.lo.zEnd, T.hi.zEnd);
   let rxG = null;
   if (R.goal.kind === 'couple') { rxG = hornGeom({ type: 'source', mmw: { a: R.goal.rx.a, L: R.goal.rx.L, ghz: R.ghz } }); zEnd = Math.max(zEnd, T.mid.zL + R.goal.d + rxG.Lax * 1.15); }
-  let yMax = Math.max(R.feed.a, rxG ? R.goal.rx.a : 0);
+  let yMax = Math.max(R.feed.a + Math.abs(R.feed.off || 0), rxG ? R.goal.rx.a : 0);
   for (const s of P.surfaces) if (isFinite(s.semi)) yMax = Math.max(yMax, s.semi);
-  for (const t of [T.lo, T.mid, T.hi]) for (const s of t.samples) if (isFinite(s.w)) yMax = Math.max(yMax, Math.min(s.w, 4 * yMax + 1));
+  for (const t of [T.lo, T.mid, T.hi]) for (const s of t.samples) if (isFinite(s.w)) yMax = Math.max(yMax, Math.min(Math.abs(s.yc || 0) + s.w, 4 * yMax + 1));
   yMax *= 1.12;
   const za = zBack, zb = zEnd + 0.02 * (zEnd - zBack);
   const H = Math.max(220, Math.min(460, W * (2 * yMax) / (zb - za) + 40));
@@ -26582,10 +26593,10 @@ function rwDrawLayout(cv, asm, P, T) {
   g.strokeStyle = 'rgba(255,255,255,0.15)'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(za), Y(0)); g.lineTo(X(zb), Y(0)); g.stroke(); g.setLineDash([]);
   // the beam at the design frequency, filled; the band's edges dashed
   const env = (t, fill) => {
-    const S = t.samples.filter(s => isFinite(s.w) && s.z <= zb);
-    g.beginPath(); S.forEach((s, i) => i ? g.lineTo(X(s.z), Y(s.w)) : g.moveTo(X(s.z), Y(s.w)));
-    if (fill) { for (let i = S.length - 1; i >= 0; i--) g.lineTo(X(S[i].z), Y(-S[i].w)); g.closePath(); g.fillStyle = 'rgba(224,160,48,0.18)'; g.fill(); g.strokeStyle = RW_BEAM; g.lineWidth = 1.5; g.stroke(); }
-    else { g.strokeStyle = RW_EDGE; g.lineWidth = 1; g.setLineDash([5, 4]); g.stroke(); g.beginPath(); S.forEach((s, i) => i ? g.lineTo(X(s.z), Y(-s.w)) : g.moveTo(X(s.z), Y(-s.w))); g.stroke(); g.setLineDash([]); }
+    const S = t.samples.filter(s => isFinite(s.w) && s.z <= zb), yc = s => s.yc || 0;
+    g.beginPath(); S.forEach((s, i) => i ? g.lineTo(X(s.z), Y(yc(s) + s.w)) : g.moveTo(X(s.z), Y(yc(s) + s.w)));
+    if (fill) { for (let i = S.length - 1; i >= 0; i--) g.lineTo(X(S[i].z), Y(yc(S[i]) - S[i].w)); g.closePath(); g.fillStyle = 'rgba(224,160,48,0.18)'; g.fill(); g.strokeStyle = RW_BEAM; g.lineWidth = 1.5; g.stroke(); }
+    else { g.strokeStyle = RW_EDGE; g.lineWidth = 1; g.setLineDash([5, 4]); g.stroke(); g.beginPath(); S.forEach((s, i) => i ? g.lineTo(X(s.z), Y(yc(s) - s.w)) : g.moveTo(X(s.z), Y(yc(s) - s.w))); g.stroke(); g.setLineDash([]); }
   };
   env(T.lo, false); env(T.hi, false); env(T.mid, true);
   // the parts: each lens its outline (the faces' sags to the clear radius), each mirror its face
@@ -26611,11 +26622,18 @@ function rwDrawLayout(cv, asm, P, T) {
     }
   }
   // the horns: the feed's flare to its aperture; the receiver's, facing back
+  // a horn's outline about its aperture's centre (zAp, yAp), its axis turned th from the system's: the feed off the axis aimed at the first lens
+  const hornPathAt = (zAp, yAp, th, sgn, G, a) => {
+    const c = Math.cos(th), sn = Math.sin(th), pt = (dz, dy) => [X(zAp + dz * c - dy * sn), Y(yAp + dz * sn + dy * c)];
+    const P6 = [pt(-sgn * G.Lax * 1.15, G.rg), pt(-sgn * G.Lax, G.rg), pt(0, a), pt(0, -a), pt(-sgn * G.Lax, -G.rg), pt(-sgn * G.Lax * 1.15, -G.rg)];
+    g.beginPath(); P6.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath();
+  };
+  const feedOff = R.feed.off || 0, feedTh = R.feed.aim === false ? (R.feed.ang || 0) * Math.PI / 180 : -Math.atan2(feedOff, R.feed.d);
   const hornPath = (zAp, sgn, G, a) => { g.beginPath(); g.moveTo(X(zAp - sgn * G.Lax * 1.15), Y(G.rg)); g.lineTo(X(zAp - sgn * G.Lax), Y(G.rg)); g.lineTo(X(zAp), Y(a)); g.lineTo(X(zAp), Y(-a)); g.lineTo(X(zAp - sgn * G.Lax), Y(-G.rg)); g.lineTo(X(zAp - sgn * G.Lax * 1.15), Y(-G.rg)); };
   g.fillStyle = 'rgba(224,160,48,0.35)'; g.strokeStyle = RW_BEAM; g.lineWidth = 1.4;
-  hornPath(zFeed, 1, fg, R.feed.a); g.fill(); g.stroke();
+  hornPathAt(zFeed, feedOff, feedTh, 1, fg, R.feed.a); g.fill(); g.stroke();
   g.fillStyle = '#f2f2ec'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
-  g.fillText('Feed', X(zFeed - fg.Lax / 2), Y(R.feed.a) - 8);
+  g.fillText('Feed', X(zFeed - fg.Lax / 2), Y(feedOff + R.feed.a) - 8);
   if (rxG) {
     const zr = T.mid.zL + R.goal.d;
     g.fillStyle = 'rgba(224,160,48,0.35)'; hornPath(zr, -1, rxG, R.goal.rx.a); g.fill(); g.stroke();
@@ -26643,6 +26661,11 @@ function rwFigures(asm, T) {
       row('Over the band', band(t => t.coupling, rwPct)),
       row('Waist made', rwFmt(m.waist.w, 4) + ' mm, ' + rwAt(m.waist.at), 'The waist of the beam leaving the last lens, and its distance from the last vertex'),
       row('Waist wanted', rwFmt(m.target.w, 4) + ' mm, ' + rwAt(m.target.at)));
+  }
+  if (T.ref && m.steer) {
+    const f0 = T.ref.gain !== undefined ? T.ref.gain : 10 * Math.log10(Math.max(1e-12, T.ref.eff)), f1 = m.gain !== undefined ? m.gain : 10 * Math.log10(Math.max(1e-12, m.eff));
+    items.push(row('Beam steered', rwFmt(Math.abs(m.steer.squint), 3) + '°, the feed ' + rwFmt(Math.abs(m.steer.feedDeg), 3) + '° off' + (m.steer.feedDeg ? ' (deviation factor ' + rwFmt(Math.abs(m.steer.squint / m.steer.feedDeg), 3) + ')' : ''), 'The direction of the wavefront leaving, from real rays, against the feed’s angle off the axis'),
+      row('Scan loss', rwFmt(f0 - f1, 3) + ' dB', 'The figure against the same system with its feed on the axis: the coma and the beam walking off the apertures'));
   }
   items.push(row('Efficiency', rwPct(m.eff) + ' (' + rwDb(m.eff) + ')', 'All of it: the feed’s Gaussian share, reflections, absorption, spillover' + (R.goal.kind === 'collimate' ? ' and the aperture efficiency' : ', the coupling and the receiver’s share')),
     row('Over the band', band(t => t.eff, rwPct)),
@@ -26876,7 +26899,8 @@ function newRfDesign() {
 function rwPlace(asm) {
   const P = designPrescription(asm), R = asm.rf, dir = P.dir;
   if (!(R.feed.id && getEl(R.feed.id))) {
-    const fe = normElement({ type: 'source', id: uid(), name: 'Feed horn', x: P.origin[0] - dir[0] * R.feed.d, y: P.origin[1] - dir[1] * R.feed.d, angle: Math.atan2(dir[1], dir[0]) * 180 / Math.PI, rays: 3,
+    const perp = [-dir[1], dir[0]], off = R.feed.off || 0, fx = P.origin[0] - dir[0] * R.feed.d + perp[0] * off, fy = P.origin[1] - dir[1] * R.feed.d + perp[1] * off;
+    const fe = normElement({ type: 'source', id: uid(), name: 'Feed horn', x: fx, y: fy, angle: off ? Math.atan2(P.origin[1] - fy, P.origin[0] - fx) * 180 / Math.PI : Math.atan2(dir[1], dir[0]) * 180 / Math.PI, rays: 3,
       mmw: { kind: R.feed.kind, ghz: R.ghz, dbm: 0, a: R.feed.a, L: R.feed.L }, bench: asm.bench });
     project.elements.push(fe); R.feed.id = fe.id;
   }
@@ -26899,7 +26923,7 @@ function rwAnaCard(asm, P, T) {
   const st = RW.ana || (RW.ana = { view: 'band' }), R = asm.rf, coll = R.goal.kind === 'collimate';
   const card = h('section', { class: 'rt-lcard rt-lana rt-rfana', role: 'tabpanel', 'aria-label': 'Analyses' });
   const chip = (id, label) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String(st.view === id), onclick: () => { st.view = id; rwRender(); } }, label);
-  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('budget', 'Loss budget')));
+  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('scan', 'Scan'), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('budget', 'Loss budget')));
   const body = h('div', { class: 'rt-lanabody' });
   card.append(body);
   if (st.view === 'pattern' && !coll) st.view = 'band';
@@ -26924,6 +26948,21 @@ function rwAnaCard(asm, P, T) {
       csv: { name: asm.name + ' pattern', cols: ['angle_deg', 'lo_dB', 'design_dB', 'hi_dB'], rows: () => ps[1].th.map((t, j) => [t, ps[0].db[j], ps[1].db[j], ps[2].db[j]]) } });
     const m = ps[1];
     body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['Beamwidth, half power', rwFmt(m.hpbw, 3) + '°'], ['First sidelobe', m.sidelobe === null ? 'none within ' + rwFmt(th1, 3) + '°' : rwFmt(m.sidelobe, 3) + ' dB'], ['Gain on the axis', rwFmt(T.mid.gain, 4) + ' dBi']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+  } else if (st.view === 'scan') {
+    // the feed moved across the axis, aimed at the first lens: the beam steered, and what it costs
+    const rows = rfScan(asm, P, R.ghz, 9), unit = coll ? 'dBi' : 'dB';
+    body.append(helpLine('The feed moved across the axis, aimed at the first lens: how far the beam steers, and what it costs.', ['At each offset of the feed horn (aimed at the first lens’s centre) the beam leaving is traced again: its direction from the wavefront’s tilt (real rays), its ' + (coll ? 'gain' : 'efficiency') + ' against the feed on the axis (the scan loss: the lens’s coma and the beam walking off the apertures), and its phase error. The beam deviation factor is the beam’s angle over the feed’s. Set Off the axis on the feed’s page to design at a scan angle.'], 'rt-lsub'));
+    const wrap = h('div', { class: 'rt-lpair' }), a1 = h('div'), a2 = h('div'); wrap.append(a1, a2); body.append(wrap);
+    linePlot(a1, { label: 'Scan loss against the beam’s angle', H: 220, x: { kind: 'plain', title: 'beam off the axis, °' }, y: { kind: 'plain', title: 'scan loss, dB' }, xName: '°',
+      series: [{ label: 'scan loss', colour: RW_BAND_COLS[1], xs: rows.map(r => Math.abs(r.beamDeg)), ys: rows.map(r => r.loss) }],
+      csv: { name: asm.name + ' scan', cols: ['feed_off_mm', 'feed_deg', 'beam_deg', 'loss_dB', 'phase_error_waves'], rows: () => rows.map(r => [r.off, r.feedDeg, r.beamDeg, r.loss, r.sigma / r.lam]) } });
+    linePlot(a2, { label: 'The beam’s angle against the feed’s', H: 220, x: { kind: 'plain', title: 'feed off the axis, °' }, y: { kind: 'plain', title: 'beam off the axis, °' }, xName: '°',
+      series: [{ label: 'beam', colour: RW_BAND_COLS[0], xs: rows.map(r => r.feedDeg), ys: rows.map(r => Math.abs(r.beamDeg)) }, { label: 'the feed’s own angle', colour: '#999', dash: true, xs: rows.map(r => r.feedDeg), ys: rows.map(r => r.feedDeg) }] });
+    const tbl = h('table', { class: 'rt-ltable rt-rfscan' });
+    tbl.append(h('thead', null, h('tr', null, ...['Feed off (mm)', 'Feed (°)', 'Beam (°)', 'Deviation factor', 'Scan loss (dB)', 'Phase error (λ RMS)'].map(t => h('th', { scope: 'col' }, t)))));
+    tbl.append(h('tbody', null, ...rows.map(r => h('tr', null, h('td', { class: 'mono' }, rwFmt(r.off, 4)), h('td', { class: 'mono' }, rwFmt(r.feedDeg, 3)), h('td', { class: 'mono' }, rwFmt(Math.abs(r.beamDeg), 3)),
+      h('td', { class: 'mono' }, r.feedDeg ? rwFmt(Math.abs(r.beamDeg / r.feedDeg), 3) : '—'), h('td', { class: 'mono' + (r.loss < -3 ? ' warn' : '') }, rwFmt(r.loss, 3)), h('td', { class: 'mono' }, rwFmt(r.sigma / r.lam, 3))))));
+    body.append(h('div', { class: 'rt-ltwrap' }, tbl));
   } else if (st.view === 'apert') {
     body.append(helpLine('The beam at each face: its radius, edge taper and spillover.', ['The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'], 'rt-lsub'));
     const tbl = h('table', { class: 'rt-ltable' });
@@ -27187,15 +27226,18 @@ function rwTolCard(asm, P) {
     h('td', null, h('input', { type: 'checkbox', checked: tol[k].on ? '' : null, 'aria-label': d.label + ' on', onchange: e => set(t => { t[k].on = e.target.checked; }) })),
     h('th', { scope: 'row' }, d.label), h('td', null, rwNum(tol[k].v, v => set(t => { t[k].v = Math.max(0, v); }), d.label + ' within (' + d.unit + ')')), h('td', { class: 'rt-lsub' }, d.unit)));
   tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  card.append(h('label', { class: 'rt-check', style: 'margin:0.4rem 0 0.2rem', title: 'As it would be on the bench: each built system’s feed distance refocused (within 15 % of the design’s) for the most of its figure before it is read' },
+    h('input', { type: 'checkbox', checked: tol.comp ? '' : null, 'aria-label': 'Refocus the feed for each build', onchange: e => set(t => { t.comp = e.target.checked; }) }), ' Refocus the feed for each build (the compensator)'));
   // sensitivity
   card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => { st.sens = rfSensitivity(asm, designPrescription(asm), asm.rfTol); rwRender(); } }, 'Sensitivity')));
   if (st.sens) {
     const S = st.sens, t2 = h('table', { class: 'rt-ltable' });
-    t2.append(h('thead', null, h('tr', null, ...['Error', 'Within ±', 'Its ' + fig + ', +', '−', 'Worse by'].map(t => h('th', { scope: 'col' }, t)))));
+    const moves = S.rows.some(r => r.moves > 1e-3);
+    t2.append(h('thead', null, h('tr', null, ...['Error', 'Within ±', 'Its ' + fig + ', +', '−', 'Worse by', ...(moves ? ['Beam moves'] : [])].map(t => h('th', { scope: 'col' }, t)))));
     const b2 = h('tbody');
-    for (const r of S.rows) b2.append(h('tr', null, h('th', { scope: 'row' }, r.label), h('td', { class: 'mono' }, rwFmt(r.v, 3) + ' ' + RF_TOL_KINDS[r.kind].unit), h('td', { class: 'mono' }, (r.up >= 0 ? '+' : '') + r.up.toFixed(3) + ' dB'), h('td', { class: 'mono' }, (r.dn >= 0 ? '+' : '') + r.dn.toFixed(3) + ' dB'), h('td', { class: 'mono' + (r.worst < -0.5 ? ' warn' : '') }, Math.max(0, -r.worst).toFixed(3) + ' dB')));
+    for (const r of S.rows) b2.append(h('tr', null, h('th', { scope: 'row' }, r.label), h('td', { class: 'mono' }, rwFmt(r.v, 3) + ' ' + RF_TOL_KINDS[r.kind].unit), h('td', { class: 'mono' }, (r.up >= 0 ? '+' : '') + r.up.toFixed(3) + ' dB'), h('td', { class: 'mono' }, (r.dn >= 0 ? '+' : '') + r.dn.toFixed(3) + ' dB'), h('td', { class: 'mono' + (r.worst < -0.5 ? ' warn' : '') }, Math.max(0, -r.worst).toFixed(3) + ' dB'), ...(moves ? [h('td', { class: 'mono' }, r.moves > 1e-3 ? rwFmt(r.moves, 3) + '°' : '—')] : [])));
     t2.append(b2);
-    card.append(h('p', { class: 'rt-lsub mono' }, 'Nominal ' + fig + ' at ' + rwFmt(R.ghz, 4) + ' GHz: ' + rwFmt(S.nominal, 4) + ' ' + unit + '. Worst first.'), h('div', { class: 'rt-ltwrap' }, t2));
+    card.append(h('p', { class: 'rt-lsub mono' }, 'Nominal ' + fig + ' at ' + rwFmt(R.ghz, 4) + ' GHz: ' + rwFmt(S.nominal, 4) + ' ' + unit + (S.comp ? ', with the feed refocused to ' + rwFmt(S.feedD, 4) + ' mm' : '') + '. Worst first.' + (moves ? ' Beam moves: how far the beam’s direction turns, from real rays.' : '')), h('div', { class: 'rt-ltwrap' }, t2));
   }
   // Monte Carlo
   card.append(h('h3', null, 'Monte Carlo'), h('div', { class: 'rt-rfgrid' },
@@ -38005,6 +38047,35 @@ function rfGap(q, g, n, GR) {
   return cdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
 }
 const rfGR = (S, i) => S.GR ? S.GR[i] : null;
+/* ---------- The feed off the axis ----------
+   The horn moved across the axis (off, mm, in the bench plane) and aimed at the first vertex, so its beam's centre
+   crosses the axis there and leaves the system the other way: a steered beam. Or pointed at a set angle (aim false,
+   ang degrees), a horn moved without being re-aimed, as in tolerancing. The beam's centre is followed through the
+   system as a paraxial ray beside the Gaussian beam's q: its height yc and reduced slope n dy/dz; each face refracts
+   it about the face's own centre (a decentred face, in tolerancing, about its moved centre; a tilted one bends it as
+   a prism). The spillover and the aperture efficiency are then those of the Gaussian off the aperture's centre, and
+   the real rays start from the feed's phase centre where it stands, so the squint and the coma of a scanned lens
+   are in the phase error and the beam's direction. */
+function feedPoint(R) {
+  const d = Math.max(1e-6, R.feed.d), off = R.feed.off || 0;
+  const u = R.feed.aim === false ? Math.tan((R.feed.ang || 0) * Math.PI / 180) : -off / d;
+  return { off, u, y0: off + u * d, d };
+}
+/* I0(x) e^-x, the scaled modified Bessel function (Abramowitz and Stegun 9.8.1, 9.8.2) */
+function besselI0e(x) {
+  const ax = Math.abs(x);
+  if (ax < 3.75) { const t = (ax / 3.75) ** 2; return Math.exp(-ax) * (1 + t * (3.5156229 + t * (3.0899424 + t * (1.2067492 + t * (0.2659732 + t * (0.0360768 + t * 0.0045813)))))); }
+  const t = 3.75 / ax;
+  return (0.39894228 + t * (0.01328592 + t * (0.00225319 + t * (-0.00157565 + t * (0.00916281 + t * (-0.02057706 + t * (0.02635537 + t * (-0.01647633 + t * 0.00392377)))))))) / Math.sqrt(ax);
+}
+/* the share of a Gaussian beam (1/e² radius w, its centre yc off the aperture's centre) that passes a round aperture of radius a */
+function gaussPass(a, w, yc) {
+  if (!isFinite(a)) return 1;
+  if (!yc) return 1 - Math.exp(-2 * a * a / (w * w));
+  const M = 96, dr = a / M; let s = 0;
+  for (let i = 0; i < M; i++) { const r = (i + 0.5) * dr; s += r * Math.exp(-2 * (r - Math.abs(yc)) ** 2 / (w * w)) * besselI0e(4 * r * Math.abs(yc) / (w * w)); }
+  return Math.min(1, 4 / (w * w) * s * dr);
+}
 /* a beam parameter's radius and phase radius (mm; R Infinity at a waist) */
 function beamOf(q, lam) {
   const m = q[0] * q[0] + q[1] * q[1];
@@ -38020,6 +38091,21 @@ function apertureEff(a, w, R, lam) {
   const t = a * a / (w * w), psi = isFinite(R) ? Math.PI * w * w / (lam * R) : 0;
   const ex = Math.exp(-t), re = 1 - ex * Math.cos(t * psi), im = ex * Math.sin(t * psi);
   return 2 * (re * re + im * im) / (t * (1 + psi * psi));
+}
+/* the same with the field's centre yc off the aperture's: |∫E dA|² over the aperture against its whole power, the phase a
+   sphere of radius R about the beam's own centre */
+function apertureEffOff(a, w, R, lam, yc) {
+  if (!yc) return apertureEff(a, w, R, lam);
+  const M = 48, K = 24, k2 = isFinite(R) ? Math.PI / (lam * R) : 0;
+  let re = 0, im = 0;
+  for (let i = 0; i < M; i++) {
+    const r = (i + 0.5) * a / M, dA = r * (a / M) * (2 * Math.PI / K);
+    for (let j = 0; j < K; j++) {
+      const ph = 2 * Math.PI * (j + 0.5) / K, x = r * Math.cos(ph), y = r * Math.sin(ph) - yc, rho2 = x * x + y * y, amp = Math.exp(-rho2 / (w * w)), th = -k2 * rho2;
+      re += amp * Math.cos(th) * dA; im += amp * Math.sin(th) * dA;
+    }
+  }
+  return (re * re + im * im) / (Math.PI * a * a * Math.PI * w * w / 2);
 }
 /* a face's power reflection at nm, from index n0 into n2, square on: bare, through its matching layer, or through any
    stack, as the bench takes it (core/face-pol.js) */
@@ -38045,18 +38131,22 @@ function rfZonesAt(P, i) {
   if (!el || !el.zoned) return null;
   return lensZones({ type: 'lens', zoned: el.zoned, surfaces: [P.surfaces[i], P.surfaces[i + 1]], gaps: [P.gaps[i]], materials: [P.materials[i]], diameter: 2 * Math.min(P.surfaces[i].semi, P.surfaces[i + 1].semi) });
 }
-function rfAberr(P, S, Rin, Rout, w, lam, zones) {
+function rfAberr(P, S, Rin, Rout, w, lam, zones, FP) {
   const N = S.N, semi = Math.min(...P.surfaces.map(s => s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity)), a = isFinite(semi) ? semi : 3 * w;
   const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
-  const hs = [], ws = [], W = [], R = new Float64Array(8);
+  const hs = [], ws = [], W = [], X = [], Y = [], R = new Float64Array(8);
   let wAll = 0, wLost = 0;
+  // the feed where it stands: its beam's centre line y = y0 + u z, its phase centre Rin back along it
+  const u0 = FP ? FP.u : 0, y0 = FP ? FP.y0 : 0, off = !!(FP && (FP.off || u0));
+  const pz = src ? -src / Math.sqrt(1 + u0 * u0) : -1, py = y0 + u0 * pz;
   // rays at 32 heights; round the aperture too (8 ways) where the system is not symmetric about its axis (a part decentred
-  // or tilted, as in tolerancing) or has a zoned face, so skew rays meet the walls and the defocus as the in-plane ones do
-  const M = (S.fr || (zones && zones.length)) ? 8 : 1;
+  // or tilted, as in tolerancing, or the feed off the axis) or has a zoned face, so skew rays meet the walls and the defocus as the in-plane ones do
+  const M = (S.fr || (zones && zones.length) || off) ? 8 : 1;
   for (let k = 0; k < 32 * M; k++) {
     const h = a * ((k % 32) + 0.5) / 32, ph = 2 * Math.PI * (Math.floor(k / 32) + 0.5) / M, cx = Math.cos(ph), sy = Math.sin(ph);
-    if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, h * cx / L, h * sy / L, src / L, 0, 0]); }
-    else R.set([h * cx, h * sy, -1, 0, 0, 1, 0, 0]);
+    // toward the point at height h round the beam's centre on the first vertex's plane
+    if (src) { const dx = h * cx, dy = y0 + h * sy - py, dz = -pz, L = Math.hypot(dx, dy, dz); R.set([0, py, pz, dx / L, dy / L, dz / L, 0, 0]); }
+    else { const L = Math.sqrt(1 + u0 * u0); R.set([h * cx, y0 + h * sy - u0, -1, 0, u0 / L, 1 / L, 0, 0]); }
     const rec = zones && zones.length ? [] : null, wq = h * Math.exp(-2 * h * h / (w * w)) / M;
     traceRay(S, R, 0, N - 1, true, rec);
     wAll += wq;
@@ -38067,18 +38157,34 @@ function rfAberr(P, S, Rin, Rout, w, lam, zones) {
     // its path through the cut face is short by the whole layers k λz taken out where the ray met it: the whole waves at λ
     // they come to are no error, what is left of them is the phase slip away from the zone frequency
     if (rec) for (const { i, Z } of zones) { const at = rec[i + Z.face] && rec[i + Z.face].at; if (!at) continue; opl += lam * Math.round(Z.k(Math.hypot(at[0], at[1])) * Z.lam / lam); }
-    if (tgt !== null) opl += Math.hypot(R[0], R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
-    hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
+    // to the reference: a sphere about the outgoing beam's phase centre, or the plane a wave past the last vertex; the
+    // ray's place there, for the fit
+    let px, pyy;
+    if (tgt !== null) { opl += Math.hypot(R[0], R[1], tgt - R[2]) * S.n[N]; px = R[0]; pyy = R[1]; }
+    else { const t = (zL + 1 - R[2]) / R[5]; opl += t * S.n[N]; px = R[0] + R[3] * t; pyy = R[1] + R[4] * t; }
+    hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl); X.push(px); Y.push(pyy);
   }
   const shadow = wAll > 0 ? 1 - wLost / wAll : 1;
-  if (hs.length < 4) return { sigma: 0, eff: 1, shadow };
-  // weighted least squares: W ≈ c0 + c2 h²
-  let s0 = 0, s1 = 0, s2 = 0, t0 = 0, t1 = 0;
-  hs.forEach((h, k) => { const u = h * h, q = ws[k]; s0 += q; s1 += q * u; s2 += q * u * u; t0 += q * W[k]; t1 += q * u * W[k]; });
-  const det = s0 * s2 - s1 * s1, c2 = det ? (s0 * t1 - s1 * t0) / det : 0, c0 = (t0 - c2 * s1) / s0;
-  let v = 0; hs.forEach((h, k) => { const e = W[k] - c0 - c2 * h * h; v += ws[k] * e * e; });
+  if (hs.length < 4) return { sigma: 0, eff: 1, shadow, squint: 0 };
+  // weighted least squares: W ≈ c0 + cx x + cy y + c2 h², the tilt over the rays' places on the reference (the beam's
+  // direction: its squint when the feed is off the axis) and the defocus over their heights round the beam's centre at
+  // the first surface; the constant, the tilt and the defocus are not aberration
+  // (a system symmetric about its axis, its rays in one plane through it: no tilt to find, the constant and the defocus alone)
+  const nT = M > 1 ? 4 : 2, basis = k => (M > 1 ? [1, X[k], Y[k], hs[k] * hs[k]] : [1, hs[k] * hs[k]]);
+  const A = Array.from({ length: nT }, () => new Array(nT).fill(0)), b = new Array(nT).fill(0);
+  hs.forEach((h, k) => {
+    const q = ws[k], f = basis(k);
+    for (let i = 0; i < nT; i++) { b[i] += q * f[i] * W[k]; for (let j = 0; j < nT; j++) A[i][j] += q * f[i] * f[j]; }
+  });
+  let c = solveLinear(A, b);
+  if (!c || c.some(v => !isFinite(v))) { c = new Array(nT).fill(0); c[0] = b[0] / A[0][0]; }
+  if (nT === 2) c = [c[0], 0, 0, c[1]];
+  let v = 0, s0 = 0;
+  hs.forEach((h, k) => { const e = W[k] - c[0] - c[1] * X[k] - c[2] * Y[k] - c[3] * h * h; v += ws[k] * e * e; s0 += ws[k]; });
   const sigma = Math.sqrt(v / s0);
-  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)), shadow };
+  // the wavefront's slope across (OPL per mm) is n sin of the beam's direction
+  const sl = Math.max(-1, Math.min(1, c[2] / S.n[N])), squint = Math.asin(sl) * 180 / Math.PI;
+  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)), shadow, squint, tilt: [c[1], c[2]] };
 }
 /* the system at one frequency: the beam followed from the feed horn's aperture to the goal's plane, sampled
    along the unfolded axis (z from the first vertex, w the beam's radius); at each surface its radius, the
@@ -38087,30 +38193,32 @@ function rfTrace(asm, P, ghz, opts) {
   opts = opts || {};
   const R = normRfCond(asm.rf), nm = rfNm(ghz), lam = nm * 1e-6, S = lensSystem(P, nm), N = S.N;
   const B = rfBeam(R.feed, ghz), H = RF_HORNS[R.feed.kind] || RF_HORNS.corrugated;
-  const steps = opts.steps || 40, samples = [], surf = [];
-  const push = (z, q) => samples.push({ z, w: beamOf(q, lam).w });
-  // from the horn's aperture to the first vertex, in air
+  const steps = opts.steps || 40, samples = [], surf = [], FP = feedPoint(R);
+  const push = (z, q, yc) => samples.push({ z, w: beamOf(q, lam).w, yc: yc || 0 });
+  // from the horn's aperture to the first vertex, in air, the beam's centre on its line from the horn
   const z0 = -R.feed.d, qw = B.zR;
-  for (let k = 0; k <= steps; k++) { const z = z0 + (0 - z0) * k / steps; push(z, [z - z0 + B.dz, qw]); }
-  let q = [R.feed.d + B.dz, qw];
+  for (let k = 0; k <= steps; k++) { const z = z0 + (0 - z0) * k / steps; push(z, [z - z0 + B.dz, qw], FP.off + FP.u * (z - z0)); }
+  let q = [R.feed.d + B.dz, qw], yc = FP.y0, uc = FP.u;      // the centre: its height, and its reduced slope n dy/dz
   const sps = surfaceParts(P);
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i], w = beamOf(q, lam).w, a = s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity;
-    surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? Math.exp(-2 * (a / w) ** 2) : 0, kind: sps[i].kind, pi: sps[i].pi });
+    const dcy = s.dec ? s.dec[1] || 0 : 0, tl = s.tilt ? s.tilt[0] || 0 : 0;     // a face moved off the axis (tolerancing)
+    surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, yc, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? 1 - gaussPass(a, w, yc - dcy) : 0, kind: sps[i].kind, pi: sps[i].pi });
     const pc = S.c[i] + 2 * S.a2[i];
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
-    // 1/q' = 1/q - phi, in reduced form
+    // 1/q' = 1/q - phi, in reduced form; the centre refracted about the face's own centre, and bent by a tilted face as a prism
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
+    uc = uc - phi * (yc - dcy) + (S.mir[i] ? 2 * S.n[i] * tl : -(S.n[i + 1] - S.n[i]) * tl);
     if (i < N - 1) {
       const g = P.gaps[i], n = S.n[i + 1], n2 = 12, GR = rfGR(S, i);
-      for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR)); }
-      q = rfGap(q, g, n, GR);
+      for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR), yc + uc * t / n); }
+      q = rfGap(q, g, n, GR); yc += uc * g / n;
     }
   }
-  const zL = S.z[N - 1], out = beamOf(q, lam);
+  const zL = S.z[N - 1], out = beamOf(q, lam), ucOut = uc / S.n[N], ycL = yc;
   // past the last vertex, in the medium after it (air), to the goal's plane, or for a collimated beam a little past its waist
   const g = R.goal, zEnd = zL + (g.kind === 'collimate' ? Math.max(g.d, -q[0] + q[1], 50) : g.d + (g.kind === 'couple' ? rfBeam(g.rx, ghz).dz : 0));
-  for (let k = 1; k <= steps; k++) { const t = (zEnd - zL) * k / steps; push(zL + t, [q[0] + t, q[1]]); }
+  for (let k = 1; k <= steps; k++) { const t = (zEnd - zL) * k / steps; push(zL + t, [q[0] + t, q[1]], ycL + ucOut * t); }
   // the losses: each face's reflection, each lens's absorption over the beam, each aperture's spillover
   let refl = 1, absorb = 1, spill = 1;
   const faces = [], lenses = [], zones = [];
@@ -38161,13 +38269,15 @@ function rfTrace(asm, P, ghz, opts) {
   // the phase error beyond first order, from real rays (not when asked for the beam alone)
   // the zoned lenses' cut faces, for the rays (lens-engine.js sag): the face's steps, a wave of path deep, cut back into the lens
   if (zones.length) { S.zone = new Array(N); for (const { i, Z } of zones) if (Z.steps.length) S.zone[i + Z.face] = { k: Z.k, dz: Z.dz, steps: Z.steps, sg: Z.face === 0 ? 1 : -1 }; }
-  const ab = opts.noAberr ? { sigma: 0, eff: 1, shadow: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones);
-  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff, shadow: ab.shadow };
+  const ab = opts.noAberr ? { sigma: 0, eff: 1, shadow: 1, squint: Math.atan(ucOut) * 180 / Math.PI } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones, FP);
+  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff, shadow: ab.shadow,
+    // the beam steered: the feed's angle off the axis, its centre's direction leaving (paraxial) and the wavefront's (from the rays)
+    steer: { feedDeg: Math.atan2(FP.off, FP.d) * 180 / Math.PI, chiefDeg: Math.atan(ucOut) * 180 / Math.PI, squint: ab.squint, yc: ycL, off: !!(FP.off || FP.u) } };
   if (g.kind === 'collimate') {
     const last = apert[apert.length - 1], a = last ? last.semi : out.w * 1.5;
-    // the field at the last lens: the beam leaving it, its radius and curvature there
+    // the field at the last lens: the beam leaving it, its radius and curvature there, its centre off the aperture's
     const wl = beamOf(q, lam).w, Rl = out.R;
-    res.apEff = apertureEff(a, wl, Rl, lam);
+    res.apEff = apertureEffOff(a, wl, Rl, lam, ycL);
     res.D = 2 * a; res.apAt = { a, w: wl, R: Rl };
     res.eff = H.g * refl * absorb * spill * res.apEff * ab.eff * ab.shadow;
     res.gain = 10 * Math.log10(res.eff * (Math.PI * 2 * a / lam) ** 2);
@@ -38177,6 +38287,9 @@ function rfTrace(asm, P, ghz, opts) {
     const at = [q[0] + g.d + (g.kind === 'couple' ? rfBeam(g.rx, ghz).dz : 0), q[1]], bo = beamOf(at, lam);
     const wt = g.kind === 'couple' ? rfBeam(g.rx, ghz).w0 : g.w;
     res.coupling = gaussCoupling(bo.w, bo.R, wt, Infinity, lam);
+    // the beam's centre off the goal's, and its direction: the coupling of misaligned Gaussians (small offsets and tilts)
+    const dOff = ycL + ucOut * (g.d + (g.kind === 'couple' ? rfBeam(g.rx, ghz).dz : 0)), th = Math.atan(ucOut), ww = bo.w * bo.w + wt * wt;
+    res.coupling *= Math.exp(-2 * dOff * dOff / ww) * Math.exp(-2 * (Math.PI * bo.w * wt * th / lam) ** 2 / ww);
     res.waist = { w: Math.sqrt(lam * out.zR / Math.PI), at: -out.z };
     res.target = { w: wt, at: zEnd - zL };
     res.gRx = g.kind === 'couple' ? (RF_HORNS[g.rx.kind] || RF_HORNS.corrugated).g : 1;
@@ -38186,8 +38299,33 @@ function rfTrace(asm, P, ghz, opts) {
 }
 /* the design at the band's two edges and its own frequency */
 function rfBand(asm, P) {
-  const R = normRfCond(asm.rf);
-  return { lo: rfTrace(asm, P, R.lo), mid: rfTrace(asm, P, R.ghz), hi: rfTrace(asm, P, R.hi) };
+  const R = normRfCond(asm.rf), out = { lo: rfTrace(asm, P, R.lo), mid: rfTrace(asm, P, R.ghz), hi: rfTrace(asm, P, R.hi) };
+  // the feed off the axis: the same system with it on the axis, what the scan loss is against
+  if (R.feed.off || R.feed.aim === false) out.ref = rfTrace(rfWithFeed(asm, R, { off: 0, aim: true, ang: 0 }), P, R.ghz);
+  return out;
+}
+/* the assembly with its feed changed (the conditions copied, the parts shared) */
+function rfWithFeed(asm, R, feed) {
+  const f = Object.assign({}, R.feed, feed);
+  if (f.aim !== false) { delete f.aim; delete f.ang; }
+  return Object.assign({}, asm, { rf: Object.assign({}, R, { feed: f }) });
+}
+const rfFigOf = t => (t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff)));
+/* the beam scanned by moving the feed across the axis, aimed at the first lens: at each offset the feed's angle, the
+   beam's direction (from the wavefront leaving), the figure (the gain, or the efficiency in dB) and the scan loss
+   against the feed on the axis, with the phase error and the spillover. To offMax (mm; to start, the feed 25° off or
+   four beamwidths, whichever is less) in n steps. */
+function rfScan(asm, P, ghz, n, offMax) {
+  const R = normRfCond(asm.rf), at = off => rfTrace(rfWithFeed(asm, R, { off, aim: true }), P, ghz, { steps: 2 });
+  const t0 = at(0), f0 = rfFigOf(t0);
+  if (!(offMax > 0)) { const D = t0.D || 2 * (isFinite(t0.surf[0].semi) ? t0.surf[0].semi : 50), bw = 1.2 * t0.lam / D; offMax = R.feed.d * Math.tan(Math.min(25 * Math.PI / 180, 4 * bw)); }
+  n = n || 9;
+  const rows = [];
+  for (let k = 0; k < n; k++) {
+    const off = offMax * k / (n - 1), t = k ? at(off) : t0, f = rfFigOf(t);
+    rows.push({ off, feedDeg: Math.atan2(off, R.feed.d) * 180 / Math.PI, beamDeg: t.steer.squint, fig: f, loss: f - f0, sigma: t.sigma, lam: t.lam, spill: t.spill, apEff: t.apEff, phaseEff: t.phaseEff });
+  }
+  return rows;
 }
 /* the indices the trace used at nm for a material (exported for the lens table) */
 
@@ -38512,9 +38650,14 @@ function rfOptStep(prob, st) {
    The figure: to collimate, the gain (dBi); otherwise the efficiency (dB). Sensitivity: each error at its limit, either
    way, alone, at the design frequency. Monte Carlo: builds with every error drawn at once, uniform within its limits
    or normal with its limit at two standard deviations, each build's figure at the design frequency and its worst over
-   the band; the share that meet a specification, with its 95% interval (Wilson's). Off-axis errors (a lens decentred
-   or tilted, the feed moved across) are not in it: the Gaussian beam here is on its axis. */
-const RF_TOL_KINDS = { eps: { label: 'Permittivity', unit: '%', v: 5 }, thk: { label: 'Centre thickness', unit: 'mm', v: 0.2 }, rad: { label: 'Face curvature', unit: '%', v: 1 }, gap: { label: 'Air gap', unit: 'mm', v: 0.5 }, feed: { label: 'Feed distance', unit: 'mm', v: 1 } };
+   the band; the share that meet a specification, with its 95% interval (Wilson's). Across the axis:
+     dec   a lens moved across the axis, ± v mm (both faces, in the bench plane)
+     tilt  a lens tilted about its front vertex, ± v degrees (its back face carried round with it)
+     fdec  the feed horn moved across the axis, ± v mm, pointed as it was
+   each met by the beam's centre walking off and by the real rays through the moved faces. With the compensator on,
+   the feed's distance is refocused for each built system, as it would be on the bench, before its figure is read. */
+const RF_TOL_KINDS = { eps: { label: 'Permittivity', unit: '%', v: 5 }, thk: { label: 'Centre thickness', unit: 'mm', v: 0.2 }, rad: { label: 'Face curvature', unit: '%', v: 1 }, gap: { label: 'Air gap', unit: 'mm', v: 0.5 }, feed: { label: 'Feed distance', unit: 'mm', v: 1 },
+  dec: { label: 'Lens decentre', unit: 'mm', v: 0.5 }, tilt: { label: 'Lens tilt', unit: '°', v: 0.5 }, fdec: { label: 'Feed across the axis', unit: 'mm', v: 1 } };
 function normRfTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};
@@ -38523,6 +38666,7 @@ function normRfTol(o) {
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
   out.spec = isFinite(+o.spec) && o.spec !== null && o.spec !== '' ? +o.spec : null;
   out.seed = Math.round(isFinite(+o.seed) && +o.seed > 0 ? +o.seed : 1);
+  out.comp = o.comp === true;
   return out;
 }
 /* the errors a system can have: each { kind, i (the surface or gap it is on), label } */
@@ -38535,6 +38679,10 @@ function rfTolItems(asm, P, T) {
       if (tol.thk.on && p.n === 2) out.push({ kind: 'thk', i: i0, label: nm + ': centre thickness' });
       if (tol.rad.on) for (let j = 0; j < p.n; j++) if (P.surfaces[i0 + j].R !== null && isFinite(P.surfaces[i0 + j].R)) out.push({ kind: 'rad', i: i0 + j, label: nm + ': ' + (j ? 'back' : 'front') + ' face' });
     }
+    if (p.kind === 'lens' || p.kind === 'grin') {
+      if (tol.dec.on) out.push({ kind: 'dec', i: i0, n: p.n, label: nm + ': decentre' });
+      if (tol.tilt.on) out.push({ kind: 'tilt', i: i0, n: p.n, label: nm + ': tilt' });
+    }
     // a graded-index disc: its plastic's permittivity (every density's with it) and its thickness
     if (p.kind === 'grin') {
       if (tol.eps.on) out.push({ kind: 'eps', i: i0, label: nm + ': permittivity' });
@@ -38543,6 +38691,7 @@ function rfTolItems(asm, P, T) {
     if (tol.gap.on && i0 + p.n - 1 < P.surfaces.length - 1) out.push({ kind: 'gap', i: i0 + p.n - 1, label: nm + ': air after' });
   });
   if (tol.feed.on) out.push({ kind: 'feed', i: -1, label: 'Feed horn: distance' });
+  if (tol.fdec.on) out.push({ kind: 'fdec', i: -1, label: 'Feed horn: across the axis' });
   return out.map(e => Object.assign(e, { v: tol[e.kind].v }));
 }
 /* the system with errors e (each item with its value x, in its own unit) */
@@ -38562,17 +38711,46 @@ function rfTolApply(asm, P, items, xs) {
     else if (e.kind === 'thk' || e.kind === 'gap') Q.gaps[e.i] = Math.max(0, Q.gaps[e.i] + x);
     else if (e.kind === 'rad') { const s = Q.surfaces[e.i]; if (s.R) s.R = s.R / (1 + x / 100); }
     else if (e.kind === 'feed') A.rf.feed.d = Math.max(0, A.rf.feed.d + x);
+    // the part moved across the axis: each of its faces, in the bench plane
+    else if (e.kind === 'dec') for (let j = 0; j < (e.n || 1); j++) { const s = Q.surfaces[e.i + j], d = s.dec || [0, 0, 0]; s.dec = [d[0] || 0, (d[1] || 0) + x, d[2] || 0]; }
+    // tilted about its front vertex: its back face turned the same and carried round with it
+    else if (e.kind === 'tilt') {
+      const t = x * Math.PI / 180;
+      for (let j = 0; j < (e.n || 1); j++) {
+        const s = Q.surfaces[e.i + j], tl = s.tilt || [0, 0], d = s.dec || [0, 0, 0];
+        s.tilt = [(tl[0] || 0) + t, tl[1] || 0];
+        if (j) { const g = Q.gaps[e.i]; s.dec = [d[0] || 0, (d[1] || 0) + g * Math.sin(t), (d[2] || 0) + g * (Math.cos(t) - 1)]; }
+      }
+    }
+    // the feed moved across, pointed as it was (an aimed feed keeps the angle it had)
+    else if (e.kind === 'fdec') { const F = A.rf.feed; if (F.aim !== false) { F.aim = false; F.ang = Math.atan2(-(F.off || 0), Math.max(1e-6, F.d)) * 180 / Math.PI; } F.off = (F.off || 0) + x; }
   });
   return { asm: A, P: Q };
 }
-const rfFigOf = t => t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff));
+/* the compensator: the feed's distance refocused for a built system, for the most of its figure at ghz, by golden section
+   about the design's (within 15 % of it, 5 mm at least); the design's own if nothing nearer is better */
+function rfCompensate(asm, P, ghz) {
+  const d0 = asm.rf.feed.d, span = Math.max(5, 0.15 * d0), gr = (Math.sqrt(5) - 1) / 2;
+  const f = d => rfFigOf(rfTrace(Object.assign({}, asm, { rf: Object.assign({}, asm.rf, { feed: Object.assign({}, asm.rf.feed, { d }) }) }), P, ghz, { steps: 2 }));
+  let lo = Math.max(0.5, d0 - span), hi = d0 + span, c = hi - gr * (hi - lo), d = lo + gr * (hi - lo), fc = f(c), fd = f(d);
+  for (let k = 0; k < 14; k++) {
+    if (fc > fd) { hi = d; d = c; fd = fc; c = hi - gr * (hi - lo); fc = f(c); }
+    else { lo = c; c = d; fc = fd; d = lo + gr * (hi - lo); fd = f(d); }
+  }
+  const best = (lo + hi) / 2;
+  return f(best) > f(d0) ? best : d0;
+}
+/* a built system with its compensator set, when the tolerances ask for it */
+const rfBuilt = (c, tol, ghz) => { if (tol.comp) c.asm.rf.feed.d = rfCompensate(c.asm, c.P, ghz); return c; };
 /* each error at its limit, either way, alone: the figure's change at the design frequency */
 function rfSensitivity(asm, P, T) {
-  const items = rfTolItems(asm, P, T), R = normRfCond(asm.rf), f0 = rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 }));
-  return { nominal: f0, rows: items.map((e, k) => {
-    const at = sgn => { const xs = items.map((_, j) => (j === k ? sgn * e.v : 0)), c = rfTolApply(asm, P, items, xs); return rfFigOf(rfTrace(c.asm, c.P, R.ghz, { steps: 2 })) - f0; };
-    const up = at(1), dn = at(-1);
-    return { label: e.label, kind: e.kind, v: e.v, up, dn, worst: Math.min(up, dn) };
+  const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
+  // the nominal: the design as it is, or with its feed refocused too when the compensator is on
+  const nom = rfBuilt({ asm, P }, tol, R.ghz), t0 = rfTrace(nom.asm, nom.P, R.ghz, { steps: 2 }), f0 = rfFigOf(t0), sq0 = t0.steer.squint;
+  return { nominal: f0, comp: tol.comp, feedD: nom.asm.rf.feed.d, rows: items.map((e, k) => {
+    const at = sgn => { const xs = items.map((_, j) => (j === k ? sgn * e.v : 0)), c = rfBuilt(rfTolApply(asm, P, items, xs), tol, R.ghz), t = rfTrace(c.asm, c.P, R.ghz, { steps: 2 }); return [rfFigOf(t) - f0, t.steer.squint - sq0]; };
+    const [up, sqUp] = at(1), [dn, sqDn] = at(-1);
+    return { label: e.label, kind: e.kind, v: e.v, up, dn, worst: Math.min(up, dn), moves: Math.max(Math.abs(sqUp), Math.abs(sqDn)) };
   }).sort((a, b) => a.worst - b.worst) };
 }
 /* Monte Carlo, a batch of builds at a time: plan (its state), run(n) to go on, the builds so far */
@@ -38580,10 +38758,11 @@ function rfMcPlan(asm, P, T) {
   const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
   const rnd = seededRng(tol.seed >>> 0 || 1);
   const draw = v => tol.dist === 'normal' ? (v / 2) * randn(rnd) : v * (2 * rnd() - 1);
-  const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 })), done: false };
+  const nom = rfBuilt({ asm, P }, tol, R.ghz);
+  const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(nom.asm, nom.P, R.ghz, { steps: 2 })), done: false };
   plan.run = n => {
     for (let k = 0; k < n && plan.builds.length < tol.trials; k++) {
-      const xs = items.map(e => draw(e.v)), c = rfTolApply(asm, P, items, xs);
+      const xs = items.map(e => draw(e.v)), c = rfBuilt(rfTolApply(asm, P, items, xs), tol, R.ghz);
       const figs = [R.lo, R.ghz, R.hi].map(g => rfFigOf(rfTrace(c.asm, c.P, g, { steps: 2 })));
       plan.builds.push({ at: figs[1], worst: Math.min(...figs) });
     }
@@ -45248,6 +45427,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    '<b>The RF designer scans</b>: the feed horn can stand <b>off the axis</b>, aimed at the first lens, and the beam leaves steered the other way: the figures give its direction, the beam deviation factor and the scan loss against the feed on the axis, the layout shows the beam walking across the lenses, and <b>Analyses \u203a Scan</b> takes the feed round in steps. The beam\u2019s centre is followed through the system beside the Gaussian beam, so spillover and aperture efficiency are those of a beam off centre, and the phase error is that of the rays from where the feed stands. <b>Tolerance</b> takes errors across the axis too (a lens decentred or tilted, the feed moved across), says how far each turns the beam, and can refocus the feed for each build as a compensator.',
     'The RF designer has an <b>Element data</b> tab, as the optical designer has its element data: every surface in one table, from the feed horn to the goal, each radius, conic, thickness and material typed there, and the <b>V</b> beside a value marking it as a variable for <b>Optimise</b>, which now lists what it will vary.',
     'The File menu\u2019s two lens-file imports are one: <b>Import a lens (.zmx)\u2026</b>, whose dialog has a tick to open the file in the lens design workspace as an assembly to design.',
     'Menu items that need an account or JEKrayPro (<b>My benches</b>, <b>Save to cloud</b>, <b>Fork this bench</b>, <b>Save to My parts</b>, the designers\u2019 <b>Keep as a part</b>) are now always there, greyed when they are not possible with a word on why (sign in, or subscribe); choosing one opens the way to make it so.',

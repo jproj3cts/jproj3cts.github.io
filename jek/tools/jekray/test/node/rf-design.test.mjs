@@ -195,3 +195,60 @@ test('a zoned lens: steps a wave deep, thinner, the same at its zone frequency a
   assert.ok(e(22) > 0.01 && e(20) > e(22) && e(26) > e(24) && e(28) > e(26), [e(20), e(22), e(24), e(26), e(28)].join(', '));
   assert.ok(s20.sigma / s20.lam < 1e-3);
 });
+
+test('the feed off the axis: the beam steered the other way by about the feed’s angle, costing more the further; the offset beam’s spill and aperture efficiency agree with the formulas on the axis', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.HDPE.n;
+  const at = off => { loadProject({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 120, asphere: true, surfaces: [{ R: (n - 1) * Rg, k: -n * n }, { R: null, k: 0 }], gaps: [30], materials: [{ glass: 'HDPE' }], group: 'g' }],
+    assemblies: [{ id: 'g', name: 'RF', ref: 'L', kind: 'rf', rf: { ghz, feed: Object.assign({}, feed, { off }), goal: { kind: 'collimate', d: 300 } } }] });
+    const a = ST.project.assemblies[0], P = D.designPrescription(a); RF.rfSyncCond(a, P); return { a, P, t: RF.rfTrace(a, P, ghz) }; };
+  const t0 = at(0).t, t1 = at(20).t, t2 = at(40).t;
+  assert.ok(Math.abs(t0.steer.squint) < 1e-9 && t0.steer.feedDeg === 0);
+  // steered the other way, by less than the feed's angle for a thick lens (the deviation factor under 1), and more for a feed further off
+  assert.ok(t1.steer.squint < 0 && t1.steer.feedDeg > 0, JSON.stringify(t1.steer));
+  const bdf = -t1.steer.squint / t1.steer.feedDeg;
+  assert.ok(bdf > 0.75 && bdf < 1, 'deviation factor ' + bdf);
+  assert.ok(Math.abs(t2.steer.squint) > 1.8 * Math.abs(t1.steer.squint), 'twice the offset, about twice the angle');
+  // the cost: the coma of the hyperbolic lens, growing with the offset
+  assert.ok(t0.gain > t1.gain && t1.gain > t2.gain && t1.sigma > 0 && t2.sigma > 2 * t1.sigma * 0.9, JSON.stringify([t0.gain, t1.gain, t2.gain]));
+  // the beam's centre on the layout: on the horn at its offset, through the first vertex, and leaving on the squint's side
+  const s0 = t1.samples[0], sL = t1.samples[t1.samples.length - 1];
+  assert.ok(Math.abs(s0.yc - 20) < 1e-9 && sL.yc < 0, JSON.stringify([s0.yc, sL.yc]));
+  // the scan: against the feed on the axis, the loss nought there and growing; the beam's angle growing with the feed's
+  const sc = RF.rfScan(at(0).a, at(0).P, ghz, 5);
+  assert.equal(sc.length, 5);
+  assert.ok(Math.abs(sc[0].loss) < 1e-9 && sc[4].loss < sc[2].loss && sc[2].loss < -1e-4, JSON.stringify(sc.map(r => r.loss)));
+  assert.ok(Math.abs(sc[4].beamDeg) > Math.abs(sc[2].beamDeg) && Math.abs(sc[4].feedDeg - 25) < 0.5, JSON.stringify(sc.map(r => [r.feedDeg, r.beamDeg])));
+  // the offset Gaussian's spill and aperture efficiency: the closed forms on the axis, and less through a shifted aperture
+  assert.ok(Math.abs(RF.gaussPass(60, 40, 0) - (1 - Math.exp(-2 * 3600 / 1600))) < 1e-12 && Math.abs(RF.gaussPass(60, 40, 1e-9) - RF.gaussPass(60, 40, 0)) < 1e-3 && RF.gaussPass(60, 40, 20) < RF.gaussPass(60, 40, 0) - 0.02);
+  assert.ok(Math.abs(RF.apertureEffOff(60, 40, Infinity, lam, 1e-9) - RF.apertureEff(60, 40, Infinity, lam)) < 1e-3 && RF.apertureEffOff(60, 40, Infinity, lam, 20) < 0.9 * RF.apertureEff(60, 40, Infinity, lam));
+});
+
+test('tolerances across the axis, and the compensator: a decentred lens mostly steers the beam; a feed distance error is made good by refocusing', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.HDPE.n;
+  const { a, P } = system((n - 1) * Rg, -n * n, null, 0, 30, { kind: 'collimate', d: 300 });
+  const T = { dec: { v: 2 }, tilt: { v: 2 }, fdec: { v: 2 }, feed: { v: 10 }, eps: { on: false }, thk: { on: false }, rad: { on: false }, gap: { on: false }, trials: 20, seed: 3 };
+  const items = RF.rfTolItems(a, P, T);
+  assert.deepEqual(items.map(e => e.kind).sort(), ['dec', 'fdec', 'feed', 'tilt']);
+  // a decentred lens: its faces moved across; a tilted one: both faces turned, the back carried round
+  const cd = RF.rfTolApply(a, P, items, items.map(e => (e.kind === 'dec' ? 2 : 0)));
+  assert.ok(cd.P.surfaces.every(s => Math.abs(s.dec[1] - 2) < 1e-12));
+  const ct = RF.rfTolApply(a, P, items, items.map(e => (e.kind === 'tilt' ? 2 : 0)));
+  assert.ok(Math.abs(ct.P.surfaces[0].tilt[0] - 2 * Math.PI / 180) < 1e-12 && Math.abs(ct.P.surfaces[1].dec[1] - 30 * Math.sin(2 * Math.PI / 180)) < 1e-9);
+  // the feed moved across keeps its pointing: aim off, its angle the one it had (on the axis, nought)
+  const cf = RF.rfTolApply(a, P, items, items.map(e => (e.kind === 'fdec' ? 2 : 0)));
+  assert.ok(cf.asm.rf.feed.aim === false && Math.abs(cf.asm.rf.feed.ang) < 1e-12 && cf.asm.rf.feed.off === 2);
+  const S = RF.rfSensitivity(a, P, T), row = k => S.rows.find(r => r.kind === k);
+  // the beam turns with a decentred or tilted lens and a moved feed, costing next to nothing in gain; the feed distance costs most
+  assert.ok(row('dec').moves > 0.3 && row('fdec').moves > 0.3 && row('tilt').moves > 0.01, JSON.stringify(S.rows));
+  assert.ok(Math.abs(row('dec').worst) < 0.05 && row('feed').worst < -0.1, JSON.stringify(S.rows));
+  // the compensator: the feed refocused for each build, the distance error comes to nothing; the nominal is refocused too
+  const Sc = RF.rfSensitivity(a, P, Object.assign({}, T, { comp: true }));
+  assert.ok(Sc.comp && Math.abs(Sc.rows.find(r => r.kind === 'feed').worst) < 0.01, JSON.stringify(Sc.rows));
+  assert.ok(Sc.nominal >= S.nominal - 1e-9);
+  // the compensator finds the design's own distance better than its neighbours when the design is at its best
+  const d = RF.rfCompensate(a, P, ghz);
+  assert.ok(d > 0 && Math.abs(d - feed.d) < 0.15 * feed.d + 5);
+  // Monte Carlo with the compensator: repeatable
+  const run = () => { const p = RF.rfMcPlan(a, P, Object.assign({}, T, { comp: true })); while (!p.done) p.run(10); return p.builds; };
+  assert.deepEqual(run(), run());
+});

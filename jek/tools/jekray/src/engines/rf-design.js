@@ -8,7 +8,7 @@ import { surfSag, surfaceParts } from './lens-design.js';
 import { grMatrix } from '../core/gradient.js';
 import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
 import { besselJ01 } from '../core/special.js';
-import { cdiv, randn, seededRng } from '../core/numeric.js';
+import { cdiv, randn, seededRng, solveLinear } from '../core/numeric.js';
 
 /* ==========================================================================
    An RF system as its designer sees it: a feed horn's Gaussian beam through the lenses and mirrors
@@ -40,6 +40,35 @@ function rfGap(q, g, n, GR) {
   return cdiv([A * q[0] + B, A * q[1]], [C * q[0] + D, C * q[1]]);
 }
 const rfGR = (S, i) => S.GR ? S.GR[i] : null;
+/* ---------- The feed off the axis ----------
+   The horn moved across the axis (off, mm, in the bench plane) and aimed at the first vertex, so its beam's centre
+   crosses the axis there and leaves the system the other way: a steered beam. Or pointed at a set angle (aim false,
+   ang degrees), a horn moved without being re-aimed, as in tolerancing. The beam's centre is followed through the
+   system as a paraxial ray beside the Gaussian beam's q: its height yc and reduced slope n dy/dz; each face refracts
+   it about the face's own centre (a decentred face, in tolerancing, about its moved centre; a tilted one bends it as
+   a prism). The spillover and the aperture efficiency are then those of the Gaussian off the aperture's centre, and
+   the real rays start from the feed's phase centre where it stands, so the squint and the coma of a scanned lens
+   are in the phase error and the beam's direction. */
+function feedPoint(R) {
+  const d = Math.max(1e-6, R.feed.d), off = R.feed.off || 0;
+  const u = R.feed.aim === false ? Math.tan((R.feed.ang || 0) * Math.PI / 180) : -off / d;
+  return { off, u, y0: off + u * d, d };
+}
+/* I0(x) e^-x, the scaled modified Bessel function (Abramowitz and Stegun 9.8.1, 9.8.2) */
+function besselI0e(x) {
+  const ax = Math.abs(x);
+  if (ax < 3.75) { const t = (ax / 3.75) ** 2; return Math.exp(-ax) * (1 + t * (3.5156229 + t * (3.0899424 + t * (1.2067492 + t * (0.2659732 + t * (0.0360768 + t * 0.0045813)))))); }
+  const t = 3.75 / ax;
+  return (0.39894228 + t * (0.01328592 + t * (0.00225319 + t * (-0.00157565 + t * (0.00916281 + t * (-0.02057706 + t * (0.02635537 + t * (-0.01647633 + t * 0.00392377)))))))) / Math.sqrt(ax);
+}
+/* the share of a Gaussian beam (1/e² radius w, its centre yc off the aperture's centre) that passes a round aperture of radius a */
+export function gaussPass(a, w, yc) {
+  if (!isFinite(a)) return 1;
+  if (!yc) return 1 - Math.exp(-2 * a * a / (w * w));
+  const M = 96, dr = a / M; let s = 0;
+  for (let i = 0; i < M; i++) { const r = (i + 0.5) * dr; s += r * Math.exp(-2 * (r - Math.abs(yc)) ** 2 / (w * w)) * besselI0e(4 * r * Math.abs(yc) / (w * w)); }
+  return Math.min(1, 4 / (w * w) * s * dr);
+}
 /* a beam parameter's radius and phase radius (mm; R Infinity at a waist) */
 export function beamOf(q, lam) {
   const m = q[0] * q[0] + q[1] * q[1];
@@ -55,6 +84,21 @@ export function apertureEff(a, w, R, lam) {
   const t = a * a / (w * w), psi = isFinite(R) ? Math.PI * w * w / (lam * R) : 0;
   const ex = Math.exp(-t), re = 1 - ex * Math.cos(t * psi), im = ex * Math.sin(t * psi);
   return 2 * (re * re + im * im) / (t * (1 + psi * psi));
+}
+/* the same with the field's centre yc off the aperture's: |∫E dA|² over the aperture against its whole power, the phase a
+   sphere of radius R about the beam's own centre */
+export function apertureEffOff(a, w, R, lam, yc) {
+  if (!yc) return apertureEff(a, w, R, lam);
+  const M = 48, K = 24, k2 = isFinite(R) ? Math.PI / (lam * R) : 0;
+  let re = 0, im = 0;
+  for (let i = 0; i < M; i++) {
+    const r = (i + 0.5) * a / M, dA = r * (a / M) * (2 * Math.PI / K);
+    for (let j = 0; j < K; j++) {
+      const ph = 2 * Math.PI * (j + 0.5) / K, x = r * Math.cos(ph), y = r * Math.sin(ph) - yc, rho2 = x * x + y * y, amp = Math.exp(-rho2 / (w * w)), th = -k2 * rho2;
+      re += amp * Math.cos(th) * dA; im += amp * Math.sin(th) * dA;
+    }
+  }
+  return (re * re + im * im) / (Math.PI * a * a * Math.PI * w * w / 2);
 }
 /* a face's power reflection at nm, from index n0 into n2, square on: bare, through its matching layer, or through any
    stack, as the bench takes it (core/face-pol.js) */
@@ -80,18 +124,22 @@ export function rfZonesAt(P, i) {
   if (!el || !el.zoned) return null;
   return lensZones({ type: 'lens', zoned: el.zoned, surfaces: [P.surfaces[i], P.surfaces[i + 1]], gaps: [P.gaps[i]], materials: [P.materials[i]], diameter: 2 * Math.min(P.surfaces[i].semi, P.surfaces[i + 1].semi) });
 }
-export function rfAberr(P, S, Rin, Rout, w, lam, zones) {
+export function rfAberr(P, S, Rin, Rout, w, lam, zones, FP) {
   const N = S.N, semi = Math.min(...P.surfaces.map(s => s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity)), a = isFinite(semi) ? semi : 3 * w;
   const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
-  const hs = [], ws = [], W = [], R = new Float64Array(8);
+  const hs = [], ws = [], W = [], X = [], Y = [], R = new Float64Array(8);
   let wAll = 0, wLost = 0;
+  // the feed where it stands: its beam's centre line y = y0 + u z, its phase centre Rin back along it
+  const u0 = FP ? FP.u : 0, y0 = FP ? FP.y0 : 0, off = !!(FP && (FP.off || u0));
+  const pz = src ? -src / Math.sqrt(1 + u0 * u0) : -1, py = y0 + u0 * pz;
   // rays at 32 heights; round the aperture too (8 ways) where the system is not symmetric about its axis (a part decentred
-  // or tilted, as in tolerancing) or has a zoned face, so skew rays meet the walls and the defocus as the in-plane ones do
-  const M = (S.fr || (zones && zones.length)) ? 8 : 1;
+  // or tilted, as in tolerancing, or the feed off the axis) or has a zoned face, so skew rays meet the walls and the defocus as the in-plane ones do
+  const M = (S.fr || (zones && zones.length) || off) ? 8 : 1;
   for (let k = 0; k < 32 * M; k++) {
     const h = a * ((k % 32) + 0.5) / 32, ph = 2 * Math.PI * (Math.floor(k / 32) + 0.5) / M, cx = Math.cos(ph), sy = Math.sin(ph);
-    if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, h * cx / L, h * sy / L, src / L, 0, 0]); }
-    else R.set([h * cx, h * sy, -1, 0, 0, 1, 0, 0]);
+    // toward the point at height h round the beam's centre on the first vertex's plane
+    if (src) { const dx = h * cx, dy = y0 + h * sy - py, dz = -pz, L = Math.hypot(dx, dy, dz); R.set([0, py, pz, dx / L, dy / L, dz / L, 0, 0]); }
+    else { const L = Math.sqrt(1 + u0 * u0); R.set([h * cx, y0 + h * sy - u0, -1, 0, u0 / L, 1 / L, 0, 0]); }
     const rec = zones && zones.length ? [] : null, wq = h * Math.exp(-2 * h * h / (w * w)) / M;
     traceRay(S, R, 0, N - 1, true, rec);
     wAll += wq;
@@ -102,18 +150,34 @@ export function rfAberr(P, S, Rin, Rout, w, lam, zones) {
     // its path through the cut face is short by the whole layers k λz taken out where the ray met it: the whole waves at λ
     // they come to are no error, what is left of them is the phase slip away from the zone frequency
     if (rec) for (const { i, Z } of zones) { const at = rec[i + Z.face] && rec[i + Z.face].at; if (!at) continue; opl += lam * Math.round(Z.k(Math.hypot(at[0], at[1])) * Z.lam / lam); }
-    if (tgt !== null) opl += Math.hypot(R[0], R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
-    hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
+    // to the reference: a sphere about the outgoing beam's phase centre, or the plane a wave past the last vertex; the
+    // ray's place there, for the fit
+    let px, pyy;
+    if (tgt !== null) { opl += Math.hypot(R[0], R[1], tgt - R[2]) * S.n[N]; px = R[0]; pyy = R[1]; }
+    else { const t = (zL + 1 - R[2]) / R[5]; opl += t * S.n[N]; px = R[0] + R[3] * t; pyy = R[1] + R[4] * t; }
+    hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl); X.push(px); Y.push(pyy);
   }
   const shadow = wAll > 0 ? 1 - wLost / wAll : 1;
-  if (hs.length < 4) return { sigma: 0, eff: 1, shadow };
-  // weighted least squares: W ≈ c0 + c2 h²
-  let s0 = 0, s1 = 0, s2 = 0, t0 = 0, t1 = 0;
-  hs.forEach((h, k) => { const u = h * h, q = ws[k]; s0 += q; s1 += q * u; s2 += q * u * u; t0 += q * W[k]; t1 += q * u * W[k]; });
-  const det = s0 * s2 - s1 * s1, c2 = det ? (s0 * t1 - s1 * t0) / det : 0, c0 = (t0 - c2 * s1) / s0;
-  let v = 0; hs.forEach((h, k) => { const e = W[k] - c0 - c2 * h * h; v += ws[k] * e * e; });
+  if (hs.length < 4) return { sigma: 0, eff: 1, shadow, squint: 0 };
+  // weighted least squares: W ≈ c0 + cx x + cy y + c2 h², the tilt over the rays' places on the reference (the beam's
+  // direction: its squint when the feed is off the axis) and the defocus over their heights round the beam's centre at
+  // the first surface; the constant, the tilt and the defocus are not aberration
+  // (a system symmetric about its axis, its rays in one plane through it: no tilt to find, the constant and the defocus alone)
+  const nT = M > 1 ? 4 : 2, basis = k => (M > 1 ? [1, X[k], Y[k], hs[k] * hs[k]] : [1, hs[k] * hs[k]]);
+  const A = Array.from({ length: nT }, () => new Array(nT).fill(0)), b = new Array(nT).fill(0);
+  hs.forEach((h, k) => {
+    const q = ws[k], f = basis(k);
+    for (let i = 0; i < nT; i++) { b[i] += q * f[i] * W[k]; for (let j = 0; j < nT; j++) A[i][j] += q * f[i] * f[j]; }
+  });
+  let c = solveLinear(A, b);
+  if (!c || c.some(v => !isFinite(v))) { c = new Array(nT).fill(0); c[0] = b[0] / A[0][0]; }
+  if (nT === 2) c = [c[0], 0, 0, c[1]];
+  let v = 0, s0 = 0;
+  hs.forEach((h, k) => { const e = W[k] - c[0] - c[1] * X[k] - c[2] * Y[k] - c[3] * h * h; v += ws[k] * e * e; s0 += ws[k]; });
   const sigma = Math.sqrt(v / s0);
-  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)), shadow };
+  // the wavefront's slope across (OPL per mm) is n sin of the beam's direction
+  const sl = Math.max(-1, Math.min(1, c[2] / S.n[N])), squint = Math.asin(sl) * 180 / Math.PI;
+  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)), shadow, squint, tilt: [c[1], c[2]] };
 }
 /* the system at one frequency: the beam followed from the feed horn's aperture to the goal's plane, sampled
    along the unfolded axis (z from the first vertex, w the beam's radius); at each surface its radius, the
@@ -122,30 +186,32 @@ export function rfTrace(asm, P, ghz, opts) {
   opts = opts || {};
   const R = normRfCond(asm.rf), nm = rfNm(ghz), lam = nm * 1e-6, S = lensSystem(P, nm), N = S.N;
   const B = rfBeam(R.feed, ghz), H = RF_HORNS[R.feed.kind] || RF_HORNS.corrugated;
-  const steps = opts.steps || 40, samples = [], surf = [];
-  const push = (z, q) => samples.push({ z, w: beamOf(q, lam).w });
-  // from the horn's aperture to the first vertex, in air
+  const steps = opts.steps || 40, samples = [], surf = [], FP = feedPoint(R);
+  const push = (z, q, yc) => samples.push({ z, w: beamOf(q, lam).w, yc: yc || 0 });
+  // from the horn's aperture to the first vertex, in air, the beam's centre on its line from the horn
   const z0 = -R.feed.d, qw = B.zR;
-  for (let k = 0; k <= steps; k++) { const z = z0 + (0 - z0) * k / steps; push(z, [z - z0 + B.dz, qw]); }
-  let q = [R.feed.d + B.dz, qw];
+  for (let k = 0; k <= steps; k++) { const z = z0 + (0 - z0) * k / steps; push(z, [z - z0 + B.dz, qw], FP.off + FP.u * (z - z0)); }
+  let q = [R.feed.d + B.dz, qw], yc = FP.y0, uc = FP.u;      // the centre: its height, and its reduced slope n dy/dz
   const sps = surfaceParts(P);
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i], w = beamOf(q, lam).w, a = s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity;
-    surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? Math.exp(-2 * (a / w) ** 2) : 0, kind: sps[i].kind, pi: sps[i].pi });
+    const dcy = s.dec ? s.dec[1] || 0 : 0, tl = s.tilt ? s.tilt[0] || 0 : 0;     // a face moved off the axis (tolerancing)
+    surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, yc, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? 1 - gaussPass(a, w, yc - dcy) : 0, kind: sps[i].kind, pi: sps[i].pi });
     const pc = S.c[i] + 2 * S.a2[i];
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
-    // 1/q' = 1/q - phi, in reduced form
+    // 1/q' = 1/q - phi, in reduced form; the centre refracted about the face's own centre, and bent by a tilted face as a prism
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
+    uc = uc - phi * (yc - dcy) + (S.mir[i] ? 2 * S.n[i] * tl : -(S.n[i + 1] - S.n[i]) * tl);
     if (i < N - 1) {
       const g = P.gaps[i], n = S.n[i + 1], n2 = 12, GR = rfGR(S, i);
-      for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR)); }
-      q = rfGap(q, g, n, GR);
+      for (let k = 1; k <= n2; k++) { const t = g * k / n2; push(S.z[i] + t, rfGap(q, t, n, GR), yc + uc * t / n); }
+      q = rfGap(q, g, n, GR); yc += uc * g / n;
     }
   }
-  const zL = S.z[N - 1], out = beamOf(q, lam);
+  const zL = S.z[N - 1], out = beamOf(q, lam), ucOut = uc / S.n[N], ycL = yc;
   // past the last vertex, in the medium after it (air), to the goal's plane, or for a collimated beam a little past its waist
   const g = R.goal, zEnd = zL + (g.kind === 'collimate' ? Math.max(g.d, -q[0] + q[1], 50) : g.d + (g.kind === 'couple' ? rfBeam(g.rx, ghz).dz : 0));
-  for (let k = 1; k <= steps; k++) { const t = (zEnd - zL) * k / steps; push(zL + t, [q[0] + t, q[1]]); }
+  for (let k = 1; k <= steps; k++) { const t = (zEnd - zL) * k / steps; push(zL + t, [q[0] + t, q[1]], ycL + ucOut * t); }
   // the losses: each face's reflection, each lens's absorption over the beam, each aperture's spillover
   let refl = 1, absorb = 1, spill = 1;
   const faces = [], lenses = [], zones = [];
@@ -196,13 +262,15 @@ export function rfTrace(asm, P, ghz, opts) {
   // the phase error beyond first order, from real rays (not when asked for the beam alone)
   // the zoned lenses' cut faces, for the rays (lens-engine.js sag): the face's steps, a wave of path deep, cut back into the lens
   if (zones.length) { S.zone = new Array(N); for (const { i, Z } of zones) if (Z.steps.length) S.zone[i + Z.face] = { k: Z.k, dz: Z.dz, steps: Z.steps, sg: Z.face === 0 ? 1 : -1 }; }
-  const ab = opts.noAberr ? { sigma: 0, eff: 1, shadow: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones);
-  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff, shadow: ab.shadow };
+  const ab = opts.noAberr ? { sigma: 0, eff: 1, shadow: 1, squint: Math.atan(ucOut) * 180 / Math.PI } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones, FP);
+  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff, shadow: ab.shadow,
+    // the beam steered: the feed's angle off the axis, its centre's direction leaving (paraxial) and the wavefront's (from the rays)
+    steer: { feedDeg: Math.atan2(FP.off, FP.d) * 180 / Math.PI, chiefDeg: Math.atan(ucOut) * 180 / Math.PI, squint: ab.squint, yc: ycL, off: !!(FP.off || FP.u) } };
   if (g.kind === 'collimate') {
     const last = apert[apert.length - 1], a = last ? last.semi : out.w * 1.5;
-    // the field at the last lens: the beam leaving it, its radius and curvature there
+    // the field at the last lens: the beam leaving it, its radius and curvature there, its centre off the aperture's
     const wl = beamOf(q, lam).w, Rl = out.R;
-    res.apEff = apertureEff(a, wl, Rl, lam);
+    res.apEff = apertureEffOff(a, wl, Rl, lam, ycL);
     res.D = 2 * a; res.apAt = { a, w: wl, R: Rl };
     res.eff = H.g * refl * absorb * spill * res.apEff * ab.eff * ab.shadow;
     res.gain = 10 * Math.log10(res.eff * (Math.PI * 2 * a / lam) ** 2);
@@ -212,6 +280,9 @@ export function rfTrace(asm, P, ghz, opts) {
     const at = [q[0] + g.d + (g.kind === 'couple' ? rfBeam(g.rx, ghz).dz : 0), q[1]], bo = beamOf(at, lam);
     const wt = g.kind === 'couple' ? rfBeam(g.rx, ghz).w0 : g.w;
     res.coupling = gaussCoupling(bo.w, bo.R, wt, Infinity, lam);
+    // the beam's centre off the goal's, and its direction: the coupling of misaligned Gaussians (small offsets and tilts)
+    const dOff = ycL + ucOut * (g.d + (g.kind === 'couple' ? rfBeam(g.rx, ghz).dz : 0)), th = Math.atan(ucOut), ww = bo.w * bo.w + wt * wt;
+    res.coupling *= Math.exp(-2 * dOff * dOff / ww) * Math.exp(-2 * (Math.PI * bo.w * wt * th / lam) ** 2 / ww);
     res.waist = { w: Math.sqrt(lam * out.zR / Math.PI), at: -out.z };
     res.target = { w: wt, at: zEnd - zL };
     res.gRx = g.kind === 'couple' ? (RF_HORNS[g.rx.kind] || RF_HORNS.corrugated).g : 1;
@@ -221,8 +292,33 @@ export function rfTrace(asm, P, ghz, opts) {
 }
 /* the design at the band's two edges and its own frequency */
 export function rfBand(asm, P) {
-  const R = normRfCond(asm.rf);
-  return { lo: rfTrace(asm, P, R.lo), mid: rfTrace(asm, P, R.ghz), hi: rfTrace(asm, P, R.hi) };
+  const R = normRfCond(asm.rf), out = { lo: rfTrace(asm, P, R.lo), mid: rfTrace(asm, P, R.ghz), hi: rfTrace(asm, P, R.hi) };
+  // the feed off the axis: the same system with it on the axis, what the scan loss is against
+  if (R.feed.off || R.feed.aim === false) out.ref = rfTrace(rfWithFeed(asm, R, { off: 0, aim: true, ang: 0 }), P, R.ghz);
+  return out;
+}
+/* the assembly with its feed changed (the conditions copied, the parts shared) */
+export function rfWithFeed(asm, R, feed) {
+  const f = Object.assign({}, R.feed, feed);
+  if (f.aim !== false) { delete f.aim; delete f.ang; }
+  return Object.assign({}, asm, { rf: Object.assign({}, R, { feed: f }) });
+}
+const rfFigOf = t => (t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff)));
+/* the beam scanned by moving the feed across the axis, aimed at the first lens: at each offset the feed's angle, the
+   beam's direction (from the wavefront leaving), the figure (the gain, or the efficiency in dB) and the scan loss
+   against the feed on the axis, with the phase error and the spillover. To offMax (mm; to start, the feed 25° off or
+   four beamwidths, whichever is less) in n steps. */
+export function rfScan(asm, P, ghz, n, offMax) {
+  const R = normRfCond(asm.rf), at = off => rfTrace(rfWithFeed(asm, R, { off, aim: true }), P, ghz, { steps: 2 });
+  const t0 = at(0), f0 = rfFigOf(t0);
+  if (!(offMax > 0)) { const D = t0.D || 2 * (isFinite(t0.surf[0].semi) ? t0.surf[0].semi : 50), bw = 1.2 * t0.lam / D; offMax = R.feed.d * Math.tan(Math.min(25 * Math.PI / 180, 4 * bw)); }
+  n = n || 9;
+  const rows = [];
+  for (let k = 0; k < n; k++) {
+    const off = offMax * k / (n - 1), t = k ? at(off) : t0, f = rfFigOf(t);
+    rows.push({ off, feedDeg: Math.atan2(off, R.feed.d) * 180 / Math.PI, beamDeg: t.steer.squint, fig: f, loss: f - f0, sigma: t.sigma, lam: t.lam, spill: t.spill, apEff: t.apEff, phaseEff: t.phaseEff });
+  }
+  return rows;
 }
 /* the indices the trace used at nm for a material (exported for the lens table) */
 
@@ -547,9 +643,14 @@ export function rfOptStep(prob, st) {
    The figure: to collimate, the gain (dBi); otherwise the efficiency (dB). Sensitivity: each error at its limit, either
    way, alone, at the design frequency. Monte Carlo: builds with every error drawn at once, uniform within its limits
    or normal with its limit at two standard deviations, each build's figure at the design frequency and its worst over
-   the band; the share that meet a specification, with its 95% interval (Wilson's). Off-axis errors (a lens decentred
-   or tilted, the feed moved across) are not in it: the Gaussian beam here is on its axis. */
-export const RF_TOL_KINDS = { eps: { label: 'Permittivity', unit: '%', v: 5 }, thk: { label: 'Centre thickness', unit: 'mm', v: 0.2 }, rad: { label: 'Face curvature', unit: '%', v: 1 }, gap: { label: 'Air gap', unit: 'mm', v: 0.5 }, feed: { label: 'Feed distance', unit: 'mm', v: 1 } };
+   the band; the share that meet a specification, with its 95% interval (Wilson's). Across the axis:
+     dec   a lens moved across the axis, ± v mm (both faces, in the bench plane)
+     tilt  a lens tilted about its front vertex, ± v degrees (its back face carried round with it)
+     fdec  the feed horn moved across the axis, ± v mm, pointed as it was
+   each met by the beam's centre walking off and by the real rays through the moved faces. With the compensator on,
+   the feed's distance is refocused for each built system, as it would be on the bench, before its figure is read. */
+export const RF_TOL_KINDS = { eps: { label: 'Permittivity', unit: '%', v: 5 }, thk: { label: 'Centre thickness', unit: 'mm', v: 0.2 }, rad: { label: 'Face curvature', unit: '%', v: 1 }, gap: { label: 'Air gap', unit: 'mm', v: 0.5 }, feed: { label: 'Feed distance', unit: 'mm', v: 1 },
+  dec: { label: 'Lens decentre', unit: 'mm', v: 0.5 }, tilt: { label: 'Lens tilt', unit: '°', v: 0.5 }, fdec: { label: 'Feed across the axis', unit: 'mm', v: 1 } };
 export function normRfTol(o) {
   o = o && typeof o === 'object' ? o : {};
   const out = {};
@@ -558,6 +659,7 @@ export function normRfTol(o) {
   out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
   out.spec = isFinite(+o.spec) && o.spec !== null && o.spec !== '' ? +o.spec : null;
   out.seed = Math.round(isFinite(+o.seed) && +o.seed > 0 ? +o.seed : 1);
+  out.comp = o.comp === true;
   return out;
 }
 /* the errors a system can have: each { kind, i (the surface or gap it is on), label } */
@@ -570,6 +672,10 @@ export function rfTolItems(asm, P, T) {
       if (tol.thk.on && p.n === 2) out.push({ kind: 'thk', i: i0, label: nm + ': centre thickness' });
       if (tol.rad.on) for (let j = 0; j < p.n; j++) if (P.surfaces[i0 + j].R !== null && isFinite(P.surfaces[i0 + j].R)) out.push({ kind: 'rad', i: i0 + j, label: nm + ': ' + (j ? 'back' : 'front') + ' face' });
     }
+    if (p.kind === 'lens' || p.kind === 'grin') {
+      if (tol.dec.on) out.push({ kind: 'dec', i: i0, n: p.n, label: nm + ': decentre' });
+      if (tol.tilt.on) out.push({ kind: 'tilt', i: i0, n: p.n, label: nm + ': tilt' });
+    }
     // a graded-index disc: its plastic's permittivity (every density's with it) and its thickness
     if (p.kind === 'grin') {
       if (tol.eps.on) out.push({ kind: 'eps', i: i0, label: nm + ': permittivity' });
@@ -578,6 +684,7 @@ export function rfTolItems(asm, P, T) {
     if (tol.gap.on && i0 + p.n - 1 < P.surfaces.length - 1) out.push({ kind: 'gap', i: i0 + p.n - 1, label: nm + ': air after' });
   });
   if (tol.feed.on) out.push({ kind: 'feed', i: -1, label: 'Feed horn: distance' });
+  if (tol.fdec.on) out.push({ kind: 'fdec', i: -1, label: 'Feed horn: across the axis' });
   return out.map(e => Object.assign(e, { v: tol[e.kind].v }));
 }
 /* the system with errors e (each item with its value x, in its own unit) */
@@ -597,17 +704,46 @@ export function rfTolApply(asm, P, items, xs) {
     else if (e.kind === 'thk' || e.kind === 'gap') Q.gaps[e.i] = Math.max(0, Q.gaps[e.i] + x);
     else if (e.kind === 'rad') { const s = Q.surfaces[e.i]; if (s.R) s.R = s.R / (1 + x / 100); }
     else if (e.kind === 'feed') A.rf.feed.d = Math.max(0, A.rf.feed.d + x);
+    // the part moved across the axis: each of its faces, in the bench plane
+    else if (e.kind === 'dec') for (let j = 0; j < (e.n || 1); j++) { const s = Q.surfaces[e.i + j], d = s.dec || [0, 0, 0]; s.dec = [d[0] || 0, (d[1] || 0) + x, d[2] || 0]; }
+    // tilted about its front vertex: its back face turned the same and carried round with it
+    else if (e.kind === 'tilt') {
+      const t = x * Math.PI / 180;
+      for (let j = 0; j < (e.n || 1); j++) {
+        const s = Q.surfaces[e.i + j], tl = s.tilt || [0, 0], d = s.dec || [0, 0, 0];
+        s.tilt = [(tl[0] || 0) + t, tl[1] || 0];
+        if (j) { const g = Q.gaps[e.i]; s.dec = [d[0] || 0, (d[1] || 0) + g * Math.sin(t), (d[2] || 0) + g * (Math.cos(t) - 1)]; }
+      }
+    }
+    // the feed moved across, pointed as it was (an aimed feed keeps the angle it had)
+    else if (e.kind === 'fdec') { const F = A.rf.feed; if (F.aim !== false) { F.aim = false; F.ang = Math.atan2(-(F.off || 0), Math.max(1e-6, F.d)) * 180 / Math.PI; } F.off = (F.off || 0) + x; }
   });
   return { asm: A, P: Q };
 }
-const rfFigOf = t => t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff));
+/* the compensator: the feed's distance refocused for a built system, for the most of its figure at ghz, by golden section
+   about the design's (within 15 % of it, 5 mm at least); the design's own if nothing nearer is better */
+export function rfCompensate(asm, P, ghz) {
+  const d0 = asm.rf.feed.d, span = Math.max(5, 0.15 * d0), gr = (Math.sqrt(5) - 1) / 2;
+  const f = d => rfFigOf(rfTrace(Object.assign({}, asm, { rf: Object.assign({}, asm.rf, { feed: Object.assign({}, asm.rf.feed, { d }) }) }), P, ghz, { steps: 2 }));
+  let lo = Math.max(0.5, d0 - span), hi = d0 + span, c = hi - gr * (hi - lo), d = lo + gr * (hi - lo), fc = f(c), fd = f(d);
+  for (let k = 0; k < 14; k++) {
+    if (fc > fd) { hi = d; d = c; fd = fc; c = hi - gr * (hi - lo); fc = f(c); }
+    else { lo = c; c = d; fc = fd; d = lo + gr * (hi - lo); fd = f(d); }
+  }
+  const best = (lo + hi) / 2;
+  return f(best) > f(d0) ? best : d0;
+}
+/* a built system with its compensator set, when the tolerances ask for it */
+const rfBuilt = (c, tol, ghz) => { if (tol.comp) c.asm.rf.feed.d = rfCompensate(c.asm, c.P, ghz); return c; };
 /* each error at its limit, either way, alone: the figure's change at the design frequency */
 export function rfSensitivity(asm, P, T) {
-  const items = rfTolItems(asm, P, T), R = normRfCond(asm.rf), f0 = rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 }));
-  return { nominal: f0, rows: items.map((e, k) => {
-    const at = sgn => { const xs = items.map((_, j) => (j === k ? sgn * e.v : 0)), c = rfTolApply(asm, P, items, xs); return rfFigOf(rfTrace(c.asm, c.P, R.ghz, { steps: 2 })) - f0; };
-    const up = at(1), dn = at(-1);
-    return { label: e.label, kind: e.kind, v: e.v, up, dn, worst: Math.min(up, dn) };
+  const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
+  // the nominal: the design as it is, or with its feed refocused too when the compensator is on
+  const nom = rfBuilt({ asm, P }, tol, R.ghz), t0 = rfTrace(nom.asm, nom.P, R.ghz, { steps: 2 }), f0 = rfFigOf(t0), sq0 = t0.steer.squint;
+  return { nominal: f0, comp: tol.comp, feedD: nom.asm.rf.feed.d, rows: items.map((e, k) => {
+    const at = sgn => { const xs = items.map((_, j) => (j === k ? sgn * e.v : 0)), c = rfBuilt(rfTolApply(asm, P, items, xs), tol, R.ghz), t = rfTrace(c.asm, c.P, R.ghz, { steps: 2 }); return [rfFigOf(t) - f0, t.steer.squint - sq0]; };
+    const [up, sqUp] = at(1), [dn, sqDn] = at(-1);
+    return { label: e.label, kind: e.kind, v: e.v, up, dn, worst: Math.min(up, dn), moves: Math.max(Math.abs(sqUp), Math.abs(sqDn)) };
   }).sort((a, b) => a.worst - b.worst) };
 }
 /* Monte Carlo, a batch of builds at a time: plan (its state), run(n) to go on, the builds so far */
@@ -615,10 +751,11 @@ export function rfMcPlan(asm, P, T) {
   const tol = normRfTol(T), items = rfTolItems(asm, P, tol), R = normRfCond(asm.rf);
   const rnd = seededRng(tol.seed >>> 0 || 1);
   const draw = v => tol.dist === 'normal' ? (v / 2) * randn(rnd) : v * (2 * rnd() - 1);
-  const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(asm, P, R.ghz, { steps: 2 })), done: false };
+  const nom = rfBuilt({ asm, P }, tol, R.ghz);
+  const plan = { tol, items, builds: [], nominal: rfFigOf(rfTrace(nom.asm, nom.P, R.ghz, { steps: 2 })), done: false };
   plan.run = n => {
     for (let k = 0; k < n && plan.builds.length < tol.trials; k++) {
-      const xs = items.map(e => draw(e.v)), c = rfTolApply(asm, P, items, xs);
+      const xs = items.map(e => draw(e.v)), c = rfBuilt(rfTolApply(asm, P, items, xs), tol, R.ghz);
       const figs = [R.lo, R.ghz, R.hi].map(g => rfFigOf(rfTrace(c.asm, c.P, g, { steps: 2 })));
       plan.builds.push({ at: figs[1], worst: Math.min(...figs) });
     }

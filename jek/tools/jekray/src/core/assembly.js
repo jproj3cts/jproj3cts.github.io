@@ -70,7 +70,10 @@ export function normRfCond(r) {
   const goal = { kind, d: clamp(num(g.d, 300), 0, 1e6) };
   if (kind === 'focus') goal.w = clamp(num(g.w, 10), 0.01, 1e4);
   if (kind === 'couple') goal.rx = horn(g.rx, 15, 80);
-  return { ghz, lo, hi, feed: Object.assign(horn(f, 15, 80), { d: clamp(num(f.d, 150), 0, 1e6) }), goal };
+  // the feed across the axis (mm, in the bench plane): aimed at the first vertex, unless pointed at a set angle (ang, degrees)
+  const feed = Object.assign(horn(f, 15, 80), { d: clamp(num(f.d, 150), 0, 1e6), off: clamp(num(f.off, 0), -1e4, 1e4) });
+  if (f.aim === false) { feed.aim = false; feed.ang = clamp(num(f.ang, 0), -89, 89); }
+  return { ghz, lo, hi, feed, goal };
 }
 export function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();

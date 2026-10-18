@@ -9305,6 +9305,47 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: the feed off the axis steers the beam, the Scan analysis plots the cost, and Tolerance takes errors across the axis with a compensator',
+    why: 'a new RF design with its feed 20 mm off the axis: the figures give Beam steered (the beam the other way, a deviation factor under 1) and a scan loss; the feed horn on the bench moves across and aims at the lens; Analyses › Scan draws two plots and a table of nine rows whose loss grows; Tolerance lists Lens decentre, Lens tilt and Feed across the axis, and with Refocus ticked the sensitivity table has a Beam moves column (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs'), tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      const pick = k => ws().querySelector('.rt-rfsi[data-sel="' + k + '"]').click();
+      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
+      const fig = label => { const d = [...ws().querySelectorAll('.rt-lfig > div')].find(x => x.firstChild.textContent === label); return d ? d.lastChild.textContent : ''; };
+      try {
+        pick('feed');
+        set('Feed off the axis (mm)', '20');
+        const st = fig('Beam steered'), m = /^([\d.]+)°, the feed ([\d.]+)° off \(deviation factor ([\d.]+)\)/.exec(st);
+        const steered = !!m && +m[1] > 0 && +m[1] < +m[2] && +m[3] > 0.7 && +m[3] < 1;
+        const loss = parseFloat(fig('Scan loss')), lossOk = loss > 0 && loss < 1;
+        tab('Analyses');
+        [...ws().querySelectorAll('.rt-lchip')].find(b => b.textContent === 'Scan').click();
+        const rows = [...ws().querySelectorAll('.rt-rfscan tbody tr')].map(tr => parseFloat(tr.children[4].textContent));
+        const scan = ws().querySelectorAll('.rt-rfana canvas').length >= 2 && rows.length === 9 && Math.abs(rows[0]) < 1e-6 && rows[8] < rows[4] && rows[4] < 0;
+        tab('Tolerance');
+        const kinds = [...ws().querySelectorAll('.rt-rftolk th')].map(x => x.textContent);
+        const listed = ['Lens decentre', 'Lens tilt', 'Feed across the axis'].every(k => kinds.includes(k));
+        const comp = ws().querySelector('[aria-label="Refocus the feed for each build"]'); comp.checked = true; comp.dispatchEvent(new (W.Event)('change'));
+        [...ws().querySelectorAll('button')].find(b => b.textContent === 'Sensitivity').click();
+        await new Promise(r => setTimeout(r, 100));
+        const heads = [...ws().querySelectorAll('.rt-rftol table')].flatMap(t => [...t.querySelectorAll('th')].map(x => x.textContent));
+        const sens = heads.includes('Beam moves') && /with the feed refocused/.test(ws().textContent);
+        // placed on the bench: the feed horn stands across the axis, aimed at the lens
+        rigDoc().getElementById('rfLeave').click();
+        const els = J.serialize().elements, horn = els.find(e => e.type === 'source' && e.mmw), lens = els.find(e => e.type === 'lens');
+        const vx = lens.x - lens.gaps[0] / 2, dist = horn ? Math.hypot(horn.x - vx, horn.y - lens.y) : 0, aimed = !!horn && Math.abs(((Math.atan2(lens.y - horn.y, vx - horn.x) * 180 / Math.PI - horn.angle + 540) % 360) - 180) < 0.01;
+        const moved = !!horn && Math.abs(horn.y - lens.y) > 15 && aimed && dist > 100;
+        const all = steered && lossOk && moved && scan && listed && sens;
+        if (!all) console.log('rf scan', { st, steered, loss, moved, dist, aimed, horn, scan, rows, listed, kinds, sens });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'RF designer: Element data lists every surface from the feed to the goal, edits the lens there, and its V marks the optimiser’s variables',
     why: 'a new RF design’s Element data tab (the first, open by default): rows FEED, 1, 2 and GOAL; the lens’s front radius typed there changes the lens on the bench and the layout; its V buttons start with the two radii and the front conic pressed; pressing the centre thickness’s V adds it to what Optimise says it varies, and Undo takes the radius back (1 when all hold)',
     want: 1, tol: 0, unit: '',

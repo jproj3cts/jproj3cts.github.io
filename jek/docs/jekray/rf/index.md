@@ -199,7 +199,7 @@ A system of RF lenses and mirrors is designed as a whole in the **RF designer**:
 ### Its conditions
 
 - **Frequency**: the design frequency and the band either side of it, in GHz.
-- **Feed horn**: its kind, aperture radius and slant length, and its distance from its aperture to the first lens.
+- **Feed horn**: its kind, aperture radius and slant length, its distance from its aperture to the first lens, and how far it stands **off the axis**. Off the axis it is aimed at the first lens's centre, and the beam leaves steered the other way: the figures then give the beam's direction (from the wavefront leaving, real rays), the beam deviation factor (its angle over the feed's) and the **scan loss** against the same system fed on the axis. The beam's centre is followed through the system beside the Gaussian beam, so the spillover and the aperture efficiency are those of a beam off each aperture's centre, and the phase error is that of the rays from where the feed stands: a scanned lens's coma.
 - **Goal**: what comes after the last lens. **Collimate the beam** (an antenna); **Focus to a waist** of a given radius at a given distance; or **Into a receiving horn**, of a given kind and size, its aperture at a given distance.
 
 **Take from the bench** reads the feed horn lighting the first lens and any receiving horn on the axis after the last. Those horns then follow the conditions: change the feed's distance or size here and the horn on the bench moves and changes with it. **Place on a bench**, for a new design, puts its feed horn on the bench, and at its goal a receiving horn or an absorber load.
@@ -254,6 +254,7 @@ $$
 E(\theta) \propto \frac{1+\cos\theta}{2}\int_0^a e^{-r^2/w^2 - i\pi r^2/(\lambda R)}\,J_0(kr\sin\theta)\,r\,dr,
 $$
 at the band's edges and its centre, with its half-power beamwidth and first sidelobe.
+- **Scan**: the feed moved across the axis in steps, aimed at the first lens, out to 25° or four beamwidths: at each place the beam's direction, the deviation factor, the scan loss and the phase error, plotted against the beam's angle and the feed's. The same loss the bench's lens panel works out by its field, here from the designer's beam and rays, so it can be designed against.
 - **Apertures**: at each face, the beam's radius at the band's edges and its centre, the clear radius, the edge taper and the share spilled.
 - **Reflections**: each lens as a slab, its two faces with their layers and the plastic between, its reflection worked out coherently by the characteristic matrices, so the ripple a plain lens shows across a band appears.
 - **Loss budget**: each factor the efficiency is the product of, at the design frequency, in per cent and dB; to collimate, the gain against a uniform aperture of the same diameter.
@@ -275,6 +276,9 @@ A printed lens is not made exactly, nor mounted exactly where it was designed. *
 | Face curvature | each curved face | ± 1 % |
 | Air gap | after each part | ± 0.5 mm |
 | Feed distance | the feed horn | ± 1 mm |
+| Lens decentre | each lens, moved across the axis in the bench plane | ± 0.5 mm |
+| Lens tilt | each lens, turned about its front vertex, its back face carried with it | ± 0.5° |
+| Feed across the axis | the feed horn moved across, pointed as it was | ± 1 mm |
 
 A printed plastic's permittivity is known to a few per cent until tiles of it are measured, and the printer's flow moves it the same way, so it is usually the error that matters most. The figure is the gain (to collimate) or the efficiency, with every loss and the phase error from real rays.
 
@@ -282,7 +286,7 @@ A printed plastic's permittivity is known to a few per cent until tiles of it ar
 - **Monte Carlo**: builds with every error drawn at once, evenly within its limits or normally with its limit at two standard deviations, from a fixed seed so a run can be repeated. For each build, its figure at the design frequency and its worst over the band; the mean, the figure nine builds in ten reach, the worst build, and a histogram.
 - **Yield**: give a specification (the figure at least so much across the whole band) and the share of builds that meet it, with its 95 % interval (Wilson's).
 
-Errors across the axis (a lens decentred or tilted, the feed moved sideways) are not here, since the Gaussian beam the designer follows is on its axis: the RF lens's own panel on the bench traces those.
+Errors across the axis move the beam's centre off the faces (the spillover and the aperture efficiency of a beam off centre) and are traced by real rays through the moved faces (the phase error of a lens met off its axis); the beam's direction turns a little too, and **Beam moves** in the sensitivity table says how far, since a lens decentred mostly steers the beam rather than spoiling it. **Refocus the feed for each build** is the compensator: as on the bench, each built system's feed distance is refocused (within 15 % of the design's, by golden section) for the most of its figure before it is read, so a thickness or permittivity error that only moves the focus costs what remains after refocusing. The nominal is then refocused too.
 
 ### Make it
 

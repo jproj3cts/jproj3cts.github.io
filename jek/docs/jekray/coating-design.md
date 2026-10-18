@@ -2,7 +2,7 @@
 layout: docs
 title: Coating design
 permalink: /jek/docs/jekray/coating-design/
-description: Design a thin-film coating in JEKray: an anti-reflection stack, a high reflector, a beam splitter, a dichroic edge or an RF matching layer, judged over a band of wavelengths and a range of angles, its thicknesses optimised, and put straight on a face.
+description: "Design a thin-film coating in JEKray: an anti-reflection stack, a high reflector, a beam splitter, a dichroic edge or an RF matching layer, judged over a band of wavelengths and a range of angles, its thicknesses optimised, and put straight on a face."
 ---
 
 <p class="dx-lead">A face's coating need not be one of the few offered. The coating workspace takes a stack of layers on a substrate, says what it is for, shows what it reflects across the band and against the angle, and optimises the thicknesses. What it designs is written to the face it came from, or kept by name for every face's Coating list. It uses the one thin-film model the bench, the lens designer and the RF designer trace with, so what is designed is what is traced.</p>

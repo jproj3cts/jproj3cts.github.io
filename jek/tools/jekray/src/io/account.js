@@ -23,7 +23,7 @@ export async function api(path, opts = {}) {
   }
   return body;
 }
-const PROVIDER_NAMES = { google: 'Google', microsoft: 'Microsoft', orcid: 'ORCID' };
+const PROVIDER_NAMES = { google: 'Google', microsoft: 'Microsoft', orcid: 'ORCID', email: 'Email' };
 export const AUTH_OUTCOMES = {
   signed_in: ['Signed in'], linked: ['Sign-in linked to your account'], cancelled: ['Sign-in cancelled'],
   expired: ['That sign-in took too long or was opened in another browser. Please try again.', true],
@@ -203,7 +203,7 @@ export function fillAccount() {
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
-    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')),
+    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with an email code', () => showEmailSignIn(false)),
       h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
@@ -234,6 +234,7 @@ export function fillAccount() {
     }
     if (rows[rows.length - 1].className !== 'sep') rows.push(h('div', { class: 'sep' }));
     for (const p of ['google', 'microsoft']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
+    if (!ids.some(i => i.provider === 'email')) rows.push(item('signin', 'Link an email address', () => showEmailSignIn(true)));
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
       catch (err) { toast(err.message, true); }
@@ -242,6 +243,49 @@ export function fillAccount() {
   }
   menuIcons(menu);
   cloudMenuShown();
+}
+/* ---------- Sign-in with an email code ----------
+   For people whose university does not let them sign in with Microsoft, and anyone without a Google or Microsoft
+   account: the address, then the 6-digit code the API emails to it. The session arrives as the cookie on the code's
+   reply (the API and the app are one site), so no page leaves. link: the signed-in account adds the address. */
+export function showEmailSignIn(link) {
+  let dlg = document.getElementById('emailDialog');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'emailDialog', 'aria-labelledby': 'emailTitle' }); document.body.append(dlg); }
+  const title = h('h2', { id: 'emailTitle' }, link ? 'Link an email address' : 'Sign in with an email code');
+  const email = h('input', { type: 'email', id: 'emailAddr', autocomplete: 'email', placeholder: 'you@university.ac.uk', spellcheck: 'false', required: '' });
+  const codeIn = h('input', { type: 'text', id: 'emailCode', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9 ]*', placeholder: '6 digits', spellcheck: 'false' });
+  const err = h('p', { class: 'rt-error', hidden: '' });
+  const note = h('p', { class: 'note' }, link ? 'The address is added to this account as a way to sign in, and becomes its verified email. We send a 6-digit code to it; type the code here.'
+    : 'We send a 6-digit code to the address; type it here and you are signed in. No password is made. If you have signed in with Google or Microsoft before, link the address from the account menu instead, so your benches stay in one account.');
+  const sendBtn = h('button', { class: 'rt-btn primary', type: 'button' }, 'Send a code'), okBtn = h('button', { class: 'rt-btn primary', type: 'button', hidden: '' }, link ? 'Link it' : 'Sign in'), cancel = h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel');
+  const codeRow = h('div', { class: 'rt-rows', hidden: '' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailCode' }, 'The code from the email'), codeIn));
+  const fail = m => { err.textContent = m; err.hidden = false; };
+  sendBtn.addEventListener('click', async () => {
+    err.hidden = true; const v = email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { fail('That does not look like an email address.'); email.focus(); return; }
+    sendBtn.disabled = true;
+    try {
+      await api('/auth/email/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ email: v }, link ? { link: true } : {})) });
+      codeRow.hidden = false; okBtn.hidden = false; sendBtn.textContent = 'Send another'; codeIn.focus();
+      toast('Code sent to ' + v.toLowerCase() + '. It lasts 15 minutes; check your spam folder if it is slow.');
+    } catch (e) { fail(e.message); }
+    sendBtn.disabled = false;
+  });
+  okBtn.addEventListener('click', async () => {
+    err.hidden = true; okBtn.disabled = true;
+    try {
+      const r = await api('/auth/email/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.value.trim(), code: codeIn.value }) });
+      dlg.close();
+      await loadAccount(); fillAccount();
+      toast(r.linked ? 'Email address linked to your account' : 'Signed in');
+      if (!r.linked && typeof accountShown === 'function') accountShown();
+    } catch (e) { fail(e.message); okBtn.disabled = false; codeIn.focus(); }
+  });
+  codeIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); } });
+  email.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (codeRow.hidden ? sendBtn : okBtn).click(); } });
+  dlg.replaceChildren(title, note, h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailAddr' }, 'Email address'), email)), codeRow, err,
+    h('div', { class: 'rt-actions' }, cancel, sendBtn, okBtn));
+  dlg.showModal(); email.focus();
 }
 /* ---------- The account page ----------
    The picture others see beside the name (resized here to 128 px and sent as WebP, so a photo of
@@ -285,7 +329,7 @@ export function showAccount() {
     try { account = await api('/v1/me', jsonReq('PATCH', { name: v })); fillAccount(); showAccount(); toast('Name changed'); } catch (err) { toast(err.message, true); }
   } }, 'Save');
   name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
-  const ids = (account.identities || []).map(i => PROVIDER_NAMES[i.provider] + (i.provider === 'orcid' ? ' ' + i.subject : ''));
+  const ids = (account.identities || []).map(i => PROVIDER_NAMES[i.provider] + (i.provider === 'orcid' || i.provider === 'email' ? ' ' + i.subject : ''));
   body.replaceChildren(
     h('div', { class: 'rt-acctpic' }, pic, h('div', null, h('p', null, 'Your picture is shown beside your name to the people you share a team with: on their benches, and while you are editing one.'), h('div', { class: 'rt-row' }, choose, remove, file))),
     h('label', { for: 'acctName' }, 'Your name, as others see it'), h('div', { class: 'rt-row' }, name, save),

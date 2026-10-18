@@ -7,6 +7,7 @@ import { purgeOrcid } from './orcid.js';
 import { Router } from './router.js';
 import { deleteAccount } from './account.js';
 import { callback, emailCode, emailStart, start, unlink } from './auth.js';
+import { passwordSignIn, removePassword, setPassword } from './passwords.js';
 import * as B from './benches.js';
 import { exportAll } from './export.js';
 import * as I from './institutions.js';
@@ -30,6 +31,7 @@ async function purgeExpired(env) {
     env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(t),
     env.DB.prepare('DELETE FROM email_codes WHERE expires_at <= ?').bind(t),
     env.DB.prepare('DELETE FROM signin_codes WHERE expires_at <= ?').bind(t),
+    env.DB.prepare('DELETE FROM password_fails WHERE until <= ?').bind(t),
     env.DB.prepare('DELETE FROM email_sends WHERE at <= ?').bind(t - 24 * 60 * 60 * 1000),
     env.DB.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').bind(t),
   ]);
@@ -183,6 +185,9 @@ const router = new Router()
   .on('POST', '/ops/institutions/:id/invoice', async (req, env, ctx, { id }) => json(await I.opsInvoice(req, env, id)), { anyOrigin: true })
   // Stripe proves itself by signature, not by Origin.
   .on('POST', '/stripe/webhook', async (req, env) => json(await webhook(req, env)), { anyOrigin: true })
+  .on('POST', '/auth/password', async (req, env, ctx) => json(await passwordSignIn(req, env, ctx)))
+  .on('PUT', '/v1/me/password', async (req, env, ctx) => json(await setPassword(req, env, await requireUser(req, env, ctx))))
+  .on('DELETE', '/v1/me/password', async (req, env, ctx) => json(await removePassword(env, await requireUser(req, env, ctx))))
   .on('POST', '/auth/email/start', async (req, env, ctx) => json(await emailStart(req, env, ctx)))
   .on('POST', '/auth/email/code', async (req, env, ctx) => json(await emailCode(req, env, ctx)))
   .on('GET', '/auth/:provider/start', start)

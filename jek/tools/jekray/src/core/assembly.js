@@ -111,7 +111,7 @@ export function normAssemblies(list, els) {
    U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
    face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
    that surface (core/gradient.js) */
-export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+)$/;
+export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+(?:~\d+)?)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
@@ -514,16 +514,30 @@ export function asmPrescription(asm, els) {
       T = G2.reduce((u, v) => u + v, 0);
       // a lens with a mirrored face: its faces as the light meets them, each meeting an entry (lensVisits)
       if (kind === 'lens' && S2.some(s => s.mz)) {
-        const V = lensVisits(S2, G2), S3 = [], G3 = [], M3 = [], owner = new Array(S2.length).fill(-1), gapOwner = new Array(Math.max(0, S2.length - 1)).fill(-1);
+        // each face's shape belongs to the row first meeting the face proper (refracting, or mirrored whole); a spot or
+        // an annulus is a surface of its own over the same vertex, belonging to the row first meeting it; later rows link
+        const V = lensVisits(S2, G2), S3 = [], G3 = [], M3 = [], faceOwner = new Array(S2.length).fill(-1), zoneOwner = new Array(S2.length).fill(-1), gapOwner = new Array(Math.max(0, S2.length - 1)).fill(-1);
         V.visits.forEach((x, k) => {
-          const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, full: base.semi, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j });
+          const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, full: base.semi, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j, fflip: flip !== flipped });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (x.obs > 0) s.obs = x.obs;
           if (x.role === 'mirror') s.mirror = true;
-          if (x.v === 0) owner[x.j] = S3.length; else s.link = { i: owner[x.j], flip: flipped };
-          if (k) { const a = Math.min(V.visits[k - 1].j, x.j); G3.push(G2[a]); M3.push(Object.assign({}, M2[a])); if (gapOwner[a] < 0) gapOwner[a] = S3.length - 1; else S3[S3.length - 1].glink = gapOwner[a]; }
+          const zoned = x.role === 'mirror' && base.mz && base.mz.zone !== 'all';
+          if (zoned) {
+            if (zoneOwner[x.j] < 0) {
+              zoneOwner[x.j] = S3.length; s.zown = true;
+              // the zone's own shape, or the face's until it is given one
+              const z = base.mz; if (z.R !== undefined) { const R0 = z.R === null ? null : (s.fflip ? -z.R : z.R); Object.assign(s, { R: R0, k: z.k || 0, a2: 0, A: [], odd: null, F: undefined, ph: undefined }); }
+              else Object.assign(s, { a2: 0, A: [], odd: null, F: undefined, ph: undefined });
+            } else s.link = { i: zoneOwner[x.j], flip: flipped !== S3[zoneOwner[x.j]].vflip };
+          } else if (faceOwner[x.j] < 0) { faceOwner[x.j] = S3.length; s.faceOwn = true; }
+          else s.link = { i: faceOwner[x.j], flip: flipped !== S3[faceOwner[x.j]].vflip };
+          s.vflip = flipped;
+          if (k) { const a = Math.min(V.visits[k - 1].j, x.j); G3.push(G2[a]); M3.push(Object.assign({}, M2[a])); if (gapOwner[a] < 0) { gapOwner[a] = S3.length - 1; S3[S3.length - 1].gidx = flip ? S2.length - 2 - a : a; } else S3[S3.length - 1].glink = gapOwner[a]; }
           S3.push(s);
         });
+        // a face only ever met as its zone lends the zone its shape
+        S2.forEach((b, j) => { if (faceOwner[j] < 0 && zoneOwner[j] >= 0) { const s = S3[zoneOwner[j]]; s.faceOwn = true; s.zown = false; } });
         const zF = [0]; for (const g of G2) zF.push(zF[zF.length - 1] + g);
         S2 = S3; G2 = G3; M2 = M3; lensFold = V.folds ? { exitAlong: zF[V.exit], inside: V.inside } : null;
       }
@@ -687,7 +701,26 @@ export function asmApply(asm, P, els) {
     } else {
       const want = ang(Math.atan2(p.flip ? -ax[1] : ax[1], p.flip ? -ax[0] : ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
-      if (p.kind === 'lens') {
+      if (p.kind === 'lens' && S.some(s => s.faceOwn || s.zown)) {
+        // a lens with a mirrored face: each face from the row owning its shape, each spot or annulus with a shape of its own
+        // from its row, each gap from the row first crossing it; the faces keep the lens's own clear radius
+        S.forEach((s, q) => {
+          const t = e.surfaces[s.from.i]; if (!t) return;
+          const u = s.fflip ? flipSurf(s) : s;
+          if (s.faceOwn) {
+            t.R = u.R === 0 || !isFinite(u.R) ? null : u.R; t.k = u.k; t.a2 = u.a2 || 0; t.A = (u.A || []).slice(); if (u.odd) t.odd = u.odd.slice(); else delete t.odd;
+            const tF = ffTurn(u.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
+            const tP = normPh(u.ph); if (tP) t.ph = tP; else delete t.ph;
+            const was = t.mirror; if (s.mz) { t.mirror = Object.assign({}, s.mz); if (was && was.R !== undefined && t.mirror.R === undefined) { t.mirror.R = was.R; t.mirror.k = was.k; } } else delete t.mirror;
+            const semi = isFinite(s.full) ? s.full : s.semi;
+            if (Math.abs(semi - e.diameter / 2) >= 1e-9) t.semi = semi; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+          }
+          if (s.zown && t.mirror && t.mirror.zone !== 'all') { t.mirror.R = u.R === 0 || !isFinite(u.R) ? null : u.R; t.mirror.k = u.k || 0; }
+          if (s.gidx !== undefined && q < G.length) { e.gaps[s.gidx] = G[q]; const c = Object.assign({}, M[q]); delete c.gh; if (c.grad) c.grad = c.grad.slice(); e.materials[s.gidx] = c; }
+        });
+        // a zone shaped as its face is follows the face
+        for (const t of e.surfaces) if (t.mirror && t.mirror.R !== undefined && t.mirror.R === t.R && (t.mirror.k || 0) === (t.k || 0)) { delete t.mirror.R; delete t.mirror.k; }
+      } else if (p.kind === 'lens') {
         // each face from its first meeting (a mirrored face is met more than once: the later rows are linked copies)
         const own = S.filter(s => !s.from || !s.from.v), ownG = own.map((s, q) => S.indexOf(s)).slice(0, -1).map(q => [G[q], M[q]]);
         const ss = p.flip ? own.slice().reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, mz: s.mz })) : own.map(s => Object.assign({}, s));

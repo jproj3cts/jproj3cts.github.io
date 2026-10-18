@@ -201,7 +201,7 @@ A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylind
 | field | default | meaning |
 |---|---|---|
 | diameter | `25.4` | mm. |
-| surfaces | two flat surfaces | list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating, "mirror": optional {"zone": "all" \| "in" \| "out", "r": mm}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream). |
+| surfaces | two flat surfaces | list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating, "mirror": optional {"zone": "all" \| "in" \| "out", "r": mm, "R": mm or null, "k": conic}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass; with R and k the spot or annulus is a surface of its own over the face’s vertex (without them it follows the face)}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream). |
 | gaps | `[3]` | mm: centre thicknesses between successive surfaces (one fewer than surfaces). |
 | materials | `[{"glass":"N-BK7"}]` | one material per gap, e.g. {"glass": "N-BK7"}. |
 | cyl | (none) | optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it. |

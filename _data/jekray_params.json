@@ -233,7 +233,7 @@
     {
      "k": "surfaces",
      "def": "two flat surfaces",
-     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating, \"mirror\": optional {\"zone\": \"all\" | \"in\" | \"out\", \"r\": mm}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
+     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating, \"mirror\": optional {\"zone\": \"all\" | \"in\" | \"out\", \"r\": mm, \"R\": mm or null, \"k\": conic}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass; with R and k the spot or annulus is a surface of its own over the face’s vertex (without them it follows the face)}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
     },
     {
      "k": "gaps",

@@ -6852,7 +6852,7 @@ function normAssemblies(list, els) {
    U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
    face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
    that surface (core/gradient.js) */
-const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+)$/;
+const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+(?:~\d+)?)$/;
 const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
@@ -7255,16 +7255,30 @@ function asmPrescription(asm, els) {
       T = G2.reduce((u, v) => u + v, 0);
       // a lens with a mirrored face: its faces as the light meets them, each meeting an entry (lensVisits)
       if (kind === 'lens' && S2.some(s => s.mz)) {
-        const V = lensVisits(S2, G2), S3 = [], G3 = [], M3 = [], owner = new Array(S2.length).fill(-1), gapOwner = new Array(Math.max(0, S2.length - 1)).fill(-1);
+        // each face's shape belongs to the row first meeting the face proper (refracting, or mirrored whole); a spot or
+        // an annulus is a surface of its own over the same vertex, belonging to the row first meeting it; later rows link
+        const V = lensVisits(S2, G2), S3 = [], G3 = [], M3 = [], faceOwner = new Array(S2.length).fill(-1), zoneOwner = new Array(S2.length).fill(-1), gapOwner = new Array(Math.max(0, S2.length - 1)).fill(-1);
         V.visits.forEach((x, k) => {
-          const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, full: base.semi, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j });
+          const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, full: base.semi, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j, fflip: flip !== flipped });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (x.obs > 0) s.obs = x.obs;
           if (x.role === 'mirror') s.mirror = true;
-          if (x.v === 0) owner[x.j] = S3.length; else s.link = { i: owner[x.j], flip: flipped };
-          if (k) { const a = Math.min(V.visits[k - 1].j, x.j); G3.push(G2[a]); M3.push(Object.assign({}, M2[a])); if (gapOwner[a] < 0) gapOwner[a] = S3.length - 1; else S3[S3.length - 1].glink = gapOwner[a]; }
+          const zoned = x.role === 'mirror' && base.mz && base.mz.zone !== 'all';
+          if (zoned) {
+            if (zoneOwner[x.j] < 0) {
+              zoneOwner[x.j] = S3.length; s.zown = true;
+              // the zone's own shape, or the face's until it is given one
+              const z = base.mz; if (z.R !== undefined) { const R0 = z.R === null ? null : (s.fflip ? -z.R : z.R); Object.assign(s, { R: R0, k: z.k || 0, a2: 0, A: [], odd: null, F: undefined, ph: undefined }); }
+              else Object.assign(s, { a2: 0, A: [], odd: null, F: undefined, ph: undefined });
+            } else s.link = { i: zoneOwner[x.j], flip: flipped !== S3[zoneOwner[x.j]].vflip };
+          } else if (faceOwner[x.j] < 0) { faceOwner[x.j] = S3.length; s.faceOwn = true; }
+          else s.link = { i: faceOwner[x.j], flip: flipped !== S3[faceOwner[x.j]].vflip };
+          s.vflip = flipped;
+          if (k) { const a = Math.min(V.visits[k - 1].j, x.j); G3.push(G2[a]); M3.push(Object.assign({}, M2[a])); if (gapOwner[a] < 0) { gapOwner[a] = S3.length - 1; S3[S3.length - 1].gidx = flip ? S2.length - 2 - a : a; } else S3[S3.length - 1].glink = gapOwner[a]; }
           S3.push(s);
         });
+        // a face only ever met as its zone lends the zone its shape
+        S2.forEach((b, j) => { if (faceOwner[j] < 0 && zoneOwner[j] >= 0) { const s = S3[zoneOwner[j]]; s.faceOwn = true; s.zown = false; } });
         const zF = [0]; for (const g of G2) zF.push(zF[zF.length - 1] + g);
         S2 = S3; G2 = G3; M2 = M3; lensFold = V.folds ? { exitAlong: zF[V.exit], inside: V.inside } : null;
       }
@@ -7428,7 +7442,26 @@ function asmApply(asm, P, els) {
     } else {
       const want = ang(Math.atan2(p.flip ? -ax[1] : ax[1], p.flip ? -ax[0] : ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
-      if (p.kind === 'lens') {
+      if (p.kind === 'lens' && S.some(s => s.faceOwn || s.zown)) {
+        // a lens with a mirrored face: each face from the row owning its shape, each spot or annulus with a shape of its own
+        // from its row, each gap from the row first crossing it; the faces keep the lens's own clear radius
+        S.forEach((s, q) => {
+          const t = e.surfaces[s.from.i]; if (!t) return;
+          const u = s.fflip ? flipSurf(s) : s;
+          if (s.faceOwn) {
+            t.R = u.R === 0 || !isFinite(u.R) ? null : u.R; t.k = u.k; t.a2 = u.a2 || 0; t.A = (u.A || []).slice(); if (u.odd) t.odd = u.odd.slice(); else delete t.odd;
+            const tF = ffTurn(u.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
+            const tP = normPh(u.ph); if (tP) t.ph = tP; else delete t.ph;
+            const was = t.mirror; if (s.mz) { t.mirror = Object.assign({}, s.mz); if (was && was.R !== undefined && t.mirror.R === undefined) { t.mirror.R = was.R; t.mirror.k = was.k; } } else delete t.mirror;
+            const semi = isFinite(s.full) ? s.full : s.semi;
+            if (Math.abs(semi - e.diameter / 2) >= 1e-9) t.semi = semi; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+          }
+          if (s.zown && t.mirror && t.mirror.zone !== 'all') { t.mirror.R = u.R === 0 || !isFinite(u.R) ? null : u.R; t.mirror.k = u.k || 0; }
+          if (s.gidx !== undefined && q < G.length) { e.gaps[s.gidx] = G[q]; const c = Object.assign({}, M[q]); delete c.gh; if (c.grad) c.grad = c.grad.slice(); e.materials[s.gidx] = c; }
+        });
+        // a zone shaped as its face is follows the face
+        for (const t of e.surfaces) if (t.mirror && t.mirror.R !== undefined && t.mirror.R === t.R && (t.mirror.k || 0) === (t.k || 0)) { delete t.mirror.R; delete t.mirror.k; }
+      } else if (p.kind === 'lens') {
         // each face from its first meeting (a mirrored face is met more than once: the later rows are linked copies)
         const own = S.filter(s => !s.from || !s.from.v), ownG = own.map((s, q) => S.indexOf(s)).slice(0, -1).map(q => [G[q], M[q]]);
         const ss = p.flip ? own.slice().reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, mz: s.mz })) : own.map(s => Object.assign({}, s));
@@ -8032,7 +8065,7 @@ const LENS = {
   guide: {
     what: 'A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass.',
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
-    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating, "mirror": optional {"zone": "all" | "in" | "out", "r": mm}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
+    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating, "mirror": optional {"zone": "all" | "in" | "out", "r": mm, "R": mm or null, "k": conic}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass; with R and k the spot or annulus is a surface of its own over the face\u2019s vertex (without them it follows the face)}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
     diffractive: 'true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π.',
@@ -8876,12 +8909,19 @@ function mirrorAmps(R, back) {
 const faceRNormal = (n1, n2, nm, coat) => cabs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
 /* a lens face mirrored: the whole face, a spot inside radius r (a solid telescope's secondary), or an annulus
    outside it (its primary, with a clear hole in the middle). Light meeting the mirrored part reflects wholly,
-   staying in the glass it came from; the rest of the face refracts as its coating says. */
+   staying in the glass it came from; the rest of the face refracts as its coating says. A spot or an annulus may
+   have its own shape (R, k: a surface of its own, sharing the face's vertex, with a step where it meets the face);
+   without them it follows the face. */
 function normMirror(m) {
   if (!m || typeof m !== 'object') return undefined;
   const zone = m.zone === 'in' || m.zone === 'out' ? m.zone : 'all';
-  return zone === 'all' ? { zone } : { zone, r: Math.max(0.01, num(m.r, 5)) };
+  if (zone === 'all') return { zone };
+  const out = { zone, r: Math.max(0.01, num(m.r, 5)) };
+  if (m.R !== undefined || m.k !== undefined) { out.R = (m.R === null || m.R === undefined || m.R === '' || !isFinite(m.R) || +m.R === 0) ? null : +m.R; out.k = num(m.k, 0); }
+  return out;
 }
+/* a zone's own shape on a face of curvature c and conic k: { zone, r, c, k }, or null where it follows the face */
+const mirrorShape = (m, c, k) => m && m.zone !== 'all' && m.R !== undefined ? { zone: m.zone, r: m.r, c: m.R ? 1 / m.R : 0, k: m.k || 0 } : null;
 /* is radius r on the face inside its mirrored part? */
 const mirrorAt = (m, r) => !!m && (m.zone === 'all' || (m.zone === 'in' ? r <= m.r : r >= m.r));
 function normSurface(s) {
@@ -9186,7 +9226,10 @@ function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL
 
 /* the sag; a zoned RF lens's cut face (s.zone, from lensSurfaces) is the smooth face stepped back by the whole layers
    taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
-const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
+const rawSag = (s, y) => s.zs && inShape(s.zs, y) ? sagR2(s.zs.c, s.zs.k, 0, null, null, y * y, true)
+  : sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
+/* a mirrored zone with its own shape (s.zs, from lensSurfaces): is height y on it? */
+const inShape = (zs, y) => zs.zone === 'in' ? Math.abs(y) <= zs.r : Math.abs(y) >= zs.r;
 /* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
    (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
    runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
@@ -9230,6 +9273,7 @@ function zoneHit(s, px, py, pz, dx, dy, dz, t0, t1) {
 function rawDsag(s, y) {
   const y2 = y * y;
   let v = 0;
+  if (s.zs && inShape(s.zs, y)) return s.zs.c ? s.zs.c * y / Math.sqrt(Math.max(1e-12, 1 - (1 + s.zs.k) * s.zs.c * s.zs.c * y2)) : 0;
   if (s.c !== 0) {
     const arg = 1 - (1 + s.k) * s.c * s.c * y2;
     v = s.c * y / Math.sqrt(Math.max(1e-12, arg));
@@ -9284,7 +9328,7 @@ function makeSurf(el, z, c, k, a2, A, semi, extra) {
   }
   s.semi = semi;
   s.sag0 = s.y0 ? rawSag(s, s.y0) : 0;
-  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL && !s.zone;
+  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL && !s.zone && !s.zs;
   s.flat = (c === 0 && a2 === 0 && plain && !s.y0);
   s.conicOnly = !s.flat && a2 === 0 && plain && !s.y0;
   let lo = 0, hi = 0;
@@ -9328,6 +9372,8 @@ function lensSurfaces(el) {
         kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
         // a mirrored zone: wholly reflecting where it lies (the coating given by the radius met), the face's own coating elsewhere
         mirror: sd.mirror, coatAt: sd.mirror ? (r => (mirrorAt(sd.mirror, r) ? MIRROR_COAT : sd.coat)) : undefined,
+        // the zone's own shape, where it has one: a surface of its own over the face's vertex
+        zs: out2 ? undefined : mirrorShape(sd.mirror, c, sd.k),
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],
@@ -20873,6 +20919,15 @@ function lensPanel(el) {
         v => { if (v === 'none') delete s.mirror; else s.mirror = normMirror({ zone: v, r: s.mirror && s.mirror.r || Math.round(el.diameter / 6 * 10) / 10 }); }, { wide: !s.mirror || s.mirror.zone === 'all' }));
     if (s.mirror && s.mirror.zone !== 'all') mrow.append(param('Zone radius (mm)', el, `surfaces.${i}.mirror.r`));
     panel.append(mrow);
+    if (s.mirror && s.mirror.zone !== 'all') {
+      // the spot or annulus as a surface of its own over the face's vertex (a solid telescope's secondary ground into its front)
+      const own = s.mirror.R !== undefined;
+      const zrow = h('div', { class: 'rt-rows' },
+        selectField('Zone shape', [['face', 'The face\u2019s'], ['own', 'Its own radius and conic']], () => (own ? 'own' : 'face'),
+          v => { if (v === 'own') s.mirror = normMirror(Object.assign({}, s.mirror, { R: s.R, k: s.k })); else { const m = Object.assign({}, s.mirror); delete m.R; delete m.k; s.mirror = normMirror(m); } }, { wide: !own }));
+      if (own) { zrow.append(param('Zone radius of curvature (mm)', el, `surfaces.${i}.mirror.R`, { blank: null, placeholder: 'flat' })); zrow.append(param('Zone conic k', el, `surfaces.${i}.mirror.k`)); }
+      panel.append(zrow);
+    }
     if (s.mirror) panel.append(h('p', { class: 'note' }, 'Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. A back face mirrored whole is a Mangin mirror; a front spot and a back annulus make a solid telescope.'));
 
     if (i < N - 1) {
@@ -28232,7 +28287,7 @@ function layoutData(asm, P, F) {
     // a lens or window: an outline round its surfaces, each pair joined at the rim of the larger (a face met more than
     // once, its first meeting; a face's own radius there, not the meeting's zone); the mirrored zones marked on the faces
     const ks = [];
-    for (let j = 0; j < sp.n; j++) { const s = P.surfaces[i + j]; if (!s.from || !s.from.v) ks.push(i + j); }
+    for (let j = 0; j < sp.n; j++) { const s = P.surfaces[i + j]; if (!s.from || s.from.v === undefined ? true : s.faceOwn) ks.push(i + j); }
     const faceSemi = k => { const s = P.surfaces[k], e = getEl(s.from && s.from.id); return s.mz && e ? (s.from.i < e.surfaces.length && e.surfaces[s.from.i] && e.surfaces[s.from.i].semi) || e.diameter / 2 : semiOf(s); };
     const ps = ks.map(k => prof(k, faceSemi(k)));
     for (let j = 0; j < sp.n; j++) {
@@ -28390,7 +28445,10 @@ function surfaceName(P, sps, i) {
   if (sp.kind === 'lens' && s && s.from && e && e.surfaces && P.parts[sp.pi].n !== e.surfaces.length) {
     const nf = e.surfaces.length, j = sp.n && P.parts[sp.pi].flip ? nf - 1 - s.from.i : s.from.i;
     const face = nf === 2 ? (j === 0 ? 'front' : 'back') : ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][j] || String(j + 1);
-    return nm + ', ' + face + (s.from.v ? ' again' : '');
+    // a spot or an annulus is a surface of its own over the face; a face met once more is the face again
+    const zoneRow = s.mirror && s.mz && s.mz.zone !== 'all';
+    if (zoneRow) return nm + ', ' + face + (s.mz.zone === 'in' ? ' spot' : ' annulus') + (s.link ? ' again' : '');
+    return nm + ', ' + face + (s.link ? ' again' : '');
   }
   if (sp.n === 2) return nm + (sp.j === 0 ? ', front' : ', back');
   return nm + ', ' + ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][sp.j] + (sp.j > 5 ? ' ' + (sp.j + 1) : '');
@@ -28438,7 +28496,7 @@ function dataCard(asm, P) {
     if (sp.kind === 'lens' && s.mirror) {
       // a mirrored face's reflecting meeting: the zone it reflects in, its radius typed here (on every meeting of the face)
       const mz = s.mz || { zone: 'all' };
-      gtd.append(h('span', { class: 'mono ro', title: 'This face is mirrored here: the light reflects and stays in the glass' }, 'Mirror' + (mz.zone === 'in' ? ', spot to' : mz.zone === 'out' ? ', outside' : '')));
+      gtd.append(h('span', { class: 'mono ro', title: mz.zone === 'all' ? 'This face is mirrored: the light reflects and stays in the glass' : 'A mirrored surface of its own over the face\u2019s vertex, with its own radius and conic: the light reflects and stays in the glass' }, 'Mirror' + (mz.zone === 'in' ? ', spot to' : mz.zone === 'out' ? ', outside' : '')));
       if (mz.zone !== 'all') gtd.append(wsNumInput(mz.r, v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; const fe = getEl(s.from.id), fs = fe ? (fe.surfaces[s.from.i] && fe.surfaces[s.from.i].semi) || fe.diameter / 2 : Infinity; if (v >= fs) return 'The zone ends inside the face: less than ' + wsFmt(fs, 4) + ' mm.'; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); }), { label: 'Mirrored zone radius (mm) of surface ' + (i + 1), width: '4.2rem' }));
     } else if (editable(P, 'g', i)) {
       const gk = keyAt(P, 'g', i), gv = D.vars.includes(gk), lab = 'glass after surface ' + (i + 1);
@@ -28451,7 +28509,16 @@ function dataCard(asm, P) {
     tr.append(gtd);
     // clear radius: a lens's surface's own; the stop's is set by the aperture
     const ctd = h('td');
-    if (sp.kind === 'lens' && (s.link || s.mz)) ctd.append(h('span', { class: 'mono ro', title: s.obs ? 'From the mirrored zone: clear to ' + wsFmt(s.semi, 5) + ' mm, blocked inside ' + wsFmt(s.obs, 5) + ' mm' : 'From the mirrored zone' }, wsFmt(s.semi, 5) + (s.obs ? ' (obs. ' + wsFmt(s.obs, 4) + ')' : '')));
+    if (sp.kind === 'lens' && s.mz && s.mz.zone !== 'all' && (s.faceOwn || s.zown || s.link)) {
+      // a zoned face: the face's own radius on its rows, the zone's radius on the zone's (and as the obscuration it leaves)
+      const z = s.mz, zoneRow = !!(s.mirror), same = q => q.from && q.from.id === s.from.id && q.from.i === s.from.i;
+      const setZone = v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; const fs = isFinite(s.full) ? s.full : Infinity; if (v >= fs) return 'The zone ends inside the face: less than ' + wsFmt(fs, 4) + ' mm.'; for (const q of PP.surfaces) if (same(q) && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); });
+      const setFace = v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; if (v <= z.r) return 'The face reaches past its zone: more than ' + wsFmt(z.r, 4) + ' mm.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; for (const q of PP.surfaces) if (same(q)) { if (q.semi === q.full) q.semi = v; q.full = v; } });
+      const wide = (zoneRow) === (z.zone === 'out');           // this row's clear radius is the face's edge
+      ctd.append(wsNumInput(s.semi, wide ? setFace : setZone, { label: (wide ? 'Clear radius of surface ' : 'Zone radius of surface ') + (i + 1), width: '4.2rem' }));
+      if (s.obs) ctd.append(h('span', { class: 'mono ro', title: 'Blocked inside this radius by the mirrored zone' }, ' (obs. ' + wsFmt(s.obs, 4) + ')'));
+    } else if (sp.kind === 'lens' && s.link) ctd.append(h('span', { class: 'mono ro', title: 'The face as first met' }, wsFmt(s.semi, 5)));
+    else if (sp.kind === 'lens' && s.mz) ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i) { q.semi = v; q.full = v; } }), { label: 'Clear radius of surface ' + (i + 1) }));
     else if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
     else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd);
@@ -36542,7 +36609,7 @@ function editable(P, q, i) {
   if (q === 't' && s && s.glink !== undefined) return false;
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
-  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && (!!P.parts[sp.pi].asph || !!s.zown);
   if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   // a diffractive lens's phase terms
   if (q[0] === 'p') return sp.kind === 'lens' && !!P.parts[sp.pi].diff;
@@ -46659,7 +46726,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Mirrored lens faces</b>: a lens face can be mirrored, whole, as a spot in the middle or as an annulus round a hole (its <b>Mirrored</b> setting). Light meeting the mirrored part reflects and stays in the glass, so a Mangin mirror or a solid telescope (a block with a mirrored spot on its front and a mirrored annulus on its back, the image behind the hole) traces on the bench. The <b>Optical designer</b> follows the light through such a lens face by face, listing each face every time it is met, the later rows linked to the first, with each meeting\u2019s clear radius and central obscuration from the zone; a lens whose light comes back folds the axis as a mirror does.',
+    '<b>Mirrored lens faces</b>: a lens face can be mirrored, whole, as a spot in the middle or as an annulus round a hole (its <b>Mirrored</b> setting). Light meeting the mirrored part reflects and stays in the glass, so a Mangin mirror or a solid telescope (a block with a mirrored spot on its front and a mirrored annulus on its back, the image behind the hole) traces on the bench. A spot or an annulus can be a surface of its own over the face\u2019s vertex, with its own radius and conic (<b>Zone shape</b> in the panel; in the designer its row is its own, named <i>front spot</i> or <i>back annulus</i>). The <b>Optical designer</b> follows the light through such a lens face by face, listing each face every time it is met, the later rows linked to the first, with each meeting\u2019s clear radius and central obscuration from the zone, both typed in the Clear radius column; a lens whose light comes back folds the axis as a mirror does.',
     '<b>Fibre tips</b> have a source\u2019s two ticks for the light they send out: <b>Trace the ray fan</b> and <b>Propagate a Gaussian beam</b>, each with its settings under it, so a tip can show rays alone or a beam alone.',
     '<b>Scripts on the bench</b> (JEKrayPro): <b>File \u203a Scripts\u2026</b> opens an editor where JavaScript runs against the bench with the documented calls: read a screen or a detector, move a part and read again, sweep a parameter to a table saved as CSV, or check a figure. Scripts are kept in this browser by name, or as .js files; Undo puts the bench back after a run.',
     '<b>A JEKray account of your own</b>: sign in with an email address and a password, beside Google and Microsoft, for anyone whose university does not let them sign in with Microsoft (the \u201cNeed admin approval\u201d page) or who has neither account. New here, or forgotten the password? Ask for a 6-digit code by email, type it, and you are in, choosing a password as you go if you like; set, change or remove it on your account page. Passwords are kept only as salted hashes, and ten wrong ones lock the address for a quarter of an hour. Someone already signed in links an address from the account menu, and a university address counts for its licence and the academic price as before.',

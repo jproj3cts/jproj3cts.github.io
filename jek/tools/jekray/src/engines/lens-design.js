@@ -54,7 +54,7 @@ export function editable(P, q, i) {
   if (q === 't' && s && s.glink !== undefined) return false;
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
-  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
+  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && (!!P.parts[sp.pi].asph || !!s.zown);
   if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   // a diffractive lens's phase terms
   if (q[0] === 'p') return sp.kind === 'lens' && !!P.parts[sp.pi].diff;

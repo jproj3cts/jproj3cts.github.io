@@ -301,7 +301,7 @@ export function layoutData(asm, P, F) {
     // a lens or window: an outline round its surfaces, each pair joined at the rim of the larger (a face met more than
     // once, its first meeting; a face's own radius there, not the meeting's zone); the mirrored zones marked on the faces
     const ks = [];
-    for (let j = 0; j < sp.n; j++) { const s = P.surfaces[i + j]; if (!s.from || !s.from.v) ks.push(i + j); }
+    for (let j = 0; j < sp.n; j++) { const s = P.surfaces[i + j]; if (!s.from || s.from.v === undefined ? true : s.faceOwn) ks.push(i + j); }
     const faceSemi = k => { const s = P.surfaces[k], e = getEl(s.from && s.from.id); return s.mz && e ? (s.from.i < e.surfaces.length && e.surfaces[s.from.i] && e.surfaces[s.from.i].semi) || e.diameter / 2 : semiOf(s); };
     const ps = ks.map(k => prof(k, faceSemi(k)));
     for (let j = 0; j < sp.n; j++) {
@@ -459,7 +459,10 @@ function surfaceName(P, sps, i) {
   if (sp.kind === 'lens' && s && s.from && e && e.surfaces && P.parts[sp.pi].n !== e.surfaces.length) {
     const nf = e.surfaces.length, j = sp.n && P.parts[sp.pi].flip ? nf - 1 - s.from.i : s.from.i;
     const face = nf === 2 ? (j === 0 ? 'front' : 'back') : ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][j] || String(j + 1);
-    return nm + ', ' + face + (s.from.v ? ' again' : '');
+    // a spot or an annulus is a surface of its own over the face; a face met once more is the face again
+    const zoneRow = s.mirror && s.mz && s.mz.zone !== 'all';
+    if (zoneRow) return nm + ', ' + face + (s.mz.zone === 'in' ? ' spot' : ' annulus') + (s.link ? ' again' : '');
+    return nm + ', ' + face + (s.link ? ' again' : '');
   }
   if (sp.n === 2) return nm + (sp.j === 0 ? ', front' : ', back');
   return nm + ', ' + ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][sp.j] + (sp.j > 5 ? ' ' + (sp.j + 1) : '');
@@ -507,7 +510,7 @@ function dataCard(asm, P) {
     if (sp.kind === 'lens' && s.mirror) {
       // a mirrored face's reflecting meeting: the zone it reflects in, its radius typed here (on every meeting of the face)
       const mz = s.mz || { zone: 'all' };
-      gtd.append(h('span', { class: 'mono ro', title: 'This face is mirrored here: the light reflects and stays in the glass' }, 'Mirror' + (mz.zone === 'in' ? ', spot to' : mz.zone === 'out' ? ', outside' : '')));
+      gtd.append(h('span', { class: 'mono ro', title: mz.zone === 'all' ? 'This face is mirrored: the light reflects and stays in the glass' : 'A mirrored surface of its own over the face\u2019s vertex, with its own radius and conic: the light reflects and stays in the glass' }, 'Mirror' + (mz.zone === 'in' ? ', spot to' : mz.zone === 'out' ? ', outside' : '')));
       if (mz.zone !== 'all') gtd.append(wsNumInput(mz.r, v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; const fe = getEl(s.from.id), fs = fe ? (fe.surfaces[s.from.i] && fe.surfaces[s.from.i].semi) || fe.diameter / 2 : Infinity; if (v >= fs) return 'The zone ends inside the face: less than ' + wsFmt(fs, 4) + ' mm.'; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); }), { label: 'Mirrored zone radius (mm) of surface ' + (i + 1), width: '4.2rem' }));
     } else if (editable(P, 'g', i)) {
       const gk = keyAt(P, 'g', i), gv = D.vars.includes(gk), lab = 'glass after surface ' + (i + 1);
@@ -520,7 +523,16 @@ function dataCard(asm, P) {
     tr.append(gtd);
     // clear radius: a lens's surface's own; the stop's is set by the aperture
     const ctd = h('td');
-    if (sp.kind === 'lens' && (s.link || s.mz)) ctd.append(h('span', { class: 'mono ro', title: s.obs ? 'From the mirrored zone: clear to ' + wsFmt(s.semi, 5) + ' mm, blocked inside ' + wsFmt(s.obs, 5) + ' mm' : 'From the mirrored zone' }, wsFmt(s.semi, 5) + (s.obs ? ' (obs. ' + wsFmt(s.obs, 4) + ')' : '')));
+    if (sp.kind === 'lens' && s.mz && s.mz.zone !== 'all' && (s.faceOwn || s.zown || s.link)) {
+      // a zoned face: the face's own radius on its rows, the zone's radius on the zone's (and as the obscuration it leaves)
+      const z = s.mz, zoneRow = !!(s.mirror), same = q => q.from && q.from.id === s.from.id && q.from.i === s.from.i;
+      const setZone = v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; const fs = isFinite(s.full) ? s.full : Infinity; if (v >= fs) return 'The zone ends inside the face: less than ' + wsFmt(fs, 4) + ' mm.'; for (const q of PP.surfaces) if (same(q) && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); });
+      const setFace = v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; if (v <= z.r) return 'The face reaches past its zone: more than ' + wsFmt(z.r, 4) + ' mm.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; for (const q of PP.surfaces) if (same(q)) { if (q.semi === q.full) q.semi = v; q.full = v; } });
+      const wide = (zoneRow) === (z.zone === 'out');           // this row's clear radius is the face's edge
+      ctd.append(wsNumInput(s.semi, wide ? setFace : setZone, { label: (wide ? 'Clear radius of surface ' : 'Zone radius of surface ') + (i + 1), width: '4.2rem' }));
+      if (s.obs) ctd.append(h('span', { class: 'mono ro', title: 'Blocked inside this radius by the mirrored zone' }, ' (obs. ' + wsFmt(s.obs, 4) + ')'));
+    } else if (sp.kind === 'lens' && s.link) ctd.append(h('span', { class: 'mono ro', title: 'The face as first met' }, wsFmt(s.semi, 5)));
+    else if (sp.kind === 'lens' && s.mz) ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i) { q.semi = v; q.full = v; } }), { label: 'Clear radius of surface ' + (i + 1) }));
     else if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
     else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd);

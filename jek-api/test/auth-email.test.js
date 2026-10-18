@@ -76,11 +76,11 @@ describe('sign-in with an email address, by a code sent to it', () => {
     expect((await json(await code('late@b.co', codeOf(sent[0])))).body.error.code).toBe('code_expired');
   });
 
-  it('sends at most three codes to one address a day, and sends nothing when email is off', async () => {
+  it('sends at most six codes to one address a day, and sends nothing when email is off', async () => {
     const sent = resend();
-    for (let k = 0; k < 3; k++) expect((await start('many@b.co')).status).toBe(200);
+    for (let k = 0; k < 6; k++) expect((await start('many@b.co')).status).toBe(200);
     expect((await json(await start('many@b.co'))).body.error.code).toBe('too_many_codes');
-    expect(sent).toHaveLength(3);
+    expect(sent).toHaveLength(6);
     const key = env.RESEND_API_KEY; env.RESEND_API_KEY = '';
     try { expect((await json(await start('other@b.co'))).body.error.code).toBe('email_off'); } finally { env.RESEND_API_KEY = key; }
   });

@@ -241,13 +241,6 @@ export function wireOpen() {
       try { navigator.clipboard.writeText(t).then(() => toast('Report copied'), () => toast('Could not copy: select the list and copy it instead.', true)); }
       catch (err) { toast('Could not copy: select the list and copy it instead.', true); }
     });
-    const pd = document.getElementById('pasteDialog'), ta = document.getElementById('pasteText'), er = document.getElementById('pasteError');
-    document.getElementById('btnPasteProj').addEventListener('click', () => { er.hidden = true; pd.showModal(); ta.focus(); });
-    document.getElementById('pasteCancel').addEventListener('click', () => pd.close());
-    document.getElementById('pasteOpen').addEventListener('click', () => {
-      try { const data = parseProjectText(ta.value); pd.close(); openProjectData(data, 'the pasted project'); ta.value = ''; }
-      catch (err) { er.textContent = err.message; er.hidden = false; }
-    });
   }
 
 }

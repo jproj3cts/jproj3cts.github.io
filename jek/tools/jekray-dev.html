@@ -42,7 +42,6 @@
               </div>
             </div>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
-            <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
@@ -284,7 +283,7 @@
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
     <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen)</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Drag a part</dt><dd>move it on the table (snapped)</dd><dt>Click a part</dt><dd>its arrows, out of both sides: orange along x, green along y, blue up (snapped; up in 0.5 mm steps, Shift: 0.1 mm)</dd><dt>Click it again</dt><dd>its rings, crossing: drag a ring or its dot; blue turns it (facing), green tips it, orange rolls it about its own axis; Shift: 15° steps, Alt: a tenth as fast</dd><dt>Click it a third time</dt><dd>its arrows again</dd><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
-    <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray-ai-guide.md" download>the JEKray guide for AI assistants</a>, ask for a .jekray file, and paste its answer here with <b>Open ▾ → Pasted text</b> or Ctrl+V.</p>
+    <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray-ai-guide.md" download>the JEKray guide for AI assistants</a>, ask for a .jekray file, and paste its answer onto the bench with Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
 
@@ -313,16 +312,6 @@
     </div>
   </dialog>
 
-  <dialog class="rt-dialog rt-wide" id="pasteDialog" aria-labelledby="pasteTitle">
-    <h2 id="pasteTitle">Open a project from its text</h2>
-    <p>Paste the contents of a .jekray file, for example one an AI assistant wrote for you. Code fences, comments and trailing commas are fine. <a href="jekray-ai-guide.md" download>Get the AI guide</a> to give it first.</p>
-    <textarea id="pasteText" rows="12" spellcheck="false" placeholder='{ "format": "jekray", "version": 1, "name": "…", "elements": [ … ] }'></textarea>
-    <p class="rt-error" id="pasteError" hidden></p>
-    <div class="rt-actions">
-      <button class="rt-btn" id="pasteCancel">Cancel</button>
-      <button class="rt-btn primary" id="pasteOpen">Open</button>
-    </div>
-  </dialog>
 
   <dialog class="rt-dialog rt-wide" id="importDialog" aria-labelledby="importTitle">
     <h2 id="importTitle">Opened, with changes</h2>

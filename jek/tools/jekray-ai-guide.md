@@ -20,7 +20,7 @@ It works in 3D: every free-space part is placed freely in space, by its x and y,
 2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different "z", as in a periscope.
 3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.
 4. **Record your assumptions.** Put in "notes" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.
-5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with **Open ▾ → Pasted text** (or Ctrl+V on the bench), or save it as `name.jekray` and use **Open ▾ → A .jekray file**.
+5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **Open ▾ → A .jekray file**.
 6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.
 
 ## The file

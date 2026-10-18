@@ -15,7 +15,7 @@ import { createUser } from './users.js';
 import { ApiError, cookie, newToken, now, sha256 } from './util.js';
 import { sendEmail } from './mail.js';
 import { readCapped } from './limits.js';
-import { checkPassword, hasPassword, storePassword } from './passwords.js';
+import { checkPassword, hasPassword, passwordsReady, storePassword } from './passwords.js';
 
 const STATE_TTL = 600; // seconds
 const STATE_COOKIE = 'jek_oauth';
@@ -389,7 +389,7 @@ export async function emailCode(req, env, ctx) {
   const code = String(body.code || '').replace(/\s+/g, '');
   if (!/^\d{6}$/.test(code)) throw new ApiError(400, 'bad_code', 'The code is the 6 digits in the email.');
   const newPw = body.password === undefined || body.password === null || body.password === '' ? null : String(body.password);
-  if (newPw !== null) checkPassword(newPw, email);
+  if (newPw !== null) { passwordsReady(env); checkPassword(newPw, email); }
   const row = email ? await env.DB.prepare('SELECT code_hash, expires_at, tries, link_user FROM signin_codes WHERE email = ?').bind(email).first() : null;
   if (!row) throw new ApiError(404, 'no_code', 'Ask for a code first.');
   const t = now();

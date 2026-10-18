@@ -148,5 +148,8 @@ npm run deploy
 Secrets are added with `npx wrangler secret put NAME` and never committed:
 `GOOGLE_CLIENT_SECRET`, `ORCID_CLIENT_SECRET`, `STRIPE_SECRET_KEY` (a
 restricted key: write on Checkout Sessions, Customers, Customer portal and
-Subscriptions; read on Prices, Products and Invoices) and
-`STRIPE_WEBHOOK_SECRET`.
+Subscriptions; read on Prices, Products and Invoices), `STRIPE_WEBHOOK_SECRET`,
+`MICROSOFT_CLIENT_SECRET`, `RESEND_API_KEY`, `OPS_TOKEN` and `PASSWORD_PEPPER`
+(32 or more random characters, e.g. `openssl rand -hex 32`, mixed into every
+password hash; without it passwords are off and codes still sign in. Changing
+it invalidates every stored password).

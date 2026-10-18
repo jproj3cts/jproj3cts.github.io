@@ -36,7 +36,7 @@ describe('an account with a password', () => {
     const me = (await json(await call('/v1/me', { token }))).body;
     expect(me.has_password).toBe(true);
     const row = await env.DB.prepare('SELECT * FROM passwords WHERE user_id = ?').bind(me.user.id).first();
-    expect(row.iters).toBe(200000);
+    expect(row.iters).toBe(20000);
     expect(JSON.stringify(row)).not.toContain(PW);
     const res = await pw('Pat@Example.org', PW);
     expect(res.status).toBe(200);
@@ -75,6 +75,21 @@ describe('an account with a password', () => {
     expect((await pw('weak@example.org', 'another fine phrase')).status).toBe(200);
     expect((await call('/v1/me', { token: old })).status).toBe(401);
     expect((await call('/v1/me', { token: sessionOf(res2)[1] })).status).toBe(200);
+  });
+
+  it('needs the pepper secret, and says so rather than failing', async () => {
+    const token = await newAccount('pep@example.org');
+    const was = env.PASSWORD_PEPPER; env.PASSWORD_PEPPER = '';
+    try {
+      expect((await json(await pw('pep@example.org', PW))).body.error.code).toBe('passwords_off');
+      expect((await json(await send('/v1/me/password', 'PUT', token, { password: PW }))).body.error.code).toBe('passwords_off');
+      // a code sign-in with a password is refused before the code is spent
+      const sent = resend();
+      await start('pep2@example.org');
+      expect((await json(await code('pep2@example.org', codeOf(sent[0]), { password: PW }))).body.error.code).toBe('passwords_off');
+      expect((await code('pep2@example.org', codeOf(sent[0]))).status).toBe(200);
+    } finally { env.PASSWORD_PEPPER = was; }
+    expect((await pw('pep@example.org', PW)).status).toBe(200);
   });
 
   it('is gone with the account', async () => {

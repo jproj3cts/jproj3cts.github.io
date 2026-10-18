@@ -237,7 +237,9 @@ function updateReadoutsIn(container, el) {
     parts = [[['Power stopped', (+pct.toPrecision(4)) + '% of what its sources emit']],
       'How much of the light from the sources that reach it this aperture removes.'];
   } else if (el.type === 'lens') {
-    const wls = [...new Set(project.elements.filter(e => e.type === 'source')
+    // the wavelengths whose light reaches this lens (from the last trace); none reaching it, the bench's sources'
+    const hit = lastTrace.touched && lastTrace.touched[el.id] ? [...lastTrace.touched[el.id]].map(v => +v.toFixed(2)).sort((a, b) => a - b) : [];
+    const wls = hit.length ? [...new Set(hit)] : [...new Set(project.elements.filter(e => e.type === 'source')
       .flatMap(e => sourceLines(e)).map(v => +v.toFixed(2)))];
     if (!wls.length) wls.push(587.6);
     const rows = [];
@@ -245,11 +247,12 @@ function updateReadoutsIn(container, el) {
       const p = paraxial(el, nm);
       rows.push(['EFL at ' + fmtWl(nm), fmtLen(p.efl)], ['BFL', fmtLen(p.bfl)]);
     }
+    const unlit = hit.length ? '' : ' No light reaches it: these are at the bench\u2019s wavelengths.';
     const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
     if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
     if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
-      (el.source ? ' Imported from ' + el.source + '.' : '')];
+      (el.source ? ' Imported from ' + el.source + '.' : '') + unlit];
   } else if (el.type === 'mask' && el.grin) {
     parts = grinReadout(el);
     if (!parts) return;

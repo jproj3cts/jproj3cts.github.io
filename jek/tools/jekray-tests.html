@@ -9304,6 +9304,25 @@ const TESTS = [
     },
   },
   {
+    name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
+    why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), text = () => D.querySelector('#panel [data-readout]').textContent;
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', name: 'Red', x: -60, y: 0, angle: 0, wavelength: 633 },
+        { type: 'source', name: 'Green', x: -60, y: 80, angle: 0, wavelength: 532 },
+        { type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] },
+        { type: 'lens', name: 'Far', x: 0, y: -200, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }] });
+      J.trace(); J.select('Lens'); await new Promise(r => setTimeout(r, 100));
+      const lit = text(), litOk = /EFL at 633 nm/.test(lit) && !/532/.test(lit) && !/No light reaches it/.test(lit);
+      J.select('Far'); await new Promise(r => setTimeout(r, 100));
+      const far = text(), farOk = /EFL at 633 nm/.test(far) && /EFL at 532 nm/.test(far) && /No light reaches it/.test(far);
+      if (!(litOk && farOk)) console.log('lens nms', { lit, far });
+      return litOk && farOk ? 1 : 0;
+    },
+  },
+  {
     name: 'File › Open a workspace: a submenu of the designers, with lens design of the selection, RF design of the selection and coating design',
     why: 'the File menu’s Open a workspace holds five items (lens design new and of the selection, RF design new and of the selection, coating design); with a lens selected, Lens design of the selection makes it an assembly and opens the lens workspace; RF design of the selection refuses an optical lens and opens the RF designer on an RF lens; Coating design opens the coating workspace on its own (1 when all hold)',
     want: 1, tol: 0, unit: '',

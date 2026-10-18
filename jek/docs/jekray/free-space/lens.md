@@ -51,7 +51,7 @@ The lens's edges are faces too. A ray that leaves through its rim, outside the c
 
 ### Paraxial readouts
 
-The panel gives the effective and back focal lengths at each source's wavelengths, from a paraxial trace of a ray at unit height. At each surface,
+The panel gives the effective and back focal lengths at the wavelengths whose light reaches the lens (a lens nothing reaches says so, and gives them at the bench's wavelengths), from a paraxial trace of a ray at unit height. At each surface,
 
 $$
 n_2 u_2 = n_1 u_1 - (n_2 - n_1)\,c\,y, \qquad y \leftarrow y + t\,u_2,

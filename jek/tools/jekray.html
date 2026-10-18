@@ -10375,7 +10375,7 @@ function traceSceneOnce() {
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
-  const blocked = {};
+  const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [], nlcHits = [];
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
@@ -10653,6 +10653,7 @@ function traceSceneOnce() {
         }
         if (chief) qr += best;         // free space just adds the distance to q
         pts.push(px, py);
+        if (hit.el) (touched[hit.el.id] || (touched[hit.el.id] = new Set())).add(nm);
         if (hitSeg) break;           // absorbed by a lens rim
         // leaving the element it was split at, a branch is an ordinary ray again
         if (skipEl && hit.el.id !== skipEl) skipEl = null;
@@ -11353,14 +11354,14 @@ function traceSceneOnce() {
   };
   runSources(project.elements);
   // The fibre network, from what reached its tips, and the light it sends back out of them
-  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
+  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
   let net = fibreNetCached();
   // on a second pass, what the tips sent out last pass, which already includes the light
   // that came back into them
   const vs = tipCarry || tipSources(net);
   setVSRC(new Map(vs.map(v => [v.id, v])));
   if (vs.length) runSources(vs);
-  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
+  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
   // Light the tips sent out may come back into a fibre (off a mirror into the same tip, or
   // across to another): the network again with it, so it reaches the photodiodes. If that
@@ -11406,14 +11407,14 @@ function traceSceneOnce() {
     const shg = nlcSources(nlcDone);
     for (const v of shg) VSRC.set(v.id, v);
     runSources(shg);
-    lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
+    lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
   }
   if (hasGain) {
     const las = laserSources();
     if (las.length) {
       for (const v of las) VSRC.set(v.id, v);
       runSources(las);
-      lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
+      lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
       setCavCache(null);
     }
   }
@@ -21881,7 +21882,9 @@ function updateReadoutsIn(container, el) {
     parts = [[['Power stopped', (+pct.toPrecision(4)) + '% of what its sources emit']],
       'How much of the light from the sources that reach it this aperture removes.'];
   } else if (el.type === 'lens') {
-    const wls = [...new Set(project.elements.filter(e => e.type === 'source')
+    // the wavelengths whose light reaches this lens (from the last trace); none reaching it, the bench's sources'
+    const hit = lastTrace.touched && lastTrace.touched[el.id] ? [...lastTrace.touched[el.id]].map(v => +v.toFixed(2)).sort((a, b) => a - b) : [];
+    const wls = hit.length ? [...new Set(hit)] : [...new Set(project.elements.filter(e => e.type === 'source')
       .flatMap(e => sourceLines(e)).map(v => +v.toFixed(2)))];
     if (!wls.length) wls.push(587.6);
     const rows = [];
@@ -21889,11 +21892,12 @@ function updateReadoutsIn(container, el) {
       const p = paraxial(el, nm);
       rows.push(['EFL at ' + fmtWl(nm), fmtLen(p.efl)], ['BFL', fmtLen(p.bfl)]);
     }
+    const unlit = hit.length ? '' : ' No light reaches it: these are at the bench\u2019s wavelengths.';
     const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
     if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
     if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
-      (el.source ? ' Imported from ' + el.source + '.' : '')];
+      (el.source ? ' Imported from ' + el.source + '.' : '') + unlit];
   } else if (el.type === 'mask' && el.grin) {
     parts = grinReadout(el);
     if (!parts) return;
@@ -45174,6 +45178,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    'A lens\u2019s panel now gives its focal lengths at the wavelengths whose light reaches it, rather than at every source\u2019s on the bench; a lens nothing reaches says so, and gives them at the bench\u2019s wavelengths.',
     '<b>Open a workspace</b>, on the File menu, gathers the designers: lens design (new, or of the selection), RF design (new, or of the selected RF parts) and coating design. On <b>My benches</b>, <b>Open a workspace</b> makes a new cloud bench in the folder shown and opens it straight into the designer chosen. Each designer\u2019s header has <b>Keep as a part\u2026</b>, which saves the whole design (its parts, with their conditions and design) by name in <b>My parts</b> or, with a team, in that team\u2019s <b>Team parts</b> on My benches, from where it is added to any bench; Save to My parts on the right-click menu offers the same choice.',
     '<b>A coating workspace</b>: design a thin-film coating (an anti-reflection stack, a high reflector, a beam splitter, a dichroic edge or an RF matching layer) on its substrate, judged over a band of wavelengths and a range of angles, its reflectance plotted across the band and against the angle, s and p, and its thicknesses optimised; it is traced with the one thin-film model the bench and both designers use. Open it from any face\u2019s <b>Coating</b> setting (<b>Design a coating\u2026</b>), from the lens designer\u2019s Polarisation face table, from <b>Design\u2026</b> beside the RF designer\u2019s matching layers, or on its own from <b>File \u203a Open a workspace</b>; <b>Use this coating</b> writes the stack to the face it came from, and <b>Keep as a coating\u2026</b> saves it by name for every face\u2019s Coating list.',
     '<b>Offset reflectors and radomes</b> in the RF palette: a section of a paraboloid cut off its axis, whose panel gives its focal length, the turn it gives the beam and where its focus is, so the horn can be put there; and a radome sheet, whose panel gives what it passes square on and at the beam\u2019s angle and the half-wave thicknesses that pass everything but its loss. A curved RF mirror on its axis now gives its figures as an antenna, as a lens does, and the RF designer counts a metal mirror\u2019s ohmic loss.',

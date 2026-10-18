@@ -610,7 +610,7 @@ function traceSceneOnce() {
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
-  const blocked = {};
+  const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [], nlcHits = [];
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
@@ -888,6 +888,7 @@ function traceSceneOnce() {
         }
         if (chief) qr += best;         // free space just adds the distance to q
         pts.push(px, py);
+        if (hit.el) (touched[hit.el.id] || (touched[hit.el.id] = new Set())).add(nm);
         if (hitSeg) break;           // absorbed by a lens rim
         // leaving the element it was split at, a branch is an ordinary ray again
         if (skipEl && hit.el.id !== skipEl) skipEl = null;
@@ -1588,14 +1589,14 @@ function traceSceneOnce() {
   };
   runSources(project.elements);
   // The fibre network, from what reached its tips, and the light it sends back out of them
-  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
+  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
   let net = fibreNetCached();
   // on a second pass, what the tips sent out last pass, which already includes the light
   // that came back into them
   const vs = tipCarry || tipSources(net);
   setVSRC(new Map(vs.map(v => [v.id, v])));
   if (vs.length) runSources(vs);
-  lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
+  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
   // Light the tips sent out may come back into a fibre (off a mirror into the same tip, or
   // across to another): the network again with it, so it reaches the photodiodes. If that
@@ -1641,14 +1642,14 @@ function traceSceneOnce() {
     const shg = nlcSources(nlcDone);
     for (const v of shg) VSRC.set(v.id, v);
     runSources(shg);
-    lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
+    lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
   }
   if (hasGain) {
     const las = laserSources();
     if (las.length) {
       for (const v of las) VSRC.set(v.id, v);
       runSources(las);
-      lastTrace = { rays, screens, beams, blocked, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
+      lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
       setCavCache(null);
     }
   }

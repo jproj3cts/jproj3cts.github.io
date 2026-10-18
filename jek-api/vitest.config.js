@@ -23,6 +23,7 @@ export default defineConfig(async () => {
             ORCID_LEGACY_UNTIL: '2099-01-01T00:00:00Z',
             RESEND_API_KEY: 're_test_key',
             OPS_TOKEN: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            PASSWORD_PEPPER: 'test-pepper-test-pepper-test-pepper-test-pepper',
           },
         },
       }),

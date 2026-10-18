@@ -141,8 +141,6 @@ From a finite object every ray starts at its object point and is aimed, as from 
 - real rays at a small pupil landing at the paraxial height; the Seidel $$S_I$$ against the real rays' wavefront, to a part in 10⁶;
 - a doublet lit by a point source 3 mm off the axis on the bench: the conditions taken from it (the object 120 mm away, fields 0 and 3 mm, its NA); and each of the bench's rays, from the point in its own direction, meeting the sensor where the lens engine's does with the same optical path, to 10⁻¹² mm.
 
-**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before its first surface, going forward and inside its clear radius, gives a field (the rays' mean angle to the axis, with the axis always included) and its wavelengths; the widest beam there, measured square to itself, becomes the entrance pupil.
-
 ### The layout
 
 A section through the design in the plane of the fields: its lenses cut through, its stop, its image plane, and five rays from each field across the pupil (−1, −½, 0, ½, 1 of its radius), each aimed through the stop and traced by the lens engine. Each field has its own colour, as in the conditions.

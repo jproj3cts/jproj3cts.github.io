@@ -37,6 +37,8 @@ What the angle *means* depends on the element:
 
 To fold a beam travelling in direction $$a$$ into direction $$b$$, a plane mirror faces $$(a + 180° + b)/2$$. For example, a beam travelling +x (0°) sent up to +y (90°) needs a mirror at 135°.
 
+**Out of the plane.** A free-space part also has a height **z** above the breadboard (75 mm is the beam height), a **Tip** about its own across axis and a **Roll** about its own axis. In the plane they are 75 mm, 0 and 0, and the light is traced in three dimensions through whatever they are set to (see [Heights](/jek/docs/jekray/free-space/#heights)).
+
 ## Surfaces
 
 Every surface is a curve in its element's frame, $$x = z_0 + \mathrm{sag}(y)$$, over $$\vert y\vert $$ up to its semi-aperture. The sag of a conic with aspheric terms is
@@ -98,7 +100,4 @@ A project can hold several benches, each on a tab. Light keeps to its own bench.
 
 ## Sweeps
 
-Any number in a panel can be swept: it moves back and forth over a range on a shared clock, and the bench is worked out again at each step. The **Sweeps** menu also has:
-
-- an **optimiser**: a golden-section search for one parameter, or Nelder–Mead from a Latin hypercube start for several;
-- a **tolerance study**: Monte Carlo over the swept ranges.
+Any number in a panel can be swept: it moves back and forth over a range on a shared clock, and the bench is worked out again at each step. The **Sweeps** menu also has **Optimise the bench…** (a golden-section search for one parameter, or Nelder–Mead from a Latin hypercube start for several) and **Tolerance the bench…** (Monte Carlo over the swept ranges). A lens or RF design is optimised and toleranced in its own workspace instead, against its design conditions.

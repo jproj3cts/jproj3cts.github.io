@@ -2,413 +2,275 @@
 layout: docs
 title: Lens design
 permalink: /jek/docs/jekray/lens-design/
-description: Assemblies and lens design in JEKray. Lenses, mirrors and stops on one axis are made one assembly, designed together in the lens design workspace (conditions, layout, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
+description: Assemblies and lens design in JEKray. Lenses, mirrors and stops on one axis are made one assembly and designed together in the lens design workspace (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
 ---
 
 <p class="dx-lead">An assembly is a set of lenses, mirrors and stops on one axis that are designed together: a doublet, a triplet, an objective, a folded telescope. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
 
 ## Making an assembly
 
-**One part.** A lens, mirror or window on its own has **Design as a lens…** in its panel, just under its name (and in its right-click menu): it is made an assembly of one and opened in the design workspace at once, to design, optimise and add to (Insert a singlet, Insert a surface) there.
+**One part.** A lens, mirror or window on its own has **Design as a lens…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the design workspace, where surfaces and singlets can be added to it.
 
-**Several parts.**
-Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or from the right-click menu. They must be:
+**Several parts.** Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or the right-click menu. They must be:
 
-- lenses round about their axes (not cylindrical), round irises, windows, or mirrors (flat or curved, whole: not off-axis segments or film beam splitters);
-- on one axis, which each mirror folds: each part the next one along it, within its own half-width of it, at one height and upright;
-- facing along it, a lens either way round, tilted from it by up to 30°; a mirror facing the light it reflects, at any angle;
+- lenses round about their axes (not cylindrical), round irises, windows, or whole mirrors (flat or curved; not off-axis segments or film beam splitters);
+- on one axis, which each mirror folds: each part within its own half-width of it, at one height and upright;
+- facing along it, a lens either way round and tilted from it by up to 30°, a mirror facing the light it reflects;
 - not overlapping.
 
-A lens off the axis by less than its half-width is *decentred*, one turned from it *tilted*: both are part of the design, traced as they stand (below).
+A lens off the axis by less than its half-width is *decentred*, one turned from it *tilted*: both are part of the design and traced as they stand. If the parts don't qualify, the panel says which is in the way and why. The light is taken to run away from a source on the axis, or, with none, the way most of the lenses face.
 
-If they are not, the panel says which part is in the way and why. The light is taken to run away from a source on the axis; with none on it, the way most of the lenses face.
+An assembly is picked and moved as one, drawn with a dashed outline and its name. Its panel places it by its **X** and **Y** (its first vertex), **Angle** (the way its axis runs) and **Height z**: these move or turn every part together, leaving the design unchanged. Ctrl-click a part to edit it alone; a part moved off the axis turns the outline red. **Split into parts** gives back the separate lenses and stops where they are.
 
-An assembly is picked and moved as one, drawn with a dashed outline (one round each straight run of a folded one) and its name. Its panel places it on the bench by its own **X** and **Y** (its first vertex, where its axis meets its first surface), **Angle** (the way its axis runs from there) and **Height z** (of all its parts): set, they move or turn every part together about that vertex, so the design itself is unchanged. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
-
-**File › Open a workspace › Lens design, new…** puts a starting assembly on the bench, a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length designed for the F, d and C lines, and opens it in the design workspace.
-
-**File › Open a workspace › Lens design of the selection** opens the selected lenses and stops as one design (their assembly if they are one already; otherwise they are made one, on one axis). The same menu opens the [RF designer](/jek/docs/jekray/rf/#the-rf-designer) and the [coating workspace](/jek/docs/jekray/coating-design/). On **My benches**, **Open a workspace** makes a new cloud bench in the workspace and folder shown and opens it straight into the designer chosen, so a design can start in a team's folder. In the workspace, **Keep as a part…** saves the whole design (its parts, with their conditions and design) by name in **My parts** or, with a team, in that team's **Team parts**, from where it is added to any bench.
+**Starting from nothing.** **File › Open a workspace › Lens design, new…** puts a starting assembly on the bench (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) and opens it in the workspace. **Lens design of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/#the-rf-designer) and the [coating workspace](/jek/docs/jekray/coating-design/). On **My benches**, **Open a workspace** makes a new cloud bench straight in the designer chosen. In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
 
 ## The prescription
 
-Along the light, from the first surface's vertex, an assembly reads as:
+Along the light, from the first surface's vertex, an assembly reads as a list of surfaces, each with:
 
-| for each surface | |
+| | |
 |---|---|
-| shape | radius R (or flat), conic k, the even terms a₂ r² and A₄ r⁴, A₆ r⁶ …, the odd terms of an axicon-like surface |
+| shape | radius R (or flat), conic k, the even terms a₂ r², A₄ r⁴, A₆ r⁶ …, and odd terms for an axicon-like surface |
 | clear radius | the surface's own, else its lens's |
-| gap to the next | the lens's own thickness inside a part, the air between parts |
+| gap to the next | the lens's thickness inside a part, the air between parts |
 | material in that gap | the lens's glass, or air |
 
-The stop is a flat surface in air with the iris's radius. A lens turned against the light is read face for face the other way round, each sag of the other sign. Changes to the prescription are written back to the parts: each shape to the surface it came from, each gap to a lens's thickness or to the parts' places along the axis (the first surface stays where it is). A prescription written back unchanged moves nothing.
+The stop is a flat surface in air with the iris's radius. A lens turned against the light is read face for face the other way round, each sag with the other sign. Changes to the prescription are written back to the parts: each shape to its surface, each gap to a lens's thickness or to the parts' places along the axis (the first surface stays put). A prescription written back unchanged moves nothing.
 
-Its panel gives its paraxial focal length and back focal distance at its primary wavelength (the y-nu trace through the prescription), its number of surfaces and where the stop is, and its length from first to last surface.
+The panel gives the paraxial focal length and back focal distance at the primary wavelength, the number of surfaces, where the stop is, and the length from first to last surface.
 
 ## Folds, tilts and decentres
 
-A mirror is one reflecting surface in the prescription, its glass **Mirror**. Its radius is read as the light meets it (positive with its centre beyond it along the light, so a mirror concave to the light has a negative radius), and the axis turns where it meets the mirror, about its normal. The gaps run on along the folded axis; the element data still counts them from surface to surface, as if unfolded.
+**Mirrors.** A mirror is one reflecting surface, its glass **Mirror**. Its radius is read as the light meets it (a mirror concave to the light has a negative radius), and the axis folds where it meets the mirror. The gaps run on along the folded axis, counted surface to surface as if unfolded. A mirror's tilt is half the angle it turns the light through (45° for a right-angle fold); changing it turns the axis after it by twice as much, and the parts after it go round with it. A mirror cannot be removed in the element data (split the assembly instead), but its radius, conic and aspheric terms (A4 to A16) can be set, varied, solved and picked up like a lens surface's. A mirror folds in the bench plane only, so it is not tipped.
 
-A tilted or decentred lens carries its tilt (degrees, in the plane of the fields) and decentre (mm, across the axis) on its first surface, about its first vertex; its other surfaces turn with it. A mirror's tilt is half the angle it turns the light through: 45° for a right-angle fold. The element data shows a **Tilt, decentre** column whenever an assembly has either (**Tilts and decentres** shows it for any design): each part's tilt in degrees and, for a lens or window, its decentre in mm, on its first surface. Each is typed there or set on the bench by turning or moving the part, and like any other value it can be marked **V** for the optimiser or picked up from another part's. A part posed in the element data is turned about its first vertex, its other surfaces carried round with it, and written to the bench where the prescription reads it back the same. A mirror's tilt is its fold: changed, the axis after it turns by twice as much, and the parts after it go round with it.
+**Tilted and decentred lenses.** A lens or window carries its tilt (degrees, in the plane of the fields) and decentre (mm, across the axis) on its first surface, about its first vertex; its other surfaces turn with it. The element data shows a **Tilt, decentre** column whenever a design has either (**Tilts and decentres** shows it always). Each is typed there or set on the bench by turning or moving the part, and can be marked **V**, solved or picked up like any other value. A lens may also be tilted and decentred *out* of the plane, the column's second pair, **° up** and **mm up**: on the bench they are the part's **Tip** and its height from the assembly's axis. A part may sit off the axis by less than its half-width and be turned by up to 30° either way.
 
-**Out of the plane.** A lens or a window may also be tilted and decentred out of the plane of the fields, up or down on the bench. In the element data these are the column's second pair, **° up** and **mm up**, typed, varied, solved or picked up like the first. On the bench they are the part's **Tip** and its height (**z**) from the assembly's axis. The axis has a height of its own, the assembly's **Height z** in its panel, which moves every part up or down together. A part may sit off the axis by less than its own half-width, and a lens or window may be tipped by up to 30°, as it may be turned across. A mirror folds in the bench's plane only, so it is not tipped.
+The optimiser may tilt a lens to balance an off-axis aberration, or decentre one to centre an image. A tilt with a decentre turns a lens about a point off its vertex, and about the centre of a surface's sphere that surface does not change at all, so give such a pair a reason to be one value or the other: a pickup, a boundary, or only one of them varied.
 
-The optimiser may then tilt a lens to balance an off-axis aberration (a field to one side only gives it a reason to), or decentre one to centre an image. Note that a tilt with a decentre turns a lens about a point off its vertex; about the centre of a surface's sphere that surface does not change at all, so a plano-convex lens can be turned about its sphere's centre almost for free. Give such a pair a reason to be one value or the other (a pickup, a boundary of the merit, or only one of them varied).
+**How it is traced.** The lens engine walks the axis from the first vertex, each surface in its own frame (its vertex, and its axes turned by its tilt), which a mirror reflects for all after it. A ray is taken into each frame, met and refracted or reflected, and taken back. The image plane is square to the axis after the last surface. First-order figures and Seidel sums are those of the system unfolded: a mirror reflects a paraxial ray as $$u' = u + 2cy$$, and after each mirror the sense of the index, curvatures and gaps turns over, so the sums keep their usual signs. The layout draws the design folded, as on the bench. In tolerancing a mirror's tilt turns its face alone, as a mirror made a little out does: the axis after it stays where it was designed and the image moves by twice the tilt times the throw.
 
-**Checked against.**
-- A lens tilted 3° and moved 0.4 mm in the prescription, written to the bench and read back: every surface's tilt and decentre and every gap the same to 10⁻⁹.
-- The same out of the plane (2.5° up, 0.35 mm up, with −1° across): its tip and height on the bench as set (the height the decentre plus half its thickness times the sine of the tip), and read back the same.
-- A fold mirror turned 5°: the axis after it 10° round.
-- A lens knocked 0.3 mm across and 2° round, or 0.25 mm up and 1.5° out of the plane, its tilt, decentre and image distance varied on the axis: its spot as small as the centred lens's at its best focus.
-- Two lenses tipped and raised (or lowered, one facing back): each of the bench's own rays meets the sensor where the lens engine's ray does, with the same optical path, to 10⁻⁹ mm.
-
-The lens engine walks the axis from the first vertex, each surface in its own frame: its vertex, and its axes turned by its tilt from the axis there, which a mirror reflects for all after it. A ray is taken into each surface's frame, met and refracted (or reflected) there, and taken back. The image plane is square to the axis after the last surface, and every analysis is read in its frame. First-order figures and Seidel sums are those of the system unfolded: a mirror reflects a paraxial ray as $$u' = u + 2cy$$, and after each mirror the sense of the index, the curvatures and the gaps turns over, so the sums keep their usual signs.
-
-A folded or tilted assembly is drawn folded in the layout, as on the bench. Its parts are written back to the bench along the folded axis, each mirror turned to keep the fold. A mirror cannot be removed in the element data (split the assembly to take it out); its radius, conic and aspheric terms can be set, varied, solved and picked up as a lens surface's can. A mirror's aspheric terms (A4 to A16, **Add aspheric terms** in its panel or **+ A** in the element data) add to its conic's sag with its radius's sign, so in the prescription, where its radius is read the other way, they take the other sign too; a lens file of a mirror alone writes them as an even asphere and reads them back.
-
-**Checked against.** A concave sphere at f/2.5 (radius 200 mm), its A4 to A8 varied: its spot on the axis a hundredth of the sphere's, as a paraboloid's, and its A4 within 2% of the paraboloid's sag less the sphere's, $$-1/(8R^3)$$; a concave fold mirror with a conic and A4 and A6 between two lenses: each of the bench's own rays meets the sensor where the lens engine's ray does, to 10⁻⁹ mm.
-
-In tolerancing, a mirror's radius is toleranced as a lens surface's, and its tilt turns its face alone: the axis after it stays where it was designed, as the parts after a fold mirror stay put when the mirror is made a little out, so the image moves on the image plane by twice the tilt times the distance.
-
-**Checked against.**
-- a singlet with a flat mirror at 45° after it: the same focal length, spots and wavefronts as unfolded, its image across the bench;
-- a concave sphere: its focus at half its radius; a paraboloid, and a Newtonian (the paraboloid with a flat at 45° before its focus): a star imaged with no spot at all;
-- a spherical mirror's spherical aberration, $$S_I = 2y^4/|R|^3$$, from the Seidel sum and from the real rays;
-- a lens, a fold mirror and a second lens tilted 2° and moved 0.3 mm across, made an assembly: each of the bench's own rays, in the bench plane and out of it, met where the lens engine's ray meets the sensor, with the same optical path, to 10⁻⁹ mm;
-- a fold mirror made a minute of arc out: the image plane where it was, the image moved by twice the tilt times the throw.
+**Checked against.** Tilts, decentres, tips and heights written to the bench and read back to 10⁻⁹; a fold mirror turned 5° turning the axis 10°; a singlet with a 45° fold giving the same focal length, spots and wavefronts as unfolded; a concave sphere focusing at half its radius, a paraboloid and a Newtonian imaging a star to a point; a spherical mirror's $$S_I = 2y^4/|R|^3$$ from the Seidel sum and the real rays; a concave sphere at f/2.5 with A4 to A8 varied reaching a paraboloid's spot, its A4 within 2% of $$-1/(8R^3)$$; and, for lenses tilted, tipped and raised, with and without folds, every one of the bench's own rays meeting the sensor where the lens engine's does with the same optical path, to 10⁻⁹ mm.
 
 ## The lens engine
 
-A lens designer traces many rays through one fixed list of surfaces, again and again. The bench's tracer follows light through everything on a bench (splits, coatings, beams, fields); the lens engine follows rays through a prescription alone, as fast as it can, and is what the design work below is built on.
+The bench's tracer follows light through everything on a bench; the lens engine follows rays through a prescription alone, as fast as it can (some 10⁵ aimed rays a second, in a background worker where the work is long). The design work below is built on it.
 
-**Coordinates.** z runs along the axis from the first surface's vertex, y across it in the bench plane (the meridional section, where the fields lie) and x out of it (sagittal). The object is at infinity; a field is the angle of the incoming light in the y-z plane.
+**Coordinates.** z runs along the axis from the first vertex, y across it in the bench plane (the meridional section, where the fields lie) and x out of it (sagittal). A field is the angle of the incoming light in the y–z plane, or, for an object at a distance, the height of a point on it.
 
 **Surfaces.** Each is $$z = z_i + \text{sag}(\rho)$$, $$\rho$$ the distance from the axis, with the bench's own sag:
 
 $$\text{sag}(\rho) = \frac{c\rho^2}{1+\sqrt{1-(1+k)c^2\rho^2}} + a_2\rho^2 + \sum_j A_{4+2j}\,\rho^{4+2j} + \sum_q o_q\,\rho^q$$
 
-A ray meets a surface where Newton's method finds the root along the ray, and is refracted by Snell's law in vector form,
+A ray meets a surface where Newton's method finds the root along it, and is refracted by Snell's law in vector form,
 
 $$\mathbf{d}' = \mu\,\mathbf{d} + \left(\sqrt{1-\mu^2(1-\cos^2 i)} - \mu\cos i\right)\hat{\mathbf{n}}, \qquad \mu = n/n',$$
 
 in three dimensions, so skew rays are traced as exactly as meridional ones. A ray landing outside a surface's clear radius is vignetted there; one that cannot refract is lost.
 
-**First order.** Paraxial (y-nu) traces give the focal length and back focus, and the chief ray, aimed at the stop's centre, places the entrance and exit pupils; for an object at a finite distance, the image distance and magnification too (Design conditions, below). The aperture is the stop's own opening, or an entrance pupil diameter set for the design, the stop then floating to suit.
+**First order.** Paraxial (y-nu) traces give the focal length and back focus, and the chief ray places the pupils; for a finite object, the image distance and magnification too. The aperture is the stop's own opening, or an entrance pupil diameter set for the design, the stop then opening to suit.
 
-**Ray aiming.** Each ray is found that crosses the stop at the pupil point asked for, by Newton's method on where it starts, so the stop is filled exactly whatever the pupil aberrations of the lenses before it. From infinity, rays start on a plane square to the incoming light through the entrance pupil's centre, so every ray of a field starts on one wavefront; from a finite object, at the object point, aimed at a point on the entrance pupil's plane.
+**Ray aiming.** Each ray is found that crosses the stop at the pupil point asked for, by Newton's method on where it starts, so the stop is filled exactly whatever the pupil aberrations before it. From infinity, rays start on a plane square to the incoming light through the entrance pupil's centre, so every ray of a field starts on one wavefront; from a finite object, at the object point.
 
-**Wavefront error.** Each ray's optical path is measured to the reference sphere centred on the chief ray's image point and passing through where the chief ray crosses the exit pupil's plane; its difference from the chief ray's, in waves, is the ray's wavefront error. Pupils are sampled by rings at Gauss–Legendre radii with arms, or by a square grid.
+**Wavefront error.** Each ray's optical path is measured to the reference sphere centred on the chief ray's image point and passing through where the chief ray crosses the exit pupil; its difference from the chief ray's, in waves, is the wavefront error. Pupils are sampled by rings at Gauss–Legendre radii with arms, or by a square grid.
 
-**Checked against.**
-- the bench's own tracer: the same rays, in the bench plane and out of it, on the axis and off it, land in the same place with the same optical path, to 10⁻⁹ mm;
-- an ellipsoid of eccentricity 1/n, which images collimated light into glass perfectly: no spot and no wavefront error;
-- a single sphere, where geometry and Snell's law give the exact answer;
-- makers' lens files: the focal lengths and back focal distances their pages state;
-- the symmetry of a round system: a pupil point turned about the axis lands turned, and the wavefront is the same either side of the bench plane.
-
-It traces some 10⁵ aimed rays a second, and runs in the page's background worker where the work is long.
-
-## Design conditions
-
-Each assembly carries the conditions it is designed for:
-
-- **aperture:** an entrance pupil diameter in mm, or an F-number;
-- **fields:** angles of the incoming light, in degrees, each with a weight;
-- **wavelengths:** in nm, each with a weight, one of them primary.
-
-A new assembly starts with its stop's opening as the entrance pupil, the axis alone as its field and the bench's wavelengths.
+**Checked against.** The bench's own tracer (the same rays land in the same place with the same path, to 10⁻⁹ mm); an ellipsoid of eccentricity 1/n, which images collimated light into glass perfectly (no spot, no wavefront error); a single sphere, where geometry gives the exact answer; makers' lens files (the focal lengths and back focal distances their pages state); and the symmetry of a round system.
 
 ## The design workspace
 
-**Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own: the lens design workspace. The bar names the bench it is on and the assembly (its name can be edited there). **Back to the bench** (or Esc) returns. Nothing is copied: every change in the workspace is written to the assembly's parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places.
+**Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own. The bar names the bench and the assembly (its name can be edited there); **Back to the bench** (or Esc) returns. Nothing is copied: every change is written to the parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places. A design started from nothing has **Place on a bench** instead: it adds a source for each field (collimated, as wide as the entrance pupil) and a screen at the image, then returns.
 
-A design started with Lens design, new… has no light on the bench yet. Its button reads **Place on a bench**: it adds a source for each field (collimated, as wide as the entrance pupil, aimed through its centre, at the primary wavelength with the others as extra lines) and a screen at the image, then returns to the bench.
-
-**File › Import a lens (.zmx)…** with its dialog's **Open it in the lens design workspace** ticked reads a lens file as an assembly and opens it here.
+**File › Import a lens (.zmx)…** with **Open it in the lens design workspace** ticked reads a lens file as an assembly and opens it here.
 
 ### Design conditions
 
-The left column holds the conditions the design is for: the object, the aperture (an entrance pupil diameter or a working F-number), the fields (up to 12, each with a weight) and the wavelengths (nm and weight, one primary, up to 12; **Visible (F, d, C)** sets the usual three). The stop opens to suit the entrance pupil these set, and its opening on the bench follows.
+The left column holds what the design is for: the object, the aperture, the fields (up to 12, each with a weight) and the wavelengths (nm and weight, one primary, up to 12; **Visible (F, d, C)** sets the usual three). The stop opens to suit the entrance pupil these set, and its opening on the bench follows.
 
-**The object** is at infinity (a star, a distant scene: the fields are angles, in degrees) or **at a distance** before the first surface (a relay, a microscope objective, a camera close up: the fields are the heights of points on the object, in mm). Switching from one to the other turns the fields from angles into heights at that distance, and back. For a finite object the aperture may also be given as the **NA at the object**, $$\sin	heta$$ of the half-angle the entrance pupil subtends from the object's axial point; the **working F-number** is always $$1/(2\,\mathrm{NA}')$$ in image space, from the paraxial marginal ray (from infinity, the focal length over the pupil). The conditions show the paraxial magnification and image distance.
+**The object** is at infinity (the fields are angles, in degrees) or **at a distance** before the first surface (the fields are heights on the object, in mm). Switching turns the fields from angles into heights at that distance, and back. For a finite object the aperture may be given as the **NA at the object**; the **working F-number** is always $$1/(2\,\mathrm{NA}')$$ in image space, from the paraxial marginal ray. The conditions show the paraxial magnification and image distance. Rays from a finite object start at their object point and are aimed through the stop as from infinity, their optical path counted from that point, so a perfect image has no wavefront error; the Seidel sums and the focus solve start from the object's points too.
 
-From a finite object every ray starts at its object point and is aimed, as from infinity, to cross the stop where asked; its optical path is counted from that point, so the wavefront error of a perfect image is nil. The paraxial traces add the ray from the axial object point (the image distance, and the magnification $$m = n\,u / (n' u')$$) and the chief ray from an object point of unit height (the paraxial image height, which distortion is measured against); the Seidel sums start their marginal and chief rays from the object's points, and the focus solve puts the image plane at the paraxial image of the object.
+**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before the first surface, going forward and inside its clear radius, gives a field (the rays' mean angle, with the axis always included) and its wavelengths, and the widest beam there becomes the entrance pupil. When every source's rays come from a point at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design lit on the bench by the other kind of object says so in its panel.
 
-**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before its first surface, going forward and inside its clear radius, gives a field (the rays' mean angle to the axis, with the axis always included) and its wavelengths; the widest beam there, measured square to itself, becomes the entrance pupil. When every source's rays come from a point (where they cross, by least squares), at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design for one kind of object lit by the other on the bench says so in its panel.
-
-**Checked against.**
-- a thick lens with an object 150 mm before it: its image distance and magnification from its principal planes and Newton's equation, to 10⁻⁹ mm;
-- an ellipsoidal mirror imaging one focus on the other: no spot and no wavefront error, magnification $$-d_2/d_1$$; a sphere imaging its centre back on itself, likewise;
-- real rays at a small pupil landing at the paraxial height; the Seidel $$S_I$$ against the real rays' wavefront, to a part in 10⁶;
-- a doublet lit by a point source 3 mm off the axis on the bench: the conditions taken from it (the object 120 mm away, fields 0 and 3 mm, its NA); and each of the bench's rays, from the point in its own direction, meeting the sensor where the lens engine's does with the same optical path, to 10⁻¹² mm.
-
-**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before its first surface, going forward and inside its clear radius, gives a field (the rays' mean angle to the axis, with the axis always included) and its wavelengths; the widest beam there, measured square to itself, becomes the entrance pupil.
+**Checked against.** A thick lens with an object 150 mm before it: image distance and magnification from its principal planes and Newton's equation, to 10⁻⁹ mm. An ellipsoidal mirror imaging one focus on the other, and a sphere imaging its centre on itself: no spot, no wavefront error. A doublet lit by a point source 3 mm off the axis: the conditions taken from it, and each of the bench's rays meeting the sensor where the lens engine's does, to 10⁻¹² mm.
 
 ### The layout
 
-A section through the design in the plane of the fields: its lenses cut through, its stop, its image plane, and five rays from each field across the pupil (−1, −½, 0, ½, 1 of its radius), each aimed through the stop and traced by the lens engine. Each field has its own colour, as in the conditions.
-
-Under it are the design's first-order figures at the primary wavelength: focal length, back focal distance, working F-number (focal length over entrance pupil diameter), the entrance pupil's size and place, the paraxial image height at the largest field, and the total track from the first surface to the image.
+A section through the design in the plane of the fields: lenses, stop, image plane, and five rays from each field across the pupil, each in its field's colour. Under it are the first-order figures at the primary wavelength: focal length, back focal distance, working F-number, the entrance pupil's size and place, the paraxial image height at the largest field, and the total track.
 
 ### Element data
 
-One row a surface, as a lens designer lists them, from the object (at infinity) to the image:
+One row a surface, from the object to the image:
 
 | column | |
 |---|---|
-| Radius | in mm; type Flat (or leave it empty) for a plane surface |
+| Radius | in mm; Flat (or empty) for a plane surface |
 | Thickness | the gap to the next surface: a lens's centre thickness inside it, the air between parts; on the last surface, the image distance |
-| Glass | inside a lens, any glass in the catalogue by name, or a model glass as nd/Vd; air between parts |
-| Clear radius | a lens surface's own; set larger than its lens, the lens is made larger. The stop's is set by the aperture |
+| Glass | inside a lens, any catalogue glass by name, or a model glass as nd/Vd; air between parts |
+| Clear radius | a lens surface's own (set larger than its lens, the lens grows); the stop's is set by the aperture |
 | Conic | the conic constant k |
 
 Beside each radius, thickness and conic:
 
-- **V** marks it a variable: what the optimiser may change (below). A glass has a V too, which makes it a model glass.
+- **V** marks a variable for the optimiser. A glass's V makes it a model glass.
 - **…** sets a **solve** or a **pickup**, shown as **S** or **P**, its value then worked out and shown in grey:
-  - *Paraxial focus* (the image distance): the image plane where the marginal ray of the primary wavelength crosses the axis, the back focal distance. A new design has it.
-  - *F-number* (a radius): the curvature that gives the system the working F-number asked for, with the entrance pupil as set. The system's power is affine in one surface's curvature, so two paraxial traces give it exactly.
-  - *Edge thickness* (a thickness): the centre thickness that leaves the edge, at the smaller clear radius of its two surfaces, as thick as asked: $$t = e - \text{sag}_2(h) + \text{sag}_1(h)$$.
-  - *Pickup*: the value follows another surface's same quantity, times a scale plus an offset (a radius picked up times −1 makes a lens symmetric).
+  - *Paraxial focus* (the image distance): the image plane where the primary wavelength's marginal ray crosses the axis. A new design has it.
+  - *F-number* (a radius): the curvature that gives the working F-number asked for. The system's power is affine in one curvature, so two paraxial traces give it exactly.
+  - *Edge thickness* (a thickness): the centre thickness that leaves the edge as thick as asked, $$t = e - \text{sag}_2(h) + \text{sag}_1(h)$$ at the smaller clear radius.
+  - *Pickup*: the value follows another surface's, times a scale plus an offset (a radius picked up times −1 makes a lens symmetric).
 
-  Pickups are worked out, then the solves, then the pickups again, twice over so a chain settles, then the image distance.
+  Pickups are worked out, then solves, then pickups again, twice over so a chain settles, then the image distance.
 
-Click a row to select it. **Insert a surface** puts a flat surface after it: inside a lens it splits the glass in two (a cemented doublet); after a lens's back it adds 2 mm of the same glass behind. **Insert a singlet** puts a flat N-BK7 singlet 2 mm thick in the air after the selected part (with the Object row selected, in front of the first surface; with nothing selected, at the end), pushing the rest back only if there is no room. **Remove** takes a surface out, or a lens of two surfaces whole. Every other surface keeps its place along the axis, and marks, solves and pickups stay with the surfaces they belong to.
+Click a row to select it. **Insert a surface** puts a flat surface after it: inside a lens it splits the glass (a cemented doublet); after a lens's back it adds 2 mm of the same glass. **Insert a singlet** puts a flat N-BK7 singlet 2 mm thick after the selected part (in front with the Object row selected, at the end with nothing selected), pushing the rest back only if there is no room. **Remove** takes out a surface, or a two-surface lens whole. Every other surface keeps its place, and marks, solves and pickups stay with their surfaces.
 
 ### Merit
 
-The **Merit** tab sets what the optimiser makes small: the merit function, a sum of squared terms.
+The **Merit** tab sets what the optimiser makes small: a sum of squared terms.
 
-- **The image.** For every field, wavelength and pupil point, each weighted by its field's and wavelength's weights and the point's quadrature weight, either the ray's miss on the image plane from the field's centroid over all the wavelengths (*RMS spot about the centroid*), its miss from the primary wavelength's chief ray (*about the chief ray*), or its wavefront error less the mean (*RMS wavefront error*, in waves). The pupil is sampled by 1 to 4 rings at Gauss–Legendre radii, each with 4 to 12 arms, so few rays stand in for the whole pupil. Together these terms weigh 1, so their part of the merit is the RMS spot radius in mm (or the RMS wavefront error in waves).
-- **Terms added to it,** each with a target and a weight (the term is $$\sqrt{w}\,(v - t)$$):
-  - first order, paraxial: the focal length, the back focal length, the image distance (of a finite object), the magnification, the working F-number, the NA in image space, the exit pupil's distance before the image, the total track;
-  - from real rays at a field picked beside the term: the chief ray's height on the image, the chief ray's angle at the image (0 for an image-space telecentric design), and the height on the image of the ray through a point of the pupil's y diameter ($$-1$$ to $$1$$);
-  - the diffraction **MTF** at a field and a frequency (cycles/mm) set beside the term: tangential, sagittal, or the mean of the two, over the wavelengths as the MTF view weights them (its target 1, to raise it). It is worked out from 32 points across the pupil at the two whole shifts of the pupil function either side of the frequency, so it costs a few hundred rays a wavelength;
-  - the distortion at the largest field (from the real chief ray, %), and any Seidel sum.
-  A ray that can't be traced counts as 1000 off its target.
-- **Boundaries** every design keeps to: glass at least (and, if set, at most) so thick at its centre and so thick at its edge, and air between lenses at least so wide at the centre and the edge. Each counts only while it is broken, as ten times its overshoot in mm, so it overrides the rest. A stop may sit against a lens. Two more hold a lens's aspheric terms to what can be made: their **departure** (the sag they add to the surface, anywhere over its clear radius; 0.5 mm unless set, 0 for none), counted against the limit itself so a few micrometres hold as well as a millimetre; and the departure's **slope** in degrees (no limit unless set).
+- **The image.** For every field, wavelength and pupil point, weighted by the field's and wavelength's weights and the point's quadrature weight: the ray's miss on the image plane from the field's centroid (*RMS spot about the centroid*), its miss from the primary wavelength's chief ray (*about the chief ray*), or its wavefront error less the mean (*RMS wavefront error*, in waves). The pupil is sampled by 1 to 4 rings at Gauss–Legendre radii, each with 4 to 12 arms. Together these terms weigh 1, so their part of the merit is the RMS spot radius in mm (or wavefront error in waves).
+- **Added terms,** each with a target and a weight (the term is $$\sqrt{w}\,(v - t)$$): paraxial figures (focal length, back focal length, image distance, magnification, working F-number, image-space NA, exit pupil distance, total track); real-ray figures at a chosen field (the chief ray's height and angle at the image, 0 for telecentric, and the height of the ray through a chosen pupil point); the diffraction **MTF** at a field and frequency, tangential, sagittal or mean (target 1 to raise it; a few hundred rays a wavelength); the distortion at the largest field; and any Seidel sum. A ray that can't be traced counts as 1000 off its target.
+- **Boundaries** every design keeps to: glass at least (and at most) so thick at its centre and edge, air between lenses at least so wide at centre and edge. Each counts only while broken, as ten times its overshoot in mm. Two more hold aspheric terms to what can be made: their **departure** from the base surface (0.5 mm unless set) and its **slope** in degrees.
 
-**Checked against.** Each term's value against the lens engine's own; the MTF term against the MTF view's curve (to 10⁻⁹) and, for a perfect paraboloid, the round pupil's $$\tfrac{2}{\pi}(\arccos v - v\sqrt{1-v^2})$$ to 0.003; a singlet at f/2.6 asked for the most MTF at 20 cycles/mm, its image distance free, raising it from 0.17 at the paraxial focus to 0.37, 0.38 mm nearer the lens, where a little either way is worse; a singlet made telecentric in image space (the chief ray's angle at the image at 0, the stop's distance varied) puts its stop 47.51 mm before the lens, at its front focal point (47.54 mm, from its focal length and front principal plane; the real chief ray at 1° bends a little more than the paraxial one).
+The merit is $$\sqrt{\sum r_i^2 / W}$$, $$W$$ one for the image plus the added terms' weights. The table gives each term's value and its share. Rays are traced through every surface whatever its clear radius, as the lenses are sized to the light afterwards.
 
-The merit is $$\sqrt{\sum r_i^2 / W}$$, $$W$$ one for the image plus the added terms' weights. The table gives each term's value now and its share of the merit. Rays are traced through every surface whatever its clear radius, as the lenses are sized to the light afterwards.
+**Checked against.** Each term against the lens engine's own figure; the MTF term against the MTF view (10⁻⁹) and the round pupil's closed form (0.003); a singlet asked for the most MTF at 20 cycles/mm, its image distance free, raising it from 0.17 to 0.37 a little inside the paraxial focus; a singlet made telecentric placing its stop at the front focal point within 0.03 mm.
 
 ### Configurations
 
-The **Configurations** tab holds one design in several states: a zoom lens at each of its focal lengths, a lens refocused for nearer objects, a relay at two magnifications. **Make configurations** gives two, the design as it is and a copy; **Add a configuration** copies the one shown. Each has a name and a weight in the merit function.
+The **Configurations** tab holds one design in several states: a zoom lens at each focal length, a lens refocused for nearer objects, a relay at two magnifications. **Make configurations** gives two (the design and a copy); **Add a configuration** copies the one shown. Each has a name and a weight in the merit.
 
-Choose the values that differ between them in the list under the table and **Make it differ**: any radius, thickness or air space, conic, aspheric term, tilt or decentre, or the image distance. Each configuration starts from the value it has now and keeps its own; everything else is shared. With the object at a distance (in the design conditions), each configuration also has its own object distance. The **×** beside a value makes it shared again, at the value shown.
+Choose the values that differ in the list under the table and **Make it differ**: any radius, thickness, conic, aspheric term, tilt or decentre, or the image distance. Each configuration starts from the value it has now and keeps its own; everything else is shared. With a finite object, each configuration has its own object distance. **×** beside a value makes it shared again.
 
-One configuration is shown at a time, chosen in the workspace's header or with **Show** in the table. It is the one on the bench, in the layout and element data (where a value that differs is marked at its left edge), and in the analyses, drawings, tolerancing and the lens file export. Showing another puts its values on the bench and its object distance in the conditions. The table also gives each configuration's focal length, working F-number, image height and total track.
+One configuration is shown at a time, chosen in the header or with **Show**: it is the one on the bench, in the layout and element data (a value that differs is marked at its left edge), the analyses, drawings, tolerancing and lens file export. Solves are worked out in each configuration. The merit is the weighted mean of each configuration's, and an added term is measured in every configuration unless set for one (a zoom's focal length target in each position). The optimiser varies a shared value once for all and a differing one in each. Tolerancing is of the configuration shown.
 
-- **Solves** are worked out in each configuration: an image distance solved for the paraxial focus is each configuration's own focus.
-- **The merit function** is the weighted mean of each configuration's: its image term, its boundaries, and the terms added in the Merit tab. Each added term is measured **in every configuration** unless it is set for one (a zoom's focal length target in each position).
-- **The optimiser** varies a value marked V once for all the configurations if it is shared, and separately in each if it differs. A zoom's moving spacings are found for each position while its radii serve them all.
-- **Tolerancing** is of the configuration shown.
-
-**Checked against.**
-- Two identical configurations measure exactly as the design alone.
-- A singlet refocused for objects at 200 and 1000 mm holds each configuration's image at its own paraxial focus, which is checked against a separate paraxial trace.
-- Two singlets 100 mm in focal length, their spacing differing between two configurations: one optimisation reaches 60 mm and 75 mm focal length (each within 0.05 mm), the wider spacing giving the longer focal length, with the radii unchanged.
+**Checked against.** Two identical configurations measure as the design alone; a singlet refocused for 200 and 1000 mm holds each image at its own paraxial focus; two singlets with their spacing differing reach 60 and 75 mm focal length in one optimisation, within 0.05 mm, with the radii shared.
 
 ### Optimise the design
 
-Mark the values the optimiser may change with **V** in the element data: radii, thicknesses, conics and glasses. Solves and pickups are worked out again at every step, so a radius solved for an F-number keeps the focal length while the others change.
+Mark the values the optimiser may change with **V**: radii, thicknesses, conics and glasses. Solves and pickups are worked out again at every step.
 
-- **Damped least squares** goes downhill from where the design is to the nearest minimum. Each cycle finds how every term changes with every variable (by finite differences), and takes the step $$(J^\mathsf{T}J + \lambda\,\mathrm{diag}\,J^\mathsf{T}J)\,\delta = -J^\mathsf{T}r$$, a radius worked in its curvature so it can pass through flat. A step is shortened if it would take any variable further than its reach (a sixth of a radius's curvature, 30% of a thickness, 0.5 of a conic, 0.02 in a glass's nd or 3 in its Vd), and that reach and $$\lambda$$ shrink while steps fail and grow back when they help. It stops when no step makes the merit smaller.
-- **Global search** looks for a better minimum than the nearest: it starts again and again from the best design so far, each variable shaken (radii by about 30% of their curvature, thicknesses by about 30%, conics by 0.3, glasses along nd and Vd), takes each start downhill, and keeps what is better. It carries on until stopped.
+- **Damped least squares** goes downhill to the nearest minimum. Each cycle finds how every term changes with every variable by finite differences and takes the step $$(J^\mathsf{T}J + \lambda\,\mathrm{diag}\,J^\mathsf{T}J)\,\delta = -J^\mathsf{T}r$$, a radius worked in its curvature so it can pass through flat. A step is shortened past each variable's reach (a sixth of a curvature, 30% of a thickness, 0.5 of a conic, 0.02 in nd or 3 in Vd); reach and $$\lambda$$ shrink while steps fail and grow back when they help. It stops when no step makes the merit smaller.
+- **Global search** starts again and again from the best design so far, each variable shaken (radii and thicknesses by about 30%, conics by 0.3, glasses along nd and Vd), takes each start downhill, and keeps what is better, until stopped.
+- **Substitute glasses** finds real glasses for the model ones (below).
 
-Both run in the page's background worker, a few cycles or trials at a time, and the design (and its parts on the bench) changes as they go. **Undo** takes it all back. Changing the design by hand stops a run.
+All run in a background worker, and the design and its parts on the bench change as they go. **Undo** takes it all back. Changing the design by hand stops a run.
 
-**Limits on the variables.** Under **Limits on the variables** in the Optimise tab, each value marked V has a least and a greatest the optimiser may take it to, either or both, in the units the element data shows (radii, thicknesses, gaps, the image distance and decentres in mm, tilts in degrees, a conic, a model glass's nd and Vd). Every method keeps to them: a step that would go past one stops at it, a global search's shaken starts are brought back inside, and a design started outside is brought to the nearest limit first. A value sitting on a limit is marked in the table. A radius is varied as its curvature, so a radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat); two of opposite signs are refused, since a radius between them passes through flat. Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits. The limits are saved with the design.
+**Limits on the variables.** Each value marked V can have a least and a greatest, in the element data's units. Every method keeps to them: a step stops at a limit, shaken starts are brought back inside, and a design started outside is brought to the nearest limit first. A value on a limit is marked. A radius is varied as its curvature, so its two limits must have one sign, or one alone lies on its own side of flat (at least 20: from 20 out to flat). Aspheric, freeform, phase and gradient terms, and values that differ between configurations, take no limits.
 
-**Designs kept.** A global search keeps the ten best distinct designs it reaches, best first, not only the best: a design a little worse may be easier to make, or better where the merit function does not look. Two designs are the same when every variable is within a part in 10³ (an optimiser reaching one minimum twice, not quite to its bottom, keeps it once). They are listed under **Designs kept**, each with its merit when kept, where it came from and its first values, and are saved with the design. **Use** puts one back, its variables' values as they were and the rest of the design as it is now; Undo takes them out again. **Keep this design** adds the design as it is now (to come back to after trying something), and **Remove** and **Clear the list** tidy it. A design's merit is the one it had when kept, under the merit function then; one kept with other variables than now puts back those that still are.
+**Designs kept.** A global search keeps the ten best distinct designs it reaches (two are the same when every variable is within a part in 10³), listed under **Designs kept** with each one's merit, origin and first values, and saved with the design. **Use** puts one back; **Keep this design** adds the design as it stands, to come back to after trying something; **Remove** and **Clear the list** tidy it.
 
-**Checked against.**
-- a singlet bent for least spherical aberration: the shape the third-order closed form gives, $$(R_2+R_1)/(R_2-R_1) = 2(n^2-1)/(n+2)$$, and the bottom of a fine scan of its merit;
-- a Cooke triplet with its radii spoilt by up to 30%: optimised back to at least as good as the published design, its focal length kept;
-- a cemented doublet of one glass: its two glasses varied make it an achromat, crown in front of flint;
-- a singlet whose best bending is out of bounds: optimised, its front radius ends exactly on its limit, the focal length still met, and nothing a little further inside does better; a global search's designs all inside their limits;
-- a global search on a triplet: the designs it keeps are distinct, the best is its result, and each put back has the merit it was kept with, to 10⁻⁹; they come back from a saved file.
+**Checked against.** A singlet bent for least spherical aberration reaching the third-order shape $$(R_2+R_1)/(R_2-R_1) = 2(n^2-1)/(n+2)$$; a Cooke triplet with its radii spoilt by 30% optimised back to at least the published design; a doublet of one glass made an achromat, crown in front of flint, by varying its glasses; a singlet whose best bending is out of bounds ending exactly on its limit with nothing just inside doing better; a global search's kept designs distinct, each put back with the merit it was kept with.
 
 ### Aspheric surfaces
 
-An **asphere**'s surface may carry even aspheric terms on top of its conic (a plain lens's surfaces are spheres: only an asphere, from the parts as **Asphere**, has a conic and aspheric terms, in its panel and in the element data; a lens from an older file that has them is an asphere), its sag
+An **asphere** (from the parts as **Asphere**; a plain lens's surfaces are spheres) may carry even terms on top of its conic:
 
 $$z(r) = \frac{c r^2}{1 + \sqrt{1 - (1 + k) c^2 r^2}} + A_4 r^4 + A_6 r^6 + \dots + A_{16} r^{16}.$$
 
-**+ A** beside a lens surface's name opens a row of its terms under it: A4 first, **Add A6** and so on to A16, **Remove** taking the last off. Each is typed (in mm to the power of one less than its order), marked **V** for the optimiser, or picked up from the same term of another surface; a surface's terms set on the bench (a lens's panel, Add aspheric terms) show here too, and the other way round.
+**+ A** beside a surface opens a row of its terms: A4 first, **Add A6** and so on to A16. Each is typed (in mm to the power of one less than its order), marked **V** or picked up; terms set on the bench (**Add aspheric terms** in the lens's panel) show here too. The optimiser varies each as the sag it adds at the clear radius, $$A_n h^n$$, so terms of very different size take like steps. Keep the departure and slope boundaries in the merit to keep what it finds makeable, and use as few terms as do the job. The Seidel sums carry the fourth-order term as a third-order aberration; the higher terms are in the real rays. A lens file writes them as an even asphere.
 
-The optimiser varies each term as the sag it adds at the surface's clear radius, $$A_n h^n$$ in mm, so terms whose raw values differ by many orders of magnitude take steps of a like size. Keep the departure and slope boundaries in the merit function (above) to keep what it finds makeable; use as few terms as do the job, starting from A4.
-
-The Seidel sums carry a surface's fourth-order term (its $$A_4$$ and its conic) as a third-order aberration; the higher terms are in the real rays, and so in every analysis. Its drawing gives the terms in its notes and the departure at its clear aperture; a lens file writes them as an even asphere.
-
-**Checked against.**
-- a plano-convex N-BK7 lens of 50 mm at f/2, its curved side to the light: A4 to A10 on that side, optimised, take its RMS spot from 497 µm to 0.01 µm, against an Airy radius of 1.4 µm;
-- the same with the departure kept within 20 µm: kept;
-- a coefficient set, read back and moved with a copy of the assembly by its key.
+**Checked against.** A plano-convex N-BK7 lens of 50 mm at f/2 with A4 to A10 optimised: RMS spot from 497 µm to 0.01 µm against an Airy radius of 1.4 µm; the same held within 20 µm of departure: kept.
 
 ### Freeform surfaces
 
-An asphere's surface, or a mirror, can also be a **freeform**: XY polynomial terms added to its sag,
+An asphere's surface, or a mirror, can also be a **freeform**: XY polynomial terms added to its sag, $$z \mathrel{+}= \sum c_{mn}\, x^m y^n$$, with x out of the plane of the fields and y in it. Only even powers of x are allowed, so the surface stays symmetric about the bench plane. The fourteen terms run from second to sixth order: x², y², x²y, y³, x⁴, x²y², y⁴, x⁴y, x²y³, y⁵, x⁶, x⁴y², x²y⁴, y⁶.
 
-$$z \mathrel{+}= \sum c_{mn}\, x^m y^n,$$
+**+ XY** beside the surface opens its freeform row; on the bench the panel lists them under **Add a freeform term…**. Unequal x² and y² terms make a toroid; odd powers of y tilt and bend the surface. Both tracers trace a freeform exactly. The paraxial figures and Seidel sums see only its y² term, the lens file export warns and leaves it out, and the 3D view and drawing show the profile in the plane. Like a tilt, a freeform is not paraxial, so leave the image distance free (**V**) when optimising one.
 
-with x up, out of the plane of the fields, and y across it in that plane. Only even powers of x are allowed: the surface stays mirror-symmetric about the bench's plane, so light in the plane stays in it. The fourteen terms run from second to sixth order: x², y², x²y, y³, x⁴, x²y², y⁴, x⁴y, x²y³, y⁵, x⁶, x⁴y², x²y⁴, y⁶.
-
-**+ XY** beside an asphere's or a mirror's surface in the element data opens its freeform row. Terms are added from its list and taken off with their **×**, and each is typed, marked **V**, solved or picked up like any other value. The optimiser varies each one as the sag it adds at the clear radius. On the bench, the part's panel lists its terms under **Add a freeform term…**. Unequal x² and y² terms make a toroid; odd powers of y tilt and bend the surface across the plane. The bench's trace and the lens engine both trace a freeform exactly, out of the plane as well as in it.
-
-Some things don't see a freeform: the paraxial figures and Seidel sums (only its y² term counts there, as curvature in the plane of the fields), the lens file export (which warns), the 3D view of a lens (drawn round, from its profile in the plane), and its drawing (a section in the plane, with a note). Like a tilt, a freeform's effect is not paraxial, so an image distance solved at the paraxial focus doesn't follow it: leave the image distance free, marked **V**, when optimising one.
-
-**Checked against.**
-- A ray through a freeform face: met where the sag says, and refracted by Snell's law about the surface's normal from the terms' slope, to 10⁻¹².
-- A freeform asphere facing the light and facing back, and a freeform concave fold mirror: each of the bench's own rays, in the plane and out of it, meets the sensor where the lens engine's ray does, with the same optical path, to 10⁻⁹ mm.
-- A concave mirror (radius 400 mm, f/10) turned 10° from its axis: its spot at best focus 0.110 mm, mostly astigmatism. With its x² and y² terms varied (a toroid), the spot falls to 0.018 mm. That is the coma left, near θf/(16N²) = 0.022 mm, which a toroid cannot take out.
+**Checked against.** A ray through a freeform face met and refracted as the terms' slope says, to 10⁻¹²; the bench's rays meeting the sensor where the engine's do, to 10⁻⁹ mm; a concave f/10 mirror turned 10° whose astigmatic spot of 0.110 mm falls to 0.018 mm with a toroid, the coma left near θf/(16N²).
 
 ### Cylindrical lenses
 
-A cylindrical lens can be part of an assembly, curved in the plane of the fields or out of it as its **Shape** sets. In the element data its surfaces are marked **cyl ⟂** (curved in the plane) or **cyl ↕** (curved out of it). Its radius is the radius of that curve, and like any value it can be typed, varied, solved or picked up. A cylinder rolled about its own axis, so that its power lies between the two, can't be in an assembly.
+A cylindrical lens can be part of an assembly, curved in the plane of the fields or out of it as its **Shape** sets; its surfaces are marked **cyl ⟂** or **cyl ↕** in the element data, and its radius is typed, varied, solved or picked up like any other. A cylinder rolled so its power lies between the two can't be in an assembly. The trace is exact both ways; the first-order figures, Seidel sums, layout and drawings are of the plane of the fields, where a cylinder curved out of the plane has no power. For a toroid, give an asphere or mirror unequal x² and y² freeform terms.
 
-The trace of a cylinder is exact in both directions. The first-order figures, the Seidel sums, the layout and the drawings are of the plane of the fields. There, a cylinder curved out of the plane is flat and has no power, so a design's focal length is its focal length in the plane. For a toroid, curved one way in the plane and another out of it, give an asphere or a mirror unequal x² and y² freeform terms.
-
-**Checked against.**
-- A cylinder curved in the plane has the same focal length there as the round lens of its radii; one curved out of the plane has none.
-- Two crossed cylinders whose line foci meet (focal lengths about 100 and 50 mm, the weaker 50 mm in front) bring a beam to a point, with a spot under a twentieth of the line focus that one alone gives.
-- Cylinders curved in the plane and out of it, facing the light and facing back: each of the bench's own rays, in the plane and out of it, meets the sensor where the lens engine's ray does, to 10⁻⁹ mm.
+**Checked against.** A cylinder curved in the plane has the round lens's focal length there, one curved out of it none; two crossed cylinders bring a beam to a point under a twentieth of one alone's line focus; the bench's rays meet the sensor where the engine's do, to 10⁻⁹ mm.
 
 ### Diffractive surfaces
 
-A **diffractive lens** (from the lens presets under **Add part**) can carry a phase written on any of its faces: a kinoform, its zones blazed so the light goes into one order. The phase is
+A **diffractive lens** (from the lens presets) can carry a phase on any face, a kinoform blazed into one order:
 
 $$\phi(\rho) = c_1\rho^2 + c_2\rho^4 + c_3\rho^6 + c_4\rho^8$$
 
-in radians, with ρ the height on the face in mm. In its order m the face adds $$m\lambda\phi/2\pi$$ of optical path, and bends a ray as a grating of that local pitch would: along the face, $$n'\mathbf{d}'_t = n\mathbf{d}_t + (m\lambda/2\pi)\nabla\phi$$, the rest of the direction made up on the far side. All the light is taken to go into order m; a blaze's efficiency in the other orders isn't modelled.
+in radians, ρ in mm. In order m the face adds $$m\lambda\phi/2\pi$$ of path and bends a ray as a grating of that local pitch would: $$n'\mathbf{d}'_t = n\mathbf{d}_t + (m\lambda/2\pi)\nabla\phi$$ along the face. All the light is taken to go into order m. Its power, $$-m\lambda c_1/\pi$$, grows with the wavelength, the other way to glass (an Abbe number of −3.45), so a weak diffractive face can cancel a refracting lens's colour; the preset is such a hybrid achromat.
 
-Its power, $$-m\lambda c_1/\pi$$, grows with the wavelength: the focal length of a diffractive lens goes as 1/λ. That is the other way to glass (an Abbe number of −3.45 over the F, d and C lines), so a weak diffractive face can cancel a refracting lens's colour. The preset is such a hybrid achromat: a plano-convex N-BK7 lens, f = 50 mm, whose flat face carries the phase that brings the F and C lines to one focus.
+**+ φ** beside the surface opens its phase row (ρ², then ρ⁴, ρ⁶, ρ⁸), each typed, varied, solved or picked up; the optimiser varies each as the waves it adds at the clear radius. On the bench the panel has **Diffraction order** and **Add a diffractive phase**. The bench's trace, the diffracted field and the lens engine all trace it exactly, in its order. The paraxial figures take its power at each wavelength; the Seidel sums take it as a thin layer of very high index (the Sweatt model). The drawing gives the phase, the number of zones and the width of the last; the lens file export leaves the phase out, and warns.
 
-**+ φ** beside a diffractive lens's surface in the element data opens its phase row: ρ², then ρ⁴, ρ⁶ and ρ⁸ as they are added, each typed, marked **V**, solved or picked up like any other value. The optimiser varies each one as the waves it adds at the clear radius. On the bench the lens's panel has **Diffraction order** and, under each surface, its phase terms and **Add a diffractive phase**. A diffractive face is drawn on the bench as a broken line along its substrate.
-
-The bench's trace, the diffracted field and the lens engine all trace a diffractive face exactly, in the plane and out of it, in its order. The paraxial figures take its power at each wavelength. The Seidel sums take it as a layer of no thickness and very high index whose shape carries the phase (the Sweatt model), so its spherical aberration and its axial and lateral colour are counted. The lens drawing gives the phase, the number of zones to the clear radius and the width of the last; the lens file export leaves the phase out, and warns.
-
-**Checked against.**
-- A flat plate whose face carries $$c_1 = -\pi/(\lambda f)$$: its focal length is f = 100 mm exactly, f/2 in order 2, and f × 587.56/λ at the F and C lines.
-- Its spherical aberration at f/5: the traced path from the pupil's edge to its centre, at the paraxial focus, is −SI/8 to within 1 %. With the fourth-order term of a perfect lens's phase, $$c_2 = \pi/(4\lambda f^3)$$, SI is 0 and the path left is a hundredth.
-- A plano-convex N-BK7 singlet (f = 50 mm, F and C foci 0.76 mm apart) with its flat face's ρ² term varied to take Seidel's axial colour out: the F and C foci then meet, and the term is the one found on its own by bisection on those two foci, to 0.01.
-- Two diffractive lenses, one facing the light and facing back, the other tipped 2° and raised, in orders 1 and 2: each of the bench's own rays, in the plane and out of it, meets the sensor where the lens engine's ray does, with the same optical path, to 10⁻⁹ mm.
+**Checked against.** A flat plate with $$c_1 = -\pi/(\lambda f)$$: focal length f exactly, f/2 in order 2, scaling as 1/λ; its spherical aberration at f/5 within 1% of −SI/8, nil with the perfect lens's fourth-order term; a plano-convex singlet's ρ² term varied to take out Seidel's axial colour bringing the F and C foci together; the bench's rays meeting the sensor where the engine's do, in orders 1 and 2, tipped and raised, to 10⁻⁹ mm.
 
 ### Graded glass
 
-A **graded lens** (the GRIN rod lens among the lens presets, or any lens made graded) can have glass whose index changes with the distance from its axis:
+A **graded lens** (the GRIN rod lens preset, or any lens made graded) has glass whose index changes with the distance from its axis, $$n(r) = n_g(\lambda) + g_2 r^2 + g_4 r^4 + g_6 r^6$$. A ray curves toward the higher index along $$\mathrm{d}(n\,\mathbf{t})/\mathrm{d}s = \nabla n$$, traced by fourth-order Runge–Kutta in short steps (an eightieth of the diameter, 0.1 mm at most), its path summed as it goes. A rod whose index falls as $$n_0(1 - Ar^2/2)$$ has $$g_2 = -n_0A/2$$ and a pitch $$2\pi/\sqrt{A}$$; the preset is a quarter pitch long, so it focuses a collimated beam on its back face.
 
-$$n(r) = n_g(\lambda) + g_2 r^2 + g_4 r^4 + g_6 r^6,$$
+**+ n(r)** beside a surface opens a row for the glass after it (r², then r⁴ and r⁶); on the bench, **Grade this glass** in the panel. The bench's rays, the lens engine and the diffracted field (slab by slab, the split-step method) all take the gradient. The paraxial figures take the r² term's exact matrix; the Seidel sums leave out the gradient's own third-order aberration, so for a graded design trust the traced spot, wavefront and MTF. The lens file export writes the glass on its axis, and warns.
 
-with $$n_g$$ the glass's own index and r in mm. A ray in it curves toward the higher index, along $$\mathrm{d}(n\,\mathbf{t})/\mathrm{d}s = \nabla n$$. It is traced by the fourth-order Runge–Kutta method in short steps (an eightieth of the part's diameter, 0.1 mm at most), with its optical path summed as it goes. At each face of the glass, Snell's law takes the index where the ray meets it. A rod whose index falls as a parabola, $$n_0(1 - Ar^2/2)$$, has $$g_2 = -n_0A/2$$: a ray in it swings about the axis with the pitch $$2\pi/\sqrt{A}$$. The preset is a quarter of its pitch long, so it brings a collimated beam to a point on its back face.
-
-**+ n(r)** beside a graded lens's surface in the element data opens a row for the glass after it: r², then r⁴ and r⁶ as they are added, each typed, marked **V**, solved or picked up like any other value. The optimiser varies each one as the index it adds at the clear radius. On the bench the lens's panel lists each glass's terms under **Grade this glass**.
-
-The bench's rays, the lens engine's and the diffracted field all take the gradient. The field goes through the glass a slab at a time, each slab plain glass followed by a thin plate carrying the path the grading adds over it (the split-step method). The paraxial figures take the r² term's exact matrix. The Seidel sums carry their two rays through that matrix but leave out the third-order aberration the gradient itself adds, so for a graded design the traced spot, wavefront and MTF are the ones to trust. The lens file export writes the glass on its axis, and warns.
-
-**Checked against.**
-- Rods 4.82, 3 and 2 mm long, focusing ($$g_2 = -0.08545$$) and spreading ($$g_2 = 0.03$$): their focal lengths and back focal distances are the closed forms of the r² matrix, to 10⁻⁹.
-- The GRIN rod lens preset brings rays from up to 0.2 mm off its axis to within a micron of it on its back face.
-- With its r² term varied for a focal length of 2.5 mm, a 3 mm rod's term is the one bisection finds on the closed form, to 10⁻⁶ mm⁻².
-- A curved graded lens (r² and r⁴ terms) facing the light and facing back, and a GRIN rod tipped 2° and raised: each of the bench's own rays, curving through the glass by the same steps in both, meets the sensor where the lens engine's ray does, with the same optical path, to 10⁻⁹ mm.
-- A Gaussian beam (w₀ = 0.3 mm, its waist on the face) through the quarter-pitch rod: its field 5 mm past the back face is as wide as the rod's matrix says, to 1 %.
+**Checked against.** Rods of several lengths, focusing and spreading: focal lengths and back focal distances as the r² matrix's closed forms, to 10⁻⁹; the preset bringing rays from 0.2 mm off axis to within a micron on its back face; a Gaussian beam through the quarter-pitch rod as wide as the matrix says, to 1%; the bench's rays meeting the sensor where the engine's do, to 10⁻⁹ mm.
 
 ### Model glass
 
-Marking a glass **V** turns it into a *model glass*: its nd and Vd alone, its index from a two-term Cauchy fit through them, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the element data as nd/Vd (1.62/60). While optimising, a model glass is kept on the glass map, within reach of a real glass (0.01 in nd counting as much as 1 in Vd). **Replace model glasses with the nearest real ones** puts the nearest catalogue glass from the glass makers in place of each; optimise again after to settle the design on them. **Substitute glasses**, below, does better: it tries the real glasses round each one, optimising with each.
+Marking a glass **V** makes it a *model glass*: nd and Vd alone, its index a two-term Cauchy fit, $$n(\lambda) = A + B/\lambda^2$$. A model glass can also be typed into the element data as nd/Vd (1.62/60). While optimising it is kept on the glass map, within reach of a real glass. **Replace model glasses with the nearest real ones** puts the nearest catalogue glass in place of each; optimise again after.
 
 ### Substitute glasses
 
-A model glass says what glass would suit; **Substitute glasses**, the third method in **Optimise the design**, finds the real one. Each glass marked **V** is tried as the catalogue glasses nearest it on the glass map (0.01 in nd counting as much as 1 in Vd), from the makers ticked (Schott, Ohara, Hoya, CDGM, Sumita), as many as asked (12 unless set), each one that transmits at every wavelength of the design. With each candidate in its place, the rest of the design's variables are optimised again from where they are (twelve cycles of damped least squares), and its merit taken. When every candidate has been tried, the best goes in if it is better than the glass already there; a model glass is always replaced. The glasses are taken one after another, and the passes repeat (three at most) until one changes nothing, so a glass can walk across the map toward the glass that suits the design best. A table says what each glass was, what it is now, the merit and the best few tried. It runs in the background, and Undo takes the design back to where it started.
+**Substitute glasses**, the third method under Optimise, finds the real glass for each one marked **V**. It tries the catalogue glasses nearest it on the glass map (0.01 in nd counting as 1 in Vd) from the makers ticked (Schott, Ohara, Hoya, CDGM, Sumita), as many as asked (12 unless set), each transmitting at every wavelength of the design. With each candidate in place, the rest of the variables are optimised again (twelve cycles) and the merit taken; the best goes in if it beats the glass already there, and a model glass is always replaced. The glasses are taken in turn and the passes repeat (three at most) until one changes nothing, so a glass can walk across the map. A table gives what each glass was and is, the merit and the best few tried. Undo takes the design back to where it started.
 
-**Checked against.**
-- an air-spaced doublet whose second glass is a model near F2, aimed at f 100 mm and no axial colour: the glass put in is the one that, tried on its own from the same start, optimises to the lowest merit, and it is a flint; the merit falls more than tenfold;
-- a glass none of its candidates betters is kept.
+**Checked against.** An air-spaced doublet whose second glass is a model near F2 gets the flint that, tried alone from the same start, optimises lowest, the merit falling more than tenfold; a glass none of its candidates betters is kept.
 
 ### Tolerance the design
 
-The **Tolerance the design** tab asks how good the design will be as it is made. The design as solved is the nominal lens; each tolerance changes it as a maker might, nothing re-solved but the compensator:
+The **Tolerance the design** tab asks how good the design will be as it is made. Each tolerance changes the nominal lens as a maker might, nothing re-solved but the compensators:
 
 | tolerance | ± | what it changes |
 |---|---|---|
-| Radius | fringes | each lens surface's sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each): the sphere with that sag, more or less curved |
-| Thickness and air gaps | mm | every lens's thickness and every gap between parts |
+| Radius | fringes | each surface's sag at its clear radius, by this many fringes at 632.8 nm (λ/2 each) |
+| Thickness and air gaps | mm | every lens thickness and every gap between parts |
 | Lens decentre | mm | each lens moved across the axis, in x and in y |
-| Lens tilt | arcmin | each lens tilted about its mechanical reference, about x and about y: its first vertex (unless set), its centre along the axis, or its last vertex, where its cell holds it |
+| Lens tilt | arcmin | each lens tilted about its mechanical reference (first vertex unless set, centre, or last vertex), about x and y |
 | Glass index | Δn | each glass's index at every wavelength |
-| Abbe number | % | each glass's dispersion about the d line, divided by $$1 + \delta$$ |
-| Surface irregularity | fringes | each lens surface's form error beyond its radius, off unless turned on: $$a(r^4 - h^2 r^2)$$, no sag at the clear radius $$h$$ or on the axis, its peak to valley $$a h^4/4$$ the fringes' $$N\lambda/2$$ |
-| Surface wedge | arcmin | each lens surface tilted on its own about its vertex, about x and about y, off unless turned on: its lens's two faces no longer square to one axis, as a lens comes out wedged; at a cemented interface, the cement wedged. Unlike a lens tilt, the rest of the lens stays where it was |
-| Surface decentre | mm | each lens surface moved across the axis on its own, in x and in y, off unless turned on: in a cemented lens, its parts glued off one another's axis |
+| Abbe number | % | each glass's dispersion about the d line |
+| Surface irregularity | fringes | off unless on: each surface's form error beyond its radius, $$a(r^4 - h^2 r^2)$$, peak to valley the fringes' $$N\lambda/2$$ |
+| Surface wedge | arcmin | off unless on: each surface tilted on its own about its vertex, as a lens comes out wedged; at a cemented interface, the cement wedged |
+| Surface decentre | mm | off unless on: each surface moved across the axis on its own; in a cemented lens, its parts glued off axis |
 
-A cemented lens is one part: lens decentre and tilt move it whole, and its interface takes surface wedge and decentre like any other face. A decentred, tilted or wedged lens is traced exactly: the lens engine carries each of its surfaces in its own moved frame, the ray taken into that frame, met and refracted there, and taken back.
+A cemented lens is one part: lens decentre and tilt move it whole, and its interface takes surface wedge and decentre like any face. Every perturbed surface is traced exactly in its own moved frame.
 
-The **criterion** is the merit function's image term: the RMS spot (or RMS wavefront error) over every field and wavelength, as set in Merit. The **compensator**, unless turned off, refocuses the image plane for each build: the spot's square is exactly a parabola in the focus, so three trials find the best focus, and once more about it settles it.
+**Criterion and compensators.** The criterion is the merit's image term: the RMS spot or wavefront error over every field and wavelength. Unless turned off, the **focus** is refocused for each build (the spot's square is a parabola in the focus, so three trials find it). **Add a compensator** adds what an assembler adjusts on each lens: an air gap, or a lens's decentre or tilt, each within a range. For each build, focus and compensators are set together to make the criterion as small as it can be, by damped least squares, each held within its range. A compensator the nominal would already push past its range is marked: widen it, or optimise the design with that value.
 
-**Compensators** beyond the focus are what an assembler adjusts on each lens as it is built: **Add a compensator** offers each air gap between parts, and each lens's decentre (in x or y) and tilt (about x or y), each with a range (± mm, or ± arcminutes) it may be moved within. For each build, the nominal included, the focus (if refocusing is on) and every compensator are set together to make the criterion as small as it can be, by damped least squares on the criterion's own terms from where the build is, each held within its range. Sensitivity, Monte Carlo and inverse sensitivity all use them. Sensitivity gives each compensator's setting on the nominal; Monte Carlo, each one's mean, spread and largest setting over the builds. A compensator the nominal itself would move past its range sits at its range already, with nothing left on that side for the tolerances; Sensitivity marks it, and a wider range, or a design optimised with that value, is the answer.
+- **Sensitivity** sets each tolerance alone at its two limits and lists the change in the criterion, worst first, with the criterion expected over the builds: $$c^2 \approx c_0^2 + \sum_i k\,\tfrac12\left[(c_i^{+})^2 + (c_i^{-})^2 - 2c_0^2\right]$$, $$k = 1/3$$ for uniform tolerances, $$1/4$$ for normal ones with the limit at two deviations.
+- **Monte Carlo** builds the lens again and again, every tolerance at random (uniform within its limits, or normal with the limit at two standard deviations, cut there), each build from its own seed so a run repeats. It gives the criterion's mean, deviation, best and worst, the values 50%, 80%, 90% and 98% of builds are at least as good as, a histogram, and how far each build was refocused and each compensator moved.
+- **Yield** is the share of Monte Carlo's builds that meet a specification: the criterion no worse than a figure, and any of the merit's operands (a focal length, a distortion, an MTF…) within limits, each build as compensated. It comes with its 95% confidence range (the Wilson interval) and each part's own share, to say which part costs the yield. The builds keep their operands, so a changed specification is worked out again without building again.
+- **Inverse sensitivity** turns the question round: for a worsening allowed (10% of the nominal criterion unless set, or an amount in µm or waves), it finds for each tolerance alone the limit at which the criterion is worse by that much, by bracketing and halving in the limit's logarithm to a part in a hundred. A tolerance that never worsens it that much within a thousand times its limit is reported as at least that. **Use these limits** sets each kind to its tightest item, rounded down. The limits are for each tolerance alone; together they add, as Sensitivity's estimate and Monte Carlo show.
 
-- **Sensitivity** sets each tolerance alone at its two limits and gives the change in the criterion from nominal, worst first, and the criterion expected over the builds, the tolerances' effects on its square added: $$c^2 \approx c_0^2 + \sum_i k\,\tfrac12\left[(c_i^{+})^2 + (c_i^{-})^2 - 2c_0^2\right]$$, $$k = 1/3$$ for tolerances uniform within their limits, $$1/4$$ for normal ones with the limit at two deviations.
-- **Monte Carlo** builds the lens again and again, every tolerance at random (uniform within its limits, or normal with the limit at two standard deviations, cut there), each build from its own seed so a run repeats however it is cut up; and gives the spread of the criterion: its mean and deviation, its best and worst, the criterion 50%, 80%, 90% and 98% of builds are at least as good as, a histogram, and how far each build had to be refocused.
+Both runs work in the background, a batch at a time, and can be stopped. Tolerances, compensators and Monte Carlo's settings are kept with the design; results are kept while the workspace is open, and say when the design has changed since.
 
-Both run in the background worker, a batch at a time, and can be stopped. The tolerances, the compensator and Monte Carlo's settings are kept with the design; the results are kept while the workspace is open, and say so when the design has changed since.
-
-**Yield** is the share of Monte Carlo's builds that meet a specification: the criterion no worse than a figure (µm, or waves), and any of the merit function's operands (a focal length, a back focus, a distortion, an MTF…) within limits on each build, each build as compensated. Monte Carlo gives it with its range at 95% confidence (the Wilson interval: so many builds are a sample of all that could be made) and each part's own share, to say which part costs the yield. Each build keeps its operands' values, so a specification changed after a run is worked out again from the same builds, with no building again. The report gives it with the Monte Carlo figures.
-
-**Inverse sensitivity** turns the question round: for a worsening allowed (a share of the nominal criterion, 10% unless set, or an amount of it in µm or waves), it finds, for each tolerance alone, the limit at which the criterion is worse by that much, the worse of its two signs counted, each build refocused if the compensator is on. It starts from the limit set, doubles or halves it until the worsening allowed is bracketed, then halves the bracket in the limit's logarithm to a part in a hundred. A tolerance that does not worsen the criterion that much within a thousand times its limit is reported as at least that; a thickness or gap whose worse side has closed (its glass or air down to nothing) before reaching it, as closing first. Each kind's tightest item is set against the limit set now, and **Use these limits** sets each kind to it (to two figures, rounded down). Each limit is for its tolerance alone: together they add, as Sensitivity's estimate and Monte Carlo show, so a build with every tolerance at its allowed limit is worse than the worsening allowed.
-
-**Checked against.**
-- a decentred surface traced in its own frame against the centred one with the light moved across: the same rays, to 10⁻¹²;
-- a plate tilted 10°: a ray along the axis leaves parallel, shifted by $$t\sin\alpha\left(1 - \cos\alpha/\sqrt{n^2 - \sin^2\alpha}\right)$$;
-- a radius's fringes against the sag they make, and an index change against the lensmaker's equation;
-- the compensator against a fine scan of the focus;
-- a round system's decentres and tilts alike in x and y and at either limit;
-- Monte Carlo's mean square criterion over a thousand builds against the sensitivities' estimate, within four standard errors;
-- a plano-convex lens with its flat back wedged by α: the image of a point on the axis moves by $$(n-1)\,\alpha\,\mathrm{BFL}$$, a thin prism's deviation, across the plane of the tilt and not along it, to 1%;
-- a ball lens tilted about its centre unchanged (to 10⁻⁹ mm on the image), and moved either way about its first or last vertex; a wedge at a cemented interface (N-BK7 to F2, a flat back) moving the image by $$(n_1-n_2)\,\alpha\,(t_2/n_2 + \mathrm{BFL})$$, to 1%; a flat surface decentred changing nothing, and a plano-convex lens's curved face decentred the same as the whole lens decentred, exactly;
-- yield: the Wilson interval against its tables (5 of 10: 23.7% to 76.3%); a singlet's builds carrying their operands as compensated (the nominal's focal length the lens engine's own), the criterion at most the 90% point passing at least 90% of them, and a new specification worked out again from the same builds; the triplet's yield shown and kept without building again;
-- compensators: a lens decentred, with its own decentre as the compensator, set back exactly (to the nominal with that compensator); held to a smaller range, set back only so far and stopped at it; a lens's thickness error taken up better by the air gap after it than by the focus alone; the triplet's air gap after surface 5 as a compensator takes up its own tolerance (to under a tenth) and makes Monte Carlo's builds no worse;
-- inverse sensitivity: at each limit found, the worsening Sensitivity finds is the one allowed, to a part in a hundred; twice the worsening allows between √2 and 2 times the limit, as effects between linear and quadratic do; an amount allowed the same as that share; the triplet with each kind set to its tightest has no tolerance worsening it by more than allowed;
-- a triplet's wedges out of the plane of its fields worsen its image alike either way; in that plane (its fields on one side) one way is better and the other worse, as a linear term makes them.
+**Checked against.** A decentred surface against the centred one with the light moved across, to 10⁻¹²; a plate tilted 10° shifting an axial ray by $$t\sin\alpha\left(1 - \cos\alpha/\sqrt{n^2 - \sin^2\alpha}\right)$$; fringes against the sag they make, and an index change against the lensmaker's equation; the compensator against a fine scan of the focus; Monte Carlo's mean square over a thousand builds against the sensitivity estimate, within four standard errors; a wedged flat back moving the image by $$(n-1)\,\alpha\,\mathrm{BFL}$$ and a wedged cemented interface by $$(n_1-n_2)\,\alpha\,(t_2/n_2 + \mathrm{BFL})$$, to 1%; a ball lens tilted about its centre unchanged; the Wilson interval against its tables (5 of 10: 23.7% to 76.3%); a lens's own decentre as compensator setting it back exactly, or only as far as its range allows; inverse sensitivity's limits giving exactly the worsening allowed, and twice the worsening allowing between √2 and 2 times the limit.
 
 ### Stock lenses
 
-The **Stock lenses** tab matches the lenses of a design against stock lenses: lens files you have (.zmx or .zar), such as the ones lens makers publish for their parts. **Add lens files…** reads them in the browser and keeps them in that browser only; they are never sent anywhere, and nothing is bundled or fetched. A file holding one lens, a singlet or a cemented lens, is kept; any other is noted and left out. **Remove them all** clears them.
+The **Stock lenses** tab matches the lenses of a design against lens files you have (.zmx or .zar), such as the ones lens makers publish. **Add lens files…** reads them in the browser and keeps them there only; a file holding one singlet or cemented lens is kept, any other noted and left out. For each round lens of the design it gives its focal length, number of faces and beam diameter on its faces, and the stock lenses that could stand in: as many faces, a focal length of the same sign within 30%, a diameter at least the beam's, ranked by focal length and curvature and the best eight kept.
 
-For each round lens of the design the tab gives its focal length alone in air at the primary wavelength, its number of faces and the beam's diameter on its faces (from the footprints over every field and wavelength), and how many stock lenses could stand in for it: those with as many faces, a focal length of the same sign within 30% of its own and a diameter at least the beam's. They are ranked by how near their focal length is and by how near their faces' curvatures are (as multiples of $$1/f$$, either way round), and the best eight kept.
+**Try them** puts each in the design in place of the lens, as its file has it and turned round, and optimises the air either side and the image distance for the design's own merit, showing the better way round and its merit against the design's own lens with the same air optimised. The stock lenses are taken as made, so the merit here leaves out the glass thickness, edge and departure boundaries. **Use** puts one in; **Undo** takes it back. A stock lens is only as its file describes it: check the maker's specification before buying.
 
-**Try them** puts each in the design in place of the lens, as its file has it and turned round: its faces, thicknesses, glasses and diameter, its first vertex where the lens's was. The air either side of it and the image distance (where not solved) are then optimised for the design's own merit, by damped least squares, and the better way round shown with its merit and that merit against the design's own lens with the same air optimised. The lenses are taken as made: the merit here leaves out the limits on glass thickness, edge thickness and aspheric departure, and keeps only the air between lenses from closing. **Use** puts the stock lens in the design, with the air as optimised; **Undo** takes it back.
-
-A stock lens is only as its file describes it. Check its maker's specification (its tolerances, coating and availability) before buying.
-
-**Checked against.**
-
-- the design's own lens, as a stock lens file, matches with the same merit as the design with the same air optimised;
-- a plano-convex lens, its curved side towards the collimated light, better than turned round, as third-order theory has it;
-- a lens of the wrong sign, with a different number of faces, too narrow for the beam or with a focal length too far off, not offered; the variables only the air either side and the image distance.
+**Checked against.** The design's own lens as a stock file matching with the same merit; a plano-convex lens better curved side to the collimated light, as third-order theory has it; lenses of the wrong sign, face count, size or focal length not offered.
 
 ### Drawings
 
-The **Drawings** tab gives each lens (and window) of the design a drawing on an A4 sheet, landscape, in the manner of ISO 10110: on the left the lens in section, to a standard scale, the light from the left, with its diameter, the centre thickness of each glass (with its tolerance) and its edge thickness at the full diameter (in brackets: a reference dimension), each surface's clear aperture marked where it is less than the diameter; on the right a table of its surfaces and its glass:
+The **Drawings** tab gives each lens and window a drawing on an A4 sheet in the manner of ISO 10110: the lens in section to a standard scale, light from the left, with its diameter, each glass's centre thickness and tolerance, its edge thickness (a reference dimension, in brackets) and each clear aperture marked where it is less than the diameter; and a table of its surfaces and glass:
 
 | row | from |
 |---|---|
-| Radius R | the surface's radius, CX or CC as the glass sees it (convex or concave) |
-| tolerance | the radius's own, from the surface form: the spheres whose sags at the clear radius differ by the fringes' $$N\lambda/2$$, the larger change (about $$N\lambda R^2/h^2$$) |
+| Radius R | the surface's radius, CX or CC as the glass sees it |
+| tolerance | the radius's own, from the surface form: the spheres whose sags at the clear radius differ by $$N\lambda/2$$ |
 | Clear aperture | the surface's clear diameter |
-| Conic, Aspheric | where the surface has them; the aspheric terms in the notes |
-| Aspheric departure | the aspheric terms' sag at the clear aperture, where the surface has them |
-| 3/ Surface form | $$3/A(B)$$: $$A$$ fringes of power at 632.8 nm over the clear aperture (Radius in the tolerance settings), $$B$$ fringes of irregularity (Surface irregularity), each "-" where not set |
-| 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over the surface's radius |
+| Conic, Aspheric, Aspheric departure | where the surface has them; the terms in the notes |
+| 3/ Surface form | $$3/A(B)$$: $$A$$ fringes of power, $$B$$ of irregularity, "-" where not set |
+| 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over its radius |
 | Material, Index nd, Abbe number Vd | the glass, with the index and Abbe number tolerances |
-| Centre and edge thickness | the glass's, the edge thickness from the two surfaces' sags at the full diameter |
+| Centre and edge thickness | the glass's, the edge from the two sags at the full diameter |
 
-A lens whose glass is less than half a millimetre thick at its edge, or a surface whose sphere does not reach the full diameter, is noted. A title block gives the lens's name and its assembly, the scale, the date and the bench. **Save as SVG** and **Save as PDF** save the drawing shown; **All as one PDF** saves every lens of the design, a sheet each. Both are vector: lines stay lines at any zoom, and the text is text.
+A glass under half a millimetre at its edge, or a sphere that does not reach the full diameter, is noted. A title block gives the lens, its assembly, the scale, the date and the bench. **Save as SVG**, **Save as PDF** and **All as one PDF** are vector: lines stay lines at any zoom.
 
-**Checked against.** A biconvex lens's edge thickness against its sags worked by hand; each face's CX or CC for biconvex, plano-concave and cemented lenses; the radius tolerance against the tolerancing's own change of radius for the same fringes.
+**Checked against.** A biconvex lens's edge thickness by hand; CX and CC on biconvex, plano-concave and cemented lenses; the radius tolerance against the tolerancing's own change of radius for the same fringes.
 
 ### The design report
 
-**Report (PDF)**, at the top of the workspace, writes the whole design as one PDF to hand on: A4 pages of its design conditions and first-order figures, its layout (folded as on the bench) with the spot sizes at each field; its prescription, solves and variables, aspheric terms and Seidel sums surface by surface; its spot diagrams, field curvature, distortion and MTF; its tolerance settings, with the last Sensitivity and Monte Carlo runs if they were made on the design as it now is; and, last, each lens's drawing. Everything in it is drawn as vectors in the standard PDF fonts.
+**Report (PDF)**, at the top of the workspace, writes the whole design as one PDF: its conditions and first-order figures; its layout, folded as on the bench, with the spot sizes at each field; its prescription, solves, variables, aspheric terms and Seidel sums; its spot diagrams, field curvature, distortion and MTF; its tolerance settings, with the last Sensitivity and Monte Carlo runs if made on the design as it now is; and each lens's drawing. Everything is drawn as vectors in the standard PDF fonts.
 
 ### The bench's own tools
 
@@ -416,236 +278,104 @@ A lens whose glass is less than half a millimetre thick at its edge, or a surfac
 
 ### Analyses
 
-The **Analyses** tab shows the design from each side a lens designer looks at it, chosen by a row of chips, each for a field (and a wavelength) picked beside it. Every view comes from the lens engine's real rays, aimed through the stop and stopped by the clear radii (so vignetting shows), and is worked out when shown. Every plot keeps one colour for each wavelength, in the order the conditions list them, draws tangential solid and sagittal dashed, carries a legend, reads out its values under the pointer, and saves its numbers as CSV.
+The **Analyses** tab shows the design from each side a lens designer looks at it, chosen by a row of chips, each for a field (and a wavelength) picked beside it. Every view comes from the lens engine's real rays, aimed through the stop and stopped by the clear radii, and is worked out when shown. Every plot keeps one colour for each wavelength, draws tangential solid and sagittal dashed, carries a legend, reads out its values under the pointer, and saves its numbers as CSV.
 
-- **Spot diagram:** where a square grid of rays across the pupil lands on the image plane, each wavelength in its colour, every field in a box of one scale, about the centroid of all the wavelengths; with the RMS radius and the largest radius about that centroid, and the Airy disc (radius $$1.22\,\lambda F$$, $$F = 1/(2\,\mathrm{NA})$$ the working F-number in image space).
-- **Ray fans:** each ray's miss on the image plane from the primary wavelength's chief ray, along the pupil's y diameter (tangential, in the plane of the fields) and its x diameter (sagittal).
+- **Spot diagram:** where a square grid of rays across the pupil lands on the image plane, each field in a box of one scale, about the centroid of all the wavelengths; with the RMS and largest radius, and the Airy disc (radius $$1.22\,\lambda F$$).
+- **Ray fans:** each ray's miss from the primary wavelength's chief ray along the pupil's y diameter (tangential) and x diameter (sagittal).
 - **OPD fans:** the wavefront error along the same diameters, in waves, each wavelength about its own chief ray.
-- **Field curvature and distortion:** for fields from the axis to the largest, where the tangential and sagittal foci lie along the axis, from the image plane, each found where rays a thousandth of the pupil either side of the chief ray cross it; and the distortion, the real chief ray's height against the paraxial chief ray's, $$100\,(y - y_p)/y_p$$ per cent.
-- **Longitudinal and colour:** where a ray from each height in the pupil, on the axis, crosses the axis, from the primary wavelength's paraxial focus; and the paraxial focus over the wavelengths (10% below the shortest to 10% above the longest).
-- **Wavefront:** the wavefront error over the pupil, on a 48 × 48 grid, its piston taken out, with its RMS and peak to valley, and its first 16 fringe Zernike terms fitted by least squares.
-- **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function $$A\,e^{2\pi i W}$$ (64 points across the pupil, padded four times), its pixel $$\lambda F \cdot 64/256$$; the **Strehl ratio**, its peak against that of the same pupil without aberration; and the **encircled energy** about its centroid beside the diffraction limit's. When the spot is large against the PSF's window the aberrations are too large for it, and it says so. **Method › Huygens** works it out the other way, below.
-- **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, $$\mathrm{OTF}(s) = \sum U(p)\,U^*(p - s) / \sum |U|^2$$, a shift of the whole diameter being the cutoff $$1/(\lambda F)$$; over the wavelengths, each one's OTF at the same frequency in cycles per mm, weighted; with the diffraction limit of the same pupil.
-- **Through-focus MTF:** the MTF at one frequency as the image plane is moved along the axis, below.
-- **Relative illumination:** the image's brightness across the field against its centre, below.
-- **Footprints:** where the beam crosses each surface against its clear radius, below.
-- **Seidel:** the third-order sums, below.
-- **Ghosts:** light reflected by one surface and sent on again by an earlier one, below.
-- **Polarisation:** each ray's polarisation through every face and the glass, and each face's coating, below.
-- **Thermal:** the design from one temperature and pressure to another, below.
-- **Image simulation:** a picture as the design forms it, below.
+- **Field curvature and distortion:** where the tangential and sagittal foci lie along the axis for fields from the axis to the largest, and the distortion, $$100\,(y - y_p)/y_p$$, the real chief ray's height against the paraxial.
+- **Longitudinal and colour:** where a ray from each pupil height crosses the axis, from the primary paraxial focus; and the paraxial focus over the wavelengths.
+- **Wavefront:** the wavefront error over the pupil on a 48 × 48 grid, piston taken out, with its RMS and peak to valley and its first 16 fringe Zernike terms.
+- **PSF:** the point spread function at one wavelength, the squared modulus of the Fourier transform of the pupil function (64 points across the pupil, padded four times); the **Strehl ratio** against the same pupil unaberrated; and the **encircled energy** beside the diffraction limit's. **Method › Huygens** sums wavelets instead (below).
+- **MTF:** the diffraction MTF, tangential and sagittal, from the pupil function's autocorrelation, over the wavelengths weighted, with the diffraction limit of the same pupil.
+- **Through-focus MTF, Relative illumination, Footprints, Seidel, Ghosts, Polarisation, Thermal, Image simulation:** below.
 
-**Checked against.**
-- a perfect lens (the ellipsoid that images into glass without aberration): no spot; its MTF the round pupil's $$\tfrac{2}{\pi}\left(\arccos v - v\sqrt{1-v^2}\right)$$ to within 0.003; a Strehl ratio of 1; 83.8% of the energy within the first dark ring;
-- that lens out of focus by a twentieth of a wave RMS: the defocus Zernike term $$\delta\,\mathrm{NA}^2/(4n'\lambda)$$, every other term but piston and spherical nil, and a Strehl ratio within 0.001 of Maréchal's $$e^{-(2\pi\sigma)^2}$$;
-- a sphere with its stop at its centre: its tangential and sagittal foci together on a sphere about the centre, $$(s' - R)(\cos\theta - 1)$$ from the image plane, and no distortion;
-- a singlet: its longitudinal aberration four times as large at twice the pupil height, as third order has it, and its fans and spots as symmetric as a round system's are.
+**Checked against.** A perfect lens (the ellipsoid imaging into glass): no spot, the round pupil's MTF $$\tfrac{2}{\pi}\left(\arccos v - v\sqrt{1-v^2}\right)$$ within 0.003, a Strehl ratio of 1, 83.8% of the energy within the first dark ring; that lens defocused by a twentieth of a wave RMS: the defocus Zernike term alone and Maréchal's Strehl $$e^{-(2\pi\sigma)^2}$$ within 0.001; a sphere with its stop at its centre: both foci on a sphere about the centre and no distortion; a singlet's longitudinal aberration four times as large at twice the pupil height.
 
 #### Third-order (Seidel) sums
 
-The third-order (Seidel) aberrations, surface by surface and summed, from two paraxial rays: the marginal ray (height the entrance pupil's radius, parallel to the axis) and the chief ray (through the entrance pupil's centre at the largest field). At each surface, with $$A = n i$$ and $$\bar A = n \bar\imath$$ the two rays' refraction invariants, $$\Delta(u/n)$$ the change in $$u/n$$ across it and $$H$$ the Lagrange invariant:
+The Seidel aberrations, surface by surface and summed, from the paraxial marginal and chief rays. With $$A = n i$$ and $$\bar A = n \bar\imath$$ the refraction invariants, $$\Delta(u/n)$$ the change across the surface and $$H$$ the Lagrange invariant:
 
 $$S_I = -A^2 y\,\Delta(u/n), \quad S_{II} = -A\bar A y\,\Delta(u/n), \quad S_{III} = -\bar A^2 y\,\Delta(u/n), \quad S_{IV} = -H^2 c\,\Delta(1/n),$$
 
-$$S_V = -\bar A^3 y\,\Delta(1/n^2) + c\,\Delta(1/n)\,\bar A\bar y\,(\bar A y + H),$$
+$$S_V = -\bar A^3 y\,\Delta(1/n^2) + c\,\Delta(1/n)\,\bar A\bar y\,(\bar A y + H).$$
 
-the last the same as $$(\bar A/A)(S_{III}+S_{IV})$$ but defined where $$A = 0$$. The colour terms are $$C_L = A y\,\Delta(\delta n/n)$$ and $$C_T = \bar A y\,\Delta(\delta n/n)$$, $$\delta n$$ the index at the shortest wavelength less that at the longest. An aspheric surface adds $$8(n'-n)G y^4$$ to $$S_I$$, $$G$$ its fourth-order sag beyond the sphere of its paraxial curvature, and the same times $$\bar y/y$$, $$(\bar y/y)^2$$ and $$(\bar y/y)^3$$ to $$S_{II}$$, $$S_{III}$$ and $$S_V$$. They are wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has $$S_I > 0$$.
+The colour terms are $$C_L = A y\,\Delta(\delta n/n)$$ and $$C_T = \bar A y\,\Delta(\delta n/n)$$, $$\delta n$$ the index at the shortest wavelength less that at the longest. An aspheric surface adds $$8(n'-n)G y^4$$ to $$S_I$$ ($$G$$ its fourth-order sag beyond its paraxial sphere) and the same times $$\bar y/y$$, $$(\bar y/y)^2$$ and $$(\bar y/y)^3$$ to $$S_{II}$$, $$S_{III}$$ and $$S_V$$. They are wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has $$S_I > 0$$.
 
-**Checked against.**
-- a published Cooke triplet (f 50 mm, f/5, fields to 20°), typed into the element data cell by cell: its focal length and Seidel sums agree with an independent program's to 10⁻¹⁰;
-- the real rays in the third-order limit: $$S_I/8$$ is the edge ray's wavefront error at a small pupil, and $$S_V$$ the chief ray's distortion at a small field;
-- the ellipsoid that images perfectly, whose $$S_I$$ is 0.
+**Checked against.** A published Cooke triplet typed in cell by cell: focal length and Seidel sums as an independent program's, to 10⁻¹⁰; the real rays in the third-order limit ($$S_I/8$$ the edge ray's wavefront error at a small pupil, $$S_V$$ the chief ray's distortion at a small field); the perfect ellipsoid's $$S_I = 0$$.
 
 #### Huygens PSF
 
-The FFT PSF takes the image square to the chief ray and the pupil function as it is in the exit pupil. The **Huygens** PSF instead sums the light's wavelets on the design's own image plane. A 64 × 64 grid of rays across the pupil is traced to the reference sphere (about the chief ray's image point, through the exit pupil). Each ray's crossing $$Q_k$$ is a source with:
+The FFT PSF takes the image square to the chief ray. The **Huygens** PSF instead sums wavelets on the design's own image plane: a 64 × 64 grid of rays is traced to the reference sphere, and each crossing $$Q_k$$ is a source with the phase of its optical path and the strength of its share of the light over its patch of sphere. Each image point sums
 
-- **phase:** its optical path there, $$L_k$$;
-- **strength:** its share of the light over the patch of sphere it covers (found from its neighbours on the grid), so the pupil's own distortion counts.
+$$U(P) = \frac{n'}{i\lambda}\sum_k a_k\, e^{i k_0 (L_k + n' r_k)} \frac{\cos\chi_k}{r_k}$$
 
-Each point $$P$$ of the image plane sums
+(Rayleigh–Sommerfeld), so a beam meeting the plane slantwise spreads over it as it does there. The image is sampled at $$\lambda F/4$$, up to 129 points across; several wavelengths add as irradiances, weighted; the Strehl ratio is the peak against the same rays all in phase. It is summed a few rows at a time, so the page stays live.
 
-$$U(P) = \frac{n'}{i\lambda}\sum_k a_k\, e^{i k_0 (L_k + n' r_k)} \frac{\cos\chi_k}{r_k},$$
-
-$$r_k = |P - Q_k|$$, $$\chi_k$$ between the ray and $$P - Q_k$$ (Rayleigh-Sommerfeld). Since the plane is the design's, square to the axis, a beam meeting it slantwise spreads over it as it does there. Where the exit pupil lies beyond the image, the wavelets are run back from it.
-
-- **Sampling:** the image is sampled at $$\lambda F/4$$, up to 129 points across (32 $$\lambda F$$), and 64 rays across the pupil keep the pattern's repeat twice the window away. Along each row each wavelet's phase is stepped as a quadratic from its exact value at the row's start, to within a thousandth of a radian.
-- **Several wavelengths:** over **All, weighted**, their irradiances add, each with its weight.
-- **Strehl ratio:** the peak against that of the same rays all in phase.
-
-It is summed a few rows at a time, so the page stays live.
-
-**Checked against.**
-- the perfect lens at f/10 and f/2.6 into glass: the Airy pattern $$(2J_1(v)/v)^2$$ along both axes within 0.003 and 0.012 of its peak, and a Strehl ratio of 1;
-- that lens out of focus by a twentieth and a tenth of a wave RMS: the Strehl ratio within 0.002 of the FFT PSF's and 0.004 of the closed form, $$\mathrm{sinc}^2(\pi W_{020})$$;
-- a perfect wave meeting a plane at 30°, summed exactly: its half-width across the slant that of the Airy pattern, $$0.514\,\lambda/\mathrm{NA}$$, within 1%, and along the slant $$1/\cos 30°$$ wider, within 1%;
-- the row-by-row sum against every wavelet summed exactly, off the axis and out of focus: within 0.2% of the peak;
-- three wavelengths together: each one's irradiance, weighted, added, to 10⁻⁹;
-- a singlet at 3°, out of focus: the Strehl ratio within 0.01 of the FFT PSF's; the published Cooke triplet on the axis and at 14°, within 1% of it; at 20°, where its chief ray meets the image at 19°, 6% under the same sum on the plane square to the chief ray, as the slant spreads it.
+**Checked against.** The perfect lens at f/10 and f/2.6: the Airy pattern within 0.003 and 0.012 of its peak, Strehl 1; defocused, Strehl within 0.004 of $$\mathrm{sinc}^2(\pi W_{020})$$; a perfect wave meeting a plane at 30°: the Airy half-width across the slant and $$1/\cos 30°$$ wider along it, within 1%; the Cooke triplet at 14° within 1% of the FFT PSF, and at 20° 6% under the sum on the plane square to the chief ray, as the slant spreads it.
 
 #### Relative illumination
 
-How bright the image of an even object is across the field, against its centre. The light reaching a point of the image comes from the exit pupil, so its irradiance goes as the solid angle the pupil fills, seen from that point, projected on the image plane:
+How bright the image of an even object is across the field. The irradiance at an image point goes as the projected solid angle the exit pupil fills, seen from that point: $$E \propto \iint dL\,dM$$ over the direction cosines. For each field a 65 × 65 grid of rays is traced to the image, the directions from the chief ray's landing to each ray's crossing of the exit pupil plane give $$(L, M)$$, and the area they cover (over the grid's triangles whose corners all get through) is the solid angle. It is shown against the axis's, beside the share of the pupil that gets through (the vignetting) and $$\cos^4$$ of the chief ray's angle, the rule of thumb it can fall below or rise above.
 
-$$E \propto \int \cos	heta\,d\Omega = \iint dL\,dM,$$
-
-$$L$$ and $$M$$ the direction cosines across the image plane. For each field, from the axis to the largest, a 65 × 65 grid of rays across the entrance pupil is traced to the image; the direction from where the chief ray lands to where each ray crosses the plane of the exit pupil gives its $$(L, M)$$ (the ray's own direction when the design is telecentric), and the area these cover, over the triangles of the grid whose corners all get through, is the projected solid angle. The view shows that against the axis's, beside the share of the pupil that gets through (the vignetting) and $$\cos^4$$ of the chief ray's angle in image space, the usual rule of thumb, which it can fall below (vignetting) or rise above (the exit pupil seen from the edge of the image is not only the axial one tipped).
-
-**Checked against.** A stop and a singlet 15 mm behind it, at 20°, against each ray's own share of the image found the other way: a grid of rays across a plane wave, each ray's patch of the wave over the area it lands on (from how its landing point moves as the direction of the wave is tipped either way), summed. They agree within 1%, with the singlet wide enough to pass the whole pupil (when both are within 10% of $$\cos^4$$) and narrowed so that its edge cuts off over 40% of the pupil at the edge of the field.
+**Checked against.** A stop and a singlet 15 mm behind it, at 20°, against each ray's own share of the image found the other way, within 1%, with the singlet wide enough to pass the pupil and narrowed to cut over 40% of it.
 
 #### Footprints
 
-Where the rays of every field cross each surface: a 15 × 15 grid across the entrance pupil and a ring of 48 at its edge, each aimed through the stop, every field and every wavelength. Each crossing is taken in the surface's own frame, from its vertex (a tilted or decentred surface's axes turned and moved with it). A table gives, for each surface:
+Where the rays of every field cross each surface: a 15 × 15 grid across the pupil and a ring of 48 at its edge, every field and wavelength, each crossing in the surface's own frame. For each surface: the **beam** (the farthest any ray lands from its vertex), the **margin** (clear radius less the beam), **used** (beam over clear radius) and the share of rays it **stops**. The fullest surface is drawn first, the rays it stops as crosses; choose any other to draw it.
 
-- **Beam:** the farthest any ray lands from its vertex, the rays it stops counted;
-- **Margin:** its clear radius less the beam (below 0 the beam overfills it);
-- **Used:** the beam over the clear radius;
-- **Rays stopped:** the share of the rays reaching it that it stops.
-
-The fullest surface is drawn first, each field's rays at the primary wavelength in its colour, those the surface stops as crosses, and its clear radius dashed; choose any other surface to draw it instead. The points save as CSV.
-
-**Checked against.**
-- a singlet behind its stop, on the axis with a 2 mm pupil (about f/45): each surface's beam the paraxial marginal ray's height there, to 0.1%;
-- the same at 15°: the footprint centred where the real chief ray crosses, to 0.02 mm;
-- the singlet narrowed so it clips at 20°: the rays it stops all outside its clear radius, the rest inside, and none of those it stops reaching the next surface;
-- a surface decentred by (0.3, 0.2) mm: the axial beam's footprint centred at (−0.3, −0.2) in its frame; a flat fold mirror at 45°: a round beam 10 mm across lands 10 mm wide and $$10\sqrt2$$ mm long along its tilt.
+**Checked against.** A singlet at f/45: each surface's beam the paraxial marginal height, to 0.1%; at 15°, the footprint centred on the real chief ray, to 0.02 mm; a surface decentred by (0.3, 0.2) mm giving a footprint at (−0.3, −0.2) in its frame; a 45° fold mirror making a 10 mm beam land $$10\sqrt2$$ mm long.
 
 #### Through-focus MTF
 
-The diffraction MTF at a frequency you choose (by default a quarter of the cutoff), tangential and sagittal, each field, over the wavelengths, weighted, as the image plane is moved along the axis over a range you choose. By default the range is eight $$\lambda F^2$$ either way, or wide enough for the largest spot's own blur to change by a few times its size. 31 steps, each the MTF view's own calculation (32 rays across the pupil), traced a step at a time so the page stays live.
+The diffraction MTF at a chosen frequency (a quarter of the cutoff by default), each field, as the image plane moves along the axis over a chosen range (eight $$\lambda F^2$$ either way by default), in 31 steps. It gives the **best focus** (where the mean MTF over the fields peaks, and each field's own) and the **depth of focus** (how far either side the mean stays above 80% of its peak), and points out a best focus at an end of the range.
 
-- **Best focus:** where the mean over the fields of the tangential and sagittal MTF peaks (a parabola through the best step and its neighbours), and each field's own best.
-- **Depth of focus:** how far either side the mean stays above 80% of its peak. A best focus at an end of the range is pointed out: it may lie beyond.
-
-**Checked against.**
-- a paraboloid mirror (a perfect focus on the axis): at its focus the round pupil's MTF; either side, the same within 0.006;
-- that mirror out of focus by $$W_{020} = 1.5$$ waves: the MTF of pure defocus, $$\frac{1}{\pi}\int e^{\,i 8\pi W_{020} s x}\,dA$$ over the overlap of the pupil and its copy shifted by $$2s$$, worked out by quadrature, within 0.01, from 5% to 35% of the cutoff, either side of the focus;
-- a singlet with a little spherical aberration: its best focus where its wavefront's Zernike defocus term is nil, $$\delta = 4\lambda Z_4/\mathrm{NA}^2$$, within 10 µm.
+**Checked against.** A paraboloid mirror at and either side of its focus against the round pupil's MTF, within 0.006; defocused by 1.5 waves, against the pure-defocus MTF by quadrature, within 0.01; a singlet's best focus where its Zernike defocus term is nil, within 10 µm.
 
 #### Thermal
 
-The design from one temperature to another (by default −20 to 60 °C), at a pressure you choose, in a housing you choose: aluminium, stainless steel, brass, titanium or Invar. The design is taken to be at 20 °C and one atmosphere, and every change is against the same model there. The catalogue indices are relative to air at each glass's own reference temperature (20 °C, or 25 °C for some makers) and one atmosphere.
+The design from one temperature to another (−20 to 60 °C by default), at a chosen pressure, in a housing of aluminium, stainless steel, brass, titanium or Invar. The design is taken to be at 20 °C and one atmosphere. Each glass's absolute index changes by its maker's formula with the makers' own coefficients (1,106 glasses); a few crystals and plastics by a single dn/dT; a glass with neither keeps its index and is listed. The air's index follows $$n_{\mathrm{air}} = 1 + (n_{\mathrm{ref}} - 1)\,p/(1 + 3.4785\times10^{-3}(T - 15))$$ with standard air's dispersion, and each glass's index in the design is its absolute index over the air's. Each lens grows with its glass (radii, aspheric terms, thicknesses, clear radii); the air gaps, stop, image distance and decentres grow with the housing. At nine temperatures it gives the focal length, where the paraxial focus lies against the detector, and each field's RMS spot, with the focus drift per kelvin: near zero, the design is athermal in that housing.
 
-- **The glass's index:** its absolute index changes by its maker's formula, using the makers' own coefficients for 1,106 of the catalogue's glasses:
-  $$\Delta n_{\mathrm{abs}} = \frac{n^2-1}{2n}\left(D_0\,\Delta T + D_1\,\Delta T^2 + D_2\,\Delta T^3 + \frac{E_0\,\Delta T + E_1\,\Delta T^2}{\lambda^2 - \lambda_{tk}^2}\right),$$
-  - a few crystals and plastics change by a single dn/dT: fused silica, CaF₂, sapphire, ZnSe, silicon, germanium, PMMA and polystyrene;
-  - a glass with neither keeps its index against the air, and is listed.
-- **The air's index:** $$n_{\mathrm{air}} = 1 + (n_{\mathrm{ref}} - 1)\,p/(1 + 3.4785\times10^{-3}(T - 15))$$, with standard air's $$n_{\mathrm{ref}} - 1 = [6432.8 + 2949810\lambda^2/(146\lambda^2 - 1) + 25540\lambda^2/(41\lambda^2 - 1)]\times10^{-8}$$. Each glass's index in the design is its absolute index over the air's.
-- **What grows with each glass:** each lens grows with its glass's expansion (from −30 to +70 °C): its radii, aspheric terms (each by its power), thicknesses and clear radii.
-- **What grows with the housing:** the air gaps (the spacers), the stop, the image distance (the detector's mount) and any decentre.
-
-It gives, at nine temperatures across the range: the focal length; where the paraxial focus lies against the detector; and the RMS spot of each field on the detector. It also gives how fast the focus drifts against the detector, per kelvin: near zero, the design is athermal in that housing.
-
-**Checked against.**
-- the air: standard air (15 °C, one atmosphere, 589.3 nm) $$n - 1 = 2.7717\times10^{-4}$$ within 10⁻⁷, and $$n - 1$$ in proportion to the pressure;
-- N-BK7's absolute index: 1.6 × 10⁻⁶ per kelvin at 546 nm from 20 to 40 °C, as its data sheet gives it, within 0.06 × 10⁻⁶;
-- a lens whose glass and housing grow alike and whose index does not change, with its aperture an f-number: from −20 to 60 °C the design scales as a whole (its focal length and spots by $$1 + \alpha\Delta T$$, to 10⁻⁹), its focus staying on the detector;
-- a thin N-BK7 singlet: its focal length changing at its thermo-optic rate, $$(\alpha - (dn/dT)/(n - 1))\,f$$, within 1%; in aluminium, its focus drifting against the detector by that less the housing's growth over the image distance, within 2%.
+**Checked against.** Standard air's $$n - 1 = 2.7717\times10^{-4}$$ within 10⁻⁷; N-BK7's absolute index change against its data sheet within 0.06 × 10⁻⁶ per kelvin; a lens whose glass and housing grow alike scaling as a whole to 10⁻⁹; a thin singlet's focal length changing at its thermo-optic rate within 1%, and its focus drifting in aluminium within 2%.
 
 #### Polarisation and coatings
 
-Each ray of a 25 × 25 grid across the pupil is traced with its polarisation: a 3 × 3 complex matrix built up face by face. At each face, with $$\hat k$$ and $$\hat k'$$ the ray's directions either side, $$\hat s$$ square to the plane of incidence and $$\hat p = \hat k \times \hat s$$, $$\hat p' = \hat k' \times \hat s$$:
+Each ray of a 25 × 25 grid is traced with its polarisation, a 3 × 3 complex matrix built up face by face. At each face, with $$\hat s$$ square to the plane of incidence and $$\hat p$$, $$\hat p'$$ in it either side,
 
-$$P = \tau_s\,\hat s\hat s^{\mathsf T} + \tau_p\,\hat p'\hat p^{\mathsf T} + \hat k'\hat k^{\mathsf T}.$$
+$$P = \tau_s\,\hat s\hat s^{\mathsf T} + \tau_p\,\hat p'\hat p^{\mathsf T} + \hat k'\hat k^{\mathsf T},$$
 
-Each $$\tau$$ is the face's amplitude transmission, the same numbers the bench's rays take (see [Coatings](/jek/docs/jekray/free-space/#coatings)), scaled by $$\sqrt{n'\cos\theta'/(n\cos\theta)}$$ so that $$|\tau|^2$$ is the share of the power it passes.
+each $$\tau$$ the face's amplitude transmission, the same numbers the bench's rays take (see [Coatings](/jek/docs/jekray/free-space/#coatings)): Fresnel's for a bare face, the characteristic matrix for a stack (with its phase, so retardance as well as diattenuation), $$1 - R$$ alike for a coating known by its reflectance, $$\sqrt{R}$$ for a mirror. The glass between faces takes $$e^{-\alpha L}$$. The product is read as a Jones matrix in the double-pole basis and gives, for each ray, the **transmission** for the polarisation chosen, the **diattenuation** (from the eigenvalues of $$J^\dagger J$$), the **retardance** (from the unitary part of its polar decomposition) and the **polarisation out**. Skew rays come out turned a little even through faces that change nothing (skew aberration). A table gives each face's mean share passed, reflected and absorbed. A face's coating can be chosen there (bare, AR 0.5%, MgF₂ λ/4, a V-coat, or any coating kept by name), and **Design a coating…** opens the [coating workspace](/jek/docs/jekray/coating-design/) on it.
 
-- **Bare face:** Fresnel's.
-- **Thin-film stack:** by its characteristic matrix (the same as the bench's): $$t = 2\eta_0/(\eta_0 B + C)$$ in the tilted admittances, times $$\cos\theta_0/\cos\theta'$$ for p. This gives its phase, so it gives retardance as well as diattenuation.
-- **Coating known only by its reflectance:** passes $$1 - R$$, s and p alike.
-- **Mirror:** reflects its reflectance, $$\sqrt{R}$$ for s and p alike, changing no polarisation of its own.
-- **The glass between faces:** takes $$e^{-\alpha L}$$ of the power, $$\alpha$$ its absorption.
-
-The product is read as a Jones matrix in x and y on each side, the axis's x turned along the great circle to each ray (the double-pole basis). For each ray it gives:
-
-- **transmission:** for the polarisation chosen to go in, or unpolarised;
-- **diattenuation:** from the eigenvalues of $$J^\dagger J$$;
-- **retardance:** from the unitary part of its polar decomposition;
-- **polarisation out:** the ellipse leaving each part of the pupil.
-
-Skew rays come out turned a little even through faces that change no polarisation (skew aberration): this shows as retardance off the meridians.
-
-A table gives each face's mean share passed (s and p), reflected, and taken by the glass after it. A lens face's coating can be chosen right there (bare, AR 0.5%, MgF₂ λ/4 or a V-coat, quarter-waves at the primary wavelength, or any coating kept by name); **Design a coating…** opens the [coating workspace](/jek/docs/jekray/coating-design/) on that face, and the part's own panel sets any other. Undo takes the choice back.
-
-**Checked against.**
-- a bare face square on: $$1 - ((n-1)/(n+1))^2$$, with no diattenuation or retardance; at Brewster's angle, p passed whole, s as $$1 - R_s$$, and the diattenuation $$R_s/(2 - R_s)$$, to 10⁻⁹;
-- a quarter-wave MgF₂ layer on glass: $$1 - ((n_s - n_c^2)/(n_s + n_c^2))^2$$; every face, bare or coated (MgF₂, V-coat, a 50/50 splitter, a mirror stack), either way, square on and at 20° and 40°: what it passes and what it reflects add to 1, s and p, to 10⁻⁹;
-- an absorbing plate: Fresnel's two faces times $$e^{-\alpha t}$$, to 10⁻¹²;
-- a 50/50 stack at 35°: the ray's diattenuation and retardance those of the stack's own s and p amplitudes;
-- a singlet on the axis, unpolarised: each pupil point the same as its turn by 90°, to 10⁻⁹; faces that reflect nothing: a meridional ray's matrix the identity, a skew ray's a pure rotation, passing it all.
+**Checked against.** A bare face square on, $$1 - ((n-1)/(n+1))^2$$, and at Brewster's angle, p passed whole and the diattenuation $$R_s/(2 - R_s)$$, to 10⁻⁹; a quarter-wave MgF₂ layer's $$1 - ((n_s - n_c^2)/(n_s + n_c^2))^2$$; every face, bare or coated, passing and reflecting to a total of 1 at 0°, 20° and 40°, to 10⁻⁹; a 50/50 stack at 35° giving the stack's own diattenuation and retardance; a singlet's pupil the same under a 90° turn, meridional rays' matrices the identity and skew rays' pure rotations.
 
 #### Image simulation
 
-A picture as the design would form it: a test chart (a star, bars, a grid and coloured squares) or a picture of your own, which stays in the browser tab: it is never saved with the bench or sent anywhere. It is the object, placed so that its paraxial image either fills the field (its corners at the largest field) or makes a patch of 256 × 192 pixels, at a pitch you choose, about one of the design's fields. A patch is moved in as far as it must be for its corners to lie within the largest field.
+A picture as the design would form it: a test chart or a picture of your own (which stays in the browser tab, never saved or sent). It is the object, placed so its paraxial image fills the field or makes a patch of 256 × 192 pixels at a chosen pitch about one of the fields. Each colour is formed at the nearest design wavelength (red 640, green 550, blue 460 nm), in linear light: each point is moved by the **distortion** of the real chief ray (sampled backwards, so no gaps), dimmed by the **relative illumination**, and **blurred** by the PSF at a grid of points over the image (4 × 4 over the field, 3 × 3 over a patch), each turned to its azimuth, convolved by FFT and blended between the grid's points. It works on a design round about its axis, and saves as PNG or as CSV in linear light.
 
-Each colour is formed at the design's wavelength nearest it (red 640, green 550, blue 460 nm), in linear light:
-
-1. **Distortion:** each point is moved to where the real chief ray of that wavelength lands, against its paraxial image, so the distortion and the lateral colour show. The picture is sampled backwards from each image pixel, so it leaves no gaps.
-2. **Relative illumination:** each point is dimmed by the relative illumination at its field, the vignetting in it.
-3. **Blur:** by the PSF (by FFT, 64 rays across the pupil) at a grid of points over the image (4 × 4 over the field, 3 × 3 over a patch). Each PSF is turned to its point's azimuth (the design is round, so the PSF along +y turned about the axis serves for every direction) and laid on the image's pixels. Each is convolved with the whole image by FFT, and the results are blended between the grid's points. Where a spot is too large for the PSF's window, the spot itself is used instead.
-
-It works on a design round about its axis. It is formed a step at a time, so the page stays live; the result saves as PNG, or as CSV in linear light.
-
-**Checked against.**
-- an even white picture: across the field, the relative illumination, within 0.01;
-- a point, over the whole field: in each colour where that colour's chief ray lands, moved by the distortion, with its spot's centroid, within a tenth of a pixel; in a patch at 4 µm a pixel, blue and red apart by the lateral colour, 12.3 pixels, within a quarter of a pixel;
-- the perfect lens: a point on the axis spreads as the Airy pattern, its middle pixel's share and the light kept in the picture as the pattern's integrated over the same pixels;
-- a point off the axis, out of focus, placed at +y and then at +x: its blur turned by 90°, its spreads along x and y swapped, within 3%.
+**Checked against.** An even white picture reproducing the relative illumination within 0.01; a point landing in each colour where that colour's chief ray lands, within a tenth of a pixel, red and blue apart by the lateral colour; the perfect lens spreading a point as the Airy pattern; a defocused point at +y and then +x giving the same blur turned 90°, within 3%.
 
 #### Ghosts
 
-Every surface sends a little of the light back: bare glass about 4% (Fresnel's $$((n-n')/(n+n'))^2$$), a coating as much as it reflects (its stack worked out square to the surface, or the reflectance it is given). Light sent back by surface $$a$$ and on again by an earlier surface $$b$$ reaches the image as a ghost, carrying $$R_a R_b$$ of the light and focused somewhere else. **Ghosts** lists every such pair at the field chosen and the primary wavelength:
+Light sent back by surface $$a$$ and on again by an earlier surface $$b$$ reaches the image as a ghost carrying $$R_a R_b$$ of the light, focused somewhere else. **Ghosts** lists every such pair at the chosen field and the primary wavelength: the two reflectances; the share **reaching the image** through every clear radius; its **focus** from the image plane; its **RMS on the image**; its irradiance **against the image**, each spread evenly over a disc of $$\sqrt2$$ times its RMS radius (read it as a ranking); and a **focus inside** the design, marked when within a millimetre of a surface, where concentrated light can damage a coating or cement. Choose a ghost and its rays are drawn in the layout in magenta, with its spot beside the image's own.
 
-- **Reflects:** the two surfaces' reflectances;
-- **Reaching the image:** $$R_a R_b$$ times the share of the pupil's rays that get through every clear radius on the ghost's way;
-- **Focus:** where its paraxial marginal ray crosses the axis after its last surface, from the image plane;
-- **RMS on the image:** its real rays' RMS radius there;
-- **Against the image:** its irradiance on the image over the image's own, each its light spread evenly over a disc (the ghost's of radius $$\sqrt2$$ times its RMS radius; the image's the same, or the Airy disc if that is larger). For a point of light on the axis this is how bright the ghost's haze is against the point; for an extended scene it overstates the image's own irradiance, so read it as a ranking;
-- **Focus inside:** where the ghost comes to a focus within the design (its paraxial marginal ray crossing the axis between two surfaces after the first reflection), and how far from the nearest surface, marked when it is within a millimetre. Light focused there, on a coating, a cement or in the glass, is concentrated: in a laser system it can damage it.
+Each ghost is traced as a design of its own, unfolded: forward to $$a$$, back through the surfaces between (each met from behind), $$b$$ reflects, then on to the image, each ray started where the design's own ray for that pupil point starts, so the stop, aim and vignetting are the design's. Ghosts are followed in a centred design without mirrors, tilts or decentres. Light reflected more than twice, or through a lens's rim, is left to the bench: tick **Follow weak reflections (ghosts)** in the bench settings and the bench follows every reflection.
 
-Choose a ghost and its rays are drawn in the layout, in magenta, and its spot on the image beside the image's own. The list saves as CSV.
-
-Each ghost is traced as a design of its own, unfolded: forward to surface $$a$$, which reflects; back through the surfaces between, each met from behind (its sag the other way in the frame the light now runs in); $$b$$ reflects from behind; then on to the image as the design goes. The lens engine traces it exactly, each ray started where the design's own ray for that pupil point starts, so the stop, the aim and the vignetting are the design's. Ghosts are followed in a centred design without mirrors, tilts or decentres. Light that reflects more than twice, or goes through a lens's rim, is left to the bench: tick **Follow weak reflections (ghosts)** in the bench settings and the bench follows every reflection, any number of times and in any order.
-
-**Checked against.**
-- a singlet's one ghost: its focus and its height on the image against its paraxial matrices written out by hand (refraction, the gap, the back face as a mirror in the glass, the gap, the front face as a mirror met from behind, the gap, refraction out), to 10⁻⁹; its strength the product of the two faces' Fresnel reflectances, or a coating's reflectance in its place;
-- the bench's own rays, in the triplet with ghosts followed on the bench: every ray of every ghost the lens engine traces to the sensor lands where the bench's twice-reflected ray from the same start does, to 10⁻¹² mm, on the axis and 6° off it. The few bench rays reflected twice that the engine has no ghost for (3% of them) went through a lens's rim.
+**Checked against.** A singlet's one ghost against its paraxial matrices written out by hand, to 10⁻⁹, with the product of its faces' reflectances; every ghost ray the engine traces in the triplet landing where the bench's twice-reflected ray from the same start does, to 10⁻¹² mm, on the axis and 6° off it.
 
 ### On the bench
 
-**Locked as designed.** Leaving the design workspace locks its parts: their panels show their fields but don't take changes, so a careful design isn't changed by a stray click or keystroke. The padlock beside the part's name opens it (and closes it again); **Open lens design…** in the panel, or in the right-click menu, goes back to the design, where everything can be changed as before. Moving the assembly as a whole, from its own panel, is not locked.
+**Locked as designed.** Leaving the workspace locks its parts: their panels show their values but don't take changes, so a careful design isn't changed by a stray click. The padlock beside the part's name opens it; **Open lens design…** goes back to the design. Moving the assembly as a whole is not locked.
 
-An assembly's panel compares the light the bench sends it with its design conditions. Used outside them (a field beyond its largest, a wavelength outside its range, or a beam wider than its entrance pupil), it says so and how; within them, it says that too.
+An assembly's panel compares the light the bench sends it with its design conditions, and says when it is used outside them: a field beyond its largest, a wavelength outside its range, or a beam wider than its entrance pupil.
 
 ## Lens files
 
-**File › Import a lens (.zmx)** reads a file of several lenses (air between them), or one with a stop of its own, as an assembly of its parts, with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is, and its conditions (an object at a finite distance as the object surface's thickness, its fields as object heights, its aperture as the entrance pupil it gives); a file with a finite object reads back the same way. A folded assembly, or one with a part tilted or decentred, is written with coordinate breaks. Each surface is placed in its own frame, as the design has it (its vertex and axes, turned and moved by its part's tilt and decentre, and folded at each mirror). From one frame to the next:
+**File › Import a lens (.zmx)…** reads a file of several lenses, or one with a stop of its own, as an assembly with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is and its conditions (a finite object as the object surface's thickness, its fields as object heights). A folded, tilted or decentred assembly is written with coordinate breaks, each surface in its own frame: the step along the current z is the previous thickness, then a break decentres along x and y and tilts about x, the new y and the new z, right-handed, in degrees. After an odd number of mirrors the light runs along −z, with negative thicknesses and sags of the other sign, as the format has it. Coatings are not written.
 
-- the step along the current z is the previous surface's thickness;
-- a coordinate break then decentres along the current x and y, and tilts about x, then the new y, then the new z, each right-handed, in degrees.
+**Export for CAD (.step)** writes the parts as solids for mechanical design, in the design's own frame (first vertex at the origin, light along +z, folds and tilts as designed), to ISO 10303-21 and the AP214 protocol, in millimetres; **Export as a mesh (.stl)** writes the same solids in triangles. Each glass between two faces is a solid (a cemented doublet gives two), its faces run out to the diameter with a flat shoulder where a steep face cannot, and its edge a cylinder; a mirror is a disk with a flat back; a stop a washer 1 mm thick. A sphere is written as a sphere, a flat as a plane, and a conic or asphere as its profile turned about the axis, a cubic B-spline through 33 points. Cylindrical and freeform faces are left out, and the export says so.
 
-After an odd number of mirrors the light runs along each frame's −z, as the format has it: there the thicknesses are negative and each surface's sag takes the other sign. Coatings are not written.
-
-**Checked against.** A lens, a 45° fold mirror and a second lens tilted 3° and decentred 0.4 mm, in the plane and out of it: the file read back by a sequential tracer of its own, which builds each frame from the file's coordinate breaks and thicknesses and traces through the file's surfaces. Ten rays over two fields land on the image within 10⁻⁷ mm of where the lens engine lands them, and the thicknesses after the mirror are negative.
-
-**Export for CAD (.step)** in an assembly's panel writes its parts as solids for mechanical design, placed as the design has them, in its own frame: the first vertex at the origin, the light along +z, folds, tilts and decentres as designed. It follows the ISO 10303-21 file format and the AP214 protocol, in millimetres. **Export as a mesh (.stl)** writes the same solids in triangles.
-
-- **Lenses and windows:** each glass between two faces is a solid of its own, so a cemented doublet gives two. Each face runs out to the part's diameter; where a steep face cannot reach that far, it stops at the largest radius it can and a flat shoulder runs on to the edge. The edge is a cylinder.
-- **Mirrors:** a disk with a flat back.
-- **Stops:** a washer 1 mm thick, between the aperture and the stop's outer size.
-- **How each face is written:** a sphere is written as a sphere and a flat as a plane. A conic or asphere is its profile turned about the axis: a cubic B-spline through the sag at 33 points, its tangents the sag's slope.
-- **Left out:** a cylindrical lens or freeform face isn't round, so it is left out, and the export says so.
-
-**Checked against.**
-- a stop, a cemented doublet, a conic asphere ($$k = -1.2$$ with $$A_4$$ and $$A_6$$), a 45° fold mirror and a lens after the fold tilted 2° and decentred:
-  - read back by OpenCascade, every solid is valid;
-  - each volume is within 10⁻⁸ of the volume of its profile turned about its axis (worked out separately);
-  - each centre of mass is where the design places it, within 10⁻⁸ mm;
-  - points on the true asphere lie within 3 × 10⁻¹⁰ mm of the exported solid;
-- the B-spline profile within 10⁻⁶ mm of the sag between its points;
-- every reference in the file is to an entity in it;
-- the STL closed (every edge met by two triangles, once each way) and of its profile's volume to the facets' error.
+**Checked against.** A lens, a 45° fold and a tilted, decentred lens, in the plane and out of it, read back by a sequential tracer of its own built from the file's coordinate breaks: ten rays over two fields within 10⁻⁷ mm of the lens engine's. A stop, a cemented doublet, a conic asphere, a fold mirror and a tilted lens exported as STEP: every solid valid in OpenCascade, each volume within 10⁻⁸ of its profile turned, each centre of mass within 10⁻⁸ mm, the true asphere within 3 × 10⁻¹⁰ mm of the solid; the STL closed and of the same volume to the facets' error.
 
 ## In a .jekray file
 
-Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design`, when it has one, holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`, each `{"op", "target", "weight"}` with a field index `"f"`, a pupil point `"p"` and a frequency `"v"` where the term needs them, and a configuration index `"c"` when it is measured in one configuration only) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"`, `"irr"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`), each value named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it), `"a4:…"` to `"a16:…"` (its aspheric terms), `"f20:…"` to `"f06:…"` (its freeform terms), `"p2:…"` to `"p8:…"` (a diffractive face's phase terms, on ρ² to ρ⁸), `"n2:…"` to `"n6:…"` (a graded glass's terms on r² to r⁶, the glass after that surface), `"T:…"` and `"D:…"` (a part's tilt and decentre, on its first surface) or `"t:image"`. The merit's `"bounds"` are `"glassMin"`, `"glassMax"`, `"edgeMin"`, `"airMin"`, `"aspMax"` and `"slopeMax"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`. A design with configurations has `"mc"`: `{"keys", "configs", "active"}`. `keys` lists the values that differ, and each configuration is `{"name", "w", "v", "obj"}`: its weight, its own value for each key, and, for an object at a distance, that distance. The parts on the bench hold the active configuration's values.
+Assemblies are listed under `"assemblies"`: each `{"id", "name", "ref", "rev", "cond", "design"}`, its parts carrying its `id` as their `"group"`. `ref` is the part whose facing sets the axis and `rev` is true when the light runs against it. `design` holds the image distance (`"image"`), the variables (`"vars"`), the solves (`"solves"`), the pickups (`"pickups"`), the merit function (`"merit"`: `"crit"`, `"rings"`, `"arms"`, `"bounds"` and the added terms `"ops"`, each `{"op", "target", "weight"}` with a field index `"f"`, a pupil point `"p"`, a frequency `"v"` and a configuration index `"c"` where the term needs them) and the tolerances (`"tol"`: each kind `"rad"`, `"thk"`, `"dec"`, `"tilt"`, `"ind"`, `"abbe"`, `"irr"` as `{"on", "v"}`, with `"comp"`, `"dist"`, `"trials"` and `"seed"`). Each value is named by a key: `"R:<part id>.<surface>"` (a radius), `"k:…"` (a conic), `"t:…"` (the gap after that surface), `"g:…"` (the glass after it), `"a4:…"` to `"a16:…"` (aspheric terms), `"f20:…"` to `"f06:…"` (freeform terms), `"p2:…"` to `"p8:…"` (a diffractive face's phase terms), `"n2:…"` to `"n6:…"` (a graded glass's terms), `"T:…"` and `"D:…"` (a part's tilt and decentre) or `"t:image"`. The merit's `"bounds"` are `"glassMin"`, `"glassMax"`, `"edgeMin"`, `"airMin"`, `"aspMax"` and `"slopeMax"`. A model glass is a material `{"glass": "Model", "nd", "vd"}`. A design with configurations has `"mc"`: `{"keys", "configs", "active"}`, each configuration `{"name", "w", "v", "obj"}`; the parts on the bench hold the active configuration's values.

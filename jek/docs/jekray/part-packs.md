@@ -10,7 +10,7 @@ description: Sets of parts and glasses made by others (a maker's catalogue, a co
 
 ## Installing a pack
 
-Choose **File › Part packs…**, then **Install from a file…** or **Install from a link…**, or drop a `.jekpack` file onto the bench. Before anything is installed, JEKray shows what is in the pack: its name, who made it, its version and licence, how many parts and glasses it has, and anything in it that could not be used (which is left out). Choose **Install** to keep it, or **Cancel**.
+Choose **File › Part packs and modules…**, then **Install from a file…** or **Install from a link…**, or drop a `.jekpack` file onto the bench. Before anything is installed, JEKray shows what is in the pack: its name, who made it, its version and licence, how many parts and glasses it has, and anything in it that could not be used (which is left out). Choose **Install** to keep it, or **Cancel**.
 
 Once installed, a pack's parts are under **+ Add part › Packs**, grouped as the pack groups them, and they turn up in the search there too. Click one to add it in the middle of the view, or drag it onto the bench. A pack's glasses appear in every lens's **Material** menu, marked with the pack's name.
 
@@ -22,7 +22,7 @@ https://jeksys.net/jek/tools/jekray.html?pack=https://example.com/acme.jekpack
 
 offers that pack when the page opens. It is never installed without you choosing **Install**. A pack read from a link must be served by a site that lets other pages read it (with an `Access-Control-Allow-Origin` header); most file hosts and code hosts do.
 
-Installed packs are kept in this browser. **File › Part packs…** lists them, and **Remove** takes one away. Installing a pack with the same id again updates it.
+Installed packs are kept in this browser. **File › Part packs and modules…** lists them, and **Remove** takes one away. Installing a pack with the same id again updates it.
 
 ### A part on the bench stands on its own
 
@@ -34,7 +34,7 @@ The easiest way is from a bench:
 
 1. Set up each part as it should be: a lens's radii, glass and diameter, a laser's wavelength and power. A part can be several elements: group them (select them, then **Group**) and the group becomes one part of the pack, its fibres included.
 2. Select everything to go in the pack.
-3. Choose **File › Part packs… › Make a pack from the selection…**, and give it a name and its maker.
+3. Choose **File › Part packs and modules… › Make a pack from the selection…**, and give it a name and its maker.
 
 JEKray saves it as a `.jekpack` file (JSON text, like a `.jekray` bench), with each part centred, a small picture of it, and any measured glasses it uses written once at the top. Open the file in any text editor to add a description, a licence, a home page, part names and summaries, and groups. Then share the file, or put it online and share its link.
 

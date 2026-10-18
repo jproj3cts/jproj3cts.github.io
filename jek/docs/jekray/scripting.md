@@ -102,4 +102,4 @@ node jek/tools/jekray/cli.mjs sweep bench.jekray "Lens" x 80:120:41 --read "scre
 
 ## What is not here
 
-The diffracted field's pictures, the 3D view and the drawings need the page; the numbers they come from (a screen's spot, an antenna's pattern cut, a lens's spot diagram) do not. Mods (parts whose behaviour is code) run in the page's sandbox only, so a bench with a mod's part traces headless without it.
+The diffracted field's pictures, the 3D view and the drawings need the page; the numbers they come from (a screen's spot, an antenna's pattern cut, a lens's spot diagram) do not. Modules (parts whose behaviour is code) run in the page's sandbox only, so a bench with a module's part traces headless without it.

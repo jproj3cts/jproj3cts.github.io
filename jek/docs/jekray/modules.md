@@ -23,7 +23,7 @@ What a module is given is only the settings of its own parts and what it is aske
 
 ## Installing a module
 
-A module is a `.jekpack` file, installed as any [part pack](/jek/docs/jekray/part-packs/) is, from **File › Part packs…**, a link, or by dropping it on the bench. Before it is installed, you see what it defines, its size and where it came from. To list what it defines, its code is run once in the sandbox. Its parts then appear under **+ Add part › Packs**, and its readouts as a **Modules** tab on screens and a section on detectors.
+A module is a `.jekpack` file, installed as any [part pack](/jek/docs/jekray/part-packs/) is, from **File › Part packs and modules…**, a link, or by dropping it on the bench. Before it is installed, you see what it defines, its size and where it came from. To list what it defines, its code is run once in the sandbox. Its parts then appear under **+ Add part › Packs**, and its readouts as a **Modules** tab on screens and a section on detectors.
 
 ### Benches carry their modules
 

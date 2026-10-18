@@ -409,8 +409,6 @@ export const ELEMENT_KINDS = [
   ['diffractive', 'Diffractive lens', 'The bench\u2019s diffractive lens: a hybrid achromat, its flat face carrying a phase'],
   ['grinrod', 'GRIN rod lens', 'The bench\u2019s graded-index rod lens, a quarter of its pitch long'],
   ['cylinder', 'Cylindrical lens', 'The bench\u2019s cylindrical lens, curved in the plane of the fields'],
-  ['mangin', 'Mangin mirror', 'A meniscus whose back face is mirrored: the light crosses the glass twice and comes back'],
-  ['solidtel', 'Solid telescope', 'A block of glass with a mirrored spot on its front face and a mirrored annulus on its back: a solid Cassegrain, the image behind the hole'],
 ];
 /* a new element after the part surface i is on, in the gap after it, the rest pushed back if the gap is
    short of room; i 'front': before the first surface. kind: one of ELEMENT_KINDS (a flat singlet unless given) */

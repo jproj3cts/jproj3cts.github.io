@@ -280,3 +280,39 @@ test('the merit function: no terms is the efficiency across the band; a term wit
   // the senses: at most and equal to
   assert.ok(RF.normRfMeritOps([{ op: 'PHASE', target: 0.05, sense: '<=' }])[0].sense === '<=' && RF.normRfMeritOps([{ op: 'NOPE' }]).length === 0);
 });
+
+test('an offset reflector in the RF designer: fed from the focus of its parent paraboloid the section leaves the beam flat, the axis out along the facing, the write-back puts the part where it was, and its offset is a variable', async () => {
+  const A = await import('../../src/core/assembly.js'), M = await import('../../src/core/mask.js');
+  for (const [h, angle] of [[120, 180], [60, 150], [-90, 30]]) {
+    const m = { type: 'mirror', id: 'M', name: 'M', x: 10, y: -5, angle, length: 160, R: 300, k: -1, offset: h, metal: 'Al', mmw: { part: true }, group: 'g' };
+    const F = A.mirrorFocus(m), [fx, fy] = M.toWorld(M.frame(m), F.x, F.y), L = Math.hypot(fx - m.x, fy - m.y);
+    // the horn stood so its beam's phase centre at the section is the focus: R(z) = L at the section
+    const B = C.rfBeam({ kind: 'corrugated', a: 15, L: 80 }, ghz), zc = (L + Math.sqrt(L * L - 4 * B.zR * B.zR)) / 2, dF = zc - B.dz;
+    loadProject({ format: 'jekray', version: 1, elements: [m], assemblies: [{ id: 'g', name: 'RF', ref: 'M', kind: 'rf', rf: { ghz, feed: { kind: 'corrugated', a: 15, L: 80, d: dF }, goal: { kind: 'collimate', d: 300 } } }] });
+    const a = ST.project.assemblies[0], P = D.designPrescription(a); RF.rfSyncCond(a, P);
+    const s = P.surfaces[0], beta = 2 * Math.atan(Math.abs(h) / 300);
+    // the axis in from the focus; the fold half the turn, the face's own axis the whole of it from the fold; the first-order power 1/2L
+    assert.ok(Math.abs(Math.hypot(P.dir[0] * L - (m.x - fx), P.dir[1] * L - (m.y - fy))) < 1e-9, 'in from the focus');
+    assert.ok(Math.abs(Math.abs(s.tilt[0]) - beta / 2) < 1e-12 && Math.abs(Math.abs(s.dtilt[0]) - beta / 2) < 1e-12 && Math.abs(s.pc + 1 / (2 * L)) < 1e-15, JSON.stringify([s.tilt, s.dtilt, s.pc, L]));
+    assert.ok(Math.abs(Math.hypot(s.dec[1], s.dec[2]) - Math.hypot(F.sag0, h)) < 1e-9, 'the parent vertex off by the offset and its sag');
+    const out = A.asmAxisAt(P, 50);
+    assert.ok(Math.abs(out.d[0] - Math.cos(angle * Math.PI / 180)) < 1e-9 && Math.abs(out.d[1] - Math.sin(angle * Math.PI / 180)) < 1e-9, 'out along the facing');
+    const t = RF.rfTrace(a, P, ghz);
+    assert.ok(t.sigma / t.lam < 1e-9 && Math.abs(t.steer.squint) < 1e-9 && t.eff > 0.8, JSON.stringify([t.sigma / t.lam, t.steer.squint, t.eff]));
+    // written back: where it was, as it was
+    A.asmApply(a, P); const el = ST.project.elements[0];
+    assert.ok(Math.hypot(el.x - 10, el.y + 5) < 1e-9 && Math.abs(el.angle - ((angle % 360) + 360) % 360) < 1e-9 && el.offset === h && el.R === 300 && el.k === -1, JSON.stringify(el));
+    // the offset a variable: the parent's vertex moves, the power with it; committed, the part's centre stays, its offset the new one
+    const vars = RF.rfOptVars(P).map(v => v.key);
+    assert.ok(vars.includes('c:0') && vars.includes('k:0') && vars.includes('o:0'), vars.join());
+    const prob = RF.rfOptProblem(a, P, { keys: ['o:0'] }), c2 = prob.at([h + 20]);
+    const h2 = h + 20, L2 = Math.hypot(150 - h2 * h2 / 600, h2);
+    assert.ok(c2.P.surfaces[0].sec.h === h2 && P.surfaces[0].sec.h === h && Math.abs(c2.P.surfaces[0].pc + 1 / (2 * L2)) < 1e-15, 'the clone alone changed, its power 1/2L for the new section');
+    A.asmApply(a, c2.P);
+    assert.ok(Math.hypot(el.x - 10, el.y + 5) < 1e-9 && el.offset === h + 20, JSON.stringify(el));
+  }
+  // a whole mirror on its axis: radius and conic are variables, no offset
+  loadProject({ format: 'jekray', version: 1, elements: [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180, length: 160, R: 300, k: -1, metal: 'Al', mmw: { part: true }, group: 'g' }], assemblies: [{ id: 'g', name: 'RF', ref: 'M', kind: 'rf', rf: { ghz, feed: { kind: 'corrugated', a: 15, L: 80, d: 150 }, goal: { kind: 'collimate', d: 300 } } }] });
+  const a = ST.project.assemblies[0], P = D.designPrescription(a), keys = RF.rfOptVars(P).map(v => v.key);
+  assert.deepEqual(keys, ['c:0', 'k:0', 'feed']);
+});

@@ -64,6 +64,8 @@ export function lensSystem(P, nm, opts) {
   const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, GR: GR.some(g => g) ? GR : null, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
+  // a surface's first-order power given apart from its vertex (an offset reflector's, about the beam's centre on the section)
+  S.PC = P.surfaces.some(s => s.pc !== undefined) ? P.surfaces.map(s => s.pc) : null;
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
   S.par = paraxialOf(S);
   // the aperture: the stop's own opening, or the entrance pupil asked for (the stop then floats to suit)
@@ -123,7 +125,7 @@ function paraStep(S, y, u, i0, i1) {
     // through a graded glass its r² term's matrix; else straight
     if (i > i0 && S.GR && S.GR[i - 1]) { const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]); [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; }
     else if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
-    const pc = (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
+    const pc = S.PC && S.PC[i] !== undefined ? S.PC[i] : (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
     else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y - dPow(S, i) * y) / S.n[i + 1];

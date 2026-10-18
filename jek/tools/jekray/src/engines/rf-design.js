@@ -1,9 +1,9 @@
 import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, metalR, rfBeam, rfTanD } from '../core/rf.js';
 import { faceRNormal } from '../core/face-pol.js';
-import { normCond, normRfCond } from '../core/assembly.js';
+import { mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
-import { lensSystem, traceRay } from './lens-engine.js';
+import { lensSystem, lensToImage, traceRay } from './lens-engine.js';
 import { surfSag, surfaceParts } from './lens-design.js';
 import { grMatrix } from '../core/gradient.js';
 import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
@@ -146,6 +146,8 @@ export function rfAberr(P, S, Rin, Rout, w, lam, zones, FP) {
     // a zoned lens's cut face is traced as cut (lens-engine.js sag): a ray that runs into a step's wall is lost, the step's shadow
     if (R[7] > 0 && zones && zones.some(({ i, Z }) => R[7] === 1 + i + Z.face)) { wLost += wq; continue; }
     if (R[7] || !isFinite(R[6])) continue;
+    // a folded system: the ray taken into the frame of the axis after the last surface (its reference is square to that)
+    if (S.img) lensToImage(S, R);
     let opl = R[6];
     // its path through the cut face is short by the whole layers k λz taken out where the ray met it: the whole waves at λ
     // they come to are no error, what is left of them is the phase slip away from the zone frequency
@@ -195,9 +197,10 @@ export function rfTrace(asm, P, ghz, opts) {
   const sps = surfaceParts(P);
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i], w = beamOf(q, lam).w, a = s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity;
-    const dcy = s.dec ? s.dec[1] || 0 : 0, tl = s.tilt ? s.tilt[0] || 0 : 0;     // a face moved off the axis (tolerancing)
+    // a face moved off the axis (tolerancing; a section's centre, not its parent's vertex) and tilted (a mirror's beyond its fold)
+    const dcy = s.sec ? s.sec.c[1] || 0 : s.dec ? s.dec[1] || 0 : 0, tl = (s.tilt ? s.tilt[0] || 0 : 0) - (s.mirror ? s.fold || 0 : 0);
     surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, yc, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? 1 - gaussPass(a, w, yc - dcy) : 0, kind: sps[i].kind, pi: sps[i].pi });
-    const pc = S.c[i] + 2 * S.a2[i];
+    const pc = s.pc !== undefined ? s.pc : S.c[i] + 2 * S.a2[i];
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     // 1/q' = 1/q - phi, in reduced form; the centre refracted about the face's own centre, and bent by a tilted face as a prism
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
@@ -341,7 +344,7 @@ export function rfQBefore(asm, P, ghz, idx, feedD) {
   const R = normRfCond(asm.rf), nm = rfNm(ghz), S = lensSystem(P, nm), B = rfBeam(R.feed, ghz);
   let q = [(feedD === undefined ? R.feed.d : feedD) + B.dz, B.zR];
   for (let i = 0; i < idx; i++) {
-    const pc = S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
+    const pc = P.surfaces[i].pc !== undefined ? P.surfaces[i].pc : S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     q = rfGap(q, P.gaps[i], S.n[i + 1], rfGR(S, i));
   }
@@ -540,17 +543,20 @@ export function rfOptVars(P) {
         { key: 'c:' + (i0 + 1), part: name, label: 'Back radius' }, { key: 'k:' + (i0 + 1), part: name, label: 'Back conic' }, { key: 't:' + i0, part: name, label: 'Centre thickness' });
     }
     if (p.kind === 'grin') out.push({ key: 'p:' + i0, part: name, label: 'Focal length' });
+    // a mirror: its radius and conic; an offset section its offset too
+    if (p.kind === 'mirror') { out.push({ key: 'c:' + i0, part: name, label: 'Radius' }, { key: 'k:' + i0, part: name, label: 'Conic' }); if (P.surfaces[i0].sec) out.push({ key: 'o:' + i0, part: name, label: 'Offset' }); }
     if (i0 + p.n - 1 < P.surfaces.length - 1) out.push({ key: 't:' + (i0 + p.n - 1), part: name, label: 'Air after' });
   });
   out.push({ key: 'feed', part: null, label: 'Feed to the first lens' });
   return out;
 }
-const rfGet = (P, asm, key) => { if (key === 'feed') return asm.rf.feed.d; const [q, i] = key.split(':'); const s = P.surfaces[+i]; return q === 'p' ? 1 / s.grin.f : q === 'c' ? (s.R === null || !isFinite(s.R) || !s.R ? 0 : 1 / s.R) : q === 'k' ? (s.k || 0) : P.gaps[+i]; };
+const rfGet = (P, asm, key) => { if (key === 'feed') return asm.rf.feed.d; const [q, i] = key.split(':'); const s = P.surfaces[+i]; return q === 'p' ? 1 / s.grin.f : q === 'o' ? s.sec.h || 0 : q === 'c' ? (s.R === null || !isFinite(s.R) || !s.R ? 0 : 1 / s.R) : q === 'k' ? (s.k || 0) : P.gaps[+i]; };
 const rfSet = (P, asm, key, v) => {
   if (key === 'feed') { asm.rf.feed.d = v; return; }
   const [q, i] = key.split(':'), s = P.surfaces[+i];
   if (q === 'p') { const el = getEl(s.from.id); if (el && el.grin) rfGrinInto(P, +i, Object.assign({}, el.grin, { f: v > 1e-6 ? 1 / v : 1e6 }), el.length); return; }
-  if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else P.gaps[+i] = v; };
+  if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else if (q === 'o') s.sec = Object.assign({}, s.sec, { h: v }); else P.gaps[+i] = v;
+  if (s.sec && q !== 't') mirrorSecApply(s); };
 /* ---------- The merit function ----------
    What Optimise works toward: terms, each a figure of the system measured at a frequency (or at each of the five across
    the band), with a target, a sense (at least, at most, or equal to) and a weight. With no terms, the efficiency at each
@@ -663,7 +669,7 @@ export function rfOptProblem(asm, P, spec) {
    curvature in 1/1000 mm, a conic in units, a length in mm, the feed's distance in 10 mm), its gradient by central
    differences, each step shortened until the merit falls enough (Armijo). The efficiency can't reach 1, so the
    merit's least is not zero, which a least-squares step assumes; this finds it all the same. */
-const RF_SCALE = { c: 1e-3, p: 1e-3, k: 1, t: 1, feed: 10 };
+const RF_SCALE = { c: 1e-3, p: 1e-3, k: 1, t: 1, o: 1, feed: 10 };
 const rfScale = k => k === 'feed' ? RF_SCALE.feed : RF_SCALE[k[0]] || 1;
 export function rfOptStart(prob) {
   const sc = prob.keys.map(rfScale), u = prob.x0.map((v, j) => v / sc[j]);

@@ -1,4 +1,4 @@
-import { asmAxisAt, asmCheck, asmMembers, normCond, normRfCond } from '../core/assembly.js';
+import { asmAxisAt, asmCheck, asmMembers, mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
 import { C_NM_GHZ, PRINTER, RF_HORNS, RF_MAT, applyRf, hornGeom, lensZones, mountVolume, mountedDia, normMount, normZoned, printedMatch, rfBeam } from '../core/rf.js';
 import { lensThickness, lensVolume } from './readouts.js';
 import { orderRow } from '../io/order.js';
@@ -264,7 +264,7 @@ function rwSysList(asm, P) {
     else if (rwIsLens(x)) {
       const g = P.materials[x.i0].glass;
       card.append(item(x.p.id, '()', el.name, (RF_MAT[g] ? RF_MAT[g].name.replace(/ \(.*\)$/, '') : g) + ' · Ø' + rwFmt(el.diameter, 4) + ' · ' + rwFmt(P.gaps[x.i0], 3) + ' mm' + (el.zoned ? ' · zoned' : '')));
-    } else card.append(item(x.p.id, x.p.kind === 'mirror' ? '◟' : '·', el.name, x.p.kind === 'mirror' ? 'a mirror' : x.p.kind));
+    } else card.append(item(x.p.id, x.p.kind === 'mirror' ? '◟' : '·', el.name, x.p.kind === 'mirror' ? (P.surfaces[x.i0].sec ? 'an offset reflector' : 'a mirror') : x.p.kind));
   }
   card.append(h('button', { type: 'button', class: 'rt-rfsi add', title: 'A lens after the last part, made to suit the beam that reaches it', onclick: rwAddLens },
     h('span', { class: 'ic', 'aria-hidden': 'true' }, '+'), h('span', { class: 'tx' }, h('b', null, 'Add a lens'), h('small', null, 'or a graded-index disc'))),
@@ -371,7 +371,11 @@ function rwDrawLayout(cv, asm, P, T) {
   const S = T.mid.surf, sps = surfaceParts(P);
   for (let i = 0; i < P.surfaces.length; i++) {
     const s = P.surfaces[i], z0 = S[i].z;
-    if (s.mirror) { g.strokeStyle = '#e4ebf0'; g.lineWidth = 2; g.beginPath(); for (let q = 0; q <= 20; q++) { const y = -s.semi + 2 * s.semi * q / 20; const z = z0 + surfSag(s, Math.abs(y)); q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); } g.stroke(); continue; }
+    if (s.mirror) {
+      // a section: the parent's face about the section's centre, its vertex off (where the beam's centre meets it is level with the axis)
+      const yv = s.sec ? (s.dec[1] || 0) - (s.sec.c[1] || 0) : 0, zv = s.sec ? surfSag(s, Math.abs(yv)) : 0;
+      g.strokeStyle = '#e4ebf0'; g.lineWidth = 2; g.beginPath(); for (let q = 0; q <= 40; q++) { const y = -s.semi + 2 * s.semi * q / 40; const z = z0 + surfSag(s, Math.abs(y - yv)) - zv; q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); } g.stroke(); continue;
+    }
     if (i < P.surfaces.length - 1 && P.materials[i] && P.materials[i].glass !== 'AIR' && sps[i].pi === sps[i + 1].pi) {
       const a = Math.min(s.semi, P.surfaces[i + 1].semi), z1 = S[i + 1].z, b = P.surfaces[i + 1];
       // a zoned lens: its curved face stepped back by the layers taken out
@@ -501,8 +505,26 @@ function rwPartCard(asm, P, x) {
       h('div', { class: 'rt-rfacts' }, design(null, 'Design this disc…', '', 'A disc made to suit the beam that reaches it and the goal after it'),
         design('hyperbolic', 'Make it a lens…', 'quiet', 'A lens with curved faces instead, in the same place'), remove));
   }
-  return rwCard(el.name, rwSub(p.kind === 'mirror' ? 'A mirror' + (P.surfaces[idx].R ? ', radius ' + rwFmt(P.surfaces[idx].R, 5) + ' mm' : ', flat') + ': its shape is in the optical designer.' : 'Edit it in the optical designer.'),
-    h('div', { class: 'rt-rfgrid' }, ...air));
+  if (p.kind === 'mirror') {
+    const s = P.surfaces[idx], h0 = s.sec ? s.sec.h : el.offset || 0;
+    const setOff = v => rwEdit(Pd => {
+      const q = Pd.surfaces[idx];
+      if (q.sec) { q.sec = Object.assign({}, q.sec, { h: v }); mirrorSecApply(q); return; }
+      // a whole mirror given an offset: the part becomes a section where it stands, the system read again from the bench
+      if (!q.R) return 'A flat mirror has no parent axis to be off.';
+      if (v) el.offset = v; else delete el.offset;
+      return false;
+    });
+    return rwCard(el.name, helpLine('A mirror: its radius positive concave (its focus before it); a conic of −1 the paraboloid that collimates a feed at its focus.', ['An offset makes it an offset reflector: a section of the parent cut that far off the parent’s axis, so a feed at the focus sits clear of the beam it sends out. The designer traces the section as it is cut; its first-order power is about the beam’s centre on it, 1/L for the focus to the section’s centre.']),
+      h('div', { class: 'rt-rfgrid' },
+        rwRow('Radius (mm)', rwNum(s.R === null ? Infinity : -s.R, v => rwEdit(Pd => { const q = Pd.surfaces[idx]; q.R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : -v; mirrorSecApply(q); }), el.name + ' radius (mm)')),
+        rwRow('Conic', rwNum(s.k || 0, v => rwEdit(Pd => { const q = Pd.surfaces[idx]; q.k = v; mirrorSecApply(q); }), el.name + ' conic')),
+        rwRow('Offset (mm)', rwNum(h0, setOff, el.name + ' offset (mm)')),
+        rwRow('Diameter (mm)', h('span', { class: 'mono rt-rfro', title: 'Set on the part’s own page' }, rwFmt(2 * s.semi, 5))),
+        ...air),
+      h('div', { class: 'rt-rfacts' }, remove));
+  }
+  return rwCard(el.name, rwSub('Edit it in the optical designer.'), h('div', { class: 'rt-rfgrid' }, ...air));
 }
 /* a lens added after the last part: a made-to-order plastic as wide as the lens before it, 100 mm on, then designed */
 function rwAddLens() {
@@ -778,7 +800,7 @@ function rwOptSpec(asm, P) {
   for (const [k, v] of Object.entries({ keys: null, flat: 0, edgeMin: 1, tMax: 0, ops: [] })) if (o[k] === undefined) o[k] = v;
   o.ops = normRfMeritOps(o.ops);
   const vars = rfOptVars(P);
-  if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
+  if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic' || v.label === 'Radius').map(v => v.key);
   o.keys = o.keys.filter(k => vars.some(v => v.key === k));
   return { o, vars };
 }
@@ -823,7 +845,9 @@ function rwDataCard(asm, P) {
       tr.append(cell(h('span', { class: 'mono' }, 'f = ', rwNum(el.grin.f, v => rwEdit(Pd => { if (!(v > 0)) return 'A focal length is more than 0.'; const ng = normGrin(Object.assign({}, el.grin, { f: v })); if (!rfGrinInto(Pd, i, ng, el.length)) return 'A disc of that focal length can’t be graded.'; el.grin = ng; applyGrin(el); }), name + ' focal length (mm)')), rwVarBtn(asm, P, 'p:' + i, 'focal length of ' + name)),
         mono('flat', 'A graded disc’s faces are flat: its power is in its grading'));
     } else if (p.kind === 'mirror') {
-      tr.append(mono(s.R === null ? 'Flat' : rwFmt(s.R, 5), 'Set on the bench: a mirror is not varied here'), mono(s.k ? rwFmt(s.k, 4) : ''));
+      // a mirror's radius as its part has it (positive concave, its focus before it); the engine's is the other sign
+      tr.append(cell(rwNum(s.R === null ? Infinity : -s.R, v => rwEdit(Pd => { const q = Pd.surfaces[i]; q.R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : -v; mirrorSecApply(q); }), name + ' radius (mm)'), rwVarBtn(asm, P, 'c:' + i, 'radius of ' + name)));
+      tr.append(cell(rwNum(s.k || 0, v => rwEdit(Pd => { const q = Pd.surfaces[i]; q.k = v; mirrorSecApply(q); }), name + ' conic'), rwVarBtn(asm, P, 'k:' + i, 'conic of ' + name)));
     } else tr.append(mono('Flat'), mono(''));
     // thickness: inside a lens its centre; after a part the air to the next, or to the goal
     if (p.kind === 'lens' && p.n === 2 && first) tr.append(cell(rwNum(P.gaps[i], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[i] = v; }), name + ' centre thickness (mm)'), rwVarBtn(asm, P, 't:' + i, 'centre thickness of ' + name)));
@@ -836,7 +860,9 @@ function rwDataCard(asm, P) {
       const mat = P.materials[i].glass;
       tr.append(h('td', null, rwSelect(Object.assign(RF_MAT[mat] ? {} : { [mat]: mat }, RW_MATS()), mat, v => rwEdit(Pd => { Pd.materials[i] = { glass: v }; }), name + ' material')));
     } else if (p.kind === 'grin' && first) tr.append(mono((RF_MAT[P.materials[i].glass] || {}).name || P.materials[i].glass, 'Graded in density from the axis'));
-    else if (p.kind === 'mirror') tr.append(mono('Mirror'));
+    else if (p.kind === 'mirror' && s.sec) tr.append(h('td', null, h('div', { class: 'rt-lcell' }, h('span', { class: 'mono', title: 'An offset reflector: a section of its parent cut this far off the parent’s axis' }, 'Mirror, off '),
+      rwNum(s.sec.h, v => rwEdit(Pd => { const q = Pd.surfaces[i]; q.sec = Object.assign({}, q.sec, { h: v }); mirrorSecApply(q); }), name + ' offset (mm)'), rwVarBtn(asm, P, 'o:' + i, 'offset of ' + name))));
+    else if (p.kind === 'mirror') tr.append(mono('Mirror', 'Whole, on its axis: set an offset on the part’s own page to make it an offset reflector'));
     else tr.append(mono('Air'));
     tr.append(mono(rwFmt(s.semi, 5), p.kind === 'mirror' ? 'Half the mirror’s length' : 'Half the diameter: set on the part’s own page'));
     tb.append(tr);

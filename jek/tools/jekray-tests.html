@@ -9410,6 +9410,40 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: an offset reflector is a member, traced as the section it is, its radius, conic and offset edited in Element data and varied',
+    why: 'a paraboloid section (R 300, offset 120) with its feed at the focus opened in the RF designer: Element data lists the mirror with its radius 300 as the part has it, a V on it pressed, and an offset field; the figures give a phase error under 0.05 λ and no steering; typing offset 100 changes the part on the bench and keeps its centre; Undo takes it back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin();
+      const m = { type: 'mirror', id: 'M', name: 'M', x: 10, y: -5, angle: 180, length: 160, R: 300, k: -1, offset: 120, metal: 'Al', mmw: { part: true }, group: 'g' };
+      // the focus: f − sag0 along the facing, −h across (as the mirror's panel names it); the feed stood there
+      const f = 150, sag0 = 120 * 120 / 600, fx = m.x - (f - sag0), fy = m.y + 120, L = Math.hypot(fx - m.x, fy - m.y);
+      J.load({ format: 'jekray', version: 1, elements: [m], assemblies: [{ id: 'g', name: 'Reflector', ref: 'M', kind: 'rf', rf: { ghz: 24, feed: { kind: 'corrugated', a: 15, L: 80, d: L }, goal: { kind: 'collimate', d: 300 } } }] });
+      J.openLensDesign('Reflector');
+      const ws = () => rigDoc().querySelector('#rfWs');
+      try {
+        const rows = [...ws().querySelectorAll('.rt-rfdata tbody tr td.n')].map(td => td.textContent);
+        const listed = rows.join() === 'FEED,1,GOAL';
+        const rIn = ws().querySelector('.rt-rfdata [aria-label="M radius (mm)"]'), oIn = ws().querySelector('.rt-rfdata [aria-label="M offset (mm)"]');
+        const shown = !!rIn && Math.abs(parseFloat(rIn.value) - 300) < 1e-6 && !!oIn && Math.abs(parseFloat(oIn.value) - 120) < 1e-6;
+        const pressed = [...ws().querySelectorAll('.rt-rfdata .rt-lv[aria-pressed="true"]')].map(b => b.getAttribute('aria-label'));
+        const varied = pressed.some(l => /radius of M/.test(l)) && !!ws().querySelector('.rt-rfdata .rt-lv[aria-label="Vary offset of M"]');
+        // fed from the focus (the horn's phase centre a little short of it): the section's own phase error small, no steering
+        const fig = ws().textContent, phase = /Phase error\s*([\d.e+-]+)/.exec(fig), steered = /Beam steered/.test(fig);
+        const flat = !!phase && parseFloat(phase[1]) < 0.05 && !steered;
+        const oIn2 = ws().querySelector('.rt-rfdata [aria-label="M offset (mm)"]');     // (the table drawn again when the trace came back)
+        oIn2.value = '100'; oIn2.dispatchEvent(new (W.Event)('change'));
+        const el = () => J.serialize().elements.find(e => e.type === 'mirror'), e1 = el();
+        const edited = Math.abs(e1.offset - 100) < 1e-6 && Math.hypot(e1.x - 10, e1.y + 5) < 1e-6 && Math.abs(e1.angle - 180) < 1e-6;
+        ws().querySelector('header [aria-label="Undo"]').click();
+        const undone = Math.abs(el().offset - 120) < 1e-6;
+        const all = listed && shown && varied && flat && edited && undone;
+        if (!all) console.log('rf mirror', { listed, rows, shown, pressed, varied, phase: phase && phase[1], steered, edited, e1, undone });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
     want: 1, tol: 0, unit: '',

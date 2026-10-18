@@ -264,7 +264,7 @@ export function asmOfSelection(list) {
 
 /* ---------- Can these parts be one assembly? ----------
    Lenses (round about their axes, not cylinders), round stops, windows and mirrors (flat or curved,
-   whole: not off-axis segments), at one height and upright, along one axis that a mirror folds. The
+   whole or an offset section of a parent), at one height and upright, along one axis that a mirror folds. The
    axis is walked from the part whose facing sets it, forward along the light and back against it:
    each part next along the axis is the nearest ahead within its own half-width of it; at a mirror
    the axis turns as the light does. A part may sit off the axis (decentred) by less than its
@@ -316,8 +316,8 @@ export function asmCheck(els, opts) {
   if (cyl) return { ok: false, why: name(cyl) + ' is a cylindrical lens rolled about its axis: in an assembly a cylinder’s power is in the bench’s plane or out of it, as its Shape sets.' };
   const stopOdd = els.find(e => e.type === 'stop' && (e.shape !== 'round' || e.offset));
   if (stopOdd) return { ok: false, why: name(stopOdd) + ' is not a round iris on the axis: an assembly’s stop is round.' };
-  const seg = els.find(e => e.type === 'mirror' && (e.offset || e.film));
-  if (seg) return { ok: false, why: name(seg) + (seg.film ? ' is a film beam splitter' : ' is an off-axis segment') + ': an assembly’s mirrors are whole mirrors.' };
+  const seg = els.find(e => e.type === 'mirror' && e.film);
+  if (seg) return { ok: false, why: name(seg) + ' is a film beam splitter: an assembly’s mirrors reflect all they get.' };
   // out of the plane: a lens or a window may be tipped (within the same limit as a tilt across) and any part
   // raised or lowered from the others by less than its own half-width; a mirror folds in the bench's plane only
   const zOf = e => e.z === undefined ? 75 : e.z, halfOf = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mask' ? e.length / 2 : e.type === 'mirror' ? e.length / 2 : e.type === 'stop' ? Math.max(e.aperture / 2, 1) : (e.size || 10) / 2;
@@ -408,15 +408,19 @@ export function asmPrescription(asm, els) {
   const zA = asmAxisZ(asm, els);
   order.forEach((e, idx) => {
     const kind = asmKind(e), r = [e.x - q[0], e.y - q[1]], t = dot2(r, d), off = hand * dot2(r, lperp(d));
-    let S2, G2, M2, flip = false, tilt = 0, T = 0;
+    let S2, G2, M2, flip = false, tilt = 0, T = 0, secN = null;
     if (kind === 'stop') { S2 = [{ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.aperture / 2, stop: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = []; }
     else if (kind === 'mirror') {
-      // its normal through it (away from the light): the axis of its own frame
-      const thr = v2(e.angle + 180);
+      // its normal through it (away from the light): the axis of its own frame, about which the axis folds. An offset
+      // reflector folds the axis about its normal at the section's centre (the way a feed at the focus is sent out along the
+      // facing); its face is the parent's, the parent's axis turned from that normal (dtilt) and its vertex off the axis (dec,
+      // below), so the rays meet the section as it is cut
+      const sec = e.offset && e.R ? mirrorSection(e, d, hand) : null;
+      const thr = sec ? sec.n : v2(e.angle + 180);
+      if (sec) secN = sec.n;
       tilt = hand * angFrom(d, thr);
-      // (an offset reflector is taken as its parent paraboloid on the axis, fed from the focus: its focal length and aperture,
-      // without the section's own distortion, which the bench's trace has)
-      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, F: ffTurn(e.F, FF_SY_MIRROR, -1), semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
+      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, F: ffTurn(e.F, FF_SY_MIRROR, -1), semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 },
+        ...(sec ? { sec: sec.sec, dtilt: [wrap180(hand * angFrom(d, v2(e.angle + 180)) - tilt) * deg, 0] } : {}) }]; G2 = []; M2 = [];
     } else {
       const a = partAxis(e);
       flip = dot2(a, d) < 0;
@@ -454,16 +458,19 @@ export function asmPrescription(asm, els) {
     let cum = 0;
     S2.forEach((s, k) => {
       if (k) cum += G2[k - 1];
-      const big = Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9;
+      const big = Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9 || s.sec;
       if (big) { s.tilt = [tr, tb]; s.dec = [ox + cum * g[0], ov + cum * g[1], cum * (g[2] - 1)]; }
+      // a mirror keeps its fold apart from a tilt added to it (an error in tolerancing); a section's vertex and power from its offset
+      if (s.mirror) s.fold = tr;
+      if (s.sec) { s.sec.c = s.dec.slice(); mirrorSecApply(s); }
       surfaces.push(s);
     });
     gaps.push(...G2); materials.push(...M2);
     lastAx = along + tv + T;
     parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}), ...(e.graded ? { grin: true } : {}) });
     if (kind === 'mirror') {
-      // the axis turns where it meets the mirror's plane; on from there
-      const n = v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
+      // the axis turns where it meets the mirror's plane (a section's tangent plane at its centre); on from there
+      const n = secN || v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
       q = [q[0] + d[0] * tt, q[1] + d[1] * tt]; along += tt;
       lastAx = along;
       d = refl2(d, n); hand = -hand;
@@ -472,7 +479,7 @@ export function asmPrescription(asm, els) {
   const stopIndex = surfaces.findIndex(s => s.stop);
   // the first vertex, in the world, and the first run's axis: where the prescription sits on the bench
   const D1 = firstDir(order, ref, asm), firstT = G0sum(order[0]);
-  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, tb0 = surfaces[0].tilt ? surfaces[0].tilt[1] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].dec ? surfaces[0].dec[1] : 0;
+  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, tb0 = surfaces[0].tilt ? surfaces[0].tilt[1] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].sec ? surfaces[0].sec.c[1] : surfaces[0].dec ? surfaces[0].dec[1] : 0;
   // the axis point at the first vertex: the first part's centre, back half its thickness along its own axis (as it shows on the bench), less its decentre
   const h0 = firstT / 2 * Math.cos(tb0), fv = [first.x - ax0[0] * h0, first.y - ax0[1] * h0], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
   return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror'), axisZ: zA };
@@ -487,8 +494,38 @@ export function mirrorFocus(e) {
   const f = Math.abs(e.R) / 2, h = e.offset || 0, c = 1 / e.R, k = e.k || 0, q = 1 - (1 + k) * c * c * h * h, sag0 = q > 0 ? c * h * h / (1 + Math.sqrt(q)) : 0;
   return { f, h, sag0, x: f - sag0, y: -h };
 }
+const wrap180 = a => ((a + 180) % 360 + 360) % 360 - 180;
+/* an offset reflector's parent focus to the section's centre: the way a feed at the focus looks, on the bench (null for a flat or whole mirror) */
+export function mirrorFeedDir(e) {
+  const F = mirrorFocus(e); if (!F || !F.h) return null;
+  const a = v2(e.angle), ym = lperp(a), fx = a[0] * F.x + ym[0] * F.y, fy = a[1] * F.x + ym[1] * F.y, L = Math.hypot(fx, fy);
+  return L > 1e-12 ? [-fx / L, -fy / L] : null;
+}
+/* an offset reflector met by the axis along d (the bench's sense of across hand): the normal at the section's centre, about which the
+   axis folds (the bisector of the feed's way in from the focus and the facing, the way out), and what the prescription's surface
+   keeps to set itself from a new offset or radius (mirrorSecApply): the facing and the mirror's across axis in the engine's frame */
+function mirrorSection(e, d, hand) {
+  const F = mirrorFocus(e), a = v2(e.angle), ym = lperp(a);
+  const din = mirrorFeedDir(e) || [-a[0], -a[1]], nn = [din[0] - a[0], din[1] - a[1]], L = Math.hypot(nn[0], nn[1]);
+  const n = L > 1e-12 ? [nn[0] / L, nn[1] / L] : [-a[0], -a[1]];
+  const eng = v => [hand * dot2(v, lperp(d)), dot2(v, d)];
+  return { n, sec: { h: F.h, a: eng(a), yv: eng(ym), c: [0, 0, 0] } };
+}
+/* a section's surface set from its offset (sec.h) and its radius and conic: its parent's vertex off the axis (dec, from the section
+   centre's own decentre sec.c, back the parent's sag at the offset along the facing and the offset across) and its first-order power
+   about the beam's centre, 1/(2L) for the distance L from the focus to the section's centre (a paraboloid's f/cos²(β/2)), so the
+   Gaussian beam is bent as the section bends it rather than as the parent's vertex would */
+export function mirrorSecApply(s) {
+  const q = s.sec; if (!q) return s;
+  const Rb = s.R === null || s.R === undefined || !isFinite(s.R) || !s.R ? 0 : -s.R;
+  const h = q.h || 0, k = s.k || 0, c = Rb ? 1 / Rb : 0, qq = 1 - (1 + k) * c * c * h * h, sag0 = c && qq > 0 ? c * h * h / (1 + Math.sqrt(qq)) : 0;
+  const f = Rb ? Math.abs(Rb) / 2 : Infinity, L = isFinite(f) ? Math.hypot(f - sag0, h) : Infinity;
+  s.dec = [q.c[0] || 0, (q.c[1] || 0) - q.a[0] * sag0 - q.yv[0] * h, (q.c[2] || 0) - q.a[1] * sag0 - q.yv[1] * h];
+  s.pc = Rb && isFinite(L) && L > 0 ? -Math.sign(Rb) / (2 * L) : 0;
+  return s;
+}
 function firstDir(order, ref, asm) {
-  const a0 = ref.angle, D0 = asmKind(ref) === 'mirror' ? v2(a0 + 180) : v2(a0);
+  const a0 = ref.angle, D0 = asmKind(ref) === 'mirror' ? (mirrorFeedDir(ref) || v2(a0 + 180)) : v2(a0);
   let dd = asm.rev ? [-D0[0], -D0[1]] : D0;
   for (let i = order.indexOf(ref) - 1; i >= 0; i--) if (asmKind(order[i]) === 'mirror') dd = refl2(dd, v2(order[i].angle));
   return dd;
@@ -528,7 +565,8 @@ export function asmApply(asm, P, els) {
     const s0 = S[0], A = asmAxisAt(P, zs[k] - 1e-12), d = A.d, hand = A.hand;
     const tilt = s0.tilt ? s0.tilt[0] / deg : 0, dec = s0.dec ? s0.dec[1] : 0, tb = s0.tilt ? s0.tilt[1] || 0 : 0, decx = s0.dec ? s0.dec[0] || 0 : 0;
     // the first vertex on the bench: the axis point, then across by the decentre (in the bench's sense of y)
-    const at = asmAxisAt(P, zs[k]), base = [at.p[0] + hand * lperp(d)[0] * dec, at.p[1] + hand * lperp(d)[1] * dec];
+    const at = asmAxisAt(P, zs[k]), dz0 = s0.dec ? s0.dec[2] || 0 : 0;     // (along: a section's parent vertex before or past its centre)
+    const base = [at.p[0] + hand * lperp(d)[0] * dec + d[0] * dz0, at.p[1] + hand * lperp(d)[1] * dec + d[1] * dz0];
     const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0), cb = Math.cos(tb);
     // centre: the first vertex on along the part's own axis by half its thickness (its part in the plane, and up)
     const nx = base[0] + ax[0] * T / 2 * cb, ny = base[1] + ax[1] * T / 2 * cb;
@@ -545,8 +583,18 @@ export function asmApply(asm, P, els) {
       const mA = (S[0].A || []).map(v => -v); while (mA.length && !mA[mA.length - 1]) mA.pop();
       if (mA.length) e.A = mA; else delete e.A;
       const mF = ffTurn(S[0].F, FF_SY_MIRROR, -1); if (mF && Object.keys(mF).length) e.F = mF; else delete e.F;
-      const want = ang(Math.atan2(-ax[1], -ax[0]) / deg);
+      // its facing: the face's own axis back (a section's turned from the fold by its dtilt)
+      const fa = S[0].dtilt && S[0].dtilt[0] ? rot2(d, hand * (tilt + S[0].dtilt[0] / deg)) : ax;
+      const want = ang(Math.atan2(-fa[1], -fa[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
+      // a section: its offset, and its centre from the parent's vertex (where the surface's decentre put it)
+      if (S[0].sec) {
+        const h = S[0].sec.h || 0;
+        if (Math.abs(h) > 1e-9) e.offset = h; else delete e.offset;
+        const F = mirrorFocus(e), a = [-fa[0], -fa[1]], ym = lperp(a), sg = F ? F.sag0 : 0;
+        const cx = base[0] + a[0] * sg + ym[0] * h, cy = base[1] + a[1] * sg + ym[1] * h;
+        if (Math.hypot(cx - e.x, cy - e.y) > 1e-9) { e.x = cx; e.y = cy; }
+      }
     } else {
       const want = ang(Math.atan2(p.flip ? -ax[1] : ax[1], p.flip ? -ax[0] : ax[0]) / deg);
       if (!sameAng(e.angle, want, 1e-9)) e.angle = want;

@@ -20,12 +20,19 @@ import { normPh } from '../core/diffractive.js';
 
 /* a lens face mirrored: the whole face, a spot inside radius r (a solid telescope's secondary), or an annulus
    outside it (its primary, with a clear hole in the middle). Light meeting the mirrored part reflects wholly,
-   staying in the glass it came from; the rest of the face refracts as its coating says. */
+   staying in the glass it came from; the rest of the face refracts as its coating says. A spot or an annulus may
+   have its own shape (R, k: a surface of its own, sharing the face's vertex, with a step where it meets the face);
+   without them it follows the face. */
 export function normMirror(m) {
   if (!m || typeof m !== 'object') return undefined;
   const zone = m.zone === 'in' || m.zone === 'out' ? m.zone : 'all';
-  return zone === 'all' ? { zone } : { zone, r: Math.max(0.01, num(m.r, 5)) };
+  if (zone === 'all') return { zone };
+  const out = { zone, r: Math.max(0.01, num(m.r, 5)) };
+  if (m.R !== undefined || m.k !== undefined) { out.R = (m.R === null || m.R === undefined || m.R === '' || !isFinite(m.R) || +m.R === 0) ? null : +m.R; out.k = num(m.k, 0); }
+  return out;
 }
+/* a zone's own shape on a face of curvature c and conic k: { zone, r, c, k }, or null where it follows the face */
+export const mirrorShape = (m, c, k) => m && m.zone !== 'all' && m.R !== undefined ? { zone: m.zone, r: m.r, c: m.R ? 1 / m.R : 0, k: m.k || 0 } : null;
 /* is radius r on the face inside its mirrored part? */
 export const mirrorAt = (m, r) => !!m && (m.zone === 'all' || (m.zone === 'in' ? r <= m.r : r >= m.r));
 export function normSurface(s) {

@@ -95,3 +95,32 @@ test('a zone reaching the face’s edge degenerates, the face keeps its own clea
   assert.equal(LD.editable(P3, 't', 0), true);
   assert.equal(LD.editable(P3, 't', 1), false);                 // the glass crossed back is the glass crossed in
 });
+
+test('a spot with a shape of its own: its own row in the designer, flipped as met from inside; written back as the zone’s; a stepped face on the bench', async () => {
+  const Gm = await import('../../src/core/geometry.js');
+  const e = lensOf({ diameter: 50, surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5, R: 120, k: -1 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] });
+  const P = A.asmPrescription(asmOf(), [e]);
+  assert.deepEqual(P.surfaces.map(s => (s.faceOwn ? 'F' : '') + (s.zown ? 'Z' : '') + (s.link ? 'L' : '')), ['F', 'Z', 'Z', 'F']);
+  assert.deepEqual(P.surfaces.map(s => s.R), [null, -200, -120, -200]);     // the spot met from inside: the other sign
+  assert.equal(P.surfaces[2].k, -1);
+  // its focal length by hand, with the rows as listed: in through the flat, off the back (R −200), off the spot (R −120 as
+  // met from inside: convex to the returning light), out through the hole, which has the face's own curve (R −200)
+  const S = E.lensSystem(P, 587.56, { epd: 44 }), n = S.n[1], t = 40;
+  let y = 1, u = 0; y += t * u; u += 2 * (1 / -200) * y; y += t * u; u += 2 * (1 / -120) * y; y += t * u; u = n * u - (1 - n) * (1 / -200) * y;
+  assert.ok(Math.abs(S.par.efl - (-1 / u)) < 1e-9 && Math.abs(S.par.bfl - (-y / u)) < 1e-9, S.par.efl + ' vs ' + (-1 / u));
+  // the spot row edited: the zone's own shape on the bench, the face's left alone
+  P.surfaces[2].R = -150; P.surfaces[2].k = 0;
+  const e2 = JSON.parse(JSON.stringify(e)); A.asmApply(asmOf(), P, [e2]);
+  assert.deepEqual(e2.surfaces[0].mirror, { zone: 'in', r: 16.5, R: 150, k: 0 });
+  assert.equal(e2.surfaces[0].R, null);
+  assert.deepEqual(e2.surfaces[1].mirror, { zone: 'out', r: 6.5 });
+  // a zone shaped as its face is follows the face
+  const P3 = A.asmPrescription(asmOf(), [e2]); P3.surfaces[2].R = null; P3.surfaces[2].k = 0;
+  const e3 = JSON.parse(JSON.stringify(e2)); A.asmApply(asmOf(), P3, [e3]);
+  assert.deepEqual(e3.surfaces[0].mirror, { zone: 'in', r: 16.5 });
+  // on the bench the front is flat outside the spot and the spot's own sphere inside it, a step between
+  const F = Gm.lensSurfaces(e2)[0];
+  assert.equal(Gm.sagFn(F, 20), 0);
+  assert.ok(Math.abs(Gm.sagFn(F, 10) - (150 - Math.sqrt(150 * 150 - 100))) < 1e-9, 'the spot’s sag ' + Gm.sagFn(F, 10));
+  assert.ok(Gm.dsagFn(F, 10) > 0 && Gm.dsagFn(F, 20) === 0);
+});

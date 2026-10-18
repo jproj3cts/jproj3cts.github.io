@@ -17,7 +17,8 @@ description: Units, coordinates, angles, polarisation, sign conventions, launche
 | Wavelength | nm, in vacuum |
 | Optical power | mW (sources), dBm (fibre amplifiers) |
 | Fibre length | m; fibre loss in dB/km |
-| Frequencies | Hz in the electronics, MHz for modulators |
+| Frequencies | Hz in the electronics, MHz for modulators, GHz for RF parts |
+| RF power | dBm |
 | Pulse duration | fs; group delay dispersion in fs² |
 
 ## Coordinates and angles

@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: ring }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature. Switch them on under **Help › Experimental features**.
+Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">An all-pass ring resonator is a ring of waveguide beside one bus waveguide. Its through port dips at every resonance of the ring, as deep as the coupling matches the ring's loss. It filters, senses, and makes a notch.</p>

@@ -65,6 +65,7 @@ test('a solid telescope: round the spot, the annulus as a mirror, the spot as a 
   const e2 = JSON.parse(JSON.stringify(e));
   A.asmApply(asmOf(), P, [e2]);
   assert.equal(e2.surfaces.length, 2);
+  assert.ok(Math.abs(e2.x - e.x) < 1e-9 && Math.abs(e2.y - e.y) < 1e-9, 'the part stays where it was: ' + e2.x);
   assert.deepEqual(e2.surfaces.map(s => s.mirror), [{ zone: 'in', r: 16.5 }, { zone: 'out', r: 6.5 }]);
   assert.deepEqual(e2.gaps, [40]);
   assert.equal(e2.surfaces[1].R, -200);
@@ -100,7 +101,7 @@ test('a spot with a shape of its own: its own row in the designer, flipped as me
   const Gm = await import('../../src/core/geometry.js');
   const e = lensOf({ diameter: 50, surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5, R: 120, k: -1 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] });
   const P = A.asmPrescription(asmOf(), [e]);
-  assert.deepEqual(P.surfaces.map(s => (s.faceOwn ? 'F' : '') + (s.zown ? 'Z' : '') + (s.link ? 'L' : '')), ['F', 'Z', 'Z', 'F']);
+  assert.deepEqual(P.surfaces.map(s => (s.faceOwn ? 'F' : '') + (s.zown ? 'Z' : '') + (s.link ? 'L' : '')), ['F', 'F', 'Z', 'Z']);   // the rims own the faces' shapes; the spot and the hole are the centres
   assert.deepEqual(P.surfaces.map(s => s.R), [null, -200, -120, -200]);     // the spot met from inside: the other sign
   assert.equal(P.surfaces[2].k, -1);
   // its focal length by hand, with the rows as listed: in through the flat, off the back (R −200), off the spot (R −120 as
@@ -123,4 +124,37 @@ test('a spot with a shape of its own: its own row in the designer, flipped as me
   assert.equal(Gm.sagFn(F, 20), 0);
   assert.ok(Math.abs(Gm.sagFn(F, 10) - (150 - Math.sqrt(150 * 150 - 100))) < 1e-9, 'the spot’s sag ' + Gm.sagFn(F, 10));
   assert.ok(Gm.dsagFn(F, 10) > 0 && Gm.dsagFn(F, 20) === 0);
+});
+
+test('a flat ground into a face’s centre, mirrored or not: the bench’s sag, the engine’s sag in one row, and the hole of an annulus made flat', async () => {
+  const Gm = await import('../../src/core/geometry.js');
+  // an unmirrored lens whose front has a flat centre 4 mm across: one row in the designer, its centre flat to the engine
+  const e = lensOf({ diameter: 25.4, surfaces: [{ R: 51.5, mirror: { zone: 'none', r: 4, R: null, k: 0 } }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] });
+  assert.deepEqual(e.surfaces[0].mirror, { zone: 'none', r: 4, R: null, k: 0 });
+  const F = Gm.lensSurfaces(e)[0];
+  assert.equal(Gm.sagFn(F, 3), 0);
+  assert.ok(Gm.sagFn(F, 6) > 0.3, 'the rim curves: ' + Gm.sagFn(F, 6));
+  assert.ok(!F.mirror && !F.coatAt, 'not mirrored');
+  const P = A.asmPrescription(asmOf(), [e]);
+  assert.equal(P.surfaces.length, 2);
+  assert.deepEqual(P.surfaces[0].cz, { r: 4, R: null, k: 0 });
+  const S = E.lensSystem(P, 587.56, { epd: 20 });
+  // a ray 3 mm up meets the flat and is not bent by it; one 8 mm up meets the sphere
+  const r3 = E.rayPath(S, 0, 0, 0.3), r8 = E.rayPath(S, 0, 0, 0.8);
+  assert.equal(r3.lost, -1); assert.equal(r8.lost, -1);
+  assert.ok(Math.abs(r3.pts[1][1] - 0) < 1e-12, 'on the flat, no sag: ' + r3.pts[1][1]);
+  assert.ok(r8.pts[1][1] > 0.5, 'on the sphere: ' + r8.pts[1][1]);
+  // written back as it was
+  const e2 = JSON.parse(JSON.stringify(e)); A.asmApply(asmOf(), P, [e2]);
+  assert.deepEqual(e2.surfaces[0].mirror, { zone: 'none', r: 4, R: null, k: 0 });
+  // a flat centre taken off: nothing kept
+  assert.equal(normElement({ type: 'lens', surfaces: [{ R: 10, mirror: { zone: 'none', r: 4 } }, { R: null }], gaps: [2] }).surfaces[0].mirror, undefined);
+  // the solid telescope's back annulus with its hole made flat: the hole row's own shape is flat; the bench's back is flat inside 6.5
+  const t = lensOf({ diameter: 50, surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5 } }, { R: -200, mirror: { zone: 'out', r: 6.5, R: null, k: 0 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] });
+  const PT = A.asmPrescription(asmOf(), [t]);
+  assert.deepEqual(PT.surfaces.map(s => s.R), [null, -200, null, null]);
+  assert.ok(PT.surfaces[3].zown && PT.surfaces[1].faceOwn);
+  const B = Gm.lensSurfaces(t)[1];
+  assert.equal(Gm.sagFn(B, 5), 0);
+  assert.ok(Math.abs(Gm.sagFn(B, 10) - (-200 + Math.sqrt(200 * 200 - 100))) < 1e-9, 'the annulus curves: ' + Gm.sagFn(B, 10));
 });

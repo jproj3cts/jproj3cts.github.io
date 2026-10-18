@@ -33,10 +33,10 @@ function drawMirror(el, sel) {
     ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by));
   }
   ctx.stroke();
-  pathLocal(f, pts);
   ctx.strokeStyle = sel ? selInk() : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
   ctx.lineWidth = sel ? 3.5 : 3;
   ctx.lineCap = 'round';
+  pathLocal(f, pts);
   ctx.stroke();
   ctx.lineCap = 'butt';
 }

@@ -1,4 +1,5 @@
 import { ASM_FIELDS_MAX, ASM_WAVES_MAX, ASPH_ORDERS, MERIT_AT_FIELD, MERIT_AT_FREQ, MERIT_AT_PUPIL, MERIT_OPS, SOLVE_KINDS, asmAxisAt, asmCheck, asmKind, asmMembers, normCond, normLims, normMerit } from '../core/assembly.js';
+import { sagR2 } from '../core/sag.js';
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { glassKey, glassSearch, matLabel } from '../core/glass.js';
@@ -10,7 +11,7 @@ import { rayPath } from '../engines/lens-engine.js';
 import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
 import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, keepFound, limitKey, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
-import { ELEMENT_KINDS, SURFACE_KINDS, commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
+import { ELEMENT_KINDS, SURFACE_KINDS, commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, gapMayBeNegative, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
 import { helpLine, h } from './panel.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
@@ -306,10 +307,12 @@ export function layoutData(asm, P, F) {
     const ps = ks.map(k => prof(k, faceSemi(k)));
     for (let j = 0; j < sp.n; j++) {
       const k = i + j, s = P.surfaces[k];
-      if (!s.mirror) continue;
-      const r1 = s.semi, r0 = s.obs || 0, zz = y => { const v = wsSag(s, y); return isFinite(v) ? v : 0; };
-      const seg = (lo, hi) => { const pts = []; for (let q = 0; q <= 12; q++) { const y = lo + (hi - lo) * q / 12; pts.push(at(k, y, zz(y))); } return pts; };
-      (out.zones || (out.zones = [])).push(seg(r0, r1), seg(-r1, -r0));
+      const zz = y => { const v = wsSag(s, y); return isFinite(v) ? v : 0; };
+      const seg = (lo, hi, fn) => { const pts = []; for (let q = 0; q <= 12; q++) { const y = lo + (hi - lo) * q / 12; pts.push(at(k, y, (fn || zz)(y))); } return pts; };
+      if (s.mirror) { const r1 = s.semi, r0 = s.obs || 0; (out.zones || (out.zones = [])).push(seg(r0, r1), seg(-r1, -r0)); }
+      // a centre with a shape of its own, unmirrored (a flat ground into the face): its profile across the middle
+      if (s.cz) { const c = s.cz.R ? 1 / s.cz.R : 0, kk = s.cz.k || 0, fz = y => { const v = sagR2(c, kk, 0, null, null, y * y, true); return isFinite(v) ? v : 0; }; (out.flats || (out.flats = [])).push(seg(-s.cz.r, s.cz.r, fz)); }
+      else if (s.zown && !s.mirror) (out.flats || (out.flats = [])).push(seg(-s.semi, s.semi));
     }
     for (let j = 0; j + 1 < ks.length; j++) {
       const a = ps[j], b = ps[j + 1], ka = ks[j], kb = ks[j + 1], ha = a[a.length - 1][0], hb = b[b.length - 1][0], poly = [];
@@ -395,6 +398,7 @@ function drawLayout(cv, asm, P, F) {
   for (const pr of L.lenses) { path(pr); g.closePath(); g.fillStyle = 'rgba(115,185,202,0.28)'; g.fill(); g.strokeStyle = '#9ccfdc'; g.lineWidth = 1.2; g.stroke(); }
   // a lens face's mirrored zones: silvered
   if (L.zones) { g.strokeStyle = '#e4ebf0'; g.lineWidth = 2.6; for (const z of L.zones) { path(z); g.stroke(); } }
+  if (L.flats) { g.strokeStyle = '#9fd3e3'; g.lineWidth = 1.4; for (const z of L.flats) { path(z); g.stroke(); } }
   // the mirrors: the face bright, the back shaded
   for (const m of L.mirrors) {
     path(m.face.concat(m.back.slice().reverse())); g.closePath(); g.fillStyle = 'rgba(200,210,220,0.25)'; g.fill();
@@ -451,6 +455,8 @@ function dropUp(label, title, kinds, pick) {
   return wrap;
 }
 /* ---------- Element data ---------- */
+/* why the gap after surface i can't be negative */
+const negGapWhy = (P, i) => P.surfaces[i] && P.surfaces[i].mirror ? 'After a mirror the light turns back: distances here run along the light, so this one is positive.' : 'A lens’s centre thickness can’t be negative. Between parts a thickness may be: the next part then sits behind this one.';
 function surfaceName(P, sps, i) {
   const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?', s = P.surfaces[i];
   if (sp.kind === 'stop') return /\bstop\b/i.test(nm) ? nm : nm + ' (stop)';
@@ -459,10 +465,11 @@ function surfaceName(P, sps, i) {
   if (sp.kind === 'lens' && s && s.from && e && e.surfaces && P.parts[sp.pi].n !== e.surfaces.length) {
     const nf = e.surfaces.length, j = sp.n && P.parts[sp.pi].flip ? nf - 1 - s.from.i : s.from.i;
     const face = nf === 2 ? (j === 0 ? 'front' : 'back') : ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][j] || String(j + 1);
-    // a spot or an annulus is a surface of its own over the face; a face met once more is the face again
-    const zoneRow = s.mirror && s.mz && s.mz.zone !== 'all';
-    if (zoneRow) return nm + ', ' + face + (s.mz.zone === 'in' ? ' spot' : ' annulus') + (s.link ? ' again' : '');
-    return nm + ', ' + face + (s.link ? ' again' : '');
+    // the centre (a spot, or the hole in an annulus) is a surface of its own over the face; the rim is the face, or its
+    // annulus; a face met once more is the face again
+    const z = s.mz && s.mz.zone !== 'all' ? s.mz : null, centre = z && (!!s.mirror) === (z.zone === 'in');
+    const part = !z ? '' : centre ? (z.zone === 'in' ? ' spot' : ' centre') : (z.zone === 'out' ? ' annulus' : '');
+    return nm + ', ' + face + part + (s.link ? ' again' : '');
   }
   if (sp.n === 2) return nm + (sp.j === 0 ? ', front' : ', back');
   return nm + ', ' + ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][sp.j] + (sp.j > 5 ? ' ' + (sp.j + 1) : '');
@@ -520,6 +527,17 @@ function dataCard(asm, P) {
     }
     else if (sp.kind === 'window' && sp.j === 0) gtd.append(h('span', { class: 'mono' }, matLabel(P.materials[i])));
     else if (sp.kind === 'mirror') gtd.append(h('span', { class: 'mono ro', title: 'A reflecting surface: the light turns back along the axis it folds' }, 'Mirror'));
+    // a lens face mirror coated here: none, the whole face, a spot or an annulus (the rows then follow the light through it)
+    if (sp.kind === 'lens' && !s.mirror && !s.link && s.from) {
+      const cur = s.mz ? s.mz.zone : s.cz ? 'flat' : 'none', fe = getEl(s.from.id), fs = fe ? (fe.surfaces[s.from.i] && fe.surfaces[s.from.i].semi) || fe.diameter / 2 : 10;
+      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Mirror coating of surface ' + (i + 1), title: 'Mirror coat this face (whole, a spot in the middle or an annulus round a clear centre), or grind a flat into its centre' },
+        ...[['none', 'Plain face'], ['all', 'Mirrored'], ['in', 'Mirrored spot'], ['out', 'Mirrored annulus'], ['flat', 'Flat centre']].map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null }, t)));
+      sel.addEventListener('change', () => { const v = sel.value; edit(PP => { for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i) {
+        const r = (q.mz && q.mz.r) || (q.cz && q.cz.r) || Math.round(fs / 3 * 10) / 10;
+        delete q.mz; delete q.cz;
+        if (v === 'all') q.mz = { zone: 'all' }; else if (v === 'in' || v === 'out') q.mz = { zone: v, r }; else if (v === 'flat') q.cz = { r, R: null, k: 0 }; } }); });
+      gtd.append(h('div', { class: 'rt-lmirrow' }, sel, s.cz ? h('span', { class: 'rt-lsub' }, ' to ') : null, s.cz ? wsNumInput(s.cz.r, v => edit(PP => { if (!(v > 0)) return 'A centre radius is more than 0.'; if (v >= fs) return 'The centre ends inside the face: less than ' + wsFmt(fs, 4) + ' mm.'; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i && q.cz) q.cz = Object.assign({}, q.cz, { r: v }); }), { label: 'Flat centre radius (mm) of surface ' + (i + 1), width: '4.2rem' }) : null));
+    }
     tr.append(gtd);
     // clear radius: a lens's surface's own; the stop's is set by the aperture
     const ctd = h('td');
@@ -599,7 +617,7 @@ function valueCell(P, D, q, i) {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { if (typable) delete designOf(A).solves[key]; PP.image = val; } else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { if (typable) delete designOf(A).solves[key]; PP.image = val; } else { if (val < 0 && !gapMayBeNegative(PP, a.i)) return negGapWhy(PP, a.i); PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
@@ -762,7 +780,7 @@ function configsCard(asm, P) {
         const t = inp.value.trim().toLowerCase();
         const val = at.q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞') ? null : parseNum(t);
         if (val === null && at.q !== 'R') { inp.value = shown; return; }
-        if (at.q === 't' && !at.image && val < 0) { toast('A thickness can’t be negative.', true); inp.value = shown; return; }
+        if (at.q === 't' && !at.image && val < 0 && !gapMayBeNegative(P, at.i)) { toast(negGapWhy(P, at.i), true); inp.value = shown; return; }
         if (ci === M.active) edit(PP => { setV(PP, posOf(PP, key), val); });
         else cfgEdit(() => { c.v[key] = val; });
       }));

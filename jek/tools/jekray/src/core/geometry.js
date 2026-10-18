@@ -4,7 +4,7 @@ import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
 import { sagR2 } from './sag.js';
 import { lensZones } from './rf.js';
-import { mirrorAt, mirrorShape } from '../state/elements.js';
+import { mirrorAt, mirrorShape, mirrorZ } from '../state/elements.js';
 
 /* ==========================================================================
    Geometry
@@ -24,8 +24,8 @@ export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGr
    taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
 export const rawSag = (s, y) => s.zs && inShape(s.zs, y) ? sagR2(s.zs.c, s.zs.k, 0, null, null, y * y, true)
   : sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
-/* a mirrored zone with its own shape (s.zs, from lensSurfaces): is height y on it? */
-const inShape = (zs, y) => zs.zone === 'in' ? Math.abs(y) <= zs.r : Math.abs(y) >= zs.r;
+/* a face's centre with its own shape (s.zs, from lensSurfaces): is height y on it? */
+const inShape = (zs, y) => Math.abs(y) <= zs.r;
 /* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
    (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
    runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
@@ -167,9 +167,9 @@ export function lensSurfaces(el) {
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
         // a mirrored zone: wholly reflecting where it lies (the coating given by the radius met), the face's own coating elsewhere
-        mirror: sd.mirror, coatAt: sd.mirror ? (r => (mirrorAt(sd.mirror, r) ? MIRROR_COAT : sd.coat)) : undefined,
-        // the zone's own shape, where it has one: a surface of its own over the face's vertex
-        zs: out2 ? undefined : mirrorShape(sd.mirror, c, sd.k),
+        mirror: mirrorZ(sd.mirror), coatAt: mirrorZ(sd.mirror) ? (r => (mirrorAt(sd.mirror, r) ? MIRROR_COAT : sd.coat)) : undefined,
+        // the centre's own shape, where it has one: a surface of its own over the face's vertex
+        zs: out2 ? undefined : mirrorShape(sd.mirror),
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],

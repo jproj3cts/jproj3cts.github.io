@@ -18,23 +18,26 @@ import { modsCarried, normCarried } from '../engines/mods.js';
 import { normF } from '../core/freeform.js';
 import { normPh } from '../core/diffractive.js';
 
-/* a lens face mirrored: the whole face, a spot inside radius r (a solid telescope's secondary), or an annulus
-   outside it (its primary, with a clear hole in the middle). Light meeting the mirrored part reflects wholly,
-   staying in the glass it came from; the rest of the face refracts as its coating says. A spot or an annulus may
-   have its own shape (R, k: a surface of its own, sharing the face's vertex, with a step where it meets the face);
-   without them it follows the face. */
+/* a lens face's centre and its mirroring. The face is split at radius r into its centre and its rim. Mirrored:
+   "all" (the whole face), "in" (the centre, a spot: a solid telescope's secondary), "out" (the rim, an annulus:
+   its primary, the centre a clear hole) or "none". Light meeting a mirrored part reflects wholly, staying in the
+   glass it came from; the rest refracts as the coating says. The centre may have a shape of its own (R, k: a
+   surface over the face's vertex, flat for R null, with a step where it meets the rim), as a flat ground into a
+   lens's middle; without R it follows the face. Nothing is kept for an unmirrored face whose centre is the face's. */
 export function normMirror(m) {
   if (!m || typeof m !== 'object') return undefined;
-  const zone = m.zone === 'in' || m.zone === 'out' ? m.zone : 'all';
+  const zone = m.zone === 'in' || m.zone === 'out' || m.zone === 'none' ? m.zone : 'all';
   if (zone === 'all') return { zone };
   const out = { zone, r: Math.max(0.01, num(m.r, 5)) };
   if (m.R !== undefined || m.k !== undefined) { out.R = (m.R === null || m.R === undefined || m.R === '' || !isFinite(m.R) || +m.R === 0) ? null : +m.R; out.k = num(m.k, 0); }
-  return out;
+  return zone === 'none' && out.R === undefined ? undefined : out;
 }
-/* a zone's own shape on a face of curvature c and conic k: { zone, r, c, k }, or null where it follows the face */
-export const mirrorShape = (m, c, k) => m && m.zone !== 'all' && m.R !== undefined ? { zone: m.zone, r: m.r, c: m.R ? 1 / m.R : 0, k: m.k || 0 } : null;
+/* the face's mirroring proper: its zone object, or null for a face that only has a shaped centre */
+export const mirrorZ = m => m && m.zone !== 'none' ? m : null;
+/* the centre's own shape: { r, c, k }, or null where it follows the face */
+export const mirrorShape = m => m && m.zone !== 'all' && m.R !== undefined ? { r: m.r, c: m.R ? 1 / m.R : 0, k: m.k || 0, R: m.R } : null;
 /* is radius r on the face inside its mirrored part? */
-export const mirrorAt = (m, r) => !!m && (m.zone === 'all' || (m.zone === 'in' ? r <= m.r : r >= m.r));
+export const mirrorAt = (m, r) => !!m && m.zone !== 'none' && (m.zone === 'all' || (m.zone === 'in' ? r <= m.r : r >= m.r));
 export function normSurface(s) {
   s = s || {};
   const R = (s.R === null || s.R === undefined || s.R === '' || !isFinite(s.R) || s.R === 0) ? null : +s.R;

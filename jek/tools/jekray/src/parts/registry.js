@@ -45,7 +45,7 @@ export const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].la
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 export const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, CHOPPER, AOM, EOM, LINK];
 export const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']],
-  ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon', 'mangin', 'solidtel']],
+  ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
   ['Active and atomic', ['gain', 'cell', 'nlc', 'aom', 'eom', 'elec:chopper']],

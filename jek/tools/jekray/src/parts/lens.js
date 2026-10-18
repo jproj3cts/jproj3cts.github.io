@@ -6,8 +6,8 @@ import { normOrder } from '../core/diffractive.js';
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
 export const LENS = {
   type: 'lens', label: 'Lens',
-  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'grinrod', short: 'GRIN rod lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }, { key: 'mangin', short: 'Mangin mirror' }, { key: 'solidtel', short: 'Solid telescope' }],
-  keys: ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon', 'mangin', 'solidtel'],
+  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'grinrod', short: 'GRIN rod lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }],
+  keys: ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon'],
   make(x, y, kind) {
     switch (kind) {
       case 'lens':
@@ -32,18 +32,6 @@ export const LENS = {
       case 'axicon':
         return { type: 'lens', name: nextName('Axicon'), x, y, diameter: 25.4,
           surfaces: [{ R: null, odd: [Math.tan(10 * deg)] }, { R: null }], gaps: [5], materials: [{ glass: 'Fused silica' }] };
-      case 'mangin':
-        // a Mangin mirror: a meniscus whose back face is silvered, so the light crosses the glass twice; the
-        // glass corrects the mirror's spherical aberration (f about 39 mm, its focus back towards the light)
-        return { type: 'lens', name: nextName('Mangin mirror'), x, y, diameter: 30,
-          surfaces: [{ R: -200 }, { R: -100, mirror: { zone: 'all' } }], gaps: [6], materials: [{ glass: 'N-BK7' }] };
-      case 'solidtel':
-        // a solid Cassegrain: a block of glass whose back face is a concave mirror round a clear hole, and whose
-        // flat front carries a mirrored spot. Light enters round the spot, reflects off the back, back to the
-        // spot, and out through the hole to a focus 13 mm behind the block (the primary's focus, R/2 = 100 mm,
-        // less twice the thickness, the last 20 mm in glass). Optimise it in the Optical designer from here.
-        return { type: 'lens', name: nextName('Solid telescope'), x, y, diameter: 50,
-          surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] };
     }
   },
   norm(e, base) {

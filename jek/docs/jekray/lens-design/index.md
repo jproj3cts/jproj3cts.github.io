@@ -113,7 +113,7 @@ Beside each radius, thickness and conic:
 
 - **V** marks a variable for the optimiser. A glass's V makes it a model glass.
 - **…** sets a **solve** or a **pickup**, shown as **S** or **P**, its value then worked out and shown in grey:
-  - *Paraxial focus* (the image distance): the image plane where the primary wavelength's marginal ray crosses the axis. A new design has it.
+  - *Paraxial focus* (the image distance): the image plane where the primary wavelength's marginal ray crosses the axis. A new design has it. Typing a distance in its cell places the image plane there instead, and the solve is dropped.
   - *F-number* (a radius): the curvature that gives the working F-number asked for. The system's power is affine in one curvature, so two paraxial traces give it exactly.
   - *Edge thickness* (a thickness): the centre thickness that leaves the edge as thick as asked, $$t = e - \text{sag}_2(h) + \text{sag}_1(h)$$ at the smaller clear radius.
   - *Pickup*: the value follows another surface's, times a scale plus an offset (a radius picked up times −1 makes a lens symmetric).

@@ -48,6 +48,8 @@ export function editable(P, q, i) {
   const sp = surfaceParts(P)[i], s = P.surfaces[i];
   if (!sp) return false;
   // a face met again copies its first meeting (core/assembly.js lensVisits): edited there
+  // the last row's thickness is the image distance, the design's own whatever the row
+  if (q === 't' && i === P.surfaces.length - 1) return true;
   if (s && s.link) return false;
   if (q === 't' && s && s.glink !== undefined) return false;
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';

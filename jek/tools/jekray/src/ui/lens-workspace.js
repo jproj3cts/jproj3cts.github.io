@@ -508,7 +508,7 @@ function dataCard(asm, P) {
       // a mirrored face's reflecting meeting: the zone it reflects in, its radius typed here (on every meeting of the face)
       const mz = s.mz || { zone: 'all' };
       gtd.append(h('span', { class: 'mono ro', title: 'This face is mirrored here: the light reflects and stays in the glass' }, 'Mirror' + (mz.zone === 'in' ? ', spot to' : mz.zone === 'out' ? ', outside' : '')));
-      if (mz.zone !== 'all') gtd.append(wsNumInput(mz.r, v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); }), { label: 'Mirrored zone radius (mm) of surface ' + (i + 1), width: '4.2rem' }));
+      if (mz.zone !== 'all') gtd.append(wsNumInput(mz.r, v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; const fe = getEl(s.from.id), fs = fe ? (fe.surfaces[s.from.i] && fe.surfaces[s.from.i].semi) || fe.diameter / 2 : Infinity; if (v >= fs) return 'The zone ends inside the face: less than ' + wsFmt(fs, 4) + ' mm.'; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); }), { label: 'Mirrored zone radius (mm) of surface ' + (i + 1), width: '4.2rem' }));
     } else if (editable(P, 'g', i)) {
       const gk = keyAt(P, 'g', i), gv = D.vars.includes(gk), lab = 'glass after surface ' + (i + 1);
       gtd.append(h('div', { class: 'rt-lcell' }, glassInput(P.materials[i], 'Glass after surface ' + (i + 1), name => edit(PP => { const m = parseGlass(name); if (!m) return 'No glass called ' + name + '. Type a catalogue name, or a model glass as nd/Vd (1.62/60).'; PP.materials[i] = m; })),
@@ -577,15 +577,17 @@ function valueCell(P, D, q, i) {
     else td.append(h('span', { class: 'mono ro', title: lk ? 'The face as first met, seen from this side' : null }, lk && q === 'R' ? fmtR(s.R) : 'Flat'));
     return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
+  // the image distance at the paraxial focus can still be typed: a distance typed places the image plane there instead
+  const typable = !!(at.image && sv && sv.kind === 'focus' && !pk);
   const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q[0] === 'n' ? 'Gradient ' + grLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + (q[0] === 'n' ? ' after surface ' : ' of surface ') + (i + 1);
   const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
-  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed ? '' : null,
-    title: (fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
+  const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed && !typable ? '' : null,
+    title: (typable ? 'Solved: the image at the paraxial focus. Type a distance to place the image plane there instead.' : fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit(PP => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) PP.image = val; else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
+    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { if (typable) delete designOf(A).solves[key]; PP.image = val; } else { if (val < 0) return 'A thickness can’t be negative.'; PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,

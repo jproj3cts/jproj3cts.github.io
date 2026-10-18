@@ -11,8 +11,10 @@ import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { commitDesign, designOf, designPrescription, insertSinglet, removeSurface, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto, rfMeritReport, normRfMeritOps, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfScan, rfSynth, rfSyncCond, rfMcOf, rfMcAdd, rfMcRemove, rfMcSwitch, rfMcKey, rfMcValue, rfSetKey } from '../engines/rf-design.js';
-import { linePlot } from './lens-analyses.js';
+import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto, rfMeritReport, normRfMeritOps, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfScan, rfSynth, rfSyncCond, rfMcOf, rfMcAdd, rfMcRemove, rfMcSwitch, rfMcKey, rfMcValue, rfSetKey, rfPhaseMap, rfCrossPol, rfWaistView, rfThermal, RF_T0 } from '../engines/rf-design.js';
+import { diverge, heat, linePlot } from './lens-analyses.js';
+import { HOUSINGS } from '../engines/lens-thermal.js';
+import { magma } from './plots.js';
 import { helpLine, h } from './panel.js';
 import { matchLayer } from './panels.js';
 import { setSelection } from './render.js';
@@ -711,11 +713,17 @@ function rwPlace(asm) {
 /* ---------- Analyses ---------- */
 const RW_BAND_COLS = ['#5aa9ff', '#e0a030', '#ff7a6b'];
 const rwDbOf = v => (v > 0 ? 10 * Math.log10(v) : null);
+/* an analysis kept between renders while the design it was made for stands */
+function rwAnaCached(st, asm, P, what, make) {
+  const key = what + '|' + JSON.stringify([P.surfaces, P.gaps, P.materials, asm.rf, P.parts.map(p => { const el = getEl(p.id); return el && el.surfaces ? el.surfaces.map(q => q.coat) : null; })]);
+  if (!st.cache || st.cache.key !== key) st.cache = { key, val: make() };
+  return st.cache.val;
+}
 function rwAnaCard(asm, P, T) {
   const st = RW.ana || (RW.ana = { view: 'band' }), R = asm.rf, coll = R.goal.kind === 'collimate';
   const card = h('section', { class: 'rt-lcard rt-lana rt-rfana', role: 'tabpanel', 'aria-label': 'Analyses' });
   const chip = (id, label) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String(st.view === id), onclick: () => { st.view = id; rwRender(); } }, label);
-  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('scan', 'Scan'), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('budget', 'Loss budget')));
+  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('scan', 'Scan'), chip('map', 'Phase map'), chip('xpol', 'Cross-polar'), chip('waist', 'Beam to the goal'), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('therm', 'Temperature'), chip('budget', 'Loss budget')));
   const body = h('div', { class: 'rt-lanabody' });
   card.append(body);
   if (st.view === 'pattern' && !coll) st.view = 'band';
@@ -755,6 +763,51 @@ function rwAnaCard(asm, P, T) {
     tbl.append(h('tbody', null, ...rows.map(r => h('tr', null, h('td', { class: 'mono' }, rwFmt(r.off, 4)), h('td', { class: 'mono' }, rwFmt(r.feedDeg, 3)), h('td', { class: 'mono' }, rwFmt(Math.abs(r.beamDeg), 3)),
       h('td', { class: 'mono' }, r.feedDeg ? rwFmt(Math.abs(r.beamDeg / r.feedDeg), 3) : '—'), h('td', { class: 'mono' + (r.loss < -3 ? ' warn' : '') }, rwFmt(r.loss, 3)), h('td', { class: 'mono' }, rwFmt(r.sigma / r.lam, 3))))));
     body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  } else if (st.view === 'map') {
+    const Mp = rwAnaCached(st, asm, P, 'map', () => rfPhaseMap(asm, P, R.ghz, 41));
+    body.append(helpLine('The wavefront error over the beam, in waves, at ' + rwFmt(R.ghz, 4) + ' GHz.', ['Real rays over the beam at the first surface, each taken through the system to the reference after the last face (a sphere about the beam’s phase centre, or a plane for a collimated beam): its path there less what is not aberration, the constant, the tilt and the defocus, as the phase error figure takes them out. Drawn over the first surface’s aperture, the beam’s way in: red is ahead, blue behind. The phase error figure is this map’s RMS over the beam’s power.']));
+    const mx = Math.max(1e-6, ...Array.from(Mp.W).filter(isFinite).map(Math.abs)), row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div'); row.append(left, right); body.append(row);
+    heat(left, Mp.N, (i, j) => { const v = Mp.W[j * Mp.N + i]; return isFinite(v) ? v : null; }, v => diverge(v / mx), 'Wavefront error over the beam', 300);
+    right.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['RMS over the beam', rwFmt(Mp.rms, 3) + ' λ'], ['Peak to valley', rwFmt(Mp.pv, 3) + ' λ'], ['Scale', '±' + rwFmt(mx, 3) + ' λ (red ahead, blue behind)'], ['Over', 'the first surface, radius ' + rwFmt(Mp.a, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+  } else if (st.view === 'xpol') {
+    const Xp = rwAnaCached(st, asm, P, 'xpol', () => rfCrossPol(asm, P, R.ghz, 33));
+    body.append(helpLine('The cross-polar field the system makes, at ' + rwFmt(R.ghz, 4) + ' GHz.', ['The polarisation followed ray by ray from the feed, a balanced horn’s field (a Huygens source’s, in Ludwig’s third definition): at each face the field is split into the part across the plane of incidence and the part in it, each passed by its own Fresnel amplitude (a matching layer counted), or turned back by a metal face as a perfect conductor turns it. After the last face, its co-polar and cross-polar parts about the axis there. A lens’s cross-polar field comes from its faces’ s and p transmissions differing off the axis; an offset reflector’s from the geometry of the section, the four-lobed pattern it is known for. The horn’s own cross-polar field adds to this.']));
+    const row = h('div', { class: 'rt-lpair' });
+    for (const [k, lab] of [['y', 'polarised in the bench’s plane'], ['x', 'polarised out of it']]) {
+      const pol = Xp.pol[k], box = h('div');
+      box.append(h('p', { class: 'rt-lsub' }, 'Feed ' + lab + ': cross-polar power ', h('b', { class: 'mono' }, isFinite(pol.frac) ? rwFmt(pol.frac, 3) + ' dB' : '—'), ' of the total.'));
+      heat(box, Xp.N, (i, j) => { const v = pol.map[j * Xp.N + i]; return isFinite(v) ? v : null; }, v => magma(Math.max(0, Math.min(1, (v + 60) / 60))), 'Cross-polar field over the beam, feed ' + lab, 260);
+      box.append(h('p', { class: 'rt-lsub' }, 'The cross-polar field over the beam, in dB against the co-polar peak: black −60 dB and below, bright 0 dB.'));
+      row.append(box);
+    }
+    body.append(row);
+    body.append(h('p', { class: 'rt-lsub' }, 'The feed horn’s own cross-polar peak: ' + (Xp.horn === null ? 'none (an ideal Gaussian)' : Xp.horn < -100 ? 'next to none (' + (RF_HORNS[R.feed.kind] || {}).name + ')' : rwFmt(Xp.horn, 3) + ' dB (' + (RF_HORNS[R.feed.kind] || {}).name + ')') + '.'));
+  } else if (st.view === 'waist') {
+    const Wv = rfWaistView(asm, P), G = Wv.goal, zmax = Wv.lines[1].zs[Wv.lines[1].zs.length - 1], wmax = Math.max(...Wv.lines.map(l => Math.max(...l.ws)));
+    body.append(helpLine('The beam past the last face: its radius along the way to the goal' + (G && G.kind === 'collimate' ? ' and beyond' : '') + '.', ['The Gaussian beam leaving the last face, its 1/e² radius along the axis at the band’s edges and its centre; where its waist falls and how wide it is there. The goal’s plane is marked' + (G && G.w ? ', with the waist radius wanted there' : '') + '. To collimate, the waist is where the beam is narrowest on its way out (behind the lens, when it is virtual) and the beam spreads from it at the divergence the figures give.']));
+    body.append(h('div', { class: 'rt-llegend' }, ...Wv.lines.map((l, k) => h('span', null, h('i', { style: '--sw:' + RW_BAND_COLS[k], 'aria-hidden': 'true' }), rwFmt(l.ghz, 4) + ' GHz'))));
+    const ser = Wv.lines.map((l, k) => ({ label: rwFmt(l.ghz, 4) + ' GHz', colour: RW_BAND_COLS[k], xs: l.zs, ys: l.ws }));
+    if (G) ser.push({ label: 'the goal’s plane', colour: '#999', dash: true, xs: [G.at, G.at], ys: [0, wmax * 1.05] });
+    if (G && G.w) ser.push({ label: 'waist wanted', colour: '#e5484d', dash: true, xs: [0, zmax], ys: [G.w, G.w] });
+    linePlot(body, { label: 'Beam radius past the last face', H: 240, x: { kind: 'plain', title: 'past the last face, mm' }, y: { kind: 'plain', title: '1/e² radius, mm' }, yr: [0, wmax * 1.1], xName: 'mm', series: ser,
+      csv: { name: asm.name + ' beam to the goal', cols: ['z_mm', ...Wv.lines.map(l => 'w_' + l.ghz + 'GHz_mm')], rows: () => Wv.lines[1].zs.map((z, j) => [z, ...Wv.lines.map(l => l.ws[j])]) } });
+    body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('thead', null, h('tr', null, ...['Frequency', 'Waist past the last face', 'Waist radius', G && G.w ? 'Wanted' : ''].map(t => h('th', { scope: 'col' }, t)))),
+      h('tbody', null, ...Wv.lines.map(l => h('tr', null, h('td', { class: 'mono' }, rwFmt(l.ghz, 4) + ' GHz'), h('td', { class: 'mono' }, rwFmt(l.waist.at, 4) + ' mm' + (l.waist.at < 0 ? ' (behind it)' : '')), h('td', { class: 'mono' }, rwFmt(l.waist.w, 4) + ' mm'), h('td', { class: 'mono' }, G && G.w ? rwFmt(G.w, 4) + ' mm at ' + rwFmt(G.at, 4) + ' mm' : ''))))));
+  } else if (st.view === 'therm') {
+    const Hs = HOUSINGS, hk = st.thH || 'al', H = Hs.find(x => x[0] === hk) || Hs[0];
+    const lo = isFinite(st.thLo) ? st.thLo : -20, hi = isFinite(st.thHi) ? st.thHi : 60, temps = [0, 1, 2, 3, 4].map(k => lo + (hi - lo) * k / 4);
+    const Th = rwAnaCached(st, asm, P, 'therm|' + H[0] + '|' + lo + '|' + hi, () => rfThermal(asm, P, temps, H[2]));
+    body.append(helpLine('The design over temperature: each part grown by its own expansion, the air by the housing’s.', ['Against the design at ' + RF_T0 + ' °C: each lens grown by its plastic’s linear expansion (its radii, aspheric terms, thickness and clear radius), each metal mirror by its metal’s, and the air between the parts, the feed’s distance and the goal’s by the housing’s. The dielectrics’ permittivity is taken as not changing with temperature: for these plastics the measured change is a few parts in ten thousand per kelvin, within the spread between grades and small beside the expansion. The figure for the goal at each temperature, and the same with the feed refocused (the compensator Tolerance uses).']));
+    body.append(h('div', { class: 'rt-rfgrid' },
+      rwRow('Housing', rwSelect(Object.fromEntries(Hs.map(x => [x[0], x[1] + ' (' + (x[2] * 1e6).toFixed(1) + ' ppm/K)'])), H[0], v => { st.thH = v; rwRender(); }, 'Housing')),
+      rwRow('From (°C)', rwNum(lo, v => { st.thLo = v; rwRender(); }, 'Temperature from (°C)', 4)),
+      rwRow('To (°C)', rwNum(hi, v => { st.thHi = v; rwRender(); }, 'Temperature to (°C)', 4))));
+    const tbl = h('table', { class: 'rt-ltable rt-rftherm' });
+    tbl.append(h('thead', null, h('tr', null, ...['°C', (Th.coll ? 'Gain' : 'Coupling') + ' (' + Th.unit + ')', 'Change', 'Refocused: change', 'Feed refocused to (mm)', 'Phase error (λ RMS)', 'Waist (mm)'].map(t => h('th', { scope: 'col' }, t)))));
+    tbl.append(h('tbody', null, ...Th.rows.map(r => h('tr', null, h('td', { class: 'mono' }, rwFmt(r.T, 4)), h('td', { class: 'mono' }, rwFmt(r.fig, 4)), h('td', { class: 'mono' + (Math.abs(r.dfig) > 0.5 ? ' warn' : '') }, (r.dfig >= 0 ? '+' : '') + rwFmt(r.dfig, 3)),
+      h('td', { class: 'mono' }, (r.comp.dfig >= 0 ? '+' : '') + rwFmt(r.comp.dfig, 3)), h('td', { class: 'mono' }, rwFmt(r.comp.feedD, 5)), h('td', { class: 'mono' }, rwFmt(r.sigma, 3)), h('td', { class: 'mono' }, isFinite(r.waist) ? rwFmt(r.waist, 4) : '—')))));
+    body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+    body.append(h('p', { class: 'rt-lsub mono' }, 'The ' + (Th.coll ? 'gain' : 'coupling') + ' changes by ' + (Th.drift >= 0 ? '+' : '') + rwFmt(Th.drift, 3) + ' ' + Th.unit + ' per kelvin at ' + RF_T0 + ' °C in ' + H[1].toLowerCase() + '.' + (Th.missing.length ? ' No expansion is known for ' + Th.missing.join(', ') + ': taken as not growing.' : '')));
   } else if (st.view === 'apert') {
     body.append(helpLine('The beam at each face: its radius, edge taper and spillover.', ['The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'], 'rt-lsub'));
     const tbl = h('table', { class: 'rt-ltable' });

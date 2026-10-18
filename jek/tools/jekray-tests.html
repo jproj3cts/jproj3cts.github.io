@@ -9482,6 +9482,32 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: the Phase map, Cross-polar, Beam to the goal and Temperature analyses draw and read as they should',
+    why: 'a new RF design’s Analyses: Phase map draws a heat map and reports an RMS under 0.01 λ for the designed lens; Cross-polar draws two maps and gives a power share between −60 and −25 dB; Beam to the goal draws a plot with three lines and a table of three rows; Temperature lists five rows with the change at 20 °C nought, and a housing select (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs'), tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t), chip = t => [...ws().querySelectorAll('.rt-lchip')].find(b => b.textContent === t);
+      try {
+        tab('Analyses').click();
+        chip('Phase map').click();
+        const mapOk = ws().querySelectorAll('.rt-lanabody canvas.rt-lheat').length === 1 && (() => { const m = /RMS over the beam\s*([\d.e+-]+) λ/.exec(ws().querySelector('.rt-lanabody').textContent); return !!m && parseFloat(m[1]) < 0.01; })();
+        chip('Cross-polar').click();
+        const xt = ws().querySelector('.rt-lanabody').textContent, xm = [...xt.matchAll(/cross-polar power\s*(-?[\d.]+) dB/g)].map(m => parseFloat(m[1]));
+        const xOk = ws().querySelectorAll('.rt-lanabody canvas.rt-lheat').length === 2 && xm.length === 2 && xm.every(v => v < -25 && v > -60) && /horn’s own cross-polar peak/.test(xt);
+        chip('Beam to the goal').click();
+        const wOk = ws().querySelectorAll('.rt-lanabody canvas').length >= 1 && ws().querySelectorAll('.rt-lanabody .rt-rfsum tbody tr').length === 3 && /behind it/.test(ws().querySelector('.rt-lanabody').textContent);
+        chip('Temperature').click();
+        const rows = [...ws().querySelectorAll('.rt-rftherm tbody tr')].map(tr => [...tr.children].map(td => td.textContent));
+        const tOk = rows.length === 5 && rows[2][0] === '20' && Math.abs(parseFloat(rows[2][2])) < 1e-6 && !!ws().querySelector('[aria-label="Housing"]') && /per kelvin/.test(ws().querySelector('.rt-lanabody').textContent);
+        const all = mapOk && xOk && wOk && tOk;
+        if (!all) console.log('rf analyses 6', { mapOk, xOk, xm, wOk, tOk, rows });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
     want: 1, tol: 0, unit: '',

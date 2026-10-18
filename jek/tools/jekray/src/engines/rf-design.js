@@ -1,4 +1,6 @@
-import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, metalR, rfBeam, rfTanD } from '../core/rf.js';
+import { C_NM_GHZ, RF_HORNS, RF_MAT, RF_METALS, isMatchCoat, lensZones, metalR, rfBeam, rfTanD } from '../core/rf.js';
+import { faceAmps } from '../core/face-pol.js';
+import { hornPattern } from '../core/horns.js';
 import { faceRNormal } from '../core/face-pol.js';
 import { RF_MC_MAX, mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
@@ -955,4 +957,162 @@ export function rfYield(builds, spec) {
   if (!n) return { k, n, p: NaN, lo: NaN, hi: NaN };
   const p = k / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, w = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
   return { k, n, p, lo: Math.max(0, c - w), hi: Math.min(1, c + w) };
+}
+
+
+/* ---------- More analyses: the phase map over the beam, the cross-polar field, the beam to the goal, temperature ---------- */
+/* rays over the beam at the first surface on a grid N across (the first aperture's width, or three beam radii), each traced
+   through with its record at every face and taken to the frame of the axis after the last surface: its place and path there,
+   its weight in the beam. What the phase map and the cross-polar trace share. */
+function rfRayGrid(asm, P, ghz, N) {
+  const R = normRfCond(asm.rf), nm = rfNm(ghz), lam = nm * 1e-6, S = lensSystem(P, nm), n = S.N, FP = feedPoint(R);
+  const t = rfTrace(asm, P, ghz, { steps: 2, noAberr: true }), w = t.surf[0].w, Rin = t.surf[0].R, Rout = t.out.R;
+  const semi = P.surfaces[0].semi, a = semi > 0 && isFinite(semi) ? semi : 3 * w;
+  const src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? S.z[n - 1] - Rout : null;
+  const u0 = FP.u, y0 = FP.y0, pz = src ? -src / Math.sqrt(1 + u0 * u0) : -1, py = y0 + u0 * pz, zL = S.z[n - 1];
+  const cells = [], Rr = new Float64Array(8);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = a * (2 * (i + 0.5) / N - 1), yy = a * (2 * (j + 0.5) / N - 1), hh = Math.hypot(x, yy);
+    if (hh > a) continue;
+    if (src) { const dx = x, dy = y0 + yy - py, dz = -pz, L = Math.hypot(dx, dy, dz); Rr.set([0, py, pz, dx / L, dy / L, dz / L, 0, 0]); }
+    else { const L = Math.sqrt(1 + u0 * u0); Rr.set([x, y0 + yy - u0, -1, 0, u0 / L, 1 / L, 0, 0]); }
+    const rec = [];
+    traceRay(S, Rr, 0, n - 1, true, rec);
+    if (Rr[7] || !isFinite(Rr[6])) continue;
+    const kOut = [Rr[3], Rr[4], Rr[5]];          // (in the first axis's frame, as the faces' records are)
+    if (S.img) lensToImage(S, Rr);
+    let opl = Rr[6], px, pyy;
+    if (tgt !== null) { opl += Math.hypot(Rr[0], Rr[1], tgt - Rr[2]) * S.n[n]; px = Rr[0]; pyy = Rr[1]; }
+    else { const tt = (zL + 1 - Rr[2]) / Rr[5]; opl += tt * S.n[n]; px = Rr[0] + Rr[3] * tt; pyy = Rr[1] + Rr[4] * tt; }
+    cells.push({ i, j, x, y: yy, h: hh, wq: Math.exp(-2 * hh * hh / (w * w)), opl, px, py: pyy, rec, kOut });
+  }
+  return { N, a, w, lam, S, cells, img: S.img };
+}
+/* the wavefront over the beam at the first surface, as it reaches the reference after the last (a sphere about the beam's phase
+   centre, or a plane), less what is not aberration (the constant, the tilt and the defocus, fitted as the phase error figure
+   fits them), in waves: a map N across (NaN outside the aperture), its RMS and peak to valley over the beam */
+export function rfPhaseMap(asm, P, ghz, N) {
+  N = N || 41;
+  const G = rfRayGrid(asm, P, ghz, N), C = G.cells, lam = G.lam;
+  const W = new Float64Array(N * N).fill(NaN);
+  if (C.length < 6) return { N, a: G.a, W, rms: 0, pv: 0, lam };
+  const A = Array.from({ length: 4 }, () => new Array(4).fill(0)), b = new Array(4).fill(0);
+  for (const c of C) { const f = [1, c.px, c.py, c.h * c.h], q = c.wq; for (let i = 0; i < 4; i++) { b[i] += q * f[i] * c.opl; for (let j = 0; j < 4; j++) A[i][j] += q * f[i] * f[j]; } }
+  let k = solveLinear(A, b);
+  if (!k || k.some(v => !isFinite(v))) k = [b[0] / A[0][0], 0, 0, 0];
+  let v = 0, s0 = 0, lo = Infinity, hi = -Infinity;
+  for (const c of C) {
+    const e = (c.opl - k[0] - k[1] * c.px - k[2] * c.py - k[3] * c.h * c.h) / lam;
+    W[c.j * N + c.i] = e; v += c.wq * e * e; s0 += c.wq; lo = Math.min(lo, e); hi = Math.max(hi, e);
+  }
+  return { N, a: G.a, W, rms: Math.sqrt(v / s0), pv: hi - lo, lam };
+}
+/* the polarisation followed ray by ray: at each face the field split into s (across the plane of incidence) and p (in it), each
+   passed by its own Fresnel amplitude (the face's coating counted), or turned back by a metal face as a perfect conductor
+   turns it (E' = 2(n·E)n − E); after the last face its co-polar and cross-polar parts in the frame of the axis there (Ludwig's
+   third definition on the axis). For the feed polarised in the bench's plane (y) and out of it (x): the share of the power
+   cross-polar (dB) and a map of the cross-polar field over the beam, in dB against the co-polar peak; and the horn's own
+   cross-polar peak, which the system's adds to */
+export function rfCrossPol(asm, P, ghz, N) {
+  N = N || 41;
+  const R = normRfCond(asm.rf), G = rfRayGrid(asm, P, ghz, N), nm = rfNm(ghz), C = G.cells, FP = feedPoint(R);
+  const e1 = G.img ? G.img.e1 : [1, 0, 0], e2 = G.img ? G.img.e2 : [0, 1, 0], e3 = G.img ? G.img.d : [0, 0, 1];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], cross = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const nrm = u => { const L = Math.hypot(u[0], u[1], u[2]) || 1; return [u[0] / L, u[1] / L, u[2] / L]; };
+  // Ludwig's third definition about an axis (ex, ey, ez): for a ray along k, the field vectors of a source polarised along ey
+  // (co) and along ex (cross), a Huygens source's, which is what a balanced horn sends: sin φ θ̂ + cos φ φ̂ and cos φ θ̂ − sin φ φ̂
+  const lud3 = (k, ex, ey, ez) => {
+    const kz = dot(k, ez), kx = dot(k, ex), ky = dot(k, ey), st = Math.hypot(kx, ky);
+    if (st < 1e-9) return { co: ey, cx: ex };
+    const cp = kx / st, sp = ky / st, ct = kz;
+    const th = [0, 1, 2].map(q => ct * cp * ex[q] + ct * sp * ey[q] - st * ez[q]), ph = [0, 1, 2].map(q => -sp * ex[q] + cp * ey[q]);
+    return { co: [0, 1, 2].map(q => sp * th[q] + cp * ph[q]), cx: [0, 1, 2].map(q => cp * th[q] - sp * ph[q]) };
+  };
+  // the feed's own axis: along the first axis, or tilted as the feed is aimed
+  const fz = nrm([0, FP.u, 1]), fx = [1, 0, 0], fy = nrm(cross(fz, fx));
+  const coatOf = i => { const s = P.surfaces[i], el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? { coat: el.surfaces[s.from.i].coat } : null; };
+  const out = { N, a: G.a, pol: {} };
+  for (const name of ['y', 'x']) {
+    const X = new Float64Array(N * N).fill(NaN), amp = new Float64Array(N * N).fill(NaN);
+    let pc = 0, px = 0, peak = 0;
+    for (const c of C) {
+      // the field as a complex vector: real and imaginary parts, so a coating's phase is carried; the ray's own from the horn
+      const k0 = c.rec.length && c.rec[0] ? nrm(c.rec[0].kIn) : fz, L0 = lud3(k0, fx, fy, fz);
+      let Er = (name === 'y' ? L0.co : L0.cx).slice(), Ei = [0, 0, 0], ok = true;
+      for (let i = 0; i < c.rec.length; i++) {
+        const r = c.rec[i]; if (!r) continue;
+        const nn = r.n, kIn = nrm(r.kIn), kOut = nrm(r.kOut);
+        if (r.mirror) { const dr = dot(nn, Er), di = dot(nn, Ei); Er = Er.map((v, q) => 2 * dr * nn[q] - v); Ei = Ei.map((v, q) => 2 * di * nn[q] - v); continue; }
+        let sv = cross(kIn, nn); const sl = Math.hypot(sv[0], sv[1], sv[2]);
+        sv = sl > 1e-9 ? sv.map(v => v / sl) : nrm(cross(kIn, Math.abs(kIn[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]));
+        const pIn = cross(kIn, sv), pOut = cross(kOut, sv), ci = Math.abs(dot(kIn, nn));
+        const F = faceAmps(coatOf(i), r.nIn, r.nOut, ci, nm);
+        if (F.tir) { ok = false; break; }
+        const Es = [dot(Er, sv), dot(Ei, sv)], Ep = [dot(Er, pIn), dot(Ei, pIn)];
+        const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+        const S2 = mul(Es, F.ts), P2 = mul(Ep, F.tp);
+        Er = [0, 1, 2].map(q => S2[0] * sv[q] + P2[0] * pOut[q]); Ei = [0, 1, 2].map(q => S2[1] * sv[q] + P2[1] * pOut[q]);
+      }
+      if (!ok) continue;
+      // after the last face: co- and cross-polar about the axis there, for the ray's own direction
+      const L1 = lud3(nrm(c.kOut), e1, e2, e3), co = name === 'y' ? L1.co : L1.cx, cx = name === 'y' ? L1.cx : L1.co;
+      const cR = dot(Er, co), cI = dot(Ei, co), xR = dot(Er, cx), xI = dot(Ei, cx), pco = cR * cR + cI * cI, pcx = xR * xR + xI * xI;
+      pc += c.wq * pco; px += c.wq * pcx; peak = Math.max(peak, pco);
+      amp[c.j * N + c.i] = pcx; X[c.j * N + c.i] = pco;
+    }
+    for (let q = 0; q < N * N; q++) if (isFinite(amp[q])) X[q] = 10 * Math.log10(Math.max(1e-10, amp[q] / (peak || 1)));
+    out.pol[name] = { frac: pc > 0 ? 10 * Math.log10(Math.max(1e-10, px / (pc + px))) : NaN, map: X };
+  }
+  // the horn's own, from its aperture field's far field (an ideal Gaussian has none)
+  const H = R.feed.kind === 'gauss' ? null : hornPattern(R.feed.kind, R.feed.a, R.feed.L, G.lam);
+  out.horn = H ? H.xpol : null;
+  return out;
+}
+/* the beam past the last face to the goal and beyond: its 1/e² radius along the axis at the band's edges and its centre, where
+   its waist falls and how wide it is there, and the goal's plane with what it wants */
+export function rfWaistView(asm, P, zMax) {
+  const R = normRfCond(asm.rf), out = { lines: [], goal: null };
+  for (const ghz of [R.lo, R.ghz, R.hi]) {
+    const t = rfTrace(asm, P, ghz, { steps: 2, noAberr: true }), o = t.out, lam = t.lam;
+    const z1 = zMax || (R.goal.kind === 'collimate' ? Math.max(2 * (t.zEnd - t.zL), o.zR, 50) : Math.max(50, 1.5 * (t.zEnd - t.zL))), zs = [], ws = [];
+    for (let k = 0; k <= 120; k++) { const z = z1 * k / 120, dz = z + o.z; zs.push(z); ws.push(Math.sqrt(lam * o.zR / Math.PI) * Math.sqrt(1 + (dz / o.zR) ** 2)); }
+    out.lines.push({ ghz, zs, ws, waist: { at: -o.z, w: Math.sqrt(lam * o.zR / Math.PI) } });
+    if (ghz === R.ghz) out.goal = { kind: R.goal.kind, at: t.zEnd - t.zL, w: t.target ? t.target.w : null, zL: t.zL };
+  }
+  return out;
+}
+/* the design at temperatures (°C) against its own at 20 °C: each lens grown by its plastic's expansion (its radii, conics' terms,
+   thickness and clear radius), each metal mirror by its metal's, the air between the parts, the feed's distance and the goal's
+   by the housing's; the dielectrics' permittivity kept (core/rf.js RF_MAT). At each: the figure for the goal, the efficiency, the
+   phase error and the beam's waist, and the same with the feed refocused (the compensator); the figure's drift per kelvin */
+export const RF_T0 = 20;
+export function rfThermal(asm, P, temps, cteH) {
+  const R = normRfCond(asm.rf), coll = R.goal.kind === 'collimate';
+  const cteOf = m => { const M = m && RF_MAT[m.glass]; return M && isFinite(M.cte) ? M.cte : 0; };
+  const missing = new Set();
+  P.materials.forEach(m => { if (isGlass(m) && !(RF_MAT[m.glass] && isFinite(RF_MAT[m.glass].cte))) missing.add(m.glass); });
+  const sps = surfaceParts(P);
+  const at = T => {
+    const dT = T - RF_T0, grow = a => 1 + a * dT, Q = rfCloneP(P), A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(R)) });
+    Q.surfaces = Q.surfaces.map((s, i) => {
+      const after = P.materials[i], before = i ? P.materials[i - 1] : null;
+      let a = isGlass(after) ? cteOf(after) : isGlass(before) ? cteOf(before) : cteH;
+      if (s.mirror) { const el = s.from && getEl(s.from.id), M = el && RF_METALS[el.metal]; a = M && isFinite(M.cte) ? M.cte : cteH; }
+      const g = grow(a), t = Object.assign({}, s);
+      if (t.R !== null && t.R !== undefined && isFinite(t.R)) t.R = t.R * g;
+      if (t.a2) t.a2 = t.a2 / g;
+      if (t.A && t.A.length) t.A = t.A.map((v, q) => v * Math.pow(g, -(2 * (q + 2) - 1)));
+      if (t.semi > 0 && isFinite(t.semi)) t.semi = t.semi * (isGlass(after) || isGlass(before) || s.mirror ? g : grow(cteH));
+      if (t.sec) { t.sec = Object.assign({}, t.sec, { h: t.sec.h * g }); mirrorSecApply(t); }
+      return t;
+    });
+    Q.gaps = P.gaps.map((d, i) => d * (isGlass(P.materials[i]) && sps[i].pi === sps[i + 1].pi ? grow(cteOf(P.materials[i])) : grow(cteH)));
+    A.rf.feed.d = R.feed.d * grow(cteH); A.rf.goal.d = R.goal.d * grow(cteH);
+    const t = rfTrace(A, Q, R.ghz, { steps: 2 }), fig = rfFigOf(t);
+    const d2 = rfCompensate(A, Q, R.ghz), A2 = rfWithFeed(A, A.rf, { d: d2 }), t2 = rfTrace(A2, Q, R.ghz, { steps: 2 });
+    return { T, fig, eff: t.eff, sigma: t.sigma / t.lam, waist: t.waist ? t.waist.w : NaN, waistAt: t.waist ? t.waist.at : NaN, feedD: A.rf.feed.d, comp: { fig: rfFigOf(t2), eff: t2.eff, feedD: d2 } };
+  };
+  const nom = at(RF_T0), rows = temps.map(at), up = at(RF_T0 + 1), dn = at(RF_T0 - 1);
+  rows.forEach(r => { r.dfig = r.fig - nom.fig; r.comp.dfig = r.comp.fig - nom.comp.fig; });
+  return { cteH, coll, unit: coll ? 'dBi' : 'dB', nominal: nom, rows, drift: (up.fig - dn.fig) / 2, missing: [...missing] };
 }

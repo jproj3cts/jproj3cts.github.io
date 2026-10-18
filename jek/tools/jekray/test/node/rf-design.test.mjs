@@ -358,3 +358,28 @@ test('configurations: a second band with its own feed distance; the merit adds b
   assert.equal(RF.rfMcRemove(a, 1), true);
   assert.equal(RF.rfMcOf(a), null);
 });
+
+test('the further analyses: the phase map’s RMS is the phase error figure; the cross-polar trace gives a paraboloid on its axis none and an offset section its own, a lens a little from its faces; the beam to the goal; the design over temperature', async () => {
+  const A = await import('../../src/core/assembly.js'), M = await import('../../src/core/mask.js');
+  const { a, P } = system(104, -2.7, null, 0, 30, { kind: 'collimate', d: 300 }, 'HDPE');
+  const t = RF.rfTrace(a, P, ghz), pm = RF.rfPhaseMap(a, P, ghz, 31);
+  assert.ok(Math.abs(pm.rms - t.sigma / t.lam) < 0.15 * t.sigma / t.lam + 1e-5 && pm.pv > pm.rms && Array.from(pm.W).filter(isFinite).length > 600, JSON.stringify([pm.rms, t.sigma / t.lam, pm.pv]));
+  const xp = RF.rfCrossPol(a, P, ghz, 25);
+  assert.ok(xp.pol.y.frac < -30 && xp.pol.y.frac > -60 && Math.abs(xp.pol.y.frac - xp.pol.x.frac) < 0.5 && xp.horn < -100, 'a lens: a little cross-polar from Fresnel, the same either way: ' + JSON.stringify([xp.pol.y.frac, xp.pol.x.frac, xp.horn]));
+  // the beam to the goal: three lines, the waist of a collimated beam behind the lens, the goal's plane at 300
+  const wv = RF.rfWaistView(a, P);
+  assert.ok(wv.lines.length === 3 && wv.lines[1].waist.at < 0 && wv.goal.at === 300 && wv.lines[1].ws.every((w, k) => k === 0 || w >= wv.lines[1].ws[k - 1] - 1e-9), 'the beam spreads from a virtual waist');
+  // over temperature in aluminium: the gain follows the aperture (up as it warms), the drift per kelvin small; refocused against the refocused nominal
+  const th = RF.rfThermal(a, P, [-20, 20, 60], 23.6e-6);
+  assert.ok(th.rows.length === 3 && Math.abs(th.rows[1].dfig) < 1e-9 && th.rows[2].dfig > 0 && th.rows[0].dfig < 0 && Math.abs(th.drift) < 0.01 && Math.abs(th.rows[1].comp.dfig) < 1e-6 && th.missing.length === 0, JSON.stringify(th.rows.map(r => [r.T, r.dfig, r.comp.dfig])));
+  // mirrors: a paraboloid fed on its axis by a balanced horn makes no cross-polar field; its offset section does, about −20 dB for this angle, four-lobed (its peak well above its power share)
+  for (const [h, want] of [[0, null], [120, [-26, -18]]]) {
+    const m = { type: 'mirror', id: 'M', name: 'M', x: 10, y: -5, angle: 180, length: 160, R: 300, k: -1, offset: h, metal: 'Al', mmw: { part: true }, group: 'g' };
+    const F = A.mirrorFocus(m), [fx, fy] = M.toWorld(M.frame(m), F.x, F.y), L = Math.hypot(fx - m.x, fy - m.y);
+    loadProject({ format: 'jekray', version: 1, elements: [m], assemblies: [{ id: 'g', name: 'RF', ref: 'M', kind: 'rf', rf: { ghz, feed: { kind: 'corrugated', a: 15, L: 80, d: L }, goal: { kind: 'collimate', d: 300 } } }] });
+    const am = ST.project.assemblies[0], Pm = D.designPrescription(am); RF.rfSyncCond(am, Pm);
+    const x = RF.rfCrossPol(am, Pm, ghz, 25), peak = Math.max(...Array.from(x.pol.y.map).filter(isFinite));
+    if (!want) assert.ok(x.pol.y.frac < -90, 'none on the axis: ' + x.pol.y.frac);
+    else assert.ok(x.pol.y.frac > want[0] && x.pol.y.frac < want[1] && peak > x.pol.y.frac + 3, 'the section: ' + JSON.stringify([x.pol.y.frac, peak]));
+  }
+});

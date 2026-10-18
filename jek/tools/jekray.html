@@ -5601,24 +5601,27 @@ const C_NM_GHZ = 299792458;                                   // wavelength (nm)
    the power it grows by (tan δ ∝ f^β: about 1 for the polymers, whose absorption goes as f², about
    0 for silicon and the crystals). Lamb, Int. J. IR MM Waves 17, 1997, and makers' data; the index
    is taken constant over the band, which holds to a few parts in a thousand for these */
+/* each dielectric's linear expansion (per kelvin, room temperature; typical of the plastics, which vary by grade) is its cte: the
+   designer's thermal analysis grows a lens by it. Its permittivity is taken as not changing with temperature: for these plastics
+   the measured change is a few parts in ten thousand per kelvin, within the spread between grades, and small beside the expansion */
 const RF_MAT = {
-  'HDPE': { n: 1.526, tand: 3.1e-4, f0: 150, beta: 1, name: 'HDPE (polyethylene)' },
-  'PTFE': { n: 1.44, tand: 3e-4, f0: 150, beta: 1, name: 'PTFE (Teflon)' },
-  'Polypropylene': { n: 1.502, tand: 2.5e-4, f0: 150, beta: 1, name: 'Polypropylene' },
-  'Rexolite': { n: 1.59, tand: 6.6e-4, f0: 150, beta: 1, name: 'Rexolite (polystyrene)' },
-  'TPX': { n: 1.46, tand: 6e-4, f0: 150, beta: 1, name: 'TPX (polymethylpentene)' },
-  'HR silicon': { n: 3.4175, tand: 1e-5, f0: 150, beta: 0, name: 'High-resistivity silicon' },
-  'Fused quartz (RF)': { n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
-  'Alumina': { n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
-  'Nylon': { n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
+  'HDPE': { cte: 1.3e-4, n: 1.526, tand: 3.1e-4, f0: 150, beta: 1, name: 'HDPE (polyethylene)' },
+  'PTFE': { cte: 1.35e-4, n: 1.44, tand: 3e-4, f0: 150, beta: 1, name: 'PTFE (Teflon)' },
+  'Polypropylene': { cte: 1.5e-4, n: 1.502, tand: 2.5e-4, f0: 150, beta: 1, name: 'Polypropylene' },
+  'Rexolite': { cte: 7.0e-5, n: 1.59, tand: 6.6e-4, f0: 150, beta: 1, name: 'Rexolite (polystyrene)' },
+  'TPX': { cte: 1.17e-4, n: 1.46, tand: 6e-4, f0: 150, beta: 1, name: 'TPX (polymethylpentene)' },
+  'HR silicon': { cte: 2.6e-6, n: 3.4175, tand: 1e-5, f0: 150, beta: 0, name: 'High-resistivity silicon' },
+  'Fused quartz (RF)': { cte: 5.5e-7, n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
+  'Alumina': { cte: 7.2e-6, n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
+  'Nylon': { cte: 8.0e-5, n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
   // the plastics RF lenses are made to order in, solid: typical values from published measurements at 10 to
   // 40 GHz. Each brand and colour differs, and they take up water: until measured, these
   // stand for a range, and the panels say so
-  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA', print: true, density: 1.24 },
-  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS', print: true, density: 1.04 },
-  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG', print: true, density: 1.27 },
-  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
-  'PP': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
+  'PLA': { cte: 6.8e-5, n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA', print: true, density: 1.24 },
+  'ABS': { cte: 9.0e-5, n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS', print: true, density: 1.04 },
+  'PETG': { cte: 6.0e-5, n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG', print: true, density: 1.27 },
+  'ASA': { cte: 9.0e-5, n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
+  'PP': { cte: 1.5e-4, n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
 };
 /* Plastic and air mixed finer than the wavelength (a printed part's infill at density F, 0 to 1):
    its permittivity by the power-law mixing rule eps^a = F eps_m^a + (1 - F), and its loss by how
@@ -5670,8 +5673,8 @@ const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 260, min
 const rfTanD = (M, ghz) => M.tand * Math.pow(Math.max(1e-3, ghz) / (M.f0 || 150), M.beta || 0);
 /* metals, by their conductivity (S/m, room temperature): a mirror's loss by its surface resistance */
 const RF_METALS = {
-  Al: { name: 'Aluminium', sigma: 3.5e7 }, Cu: { name: 'Copper', sigma: 5.8e7 }, Au: { name: 'Gold', sigma: 4.1e7 },
-  brass: { name: 'Brass', sigma: 1.5e7 }, steel: { name: 'Stainless steel', sigma: 1.4e6 }, ideal: { name: 'Perfect conductor', sigma: Infinity },
+  Al: { name: 'Aluminium', sigma: 3.5e7, cte: 23.6e-6 }, Cu: { name: 'Copper', sigma: 5.8e7, cte: 16.5e-6 }, Au: { name: 'Gold', sigma: 4.1e7, cte: 14.2e-6 },
+  brass: { name: 'Brass', sigma: 1.5e7, cte: 19.0e-6 }, steel: { name: 'Stainless steel', sigma: 1.4e6, cte: 17.3e-6 }, ideal: { name: 'Perfect conductor', sigma: Infinity, cte: 0 },
 };
 /* a metal mirror's reflectance at a frequency (GHz): 1 − 4 Rs / Z0 at normal incidence, Rs = √(π f μ0 / σ)
    the surface resistance (the skin-depth loss; at an angle, within a few parts in ten thousand of this) */
@@ -27007,11 +27010,17 @@ function rwPlace(asm) {
 /* ---------- Analyses ---------- */
 const RW_BAND_COLS = ['#5aa9ff', '#e0a030', '#ff7a6b'];
 const rwDbOf = v => (v > 0 ? 10 * Math.log10(v) : null);
+/* an analysis kept between renders while the design it was made for stands */
+function rwAnaCached(st, asm, P, what, make) {
+  const key = what + '|' + JSON.stringify([P.surfaces, P.gaps, P.materials, asm.rf, P.parts.map(p => { const el = getEl(p.id); return el && el.surfaces ? el.surfaces.map(q => q.coat) : null; })]);
+  if (!st.cache || st.cache.key !== key) st.cache = { key, val: make() };
+  return st.cache.val;
+}
 function rwAnaCard(asm, P, T) {
   const st = RW.ana || (RW.ana = { view: 'band' }), R = asm.rf, coll = R.goal.kind === 'collimate';
   const card = h('section', { class: 'rt-lcard rt-lana rt-rfana', role: 'tabpanel', 'aria-label': 'Analyses' });
   const chip = (id, label) => h('button', { type: 'button', class: 'rt-lchip', 'aria-pressed': String(st.view === id), onclick: () => { st.view = id; rwRender(); } }, label);
-  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('scan', 'Scan'), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('budget', 'Loss budget')));
+  card.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Analysis' }, chip('band', 'Over the band'), ...(coll ? [chip('pattern', 'Far-field pattern')] : []), chip('scan', 'Scan'), chip('map', 'Phase map'), chip('xpol', 'Cross-polar'), chip('waist', 'Beam to the goal'), chip('apert', 'Apertures'), chip('refl', 'Reflections'), chip('therm', 'Temperature'), chip('budget', 'Loss budget')));
   const body = h('div', { class: 'rt-lanabody' });
   card.append(body);
   if (st.view === 'pattern' && !coll) st.view = 'band';
@@ -27051,6 +27060,51 @@ function rwAnaCard(asm, P, T) {
     tbl.append(h('tbody', null, ...rows.map(r => h('tr', null, h('td', { class: 'mono' }, rwFmt(r.off, 4)), h('td', { class: 'mono' }, rwFmt(r.feedDeg, 3)), h('td', { class: 'mono' }, rwFmt(Math.abs(r.beamDeg), 3)),
       h('td', { class: 'mono' }, r.feedDeg ? rwFmt(Math.abs(r.beamDeg / r.feedDeg), 3) : '—'), h('td', { class: 'mono' + (r.loss < -3 ? ' warn' : '') }, rwFmt(r.loss, 3)), h('td', { class: 'mono' }, rwFmt(r.sigma / r.lam, 3))))));
     body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  } else if (st.view === 'map') {
+    const Mp = rwAnaCached(st, asm, P, 'map', () => rfPhaseMap(asm, P, R.ghz, 41));
+    body.append(helpLine('The wavefront error over the beam, in waves, at ' + rwFmt(R.ghz, 4) + ' GHz.', ['Real rays over the beam at the first surface, each taken through the system to the reference after the last face (a sphere about the beam’s phase centre, or a plane for a collimated beam): its path there less what is not aberration, the constant, the tilt and the defocus, as the phase error figure takes them out. Drawn over the first surface’s aperture, the beam’s way in: red is ahead, blue behind. The phase error figure is this map’s RMS over the beam’s power.']));
+    const mx = Math.max(1e-6, ...Array.from(Mp.W).filter(isFinite).map(Math.abs)), row = h('div', { class: 'rt-lpair' }), left = h('div'), right = h('div'); row.append(left, right); body.append(row);
+    heat(left, Mp.N, (i, j) => { const v = Mp.W[j * Mp.N + i]; return isFinite(v) ? v : null; }, v => diverge(v / mx), 'Wavefront error over the beam', 300);
+    right.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('tbody', null, ...[['RMS over the beam', rwFmt(Mp.rms, 3) + ' λ'], ['Peak to valley', rwFmt(Mp.pv, 3) + ' λ'], ['Scale', '±' + rwFmt(mx, 3) + ' λ (red ahead, blue behind)'], ['Over', 'the first surface, radius ' + rwFmt(Mp.a, 4) + ' mm']].map(([a, b]) => h('tr', null, h('th', { scope: 'row' }, a), h('td', { class: 'mono' }, b))))));
+  } else if (st.view === 'xpol') {
+    const Xp = rwAnaCached(st, asm, P, 'xpol', () => rfCrossPol(asm, P, R.ghz, 33));
+    body.append(helpLine('The cross-polar field the system makes, at ' + rwFmt(R.ghz, 4) + ' GHz.', ['The polarisation followed ray by ray from the feed, a balanced horn’s field (a Huygens source’s, in Ludwig’s third definition): at each face the field is split into the part across the plane of incidence and the part in it, each passed by its own Fresnel amplitude (a matching layer counted), or turned back by a metal face as a perfect conductor turns it. After the last face, its co-polar and cross-polar parts about the axis there. A lens’s cross-polar field comes from its faces’ s and p transmissions differing off the axis; an offset reflector’s from the geometry of the section, the four-lobed pattern it is known for. The horn’s own cross-polar field adds to this.']));
+    const row = h('div', { class: 'rt-lpair' });
+    for (const [k, lab] of [['y', 'polarised in the bench’s plane'], ['x', 'polarised out of it']]) {
+      const pol = Xp.pol[k], box = h('div');
+      box.append(h('p', { class: 'rt-lsub' }, 'Feed ' + lab + ': cross-polar power ', h('b', { class: 'mono' }, isFinite(pol.frac) ? rwFmt(pol.frac, 3) + ' dB' : '—'), ' of the total.'));
+      heat(box, Xp.N, (i, j) => { const v = pol.map[j * Xp.N + i]; return isFinite(v) ? v : null; }, v => magma(Math.max(0, Math.min(1, (v + 60) / 60))), 'Cross-polar field over the beam, feed ' + lab, 260);
+      box.append(h('p', { class: 'rt-lsub' }, 'The cross-polar field over the beam, in dB against the co-polar peak: black −60 dB and below, bright 0 dB.'));
+      row.append(box);
+    }
+    body.append(row);
+    body.append(h('p', { class: 'rt-lsub' }, 'The feed horn’s own cross-polar peak: ' + (Xp.horn === null ? 'none (an ideal Gaussian)' : Xp.horn < -100 ? 'next to none (' + (RF_HORNS[R.feed.kind] || {}).name + ')' : rwFmt(Xp.horn, 3) + ' dB (' + (RF_HORNS[R.feed.kind] || {}).name + ')') + '.'));
+  } else if (st.view === 'waist') {
+    const Wv = rfWaistView(asm, P), G = Wv.goal, zmax = Wv.lines[1].zs[Wv.lines[1].zs.length - 1], wmax = Math.max(...Wv.lines.map(l => Math.max(...l.ws)));
+    body.append(helpLine('The beam past the last face: its radius along the way to the goal' + (G && G.kind === 'collimate' ? ' and beyond' : '') + '.', ['The Gaussian beam leaving the last face, its 1/e² radius along the axis at the band’s edges and its centre; where its waist falls and how wide it is there. The goal’s plane is marked' + (G && G.w ? ', with the waist radius wanted there' : '') + '. To collimate, the waist is where the beam is narrowest on its way out (behind the lens, when it is virtual) and the beam spreads from it at the divergence the figures give.']));
+    body.append(h('div', { class: 'rt-llegend' }, ...Wv.lines.map((l, k) => h('span', null, h('i', { style: '--sw:' + RW_BAND_COLS[k], 'aria-hidden': 'true' }), rwFmt(l.ghz, 4) + ' GHz'))));
+    const ser = Wv.lines.map((l, k) => ({ label: rwFmt(l.ghz, 4) + ' GHz', colour: RW_BAND_COLS[k], xs: l.zs, ys: l.ws }));
+    if (G) ser.push({ label: 'the goal’s plane', colour: '#999', dash: true, xs: [G.at, G.at], ys: [0, wmax * 1.05] });
+    if (G && G.w) ser.push({ label: 'waist wanted', colour: '#e5484d', dash: true, xs: [0, zmax], ys: [G.w, G.w] });
+    linePlot(body, { label: 'Beam radius past the last face', H: 240, x: { kind: 'plain', title: 'past the last face, mm' }, y: { kind: 'plain', title: '1/e² radius, mm' }, yr: [0, wmax * 1.1], xName: 'mm', series: ser,
+      csv: { name: asm.name + ' beam to the goal', cols: ['z_mm', ...Wv.lines.map(l => 'w_' + l.ghz + 'GHz_mm')], rows: () => Wv.lines[1].zs.map((z, j) => [z, ...Wv.lines.map(l => l.ws[j])]) } });
+    body.append(h('table', { class: 'rt-ltable rt-rfsum' }, h('thead', null, h('tr', null, ...['Frequency', 'Waist past the last face', 'Waist radius', G && G.w ? 'Wanted' : ''].map(t => h('th', { scope: 'col' }, t)))),
+      h('tbody', null, ...Wv.lines.map(l => h('tr', null, h('td', { class: 'mono' }, rwFmt(l.ghz, 4) + ' GHz'), h('td', { class: 'mono' }, rwFmt(l.waist.at, 4) + ' mm' + (l.waist.at < 0 ? ' (behind it)' : '')), h('td', { class: 'mono' }, rwFmt(l.waist.w, 4) + ' mm'), h('td', { class: 'mono' }, G && G.w ? rwFmt(G.w, 4) + ' mm at ' + rwFmt(G.at, 4) + ' mm' : ''))))));
+  } else if (st.view === 'therm') {
+    const Hs = HOUSINGS, hk = st.thH || 'al', H = Hs.find(x => x[0] === hk) || Hs[0];
+    const lo = isFinite(st.thLo) ? st.thLo : -20, hi = isFinite(st.thHi) ? st.thHi : 60, temps = [0, 1, 2, 3, 4].map(k => lo + (hi - lo) * k / 4);
+    const Th = rwAnaCached(st, asm, P, 'therm|' + H[0] + '|' + lo + '|' + hi, () => rfThermal(asm, P, temps, H[2]));
+    body.append(helpLine('The design over temperature: each part grown by its own expansion, the air by the housing’s.', ['Against the design at ' + RF_T0 + ' °C: each lens grown by its plastic’s linear expansion (its radii, aspheric terms, thickness and clear radius), each metal mirror by its metal’s, and the air between the parts, the feed’s distance and the goal’s by the housing’s. The dielectrics’ permittivity is taken as not changing with temperature: for these plastics the measured change is a few parts in ten thousand per kelvin, within the spread between grades and small beside the expansion. The figure for the goal at each temperature, and the same with the feed refocused (the compensator Tolerance uses).']));
+    body.append(h('div', { class: 'rt-rfgrid' },
+      rwRow('Housing', rwSelect(Object.fromEntries(Hs.map(x => [x[0], x[1] + ' (' + (x[2] * 1e6).toFixed(1) + ' ppm/K)'])), H[0], v => { st.thH = v; rwRender(); }, 'Housing')),
+      rwRow('From (°C)', rwNum(lo, v => { st.thLo = v; rwRender(); }, 'Temperature from (°C)', 4)),
+      rwRow('To (°C)', rwNum(hi, v => { st.thHi = v; rwRender(); }, 'Temperature to (°C)', 4))));
+    const tbl = h('table', { class: 'rt-ltable rt-rftherm' });
+    tbl.append(h('thead', null, h('tr', null, ...['°C', (Th.coll ? 'Gain' : 'Coupling') + ' (' + Th.unit + ')', 'Change', 'Refocused: change', 'Feed refocused to (mm)', 'Phase error (λ RMS)', 'Waist (mm)'].map(t => h('th', { scope: 'col' }, t)))));
+    tbl.append(h('tbody', null, ...Th.rows.map(r => h('tr', null, h('td', { class: 'mono' }, rwFmt(r.T, 4)), h('td', { class: 'mono' }, rwFmt(r.fig, 4)), h('td', { class: 'mono' + (Math.abs(r.dfig) > 0.5 ? ' warn' : '') }, (r.dfig >= 0 ? '+' : '') + rwFmt(r.dfig, 3)),
+      h('td', { class: 'mono' }, (r.comp.dfig >= 0 ? '+' : '') + rwFmt(r.comp.dfig, 3)), h('td', { class: 'mono' }, rwFmt(r.comp.feedD, 5)), h('td', { class: 'mono' }, rwFmt(r.sigma, 3)), h('td', { class: 'mono' }, isFinite(r.waist) ? rwFmt(r.waist, 4) : '—')))));
+    body.append(h('div', { class: 'rt-ltwrap' }, tbl));
+    body.append(h('p', { class: 'rt-lsub mono' }, 'The ' + (Th.coll ? 'gain' : 'coupling') + ' changes by ' + (Th.drift >= 0 ? '+' : '') + rwFmt(Th.drift, 3) + ' ' + Th.unit + ' per kelvin at ' + RF_T0 + ' °C in ' + H[1].toLowerCase() + '.' + (Th.missing.length ? ' No expansion is known for ' + Th.missing.join(', ') + ': taken as not growing.' : '')));
   } else if (st.view === 'apert') {
     body.append(helpLine('The beam at each face: its radius, edge taper and spillover.', ['The beam at each face: its 1/e² radius at the band’s edges and its centre, the face’s clear radius, its edge taper and the power that passes outside it, at the design frequency.'], 'rt-lsub'));
     const tbl = h('table', { class: 'rt-ltable' });
@@ -39175,6 +39229,164 @@ function rfYield(builds, spec) {
   const p = k / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, w = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
   return { k, n, p, lo: Math.max(0, c - w), hi: Math.min(1, c + w) };
 }
+
+
+/* ---------- More analyses: the phase map over the beam, the cross-polar field, the beam to the goal, temperature ---------- */
+/* rays over the beam at the first surface on a grid N across (the first aperture's width, or three beam radii), each traced
+   through with its record at every face and taken to the frame of the axis after the last surface: its place and path there,
+   its weight in the beam. What the phase map and the cross-polar trace share. */
+function rfRayGrid(asm, P, ghz, N) {
+  const R = normRfCond(asm.rf), nm = rfNm(ghz), lam = nm * 1e-6, S = lensSystem(P, nm), n = S.N, FP = feedPoint(R);
+  const t = rfTrace(asm, P, ghz, { steps: 2, noAberr: true }), w = t.surf[0].w, Rin = t.surf[0].R, Rout = t.out.R;
+  const semi = P.surfaces[0].semi, a = semi > 0 && isFinite(semi) ? semi : 3 * w;
+  const src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? S.z[n - 1] - Rout : null;
+  const u0 = FP.u, y0 = FP.y0, pz = src ? -src / Math.sqrt(1 + u0 * u0) : -1, py = y0 + u0 * pz, zL = S.z[n - 1];
+  const cells = [], Rr = new Float64Array(8);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = a * (2 * (i + 0.5) / N - 1), yy = a * (2 * (j + 0.5) / N - 1), hh = Math.hypot(x, yy);
+    if (hh > a) continue;
+    if (src) { const dx = x, dy = y0 + yy - py, dz = -pz, L = Math.hypot(dx, dy, dz); Rr.set([0, py, pz, dx / L, dy / L, dz / L, 0, 0]); }
+    else { const L = Math.sqrt(1 + u0 * u0); Rr.set([x, y0 + yy - u0, -1, 0, u0 / L, 1 / L, 0, 0]); }
+    const rec = [];
+    traceRay(S, Rr, 0, n - 1, true, rec);
+    if (Rr[7] || !isFinite(Rr[6])) continue;
+    const kOut = [Rr[3], Rr[4], Rr[5]];          // (in the first axis's frame, as the faces' records are)
+    if (S.img) lensToImage(S, Rr);
+    let opl = Rr[6], px, pyy;
+    if (tgt !== null) { opl += Math.hypot(Rr[0], Rr[1], tgt - Rr[2]) * S.n[n]; px = Rr[0]; pyy = Rr[1]; }
+    else { const tt = (zL + 1 - Rr[2]) / Rr[5]; opl += tt * S.n[n]; px = Rr[0] + Rr[3] * tt; pyy = Rr[1] + Rr[4] * tt; }
+    cells.push({ i, j, x, y: yy, h: hh, wq: Math.exp(-2 * hh * hh / (w * w)), opl, px, py: pyy, rec, kOut });
+  }
+  return { N, a, w, lam, S, cells, img: S.img };
+}
+/* the wavefront over the beam at the first surface, as it reaches the reference after the last (a sphere about the beam's phase
+   centre, or a plane), less what is not aberration (the constant, the tilt and the defocus, fitted as the phase error figure
+   fits them), in waves: a map N across (NaN outside the aperture), its RMS and peak to valley over the beam */
+function rfPhaseMap(asm, P, ghz, N) {
+  N = N || 41;
+  const G = rfRayGrid(asm, P, ghz, N), C = G.cells, lam = G.lam;
+  const W = new Float64Array(N * N).fill(NaN);
+  if (C.length < 6) return { N, a: G.a, W, rms: 0, pv: 0, lam };
+  const A = Array.from({ length: 4 }, () => new Array(4).fill(0)), b = new Array(4).fill(0);
+  for (const c of C) { const f = [1, c.px, c.py, c.h * c.h], q = c.wq; for (let i = 0; i < 4; i++) { b[i] += q * f[i] * c.opl; for (let j = 0; j < 4; j++) A[i][j] += q * f[i] * f[j]; } }
+  let k = solveLinear(A, b);
+  if (!k || k.some(v => !isFinite(v))) k = [b[0] / A[0][0], 0, 0, 0];
+  let v = 0, s0 = 0, lo = Infinity, hi = -Infinity;
+  for (const c of C) {
+    const e = (c.opl - k[0] - k[1] * c.px - k[2] * c.py - k[3] * c.h * c.h) / lam;
+    W[c.j * N + c.i] = e; v += c.wq * e * e; s0 += c.wq; lo = Math.min(lo, e); hi = Math.max(hi, e);
+  }
+  return { N, a: G.a, W, rms: Math.sqrt(v / s0), pv: hi - lo, lam };
+}
+/* the polarisation followed ray by ray: at each face the field split into s (across the plane of incidence) and p (in it), each
+   passed by its own Fresnel amplitude (the face's coating counted), or turned back by a metal face as a perfect conductor
+   turns it (E' = 2(n·E)n − E); after the last face its co-polar and cross-polar parts in the frame of the axis there (Ludwig's
+   third definition on the axis). For the feed polarised in the bench's plane (y) and out of it (x): the share of the power
+   cross-polar (dB) and a map of the cross-polar field over the beam, in dB against the co-polar peak; and the horn's own
+   cross-polar peak, which the system's adds to */
+function rfCrossPol(asm, P, ghz, N) {
+  N = N || 41;
+  const R = normRfCond(asm.rf), G = rfRayGrid(asm, P, ghz, N), nm = rfNm(ghz), C = G.cells, FP = feedPoint(R);
+  const e1 = G.img ? G.img.e1 : [1, 0, 0], e2 = G.img ? G.img.e2 : [0, 1, 0], e3 = G.img ? G.img.d : [0, 0, 1];
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2], cross = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const nrm = u => { const L = Math.hypot(u[0], u[1], u[2]) || 1; return [u[0] / L, u[1] / L, u[2] / L]; };
+  // Ludwig's third definition about an axis (ex, ey, ez): for a ray along k, the field vectors of a source polarised along ey
+  // (co) and along ex (cross), a Huygens source's, which is what a balanced horn sends: sin φ θ̂ + cos φ φ̂ and cos φ θ̂ − sin φ φ̂
+  const lud3 = (k, ex, ey, ez) => {
+    const kz = dot(k, ez), kx = dot(k, ex), ky = dot(k, ey), st = Math.hypot(kx, ky);
+    if (st < 1e-9) return { co: ey, cx: ex };
+    const cp = kx / st, sp = ky / st, ct = kz;
+    const th = [0, 1, 2].map(q => ct * cp * ex[q] + ct * sp * ey[q] - st * ez[q]), ph = [0, 1, 2].map(q => -sp * ex[q] + cp * ey[q]);
+    return { co: [0, 1, 2].map(q => sp * th[q] + cp * ph[q]), cx: [0, 1, 2].map(q => cp * th[q] - sp * ph[q]) };
+  };
+  // the feed's own axis: along the first axis, or tilted as the feed is aimed
+  const fz = nrm([0, FP.u, 1]), fx = [1, 0, 0], fy = nrm(cross(fz, fx));
+  const coatOf = i => { const s = P.surfaces[i], el = s.from && getEl(s.from.id); return el && el.surfaces && el.surfaces[s.from.i] ? { coat: el.surfaces[s.from.i].coat } : null; };
+  const out = { N, a: G.a, pol: {} };
+  for (const name of ['y', 'x']) {
+    const X = new Float64Array(N * N).fill(NaN), amp = new Float64Array(N * N).fill(NaN);
+    let pc = 0, px = 0, peak = 0;
+    for (const c of C) {
+      // the field as a complex vector: real and imaginary parts, so a coating's phase is carried; the ray's own from the horn
+      const k0 = c.rec.length && c.rec[0] ? nrm(c.rec[0].kIn) : fz, L0 = lud3(k0, fx, fy, fz);
+      let Er = (name === 'y' ? L0.co : L0.cx).slice(), Ei = [0, 0, 0], ok = true;
+      for (let i = 0; i < c.rec.length; i++) {
+        const r = c.rec[i]; if (!r) continue;
+        const nn = r.n, kIn = nrm(r.kIn), kOut = nrm(r.kOut);
+        if (r.mirror) { const dr = dot(nn, Er), di = dot(nn, Ei); Er = Er.map((v, q) => 2 * dr * nn[q] - v); Ei = Ei.map((v, q) => 2 * di * nn[q] - v); continue; }
+        let sv = cross(kIn, nn); const sl = Math.hypot(sv[0], sv[1], sv[2]);
+        sv = sl > 1e-9 ? sv.map(v => v / sl) : nrm(cross(kIn, Math.abs(kIn[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]));
+        const pIn = cross(kIn, sv), pOut = cross(kOut, sv), ci = Math.abs(dot(kIn, nn));
+        const F = faceAmps(coatOf(i), r.nIn, r.nOut, ci, nm);
+        if (F.tir) { ok = false; break; }
+        const Es = [dot(Er, sv), dot(Ei, sv)], Ep = [dot(Er, pIn), dot(Ei, pIn)];
+        const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+        const S2 = mul(Es, F.ts), P2 = mul(Ep, F.tp);
+        Er = [0, 1, 2].map(q => S2[0] * sv[q] + P2[0] * pOut[q]); Ei = [0, 1, 2].map(q => S2[1] * sv[q] + P2[1] * pOut[q]);
+      }
+      if (!ok) continue;
+      // after the last face: co- and cross-polar about the axis there, for the ray's own direction
+      const L1 = lud3(nrm(c.kOut), e1, e2, e3), co = name === 'y' ? L1.co : L1.cx, cx = name === 'y' ? L1.cx : L1.co;
+      const cR = dot(Er, co), cI = dot(Ei, co), xR = dot(Er, cx), xI = dot(Ei, cx), pco = cR * cR + cI * cI, pcx = xR * xR + xI * xI;
+      pc += c.wq * pco; px += c.wq * pcx; peak = Math.max(peak, pco);
+      amp[c.j * N + c.i] = pcx; X[c.j * N + c.i] = pco;
+    }
+    for (let q = 0; q < N * N; q++) if (isFinite(amp[q])) X[q] = 10 * Math.log10(Math.max(1e-10, amp[q] / (peak || 1)));
+    out.pol[name] = { frac: pc > 0 ? 10 * Math.log10(Math.max(1e-10, px / (pc + px))) : NaN, map: X };
+  }
+  // the horn's own, from its aperture field's far field (an ideal Gaussian has none)
+  const H = R.feed.kind === 'gauss' ? null : hornPattern(R.feed.kind, R.feed.a, R.feed.L, G.lam);
+  out.horn = H ? H.xpol : null;
+  return out;
+}
+/* the beam past the last face to the goal and beyond: its 1/e² radius along the axis at the band's edges and its centre, where
+   its waist falls and how wide it is there, and the goal's plane with what it wants */
+function rfWaistView(asm, P, zMax) {
+  const R = normRfCond(asm.rf), out = { lines: [], goal: null };
+  for (const ghz of [R.lo, R.ghz, R.hi]) {
+    const t = rfTrace(asm, P, ghz, { steps: 2, noAberr: true }), o = t.out, lam = t.lam;
+    const z1 = zMax || (R.goal.kind === 'collimate' ? Math.max(2 * (t.zEnd - t.zL), o.zR, 50) : Math.max(50, 1.5 * (t.zEnd - t.zL))), zs = [], ws = [];
+    for (let k = 0; k <= 120; k++) { const z = z1 * k / 120, dz = z + o.z; zs.push(z); ws.push(Math.sqrt(lam * o.zR / Math.PI) * Math.sqrt(1 + (dz / o.zR) ** 2)); }
+    out.lines.push({ ghz, zs, ws, waist: { at: -o.z, w: Math.sqrt(lam * o.zR / Math.PI) } });
+    if (ghz === R.ghz) out.goal = { kind: R.goal.kind, at: t.zEnd - t.zL, w: t.target ? t.target.w : null, zL: t.zL };
+  }
+  return out;
+}
+/* the design at temperatures (°C) against its own at 20 °C: each lens grown by its plastic's expansion (its radii, conics' terms,
+   thickness and clear radius), each metal mirror by its metal's, the air between the parts, the feed's distance and the goal's
+   by the housing's; the dielectrics' permittivity kept (core/rf.js RF_MAT). At each: the figure for the goal, the efficiency, the
+   phase error and the beam's waist, and the same with the feed refocused (the compensator); the figure's drift per kelvin */
+const RF_T0 = 20;
+function rfThermal(asm, P, temps, cteH) {
+  const R = normRfCond(asm.rf), coll = R.goal.kind === 'collimate';
+  const cteOf = m => { const M = m && RF_MAT[m.glass]; return M && isFinite(M.cte) ? M.cte : 0; };
+  const missing = new Set();
+  P.materials.forEach(m => { if (isGlass(m) && !(RF_MAT[m.glass] && isFinite(RF_MAT[m.glass].cte))) missing.add(m.glass); });
+  const sps = surfaceParts(P);
+  const at = T => {
+    const dT = T - RF_T0, grow = a => 1 + a * dT, Q = rfCloneP(P), A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(R)) });
+    Q.surfaces = Q.surfaces.map((s, i) => {
+      const after = P.materials[i], before = i ? P.materials[i - 1] : null;
+      let a = isGlass(after) ? cteOf(after) : isGlass(before) ? cteOf(before) : cteH;
+      if (s.mirror) { const el = s.from && getEl(s.from.id), M = el && RF_METALS[el.metal]; a = M && isFinite(M.cte) ? M.cte : cteH; }
+      const g = grow(a), t = Object.assign({}, s);
+      if (t.R !== null && t.R !== undefined && isFinite(t.R)) t.R = t.R * g;
+      if (t.a2) t.a2 = t.a2 / g;
+      if (t.A && t.A.length) t.A = t.A.map((v, q) => v * Math.pow(g, -(2 * (q + 2) - 1)));
+      if (t.semi > 0 && isFinite(t.semi)) t.semi = t.semi * (isGlass(after) || isGlass(before) || s.mirror ? g : grow(cteH));
+      if (t.sec) { t.sec = Object.assign({}, t.sec, { h: t.sec.h * g }); mirrorSecApply(t); }
+      return t;
+    });
+    Q.gaps = P.gaps.map((d, i) => d * (isGlass(P.materials[i]) && sps[i].pi === sps[i + 1].pi ? grow(cteOf(P.materials[i])) : grow(cteH)));
+    A.rf.feed.d = R.feed.d * grow(cteH); A.rf.goal.d = R.goal.d * grow(cteH);
+    const t = rfTrace(A, Q, R.ghz, { steps: 2 }), fig = rfFigOf(t);
+    const d2 = rfCompensate(A, Q, R.ghz), A2 = rfWithFeed(A, A.rf, { d: d2 }), t2 = rfTrace(A2, Q, R.ghz, { steps: 2 });
+    return { T, fig, eff: t.eff, sigma: t.sigma / t.lam, waist: t.waist ? t.waist.w : NaN, waistAt: t.waist ? t.waist.at : NaN, feedD: A.rf.feed.d, comp: { fig: rfFigOf(t2), eff: t2.eff, feedD: d2 } };
+  };
+  const nom = at(RF_T0), rows = temps.map(at), up = at(RF_T0 + 1), dn = at(RF_T0 - 1);
+  rows.forEach(r => { r.dfig = r.fig - nom.fig; r.comp.dfig = r.comp.fig - nom.comp.fig; });
+  return { cteH, coll, unit: coll ? 'dBi' : 'dB', nominal: nom, rows, drift: (up.fig - dn.fig) / 2, missing: [...missing] };
+}
 /* ==========================================================================
    Tolerancing a lens design: how much worse it gets as it is made
    The design as solved is the nominal lens; each tolerance is a change made to it as a maker
@@ -45824,6 +46036,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    '<b>Four more RF analyses</b>: a <b>phase map</b> of the wavefront error over the beam; the <b>cross-polar</b> field the system makes, followed ray by ray from a balanced horn through each face\u2019s Fresnel amplitudes and each mirror\u2019s reflection (a lens\u2019s from its faces, an offset reflector\u2019s from its geometry); the <b>beam to the goal</b>, its radius along the way and where its waist falls; and the design over <b>temperature</b>, each lens grown by its plastic\u2019s expansion and the air by the housing\u2019s, with the feed refocused or not.',
     '<b>Configurations in the RF designer</b>: the system in several states, as the optical designer has them: a second band, a switched feed, another goal, each configuration with its own conditions and its own values of the Element data you choose to differ, everything else shared. The merit adds them up by weight, Optimise finds each configuration\u2019s own values and the shared ones together, and the one shown is the bench\u2019s.',
     '<b>Mirrors in the RF designer</b>: a curved mirror is a member like a lens: its radius and conic are edited in Element data and can be variables for Optimise. An <b>offset reflector</b> is traced as the section it is (the parent\u2019s face with its vertex off the axis, the beam meeting it at the part\u2019s centre), with its first-order power about the beam\u2019s centre, so a paraboloid fed from its focus comes out flat and its offset can be varied too; typed on a whole curved mirror, an offset makes it a section where it stands.',
     '<b>A merit function for the RF designer</b>: a <b>Merit</b> tab, as the optical designer has, where what Optimise works toward is a table of terms, each a figure of the system (efficiency, gain or coupling, edge taper, phase error, spillover, reflections, sidelobe, beamwidth, the beam steered, scan loss, a waist, a thickness, a distance) at one frequency or across the band, with a target, a sense and a weight, its value now and its share of the merit; the boundaries live there too. With no terms it is the efficiency across the band, as before.',

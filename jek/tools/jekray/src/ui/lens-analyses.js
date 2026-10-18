@@ -220,8 +220,8 @@ function longView(body, A, L) {
   body.append(helpLine('Longitudinal aberration (left) and the focus over the wavelengths (right).', ['Left: where rays from each height in the pupil, on the axis, cross it, from the primary wavelength’s paraxial focus. Right: the paraxial focus over the wavelengths; it spans ' + um(hi - lo) + ' here.'], 'rt-lsub'));
 }
 const DIV = [[0x2a, 0x78, 0xd6], [0xf0, 0xef, 0xec], [0xe3, 0x49, 0x48]];
-const diverge = t => { t = Math.max(-1, Math.min(1, t)); const [a, b] = t < 0 ? [DIV[1], DIV[0]] : [DIV[1], DIV[2]], u = Math.abs(t); return a.map((v, i) => Math.round(v + (b[i] - v) * u)); };
-function heat(parent, N, val, colour, label, size) {
+export const diverge = t => { t = Math.max(-1, Math.min(1, t)); const [a, b] = t < 0 ? [DIV[1], DIV[0]] : [DIV[1], DIV[2]], u = Math.abs(t); return a.map((v, i) => Math.round(v + (b[i] - v) * u)); };
+export function heat(parent, N, val, colour, label, size) {
   const cv = h('canvas', { role: 'img', 'aria-label': label, class: 'rt-lheat' });
   parent.append(cv);
   const img = new ImageData(N, N);

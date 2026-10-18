@@ -16,24 +16,27 @@ export const C_NM_GHZ = 299792458;                                   // waveleng
    the power it grows by (tan δ ∝ f^β: about 1 for the polymers, whose absorption goes as f², about
    0 for silicon and the crystals). Lamb, Int. J. IR MM Waves 17, 1997, and makers' data; the index
    is taken constant over the band, which holds to a few parts in a thousand for these */
+/* each dielectric's linear expansion (per kelvin, room temperature; typical of the plastics, which vary by grade) is its cte: the
+   designer's thermal analysis grows a lens by it. Its permittivity is taken as not changing with temperature: for these plastics
+   the measured change is a few parts in ten thousand per kelvin, within the spread between grades, and small beside the expansion */
 export const RF_MAT = {
-  'HDPE': { n: 1.526, tand: 3.1e-4, f0: 150, beta: 1, name: 'HDPE (polyethylene)' },
-  'PTFE': { n: 1.44, tand: 3e-4, f0: 150, beta: 1, name: 'PTFE (Teflon)' },
-  'Polypropylene': { n: 1.502, tand: 2.5e-4, f0: 150, beta: 1, name: 'Polypropylene' },
-  'Rexolite': { n: 1.59, tand: 6.6e-4, f0: 150, beta: 1, name: 'Rexolite (polystyrene)' },
-  'TPX': { n: 1.46, tand: 6e-4, f0: 150, beta: 1, name: 'TPX (polymethylpentene)' },
-  'HR silicon': { n: 3.4175, tand: 1e-5, f0: 150, beta: 0, name: 'High-resistivity silicon' },
-  'Fused quartz (RF)': { n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
-  'Alumina': { n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
-  'Nylon': { n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
+  'HDPE': { cte: 1.3e-4, n: 1.526, tand: 3.1e-4, f0: 150, beta: 1, name: 'HDPE (polyethylene)' },
+  'PTFE': { cte: 1.35e-4, n: 1.44, tand: 3e-4, f0: 150, beta: 1, name: 'PTFE (Teflon)' },
+  'Polypropylene': { cte: 1.5e-4, n: 1.502, tand: 2.5e-4, f0: 150, beta: 1, name: 'Polypropylene' },
+  'Rexolite': { cte: 7.0e-5, n: 1.59, tand: 6.6e-4, f0: 150, beta: 1, name: 'Rexolite (polystyrene)' },
+  'TPX': { cte: 1.17e-4, n: 1.46, tand: 6e-4, f0: 150, beta: 1, name: 'TPX (polymethylpentene)' },
+  'HR silicon': { cte: 2.6e-6, n: 3.4175, tand: 1e-5, f0: 150, beta: 0, name: 'High-resistivity silicon' },
+  'Fused quartz (RF)': { cte: 5.5e-7, n: 1.952, tand: 1e-4, f0: 150, beta: 0.5, name: 'Fused quartz' },
+  'Alumina': { cte: 7.2e-6, n: 3.13, tand: 2e-4, f0: 150, beta: 1, name: 'Alumina' },
+  'Nylon': { cte: 8.0e-5, n: 1.73, tand: 1.1e-2, f0: 100, beta: 1, name: 'Nylon' },
   // the plastics RF lenses are made to order in, solid: typical values from published measurements at 10 to
   // 40 GHz. Each brand and colour differs, and they take up water: until measured, these
   // stand for a range, and the panels say so
-  'PLA': { n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA', print: true, density: 1.24 },
-  'ABS': { n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS', print: true, density: 1.04 },
-  'PETG': { n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG', print: true, density: 1.27 },
-  'ASA': { n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
-  'PP': { n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
+  'PLA': { cte: 6.8e-5, n: 1.643, tand: 1.0e-2, f0: 30, beta: 0, name: 'PLA', print: true, density: 1.24 },
+  'ABS': { cte: 9.0e-5, n: 1.581, tand: 6e-3, f0: 30, beta: 0, name: 'ABS', print: true, density: 1.04 },
+  'PETG': { cte: 6.0e-5, n: 1.612, tand: 1.3e-2, f0: 30, beta: 0, name: 'PETG', print: true, density: 1.27 },
+  'ASA': { cte: 9.0e-5, n: 1.628, tand: 9e-3, f0: 30, beta: 0, name: 'ASA', print: true, density: 1.07 },
+  'PP': { cte: 1.5e-4, n: 1.483, tand: 8e-4, f0: 30, beta: 0, name: 'Polypropylene (PP)', print: true, density: 0.9 },
 };
 /* Plastic and air mixed finer than the wavelength (a printed part's infill at density F, 0 to 1):
    its permittivity by the power-law mixing rule eps^a = F eps_m^a + (1 - F), and its loss by how
@@ -85,8 +88,8 @@ export const PRINTER = { bed: [250, 220], height: 270, maxDia: 210, maxHeight: 2
 export const rfTanD = (M, ghz) => M.tand * Math.pow(Math.max(1e-3, ghz) / (M.f0 || 150), M.beta || 0);
 /* metals, by their conductivity (S/m, room temperature): a mirror's loss by its surface resistance */
 export const RF_METALS = {
-  Al: { name: 'Aluminium', sigma: 3.5e7 }, Cu: { name: 'Copper', sigma: 5.8e7 }, Au: { name: 'Gold', sigma: 4.1e7 },
-  brass: { name: 'Brass', sigma: 1.5e7 }, steel: { name: 'Stainless steel', sigma: 1.4e6 }, ideal: { name: 'Perfect conductor', sigma: Infinity },
+  Al: { name: 'Aluminium', sigma: 3.5e7, cte: 23.6e-6 }, Cu: { name: 'Copper', sigma: 5.8e7, cte: 16.5e-6 }, Au: { name: 'Gold', sigma: 4.1e7, cte: 14.2e-6 },
+  brass: { name: 'Brass', sigma: 1.5e7, cte: 19.0e-6 }, steel: { name: 'Stainless steel', sigma: 1.4e6, cte: 17.3e-6 }, ideal: { name: 'Perfect conductor', sigma: Infinity, cte: 0 },
 };
 /* a metal mirror's reflectance at a frequency (GHz): 1 − 4 Rs / Z0 at normal incidence, Rs = √(π f μ0 / σ)
    the surface resistance (the skin-depth loss; at an angle, within a few parts in ten thousand of this) */

@@ -407,7 +407,8 @@ export async function emailCode(req, env, ctx) {
     await env.DB.prepare('UPDATE signin_codes SET tries = ? WHERE email = ?').bind(tries, email).run();
     throw new ApiError(400, 'wrong_code', `That is not the code. ${EMAIL_MAX_TRIES - tries} ${EMAIL_MAX_TRIES - tries === 1 ? 'try' : 'tries'} left.`, { left: EMAIL_MAX_TRIES - tries });
   }
-  await drop();
+  // the right code: used up once it has done its work below, so a fault on the way (a store that is down)
+  // leaves it good for another go within its time, rather than sending the person back for a new one
   const found = await env.DB.prepare(
     `SELECT u.id, u.deleted_at FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = 'email' AND i.subject = ?`,
   ).bind(email).first();
@@ -415,12 +416,13 @@ export async function emailCode(req, env, ctx) {
     // the address added to the account that asked for the code, which must still be the one signed in
     const user = await currentUser(req, env, ctx);
     if (!user || user.id !== row.link_user) throw new ApiError(401, 'signed_out', 'Sign in first to link an address.');
-    if (found && found.id !== user.id) throw new ApiError(409, 'taken', 'That address already signs in to another JEKray account.');
+    if (found && found.id !== user.id) { await drop(); throw new ApiError(409, 'taken', 'That address already signs in to another JEKray account.'); }
     if (!found) await env.DB.prepare("INSERT INTO identities (provider, subject, user_id, created_at) VALUES ('email', ?, ?, ?)").bind(email, user.id, t).run();
     await env.DB.prepare('UPDATE users SET email = COALESCE(email, ?) WHERE id = ?').bind(email, user.id).run();
+    await drop();
     return { linked: true, email };
   }
-  if (found && found.deleted_at) throw new ApiError(410, 'gone', 'That account was deleted.');
+  if (found && found.deleted_at) { await drop(); throw new ApiError(410, 'gone', 'That account was deleted.'); }
   let userId;
   if (found) {
     userId = found.id;
@@ -444,6 +446,7 @@ export async function emailCode(req, env, ctx) {
     if (had) await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
     passwordSet = true;
   }
+  await drop();
   const session = await createSession(env, userId, req.headers.get('User-Agent'));
   ctx.setCookie = session.cookie;
   return { signed_in: true, email, password_set: passwordSet };

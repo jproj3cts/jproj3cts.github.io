@@ -553,7 +553,7 @@ function renderPanelBody(el) {
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
   // a lens, mirror or window on its own: straight into lens design, right under its name
   const dz = panel === mainPanel ? designOneRow(el) : null;
-  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
+  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
   panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   rows.append(

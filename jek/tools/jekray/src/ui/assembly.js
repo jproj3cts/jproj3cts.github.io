@@ -149,11 +149,11 @@ export function designOne(el) {
 export function designOneRow(el) {
   const k = asmKind(el), A = asmOf(el);
   // a part of an assembly: its design opened again
-  if (A) return h('button', { class: 'rt-btn', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
+  if (A) return h('button', { class: 'rt-btn primary', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
   if (!k || k === 'stop' || el.group) return null;
   const C = asmCheck([el], {});
   if (!C.ok) return null;
-  return h('button', { class: 'rt-btn', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, lens data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
+  return h('button', { class: 'rt-btn primary', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, lens data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
 }
 /* in a selection's panel: the button that makes these parts one, or why it can't */
 export function makeAssemblyRow(list) {

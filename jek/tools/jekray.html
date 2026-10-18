@@ -23127,7 +23127,7 @@ function renderPanelBody(el) {
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
   // a lens, mirror or window on its own: straight into lens design, right under its name
   const dz = panel === mainPanel ? designOneRow(el) : null;
-  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
+  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
   panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
@@ -24323,11 +24323,11 @@ function designOne(el) {
 function designOneRow(el) {
   const k = asmKind(el), A = asmOf(el);
   // a part of an assembly: its design opened again
-  if (A) return h('button', { class: 'rt-btn', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
+  if (A) return h('button', { class: 'rt-btn primary', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
   if (!k || k === 'stop' || el.group) return null;
   const C = asmCheck([el], {});
   if (!C.ok) return null;
-  return h('button', { class: 'rt-btn', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, lens data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
+  return h('button', { class: 'rt-btn primary', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, lens data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
 }
 /* in a selection's panel: the button that makes these parts one, or why it can't */
 function makeAssemblyRow(list) {

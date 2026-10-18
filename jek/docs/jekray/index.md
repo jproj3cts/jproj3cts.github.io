@@ -56,12 +56,16 @@ Each opens from a part on the bench, works on the same data, and writes its resu
 
 ## What it leaves out
 
-Every free-space and RF part has all six degrees of freedom: x and y on the bench, z above it (0 to 2 m), facing, tip and roll. The beam is followed in three dimensions through all of them, and the 3D view shows it (see [Heights](/jek/docs/jekray/free-space/#heights)). The limits:
+Every free-space and RF part has six degrees of freedom: x and y on the bench, its height above it, facing, tip and roll, and the light is followed in three dimensions through all of them, skew rays included (see [Heights](/jek/docs/jekray/free-space/#heights)). Housings, mounts and baffles can be brought in from CAD as [STL objects](/jek/docs/jekray/free-space/stl/), which stop the light that meets them. What is not modelled:
 
-- Fibre, electronic and chip parts lie in the plane, and the 3D view leaves them out.
-- The designers' fields lie in the bench plane (the tangential section); sagittal and skew rays are traced, but a field cannot be set out of the plane.
-- There are no mechanics and no heating: mounts, forces on optics and thermal lensing are not modelled. The exceptions are the designers' thermal analyses and the forces on atoms and particles in an optical trap.
-- An RF lens is traced as a smooth dielectric. Above the frequency at which its structure would scatter, which its panel gives, the figures no longer hold.
+- **Fibre, electronic and chip parts lie in the plane.** They are followed as networks and signals, not as shapes, and the 3D view leaves them out.
+- **A designer's fields lie in the bench plane.** The Optical and RF designers trace sagittal and skew rays and tolerance tilts both ways, but a field cannot be set out of the plane.
+- **Scatter.** Surfaces reflect and refract by Fresnel's equations and thin-film coatings, weak reflections and ghosts can be followed, and stops and STL objects block, but there is no scattering from rough surfaces, dust or bulk material, and an edge diffracts only through the diffracted field.
+- **Mechanics.** Mounts and flanges are drawn and exported for CAD, but they do not flex, and nothing moves under a force. The exceptions are optical traps, where the forces on atoms and particles, and the gas damping of a levitated particle, are worked out.
+- **Heat.** Thermal lensing and heating by the beam are not modelled. The Optical and RF designers analyse a design at other temperatures, in a housing of a chosen metal.
+- **Dynamics.** Electronics are in their steady state, and feedback loops are not closed: a lock's error signal is shown, but the loop is not solved. Fibre nonlinearity is self-phase modulation of pulses only.
+- **Photonic chips** are compact models, TE, one mode, near 1550 nm, without thermal or carrier effects.
+- **RF** beams are paraxial Gaussian beams and their modes, as quasi-optics takes them; mixers and upconverters are ideal apart from their loss and noise; and there are no near-field antennas, wires or circuits on the bench.
 
 Each modelling page ends with the limits of its own models, and each part page lists the assumptions its model makes.
 

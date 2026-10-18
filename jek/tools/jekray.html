@@ -712,6 +712,17 @@
   .rt-news h3 span { margin-left: 0.4rem; font-weight: 400; font-size: 0.8rem; color: var(--jek-ink-soft); }
   .rt-news ul { margin: 0 0 0.4rem; padding-left: 1.2rem; }
   .rt-news-all { margin: 0 0 0.6rem; }
+  .rt-scripts #scriptCode { width: 100%; min-height: 13rem; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.8rem; line-height: 1.4; tab-size: 2; resize: vertical; margin: 0.4rem 0; }
+  .rt-script-bar { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.4rem 0; }
+  .rt-script-bar select { max-width: 14rem; }
+  .rt-script-out { max-height: 32vh; overflow: auto; margin-top: 0.4rem; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; background: rgba(0,0,0,0.03); font-family: var(--jek-mono); font-size: 0.78rem; }
+  .rt-script-out:empty { display: none; }
+  .rt-script-out pre { margin: 0; white-space: pre-wrap; }
+  .rt-script-out table { border-collapse: collapse; margin: 0.2rem 0; }
+  .rt-script-out th, .rt-script-out td { padding: 0.15rem 0.6rem 0.15rem 0; border-bottom: 1px solid var(--jek-line); text-align: right; white-space: nowrap; }
+  .rt-script-out th { font-weight: 600; }
+  .rt-script-err { color: var(--jek-red); }
+  .rt-script-note { color: var(--jek-ink-soft); font-family: inherit; font-size: 0.78rem; }
   .rt-packlist { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-height: 45vh; overflow-y: auto; }
   .rt-packrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; }
   .rt-packrow small, .rt-pby { color: var(--jek-ink-soft); font-weight: 400; }
@@ -1573,6 +1584,7 @@
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
               <div class="rt-menu rt-imenu" role="menu">
                 <button type="button" role="menuitem" data-export="png" data-icon="image">PNG image</button>
@@ -46450,6 +46462,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Scripts on the bench</b> (JEKrayPro): <b>File \u203a Scripts\u2026</b> opens an editor where JavaScript runs against the bench with the documented calls: read a screen or a detector, move a part and read again, sweep a parameter to a table saved as CSV, or check a figure. Scripts are kept in this browser by name, or as .js files; Undo puts the bench back after a run.',
     '<b>A JEKray account of your own</b>: sign in with an email address and a password, beside Google and Microsoft, for anyone whose university does not let them sign in with Microsoft (the \u201cNeed admin approval\u201d page) or who has neither account. New here, or forgotten the password? Ask for a 6-digit code by email, type it, and you are in, choosing a password as you go if you like; set, change or remove it on your account page. Passwords are kept only as salted hashes, and ten wrong ones lock the address for a quarter of an hour. Someone already signed in links an address from the account menu, and a university address counts for its licence and the academic price as before.',
     '<b>Names</b>: the lens design workspace is the <b>Optical designer</b> (it designs mirrors, windows and stops as well as lenses), a part is opened in it with <b>Design as an assembly\u2026</b> and an RF part with <b>Design as an RF assembly\u2026</b>, and the .zmx menu items read <b>Import an element</b> and <b>Export an element</b>. <b>Element data</b>: <b>Insert a surface</b> offers the kind of surface (flat, spherical, conic, freeform, diffractive, graded glass), <b>Duplicate surface type</b> repeats the selected one\u2019s kind, and <b>Insert an element</b> offers the bench\u2019s asphere, diffractive lens, GRIN rod lens and cylindrical lens as well as a singlet. <b>Experimental features</b> are part of JEKrayPro.',
     '<b>Fibre tips</b> have a source\u2019s field settings (its model and grid points) for the beam they send out. <b>Fly</b> keeps you upright: the mouse looks round about the room\u2019s up and tips the view to just short of straight up or down, never rolled, and Space and Ctrl move straight up and down. A screen\u2019s <b>Diffraction</b> map is drawn on the screen\u2019s own face, at its true size and place (zoom in for the spot\u2019s detail). In 3D an RF metal mirror is the colour of its metal, and a made-to-order lens\u2019s flange shows its bolt holes.',
@@ -46897,6 +46910,179 @@ function wireNews() {
     });
   }
 
+}
+/* ---------- Scripts: JavaScript run against the bench, on the page (JEKrayPro) ----------
+   File › Scripts… opens an editor beside the bench. A script is JavaScript given J, the same
+   calls the documentation lists for scripting (a screen's spot, a detector's reading, an
+   antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
+   is shown: a table when it is rows, with the rows saved as CSV, else as JSON. A script runs on
+   this page, on your own bench, as typing it into the browser's console would; it is kept in
+   this browser by name, or saved as a .js file. The bench is checkpointed before each run, so
+   Undo puts back whatever a script changed. */
+
+const KEY = 'jek-raytracer-scripts';
+// the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
+const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
+  'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam'];
+
+const EXAMPLE_SCRIPTS = [
+  ['Read a screen', `// The spot on the first screen: its rms radius and power.
+const screen = J.elements().find(e => e.type === 'screen');
+if (!screen) throw new Error('Put a screen on the bench first.');
+const S = J.stats(screen.name);
+log('rms', S.rms, 'mm;', 'power', S.power, 'mW');
+return S;`],
+  ['Sweep a part to a table', `// Move the first lens along x and read the spot at each place.
+// The result is a table; Save as CSV keeps it for a plot.
+const lens = J.elements().find(e => e.type === 'lens'), screen = J.elements().find(e => e.type === 'screen');
+if (!lens || !screen) throw new Error('This needs a lens and a screen.');
+const x0 = J.get(lens.name, 'x');
+return J.sweep(lens.name, 'x', J.range(x0 - 20, x0 + 20, 21), () => ({ rms: J.stats(screen.name).rms, power: J.stats(screen.name).power }));`],
+  ['Check a figure', `// A check that fails loudly when a figure drifts: here a detector's reading.
+const pd = J.elements().find(e => e.type === 'detector');
+if (!pd) throw new Error('This needs a photodetector.');
+const R = J.detector(pd.name);
+if (R.mw < 0.1) throw new Error('only ' + R.mw.toFixed(4) + ' mW reaches ' + pd.name);
+log('ok:', R.mw.toFixed(4), 'mW');
+return R;`],
+  ['Every part', `// Every part on this bench, with its type and place.
+return J.elements();`],
+];
+
+// why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
+const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
+
+/* what a script is given */
+function makeJ() {
+  const P = window.JEKray, J = {};
+  for (const k of CALLS) if (typeof P[k] === 'function') J[k] = (...a) => P[k](...a);
+  J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
+  J.element = name => { const e = P.byName(name); if (!e) throw new Error('No part is called ' + JSON.stringify(name)); return JSON.parse(JSON.stringify(e)); };
+  J.get = (name, path) => { J.element(name); return P.getParam(name, path); };
+  J.set = (name, path, v) => { J.element(name); P.setParam(name, path, v); P.trace(); return J; };
+  J.range = (a, b, n) => { n = Math.max(2, Math.round(n)); return Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1)); };
+  // each value set, read, and the parameter put back: rows of { [path]: value, ...what was read }
+  J.sweep = (name, path, values, read) => {
+    const was = J.get(name, path), rows = [];
+    try {
+      for (const v of values) { J.set(name, path, v); const r = read(v); rows.push(Object.assign({ [path]: v }, r !== null && typeof r === 'object' ? r : { value: r })); }
+    } finally { P.setParam(name, path, was); P.trace(); }
+    return rows;
+  };
+  J.csv = rows => toCsv(rows);
+  return J;
+}
+const isRows = v => Array.isArray(v) && v.length > 0 && v.every(r => r && typeof r === 'object' && !Array.isArray(r));
+const cell = v => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Number(v.toPrecision(6)).toString()) : v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+function toCsv(rows) {
+  if (!isRows(rows)) return '';
+  const cols = [...new Set(rows.flatMap(r => Object.keys(r)))];
+  const esc = s => (/[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s);
+  return [cols.join(','), ...rows.map(r => cols.map(c => esc(cell(r[c]))).join(','))].join('\n') + '\n';
+}
+
+/* run a script's text: { result, logs, error, ms }; the bench is checkpointed first so Undo puts it back */
+async function runScript(code) {
+  const logs = [], t0 = performance.now();
+  const log = (...a) => { logs.push(a.map(cell).join(' ')); };
+  let result, error = null;
+  checkpoint();
+  try {
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    const fn = new AsyncFunction('J', 'log', '"use strict";\n' + String(code));
+    result = await fn(makeJ(), log);
+  } catch (err) {
+    error = (err && err.message) || String(err);
+  }
+  window.JEKray.trace(); hooks.renderPanel(); hooks.requestRender();
+  return { result, logs, error, ms: performance.now() - t0 };
+}
+
+/* the scripts kept in this browser */
+function loadScripts() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v.filter(s => s && typeof s.name === 'string' && typeof s.code === 'string') : []; } catch (err) { return []; } }
+function saveScripts(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (err) { /* not kept: fine */ } }
+
+function wireScripts() {
+  const btn = document.getElementById('btnScripts');
+  if (!btn) return;
+  let scripts = loadScripts(), cur = 0, dlg = null, ed, out, pick, runBtn, gate;
+  const current = () => scripts[cur] || null;
+  const showList = () => {
+    pick.replaceChildren(...scripts.map((s, i) => h('option', { value: String(i), selected: i === cur ? true : null }, s.name)));
+    pick.disabled = !scripts.length;
+    ed.value = current() ? current().code : '';
+    ed.disabled = !current();
+  };
+  const keep = () => { if (current()) { current().code = ed.value; saveScripts(scripts); } };
+  const add = (name, code) => { scripts.push({ name, code }); cur = scripts.length - 1; saveScripts(scripts); showList(); };
+  const show = (R) => {
+    out.replaceChildren();
+    for (const l of R.logs) out.append(h('div', { class: 'rt-script-log' }, l));
+    if (R.error) out.append(h('div', { class: 'rt-script-err' }, 'Error: ' + R.error));
+    else if (isRows(R.result)) {
+      const cols = [...new Set(R.result.flatMap(r => Object.keys(r)))];
+      out.append(h('table', null, h('thead', null, h('tr', null, ...cols.map(c => h('th', null, c)))),
+        h('tbody', null, ...R.result.map(r => h('tr', null, ...cols.map(c => h('td', null, cell(r[c]))))))));
+      out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => downloadFile((current() ? current().name : 'script') + '.csv', new Blob([toCsv(R.result)], { type: 'text/csv' })) }, 'Save as CSV'),
+        h('span', { class: 'rt-script-note' }, R.result.length + ' row' + (R.result.length === 1 ? '' : 's'))));
+    } else if (R.result !== undefined) out.append(h('pre', null, typeof R.result === 'string' ? R.result : JSON.stringify(R.result, null, 1)));
+    out.append(h('div', { class: 'rt-script-note' }, (R.error ? 'Stopped' : 'Done') + ' in ' + Math.round(R.ms) + ' ms' + (R.error ? '; Undo puts the bench back if the script changed it' : '')));
+  };
+  const run = async () => {
+    const why = scriptsWhy();
+    if (why) { toast(why, true); hooks.proFix(); return; }
+    keep();
+    runBtn.disabled = true;
+    try { show(await runScript(ed.value)); } finally { runBtn.disabled = false; }
+  };
+  const build = () => {
+    dlg = h('dialog', { class: 'rt-dialog rt-wide rt-scripts', id: 'scriptDialog', 'aria-labelledby': 'scriptTitle' });
+    pick = h('select', { 'aria-label': 'Which script', onchange: () => { keep(); cur = Number(pick.value); showList(); } });
+    const exPick = h('select', { 'aria-label': 'Start from an example', onchange: () => { const i = Number(exPick.value); if (i >= 0) { add(EXAMPLE_SCRIPTS[i][0], EXAMPLE_SCRIPTS[i][1]); } exPick.value = '-1'; } },
+      h('option', { value: '-1' }, 'Start from an example…'), ...EXAMPLE_SCRIPTS.map((e, i) => h('option', { value: String(i) }, e[0])));
+    ed = h('textarea', { id: 'scriptCode', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', wrap: 'off', placeholder: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown.' });
+    ed.addEventListener('keydown', e => {
+      if (e.key === 'Tab') { e.preventDefault(); const s = ed.selectionStart, t = ed.selectionEnd; ed.setRangeText('  ', s, t, 'end'); }
+      else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); }
+    });
+    ed.addEventListener('input', keep);
+    out = h('div', { id: 'scriptOut', class: 'rt-script-out', 'aria-live': 'polite' });
+    runBtn = h('button', { type: 'button', class: 'rt-btn primary', id: 'scriptRun', title: 'Ctrl+Enter', onclick: run }, 'Run');
+    const fi = h('input', { type: 'file', accept: '.js,.mjs,text/javascript', hidden: true });
+    fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) add(f.name.replace(/\.m?js$/i, ''), await f.text()); });
+    gate = h('p', { class: 'rt-exppro', hidden: true });
+    dlg.append(h('h2', { id: 'scriptTitle' }, 'Scripts'),
+      h('p', null, 'JavaScript run against this bench: read a screen or a detector, move a part and read again, sweep a parameter to a table, or check a figure. The same calls as the ',
+        h('a', { class: 'rt-link', href: '/jek/docs/jekray/scripting/', target: '_blank', rel: 'noopener' }, 'scripting documentation'), ' lists. Scripts are kept in this browser; Undo puts the bench back after a run.'),
+      gate,
+      h('div', { class: 'rt-script-bar' }, pick,
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { const n = prompt('A name for the script', 'Script ' + (scripts.length + 1)); if (n) add(n.trim().slice(0, 60) || 'Script', ''); } }, 'New'),
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { if (!current()) return; const n = prompt('Rename the script', current().name); if (n) { current().name = n.trim().slice(0, 60) || current().name; saveScripts(scripts); showList(); } } }, 'Rename'),
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { if (!current() || !confirm('Delete “' + current().name + '”?')) return; scripts.splice(cur, 1); cur = Math.max(0, cur - 1); saveScripts(scripts); showList(); } }, 'Delete'),
+        exPick),
+      ed,
+      h('div', { class: 'rt-script-bar' }, runBtn,
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { keep(); if (current()) downloadFile(current().name.replace(/[^\w.-]+/g, '-') + '.js', new Blob([current().code], { type: 'text/javascript' })); } }, 'Save as a file'),
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => fi.click() }, 'Open a file…'),
+        h('span', { style: 'flex:1' }),
+        h('button', { type: 'button', class: 'rt-btn', onclick: () => { keep(); dlg.close(); } }, 'Close')),
+      out, fi);
+    document.body.append(dlg);
+  };
+  btn.addEventListener('click', () => {
+    if (!dlg) build();
+    scripts = loadScripts(); if (cur >= scripts.length) cur = 0;
+    if (!scripts.length) { scripts = [{ name: EXAMPLE_SCRIPTS[0][0], code: EXAMPLE_SCRIPTS[0][1] }]; cur = 0; saveScripts(scripts); }
+    showList();
+    const why = scriptsWhy();
+    gate.hidden = !why;
+    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
+      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix() }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
+    runBtn.disabled = !!why;
+    out.replaceChildren();
+    dlg.showModal();
+    ed.focus();
+  });
 }
 /* ---------- Guided tours ----------
    A tour builds a small bench step by step on a tab of its own, so the user's own work is
@@ -48083,7 +48269,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -48249,6 +48435,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
     typeLabel(name) { return typeLabel(this.byName(name)); },
+    // a script as File › Scripts runs it: { result, logs, error, ms }
+    scriptRun: code => runScript(code),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),

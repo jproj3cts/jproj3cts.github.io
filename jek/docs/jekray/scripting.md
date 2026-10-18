@@ -2,10 +2,34 @@
 layout: docs
 title: Scripting and headless use
 permalink: /jek/docs/jekray/scripting/
-description: "Drive JEKray from a script: the window.JEKray object in the page, the same engine in Node without a browser, and a command line that traces a bench file and prints its readouts or sweeps a parameter to a table."
+description: "Drive JEKray from a script: the Scripts editor on the bench (JEKrayPro), the window.JEKray object in the page, the same engine in Node without a browser, and a command line that traces a bench file and prints its readouts or sweeps a parameter to a table."
 ---
 
-<p class="dx-lead">Everything the bench works out can be asked for from a script: in the page, through the <code>JEKray</code> object the tool puts on <code>window</code>; outside it, through the same engine running in Node, with no browser; and from the command line, which traces a bench file and prints what its panels would show. A design can sit in a repository with a check that runs it, and a parameter study can be a loop.</p>
+<p class="dx-lead">Everything the bench works out can be asked for from a script: on the bench, in the <strong>Scripts</strong> editor (JEKrayPro); in the page, through the <code>JEKray</code> object the tool puts on <code>window</code>; outside it, through the same engine running in Node, with no browser; and from the command line, which traces a bench file and prints what its panels would show. A design can sit in a repository with a check that runs it, and a parameter study can be a loop.</p>
+
+## On the bench: Scripts
+
+**File › Scripts…** opens an editor beside the bench, part of JEKrayPro. A script is JavaScript given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below, then what the script returned: rows (an array of objects) as a table with **Save as CSV**, anything else as JSON. The bench is checkpointed before each run, so **Undo** puts back whatever a script moved. Scripts are kept in this browser by name; **Save as a file** and **Open a file…** move them as `.js` files, and **Start from an example…** gives four to begin with: read a screen, sweep a part to a table, check a figure, list every part.
+
+`J` has the calls in the table below, taking parts by name, and these besides:
+
+| Call | What it does |
+|---|---|
+| `J.elements()` | Every part: name, type, x, y, angle. |
+| `J.element(name)` | A part's settings, as a copy. |
+| `J.get(name, path)`, `J.set(name, path, value)` | A parameter read, or set and the bench traced again. |
+| `J.range(a, b, n)` | n values from a to b. |
+| `J.sweep(name, path, values, read)` | Each value set, `read(value)` called, and the parameter put back: rows of the value and what was read. |
+| `J.csv(rows)` | Rows as CSV text. |
+
+A script to read the spot as a lens moves, as a table:
+
+```js
+const x0 = J.get('Lens', 'x');
+return J.sweep('Lens', 'x', J.range(x0 - 20, x0 + 20, 21), () => ({ rms: J.stats('Screen').rms }));
+```
+
+A script runs on this page, on your own bench, as typing into the browser's console would. It is not a module: nothing in it is shared, carried with the bench or run for anyone else.
 
 ## In the page
 

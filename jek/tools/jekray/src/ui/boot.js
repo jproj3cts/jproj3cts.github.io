@@ -86,6 +86,7 @@ import { account, accountLoaded, accountsOn, proLink, wireAccount } from '../io/
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
+import { runScript, wireScripts } from './scripts.js';
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
@@ -110,7 +111,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -276,6 +277,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
     typeLabel(name) { return typeLabel(this.byName(name)); },
+    // a script as File › Scripts runs it: { result, logs, error, ms }
+    scriptRun: code => runScript(code),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),

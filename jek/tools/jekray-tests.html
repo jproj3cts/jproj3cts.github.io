@@ -7156,6 +7156,25 @@ const TESTS = [
       const p1 = ends(J.byName('Output 1').id), p2 = ends(J.byName('Output 2').id);
       return p1 > 0 && p2 >= 0 ? Math.min(p1, p2) / Math.max(p1, p2) : NaN;
     },
+  },  { group: 'Scripts' },
+  {
+    name: 'A script runs against the bench with the documented calls: a sweep to rows, a read, and an error reported rather than thrown',
+    why: 'File \u203a Scripts runs JavaScript given J: J.sweep moves a lens along x over three places, reads the spot each time and puts the lens back; log() lines are kept; a script that throws reports its message; Undo has a checkpoint from before the run',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const x0 = J.getParam('L', 'x');
+      const A = await J.scriptRun("log('hello', 2); return J.sweep('L', 'x', J.range(50, 70, 3), () => ({ rms: J.stats('Sc').rms }));");
+      const okRows = !A.error && Array.isArray(A.result) && A.result.length === 3 && A.result.every(r => typeof r.rms === 'number' && isFinite(r.rms)) && A.result[0].x === 50 && A.result[2].x === 70;
+      const okLog = A.logs.length === 1 && A.logs[0] === 'hello 2';
+      const okBack = J.getParam('L', 'x') === x0;
+      const B = await J.scriptRun("J.set('L', 'x', 90); throw new Error('on purpose');");
+      const okErr = B.error === 'on purpose' && J.getParam('L', 'x') === 90;
+      const C = await J.scriptRun("return J.elements().map(e => e.type).join();");
+      const okEls = C.result === 'source,lens,screen';
+      const dlg = document.getElementById('rig').contentDocument.getElementById('btnScripts');
+      return okRows && okLog && okBack && okErr && okEls && !!dlg ? 1 : 0;
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

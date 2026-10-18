@@ -1,0 +1,85 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Poisson's spot",
+  "view": {
+    "cx": 250,
+    "cy": 0,
+    "scale": 1.6
+  },
+  "snap": 0,
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "eb9uv1ab",
+      "type": "source",
+      "name": "Laser",
+      "x": -100,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 12,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 6,
+      "z0": 100,
+      "beamView": "field",
+      "beamScale": "log",
+      "popN": 512,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 21,
+      "sweeps": {}
+    },
+    {
+      "id": "eqlba0h0",
+      "type": "stop",
+      "name": "Beam block",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "aperture": 3,
+      "outer": 25.4,
+      "shape": "disc",
+      "sep": 0.5,
+      "pitch": 0.2,
+      "count": 5,
+      "offset": 0,
+      "height": 0,
+      "side": 1,
+      "sweeps": {}
+    },
+    {
+      "id": "eodd1wzd",
+      "type": "screen",
+      "name": "Screen, 500 mm",
+      "x": 500,
+      "y": 0,
+      "angle": 180,
+      "length": 30,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {
+        "x": {
+          "min": 100,
+          "max": 900,
+          "freq": 0.05,
+          "phase": 0,
+          "wave": "sine"
+        }
+      }
+    }
+  ]
+}

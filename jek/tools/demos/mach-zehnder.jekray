@@ -1,0 +1,148 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Mach-Zehnder interferometer",
+  "view": {
+    "cx": 45,
+    "cy": 40,
+    "scale": 4
+  },
+  "snap": 0,
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "eujmqwe6",
+      "type": "source",
+      "name": "Laser",
+      "x": -50,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 50,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 128,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "sweeps": {}
+    },
+    {
+      "id": "egt901pg",
+      "type": "cube",
+      "name": "Splitter",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "size": 12.7,
+      "mode": "npbs",
+      "reflect": 50,
+      "reflectS": 99,
+      "reflectP": 1,
+      "material": {
+        "glass": "N-BK7",
+        "abs": 0
+      },
+      "coat": {
+        "mode": "custom",
+        "R": 0
+      },
+      "source": null,
+      "sweeps": {}
+    },
+    {
+      "id": "ebnq7bpj",
+      "type": "mirror",
+      "name": "Mirror A",
+      "x": 50,
+      "y": 0,
+      "angle": 135,
+      "length": 25,
+      "reflect": 100,
+      "offset": 0,
+      "k": 0,
+      "R": null,
+      "sweeps": {}
+    },
+    {
+      "id": "e28k4dzj",
+      "type": "mirror",
+      "name": "Mirror B",
+      "x": 0,
+      "y": 50,
+      "angle": -45,
+      "length": 25,
+      "reflect": 100,
+      "offset": 0,
+      "k": 0,
+      "R": null
+    },
+    {
+      "id": "e9qg72xm",
+      "type": "cube",
+      "name": "Combiner",
+      "x": 50,
+      "y": 50,
+      "angle": 0,
+      "size": 12.7,
+      "mode": "npbs",
+      "reflect": 50,
+      "reflectS": 99,
+      "reflectP": 1,
+      "material": {
+        "glass": "N-BK7",
+        "abs": 0
+      },
+      "coat": {
+        "mode": "custom",
+        "R": 0
+      },
+      "source": null,
+      "sweeps": {}
+    },
+    {
+      "id": "engf0hqp",
+      "type": "screen",
+      "name": "Output 1",
+      "x": 100,
+      "y": 50,
+      "angle": 180,
+      "length": 20,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {}
+    },
+    {
+      "id": "e5qyco3o",
+      "type": "screen",
+      "name": "Output 2",
+      "x": 50,
+      "y": 100,
+      "angle": -90,
+      "length": 20,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ]
+}

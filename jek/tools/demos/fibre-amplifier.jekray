@@ -1,0 +1,277 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Fibre amplifier and its noise",
+  "saved": "2026-09-27T09:17:49.693Z",
+  "view": {
+    "cx": 20,
+    "cy": 0,
+    "scale": 3.4
+  },
+  "snap": 1,
+  "maxBounces": 60,
+  "minPower": 0.0001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 20,
+        "cy": 0,
+        "scale": 3.4
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "Laser, 1545 nm",
+      "type": "fcomp",
+      "name": "Laser, 1545 nm",
+      "x": -170,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "laser",
+      "wavelength": 1545,
+      "power": 0.01,
+      "coh": 0,
+      "polAngle": 0,
+      "tau": 0,
+      "rep": 80,
+      "gdd0": 0,
+      "pshape": "sech2",
+      "lineshape": "lorentz",
+      "sweeps": {}
+    },
+    {
+      "id": "EDFA",
+      "type": "fcomp",
+      "name": "EDFA",
+      "x": -30,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "amp",
+      "g0": 25,
+      "psat": 17,
+      "nf": 5,
+      "centre": 1545,
+      "bw": 35,
+      "iso": 40,
+      "sweeps": {}
+    },
+    {
+      "id": "Tap, 50:50",
+      "type": "fcomp",
+      "name": "Tap, 50:50",
+      "x": 40,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "coupler",
+      "ratio": 50,
+      "loss": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "Band-pass, 1 nm",
+      "type": "fcomp",
+      "name": "Band-pass, 1 nm",
+      "x": 110,
+      "y": 20,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "wdm",
+      "centre": 1545,
+      "fwhm": 1,
+      "loss": 0.5,
+      "sweeps": {}
+    },
+    {
+      "id": "Filtered",
+      "type": "fcomp",
+      "name": "Filtered",
+      "x": 180,
+      "y": 30,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "pd",
+      "resp": 1,
+      "gain": 10000,
+      "vmax": 10,
+      "bandwidth": 1000000000,
+      "demodF": 0,
+      "demodPhase": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "Dump",
+      "type": "fcomp",
+      "name": "Dump",
+      "x": 180,
+      "y": 5,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "term",
+      "rl": 60,
+      "sweeps": {}
+    },
+    {
+      "id": "Unfiltered",
+      "type": "fcomp",
+      "name": "Unfiltered",
+      "x": 110,
+      "y": -25,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "pd",
+      "resp": 1,
+      "gain": 10000,
+      "vmax": 10,
+      "bandwidth": 1000000000,
+      "demodF": 0,
+      "demodPhase": 0,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [
+    {
+      "id": "e7alqcty",
+      "a": [
+        "Laser, 1545 nm",
+        0
+      ],
+      "b": [
+        "EDFA",
+        0
+      ],
+      "len": 20000,
+      "loss": 0.2,
+      "disp": null,
+      "ftype": "random",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "eae6kxo2",
+      "a": [
+        "EDFA",
+        1
+      ],
+      "b": [
+        "Tap, 50:50",
+        0
+      ],
+      "len": 2,
+      "loss": 0.2,
+      "disp": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "e3bd55xu",
+      "a": [
+        "Tap, 50:50",
+        2
+      ],
+      "b": [
+        "Band-pass, 1 nm",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ebfrmpcj",
+      "a": [
+        "Band-pass, 1 nm",
+        1
+      ],
+      "b": [
+        "Filtered",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ei6k6jn8",
+      "a": [
+        "Band-pass, 1 nm",
+        2
+      ],
+      "b": [
+        "Dump",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ew2appkk",
+      "a": [
+        "Tap, 50:50",
+        3
+      ],
+      "b": [
+        "Unfiltered",
+        0
+      ],
+      "len": 1,
+      "loss": 0.2,
+      "disp": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    }
+  ],
+  "measures": [],
+  "notes": "A weak 1545 nm signal (10 µW) sent down 20 km of standard fibre (4 dB of loss, its polarisation scrambled as laid fibre does), then amplified by an erbium-doped fibre amplifier: 25 dB small-signal gain, 17 dBm saturated output, 5 dB noise figure. The amplifier adds spontaneous emission (ASE) across its 35 nm band. Half the output goes straight to one photodiode, half through a 1 nm band-pass filter (a WDM) to another. The filter takes out most of the ASE’s power (compare the two photodiodes’ ASE in their Signal sections) and with it the ASE beating with itself, but not the ASE at the signal’s own wavelength, which beats with the signal: that is the noise a 5 dB noise figure sets, and the signal to noise hardly changes. Raise the laser’s power to watch the amplifier saturate: its gain falls as the output nears its saturated output power."
+}

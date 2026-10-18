@@ -1,0 +1,224 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Two lasers on a dichroic, two tables",
+  "saved": "2026-09-26T23:35:16.079Z",
+  "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 4
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Laser table",
+      "view": {
+        "cx": 0,
+        "cy": 0,
+        "scale": 4
+      }
+    },
+    {
+      "id": "b2",
+      "name": "Experiment",
+      "view": {
+        "cx": 0,
+        "cy": 0,
+        "scale": 4
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "ir",
+      "type": "source",
+      "name": "1064 nm laser, M² 1.3",
+      "x": -70,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 1064,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1.3,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "gr",
+      "type": "source",
+      "name": "532 nm laser",
+      "x": 0,
+      "y": -50,
+      "angle": 90,
+      "bench": "b1",
+      "wavelength": 532,
+      "colourAuto": true,
+      "colour": "#65ff00",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "dc",
+      "type": "filter",
+      "name": "Dichroic, long-pass 800 nm",
+      "x": 0,
+      "y": 0,
+      "angle": 315,
+      "bench": "b1",
+      "length": 25,
+      "ftype": "longpass",
+      "edge": 800,
+      "slope": 20,
+      "centre": 550,
+      "fwhm": 10,
+      "od": 1,
+      "tmax": 95,
+      "reflect": true,
+      "sweeps": {}
+    },
+    {
+      "id": "l1",
+      "type": "link",
+      "name": "To the experiment",
+      "x": 50,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 25,
+      "pair": "Table link",
+      "sweeps": {}
+    },
+    {
+      "id": "l2",
+      "type": "link",
+      "name": "From the laser table",
+      "x": -50,
+      "y": 0,
+      "angle": 0,
+      "bench": "b2",
+      "length": 25,
+      "pair": "Table link",
+      "sweeps": {}
+    },
+    {
+      "id": "lens",
+      "type": "lens",
+      "name": "Lens, f 100 mm",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b2",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 102.4,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": -102.4,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        4
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "scr",
+      "type": "screen",
+      "name": "Focus",
+      "x": 99.4,
+      "y": 0,
+      "angle": 180,
+      "bench": "b2",
+      "length": 2,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "Two tabs, joined by a pair of link planes: light leaving the laser table through its link arrives on the experiment table through the partner. On the laser table a long-pass dichroic (edge 800 nm) transmits a 1064 nm laser and reflects a 532 nm one onto the same line. On the experiment table one lens focuses both; the screen at the green focus shows the infrared a little out of focus (chromatic focal shift) and larger, since the 1064 nm laser has M² = 1.3. Switch tabs at the top of the bench."
+}

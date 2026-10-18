@@ -1,0 +1,89 @@
+name = "jek-api"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# JEKray accounts and cloud benches. Separate from the URPG fulfilment
+# Worker in ../worker: no binding, bucket or secret is shared with it.
+# Secrets go in via `wrangler secret put` — never here.
+
+[vars]
+# Origins allowed to call the API with credentials, comma-separated.
+# For local work, override in .dev.vars, e.g. APP_ORIGINS="http://localhost:8765"
+APP_ORIGINS = "https://jeksys.net"
+# This API's own address; sign-in callbacks are built from it.
+API_URL = "https://api.jeksys.net"
+# Where sign-in returns to when no other page of an allowed origin is given.
+APP_URL = "https://jeksys.net/jek/tools/jekray.html"
+
+# Sign-in clients. The IDs are public; the matching secrets are set with
+# `npx wrangler secret put GOOGLE_CLIENT_SECRET` and `... ORCID_CLIENT_SECRET`.
+GOOGLE_CLIENT_ID = "432503390292-hplcfdkn74jn50segtp0plbq5rnu45hj.apps.googleusercontent.com"
+ORCID_CLIENT_ID  = "APP-0FSLV1VB4QDAO8GN"
+# ORCID is off (its Public API terms rule out paid services; src/orcid.js):
+# "1" turns it back on. Existing ORCID accounts may sign in, to link Google or
+# Microsoft, until ORCID_LEGACY_UNTIL; after it the daily cron removes ORCID data.
+ORCID_ON = ""
+ORCID_LEGACY_UNTIL = "2026-10-31T23:59:59Z"
+# Microsoft (university and work accounts): the app registration's
+# Application (client) ID; its secret with `npx wrangler secret put MICROSOFT_CLIENT_SECRET`.
+# Empty: Microsoft sign-in is not offered.
+MICROSOFT_CLIENT_ID = "cd167344-4d1b-407d-8d8c-f00e52ddce2c"
+# Email (src/mail.js): codes that prove a university address, sent through
+# Resend from the jeksys.net domain verified there. The key, its own for this
+# API, with `npx wrangler secret put RESEND_API_KEY`; without it, no email is sent.
+MAIL_FROM = "JEKray <jekray@jeksys.net>"
+SUPPORT_EMAIL = "support@jeksys.net"
+# Quote requests from the site's quote cart (src/quotes.js): sent to SALES_EMAIL
+# from QUOTE_FROM, with a receipt to the customer. Same key and domain as above.
+SALES_EMAIL = "sales@jeksys.net"
+QUOTE_FROM = "JEK Systems <quotes@jeksys.net>"
+
+# Accounts, sessions, workspaces and bench heads.
+[[d1_databases]]
+binding        = "DB"
+database_name  = "jek"
+database_id    = "17786ac0-2309-4c9a-ab7b-98f9e63503f9"
+migrations_dir = "migrations"
+
+# Bench history (one object per saved version).
+[[r2_buckets]]
+binding     = "BENCHES"
+bucket_name = "jek-benches"
+
+# Short-lived sign-in state and Stripe webhook idempotency.
+[[kv_namespaces]]
+binding = "AUTH"
+id      = "51e89ffd5948439b9273b0b5d381ef0d"
+
+# Rate limits (src/limits.js). namespace_id is any number unique to each
+# limiter in the Cloudflare account; period is 10 or 60 seconds.
+[[ratelimits]]
+name = "RL_AUTH"
+namespace_id = "7101"
+simple = { limit = 60, period = 60 }
+
+[[ratelimits]]
+name = "RL_OPS"
+namespace_id = "7102"
+simple = { limit = 30, period = 60 }
+
+[[ratelimits]]
+name = "RL_SLOW"
+namespace_id = "7103"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "RL_WRITE"
+namespace_id = "7104"
+simple = { limit = 120, period = 60 }
+
+# Daily housekeeping: empty the bin of benches deleted 30 days ago, and clear
+# expired sessions and abandoned sign-ins.
+[triggers]
+crons = ["17 3 * * *"]
+
+# Custom domain: deploying creates api.jeksys.net and its DNS record in the
+# jeksys.net zone. URPG's Worker does not use this hostname.
+[[routes]]
+pattern       = "api.jeksys.net"
+custom_domain = true

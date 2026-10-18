@@ -1,0 +1,643 @@
+import { clamp } from './constants.js';
+import { ffTurn } from './freeform.js';
+import { normOrder, normPh } from './diffractive.js';
+import { grH } from './gradient.js';
+import { applyGrin, grinSlab } from './grin.js';
+import { deg, normCoat, num, project } from '../state/project.js';
+
+/* ---------- Assemblies: lenses and stops on one axis, designed together ----------
+   An assembly is a group of ordinary parts on the bench (lenses, stops, windows) with a record of
+   its own: a name, the conditions it is designed for, and which way the light goes through it. Its
+   parts stay parts: the bench traces them as it always has, so making an assembly, or splitting
+   one, changes nothing the light does. What the record adds is the view a lens designer works in:
+   the parts as one sequence of surfaces along the axis (its prescription), read from them and
+   written back to them.
+
+   The record: { id: the group's id (its parts carry it as "group"), name, bench, ref: the id of the
+   part whose facing sets the axis, rev: true when the light runs against that part's facing,
+   cond: its design conditions }. Its parts are found by their group, so a record whose group has
+   lost them all is dropped. */
+export const ASM_FIELDS_MAX = 12, ASM_WAVES_MAX = 12;
+export const asmKind = e => e.type === 'lens' ? 'lens' : e.type === 'mask' && e.grin ? 'grin' : e.type === 'stop' ? 'stop' : e.type === 'prism' && e.shape === 'window' ? 'window' : e.type === 'mirror' ? 'mirror' : null;
+
+/* design conditions: the aperture (an entrance pupil diameter, mm, or an F-number), the fields
+   (angles of the incoming light, degrees, each with a weight) and the wavelengths (nm, each with a
+   weight, one of them primary) */
+/* the conditions a design is for: its object (at infinity, or at a distance d before the first
+   surface), its aperture (the entrance pupil's diameter, the working F-number in image space, or for a
+   finite object the NA in object space), its fields (angles in degrees from infinity; object heights in
+   mm for a finite object, kept in "deg" all the same) and its wavelengths */
+export function normCond(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const ob = c.object && typeof c.object === 'object' && c.object.kind === 'finite' ? { kind: 'finite', d: clamp(num(c.object.d, 100), 1e-3, 1e7) } : null;
+  const ap = c.aperture && typeof c.aperture === 'object' ? c.aperture : {};
+  const kind = ap.kind === 'fno' ? 'fno' : ap.kind === 'na' && ob ? 'na' : 'epd';
+  const fields = (Array.isArray(c.fields) && c.fields.length ? c.fields : [{ deg: 0, w: 1 }]).slice(0, ASM_FIELDS_MAX)
+    .map(f => ({ deg: ob ? clamp(num(f && f.deg, 0), -1e5, 1e5) : clamp(num(f && f.deg, 0), -89, 89), w: clamp(num(f && f.w, 1), 0, 1e3) }));
+  const waves = (Array.isArray(c.waves) && c.waves.length ? c.waves : [{ nm: 587.56, w: 1 }]).slice(0, ASM_WAVES_MAX)
+    .map(v => ({ nm: clamp(num(v && v.nm, 587.56), 100, 3e8), w: clamp(num(v && v.w, 1), 0, 1e3) }));
+  return {
+    ...(ob ? { object: ob } : {}),
+    aperture: { kind, v: kind === 'fno' ? clamp(num(ap.v, 4), 0.2, 1e3) : kind === 'na' ? clamp(num(ap.v, 0.1), 1e-4, 0.99) : clamp(num(ap.v, 10), 1e-3, 1e5) },
+    fields, waves, primary: Math.round(clamp(num(c.primary, 0), 0, waves.length - 1)),
+  };
+}
+const cfmt = v => String(+(+v).toPrecision(5));
+/* the conditions in a line: "an object 200 mm before it, NA 0.1, fields to 5 mm, 587.56 nm" */
+export function condSummary(c) {
+  const fin = c.object && c.object.kind === 'finite', fmax = Math.max(...c.fields.map(f => Math.abs(f.deg)));
+  const ap = c.aperture.kind === 'fno' ? 'f/' + cfmt(c.aperture.v) : c.aperture.kind === 'na' ? 'NA ' + cfmt(c.aperture.v) + ' at the object' : cfmt(c.aperture.v) + ' mm entrance pupil';
+  return (fin ? 'an object ' + cfmt(c.object.d) + ' mm before it, ' : 'light from infinity, ') + ap + ', fields to ' + cfmt(fmax) + (fin ? ' mm' : '°') + ', ' + c.waves.map(v => cfmt(v.nm)).join(', ') + ' nm';
+}
+/* ---------- An RF system's conditions (the RF designer's: ui/rf-workspace.js) ----------
+   An assembly of RF parts is designed as a quasi-optical system: a feed horn's beam through its lenses and
+   mirrors to what it is for. Its conditions: the design frequency and the band (GHz); the feed horn (its kind,
+   aperture radius a and slant length L, mm) and the distance d from its aperture to the first vertex; and the
+   goal after the last vertex: the beam collimated, focused to a waist of radius w at distance d, or taken in
+   by a receiving horn whose aperture is at distance d. feed.id and goal.rx.id name the horns on the bench the
+   conditions were taken from, which follow them. */
+export const RF_HORN_KINDS = ['corrugated', 'smooth', 'diagonal', 'gauss'];
+export const RF_GOALS = ['collimate', 'focus', 'couple'];
+const horn = (h, a, L) => ({ kind: RF_HORN_KINDS.includes(h && h.kind) ? h.kind : 'corrugated', a: clamp(num(h && h.a, a), 0.05, 2000), L: clamp(num(h && h.L, L), 0.5, 1e5), ...(h && typeof h.id === 'string' ? { id: h.id } : {}) });
+export function normRfCond(r) {
+  r = r && typeof r === 'object' ? r : {};
+  const ghz = clamp(num(r.ghz, 24), 1, 3000);
+  let lo = clamp(num(r.lo, ghz * 0.9), 1, 3000), hi = clamp(num(r.hi, ghz * 1.1), 1, 3000);
+  if (lo > hi) [lo, hi] = [hi, lo];
+  lo = Math.min(lo, ghz); hi = Math.max(hi, ghz);
+  const f = r.feed && typeof r.feed === 'object' ? r.feed : {}, g = r.goal && typeof r.goal === 'object' ? r.goal : {};
+  const kind = RF_GOALS.includes(g.kind) ? g.kind : 'collimate';
+  const goal = { kind, d: clamp(num(g.d, 300), 0, 1e6) };
+  if (kind === 'focus') goal.w = clamp(num(g.w, 10), 0.01, 1e4);
+  if (kind === 'couple') goal.rx = horn(g.rx, 15, 80);
+  // the feed across the axis (mm, in the bench plane): aimed at the first vertex, unless pointed at a set angle (ang, degrees)
+  const feed = Object.assign(horn(f, 15, 80), { d: clamp(num(f.d, 150), 0, 1e6), off: clamp(num(f.off, 0), -1e4, 1e4) });
+  if (f.aim === false) { feed.aim = false; feed.ang = clamp(num(f.ang, 0), -89, 89); }
+  return { ghz, lo, hi, feed, goal };
+}
+/* an RF design's configurations: the system in several states (a second band, a switched feed, another goal), each with its own
+   conditions and its own values of the Element data keys listed (c:i, k:i, t:i, o:i, p:i); the active one's are the bench's. None
+   with fewer than two. */
+export const RF_MC_MAX = 8;
+const RF_MC_KEY = k => typeof k === 'string' && /^[cktop]:\d+$/.test(k);
+export function normRfMc(m) {
+  if (!m || typeof m !== 'object' || !Array.isArray(m.configs) || m.configs.length < 2) return null;
+  const keys = Array.isArray(m.keys) ? [...new Set(m.keys.filter(RF_MC_KEY))].slice(0, 100) : [];
+  const configs = m.configs.slice(0, RF_MC_MAX).map((c, i) => {
+    c = c && typeof c === 'object' ? c : {};
+    const v = {}, src = c.v && typeof c.v === 'object' ? c.v : {};
+    for (const k of keys) if (k in src && isFinite(+src[k]) && src[k] !== null && src[k] !== '') v[k] = clamp(+src[k], -1e9, 1e9);
+    return { name: String(c.name || 'Configuration ' + (i + 1)).slice(0, 40), w: clamp(num(c.w, 1), 0, 1e3), rf: normRfCond(c.rf), v };
+  });
+  return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
+}
+export function normAssemblies(list, els) {
+  const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
+  for (const a of Array.isArray(list) ? list : []) {
+    if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
+    seen.add(a.id);
+    const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf), ...(a.rfTol && typeof a.rfTol === 'object' ? { rfTol: JSON.parse(JSON.stringify(a.rfTol)) } : {}), ...(a.rfOpt && typeof a.rfOpt === 'object' ? { rfOpt: JSON.parse(JSON.stringify(a.rfOpt)) } : {}), ...(normRfMc(a.rfMc) ? { rfMc: normRfMc(a.rfMc) } : {}) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
+  }
+  return out;
+}
+
+/* ---------- The design: what a lens designer sets around the prescription ----------
+   (engines/lens-design.js works with it.) Kept on the record as "design": the image distance,
+   the values an optimiser may change, solves and pickups, each value named by a key:
+   "R:<part id>.<surface>", "k:...", "t:..." (the gap after that surface) or "t:image". */
+/* a key: R (radius), k (conic), t (gap after), g (glass after), a4 … a16 (an even aspheric coefficient,
+   A4 r⁴ …), or on a part's first surface T (its tilt, degrees) and D (its decentre, mm) in the plane of the fields,
+   U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
+   face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
+   that surface (core/gradient.js) */
+export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+)$/;
+export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
+const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
+export const SOLVE_KINDS = {
+  focus: { on: k => k === 't:image', label: 'Paraxial focus' },
+  fno: { on: k => k[0] === 'R', label: 'F-number', v: 4 },
+  edge: { on: k => k[0] === 't' && k !== 't:image', label: 'Edge thickness', v: 1 },
+};
+export function normDesign(d) {
+  const fresh = !d || typeof d !== 'object';
+  d = fresh ? {} : d;
+  const vars = Array.isArray(d.vars) ? [...new Set(d.vars.filter(okKey))].slice(0, 500) : [];
+  const solves = {}, pickups = {};
+  const sv = d.solves && typeof d.solves === 'object' ? d.solves : fresh ? { 't:image': { kind: 'focus' } } : {};
+  for (const k of Object.keys(sv).slice(0, 500)) {
+    const s = sv[k], K = s && SOLVE_KINDS[s.kind];
+    if (!okKey(k) || !K || !K.on(k)) continue;
+    if (s.kind === 'focus') { solves[k] = { kind: 'focus' }; continue; }
+    let v = clamp(num(s.v, K.v), -1e3, 1e3);
+    if (s.kind === 'fno' && Math.abs(v) < 0.2) v = v < 0 ? -0.2 : 0.2;
+    if (s.kind === 'edge') v = Math.max(0, v);
+    solves[k] = { kind: s.kind, v };
+  }
+  const pk = d.pickups && typeof d.pickups === 'object' ? d.pickups : {};
+  for (const k of Object.keys(pk).slice(0, 500)) {
+    const p = pk[k];
+    if (!okKey(k) || !p || !okKey(p.from) || p.from === k || p.from[0] !== k[0] || solves[k]) continue;
+    pickups[k] = { from: p.from, scale: clamp(num(p.scale, 1), -1e3, 1e3), off: clamp(num(p.off, 0), -1e5, 1e5) };
+  }
+  const mc = normMc(d.mc);
+  const found = normFound(d.found), lims = normLims(d.lims);
+  return { image: clamp(num(d.image, 50), -1e5, 1e5), vars, solves, pickups, merit: normMerit(d.merit), tol: normTol(d.tol), ...(mc ? { mc } : {}), ...(found.length ? { found } : {}), ...(lims ? { lims } : {}) };
+}
+/* limits on values marked V: by key (and /nd or /vd for a model glass's), a least and a greatest, either or both */
+export function normLims(L) {
+  if (!L || typeof L !== 'object') return null;
+  const out = {};
+  for (const id of Object.keys(L).slice(0, 500)) {
+    const m = L[id], [k, part] = id.split('/');
+    if (!okKey(k) || (part !== undefined && part !== 'nd' && part !== 'vd') || !m || typeof m !== 'object') continue;
+    const lo = m.lo === null || m.lo === undefined || m.lo === '' || !isFinite(+m.lo) ? null : clamp(+m.lo, -1e6, 1e6), hi = m.hi === null || m.hi === undefined || m.hi === '' || !isFinite(+m.hi) ? null : clamp(+m.hi, -1e6, 1e6);
+    if (lo === null && hi === null) continue;
+    out[id] = lo !== null && hi !== null && lo > hi ? { lo: hi, hi: lo } : Object.assign({}, lo !== null ? { lo } : {}, hi !== null ? { hi } : {});
+  }
+  return Object.keys(out).length ? out : null;
+}
+/* designs kept from a global search (or by hand): each its variables (key, which part of a model glass, which
+   configuration) and their values, its merit when found, and when; ten at most, best first */
+export function normFound(L) {
+  if (!Array.isArray(L)) return [];
+  const out = [];
+  for (const f of L.slice(0, 10)) {
+    if (!f || typeof f !== 'object' || !Array.isArray(f.vars) || !Array.isArray(f.x) || f.vars.length !== f.x.length || f.x.length > 500) continue;
+    const vars = f.vars.map(v => v && okKey(v.k) ? { k: v.k, part: v.part === 'nd' || v.part === 'vd' ? v.part : null, cfg: Number.isInteger(v.cfg) && v.cfg >= 0 && v.cfg < 16 ? v.cfg : null } : null);
+    if (vars.some(v => !v) || !f.x.every(v => isFinite(+v) && v !== null)) continue;
+    out.push({ vars, x: f.x.map(v => clamp(+v, -1e9, 1e9)), merit: Math.max(0, num(f.merit, 0)), t: Math.max(0, Math.round(num(f.t, 0))), ...(f.by === 'hand' ? { by: 'hand' } : {}) });
+  }
+  return out.sort((a, b) => a.merit - b.merit);
+}
+/* configurations: the same design in several states (a zoom's positions, a lens refocused for nearer
+   objects), each its own values for the keys listed (radii, conics, aspheric terms, gaps, the image
+   distance, tilts, decentres) and for a finite object its own distance; a weight in the merit
+   function; a name. One is active: its values are the ones on the bench. None with fewer than two. */
+export const MC_MAX = 16;
+const MC_KEY = k => okKey(k) && k[0] !== 'g';
+export function normMc(m) {
+  if (!m || typeof m !== 'object' || !Array.isArray(m.configs) || m.configs.length < 2) return null;
+  const keys = Array.isArray(m.keys) ? [...new Set(m.keys.filter(MC_KEY))].slice(0, 100) : [];
+  const configs = m.configs.slice(0, MC_MAX).map((c, i) => {
+    c = c && typeof c === 'object' ? c : {};
+    const v = {}, src = c.v && typeof c.v === 'object' ? c.v : {};
+    for (const k of keys) if (k in src) { const x = src[k]; if (x === null && k[0] === 'R') v[k] = null; else if (isFinite(+x) && x !== null && x !== '') v[k] = clamp(+x, -1e9, 1e9); }
+    return { name: String(c.name || 'Configuration ' + (i + 1)).slice(0, 40), w: clamp(num(c.w, 1), 0, 1e3), v, ...(c.obj !== undefined && isFinite(+c.obj) && +c.obj > 0 ? { obj: clamp(+c.obj, 1e-3, 1e7) } : {}) };
+  });
+  return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
+}
+/* the merit function: the image term (what is measured, over how many pupil rings and arms), the
+   boundaries every design keeps to, and the operands added to it, each with a target and a weight */
+/* tolerances: for each kind, whether it is applied and how large (radius in fringes at 632.8 nm over
+   the clear aperture, thickness and gaps in mm, element decentre in mm, element tilt in arcminutes,
+   index as a change in n, Abbe number in per cent); the image refocused or not; Monte Carlo's
+   statistics, trials and seed */
+export const TOL_KINDS = { rad: 3, thk: 0.05, dec: 0.025, tilt: 1, ind: 0.001, abbe: 0.5, irr: 1, wedge: 1, sdec: 0.01 };
+const TOL_OFF = { irr: true, wedge: true, sdec: true };              // kinds off until turned on
+export function normTol(o) {
+  o = o && typeof o === 'object' ? o : {};
+  const out = {};
+  for (const [k, v] of Object.entries(TOL_KINDS)) { const x = o[k] && typeof o[k] === 'object' ? o[k] : {}; out[k] = { on: x.on === undefined ? !TOL_OFF[k] : x.on !== false, v: clamp(num(x.v, v), 0, 1e3) }; }
+  out.comp = o.comp !== false;
+  out.dist = o.dist === 'normal' ? 'normal' : 'uniform';
+  // what a lens tilts about: its mechanical reference (its first vertex, its centre along the axis, or its last vertex)
+  out.pivot = o.pivot === 'centre' || o.pivot === 'last' ? o.pivot : 'first';
+  out.trials = Math.round(clamp(num(o.trials, 200), 10, 5000));
+  out.seed = Math.round(clamp(num(o.seed, 1), 1, 1e9));
+  // the worsening inverse sensitivity allows: a share of the nominal criterion (%), or an amount of it (mm, or waves)
+  const iv = o.inv && typeof o.inv === 'object' ? o.inv : {};
+  out.inv = iv.by === 'abs' ? { by: 'abs', v: clamp(num(iv.v, 0.001), 1e-9, 1e3) } : { by: 'pct', v: clamp(num(iv.v, 10), 0.01, 1e4) };
+  // compensators beyond the focus: an air gap (i, the gap's index), a lens's decentre or tilt (i, the part's index; axis x or y), each within ± range
+  const cs = Array.isArray(o.comps) ? o.comps : [], comps = [];
+  for (const c of cs.slice(0, 20)) {
+    if (!c || !['gap', 'dec', 'tilt'].includes(c.kind) || !Number.isInteger(c.i) || c.i < 0 || c.i > 500) continue;
+    if (c.kind !== 'gap' && c.axis !== 'x' && c.axis !== 'y') continue;
+    const m = { kind: c.kind, i: c.i, ...(c.kind !== 'gap' ? { axis: c.axis } : {}), range: clamp(num(c.range, c.kind === 'tilt' ? 10 : 0.5), 1e-6, 1e4) };
+    if (!comps.some(q => q.kind === m.kind && q.i === m.i && q.axis === m.axis)) comps.push(m);
+  }
+  if (comps.length) out.comps = comps;
+  // the yield's specification: the criterion at most crit (mm, or waves), and merit operands (by index) within lo to hi
+  const yv = o.yield && typeof o.yield === 'object' ? o.yield : {}, specs = [];
+  for (const sp of Array.isArray(yv.specs) ? yv.specs.slice(0, 40) : []) {
+    if (!sp || !Number.isInteger(sp.j) || sp.j < 0 || sp.j > 200) continue;
+    const lo = sp.lo === null || sp.lo === undefined || sp.lo === '' || !isFinite(+sp.lo) ? null : +sp.lo, hi = sp.hi === null || sp.hi === undefined || sp.hi === '' || !isFinite(+sp.hi) ? null : +sp.hi;
+    if (lo === null && hi === null) continue;
+    if (!specs.some(q => q.j === sp.j)) specs.push(lo !== null && hi !== null && lo > hi ? { j: sp.j, lo: hi, hi: lo } : { j: sp.j, lo, hi });
+  }
+  const yc = yv.crit === null || yv.crit === undefined || yv.crit === '' || !isFinite(+yv.crit) || +yv.crit <= 0 ? null : +yv.crit;
+  if (yc !== null || specs.length) out.yield = { crit: yc, specs };
+  return out;
+}
+export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];
+/* the terms that are measured at one of the design's fields (f, its index), at a point of the pupil (p, -1 to 1),
+   and at a spatial frequency (v, cycles/mm) */
+export const MERIT_AT_FIELD = ['IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'], MERIT_AT_PUPIL = ['RAYY'], MERIT_AT_FREQ = ['MTFT', 'MTFS', 'MTFA'];
+export function normMerit(m) {
+  m = m && typeof m === 'object' ? m : {};
+  const b = m.bounds && typeof m.bounds === 'object' ? m.bounds : {};
+  return {
+    crit: ['spot', 'chief', 'wfe'].includes(m.crit) ? m.crit : 'spot',
+    rings: Math.round(clamp(num(m.rings, 3), 1, 4)), arms: [4, 6, 8, 12].includes(+m.arms) ? +m.arms : 6,
+    bounds: { glassMin: clamp(num(b.glassMin, 1), 0, 1e3), glassMax: clamp(num(b.glassMax, 0), 0, 1e4), edgeMin: clamp(num(b.edgeMin, 0.5), 0, 1e3), airMin: clamp(num(b.airMin, 0.1), 0, 1e3),
+      aspMax: clamp(num(b.aspMax, 0.5), 0, 1e3), slopeMax: clamp(num(b.slopeMax, 0), 0, 89) },
+    ops: (Array.isArray(m.ops) ? m.ops : []).filter(o => o && MERIT_OPS.includes(o.op)).slice(0, 50)
+      .map(o => ({ op: o.op, target: clamp(num(o.target, 0), -1e6, 1e6), weight: clamp(num(o.weight, 1), 0, 1e6),
+        ...(MERIT_AT_FIELD.includes(o.op) ? { f: Math.round(clamp(num(o.f, ASM_FIELDS_MAX - 1), 0, ASM_FIELDS_MAX - 1)) } : {}),
+        ...(MERIT_AT_PUPIL.includes(o.op) ? { p: clamp(num(o.p, 1), -1, 1) } : {}),
+        ...(MERIT_AT_FREQ.includes(o.op) ? { v: clamp(num(o.v, 50), 0, 1e5) } : {}),
+        // in one configuration only (its index), or in every one (none)
+        ...(o.c !== undefined && o.c !== null && isFinite(+o.c) && +o.c >= 0 ? { c: Math.round(clamp(+o.c, 0, MC_MAX - 1)) } : {}) })),
+  };
+}
+/* a design's keys with part ids changed (an assembly pasted as a copy) */
+export function remapDesign(d, map) {
+  const k2 = k => { const m = DESIGN_KEY.exec(k); if (!m) return k; const j = m[2].lastIndexOf('.'), id = m[2].slice(0, j); return map.has(id) ? m[1] + ':' + map.get(id) + m[2].slice(j) : k; };
+  const o = {};
+  if (!d || typeof d !== 'object') return d;
+  o.image = d.image;
+  o.vars = (d.vars || []).map(k2);
+  o.solves = Object.fromEntries(Object.entries(d.solves || {}).map(([k, v]) => [k2(k), v]));
+  o.pickups = Object.fromEntries(Object.entries(d.pickups || {}).map(([k, v]) => [k2(k), Object.assign({}, v, { from: k2(v.from) })]));
+  if (d.merit) o.merit = d.merit;
+  if (d.tol) o.tol = d.tol;
+  if (d.mc && Array.isArray(d.mc.configs)) o.mc = { keys: (d.mc.keys || []).map(k2), active: d.mc.active,
+    configs: d.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(Object.entries(c.v || {}).map(([k, v]) => [k2(k), v])) })) };
+  return o;
+}
+
+export const assemblies = () => (project.assemblies || []).filter(a => project.elements.some(e => e.group === a.id));
+export const asmOf = el => (el && el.group ? (project.assemblies || []).find(a => a.id === el.group) || null : null);
+export const asmMembers = asm => project.elements.filter(e => e.group === asm.id);
+/* the assembly a selection is, whole: every one of its parts and nothing else */
+export function asmOfSelection(list) {
+  if (!list.length) return null;
+  const a = asmOf(list[0]);
+  if (!a) return null;
+  const m = asmMembers(a);
+  return m.length === list.length && list.every(e => e.group === a.id) ? a : null;
+}
+
+/* ---------- Can these parts be one assembly? ----------
+   Lenses (round about their axes, not cylinders), round stops, windows and mirrors (flat or curved,
+   whole or an offset section of a parent), at one height and upright, along one axis that a mirror folds. The
+   axis is walked from the part whose facing sets it, forward along the light and back against it:
+   each part next along the axis is the nearest ahead within its own half-width of it; at a mirror
+   the axis turns as the light does. A part may sit off the axis (decentred) by less than its
+   half-width and turn from it (tilted) by up to 30°; a mirror may turn it any way that sends the light
+   on. The light runs along the axis away from a source on it; with none, the way most lenses face. */
+const ang = a => ((a % 360) + 360) % 360;
+const sameAng = (a, b, tol) => { const d = ang(a - b); return Math.min(d, 360 - d) <= tol; };
+const TILT_MAX = 30;
+const halfW = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mask' ? e.length / 2 : e.type === 'stop' ? (e.outer || e.aperture) / 2 : e.type === 'mirror' ? e.length / 2 : e.size / 2;
+const v2 = deg2 => [Math.cos(deg2 * deg), Math.sin(deg2 * deg)];
+const lperp = d => [-d[1], d[0]];
+const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
+const refl2 = (d, n) => { const k = 2 * dot2(d, n); return [d[0] - k * n[0], d[1] - k * n[1]]; };
+/* the angle from d to a, signed (anticlockwise positive), degrees */
+const angFrom = (d, a) => Math.atan2(d[0] * a[1] - d[1] * a[0], dot2(d, a)) / deg;
+/* the part's axis as the light meets it: a lens either way round, a mirror's surface normal through it */
+const partAxis = e => v2(e.angle);
+/* walk from point q along d through the parts not yet used: each the nearest ahead within its half-width of the line */
+function walkAxis(q, d, pool) {
+  const out = [];
+  for (let guard = 0; guard < 400 && pool.size; guard++) {
+    let best = null, bt = Infinity;
+    for (const e of pool) {
+      const r = [e.x - q[0], e.y - q[1]], t = dot2(r, d), off = Math.abs(dot2(r, lperp(d)));
+      if (t > -1e-6 && off <= Math.max(1e-3, halfW(e)) + 1e-9 && t < bt) { bt = t; best = e; }
+    }
+    if (!best) break;
+    pool.delete(best);
+    out.push({ e: best, q, d });
+    if (asmKind(best) === 'mirror') {
+      // the axis turns where it meets the mirror's plane
+      const n = v2(best.angle), den = dot2(d, n), t = Math.abs(den) > 1e-12 ? dot2([best.x - q[0], best.y - q[1]], n) / den : bt;
+      q = [q[0] + d[0] * t, q[1] + d[1] * t]; d = refl2(d, n);
+    }
+  }
+  return out;
+}
+export function asmCheck(els, opts) {
+  opts = opts || {};
+  const name = e => e.name || e.type;
+  if (els.length < (opts.min || 1)) return { ok: false, why: 'Select a part to design: a lens, a mirror or a window, with any others on its axis.' };
+  const bad = els.find(e => !asmKind(e));
+  if (bad) return { ok: false, why: name(bad) + ' can’t be in an assembly: only lenses, mirrors, stops and windows on one axis can (leave out sources, screens and the rest).' };
+  if (els.some(e => e.bench !== els[0].bench)) return { ok: false, why: 'The parts are on different tabs.' };
+  const lenses = els.filter(e => asmKind(e) !== 'stop');
+  if (!lenses.length) return { ok: false, why: 'An assembly needs at least one lens, mirror or window.' };
+  // a cylindrical lens: its power in the bench's plane or out of it, as its shape says (not rolled about its axis)
+  const cyl = els.find(e => e.type === 'lens' && e.cyl && e.roll);
+  if (cyl) return { ok: false, why: name(cyl) + ' is a cylindrical lens rolled about its axis: in an assembly a cylinder’s power is in the bench’s plane or out of it, as its Shape sets.' };
+  const stopOdd = els.find(e => e.type === 'stop' && (e.shape !== 'round' || e.offset));
+  if (stopOdd) return { ok: false, why: name(stopOdd) + ' is not a round iris on the axis: an assembly’s stop is round.' };
+  const seg = els.find(e => e.type === 'mirror' && e.film);
+  if (seg) return { ok: false, why: name(seg) + ' is a film beam splitter: an assembly’s mirrors reflect all they get.' };
+  // out of the plane: a lens or a window may be tipped (within the same limit as a tilt across) and any part
+  // raised or lowered from the others by less than its own half-width; a mirror folds in the bench's plane only
+  const zOf = e => e.z === undefined ? 75 : e.z, halfOf = e => e.type === 'lens' ? e.diameter / 2 : e.type === 'mask' ? e.length / 2 : e.type === 'mirror' ? e.length / 2 : e.type === 'stop' ? Math.max(e.aperture / 2, 1) : (e.size || 10) / 2;
+  for (const e of els) {
+    if (e.tip && asmKind(e) !== 'lens' && asmKind(e) !== 'window') return { ok: false, why: name(e) + ' is tipped out of the plane: in an assembly only a lens or a window may be.' };
+    if (e.tip && Math.abs(e.tip) > TILT_MAX + 1e-9) return { ok: false, why: name(e) + ' is tipped ' + (+Math.abs(e.tip).toPrecision(3)) + '° out of the plane: an assembly’s parts face along its axis, within ' + TILT_MAX + '°.' };
+  }
+  const zMid = zOf(els.find(e => asmKind(e) !== 'stop') || els[0]);
+  for (const e of els) if (Math.abs(zOf(e) - zMid) >= halfOf(e)) return { ok: false, why: name(e) + ' is at another height from ' + name(els[0]) + ', by more than its own half-width.' };
+  const refl = lenses.filter(e => asmKind(e) !== 'mirror');
+  const ref = opts.ref ? els.find(e => e.id === opts.ref) || refl[0] || lenses[0] : refl[0] || lenses[0];
+  // which way the light runs along the reference's axis: away from a source on it, else the way most lenses face
+  const a0 = ref.angle, d0 = asmKind(ref) === 'mirror' ? v2(a0 + 180) : v2(a0);
+  let rev = opts.rev;
+  if (rev === undefined) {
+    const srcs = (opts.sources || []).filter(s => s.bench === ref.bench && Math.abs(dot2([s.x - ref.x, s.y - ref.y], lperp(d0))) < halfW(ref))
+      .sort((p, q) => Math.hypot(p.x - ref.x, p.y - ref.y) - Math.hypot(q.x - ref.x, q.y - ref.y));
+    if (srcs.length) rev = dot2([srcs[0].x - ref.x, srcs[0].y - ref.y], d0) > 0;
+    else { const turned = refl.filter(e => !sameAng(e.angle, a0, 1e-6)).length; rev = 2 * turned > refl.length; }
+  }
+  const D = rev ? [-d0[0], -d0[1]] : d0;
+  // the chain: back against the light from the reference, then on from it
+  const pool = new Set(els.filter(e => e !== ref));
+  const back = walkAxis([ref.x, ref.y], [-D[0], -D[1]], pool).reverse().map(c => ({ e: c.e, d: [-c.d[0], -c.d[1]] }));
+  const fwd = walkAxis([ref.x, ref.y], D, pool);
+  if (pool.size) { const e = [...pool][0]; return { ok: false, why: name(e) + ' is off the axis of the assembly (more than its half-width from it, or behind a mirror the light leaves). Line it up first.' }; }
+  // the light's direction at each part: for those met going back, the direction the light runs there
+  const chain = [...back.map(c => ({ e: c.e, d: c.d })), { e: ref, d: D }, ...fwd.map(c => ({ e: c.e, d: c.d }))];
+  for (let i = 0; i < chain.length; i++) {
+    const { e } = chain[i], d = chain[i].d, k = asmKind(e);
+    if (k === 'mirror') {
+      // the light must meet its reflecting face
+      if (dot2(v2(e.angle), d) >= -1e-9) return { ok: false, why: name(e) + ' faces away from the light along the axis: it must face the light it reflects.' };
+      continue;
+    }
+    const a = partAxis(e), t = Math.abs(angFrom(d, a)), tilt = Math.min(t, 180 - t);
+    if (tilt > TILT_MAX + 1e-9) return { ok: false, why: name(e) + ' faces another way from the axis (by ' + (+tilt.toPrecision(3)) + '°): an assembly’s parts face along its axis, within ' + TILT_MAX + '°.' };
+  }
+  // none overlapping along the axis, within each straight run
+  for (let i = 1; i < chain.length; i++) {
+    const p = chain[i - 1], c = chain[i];
+    if (asmKind(p.e) === 'mirror' || asmKind(c.e) === 'mirror') continue;
+    const span = x => { const t = dot2([x.e.x - ref.x, x.e.y - ref.y], x.d), T = G0sum(x.e); return [t - T / 2, t + T / 2]; };
+    if (span(c)[0] < span(p)[1] - 1e-6) return { ok: false, why: name(c.e) + ' overlaps ' + name(p.e) + '.' };
+  }
+  const folded = chain.some(c => asmKind(c.e) === 'mirror');
+  return { ok: true, ref: ref.id, rev, order: chain.map(c => c.e.id), dirs: chain.map(c => c.d), folded };
+}
+
+/* ---------- The prescription: the parts as one sequence of surfaces ----------
+   Along the light, from the first surface's vertex: each surface's shape (R, conic k, a2, the even
+   terms A, the odd terms), its clear radius, the gap to the next along the axis and the material in
+   that gap (air between parts), the stop as a flat surface in air, a mirror as a reflecting surface.
+   Each surface remembers which part, and which of its surfaces, it came from, so changes can be
+   written back. A lens turned against the light is read face for face the other way round, each sag
+   of the other sign. A part off the axis or turned from it carries its decentre and tilt (dec, tilt)
+   on its surfaces, about its first vertex; a mirror its tilt to the axis, which folds it. The bench
+   plane is the plane of the fields (the engine's y-z plane); after each mirror the image of the
+   bench is reflected, so the sense of y (and of a tilt) turns over. A mirror's radius is read in the
+   prescription's convention (positive: centre beyond it, away from the light), the other sign to the
+   bench's. */
+/* the assembly's axis height above the bench: its own, or its reference part's (a part off it is decentred out of the plane) */
+export function asmAxisZ(asm, els) {
+  if (asm && isFinite(asm.z)) return asm.z;
+  els = els || (asm ? asmMembers(asm) : []);
+  const ref = asm && els.find(e => e.id === asm.ref) || els[0];
+  return ref && ref.z !== undefined ? ref.z : 75;
+}
+/* out of the plane: the engine's x is up (the bench's z), and a part tipped up turns its own axis up */
+const OUT_Z = 1, OUT_TIP = 1;
+// a freeform's terms in the prescription: y across as the engine has it, for a lens and for a mirror (as its part has it, times these)
+const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
+// (a diffractive face's phase is the same read either way: it bends light toward its axis whichever way it comes)
+const flipSurf = s => ({ R: s.R === null ? null : -s.R, k: s.k, a2: -s.a2, A: s.A.map(v => -v), odd: s.odd ? s.odd.map(v => -v) : null, F: ffTurn(s.F, -1, -1), ...(s.cyl ? { cyl: s.cyl } : {}), ...(s.ph ? { ph: s.ph.slice(), dm: s.dm } : {}) });
+export function asmPrescription(asm, els) {
+  els = els || asmMembers(asm);
+  const C = asmCheck(els, { ref: asm.ref, rev: asm.rev, min: 1 });
+  const byId = new Map(els.map(e => [e.id, e]));
+  const order = C.ok ? C.order.map(id => byId.get(id)) : els;
+  const ref = els.find(e => e.id === asm.ref) || els[0];
+  // the first straight run's axis: through the first part, the light's way there
+  const first = order[0];
+  let d = firstDir(order, ref, asm);
+  // the axis: a point on it and its direction, walked part by part; along: the unfolded distance from the start
+  let q = [first.x, first.y], hand = 1, along = 0;
+  const surfaces = [], gaps = [], materials = [], parts = [];
+  let lastAx = null;                 // the unfolded distance of the axis point of the last surface so far
+  const zA = asmAxisZ(asm, els);
+  order.forEach((e, idx) => {
+    const kind = asmKind(e), r = [e.x - q[0], e.y - q[1]], t = dot2(r, d), off = hand * dot2(r, lperp(d));
+    let S2, G2, M2, flip = false, tilt = 0, T = 0, secN = null;
+    if (kind === 'stop') { S2 = [{ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.aperture / 2, stop: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = []; }
+    else if (kind === 'mirror') {
+      // its normal through it (away from the light): the axis of its own frame, about which the axis folds. An offset
+      // reflector folds the axis about its normal at the section's centre (the way a feed at the focus is sent out along the
+      // facing); its face is the parent's, the parent's axis turned from that normal (dtilt) and its vertex off the axis (dec,
+      // below), so the rays meet the section as it is cut
+      const sec = e.offset && e.R ? mirrorSection(e, d, hand) : null;
+      const thr = sec ? sec.n : v2(e.angle + 180);
+      if (sec) secN = sec.n;
+      tilt = hand * angFrom(d, thr);
+      S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, F: ffTurn(e.F, FF_SY_MIRROR, -1), semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 },
+        ...(sec ? { sec: sec.sec, dtilt: [wrap180(hand * angFrom(d, v2(e.angle + 180)) - tilt) * deg, 0] } : {}) }]; G2 = []; M2 = [];
+    } else {
+      const a = partAxis(e);
+      flip = dot2(a, d) < 0;
+      const ax = flip ? [-a[0], -a[1]] : a;
+      tilt = hand * angFrom(d, ax);
+      if (kind === 'lens') {
+        // a cylinder: its power across (y, in the bench's plane) or up (x, out of it)
+        const cl = e.cyl ? (e.cyl === 'plane' ? 'y' : 'x') : null;
+        S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}),
+          // a diffractive lens's faces carry their phase (all four terms, so each can be set), in its order
+          ...(e.diffractive ? { ph: [0, 1, 2, 3].map(j => (s.ph && s.ph[j]) || 0), dm: normOrder(e.diffOrder) } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i } }));
+        G2 = e.gaps.slice();
+        // a graded lens's glass keeps its terms, and the step its rays take in it (as the bench's do); another's is plain
+        M2 = e.materials.map(m => { const c = Object.assign({}, m); if (e.graded) { if (m.grad) c.grad = m.grad.slice(); c.gh = grH(e.diameter); } else delete c.grad; return c; });
+      } else if (kind === 'grin') {
+        // a graded-index RF disc: a slab graded as its design's path (core/grin.js grinSlab); its focal length on its first face
+        const G = grinSlab(e.grin, e.length);
+        S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.length / 2, from: { id: e.id, i }, ...(i ? {} : { grin: { f: e.grin.f } }) }));
+        G2 = [G ? G.T : 1]; M2 = [G ? { glass: e.grin.mat, dn: G.dn, grad: G.grad.slice(), gh: grH(e.length) } : { glass: e.grin.mat }];
+      } else {
+        S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
+        G2 = [e.thickness]; M2 = [Object.assign({}, e.material)];
+      }
+      if (flip) { S2 = S2.reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, from: s.from })); G2.reverse(); M2.reverse(); }
+      T = G2.reduce((u, v) => u + v, 0);
+    }
+    // out of the plane: tipped (a lens or a window; its own axis up, so the light's way up unless it faces back) and raised from the axis
+    const tb = (kind === 'lens' || kind === 'window') && e.tip ? OUT_TIP * (flip ? -1 : 1) * e.tip * deg : 0;
+    const xc = OUT_Z * ((e.z === undefined ? 75 : e.z) - zA);
+    const tr = tilt * deg, ct = Math.cos(tr), st = Math.sin(tr), cb = Math.cos(tb), sb = Math.sin(tb);
+    // its own axis in the engine's frame, and its first vertex: the centre less half its thickness along it
+    const g = [sb, st * cb, ct * cb];
+    const tv = t - (T / 2) * g[2], ov = off - (T / 2) * g[1], ox = xc - (T / 2) * g[0];
+    if (idx) { gaps.push(Math.max(0, along + tv - lastAx)); materials.push({ glass: 'AIR' }); }
+    let cum = 0;
+    S2.forEach((s, k) => {
+      if (k) cum += G2[k - 1];
+      const big = Math.abs(tr) > 1e-12 || Math.abs(tb) > 1e-12 || Math.abs(ov + cum * g[1]) > 1e-9 || Math.abs(ox + cum * g[0]) > 1e-9 || s.sec;
+      if (big) { s.tilt = [tr, tb]; s.dec = [ox + cum * g[0], ov + cum * g[1], cum * (g[2] - 1)]; }
+      // a mirror keeps its fold apart from a tilt added to it (an error in tolerancing); a section's vertex and power from its offset
+      if (s.mirror) s.fold = tr;
+      if (s.sec) { s.sec.c = s.dec.slice(); mirrorSecApply(s); }
+      surfaces.push(s);
+    });
+    gaps.push(...G2); materials.push(...M2);
+    lastAx = along + tv + T;
+    parts.push({ id: e.id, kind, flip, n: S2.length, ...(e.asphere ? { asph: true } : {}), ...(e.diffractive ? { diff: true } : {}), ...(e.graded ? { grin: true } : {}) });
+    if (kind === 'mirror') {
+      // the axis turns where it meets the mirror's plane (a section's tangent plane at its centre); on from there
+      const n = secN || v2(e.angle), den = dot2(d, n), tt = Math.abs(den) > 1e-12 ? dot2(r, n) / den : t;
+      q = [q[0] + d[0] * tt, q[1] + d[1] * tt]; along += tt;
+      lastAx = along;
+      d = refl2(d, n); hand = -hand;
+    }
+  });
+  const stopIndex = surfaces.findIndex(s => s.stop);
+  // the first vertex, in the world, and the first run's axis: where the prescription sits on the bench
+  const D1 = firstDir(order, ref, asm), firstT = G0sum(order[0]);
+  const tl = surfaces[0].tilt ? surfaces[0].tilt[0] : 0, tb0 = surfaces[0].tilt ? surfaces[0].tilt[1] : 0, ax0 = rot2(D1, tl / deg), off0 = surfaces[0].sec ? surfaces[0].sec.c[1] : surfaces[0].dec ? surfaces[0].dec[1] : 0;
+  // the axis point at the first vertex: the first part's centre, back half its thickness along its own axis (as it shows on the bench), less its decentre
+  const h0 = firstT / 2 * Math.cos(tb0), fv = [first.x - ax0[0] * h0, first.y - ax0[1] * h0], origin = [fv[0] - lperp(D1)[0] * off0, fv[1] - lperp(D1)[1] * off0];
+  return { surfaces, gaps, materials, stopIndex, origin, dir: D1, parts, folded: parts.some(p => p.kind === 'mirror'), axisZ: zA };
+}
+const G0sum = e => asmKind(e) === 'lens' ? e.gaps.reduce((u, v) => u + v, 0) : asmKind(e) === 'window' ? e.thickness : asmKind(e) === 'grin' ? grinT(e) : 0;
+/* a graded-index RF disc's whole thickness (1 mm where it cannot be made, so it still has a place) */
+const grinT = e => { const G = grinSlab(e.grin, e.length); return G ? G.T : 1; };
+/* an offset reflector's parent focus, in the mirror's own frame (x along its facing, y across): f along the parent axis from
+   the parent vertex, which lies offset across and the parent's sag at the offset behind the section's centre */
+export function mirrorFocus(e) {
+  if (!e.R) return null;
+  const f = Math.abs(e.R) / 2, h = e.offset || 0, c = 1 / e.R, k = e.k || 0, q = 1 - (1 + k) * c * c * h * h, sag0 = q > 0 ? c * h * h / (1 + Math.sqrt(q)) : 0;
+  return { f, h, sag0, x: f - sag0, y: -h };
+}
+const wrap180 = a => ((a + 180) % 360 + 360) % 360 - 180;
+/* an offset reflector's parent focus to the section's centre: the way a feed at the focus looks, on the bench (null for a flat or whole mirror) */
+export function mirrorFeedDir(e) {
+  const F = mirrorFocus(e); if (!F || !F.h) return null;
+  const a = v2(e.angle), ym = lperp(a), fx = a[0] * F.x + ym[0] * F.y, fy = a[1] * F.x + ym[1] * F.y, L = Math.hypot(fx, fy);
+  return L > 1e-12 ? [-fx / L, -fy / L] : null;
+}
+/* an offset reflector met by the axis along d (the bench's sense of across hand): the normal at the section's centre, about which the
+   axis folds (the bisector of the feed's way in from the focus and the facing, the way out), and what the prescription's surface
+   keeps to set itself from a new offset or radius (mirrorSecApply): the facing and the mirror's across axis in the engine's frame */
+function mirrorSection(e, d, hand) {
+  const F = mirrorFocus(e), a = v2(e.angle), ym = lperp(a);
+  const din = mirrorFeedDir(e) || [-a[0], -a[1]], nn = [din[0] - a[0], din[1] - a[1]], L = Math.hypot(nn[0], nn[1]);
+  const n = L > 1e-12 ? [nn[0] / L, nn[1] / L] : [-a[0], -a[1]];
+  const eng = v => [hand * dot2(v, lperp(d)), dot2(v, d)];
+  return { n, sec: { h: F.h, a: eng(a), yv: eng(ym), c: [0, 0, 0] } };
+}
+/* a section's surface set from its offset (sec.h) and its radius and conic: its parent's vertex off the axis (dec, from the section
+   centre's own decentre sec.c, back the parent's sag at the offset along the facing and the offset across) and its first-order power
+   about the beam's centre, 1/(2L) for the distance L from the focus to the section's centre (a paraboloid's f/cos²(β/2)), so the
+   Gaussian beam is bent as the section bends it rather than as the parent's vertex would */
+export function mirrorSecApply(s) {
+  const q = s.sec; if (!q) return s;
+  const Rb = s.R === null || s.R === undefined || !isFinite(s.R) || !s.R ? 0 : -s.R;
+  const h = q.h || 0, k = s.k || 0, c = Rb ? 1 / Rb : 0, qq = 1 - (1 + k) * c * c * h * h, sag0 = c && qq > 0 ? c * h * h / (1 + Math.sqrt(qq)) : 0;
+  const f = Rb ? Math.abs(Rb) / 2 : Infinity, L = isFinite(f) ? Math.hypot(f - sag0, h) : Infinity;
+  s.dec = [q.c[0] || 0, (q.c[1] || 0) - q.a[0] * sag0 - q.yv[0] * h, (q.c[2] || 0) - q.a[1] * sag0 - q.yv[1] * h];
+  s.pc = Rb && isFinite(L) && L > 0 ? -Math.sign(Rb) / (2 * L) : 0;
+  return s;
+}
+function firstDir(order, ref, asm) {
+  const a0 = ref.angle, D0 = asmKind(ref) === 'mirror' ? (mirrorFeedDir(ref) || v2(a0 + 180)) : v2(a0);
+  let dd = asm.rev ? [-D0[0], -D0[1]] : D0;
+  for (let i = order.indexOf(ref) - 1; i >= 0; i--) if (asmKind(order[i]) === 'mirror') dd = refl2(dd, v2(order[i].angle));
+  return dd;
+}
+
+/* the axis at unfolded distance s from the first vertex: its point and direction on the bench, and the
+   sense of the bench's y there (1, or -1 after an odd number of mirrors) */
+export function asmAxisAt(P, s) {
+  let q = P.origin.slice(), d = P.dir.slice(), hand = 1, z = 0;
+  const zs = [0]; for (const g of P.gaps) zs.push(zs[zs.length - 1] + g);
+  for (let i = 0; i < P.surfaces.length; i++) {
+    if (!P.surfaces[i].mirror || zs[i] >= s) continue;
+    const step = zs[i] - z; q = [q[0] + d[0] * step, q[1] + d[1] * step]; z = zs[i];
+    const t = (P.surfaces[i].tilt || [0])[0], th = hand * t / deg;
+    const thr = rot2(d, th), n = [-thr[0], -thr[1]];
+    d = refl2(d, n); hand = -hand;
+  }
+  return { p: [q[0] + d[0] * (s - z), q[1] + d[1] * (s - z)], d, hand };
+}
+const rot2 = (d, a) => { const c = Math.cos(a * deg), s2 = Math.sin(a * deg); return [d[0] * c - d[1] * s2, d[0] * s2 + d[1] * c]; };
+
+/* Writes a prescription back to the parts: each surface's shape to the surface it came from, each
+   part's own thicknesses and glass, and each part's place and facing from the axis walked again with
+   the gaps (the first vertex stays where it is), its decentre and its tilt. The prescription keeps the
+   parts in the same order; a lens's surfaces may be more or fewer than it had (a surface inserted or
+   taken out in the design). */
+export function asmApply(asm, P, els) {
+  els = els || asmMembers(asm);
+  const byId = new Map(els.map(e => [e.id, e]));
+  const zs = [0]; for (const g of P.gaps) zs.push(zs[zs.length - 1] + g);
+  const zA = isFinite(P.axisZ) ? P.axisZ : asmAxisZ(asm, els);
+  // the axis's height kept on the assembly, so a part moved up or down off it (by the design) stays decentred from it
+  if (asm && !isFinite(asm.z)) asm.z = zA;
+  let k = 0;
+  P.parts.forEach(p => {
+    const e = byId.get(p.id), S = P.surfaces.slice(k, k + p.n), G = P.gaps.slice(k, k + p.n - 1), M = P.materials.slice(k, k + p.n - 1);
+    const s0 = S[0], A = asmAxisAt(P, zs[k] - 1e-12), d = A.d, hand = A.hand;
+    const tilt = s0.tilt ? s0.tilt[0] / deg : 0, dec = s0.dec ? s0.dec[1] : 0, tb = s0.tilt ? s0.tilt[1] || 0 : 0, decx = s0.dec ? s0.dec[0] || 0 : 0;
+    // the first vertex on the bench: the axis point, then across by the decentre (in the bench's sense of y)
+    const at = asmAxisAt(P, zs[k]), dz0 = s0.dec ? s0.dec[2] || 0 : 0;     // (along: a section's parent vertex before or past its centre)
+    const base = [at.p[0] + hand * lperp(d)[0] * dec + d[0] * dz0, at.p[1] + hand * lperp(d)[1] * dec + d[1] * dz0];
+    const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0), cb = Math.cos(tb);
+    // centre: the first vertex on along the part's own axis by half its thickness (its part in the plane, and up)
+    const nx = base[0] + ax[0] * T / 2 * cb, ny = base[1] + ax[1] * T / 2 * cb;
+    if (Math.hypot(nx - e.x, ny - e.y) > 1e-9) { e.x = nx; e.y = ny; }
+    const nz = zA + OUT_Z * (decx + T / 2 * Math.sin(tb));
+    if (Math.abs(nz - (e.z === undefined ? 75 : e.z)) > 1e-9) e.z = nz;
+    if (p.kind === 'lens' || p.kind === 'window') {
+      const tip = OUT_TIP * (p.flip ? -1 : 1) * tb / deg;
+      if (Math.abs(tip) < 1e-9) delete e.tip; else e.tip = tip;
+    }
+    if (p.kind === 'stop') e.aperture = 2 * S[0].semi;
+    else if (p.kind === 'mirror') {
+      e.R = S[0].R === null || S[0].R === 0 || !isFinite(S[0].R) ? null : -S[0].R; e.k = S[0].k;
+      const mA = (S[0].A || []).map(v => -v); while (mA.length && !mA[mA.length - 1]) mA.pop();
+      if (mA.length) e.A = mA; else delete e.A;
+      const mF = ffTurn(S[0].F, FF_SY_MIRROR, -1); if (mF && Object.keys(mF).length) e.F = mF; else delete e.F;
+      // its facing: the face's own axis back (a section's turned from the fold by its dtilt)
+      const fa = S[0].dtilt && S[0].dtilt[0] ? rot2(d, hand * (tilt + S[0].dtilt[0] / deg)) : ax;
+      const want = ang(Math.atan2(-fa[1], -fa[0]) / deg);
+      if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
+      // a section: its offset, and its centre from the parent's vertex (where the surface's decentre put it)
+      if (S[0].sec) {
+        const h = S[0].sec.h || 0;
+        if (Math.abs(h) > 1e-9) e.offset = h; else delete e.offset;
+        const F = mirrorFocus(e), a = [-fa[0], -fa[1]], ym = lperp(a), sg = F ? F.sag0 : 0;
+        const cx = base[0] + a[0] * sg + ym[0] * h, cy = base[1] + a[1] * sg + ym[1] * h;
+        if (Math.hypot(cx - e.x, cy - e.y) > 1e-9) { e.x = cx; e.y = cy; }
+      }
+    } else {
+      const want = ang(Math.atan2(p.flip ? -ax[1] : ax[1], p.flip ? -ax[0] : ax[0]) / deg);
+      if (!sameAng(e.angle, want, 1e-9)) e.angle = want;
+      if (p.kind === 'lens') {
+        const ss = p.flip ? S.slice().reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi })) : S;
+        // a surface added in the prescription is a new, bare one on the part; one taken out goes from it
+        e.surfaces = ss.map((s, i) => {
+          const t = e.surfaces[i] || { R: null, k: 0, a2: 0, A: [], semi: null, coat: normCoat({}) };
+          t.R = s.R === 0 || !isFinite(s.R) ? null : s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
+          const tF = ffTurn(s.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
+          const tP = normPh(s.ph); if (tP) t.ph = tP; else delete t.ph;
+          // a clear radius that is the lens's own stays unset
+          if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi;
+          else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+          return t;
+        });
+        e.gaps = (p.flip ? G.slice().reverse() : G).slice();
+        e.materials = (p.flip ? M.slice().reverse() : M).map(m => { const c = Object.assign({}, m); delete c.gh; if (c.grad) c.grad = c.grad.slice(); return c; });
+      } else if (p.kind === 'window') { e.thickness = G[0]; e.material = Object.assign({}, M[0]); }
+      // a graded-index disc: its design's focal length, as the prescription has it (its thickness and grading follow from it)
+      else if (p.kind === 'grin' && S[0].grin && isFinite(S[0].grin.f) && S[0].grin.f > 0 && Math.abs(S[0].grin.f - e.grin.f) > 1e-9) { e.grin = Object.assign({}, e.grin, { f: S[0].grin.f }); applyGrin(e); }
+    }
+    k += p.n;
+  });
+}
+
+/* first-order figures of the prescription at one wavelength: its focal length and back focal distance */
+export function asmParaxial(P, nm, paraxial) {
+  return paraxial({ surfaces: P.surfaces, gaps: P.gaps, materials: P.materials }, nm);
+}

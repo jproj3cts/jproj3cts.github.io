@@ -1,0 +1,114 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Dispersing prism",
+  "saved": "2026-09-26T23:38:17.814Z",
+  "view": {
+    "cx": 40,
+    "cy": -20,
+    "scale": 6
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 40,
+        "cy": -20,
+        "scale": 6
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "src",
+      "type": "source",
+      "name": "White light",
+      "x": -30,
+      "y": 4,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 587.6,
+      "colourAuto": true,
+      "colour": "#ffe700",
+      "width": 3,
+      "divergence": 0,
+      "gauss": false,
+      "w0": 0.35,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [
+        486.1,
+        656.3
+      ],
+      "rays": 5,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "p",
+      "type": "prism",
+      "name": "Prism, N-SF11",
+      "x": 10,
+      "y": 0,
+      "angle": 56.829056236575276,
+      "bench": "b1",
+      "shape": "equilateral",
+      "size": 25,
+      "thickness": 5,
+      "material": {
+        "glass": "N-SF11",
+        "abs": 0
+      },
+      "coat": {
+        "mode": "bare",
+        "R": 4
+      },
+      "sweeps": {}
+    },
+    {
+      "id": "scr",
+      "type": "screen",
+      "name": "Screen",
+      "x": 52.1,
+      "y": -73.28,
+      "angle": 113.66,
+      "bench": "b1",
+      "length": 40,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "White light (the F, d and C lines, 486.1, 587.6 and 656.3 nm) through an equilateral N-SF11 prism turned to minimum deviation for the d line. Blue is bent most. Turn the prism a few degrees either way and watch the deviation pass through its minimum; swap the glass for N-BK7 to see how much less a crown glass disperses. The light is p polarised: at this angle of incidence, close to Brewster’s, hardly any is reflected at the faces; make it unpolarised to see the s light’s reflections."
+}

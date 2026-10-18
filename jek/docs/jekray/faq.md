@@ -1,0 +1,71 @@
+---
+layout: docs
+title: FAQ
+permalink: /jek/docs/jekray/faq/
+redirect_from: /jek/docs/jekray2d/faq/
+description: Common questions about JEKray, its models and its limits.
+---
+
+<p class="dx-lead">Common questions about what JEKray does, how far to trust it, and how to get the most from it.</p>
+
+## General
+
+### Is JEKray free?
+
+Yes. The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html). JEKrayPro is an optional subscription that adds a cloud account: benches saved online with version history, forks, team workspaces, your own parts library, and the experimental features under the Help menu.
+
+### Does my bench leave my computer?
+
+Not unless you choose to send it. The simulator runs in your browser and your bench is autosaved there. A share link carries the bench in the part of the address after #, which browsers never send to a server. Only benches you save to a JEKrayPro account are stored online.
+
+### Which browsers does it run in?
+
+Current Chrome, Edge, Firefox and Safari. Heavy work runs in background threads, so a recent computer helps with large benches and the diffracted field.
+
+## Models
+
+### How accurate is it?
+
+The ray tracer is exact for the geometry it models: real surfaces, real glass (Sellmeier data), Fresnel coefficients and coatings. The Gaussian-beam and diffracted-field models are paraxial except where they say otherwise; near a steep focus the field is summed directly by the Rayleigh–Sommerfeld integral. The [validation page](/jek/tools/jekray-validation.html) compares the results with analytic answers and published data, and runs in your browser.
+
+### Is the bench two-dimensional?
+
+The bench is drawn from above, as optical setups are planned, but the light is traced in three dimensions. Every free-space part can be raised, tipped and rolled, and rays, beams and the diffracted field all follow: periscopes, misaligned cavities, rolled cylinders and Dove prisms work (see [Heights](/jek/docs/jekray/free-space/#heights)). With everything in the plane, each part is a figure of revolution about its axis, so a beam's field out of the plane follows from its field in it; where a tilt breaks that symmetry a full 2D field is used. Fibre, electronic and chip parts stay in the plane.
+
+### Can I see my bench in 3D?
+
+Yes: the **2D / 3D** switch at the bench's top right, or **View › 3D view** (see [Getting started](/jek/docs/jekray/getting-started/#the-3d-view)). It shows the same bench in three dimensions, with the light as the trace has it, and parts can be moved and turned there with arrows and rings.
+
+### Why don't two of my lasers interfere?
+
+Light from separate lasers adds as powers, never as fields, as in the lab: two free-running lasers have no steady phase between them. On a photodiode they still *beat* at the difference of their frequencies, with the line width of both. To make two beams interfere, make the second source *split from* the first: they are then one launch.
+
+### Why do my fringes fade?
+
+Because the paths differ by more than the laser's coherence length. A source with a line width has a coherence length $$L_c = c/\Delta\nu$$, and fringe contrast falls with the path difference (see [Concepts](/jek/docs/jekray/concepts/#launches-and-coherence)). Set the source to a single frequency for fringes at any path difference.
+
+### My cavity shows no resonance. What is wrong?
+
+A cavity is found from the light's own path, so the light has to make at least two round trips before the tracer stops following it. In the Bench panel (the gear at the bench's bottom right) raise **Interactions per ray** to about 40 and lower **Power floor** to about 1e-4, so faint round trips are kept. Then check that the mirrors face each other and the cavity is stable: the Bench panel's Cavity tab says so.
+
+### What is the difference between rays and the beam?
+
+A source can launch a *ray fan*, many rays across its width, and a *Gaussian beam*, one reference ray with a beam parameter. Ray fans show geometry: spots, aberrations, vignetting. The Gaussian beam carries the diffracted field: focus sizes, interference, coupling into fibres and cavity modes. You can have both at once.
+
+## Using it
+
+### How do I model a part from a catalogue?
+
+Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or import a lens file: **File › Import an element (.zmx)…** reads the files lens makers publish. **File › Export an element (.zmx)** goes the other way, writing the selected lenses as a prescription that lens-design programs open (see [Lens](/jek/docs/jekray/free-space/lens/#exporting-a-lens)). With JEKrayPro you can keep parts in **My parts** to use on any bench.
+
+### Can an AI assistant build a bench for me?
+
+Yes. Give it the [guide for AI assistants](/jek/tools/jekray-ai-guide.md), ask for a `.jekray` file, and paste its answer with **Ctrl+V** on the bench. Anything it got wrong is listed in an import report you can hand back to it.
+
+### How do I cite JEKray?
+
+**Help › Cite JEKray**, or **Cite** on the bar, gives a reference to copy with the version you used, and a BibTeX entry.
+
+### I found something wrong.
+
+Please tell us at [support@jeksys.net](mailto:support@jeksys.net), or use **Help › Report a bug**. The same goes for anything wrong or unclear in these pages.

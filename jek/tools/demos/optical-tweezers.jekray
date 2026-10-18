@@ -1,0 +1,146 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Optical tweezers in water",
+  "saved": "2026-09-27T18:32:07.918Z",
+  "view": {
+    "cx": -5,
+    "cy": 0,
+    "scale": 12
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.0001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": -5,
+        "cy": 0,
+        "scale": 12
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "1064 nm laser, 100 mW",
+      "x": -30,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 1064,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 6,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 3,
+      "z0": 0,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 5,
+      "power": 100,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "water",
+      "type": "prism",
+      "name": "Water",
+      "x": 2.5,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "shape": "window",
+      "size": 20,
+      "thickness": 15,
+      "material": {
+        "glass": "Water",
+        "abs": 0
+      },
+      "coat": {
+        "mode": "bare",
+        "R": 4
+      },
+      "sweeps": {}
+    },
+    {
+      "id": "obj",
+      "type": "mask",
+      "name": "Water-immersion objective, NA 1.2",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 8.573,
+      "amp": "1",
+      "delay": "-1.3242*(sqrt(r^2+4)-2)/lambda",
+      "preset": "custom",
+      "sweeps": {}
+    },
+    {
+      "id": "trap",
+      "type": "screen",
+      "name": "Trap at the focus",
+      "x": 2,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 0.1,
+      "absorb": false,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "sphere",
+      "trapMat": "Polystyrene",
+      "trapR": 60,
+      "trapRho": 1050,
+      "trapMed": "bench",
+      "trapP": 1013.25,
+      "trapT": 295,
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "Optical tweezers as in a biophysics lab: 100 mW of 1064 nm light filling a water-immersion objective of NA 1.2 (drawn as an ideal lens inside the water, f = 2 mm), holding a 120 nm polystyrene bead in water. Select the screen at the focus and open its Trap tab: the bead sits at the focus with trap frequencies of a few hundred kHz across the beam (about 300 kHz along the light’s polarisation, p in the plane, and 430 kHz across it: a steep focus is wider along its polarisation) and about 150 kHz along it. The water is on the bench, so the trap takes its index and its viscosity: the damping is far faster than the trap frequencies (Q well under ½), so the bead does not oscillate but diffuses in the trap, as it does in real tweezers. Try a silica bead, a smaller one, or a lower NA (a longer f in the objective’s formula) and watch the radiation pressure win.",
+  "ui": {
+    "sel": "trap",
+    "pins": [],
+    "views": {
+      "trap": {
+        "screenTab": "trap"
+      }
+    }
+  }
+}

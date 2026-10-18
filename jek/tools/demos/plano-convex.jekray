@@ -1,0 +1,209 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Plano-convex: which way round?",
+  "view": {
+    "cx": 50,
+    "cy": 0,
+    "scale": 5
+  },
+  "snap": 0,
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "edfeilxk",
+      "type": "source",
+      "name": "Beam A",
+      "x": -40,
+      "y": 15,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 20,
+      "divergence": 0,
+      "gauss": false,
+      "w0": 0.35,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 41,
+      "sweeps": {}
+    },
+    {
+      "id": "e2me150b",
+      "type": "source",
+      "name": "Beam B",
+      "x": -40,
+      "y": -15,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 20,
+      "divergence": 0,
+      "gauss": false,
+      "w0": 0.35,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 41,
+      "sweeps": {}
+    },
+    {
+      "id": "eiewlqzu",
+      "type": "lens",
+      "name": "Curved side first",
+      "x": 0,
+      "y": 15,
+      "angle": 0,
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 51.5,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": null,
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": null,
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        4
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "source": null,
+      "sweeps": {}
+    },
+    {
+      "id": "e5eq5dnn",
+      "type": "lens",
+      "name": "Flat side first",
+      "x": 0,
+      "y": -15,
+      "angle": 0,
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": null,
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": -51.5,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": null,
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        4
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "source": null,
+      "sweeps": {}
+    },
+    {
+      "id": "eb2s3w4a",
+      "type": "screen",
+      "name": "Focus A",
+      "x": 98.6,
+      "y": 15,
+      "angle": 180,
+      "length": 12,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {
+        "x": {
+          "min": 93,
+          "max": 102,
+          "freq": 0.1,
+          "phase": 0,
+          "wave": "sine"
+        }
+      }
+    },
+    {
+      "id": "ea5h41u7",
+      "type": "screen",
+      "name": "Focus B",
+      "x": 99.2,
+      "y": -15,
+      "angle": 180,
+      "length": 12,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {
+        "x": {
+          "min": 93,
+          "max": 102,
+          "freq": 0.1,
+          "phase": 0,
+          "wave": "sine"
+        }
+      }
+    }
+  ]
+}

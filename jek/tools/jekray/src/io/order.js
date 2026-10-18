@@ -1,0 +1,141 @@
+import { C_NM_GHZ, PRINTER, RF_MAT, lensZones, mountVolume, mountedDia, printedMatch } from '../core/rf.js';
+import { grinDesign } from '../core/grin.js';
+import { benchNms } from '../state/elements.js';
+import { paraxial } from '../engines/trace.js';
+import { lensThickness, lensVolume } from '../ui/readouts.js';
+import { shareBase, shareData, shareHash } from './share.js';
+import { toast } from '../ui/actions.js';
+import { helpLine, h } from '../ui/panel.js';
+
+/* ---------- A custom RF lens, asked for by quote ----------
+   An RF lens in one of the made-to-order plastics, or a graded-index lens, that can be made:
+   its figures and a link that reopens its design go into the site's quote cart (the same one
+   the product pages fill), from which the customer emails sales. The link holds the lens and
+   the horns and receivers on its tab, nothing else of the bench; a graded-index lens travels
+   as its design, its plate rebuilt from it on opening. */
+const CART = 'JEK_QUOTE_CART';
+export const CART_PAGE = '/jek/cart.html';
+const mm = v => (+v).toFixed(v < 10 ? 2 : 1).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') + ' mm';
+const ghzOf = el => el.grin ? el.grin.ghz : (() => { const nm = benchNms().find(v => v > 1e5); return nm ? +(C_NM_GHZ / nm).toPrecision(4) : null; })();
+
+/* its mounting, as the order gives it */
+const mountLine = (dia, m) => m ? 'Mounting: flange ' + mm(m.width) + ' wide, ' + mm(m.thick) + ' thick' + (m.holes ? ', ' + m.holes + ' holes of ' + mm(m.hole) + ' on a ' + mm(dia + m.width) + ' circle' : ', no holes') : null;
+/* what the order says of it, or null when it is not a lens that can be ordered */
+export function orderSpec(el, opts) {
+  opts = opts || {};
+  if (!el || !el.mmw) return null;
+  if (el.type === 'mask' && el.grin) {
+    const g = el.grin, D = grinDesign(g, el.length);
+    if (!D.usable || mountedDia(el.length, el.mount) > PRINTER.maxDia || D.tTot > PRINTER.maxHeight) return null;
+    return {
+      name: 'Graded-index RF lens, ' + D.M.name + ', ' + mm(el.length) + ' across, f ' + mm(g.f) + ', ' + g.ghz + ' GHz',
+      spec: ['Design frequency: ' + g.ghz + ' GHz', 'Diameter: ' + mm(el.length), 'Focal length: ' + mm(g.f) + ', ' + (g.profile === 'parabolic' ? 'parabolic' : 'ideal-lens') + ' profile',
+        'Material: ' + D.M.name, 'Thickness: ' + mm(D.tTot), 'Density: ' + D.fillHi.toFixed(0) + '% at the centre to ' + D.fillLo.toFixed(0) + '% at the edge',
+        'Highest frequency (design rule): ' + (+D.ghzMax.toPrecision(3)) + ' GHz' + (D.band ? ', matched ' + (+D.band[0].toPrecision(3)) + ' to ' + (+D.band[1].toPrecision(3)) + ' GHz' : ''),
+        D.match ? 'Faces: quarter-wave matching layers at ' + g.ghz + ' GHz, ' + mm(D.tm) + ' each' : null, mountLine(el.length, el.mount),
+        'Weight: about ' + Math.round(D.grams + mountVolume(el.length, el.mount) / 1000 * (D.M.density || 1.2)) + ' g', ...(opts.extra || [])].filter(Boolean),
+    };
+  }
+  if (el.type === 'lens') {
+    const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
+    if (!M || !M.print || mats.some(m => m.glass !== mats[0].glass)) return null;
+    const geo = lensThickness(el);
+    if (mountedDia(el.diameter, el.mount) > PRINTER.maxDia || geo.thickest > PRINTER.maxHeight || geo.thinnest < PRINTER.minWall) return null;
+    const skins = el.surfaces.map(s => printedMatch(M, s.coat));
+    if (skins.some(k => k && !k.ok)) return null;
+    const ghz = opts.ghz ? +(+opts.ghz).toPrecision(4) : ghzOf(el), nm = ghz ? C_NM_GHZ / ghz : null, p = nm ? paraxial(el, nm) : null;
+    // each face as made: its radius (convex or concave as the plastic sees it), and its conic and aspheric terms, which a sphere's radius alone would not give
+    const face = (f, back) => {
+      if (f.R === null || !isFinite(f.R)) return 'flat';
+      const sh = mm(Math.abs(f.R)) + ((back ? f.R < 0 : f.R > 0) ? ' convex' : ' concave');
+      const A = (f.A || []).map((a, j) => a ? 'A' + (4 + 2 * j) + ' ' + (+a.toPrecision(6)) : null).filter(Boolean);
+      return sh + (f.k ? ', conic ' + (+f.k.toPrecision(6)) : '') + (f.a2 ? ', r² term ' + (+f.a2.toPrecision(6)) : '') + (A.length ? ', aspheric ' + A.join(', ') : '');
+    };
+    const faces = el.surfaces.map((f, i) => (el.surfaces.length > 1 ? (i === 0 ? 'front ' : i === el.surfaces.length - 1 ? 'back ' : 'face ' + (i + 1) + ' ') : '') + face(f, i > 0 && i === el.surfaces.length - 1));
+    const grams = (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2);
+    const Z = lensZones(el);
+    return {
+      name: 'RF lens, ' + M.name + ', ' + mm(el.diameter) + ' across' + (p && isFinite(p.efl) ? ', f ' + mm(p.efl) : '') + (ghz ? ', ' + ghz + ' GHz' : ''),
+      spec: [ghz ? 'Design frequency: ' + ghz + ' GHz' : null, 'Diameter: ' + mm(el.diameter), p && isFinite(p.efl) ? 'Focal length: ' + mm(p.efl) : null,
+        'Material: ' + M.name, 'Centre thickness: ' + mm(geo.centre),
+        'Faces: ' + faces.join('; '),
+        Z && Z.steps.length ? 'Zoned: ' + (Z.face ? 'back' : 'front') + ' face cut in ' + (Z.steps.length + 1) + ' zones for ' + (+Z.ghz.toPrecision(4)) + ' GHz, steps ' + mm(Z.dz) + ' deep at radii ' + Z.steps.map(r => mm(r)).join(', ') + ' (the faces above are before it is cut; thickest ' + mm(geo.thickest) + ' as cut)' : null,
+        skins.some(Boolean) ? 'Matched: ' + skins.map((k, i) => k ? 'face ' + (i + 1) + ' (quarter wave at ' + (+k.ghz.toPrecision(4)) + ' GHz)' : null).filter(Boolean).join(', ') : null,
+        mountLine(el.diameter, el.mount),
+        'Weight: about ' + Math.round(grams) + ' g', ...(opts.extra || [])].filter(Boolean),
+    };
+  }
+  return null;
+}
+/* the link that reopens it: the lens and the horns and receivers on its tab */
+export async function orderLink(el) {
+  const d = shareData(), tab = el.bench;
+  // the system it was designed in, whole: its assembly's other parts and the assembly's record (its RF conditions,
+  // tolerances and optimiser settings), so the link opens in the RF designer as the customer left it
+  const grp = el.group && (d.assemblies || []).some(a => a.id === el.group) ? el.group : null;
+  d.elements = d.elements.filter(e => e.id === el.id || (grp && e.group === grp) || (e.mmw && !e.mmw.part && (e.type === 'source' || e.type === 'detector') && (!tab || !e.bench || e.bench === tab)));
+  d.assemblies = grp ? (d.assemblies || []).filter(a => a.id === grp) : [];
+  if (!d.assemblies.length) delete d.assemblies;
+  for (const e of d.elements) if (e.grin) { delete e.amp; delete e.delay; delete e.preset; }
+  delete d.notes; delete d.ui; d.name = el.name;
+  if (d.benches && d.benches.length > 1) d.benches = d.benches.filter(b => b.id === tab);
+  return shareBase() + '#p=' + await shareHash(d);
+}
+const hash = s => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619) >>> 0; return x.toString(36).toUpperCase().padStart(6, '0').slice(-6); };
+/* into the quote cart: a new line for a new design, more of one already there */
+/* the quote cart's count, as the top bar shows it: every line's quantity */
+export function cartCount() {
+  try { const items = JSON.parse(localStorage.getItem(CART) || '[]'); return Array.isArray(items) ? items.reduce((n, it) => n + (it && it.qty > 0 ? it.qty : 0), 0) : 0; } catch (err) { return 0; }
+}
+/* the top bar's Cart: its count kept current (this tab's additions, and another tab's through the storage event) */
+export function cartChanged() {
+  const n = cartCount(), c = document.getElementById('cartCount');
+  if (!c) return;
+  c.textContent = String(n); c.hidden = !n;
+  const b = document.getElementById('btnCart'); if (b) b.setAttribute('aria-label', 'Quote cart' + (n ? ', ' + n + (n === 1 ? ' item' : ' items') : ', empty'));
+}
+export function wireCart() {
+  cartChanged();
+  window.addEventListener('storage', e => { if (e.key === CART || e.key === null) cartChanged(); });
+  window.addEventListener('focus', cartChanged);
+}
+export async function requestQuote(el, qty, opts) {
+  const S = orderSpec(el, opts);
+  if (!S) { toast('This lens cannot be made as it is: see its panel.', true); return false; }
+  const url = await orderLink(el), part = 'RFL-' + hash(S.spec.join('|')), n = Math.max(1, Math.round(+qty || 1));
+  let items = [];
+  try { items = JSON.parse(localStorage.getItem(CART) || '[]'); if (!Array.isArray(items)) items = []; } catch (err) { items = []; }
+  const had = items.find(it => it && it.part === part);
+  if (had) { had.qty += n; had.url = url; }
+  else items.push({ part, name: S.name, price: null, currency: '', note: '', url, qty: n, spec: S.spec });
+  try { localStorage.setItem(CART, JSON.stringify(items)); }
+  catch (err) { toast('Your browser is blocking site storage, so the quote cart cannot be saved.', true); return false; }
+  if (!(opts && opts.quiet)) toast('Added to your quote cart: Cart, at the top, opens it to send the request.');
+  cartChanged();
+  return part;
+}
+
+/* the panel's row: how many, and the two buttons for a lens that can be made: Quote now (orange: into the cart, and
+   the cart opened in a new tab, its request ready to send) and Add to quote cart (to gather several first) */
+export function orderRow(el, opts) {
+  if (!orderSpec(el, opts)) return null;
+  const qty = h('input', { type: 'number', min: '1', step: '1', value: '1', 'aria-label': 'How many', class: 'rt-order-qty' });
+  const add = h('button', { type: 'button', class: 'rt-btn rt-orderadd', onclick: async () => {
+    add.disabled = true;
+    try { if (await requestQuote(el, qty.value, opts)) { add.textContent = 'Added to your quote cart'; setTimeout(() => { add.textContent = 'Add to quote cart'; }, 2400); } }
+    finally { add.disabled = false; }
+  } }, 'Add to quote cart');
+  const now = h('button', { type: 'button', class: 'rt-btn rt-order', title: 'Puts it in your quote cart and opens the cart in a new tab, ready to send', onclick: async () => {
+    // the tab opened at once, while the click still counts as the person's (a pop-up blocker allows it), then sent to the cart
+    const tab = window.open('', '_blank');
+    now.disabled = true;
+    try {
+      const part = await requestQuote(el, qty.value, Object.assign({}, opts, { quiet: true }));
+      if (!part) { if (tab) tab.close(); return; }
+      if (tab) { tab.opener = null; tab.location.href = CART_PAGE + '#send'; }
+      else location.href = CART_PAGE + '#send';
+    } finally { now.disabled = false; }
+  } }, 'Quote now');
+  return h('div', { class: 'rt-orderrow' }, h('label', null, 'How many ', qty), now, add,
+    helpLine(['Made to order to this design; ', h('a', { href: '/jek/made-to-order-terms.html', target: '_blank', rel: 'noopener' }, 'Made-to-Order Terms'), ' apply.'], ['Made to order to this design. Quote now opens your quote cart with it, ready to send; or add it and send several together from Cart. The request carries its figures and a link to the design, and we reply with a price. '], 'note'));
+}

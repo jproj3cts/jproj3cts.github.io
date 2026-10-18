@@ -1,0 +1,155 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Axicon: a Bessel beam",
+  "saved": "2026-09-27T00:02:04.339Z",
+  "view": {
+    "cx": 150,
+    "cy": 0,
+    "scale": 3
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 150,
+        "cy": 0,
+        "scale": 3
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "Laser",
+      "x": -20,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 632.8,
+      "colourAuto": true,
+      "colour": "#ff4300",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 512,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 5,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "ax",
+      "type": "lens",
+      "name": "Axicon, 1°",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 12.7,
+      "surfaces": [
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "odd": [
+            -0.017455064928217585
+          ],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3
+      ],
+      "materials": [
+        {
+          "glass": "UVFS",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "s1",
+      "type": "screen",
+      "name": "In the Bessel zone",
+      "x": 60,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 4,
+      "absorb": false,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    },
+    {
+      "id": "s2",
+      "type": "screen",
+      "name": "Ring",
+      "x": 300,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 12,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "A collimated Gaussian beam (w 1 mm, 633 nm) through a fused silica axicon with a 1° base angle. The cone bends every part of the beam by the same angle, 0.46°, towards the axis, so the beam crosses itself along a line rather than at a point: a Bessel beam. Its central lobe is J0² of kθr, about 28 µm across at half height, and it keeps it for roughly w/θ = 125 mm. Beyond that the light carries on as a cone and opens into a ring. The first screen samples the Bessel zone without blocking it (look at its Diffraction tab: a bright core and rings 40 µm apart); the second, at 300 mm, shows the ring."
+}

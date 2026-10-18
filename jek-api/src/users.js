@@ -1,0 +1,118 @@
+// Users and their personal workspace, created together.
+
+import { avatarPath } from './benches.js';
+import { useLicence } from './institutions.js';
+import { orcidLegacy, orcidLegacyUntil } from './orcid.js';
+import { ApiError, newId, now } from './util.js';
+
+// With `identity` ({ provider, subject }), the sign-in is attached in the
+// same batch, so a person is never left without a way in.
+export async function createUser(env, { name, email = null, identity = null }) {
+  const t = now();
+  const user = { id: newId(), name, email, created_at: t };
+  const ws = newId();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO users (id, name, email, created_at) VALUES (?, ?, ?, ?)').bind(
+      user.id, name, email, t,
+    ),
+    env.DB.prepare(
+      "INSERT INTO workspaces (id, kind, name, owner_id, created_at) VALUES (?, 'personal', ?, ?, ?)",
+    ).bind(ws, name, user.id, t),
+    env.DB.prepare(
+      "INSERT INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'owner', 1, ?)",
+    ).bind(ws, user.id, t),
+    ...(identity
+      ? [
+          env.DB.prepare('INSERT INTO identities (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)').bind(
+            identity.provider, identity.subject, user.id, t,
+          ),
+        ]
+      : []),
+  ]);
+  return { user, workspaceId: ws };
+}
+
+// A subscription counts while Stripe says active or trialing, and through
+// 7 days' grace after a failed payment.
+export const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// A university pays on an invoice, often late: 60 days' grace after it falls due.
+export const INSTITUTION_GRACE_MS = 60 * 24 * 60 * 60 * 1000;
+
+export function planActive(sub, t = now()) {
+  if (!sub) return false;
+  // one set by hand (paid some other way, a gift) ends on its date
+  if (sub.stripe_customer === 'manual' && sub.period_end && t >= sub.period_end) return false;
+  if (sub.status === 'active' || sub.status === 'trialing') return true;
+  // 7 days' grace from the failed payment (or, for rows without that, the period end)
+  const since = sub.past_due_since || sub.period_end;
+  const grace = sub.plan === 'institution' ? INSTITUTION_GRACE_MS : GRACE_MS;
+  if (sub.status === 'past_due' && since && t < since + grace) return true;
+  return false;
+}
+
+// Whether a paid seat in a team on an active plan covers this person: it
+// gives them JEKrayPro on their own workspace too (src/teams.js).
+export async function teamSeatActive(env, user, t = now()) {
+  const { results } = await env.DB.prepare(
+    `SELECT s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer
+       FROM members m JOIN workspaces w ON w.id = m.workspace_id AND w.kind = 'team'
+       JOIN subscriptions s ON s.workspace_id = w.id
+      WHERE m.user_id = ? AND m.seat = 1`,
+  ).bind(user.id).all();
+  return results.some((s) => planActive(s, t));
+}
+
+// PATCH /v1/me  {name} — the name the others see
+export async function patchMe(req, env, user) {
+  const body = (await req.json().catch(() => null)) || {};
+  const name = String(body.name || '').replace(/\s+/g, ' ').trim();
+  if (name.length < 1 || name.length > 80) throw new ApiError(400, 'bad_request', 'A name is 1 to 80 characters.');
+  await env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, user.id).run();
+  return me(env, { ...user, name });
+}
+
+export async function me(env, user) {
+  const [ids, ws] = await env.DB.batch([
+    env.DB.prepare('SELECT provider, subject FROM identities WHERE user_id = ? ORDER BY provider').bind(
+      user.id,
+    ),
+    env.DB.prepare(
+      `SELECT w.id, w.kind, w.name, m.role, s.plan, s.status, s.seats, s.period_end, s.interval, s.cancel_at,
+              s.past_due_since, s.stripe_customer
+         FROM members m JOIN workspaces w ON w.id = m.workspace_id
+         LEFT JOIN subscriptions s ON s.workspace_id = w.id
+        WHERE m.user_id = ?
+        ORDER BY w.kind = 'personal' DESC, w.name`,
+    ).bind(user.id),
+  ]);
+  const t = now();
+  const ac = await env.DB.prepare('SELECT academic_until, academic_via, academic_email FROM users WHERE id = ?').bind(user.id).first();
+  const licence = await useLicence(env, user, t);
+  const seat = await teamSeatActive(env, user, t);
+  return {
+    user: { id: user.id, name: user.name, email: user.email, created_at: user.created_at, avatar: avatarPath(user.id, user.avatar_key) },
+    academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via, email: ac.academic_email || null } : null,
+    licence: licence && !licence.full ? { name: licence.name, via: licence.via } : null,
+    // ORCID sign-in is ending (src/orcid.js): when, for someone who has it
+    orcid_ends: orcidLegacy(env, t) && ids.results.some((i) => i.provider === 'orcid') ? orcidLegacyUntil(env) : null,
+    // their university has a licence, but its tier has no room for them
+    licence_full: licence && licence.full ? { name: licence.full } : null,
+    // a paid seat in a team on an active plan: Pro on their own workspace too
+    team_seat: seat,
+    identities: ids.results,
+    workspaces: ws.results.map((w) => ({
+      id: w.id,
+      kind: w.kind,
+      name: w.name,
+      role: w.role,
+      plan: w.plan
+        ? {
+            plan: w.plan, status: w.status, seats: w.seats, period_end: w.period_end, interval: w.interval,
+            cancel_at: w.cancel_at, billing: w.stripe_customer !== 'manual',
+          }
+        : null,
+      active: planActive(w.plan && w, t) || (w.kind === 'personal' && ((!!licence && !licence.full) || seat)),
+    })),
+  };
+}

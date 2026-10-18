@@ -1,0 +1,85 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Young's double slit",
+  "view": {
+    "cx": 450,
+    "cy": 0,
+    "scale": 0.9
+  },
+  "snap": 0,
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "eqrdn4g3",
+      "type": "source",
+      "name": "Laser",
+      "x": -100,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 3,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1.5,
+      "z0": 100,
+      "beamView": "field",
+      "beamScale": "log",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 41,
+      "sweeps": {}
+    },
+    {
+      "id": "ey5y9dey",
+      "type": "stop",
+      "name": "Double slit",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "aperture": 0.1,
+      "outer": 25.4,
+      "shape": "double",
+      "sep": 0.5,
+      "pitch": 0.2,
+      "count": 5,
+      "offset": 0,
+      "height": 0,
+      "side": 1,
+      "sweeps": {
+        "sep": {
+          "min": 0.3,
+          "max": 0.8,
+          "freq": 0.1,
+          "phase": 0,
+          "wave": "sine"
+        }
+      }
+    },
+    {
+      "id": "eb4fh4eu",
+      "type": "screen",
+      "name": "Screen, 1 m",
+      "x": 1000,
+      "y": 0,
+      "angle": 180,
+      "length": 40,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ]
+}

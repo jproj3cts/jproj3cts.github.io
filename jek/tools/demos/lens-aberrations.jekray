@@ -1,0 +1,180 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Aberrations of a singlet across the field",
+  "saved": "2026-09-27T19:16:46.541Z",
+  "view": {
+    "cx": 40,
+    "cy": 0,
+    "scale": 5
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 40,
+        "cy": 0,
+        "scale": 5
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "src",
+      "type": "source",
+      "name": "Collimated fan, 12 mm",
+      "x": -60,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 587.6,
+      "colourAuto": true,
+      "colour": "#ffe700",
+      "width": 12,
+      "divergence": 0,
+      "gauss": false,
+      "w0": 0.35,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 21,
+      "power": 1,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "stop",
+      "type": "stop",
+      "name": "Aperture stop, 12.5 mm",
+      "x": -25,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "aperture": 12.5,
+      "outer": 50,
+      "shape": "round",
+      "sep": 0.5,
+      "pitch": 0.2,
+      "count": 5,
+      "offset": 0,
+      "height": 0,
+      "side": 1,
+      "sweeps": {}
+    },
+    {
+      "id": "lens",
+      "type": "lens",
+      "name": "LA1509, f 100 mm",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 51.5,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        },
+        {
+          "R": null,
+          "k": 0,
+          "a2": 0,
+          "A": [],
+          "semi": null,
+          "coat": {
+            "mode": "bare",
+            "R": 4
+          }
+        }
+      ],
+      "gaps": [
+        3.6
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7",
+          "abs": 0
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "id": "scr",
+      "type": "screen",
+      "name": "Image plane",
+      "x": 99.079,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 30,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "none",
+      "trapMat": "Fused silica",
+      "trapR": 100,
+      "trapRho": 2200,
+      "trapMed": "bench",
+      "trapP": 1013.25,
+      "trapT": 295,
+      "mtfFreq": 50,
+      "abSrc": "",
+      "abAng": 5,
+      "abH": 1,
+      "abN": 9,
+      "abRays": 61,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "A plano-convex lens (Thorlabs LA1509 style: N-BK7, f 100 mm, curved side to the light) behind a 12.5 mm aperture stop 25 mm ahead of it, the screen at the paraxial focus, at the d line (587.6 nm). The screen’s Aberrations tab turns the collimated fan through ±5° about the stop and reads, on the screen, the spot at each field, the ray fans and wavefronts, the tangential field curve and the distortion, with Seidel’s coefficients and Zernike terms along the meridian. The stop ahead of the lens gives barrel distortion and changes the coma; move it onto the lens, or turn the lens round (plano side first) and watch W040 grow about fourfold.",
+  "ui": {
+    "sel": "scr",
+    "pins": [],
+    "views": {
+      "scr": {
+        "screenTab": "aber",
+        "aberView": "spots"
+      }
+    }
+  }
+}

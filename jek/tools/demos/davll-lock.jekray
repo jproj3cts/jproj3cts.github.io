@@ -1,0 +1,187 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "DAVLL: a laser lock from a magnetic field",
+  "saved": "2026-09-27T19:37:28.369Z",
+  "view": {
+    "cx": 10,
+    "cy": 15,
+    "scale": 4.2
+  },
+  "snap": 1,
+  "maxBounces": 30,
+  "minPower": 0.0001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 10,
+        "cy": 15,
+        "scale": 4.2
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "laser",
+      "type": "source",
+      "name": "Laser, 780 nm",
+      "x": -90,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "wavelength": 780.2438,
+      "colourAuto": true,
+      "colour": "#ff5c8a",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 0,
+      "beamView": "envelope",
+      "beamScale": "lin",
+      "popN": 256,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "p",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 1,
+      "power": 0.05,
+      "coh": 0,
+      "splitFrom": null,
+      "splitPhase": 0,
+      "splitPath": 0,
+      "lineshape": "lorentz",
+      "m2": 1,
+      "tem": "gauss",
+      "hm": 1,
+      "hn": 0,
+      "lp": 0,
+      "ll": 1,
+      "tau": 0,
+      "pshape": "sech2",
+      "rep": 80,
+      "gdd0": 0,
+      "sweeps": {
+        "wavelength": {
+          "min": 780.2342610264246,
+          "max": 780.2464449555159,
+          "freq": 0.25,
+          "phase": 0,
+          "wave": "triangle"
+        }
+      }
+    },
+    {
+      "id": "cell",
+      "type": "cell",
+      "name": "Rb cell in 80 G",
+      "x": -35,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 25,
+      "cellLen": 75,
+      "atom": "Rb",
+      "line": "D2",
+      "temp": 25,
+      "bField": 80,
+      "sweeps": {}
+    },
+    {
+      "id": "qwp",
+      "type": "waveplate",
+      "name": "Quarter-wave plate at 45°",
+      "x": 20,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "length": 12.7,
+      "retard": 0.25,
+      "retardCustom": false,
+      "axis": 45,
+      "sweeps": {}
+    },
+    {
+      "id": "pbs",
+      "type": "cube",
+      "name": "Polarising cube",
+      "x": 50,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "size": 12.7,
+      "mode": "pbs",
+      "reflect": 50,
+      "reflectS": 99,
+      "reflectP": 1,
+      "material": {
+        "glass": "N-BK7",
+        "abs": 0
+      },
+      "coat": {
+        "mode": "ar",
+        "R": 0
+      },
+      "sweeps": {}
+    },
+    {
+      "id": "pdA",
+      "type": "detector",
+      "name": "Diode A (p)",
+      "x": 85,
+      "y": 0,
+      "angle": 180,
+      "bench": "b1",
+      "length": 5,
+      "material": "si",
+      "resp": 0.5,
+      "gain": 10000,
+      "bandwidth": 1000000,
+      "dark": 1,
+      "ampNoise": 2,
+      "vmax": 10,
+      "demodF": 0,
+      "demodPhase": 0,
+      "absorb": true,
+      "sweeps": {}
+    },
+    {
+      "id": "pdB",
+      "type": "detector",
+      "name": "Diode B (s)",
+      "x": 50,
+      "y": 35,
+      "angle": 270,
+      "bench": "b1",
+      "length": 5,
+      "material": "si",
+      "resp": 0.5,
+      "gain": 10000,
+      "bandwidth": 1000000,
+      "dark": 1,
+      "ampNoise": 2,
+      "vmax": 10,
+      "demodF": 0,
+      "demodPhase": 0,
+      "absorb": true,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [],
+  "measures": [],
+  "notes": "Dichroic atomic vapour laser lock (Corwin et al. 1998) on the rubidium D2 line. A linearly polarised probe crosses a natural rubidium cell in an 80 G field along it (a solenoid or ring magnets in the lab). The field shifts the σ+ lines up and the σ− lines down, so the two circular halves of the linear light are absorbed differently. A quarter-wave plate at 45° turns the two hands into p and s, and a polarising cube sends them to two photodiodes. Their difference, A − B, crosses zero at the centre of the Doppler-broadened line with a steep slope over a range as wide as the line itself: an error signal a laser can be locked to without modulation. Select the cell to see the σ+ (blue) and σ− (orange) spectra; press Play on the laser’s sweep and watch the two diodes swap. Raise the field to widen the capture range.",
+  "ui": {
+    "sel": "cell",
+    "pins": [],
+    "views": {
+      "cell": {}
+    }
+  }
+}

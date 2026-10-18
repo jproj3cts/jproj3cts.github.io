@@ -1,0 +1,179 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Fibre heterodyne",
+ "view": {
+  "cx": 0,
+  "cy": 0,
+  "scale": 3
+ },
+ "snap": 0,
+ "maxBounces": 200,
+ "minPower": 0.0001,
+ "ghosts": false,
+ "elements": [
+  {
+   "type": "fcomp",
+   "kind": "laser",
+   "name": "Laser",
+   "id": "Laser",
+   "x": -120,
+   "y": 0,
+   "angle": 0,
+   "power": 1,
+   "wavelength": 1550
+  },
+  {
+   "type": "fcomp",
+   "kind": "coupler",
+   "name": "Splitter",
+   "id": "Splitter",
+   "x": -70,
+   "y": 0,
+   "angle": 0
+  },
+  {
+   "type": "fcomp",
+   "kind": "aom",
+   "name": "AOM, 80 MHz",
+   "id": "AOM80MHz",
+   "x": 0,
+   "y": 25,
+   "angle": 0,
+   "rf": 80,
+   "loss": 0
+  },
+  {
+   "type": "fcomp",
+   "kind": "voa",
+   "name": "Attenuator",
+   "id": "Attenuator",
+   "x": 0,
+   "y": -25,
+   "angle": 0,
+   "att": 3
+  },
+  {
+   "type": "fcomp",
+   "kind": "coupler",
+   "name": "Combiner",
+   "id": "Combiner",
+   "x": 70,
+   "y": 0,
+   "angle": 0
+  },
+  {
+   "type": "fcomp",
+   "kind": "pd",
+   "name": "Photodiode",
+   "id": "Photodiode",
+   "x": 120,
+   "y": 12,
+   "angle": 0,
+   "demodF": 80,
+   "gain": 10000
+  },
+  {
+   "type": "fcomp",
+   "kind": "term",
+   "name": "Dump",
+   "id": "Dump",
+   "x": 120,
+   "y": -12,
+   "angle": 0
+  }
+ ],
+ "fibres": [
+  {
+   "a": [
+    "Laser",
+    0
+   ],
+   "b": [
+    "Splitter",
+    0
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "Splitter",
+    2
+   ],
+   "b": [
+    "AOM80MHz",
+    0
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "AOM80MHz",
+    1
+   ],
+   "b": [
+    "Combiner",
+    0
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "Splitter",
+    3
+   ],
+   "b": [
+    "Attenuator",
+    0
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "Attenuator",
+    1
+   ],
+   "b": [
+    "Combiner",
+    1
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "Combiner",
+    2
+   ],
+   "b": [
+    "Photodiode",
+    0
+   ],
+   "len": 0.5,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "Combiner",
+    3
+   ],
+   "b": [
+    "Dump",
+    0
+   ],
+   "len": 0.5,
+   "loss": 0.2,
+   "path": []
+  }
+ ]
+}

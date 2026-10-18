@@ -1,0 +1,2019 @@
+/* ==========================================================================
+   JEK Systems — site-wide stylesheet
+   Governs every page on the site. Edit here, not in the pages.
+   ========================================================================== */
+
+:root {
+  /* Brand spectrum — warm to cool, as used in the masthead bars */
+  --jek-amber:  #ffb347;
+  --jek-orange: #f47742;
+  --jek-red:    #db3550;
+  --jek-sky:    #73b9ca;
+  --jek-cyan:   #0092b2;
+
+  /* Surfaces */
+  --jek-sand:   #e4cbb7;   /* page background */
+  --jek-panel:  #fffdfa;   /* card / panel fill */
+  --jek-well:   #f6f1ea;   /* recessed areas: notes, diagrams */
+  --jek-bar:    #000000;   /* nav + contact bars, matches the rest of the site */
+
+  /* Ink */
+  --jek-ink:      #1a1a1a;
+  --jek-ink-soft: #5b5651;
+
+  /* Lines & shadow */
+  --jek-line:   rgba(0, 0, 0, 0.10);
+  --jek-line-2: rgba(0, 0, 0, 0.22);
+  --jek-shadow: none;     /* flat: cards are drawn by their hairline borders */
+
+  /* Product accent — overridden per category on product pages.
+     --jek-accent      the brand colour itself (borders, solid fill)
+     --jek-accent-ink  a darkened variant, readable as text on white
+     --jek-accent-on   text colour that sits on top of the solid fill */
+  --jek-accent: #0092b2;
+  --jek-accent-ink: #007893;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #007893;
+
+  /* Interaction */
+  --jek-cyan-dark: #007893;
+  --jek-focus: 0 0 0 3px rgba(0, 146, 178, 0.32);
+
+  /* Type */
+  --jek-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+              "Helvetica Neue", Arial, sans-serif;
+  --jek-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo,
+              Consolas, "Liberation Mono", monospace;
+
+  --jek-radius: 2px;      /* crisp, near-square corners, as in JEKray */
+
+  /* Reading measure for prose pages */
+  --jek-measure: 46rem;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--jek-sand);
+  font-family: var(--jek-sans);
+  color: var(--jek-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   Masthead — a thin spectrum stripe, then one dark bar: the wordmark at the
+   left, the nav centred, the cart at the right. The markup (five bars, the
+   nav strip and the wordmark overlay) is the same on every page; only this
+   styling changed.
+   -------------------------------------------------------------------------- */
+
+.top-container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  --jek-stripe: 6px;
+  --jek-gutter: clamp(1rem, 4vw, 2rem);
+}
+
+/* the five colours side by side, one thin stripe */
+.bar  { flex: 1 0 20%; min-height: 0; height: var(--jek-stripe); }
+.bar1 { background: var(--jek-amber); }
+.bar2 { background: var(--jek-orange); }
+.bar3 { background: var(--jek-red); }
+.bar4 { background: var(--jek-sky); }
+.bar5 { background: var(--jek-cyan); }
+
+.bar6 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.1rem;
+  flex: 0 0 100%;
+  justify-content: flex-end;
+  min-height: 3rem;
+  padding: 0.35rem 6.5rem 0.35rem 9.5rem;
+  background: var(--jek-bar);
+  font-size: 0;                 /* the separators between the links are plain text: hidden this way */
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+.bar6 > a, .bar6 .nav-drop, .bar6 .nav-drop-btn { font-size: 0.78rem; }
+.bar6 > a, .nav-drop-btn { margin: 0 0.7rem; }
+.bar6 .nav-drop-menu a { font-size: 0.78rem; }
+footer .bar6 { justify-content: center; }
+
+.bar6 a {
+  margin: 0 0.45rem;
+  padding: 0.15rem 0.1rem;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+}
+
+.bar6 a:hover { border-bottom-color: var(--jek-sky); }
+
+.bar6 a:focus-visible {
+  outline: 2px solid var(--jek-sky);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Nav dropdown (Tools) */
+.nav-drop { position: relative; display: inline-flex; }
+.nav-drop-btn {
+  margin: 0 0.45rem;
+  padding: 0.15rem 0.1rem;
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: #fff;
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nav-drop-btn::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.4em;
+  border: 0.28em solid transparent;
+  border-top-color: currentColor;
+  transform: translateY(0.15em);
+}
+.nav-drop-btn:hover { border-bottom-color: var(--jek-sky); }
+.nav-drop-btn:focus-visible {
+  outline: 2px solid var(--jek-sky);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.nav-drop-menu {
+  position: absolute;      /* script upgrades this to fixed, so no ancestor can clip it */
+  top: 100%;               /* flush with the bar: a gap would break the hover path */
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.45rem 0;
+  background: var(--jek-bar);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: none;
+  border-radius: 0 0 2px 2px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  z-index: 40;
+}
+.nav-drop.open .nav-drop-menu,
+.nav-drop:hover .nav-drop-menu { display: flex; }
+.nav-drop-menu a {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  text-align: left;
+  border-bottom: none;
+}
+.nav-drop-menu a:hover { background: rgba(255, 255, 255, 0.12); border-bottom-color: transparent; }
+.nav-drop-menu.fixed { position: fixed; top: auto; left: auto; }
+@media (hover: none) {
+  .nav-drop:hover .nav-drop-menu { display: none; }
+  .nav-drop.open .nav-drop-menu { display: flex; }
+}
+
+/* Wordmark at the left of the dark bar, under the stripe */
+.text-overlay {
+  position: absolute;
+  top: var(--jek-stripe);
+  left: 0;
+  height: 3rem;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding-left: var(--jek-gutter);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-decoration: none;
+  z-index: 20;
+}
+a.text-overlay:hover { color: #fff; text-decoration: none; opacity: 0.85; }
+a.text-overlay:focus-visible { outline: 2px solid var(--jek-sky); outline-offset: -2px; border-radius: 2px; }
+/* narrow screens: the wordmark on a row of its own between the stripe and the nav */
+@media (max-width: 760px) {
+  .bar6 { padding-left: 0.75rem; padding-right: 0.75rem; min-height: 2.6rem; justify-content: center; }
+  .top-container .bar { order: 0; }
+  .text-overlay { position: static; order: 1; flex: 0 0 100%; height: 2.4rem; justify-content: center; padding: 0; background: var(--jek-bar); border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+  .top-container .bar6 { order: 2; }
+}
+
+/* --------------------------------------------------------------------------
+   Page shell
+   -------------------------------------------------------------------------- */
+
+.main-content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--jek-ink);
+  text-align: center;
+}
+
+.page-title {
+  margin: 0 0 1.75rem;
+  max-width: 26ch;
+  font-size: clamp(1.4rem, 1.1rem + 1.3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: var(--jek-ink);
+}
+
+/* Rule under the title, drawn in the brand spectrum */
+.page-title::after {
+  content: "";
+  display: block;
+  width: 88px;
+  height: 3px;
+  margin: 0.75rem auto 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--jek-amber) 0%, var(--jek-amber) 20%,
+    var(--jek-orange) 20%, var(--jek-orange) 40%,
+    var(--jek-red) 40%, var(--jek-red) 60%,
+    var(--jek-sky) 60%, var(--jek-sky) 80%,
+    var(--jek-cyan) 80%, var(--jek-cyan) 100%);
+}
+
+/* --------------------------------------------------------------------------
+   Calculator layout — inputs left, equations and results right
+   -------------------------------------------------------------------------- */
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(300px, 480px);
+  align-items: start;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+
+.calc-card,
+.diagram-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  color: var(--jek-ink);
+  min-width: 0;
+}
+
+/* The results panel carries the spectrum on its top edge */
+.diagram-area {
+  position: relative;
+  overflow: hidden;
+}
+
+.diagram-area::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg,
+    var(--jek-amber) 0%, var(--jek-amber) 20%,
+    var(--jek-orange) 20%, var(--jek-orange) 40%,
+    var(--jek-red) 40%, var(--jek-red) 60%,
+    var(--jek-sky) 60%, var(--jek-sky) 80%,
+    var(--jek-cyan) 80%, var(--jek-cyan) 100%);
+}
+
+/* --------------------------------------------------------------------------
+   Form controls
+   -------------------------------------------------------------------------- */
+
+.calc-card label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--jek-ink-soft);
+  letter-spacing: 0.01em;
+}
+
+/* Pull each label tight to the control beneath it */
+.calc-card label + input,
+.calc-card label + select,
+.calc-card label + .input-row {
+  margin-top: -0.45rem;
+}
+
+.calc-card input,
+.calc-card select {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-family: var(--jek-mono);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--jek-ink);
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-radius: 2px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.calc-card select {
+  font-family: var(--jek-sans);
+  cursor: pointer;
+}
+
+.calc-card input:hover,
+.calc-card select:hover { border-color: rgba(0, 0, 0, 0.38); }
+
+.calc-card input:focus-visible,
+.calc-card select:focus-visible {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* Fallback for browsers without :focus-visible */
+.calc-card input:focus,
+.calc-card select:focus {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* Value + unit pairs */
+.input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.input-row input { flex: 1 1 auto; min-width: 0; }
+.input-row select { flex: 0 0 auto; width: auto; min-width: 5.25rem; }
+
+.calc-card button {
+  margin-top: 0.35rem;
+  padding: 0.6rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--jek-cyan);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+.calc-card button:hover { background: var(--jek-cyan-dark); }
+.calc-card button:active { transform: translateY(1px); }
+
+.calc-card button:focus-visible {
+  outline: none;
+  box-shadow: var(--jek-focus);
+}
+
+/* --------------------------------------------------------------------------
+   Equations and results
+   -------------------------------------------------------------------------- */
+
+.eq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.eq-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+/* Formula boxes (no id) — quiet, recessed */
+.eq-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.5rem 0.75rem;
+  background: var(--jek-well);
+  border: 1px solid var(--jek-line);
+  border-radius: 2px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-x: auto;
+}
+
+/* Result boxes (carry an id) — the answer, set in tabular mono */
+.eq-box[id] {
+  justify-content: flex-start;
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-left: 3px solid var(--jek-cyan);
+  font-family: var(--jek-mono);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--jek-ink);
+}
+
+/* Diagrams / placeholders */
+.diagram-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 140px;
+  margin-bottom: 0.25rem;
+  padding: 0.75rem;
+  background: var(--jek-well);
+  border: 1px dashed var(--jek-line-2);
+  border-radius: 2px;
+  font-size: 0.85rem;
+  color: var(--jek-ink-soft);
+  text-align: center;
+}
+
+.diagram-image img,
+.diagram-image svg { max-width: 100%; height: auto; }
+
+/* --------------------------------------------------------------------------
+   Parameter notes
+   -------------------------------------------------------------------------- */
+
+.param-box-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.param-box {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  background: var(--jek-well);
+  border: 1px solid var(--jek-line);
+  border-radius: 2px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--jek-ink-soft);
+  text-align: left;
+}
+
+.param-box strong { font-weight: 600; color: var(--jek-ink); }
+
+/* First strong in the box is the heading */
+.param-box > strong:first-child {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+/* --------------------------------------------------------------------------
+   Calculator index — grouped link lists
+   -------------------------------------------------------------------------- */
+
+.link-section {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 0 1.25rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  color: var(--jek-ink);
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.link-section h2 {
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-bottom: 2px solid var(--jek-cyan);
+}
+
+.link-section h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+.link-section h3:first-of-type { margin-top: 0.25rem; }
+
+.link-section a {
+  display: block;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  margin: 0.1rem 0;
+  color: var(--jek-ink);
+  text-decoration: none;
+  border-left: 2px solid var(--jek-line);
+  border-radius: 0 2px 2px 0;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.link-section a:hover {
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  text-decoration: underline;
+}
+
+.link-section a:focus-visible {
+  outline: none;
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+
+footer {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+footer .bottom-image {
+  height: auto;
+  width: auto;
+  max-height: 56px;
+  max-width: 40vw;
+  margin: 1.5rem 0 0.5rem;
+}
+
+footer .copyright {
+  margin-bottom: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--jek-ink-soft);
+  text-align: center;
+}
+
+/* Contact strip reuses the nav bar treatment, full-bleed */
+footer .bar6 {
+  width: 100%;
+  align-self: stretch;
+  min-height: 38px;
+}
+
+
+/* --------------------------------------------------------------------------
+   Marketing pages — the home page and the software product pages: a page of
+   full-width sections (main.jek-flush drops the shell's padding), each with a
+   .jek-wrap column; one orange primary action, quiet outlined ones beside it.
+   -------------------------------------------------------------------------- */
+
+main.main-content.jek-flush { padding: 0; text-align: left; align-items: stretch; }
+.jek-wrap { width: 100%; max-width: 1160px; margin: 0 auto; padding-left: clamp(1rem, 4vw, 2rem); padding-right: clamp(1rem, 4vw, 2rem); box-sizing: border-box; text-align: left; }
+.jek-section { width: 100%; padding-block: 2.5rem; }
+.jek-section > .jek-wrap > h2 { margin: 0 0 1.2rem; font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.01em; color: var(--jek-ink); text-wrap: balance; }
+.jek-band { background: var(--jek-panel); border-top: 1px solid var(--jek-line); border-bottom: 1px solid var(--jek-line); }
+.jek-eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-lede a { color: var(--jek-cyan-dark); }
+.jek-lede { font-size: 1.05rem; line-height: 1.55; color: var(--jek-ink-soft); max-width: 60ch; margin: 0 0 1.4rem; }
+.jek-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.7rem 1.3rem; border-radius: var(--jek-radius); border: 1px solid transparent; font: 700 0.95rem var(--jek-sans); line-height: 1.2; text-decoration: none; cursor: pointer; transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.06s ease; }
+.jek-btn.primary { background: var(--jek-orange); color: #fff; }
+.jek-btn.primary:hover { background: #e35f27; color: #fff; text-decoration: none; }
+.jek-btn.quiet { background: transparent; color: var(--jek-ink); border-color: var(--jek-line-2); }
+.jek-btn.quiet:hover { background: var(--jek-panel); text-decoration: none; }
+.jek-btn:active { transform: translateY(1px); }
+.jek-btn:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+.jek-btn.small { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
+
+/* the hero: one claim, one picture, one action */
+.jek-hero { padding-block: 3rem 2.5rem; }
+.jek-hero .jek-wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 2.5rem; align-items: center; }
+.jek-hero h1 { margin: 0; font-size: clamp(2.2rem, 4.5vw, 3.4rem); line-height: 1.1; letter-spacing: -0.01em; color: var(--jek-ink); text-align: left; text-wrap: balance; }
+.jek-hero .jek-tag { margin: 0.8rem 0 0; font-size: 1.25rem; line-height: 1.35; color: var(--jek-ink); max-width: 30ch; }
+.jek-hero .jek-lede { margin: 1rem 0 0; font-size: 1rem; max-width: 46ch; }
+.jek-hero .jek-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.4rem; margin-top: 1.6rem; }
+.jek-hero .jek-acts a:not(.jek-btn) { color: var(--jek-cyan-dark); font-weight: 600; }
+.jek-hero .jek-facts { margin-top: 1.4rem; display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; font-size: 0.86rem; color: var(--jek-ink-soft); }
+.jek-hero .jek-facts span + span::before { content: "·"; margin-right: 0.6rem; }
+
+/* a screenshot in a dark frame, with an optional caption */
+.jek-shot { margin: 0; background: #1f2529; border: 1px solid var(--jek-line); border-radius: var(--jek-radius); overflow: hidden; }
+.jek-shot img, .jek-shot video { display: block; width: 100%; height: auto; }
+.jek-shot.cover img { aspect-ratio: 8 / 5; object-fit: cover; }
+.jek-shot figcaption { padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--jek-ink-soft); background: var(--jek-panel); border-top: 1px solid var(--jek-line); }
+
+/* the proof strip under the hero */
+.jek-proof .jek-wrap { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 1.4rem; align-items: center; padding-block: 1.1rem; }
+.jek-proof .lead { font-weight: 700; font-size: 0.9rem; max-width: 10ch; }
+.jek-proof p { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--jek-ink-soft); }
+.jek-proof p b { display: block; font-size: 0.9rem; color: var(--jek-ink); }
+
+/* cards in a row: the same edges, padding and baseline on each */
+.jek-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.jek-cards.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.jek-card { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 1.1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); color: inherit; text-decoration: none; }
+.jek-card h3 { margin: 0; font-size: 1.05rem; line-height: 1.25; color: var(--jek-ink); }
+.jek-card p { margin: 0; font-size: 0.93rem; line-height: 1.5; color: var(--jek-ink-soft); }
+.jek-card .jek-more { margin-top: auto; font-size: 0.9rem; font-weight: 600; color: var(--jek-cyan-dark); }
+.jek-card img { display: block; width: calc(100% + 2.4rem); margin: -1.1rem -1.2rem 0.4rem; aspect-ratio: 8 / 5; object-fit: cover; background: #1f2529; border-bottom: 1px solid var(--jek-line); }
+a.jek-card:hover { border-color: var(--jek-orange); text-decoration: none; }
+a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+/* a feature: a picture beside a short explanation, sides alternating */
+.jek-feature { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.2rem; align-items: center; padding-block: 1.8rem; border-top: 1px solid var(--jek-line); }
+.jek-feature:first-of-type { border-top: 0; }
+.jek-feature:nth-of-type(even) .jek-shot { order: -1; }
+.jek-feature h3, .jek-feature h2 { margin: 0; font-size: 1.35rem; line-height: 1.2; color: var(--jek-ink); text-wrap: balance; }
+.jek-feature .jek-eyebrow { display: block; margin-bottom: 0.4rem; }
+.jek-feature p { margin: 0.6rem 0 0; font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 52ch; }
+.jek-feature p a { color: var(--jek-cyan-dark); }
+
+/* the pricing table */
+.jek-plans { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.8rem; }
+.jek-plan { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; padding: 1.1rem 1.1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
+.jek-plan.featured { border-color: var(--jek-orange); }
+.jek-plan .price { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--jek-ink); }
+.jek-plan .price small { font-size: 0.8rem; font-weight: 400; color: var(--jek-ink-soft); }
+.jek-plan ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.88rem; line-height: 1.45; color: var(--jek-ink-soft); display: grid; gap: 0.25rem; }
+.jek-plan li::marker { color: var(--jek-orange); }
+.jek-plan .jek-btn { margin-top: auto; align-self: flex-start; }
+
+/* lists inside cards, and a person: portrait, name, role, a few lines */
+.jek-card ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.9rem; line-height: 1.5; color: var(--jek-ink-soft); display: grid; gap: 0.25rem; }
+.jek-card li::marker { color: var(--jek-orange); }
+.jek-person { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.jek-person img { width: 9rem; aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--jek-radius); border: 1px solid var(--jek-line); background: var(--jek-well); display: block; }
+.jek-person .role { font-size: 0.86rem; color: var(--jek-ink-soft); margin: 0.1rem 0 0.5rem; }
+.jek-person.open img { display: grid; place-items: center; }
+.jek-person .silhouette { width: 9rem; aspect-ratio: 4 / 5; border-radius: var(--jek-radius); border: 1px dashed var(--jek-line-2); background: var(--jek-well); display: grid; place-items: center; color: var(--jek-ink-soft); font-size: 0.8rem; text-align: center; padding: 0.5rem; box-sizing: border-box; }
+.jek-people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.jek-pubs { display: grid; gap: 0.6rem; }
+.jek-pubs .jek-card p { color: var(--jek-ink); }
+.jek-pubs .jek-card p a { color: var(--jek-cyan-dark); word-break: break-word; }
+@media (max-width: 760px) { .jek-people { grid-template-columns: 1fr; } .jek-person { grid-template-columns: 7rem minmax(0, 1fr); } .jek-person img, .jek-person .silhouette { width: 7rem; } }
+
+/* a team member's own section: portrait and role down the side, their story, work and outreach beside */
+.jek-profile { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 2.2rem; align-items: start; }
+.jek-profile aside { position: sticky; top: 1rem; }
+.jek-profile aside img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: var(--jek-radius); border: 1px solid var(--jek-line); background: var(--jek-well); display: block; }
+.jek-profile aside h2 { margin: 0.8rem 0 0.1rem; font-size: 1.25rem; line-height: 1.2; color: var(--jek-ink); }
+.jek-profile aside .role { margin: 0; font-size: 0.86rem; line-height: 1.4; color: var(--jek-ink-soft); }
+.jek-profile .story { margin: 0 0 1.4rem; font-size: 1rem; line-height: 1.6; color: var(--jek-ink); max-width: 68ch; }
+.jek-profile h3 { margin: 1.4rem 0 0.6rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-profile h3:first-of-type { margin-top: 0; }
+.jek-profile .note { margin: 0 0 0.6rem; font-size: 0.93rem; line-height: 1.5; color: var(--jek-ink-soft); max-width: 68ch; }
+@media (max-width: 760px) { .jek-profile { grid-template-columns: 1fr; } .jek-profile aside { position: static; display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0 1rem; align-items: center; } .jek-profile aside img { width: 7rem; grid-row: span 2; } .jek-profile aside h2 { margin-top: 0; } }
+
+/* the people, two to a row, each a column of their own: head (portrait, name, role), story, work */
+.jek-member { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.jek-member .jek-person { grid-template-columns: 8rem minmax(0, 1fr); align-items: center; margin-bottom: 1rem; }
+.jek-member .jek-person img, .jek-member .jek-person .silhouette { width: 8rem; }
+.jek-member .jek-person h2 { margin: 0; font-size: 1.25rem; line-height: 1.2; color: var(--jek-ink); }
+.jek-member .story { margin: 0 0 1rem; font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink); }
+.jek-member h3 { margin: 1.2rem 0 0.5rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-member .note { margin: 0 0 0.6rem; font-size: 0.9rem; line-height: 1.5; color: var(--jek-ink-soft); }
+.jek-member .jek-pubs .jek-card p { font-size: 0.88rem; line-height: 1.5; }
+.jek-member.open { border: 1px dashed var(--jek-line-2); border-radius: var(--jek-radius); padding: 1.1rem 1.2rem; align-self: start; }
+
+/* the home page's search: a quiet row under the masthead, set to the right */
+.jek-searchbar .jek-wrap { display: flex; justify-content: flex-end; padding-top: 0.45rem; }
+.jek-searchbar form#searchForm { width: auto; max-width: none; margin: 0; gap: 0; }
+.jek-searchbar #searchInput { width: 13rem; padding: 0.35rem 0.6rem; font-size: 0.86rem; border: 1px solid var(--jek-line-2); border-right: 0; border-radius: var(--jek-radius) 0 0 var(--jek-radius); background: var(--jek-panel); }
+.jek-searchbar #searchButton { padding: 0.35rem 0.7rem; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; color: var(--jek-ink-soft); background: transparent; border: 1px solid var(--jek-line-2); border-radius: 0 var(--jek-radius) var(--jek-radius) 0; }
+.jek-searchbar #searchButton:hover { background: var(--jek-panel); color: var(--jek-ink); }
+@media (max-width: 520px) { .jek-searchbar #searchInput { width: auto; flex: 1 1 auto; } }
+
+/* the products index: a category card with its picture, a line, and its sub-categories as
+   rows in the category's colour (Photonics orange, Electronics red, Lab Accessories blue) */
+.jek-catlist { margin: 0.4rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+.jek-catlist a { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.55rem 0.8rem; font-size: 0.92rem; font-weight: 600; color: var(--jek-ink); text-decoration: none; background: var(--jek-well); border-left: 3px solid var(--jek-accent); border-radius: var(--jek-radius); }
+.jek-catlist a::after { content: "\2192"; color: var(--jek-accent-ink); }
+.jek-catlist a:hover { background: color-mix(in srgb, var(--jek-accent) 12%, var(--jek-well)); text-decoration: none; }
+.jek-catlist a:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+.cat-orange { --jek-accent: #f47742; --jek-accent-ink: #e35f27; }
+.cat-red { --jek-accent: #db3550; --jek-accent-ink: #b8283f; }
+.cat-blue { --jek-accent: #0092b2; --jek-accent-ink: #007893; }
+.jek-eyebrow.accent { color: var(--jek-accent-ink); }
+
+/* a product page in the column: the pictures left and large, the title, price and quote
+   buttons right, the documents in a band beneath */
+.jek-wrap .product-wrap { max-width: none; margin: 0; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 2.5rem; }
+.jek-wrap .product-info h1 { margin: 0.2rem 0 0.6rem; font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.1rem); line-height: 1.15; text-wrap: balance; }
+.jek-wrap .product-price { font-family: var(--jek-sans); font-size: 1.4rem; font-weight: 700; margin: 0 0 0.3rem; }
+.jek-wrap .part-number { font-size: 0.86rem; color: var(--jek-ink-soft); }
+.jek-wrap .product-actions { margin: 1rem 0 0.4rem; }
+.jek-wrap .product-description { margin-top: 1.6rem; }
+.jek-wrap .product-description h2 { margin: 1.2rem 0 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+.jek-wrap .product-description h2:first-child { margin-top: 0; }
+.jek-wrap .product-description p, .jek-wrap .product-description li { font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink); }
+.jek-wrap .product-description ul { padding-left: 1.2rem; }
+.jek-wrap .product-description li::marker { color: var(--jek-accent, var(--jek-orange)); }
+.jek-wrap .gallery-frame { aspect-ratio: 4 / 3; }
+.jek-wrap .gallery-frame.photo { padding: 0; }
+.jek-wrap .gallery-frame.photo img { width: 100%; height: 100%; max-height: none; object-fit: cover; }
+.jek-wrap .tech-section { max-width: none; margin: 0; padding: 0; background: transparent; border: 0; }
+.jek-wrap .tech-section h2 { margin: 0 0 0.9rem; padding: 0; font-size: 1.6rem; letter-spacing: -0.01em; border: 0; }
+.jek-wrap .tech-section .dropdown { background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
+@media (max-width: 860px) { .jek-wrap .product-wrap { grid-template-columns: minmax(0, 1fr); } }
+
+/* the sub-category boxes inside a category card: flush with the card's text, a little gap between */
+.jek-card .subcat-grid { padding: 0.4rem 0 0; gap: 0.35rem; margin-top: auto; }   /* the cards are one height, so the boxes line up */
+
+/* resource columns */
+.jek-resources .jek-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; }
+.jek-resources h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--jek-ink); }
+.jek-resources ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+.jek-resources a { color: var(--jek-cyan-dark); }
+
+@media (max-width: 900px) {
+  .jek-hero .jek-wrap { grid-template-columns: 1fr; }
+  .jek-proof .jek-wrap { grid-template-columns: 1fr 1fr; }
+  .jek-cards, .jek-cards.four, .jek-resources .jek-wrap { grid-template-columns: 1fr 1fr; }
+  .jek-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jek-feature { grid-template-columns: 1fr; gap: 1rem; }
+  .jek-feature:nth-of-type(even) .jek-shot { order: 0; }
+}
+@media (max-width: 520px) {
+  .jek-proof .jek-wrap, .jek-cards, .jek-cards.four, .jek-resources .jek-wrap, .jek-plans { grid-template-columns: 1fr; }
+  .jek-hero { padding-block: 2rem 1.5rem; }
+}
+
+/* --------------------------------------------------------------------------
+   The other pages (calculators, the cart, the legal pages, universities,
+   search): the same column and left edge as the marketing pages, the title
+   as the eyebrow-and-title line, the content in its reading column.
+   -------------------------------------------------------------------------- */
+
+.main-content:not(.jek-flush):not(.rt-app) {
+  max-width: calc(1160px + 2 * clamp(1rem, 4vw, 2rem));
+  margin: 0 auto;
+  align-items: flex-start;
+  text-align: left;
+  padding-top: 2rem;
+}
+.main-content:not(.jek-flush):not(.rt-app) > .page-title {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 1.4rem;
+  font-size: 1.6rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+.main-content:not(.jek-flush):not(.rt-app) > .page-title::after { display: none; }
+.main-content:not(.jek-flush):not(.rt-app) > .page-title::before {
+  content: attr(data-eyebrow);
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+.main-content:not(.jek-flush):not(.rt-app) > .page-title:not([data-eyebrow])::before { display: none; }
+.main-content > ul, .main-content > ol { width: 100%; max-width: var(--jek-measure); margin: 0 0 1rem; padding-left: 1.3rem; line-height: 1.6; text-align: left; box-sizing: border-box; }
+.main-content > ul li, .main-content > ol li { margin-bottom: 0.35rem; }
+.main-content > h2 { font-size: 1.25rem; margin-top: 2rem; }
+.main-content > .page-title + p > em { color: var(--jek-ink-soft); font-size: 0.9rem; }
+.calc-grid { justify-content: start; }
+form#searchForm { margin-left: 0; }
+#results, .result { text-align: left; }
+.main-content > .return { align-self: flex-start; }
+
+/* --------------------------------------------------------------------------
+   Prose — body copy on Bio, Contact, product descriptions
+   -------------------------------------------------------------------------- */
+
+/* Prose shares one reading column so headings and body align.
+   A rem value (not ch) keeps the column identical across font sizes. */
+.main-content > h2,
+.main-content > h3 {
+  width: 100%;
+  max-width: var(--jek-measure);
+  margin: 1.75rem 0 0.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--jek-ink);
+  text-align: left;
+}
+
+.main-content > h2 { font-size: 1.25rem; }
+.main-content > h3 { font-size: 1.05rem; }
+
+.main-content > p {
+  width: 100%;
+  margin: 0 0 1rem;
+  max-width: var(--jek-measure);
+  line-height: 1.65;
+  color: var(--jek-ink);
+  text-align: left;
+}
+
+/* Prose links only — component links keep their own colours */
+.main-content > p a,
+.main-content > ul a,
+article.mb-4 a {
+  color: var(--jek-cyan-dark);
+  overflow-wrap: anywhere;
+}
+
+.main-content > p a:hover,
+.main-content > ul a:hover,
+article.mb-4 a:hover { text-decoration: underline; }
+
+.main-content > p a:focus-visible,
+article.mb-4 a:focus-visible {
+  outline: 2px solid var(--jek-cyan);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Publication entries on Bio */
+article.mb-4 {
+  width: 100%;
+  max-width: var(--jek-measure);
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-left: 3px solid var(--jek-sky);
+  border-radius: 0 2px 2px 0;
+}
+
+article.mb-4 p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.profile-pic {
+  width: 180px;
+  height: 180px;
+  margin: 0 0 1.5rem;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid var(--jek-panel);
+  box-shadow: var(--jek-shadow);
+}
+
+/* --------------------------------------------------------------------------
+   Contact
+   -------------------------------------------------------------------------- */
+
+.contact-block {
+  width: 100%;
+  max-width: 620px;
+  padding: 1.5rem 1.75rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  color: var(--jek-ink);
+  font-size: 1rem;
+  line-height: 1.65;
+  text-align: left;
+}
+
+.contact-block h2 {
+  margin: 1.5rem 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+.contact-block h2:first-of-type { margin-top: 1.25rem; }
+
+.contact-block p { margin: 0 0 0.5rem; max-width: none; }
+
+.contact-block a {
+  font-weight: 600;
+  color: var(--jek-cyan-dark);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.contact-block a:hover { text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
+   Site search — home page form and results page
+   -------------------------------------------------------------------------- */
+
+form#searchForm {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 520px;
+  margin-top: 0.5rem;
+}
+
+#searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--jek-ink);
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-radius: 2px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+#searchInput:focus,
+#searchInput:focus-visible {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+#searchButton {
+  flex: 0 0 auto;
+  padding: 0.65rem 1.35rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--jek-cyan);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+#searchButton:hover { background: var(--jek-cyan-dark); }
+#searchButton:active { transform: translateY(1px); }
+#searchButton:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+#results { width: 100%; max-width: 620px; }
+
+.result {
+  margin: 0 0 0.5rem;
+  padding: 0.85rem 1rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-left: 3px solid var(--jek-cyan);
+  border-radius: 0 2px 2px 0;
+  text-align: left;
+}
+
+.result a {
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-decoration: none;
+}
+
+.result a:hover { color: var(--jek-cyan-dark); text-decoration: underline; }
+
+.noresults {
+  padding: 1.25rem;
+  color: var(--jek-ink-soft);
+  text-align: center;
+}
+
+.return {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-decoration: none;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line-2);
+  border-radius: 2px;
+  transition: background-color 0.12s ease;
+}
+
+.return:hover { background: var(--jek-well); text-decoration: none; }
+.return:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+/* --------------------------------------------------------------------------
+   Products index — category columns with expanding sub-category lists
+   -------------------------------------------------------------------------- */
+
+.columns-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1040px;
+}
+
+.column-box {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+}
+
+.column-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.category-tile {
+  padding: 0.85rem 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--jek-ink);
+  text-align: left;
+  border-bottom: 1px solid var(--jek-line);
+}
+
+.subcat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.75rem;
+}
+
+/* Each sub-category is colour-keyed to its product family */
+.subcat-box {
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--jek-cyan);
+}
+
+.category-orange { background: var(--jek-orange); }
+.category-red    { background: var(--jek-red); }
+.category-blue   { background: var(--jek-cyan); }
+
+.subcat-box + .subcat-box { margin-top: 0.5rem; }
+
+.subcat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #fff;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.subcat-toggle:hover { background: rgba(0, 0, 0, 0.10); }
+
+.subcat-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
+}
+
+.subcat-box .chevron {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #fff;
+  transition: transform 0.2s ease;
+}
+
+.subcat-box.open .chevron { transform: rotate(90deg); }
+
+.subcat-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
+.subcat-box.open .subcat-panel {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.subcat-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.8rem 0.7rem;
+  text-align: left;
+}
+
+.subcat-panel-inner a {
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 2px;
+}
+
+.subcat-panel-inner a:hover { background: #fff; text-decoration: underline; }
+
+.subcat-panel-inner a:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Product detail — gallery, purchase info, technical documents
+   -------------------------------------------------------------------------- */
+
+.product-wrap {
+  display: grid;
+  grid-template-columns: minmax(280px, 440px) minmax(280px, 1fr);
+  align-items: start;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  text-align: left;
+}
+
+.product-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.gallery-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  padding: 1rem;
+  overflow: hidden;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+}
+
+.gallery-frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.gallery-pips {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.pip {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.22);
+  border: none;
+  border-radius: 1px;    /* small squares, as in JEKray */
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.pip:hover { background: rgba(0, 0, 0, 0.4); }
+.pip.active { background: var(--jek-cyan); transform: scale(1.25); }
+/* a product page's dots in its category's colour, as its buttons (Photonics orange,
+   Electronics red, Lab Accessories blue) */
+.product-wrap:has(.product-actions.accent-orange) .pip.active { background: #f47742; }
+.product-wrap:has(.product-actions.accent-red) .pip.active { background: #db3550; }
+.product-wrap:has(.product-actions.accent-blue) .pip.active { background: #0092b2; }
+
+.pip:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.product-info { min-width: 0; }
+
+.product-info h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.85rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--jek-ink);
+  text-align: left;
+}
+
+.product-price {
+  margin: 0 0 1rem;
+  font-family: var(--jek-mono);
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--jek-ink);
+}
+
+.buy-button {
+  display: inline-block;
+  padding: 0.7rem 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff;
+  text-decoration: none;
+  background: var(--jek-cyan);
+  border-radius: 2px;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+.buy-button:hover { background: var(--jek-cyan-dark); text-decoration: none; }
+.buy-button:active { transform: translateY(1px); }
+.buy-button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.product-description { margin-top: 1.75rem; }
+
+.product-description h2 {
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+  border-bottom: 1px solid var(--jek-line);
+}
+
+.product-description p { margin: 0 0 0.85rem; font-size: 0.9375rem; }
+.product-description p:last-child { margin-bottom: 0; }
+
+/* Key features / applications */
+.features-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  text-align: left;
+}
+
+.features-column {
+  padding: 1.25rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+}
+
+.features-column h2 {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+  border-bottom: 2px solid var(--jek-cyan);
+}
+
+.features-column ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  list-style: square;
+}
+
+.features-column li {
+  margin-bottom: 0.45rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--jek-ink);
+}
+
+.features-column li::marker { color: var(--jek-sky); }
+.features-column li:last-child { margin-bottom: 0; }
+
+/* Technical information accordions */
+.tech-section {
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  text-align: left;
+}
+
+.tech-section h2 {
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--jek-ink);
+  border-bottom: 2px solid var(--jek-cyan);
+}
+
+.dropdown {
+  overflow: hidden;
+  border: 1px solid var(--jek-line);
+  border-radius: 2px;
+}
+
+.dropdown + .dropdown { margin-top: 0.6rem; }
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--jek-ink);
+  text-align: left;
+  background: var(--jek-well);
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.dropdown-toggle:hover { background: #ece4da; }
+.dropdown-toggle:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: -2px; }
+
+.dropdown-toggle .chevron {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--jek-ink-soft);
+  transition: transform 0.2s ease;
+}
+
+.dropdown.open .dropdown-toggle .chevron { transform: rotate(180deg); }
+
+.dropdown-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+
+.dropdown.open .dropdown-panel { max-height: 300px; }
+
+.dropdown-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 1rem 0.9rem;
+}
+
+.dropdown-panel-inner a {
+  display: block;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--jek-ink);
+  text-decoration: none;
+  border-left: 2px solid var(--jek-line);
+  border-radius: 0 2px 2px 0;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.dropdown-panel-inner a:hover {
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  text-decoration: underline;
+}
+
+.dropdown-panel-inner a:focus-visible {
+  outline: none;
+  background: var(--jek-well);
+  border-left-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+/* Shown in place of the link list on a product whose documents aren't
+   published yet. Sits on the same left edge as the links it replaces. */
+.dropdown-panel-inner .doc-pending {
+  margin: 0;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--jek-ink-soft);
+  border-left: 2px solid var(--jek-line);
+}
+
+/* PDF download callout */
+.pdf-download-section {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 1040px;
+  margin-bottom: 2.5rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  text-align: left;
+}
+
+.pdf-thumb img {
+  display: block;
+  width: 90px;
+  height: auto;
+  border: 1px solid var(--jek-line);
+  border-radius: 2px;
+  transition: transform 0.15s ease;
+}
+
+.pdf-thumb:hover img { transform: translateY(-2px); }
+
+.pdf-text h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--jek-ink);
+}
+
+.pdf-text p { margin: 0; font-size: 0.9rem; color: var(--jek-ink-soft); }
+
+
+/* --------------------------------------------------------------------------
+   Quote cart — nav link, product buttons, cart table
+   -------------------------------------------------------------------------- */
+
+/* Cart sits hard right in the nav strip, clear of the centred links; the footer's
+   contact strip has no wordmark or cart, so it keeps symmetric padding */
+footer .bar6 { padding: 0.35rem 0.75rem; min-height: 2.6rem; }
+.top-container .bar6 {
+  position: relative;
+  /* The bar clips overflow-x, and a browser cannot clip one axis alone: it turns the
+     other into a scroll area, which would trap the dropdown inside the bar. */
+  overflow: visible;
+  z-index: 20;
+}
+
+.top-container .bar6 .nav-cart {
+  position: absolute;
+  right: var(--jek-gutter, 0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.cart-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35em;
+  height: 1.35em;
+  padding: 0 0.35em;
+  font-family: var(--jek-mono);
+  font-size: 0.78em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+  background: var(--jek-cyan);
+  border-radius: 2px;
+}
+
+.cart-count[data-empty="true"] {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Product page: add / quote pair */
+.product-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.quote-button {
+  display: inline-block;
+  padding: 0.7rem 1.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--jek-accent-ink);
+  text-decoration: none;
+  background: transparent;
+  border: 2px solid var(--jek-accent);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.06s ease;
+}
+
+.quote-button:hover { background: color-mix(in srgb, var(--jek-accent) 12%, transparent); }
+.quote-button:active { transform: translateY(1px); }
+.quote-button:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.quote-button.is-added {
+  color: var(--jek-accent-on);
+  background: var(--jek-accent);
+  border-color: var(--jek-accent);
+}
+
+/* "Quote now" is the primary action and reuses the solid treatment */
+button.buy-button {
+  font-family: inherit;
+  border: 2px solid var(--jek-accent);
+  cursor: pointer;
+}
+
+/* Inside a product page the Buy/Quote button follows the category accent */
+.product-actions .buy-button {
+  color: var(--jek-accent-on);
+  background: var(--jek-accent);
+  border-color: var(--jek-accent);
+}
+
+.product-actions .buy-button:hover {
+  background: var(--jek-accent-hover);
+  border-color: var(--jek-accent-hover);
+}
+
+/* Category accents, matching the sub-category colours on Products.html. */
+.product-actions.accent-orange {
+  --jek-accent: #f47742;
+  --jek-accent-ink: #f47742;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #e35f27;
+}
+
+.product-actions.accent-red {
+  --jek-accent: #db3550;
+  --jek-accent-ink: #b8283f;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #b8283f;
+}
+
+.product-actions.accent-blue {
+  --jek-accent: #0092b2;
+  --jek-accent-ink: #007893;
+  --jek-accent-on: #ffffff;
+  --jek-accent-hover: #007893;
+}
+
+.part-number {
+  margin: 0 0 0.75rem;
+  font-family: var(--jek-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--jek-ink-soft);
+}
+
+.part-number strong { font-weight: 600; color: var(--jek-ink); }
+
+/* Cart page */
+.cart-panel {
+  width: 100%;
+  max-width: 900px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--jek-panel);
+  border: 1px solid var(--jek-line);
+  border-radius: var(--jek-radius);
+  box-shadow: var(--jek-shadow);
+  text-align: left;
+}
+
+.cart-empty { padding: 1.5rem 0; text-align: center; }
+.cart-empty p { margin: 0 0 1rem; color: var(--jek-ink-soft); }
+
+.cart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.cart-table th {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+  text-align: left;
+  border-bottom: 2px solid var(--jek-cyan);
+  white-space: nowrap;
+}
+
+.cart-table td {
+  padding: 0.7rem 0.6rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--jek-line);
+}
+
+.cart-table .num { text-align: right; }
+.cart-table th.num { text-align: right; }
+
+.cart-table .part,
+.cart-table td.num {
+  font-family: var(--jek-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cart-table .part { font-weight: 600; white-space: nowrap; }
+
+.cart-table td a { color: var(--jek-ink); text-decoration: none; }
+.cart-table td a:hover { color: var(--jek-cyan-dark); text-decoration: underline; }
+
+.qty-input {
+  width: 4.25rem;
+  padding: 0.35rem 0.4rem;
+  font-family: var(--jek-mono);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--jek-ink);
+  background: #fff;
+  border: 1px solid var(--jek-line-2);
+  border-radius: 2px;
+}
+
+.qty-input:focus,
+.qty-input:focus-visible {
+  outline: none;
+  border-color: var(--jek-cyan);
+  box-shadow: var(--jek-focus);
+}
+
+.row-remove {
+  padding: 0.3rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--jek-red);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.row-remove:hover { background: rgba(219, 53, 80, 0.10); border-color: rgba(219, 53, 80, 0.3); }
+.row-remove:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+
+.cart-totals { margin-top: 1rem; }
+
+.cart-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9375rem;
+}
+
+.cart-total-row span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jek-ink-soft);
+}
+
+.cart-total-row strong {
+  font-family: var(--jek-mono);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--jek-ink);
+}
+
+.cart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 1.25rem;
+}
+
+.cart-actions .return { margin-top: 0; }
+.cart-actions [hidden] { display: none; }
+
+.cart-note {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--jek-ink-soft);
+}
+
+.cart-note a { color: var(--jek-cyan-dark); }
+
+.quote-form { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--jek-line); }
+.quote-form h2, .cart-sent h2 { margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: var(--jek-ink); }
+.quote-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1rem; }
+.quote-fields label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); }
+.quote-fields label.wide { grid-column: 1 / -1; }
+.quote-fields .req { font-weight: 400; font-size: 0.75rem; opacity: 0.8; }
+.quote-fields input, .quote-fields textarea {
+  width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem; font: inherit; font-weight: 400; font-size: 0.95rem;
+  color: var(--jek-ink); background: #fff; border: 1px solid var(--jek-line-2, rgba(0,0,0,0.2)); border-radius: var(--jek-radius); resize: vertical;
+}
+.quote-fields input:focus, .quote-fields textarea:focus { outline: none; box-shadow: var(--jek-focus); border-color: var(--jek-cyan); }
+.quote-fields .quote-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.quote-error { margin: 0.9rem 0 0; padding: 0.6rem 0.8rem; font-size: 0.875rem; color: #8a1c2b; background: #fdecee; border-left: 3px solid var(--jek-red); }
+.cart-sent { padding: 0.5rem 0; }
+.cart-sent p { margin: 0 0 1rem; line-height: 1.55; color: var(--jek-ink); }
+.cart-sent a:not(.return) { color: var(--jek-cyan-dark); }
+@media (max-width: 640px) { .quote-fields { grid-template-columns: 1fr; } }
+
+.cart-fallback { margin-top: 1.5rem; }
+
+.cart-fallback h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--jek-ink);
+}
+
+.cart-fallback p { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--jek-ink-soft); }
+
+#fallbackText {
+  width: 100%;
+  padding: 0.75rem;
+  font-family: var(--jek-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--jek-ink);
+  background: var(--jek-well);
+  border: 1px solid var(--jek-line-2);
+  border-radius: 2px;
+  resize: vertical;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .calc-grid {
+    grid-template-columns: minmax(0, 460px);
+    justify-content: center;
+  }
+  .product-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .bar6 > a, .bar6 .nav-drop, .bar6 .nav-drop-btn, .bar6 .nav-drop-menu a { font-size: 0.72rem; }
+  .bar6 > a { margin: 0 0.3rem; }
+  .nav-drop-btn { margin: 0 0.3rem; }
+  .calc-card,
+  .diagram-area { padding: 1rem; }
+  .link-section { padding: 1rem 1.1rem 1.25rem; }
+  .input-row { flex-wrap: wrap; }
+  .input-row select { width: 100%; }
+  footer .bottom-image { max-width: 55vw; }
+  .contact-block { padding: 1.1rem 1.2rem; }
+  .tech-section,
+  .features-column { padding: 1rem 1.1rem 1.25rem; }
+  form#searchForm { flex-wrap: wrap; }
+  #searchInput, #searchButton { width: 100%; flex: 1 1 100%; }
+  .profile-pic { width: 140px; height: 140px; }
+  .pdf-download-section { flex-direction: column; align-items: flex-start; gap: 0.9rem; }
+  .top-container .bar6 .nav-cart {
+    position: static;
+    transform: none;
+    margin: 0 0.3rem;
+  }
+  .cart-panel { padding: 1rem 1.1rem 1.25rem; }
+  .cart-table { font-size: 0.85rem; }
+  .cart-table th, .cart-table td { padding: 0.5rem 0.35rem; }
+  .product-actions .quote-button,
+  .product-actions .buy-button { flex: 1 1 100%; text-align: center; }
+}
+
+/* --------------------------------------------------------------------------
+   Preferences
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .bar6, footer .bar6 { background: #000 !important; -webkit-print-color-adjust: exact; }
+  .calc-card, .diagram-area, .link-section { box-shadow: none; }
+}
+
+/* Diagram images sit flush inside their frame */
+.diagram-image > img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  padding: 0.3rem 0;
+}
+
+/* --------------------------------------------------------------------------
+   Cart table on small screens — six columns cannot fit, so each row
+   becomes a labelled card instead of being clipped or scrolled sideways.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 620px) {
+  .cart-table thead { display: none; }
+
+  .cart-table,
+  .cart-table tbody,
+  .cart-table tr,
+  .cart-table td { display: block; width: 100%; }
+
+  .cart-table tr {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--jek-well);
+    border: 1px solid var(--jek-line);
+    border-radius: 2px;
+  }
+
+  .cart-table td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.3rem 0;
+    text-align: right;
+    border-bottom: none;
+  }
+
+  .cart-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--jek-sans);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--jek-ink-soft);
+    text-align: left;
+  }
+
+  .cart-table td.part {
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
+    border-bottom: 1px solid var(--jek-line);
+  }
+
+  .cart-table td.row-actions { justify-content: flex-end; padding-top: 0.5rem; }
+  .cart-table td.row-actions::before { content: none; }
+
+  .cart-total-row { justify-content: space-between; }
+}
+
+/* Preview / storage-unavailable notice */
+.cart-env-notice {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 0 1.25rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--jek-ink);
+  background: #fdf3e3;
+  border: 1px solid rgba(244, 119, 66, 0.45);
+  border-left: 3px solid var(--jek-orange);
+  border-radius: 0 2px 2px 0;
+  text-align: left;
+}
+
+.cart-panel .cart-env-notice { max-width: none; }
+
+/* a custom part's figures in the quote cart */
+.cart-spec { display: block; margin-top: 0.3rem; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft, #5a5a55); }
+
+/* ==========================================================================
+   Your account (assets/js/account.js): Sign in, or your picture and name, beside
+   Cart in the masthead; the account page; and the note after signing in
+   ========================================================================== */
+/* room on the right of the nav for the group: Sign in (or a picture and a name) and Cart */
+.top-container .bar6 { padding-right: 14rem; }
+.top-container .bar6 .nav-right {
+  position: absolute;
+  right: var(--jek-gutter, 0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.top-container .bar6 .nav-right .nav-cart { position: static; transform: none; }
+/* the bar's own text is sized to nothing (its separators); its links are sized themselves, these with them */
+.top-container .bar6 .nav-right > a { font-size: 0.78rem; }
+.top-container .bar6 .nav-acct { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0.7rem; }
+.top-container .bar6 .nav-right .nav-cart { margin: 0 0 0 0.7rem; }
+.top-container .bar6 .nav-acct[hidden] { display: none; }
+.acct-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 2.6rem; height: 2.6rem; border-radius: 50%; overflow: hidden;
+  background: var(--jek-cyan); color: #fff; font-weight: 700; font-size: 1rem; letter-spacing: 0.02em;
+}
+.acct-avatar.sm { width: 1.45rem; height: 1.45rem; font-size: 0.62rem; }
+.acct-avatar.lg { width: 4.5rem; height: 4.5rem; font-size: 1.5rem; }
+.acct-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.acct-toast {
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 60;
+  background: var(--jek-ink); color: #fff; padding: 0.65rem 1rem; border-radius: 3px;
+  font-size: 0.9rem; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.25); transition: opacity 0.6s;
+}
+.acct-toast.warn { background: #8a3b12; }
+.acct-toast.gone { opacity: 0; }
+
+.acct-panel { max-width: 46rem; margin: 0 auto 2rem; }
+.acct-card { background: #fffdf9; border: 1px solid var(--jek-line); padding: 1.25rem 1.4rem 1.4rem; margin-bottom: 1.1rem; }
+.acct-card h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+.acct-card p { margin: 0.4rem 0; }
+.acct-who { display: flex; align-items: center; gap: 1rem; }
+.acct-who .acct-name { font-size: 1.2rem; font-weight: 700; }
+.acct-who .acct-email { color: var(--jek-ink-soft); font-size: 0.9rem; }
+.acct-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
+.acct-row input[type=text] { flex: 1 1 14rem; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line-2); font: inherit; }
+.acct-list { list-style: none; padding: 0; margin: 0; }
+.acct-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0; border-top: 1px solid var(--jek-line); }
+.acct-list li:first-child { border-top: 0; }
+.acct-sub { color: var(--jek-ink-soft); font-size: 0.88rem; }
+.acct-providers { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0 0.5rem; }
+.acct-providers button, .acct-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; font: inherit; font-weight: 600;
+  background: #fff; color: var(--jek-ink); border: 1px solid var(--jek-line-2); cursor: pointer;
+}
+.acct-providers button:hover, .acct-btn:hover { border-color: var(--jek-cyan); }
+.acct-btn.primary { background: var(--jek-cyan); color: #fff; border-color: var(--jek-cyan); }
+.acct-btn.danger { color: #9b2c1a; }
+.acct-msg { font-size: 0.9rem; margin-top: 0.5rem; }
+.acct-msg.err { color: #9b2c1a; }
+
+@media (max-width: 760px) {
+  .top-container .bar6 { padding-right: 0.75rem; }
+  .top-container .bar6 .nav-right { position: static; transform: none; }
+  .top-container .bar6 .nav-acct { margin: 0 0.3rem; }
+}

@@ -1,0 +1,192 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "name": "Two launches from one laser",
+ "view": {
+  "cx": 0,
+  "cy": 0,
+  "scale": 3
+ },
+ "snap": 0,
+ "maxBounces": 200,
+ "minPower": 0.0001,
+ "ghosts": false,
+ "elements": [
+  {
+   "type": "fcomp",
+   "kind": "laser",
+   "name": "Laser",
+   "id": "Laser",
+   "x": -190,
+   "y": 125,
+   "angle": 0,
+   "power": 1,
+   "wavelength": 1550,
+   "coh": 3000
+  },
+  {
+   "type": "fcomp",
+   "kind": "coupler",
+   "name": "Splitter",
+   "id": "Splitter",
+   "x": -140,
+   "y": 125,
+   "angle": 0
+  },
+  {
+   "type": "fibre",
+   "name": "Launch A",
+   "id": "LaunchA",
+   "x": -110.6,
+   "y": 0,
+   "angle": 0,
+   "core": 9,
+   "na": 0.14
+  },
+  {
+   "type": "lens",
+   "name": "Collimator A",
+   "x": -60,
+   "y": 0,
+   "angle": 0,
+   "diameter": 25.4,
+   "surfaces": [
+    {
+     "R": 51.5
+    },
+    {
+     "R": -51.5
+    }
+   ],
+   "gaps": [
+    3.6
+   ],
+   "materials": [
+    {
+     "glass": "N-BK7"
+    }
+   ]
+  },
+  {
+   "type": "fibre",
+   "name": "Launch B",
+   "id": "LaunchB",
+   "x": 0,
+   "y": 110.6,
+   "angle": -90,
+   "core": 9,
+   "na": 0.14
+  },
+  {
+   "type": "lens",
+   "name": "Collimator B",
+   "x": 0,
+   "y": 60,
+   "angle": -90,
+   "diameter": 25.4,
+   "surfaces": [
+    {
+     "R": 51.5
+    },
+    {
+     "R": -51.5
+    }
+   ],
+   "gaps": [
+    3.6
+   ],
+   "materials": [
+    {
+     "glass": "N-BK7"
+    }
+   ]
+  },
+  {
+   "type": "cube",
+   "name": "50/50 cube",
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "size": 12.7,
+   "mode": "npbs",
+   "reflect": 50,
+   "material": {
+    "glass": "N-BK7"
+   },
+   "coat": {
+    "mode": "custom",
+    "R": 0
+   }
+  },
+  {
+   "type": "detector",
+   "name": "Photodiode",
+   "x": 0,
+   "y": -50,
+   "angle": 90,
+   "length": 10,
+   "material": "custom",
+   "resp": 1,
+   "gain": 1000
+  },
+  {
+   "type": "screen",
+   "name": "Other port",
+   "x": 60,
+   "y": 0,
+   "angle": 180,
+   "length": 20
+  }
+ ],
+ "fibres": [
+  {
+   "a": [
+    "Laser",
+    0
+   ],
+   "b": [
+    "Splitter",
+    0
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": []
+  },
+  {
+   "a": [
+    "Splitter",
+    3
+   ],
+   "b": [
+    "LaunchA",
+    0
+   ],
+   "len": 1,
+   "loss": 0.2,
+   "path": [
+    {
+     "x": -150,
+     "y": 40
+    }
+   ]
+  },
+  {
+   "a": [
+    "Splitter",
+    2
+   ],
+   "b": [
+    "LaunchB",
+    0
+   ],
+   "len": 1.5,
+   "loss": 0.2,
+   "path": [
+    {
+     "x": -40,
+     "y": 140
+    }
+   ]
+  }
+ ]
+}

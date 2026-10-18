@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEK Systems</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
+
+<!-- Products-only overrides. Move into assets/jek.css whenever convenient. -->
+
+</head>
+
+<body>
+
+  <!-- Header -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <span class="nav-drop" data-nav-drop>
+        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+        <span class="nav-drop-menu">
+          <a href="/jek/calculators/">Calculators</a>
+          <a href="/jek/tools/jekray.html">JEKray</a>
+        </span>
+      </span> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <a class="text-overlay" href="/jek/">JEK Systems</a>
+  </div>
+
+  <!-- Content -->
+  <main class="main-content jek-flush">
+
+    <section class="jek-section" style="padding-bottom: 0.5rem">
+      <div class="jek-wrap"><div class="jek-eyebrow">Products</div><h1 style="margin: 0.2rem 0 0; font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.01em">Hardware for the optics lab</h1></div>
+    </section>
+
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <div class="jek-cards">
+          <div class="jek-card cat-orange">
+            <img src="/jek/products/design-software/jekray/img/michelson.png" alt="" loading="lazy">
+            <div class="jek-eyebrow accent">Photonics</div>
+            <h3>Design software</h3>
+            <p>JEKray, the optical bench simulator: free in your browser, with JEKrayPro for the cloud and teams.</p>
+            <div class="subcat-grid">
+              <div class="subcat-box category-orange">
+                <button class="subcat-toggle" type="button">
+                  <span>Design Software</span>
+                  <span class="chevron">&gt;</span>
+                </button>
+                <div class="subcat-panel">
+                  <div class="subcat-panel-inner">
+                    <a href="/jek/products/design-software/jekray/">JEKray</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="jek-card cat-red">
+            <img src="/jek/assets/img/qpd.jpg" alt="" loading="lazy">
+            <div class="jek-eyebrow accent">Electronics</div>
+            <h3>Custom RF lenses</h3>
+            <p>Graded-index and solid RF lenses made to your design, in PLA, ABS, PETG, ASA or polypropylene.</p>
+            <div class="subcat-grid">
+              <div class="subcat-box category-red">
+                <button class="subcat-toggle" type="button">
+                  <span>Custom RF Lenses</span>
+                  <span class="chevron">&gt;</span>
+                </button>
+                <div class="subcat-panel">
+                  <div class="subcat-panel-inner">
+                    <a href="/jek/products/signal-processing/custom-rf-lenses/">View →</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="jek-card cat-blue">
+            <img src="/jek/assets/img/JEK-CF40-SR16-1.jpeg" alt="" loading="lazy">
+            <div class="jek-eyebrow accent">Lab accessories</div>
+            <h3>Sample holders</h3>
+            <p>Vacuum-compatible sample handling for thin-film and PVD work.</p>
+            <div class="subcat-grid">
+              <div class="subcat-box category-blue">
+                <button class="subcat-toggle" type="button">
+                  <span>Sample Holders</span>
+                  <span class="chevron">&gt;</span>
+                </button>
+                <div class="subcat-panel">
+                  <div class="subcat-panel-inner">
+                    <a href="/jek/products/lab-accessories/cf40-sample-transport-rack/">CF40 Vacuum-Compatible Hydrophobic Sample Transport Rack - 16 (30 x 30 x 1 mm)</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+
+
+<script>
+  document.querySelectorAll('.subcat-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      btn.closest('.subcat-box').classList.toggle('open');
+    });
+  });
+</script>
+
+<script src="/jek/assets/js/cart.js?v=20261015b"></script>
+<script src="/jek/assets/js/account.js?v=20261017"></script>
+
+</body>
+</html>

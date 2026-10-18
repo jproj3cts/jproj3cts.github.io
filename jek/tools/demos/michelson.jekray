@@ -1,0 +1,134 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Michelson interferometer",
+  "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 4.5
+  },
+  "snap": 0,
+  "maxBounces": 40,
+  "minPower": 0.001,
+  "ghosts": false,
+  "library": [],
+  "elements": [
+    {
+      "id": "e0m6sulk",
+      "type": "source",
+      "name": "Laser",
+      "x": -60,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 633,
+      "colourAuto": true,
+      "colour": "#ff4200",
+      "width": 2,
+      "divergence": 0,
+      "gauss": true,
+      "w0": 1,
+      "z0": 60,
+      "beamView": "field",
+      "beamScale": "lin",
+      "popN": 128,
+      "popModel": "auto",
+      "traceRays": true,
+      "pol": "s",
+      "polAngle": 45,
+      "lines": [],
+      "rays": 3,
+      "sweeps": {}
+    },
+    {
+      "id": "e4j38p7s",
+      "type": "cube",
+      "name": "50/50 cube",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "size": 12.7,
+      "mode": "npbs",
+      "reflect": 50,
+      "reflectS": 99,
+      "reflectP": 1,
+      "material": {
+        "glass": "N-BK7",
+        "abs": 0
+      },
+      "coat": {
+        "mode": "custom",
+        "R": 0
+      },
+      "source": null,
+      "sweeps": {}
+    },
+    {
+      "id": "ewcv39ks",
+      "type": "mirror",
+      "name": "Moving mirror",
+      "x": 50,
+      "y": 0,
+      "angle": 180,
+      "length": 25,
+      "reflect": 100,
+      "offset": 0,
+      "k": 0,
+      "R": null,
+      "sweeps": {
+        "x": {
+          "min": 50,
+          "max": 50.000633,
+          "freq": 0.2,
+          "phase": 0,
+          "wave": "sine"
+        }
+      }
+    },
+    {
+      "id": "eifgt28u",
+      "type": "mirror",
+      "name": "Fixed mirror",
+      "x": 0,
+      "y": 50,
+      "angle": -90,
+      "length": 25,
+      "reflect": 100,
+      "offset": 0,
+      "k": 0,
+      "R": null,
+      "sweeps": {}
+    },
+    {
+      "id": "er75ll60",
+      "type": "screen",
+      "name": "Output port",
+      "x": 0,
+      "y": -45,
+      "angle": 90,
+      "length": 20,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {}
+    },
+    {
+      "id": "elfv9mrr",
+      "type": "screen",
+      "name": "Input port",
+      "x": -30,
+      "y": 0,
+      "angle": 0,
+      "length": 20,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "mtfFreq": 50,
+      "sweeps": {}
+    }
+  ]
+}

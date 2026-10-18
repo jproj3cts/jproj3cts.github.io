@@ -1,0 +1,275 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Self-phase modulation and a soliton in fibre",
+  "saved": "2026-09-27T21:11:40.739Z",
+  "view": {
+    "cx": 20,
+    "cy": 0,
+    "scale": 2.6
+  },
+  "snap": 1,
+  "maxBounces": 20,
+  "minPower": 0.000001,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Bench 1",
+      "view": {
+        "cx": 20,
+        "cy": 0,
+        "scale": 2.6
+      }
+    }
+  ],
+  "tab": "b1",
+  "elements": [
+    {
+      "id": "Mode-locked laser",
+      "type": "fcomp",
+      "name": "Mode-locked laser",
+      "x": -140,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "laser",
+      "wavelength": 1560,
+      "power": 19.778,
+      "coh": 0.4761633703939008,
+      "polAngle": 0,
+      "tau": 500,
+      "rep": 80,
+      "gdd0": 0,
+      "pshape": "sech2",
+      "lineshape": "gauss",
+      "sweeps": {}
+    },
+    {
+      "id": "Coupler, 50:50",
+      "type": "fcomp",
+      "name": "Coupler, 50:50",
+      "x": -80,
+      "y": 0,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "coupler",
+      "ratio": 50,
+      "loss": 0,
+      "sweeps": {}
+    },
+    {
+      "id": "tA",
+      "type": "fibre",
+      "name": "Tip, standard fibre",
+      "x": 40,
+      "y": 30,
+      "angle": 0,
+      "bench": "b1",
+      "length": 2.5,
+      "core": 4.4,
+      "na": 0.12,
+      "emitView": "envelope",
+      "emitRays": 5,
+      "mm": false,
+      "absorb": true,
+      "sweeps": {}
+    },
+    {
+      "id": "tB",
+      "type": "fibre",
+      "name": "Tip, normal-dispersion fibre",
+      "x": 40,
+      "y": -30,
+      "angle": 0,
+      "bench": "b1",
+      "length": 2.5,
+      "core": 4.4,
+      "na": 0.12,
+      "emitView": "envelope",
+      "emitRays": 5,
+      "mm": false,
+      "absorb": true,
+      "sweeps": {}
+    },
+    {
+      "id": "sA",
+      "type": "screen",
+      "name": "Soliton",
+      "x": 90,
+      "y": 30,
+      "angle": 180,
+      "bench": "b1",
+      "length": 20,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "none",
+      "trapMat": "Fused silica",
+      "trapR": 100,
+      "trapRho": 2200,
+      "trapMed": "bench",
+      "trapP": 1013.25,
+      "trapT": 295,
+      "mtfFreq": 50,
+      "abSrc": "",
+      "abAng": 2,
+      "abH": 1,
+      "abN": 7,
+      "abRays": 61,
+      "sweeps": {}
+    },
+    {
+      "id": "sB",
+      "type": "screen",
+      "name": "Broadened",
+      "x": 90,
+      "y": -30,
+      "angle": 180,
+      "bench": "b1",
+      "length": 20,
+      "absorb": true,
+      "R": null,
+      "binWidth": 0,
+      "binInterp": true,
+      "mapScale": "lin",
+      "vectorFocus": "auto",
+      "trap": "none",
+      "trapMat": "Fused silica",
+      "trapR": 100,
+      "trapRho": 2200,
+      "trapMed": "bench",
+      "trapP": 1013.25,
+      "trapT": 295,
+      "mtfFreq": 50,
+      "abSrc": "",
+      "abAng": 2,
+      "abH": 1,
+      "abN": 7,
+      "abRays": 61,
+      "sweeps": {}
+    },
+    {
+      "id": "Terminator",
+      "type": "fcomp",
+      "name": "Terminator",
+      "x": -80,
+      "y": -40,
+      "angle": 0,
+      "bench": "b1",
+      "kind": "term",
+      "rl": 60,
+      "sweeps": {}
+    }
+  ],
+  "fibres": [
+    {
+      "id": "e9ruwrqq",
+      "a": [
+        "Mode-locked laser",
+        0
+      ],
+      "b": [
+        "Coupler, 50:50",
+        0
+      ],
+      "len": 0.2,
+      "loss": 0,
+      "disp": null,
+      "gamma": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "e5tjuemv",
+      "a": [
+        "Coupler, 50:50",
+        1
+      ],
+      "b": [
+        "Terminator",
+        0
+      ],
+      "len": 0.2,
+      "loss": 0,
+      "disp": null,
+      "gamma": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ecioyu0e",
+      "a": [
+        "Coupler, 50:50",
+        2
+      ],
+      "b": [
+        "tA",
+        0
+      ],
+      "len": 17.421,
+      "loss": 0,
+      "disp": null,
+      "gamma": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    },
+    {
+      "id": "ego9n17w",
+      "a": [
+        "Coupler, 50:50",
+        3
+      ],
+      "b": [
+        "tB",
+        0
+      ],
+      "len": 17.421,
+      "loss": 0,
+      "disp": -20,
+      "gamma": null,
+      "ftype": "smf",
+      "key": 0,
+      "beat": 4,
+      "per": 25,
+      "seed": 1,
+      "path": [],
+      "ta": null,
+      "tb": null
+    }
+  ],
+  "measures": [],
+  "notes": "A mode-locked fibre laser (500 fs sech² pulses at 1560 nm, 80 MHz) split into two 17.4 m spools. Top: standard single-mode fibre, whose dispersion is anomalous at 1560 nm, at just the peak power (about 218 W) where self-phase modulation and dispersion balance: a fundamental soliton, which arrives as short as it left with its spectrum unchanged, five dispersion lengths on. Bottom: a fibre with normal dispersion (D = −20 ps/(nm km)) at the same power: self-phase modulation broadens the spectrum and dispersion stretches the chirped pulse, to several picoseconds. Each screen’s Pulse tab shows the pulse and its spectrum; select a fibre for its B-integral. Halve the laser’s power and the soliton no longer holds; double it and it narrows and breathes (a higher-order soliton).",
+  "ui": {
+    "sel": "sA",
+    "pins": [],
+    "views": {
+      "sA": {
+        "screenTab": "pulse"
+      }
+    }
+  }
+}

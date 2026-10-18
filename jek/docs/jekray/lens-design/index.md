@@ -563,7 +563,7 @@ The product is read as a Jones matrix in x and y on each side, the axis's x turn
 
 Skew rays come out turned a little even through faces that change no polarisation (skew aberration): this shows as retardance off the meridians.
 
-A table gives each face's mean share passed (s and p), reflected, and taken by the glass after it. A lens face's coating can be chosen right there (bare, AR 0.5%, MgF₂ λ/4 or a V-coat, quarter-waves at the primary wavelength); the part's own panel sets any other. Undo takes the choice back.
+A table gives each face's mean share passed (s and p), reflected, and taken by the glass after it. A lens face's coating can be chosen right there (bare, AR 0.5%, MgF₂ λ/4 or a V-coat, quarter-waves at the primary wavelength, or any coating kept by name); **Design a coating…** opens the [coating workspace](/jek/docs/jekray/coating-design/) on that face, and the part's own panel sets any other. Undo takes the choice back.
 
 **Checked against.**
 - a bare face square on: $$1 - ((n-1)/(n+1))^2$$, with no diattenuation or retardance; at Brewster's angle, p passed whole, s as $$1 - R_s$$, and the diattenuation $$R_s/(2 - R_s)$$, to 10⁻⁹;

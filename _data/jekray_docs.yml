@@ -183,6 +183,8 @@
 - title: RF and millimetre waves
   url: /jek/docs/jekray/rf/
   cat: rf
+- title: Coating design
+  url: /jek/docs/jekray/coating-design/
 - title: Part packs
   url: /jek/docs/jekray/part-packs/
 - title: Modules

@@ -4,6 +4,7 @@ import { lensThickness, lensVolume } from './readouts.js';
 import { orderRow } from '../io/order.js';
 import { lens3d } from './rf-lens3d.js';
 import { applyGrin, grinDesign, grinSlab, normGrin } from '../core/grin.js';
+import { openCoatDesign } from './coat-workspace.js';
 import { saveDrawingSvg, saveDrawingsPdf } from './lens-drawing.js';
 import { rfDrawableParts } from '../engines/lens-drawing.js';
 import { V, normCoat, project, uid } from '../state/project.js';
@@ -449,7 +450,8 @@ function rwPartCard(asm, P, x) {
         rwRow('Centre (mm)', rwNum(P.gaps[idx], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[idx] = v; }), el.name + ' centre thickness (mm)')),
         rwRow('Front radius (mm)', rNum(s1, 0, 'face to the feed')), rwRow('Front conic', kNum(s1, 0, 'face to the feed')),
         rwRow('Back radius (mm)', rNum(s2, 1, 'other face')), rwRow('Back conic', kNum(s2, 1, 'other face')),
-        rwRow('Matching layers', h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) })),
+        rwRow('Matching layers', h('span', { class: 'rt-lrow' }, h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) }),
+          h('button', { class: 'rt-link', type: 'button', title: 'The coating design workspace on this lens’s faces: the layer’s density and thickness against the band', onclick: () => openCoatDesign({ el, holder: el.surfaces[0], label: el.name + ', both faces', ghz: RW.asm.rf.ghz, bandPct: 100 * Math.max(RW.asm.rf.ghz / RW.asm.rf.lo - 1, RW.asm.rf.hi / RW.asm.rf.ghz - 1), onUse: c => rwEdit(() => { el.surfaces.forEach(s => { s.coat = normCoat(c); }); return false; }) }) }, 'Design…'))),
         ...air),
       // cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
       h('div', { class: 'rt-lchips rt-rfzone' },

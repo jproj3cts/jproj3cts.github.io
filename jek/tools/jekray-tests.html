@@ -9304,6 +9304,34 @@ const TESTS = [
     },
   },
   {
+    name: 'Coating design: opened from a lens face, the broadband preset optimised under 0.5% mean over 450–650 nm to 20°, and used on the face',
+    why: 'the coating workspace on a BK7 lens’s first face: its substrate is the lens’s glass, the band and the largest angle set, the three-layer preset chosen and optimised brings the mean reflectance square on under 0.5% (the preset’s own is over 1%), Use this coating writes a three-layer stack at 550 nm to that face and closes the workspace, and Esc leaves it closed (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
+      const ws = () => rigDoc().querySelector('#coatWs');
+      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
+      const mean = () => { const m = /Reflects, over the band([\d.]+) % mean/.exec(ws().querySelector('.rt-lfig').textContent.replace(/\u00a0/g, ' ')); return m ? +m[1] : NaN; };
+      try {
+        J.openCoatDesign('Lens', 0);
+        const opened = J.coatDesignOpen() && !ws().hidden && /Lens/.test(ws().querySelector('.rt-lcrumb').textContent);
+        const sub = ws().querySelector('[aria-label="The substrate"]'), onGlass = !!sub && /N-BK7/.test(sub.options[sub.selectedIndex].textContent);
+        set('Band from (nm)', '450'); set('Band to (nm)', '650'); set('Largest angle of incidence (degrees)', '20');
+        set('A preset stack', 'bb3');
+        const three = ws().querySelectorAll('.rt-coatlayers tbody tr').length === 3, before = mean();
+        ws().querySelector('#coatOpt').click();
+        const after = mean(), better = before > 1 && after < 0.5 && after < before;
+        ws().querySelector('#coatUse').click();
+        const c = J.serialize().elements[0].surfaces[0].coat;
+        const used = !!c && c.mode === 'stack' && c.layers.length === 3 && c.design === 550 && !J.coatDesignOpen();
+        const all = opened && onGlass && three && better && used;
+        if (!all) console.log('coat design', { opened, onGlass, three, before, after, better, used, c });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'RF designer: a lens cut in zones is thinner, the same at its zone frequency, and drawn and quoted as cut',
     why: 'the new design\u2019s lens designed 200 mm across for an 11 dB edge and cut in zones: at 24 GHz its steps are 19.4 mm deep (a wave in PLA), it is under 25 mm at its thickest (40 smooth), its phase error at 24 GHz small (the zones\u2019 own defocus, traced as cut) but more at the band\u2019s edges, and its steps\u2019 shadow counted; Make it lists its zones, its drawing says where it is cut, its quote says it is zoned; unticked it is whole again (1 when all hold)',
     want: 1, tol: 0, unit: '',

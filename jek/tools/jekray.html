@@ -8479,6 +8479,129 @@ function coatR(coat, n1, n2, nm) {
   return (coat.R || 0) / 100;
 }
 /* ==========================================================================
+   Designing a thin-film coating
+   A stack of layers (index n, thickness d in nm, listed from the outside in) on a substrate, judged against what it is
+   for: an anti-reflection coating (nothing reflected over a band of wavelengths and a range of angles), a high reflector,
+   a beam splitter of a chosen reflectance, a dichroic edge (reflecting one side of a wavelength, passing the other), or an
+   RF matching layer (a lens face passing everything at its frequency). Its reflectance comes from the one stack model the
+   bench, the lens designer and the RF designer trace with (core/coatings.js stackAmp), so what is designed here is what
+   is traced. The merit is the mean square of the reflectance against its target over the band and the angles, each
+   polarisation as asked; the thicknesses are searched by Nelder–Mead from where they stand.
+   ========================================================================== */
+const COAT_TARGETS = { ar: 'Anti-reflection', hr: 'High reflector', split: 'Beam splitter', edge: 'Dichroic edge', rf: 'Matching layer (RF)' };
+const clampN = (v, lo, hi, d) => (isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
+/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles 0 to
+   theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
+   when left out), and for a splitter its reflectance (%), for an edge the wavelength it turns at and which side passes */
+function coatSpec(o) {
+  o = o || {};
+  const target = COAT_TARGETS[o.target] ? o.target : 'ar';
+  const lo = clampN(o.lo, 100, 1e9, target === 'rf' ? 11.5e6 : 450), hi = Math.max(lo, clampN(o.hi, 100, 1e9, target === 'rf' ? 13.5e6 : 650));
+  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta: clampN(o.theta, 0, 89, 0), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
+    design: clampN(o.design, 100, 1e9, (lo + hi) / 2), R: clampN(o.R, 0, 100, 50), edge: clampN(o.edge, 100, 1e9, (lo + hi) / 2), passBelow: o.passBelow !== false };
+}
+/* the stack's power reflectance from n0 into ns at cosine ci and wavelength nm, for the polarisation asked */
+function stackR(layers, n0, ns, ci, nm, pol) {
+  const r = p => cabs2(stackAmp(layers, n0, ns, ci, nm, p));
+  return pol === 's' ? r('s') : pol === 'p' ? r('p') : (r('s') + r('p')) / 2;
+}
+/* what the reflectance should be at nm, for the target */
+function coatWant(spec, nm) {
+  switch (spec.target) {
+    case 'hr': return 1;
+    case 'split': return spec.R / 100;
+    case 'edge': return (nm < spec.edge) === spec.passBelow ? 0 : 1;
+    default: return 0;
+  }
+}
+/* the sample points the stack is judged at: wavelengths across the band and angles from 0 to theta */
+function samples(spec, nW, nA) {
+  const nms = [], cis = [];
+  for (let i = 0; i < nW; i++) nms.push(spec.lo + (spec.hi - spec.lo) * (nW > 1 ? i / (nW - 1) : 0.5));
+  for (let j = 0; j < nA; j++) cis.push(Math.cos((spec.theta * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
+  return { nms, cis };
+}
+/* the merit: the mean square of R − target over the band and the angles (an edge's own wavelength ± 2% left out, as no
+   stack turns in no width) */
+function coatMerit(layers, spec, nW = 41, nA = 5) {
+  const { nms, cis } = samples(spec, nW, spec.theta > 0 ? nA : 1);
+  let sum = 0, cnt = 0;
+  for (const nm of nms) {
+    if (spec.target === 'edge' && Math.abs(nm - spec.edge) < 0.02 * spec.edge) continue;
+    const want = coatWant(spec, nm);
+    for (const ci of cis) { const e = stackR(layers, spec.n0, spec.ns, ci, nm, spec.pol) - want; sum += e * e; cnt++; }
+  }
+  return cnt ? sum / cnt : 0;
+}
+/* the reflectance across the band at an angle (degrees), N points: { nms, R } */
+function coatCurve(layers, spec, deg, N = 121) {
+  const ci = Math.cos((deg || 0) * Math.PI / 180), nms = [], R = [];
+  for (let i = 0; i < N; i++) { const nm = spec.lo + (spec.hi - spec.lo) * i / (N - 1); nms.push(nm); R.push(stackR(layers, spec.n0, spec.ns, ci, nm, spec.pol)); }
+  return { nms, R };
+}
+/* the reflectance against the angle at the design wavelength, s and p: { degs, s, p } */
+function coatAngles(layers, spec, N = 91) {
+  const degs = [], s = [], p = [];
+  for (let i = 0; i < N; i++) { const d = 89 * i / (N - 1), ci = Math.cos(d * Math.PI / 180); degs.push(d); s.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 's')); p.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 'p')); }
+  return { degs, s, p };
+}
+/* the figures a designer reads: the mean and worst reflectance over the band square on and at the largest angle, the
+   reflectance at the design wavelength, and the merit */
+function coatSummary(layers, spec) {
+  const at = deg => { const c = coatCurve(layers, spec, deg, 61); let m = 0, w = 0; for (const r of c.R) { m += r; w = Math.max(w, r); } return { mean: m / c.R.length, worst: w }; };
+  const c0 = at(0), ct = spec.theta > 0 ? at(spec.theta) : c0;
+  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, 1, spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
+}
+/* ---------- Optimising the thicknesses ----------
+   Nelder–Mead on the layers' thicknesses (each held between a hundredth of a quarter wave and four waves of optical
+   thickness at the design wavelength), from where they stand, with restarts. Returns the layers as improved, and the
+   merit before and after; the indices are left as they are (choose them, then let the thicknesses settle). */
+function coatOptimise(layers, spec, opts) {
+  opts = opts || {};
+  const n = layers.length;
+  if (!n) return { layers: [], before: coatMerit(layers, spec), after: coatMerit(layers, spec), evals: 0 };
+  const lo = layers.map(L => 0.01 * qwot(L.n, spec.design)), hi = layers.map(L => 16 * qwot(L.n, spec.design));
+  const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
+  let evals = 0;
+  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
+  let best = clampD(layers.map(L => L.d)), fBest = f(best);
+  const before = fBest;
+  const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
+  for (let round = 0; round < rounds; round++) {
+    // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
+    const step = (0.3 + 0.3 * round);
+    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * qwot(layers[i].n, spec.design)); return clampD(x); }));
+    let F = S.map(f);
+    for (let it = 0; it < maxIt; it++) {
+      const ord = F.map((v, i) => i).sort((a, b) => F[a] - F[b]);
+      S = ord.map(i => S[i]); F = ord.map(i => F[i]);
+      if (F[n] - F[0] < 1e-12 * (1 + F[0])) break;
+      const c = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) c[k] += S[i][k] / n;
+      const xr = clampD(c.map((v, k) => v + (v - S[n][k]))), fr = f(xr);
+      if (fr < F[0]) {
+        const xe = clampD(c.map((v, k) => v + 2 * (v - S[n][k]))), fe = f(xe);
+        if (fe < fr) { S[n] = xe; F[n] = fe; } else { S[n] = xr; F[n] = fr; }
+      } else if (fr < F[n - 1]) { S[n] = xr; F[n] = fr; }
+      else {
+        const xc = clampD(c.map((v, k) => v + 0.5 * (S[n][k] - v))), fc = f(xc);
+        if (fc < F[n]) { S[n] = xc; F[n] = fc; }
+        else for (let i = 1; i <= n; i++) { S[i] = clampD(S[i].map((v, k) => S[0][k] + 0.5 * (v - S[0][k]))); F[i] = f(S[i]); }
+      }
+    }
+    const i0 = F.indexOf(Math.min(...F));
+    if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
+  }
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
+  return { layers: out, before, after: coatMerit(out, spec), evals };
+}
+/* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
+   quote and the manufacturable check look for */
+function coatToStack(layers, spec, label) {
+  const one = layers.length === 1 && spec.target === 'rf';
+  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 40) } : {}) };
+}
+/* ==========================================================================
    One face: what it does to light's two polarisations
    The bench's rays, its diffracted field and focus, the optical lens designer's polarisation trace and the RF
    designer's losses all take a face's amplitudes from here, so none of them can disagree with another.
@@ -23532,10 +23655,14 @@ function coatingRows(el, holder, label) {
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField(label || 'Coating',
       [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
-        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : [])],
+        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
+        ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])],
       () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode),
       v => {
         const keep = holder.coat;
+        // the coating design workspace, on this face; a coating kept by name there, written here
+        if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
+        } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
         if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
         holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
           lo: keep.lo, hi: keep.hi, label: keep.label });
@@ -24604,7 +24731,7 @@ function thermView(body, A, asm, P, key, st, redraw) {
 /* ---------- Polarisation ---------- */
 const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
 // the coatings that can be chosen here for a lens face; any other the face has is kept as it is
-const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)']];
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating…']];
 const coatChoice = c => {
   if (!c || c.mode === 'bare') return 'bare';
   if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';
@@ -24616,6 +24743,8 @@ const coatName = c => !c || c.mode === 'bare' ? 'Bare' : c.mode === 'stack' ? 'T
 function setCoat(P, i, kind, nm, redraw) {
   const s = P.surfaces[i], e = s.from && getEl(s.from.id);
   if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;
+  // the coating design workspace on this face, over the designer; its Use this coating writes the stack and redraws here
+  if (kind === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el: e, holder: e.surfaces[s.from.i], label: e.name + ', surface ' + (s.from.i + 1), onUse: c => { e.surfaces[s.from.i].coat = c; changed(false); redraw(); } }); return; }
   checkpoint();
   const design = Math.round(nm);
   e.surfaces[s.from.i].coat = kind === 'bare' ? normCoat({ mode: 'bare' }) : kind === 'ar' ? normCoat({ mode: 'ar', R: 0.5 }) : normCoat({ mode: 'stack', design, layers: coatPreset(kind, design) });
@@ -24882,6 +25011,235 @@ function ghostView(body, A, P, G, st, redraw) {
   cell.append(plotSaveRow(cv));
   body.append(helpLine('Scaled to the ghost; one that focuses near a surface is marked.', ['The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'], 'rt-lsub'));
 }
+/* ==========================================================================
+   The coating design workspace
+   A thin-film stack designed against what it is for (core/coatdesign.js), on its own page over the bench as the lens
+   and RF designers are. Opened from a face's Coating setting (Design a coating…), from the lens designer's face table,
+   from the RF designer's matching layers, or from File › Open a workspace with no face at all. Use this coating writes
+   the stack to the face it came from; Keep as a coating keeps it by name in this browser, for any face's Coating list.
+   ========================================================================== */
+let CW = null;                       // { spec, layers, from: { el, holder, label, onUse } | null, names }
+const coatDesignOpen = () => !!CW;
+const CW_KEPT = 'JEK_COATINGS';
+/* the coatings kept by name in this browser: [{ id, name, coat, spec }] */
+function keptCoatings() { try { const v = JSON.parse(localStorage.getItem(CW_KEPT) || '[]'); return Array.isArray(v) ? v : []; } catch (err) { return []; } }
+function cwKeep(name, coat, spec) {
+  const list = keptCoatings().filter(k => k.name !== name);
+  list.push({ id: 'c' + Date.now().toString(36), name, coat, spec });
+  try { localStorage.setItem(CW_KEPT, JSON.stringify(list.slice(-60))); } catch (err) { toast('Could not keep it in this browser', true); }
+}
+function forgetCoating(id) { try { localStorage.setItem(CW_KEPT, JSON.stringify(keptCoatings().filter(k => k.id !== id))); } catch (err) { /* none */ } }
+
+/* the common substrates offered, and an RF material's index */
+const CW_GLASSES = ['N-BK7', 'Fused silica', 'N-SF11', 'N-LAK22', 'CaF2', 'Sapphire', 'N-SK16', 'F2'].filter(g => GLASS[g] || glassKey(g));
+/* the index of the substrate chosen: a glass at the design wavelength, an RF dielectric, or a number */
+function cwSubIndex(S) {
+  if (S.subKind === 'n') return S.subN;
+  if (S.subKind === 'rf') { const M = RF_MAT[S.subRf]; return M ? M.n : 1.5; }
+  return refIndex({ glass: S.subGlass }, S.design);
+}
+/* the spec from the workspace's settings */
+function cwSpec(S) {
+  const ns = cwSubIndex(S), rf = S.target === 'rf';
+  const design = rf ? C_NM_GHZ / S.ghz : S.design, lo = rf ? design / (1 + S.bandPct / 100) : S.lo, hi = rf ? design * (1 + S.bandPct / 100) : S.hi;
+  return coatSpec({ target: S.target, n0: S.n0, ns, lo, hi, theta: S.theta, pol: S.pol, design, R: S.R, edge: S.edge, passBelow: S.passBelow });
+}
+/* the index a printed skin of the lens's plastic has at a density (core/rf.js mixEps) */
+const cwPrintedN = (M, fill) => Math.sqrt(mixEps(M, fill / 100).eps);
+
+/* open the workspace: from a face ({ el, holder (the surface or part whose .coat it is), label, onUse(coat) }) or alone */
+function openCoatDesign(from) {
+  from = from || null;
+  const el = from && from.el, holder = from && from.holder, coat = holder && holder.coat;
+  const rf = !!(el && el.mmw), nm0 = benchNms()[0] || 550;
+  // the substrate: the face's own glass (a lens face's, on the glass side; a window's or cube's material), the RF plastic, or BK7
+  let subKind = 'glass', subGlass = 'N-BK7', subRf = 'PLA', subN = 1.5168;
+  if (el && el.type === 'lens' && el.surfaces && holder) {
+    const i = el.surfaces.indexOf(holder), m = (el.materials[i] && el.materials[i].glass !== 'AIR' ? el.materials[i] : el.materials[i - 1]) || { glass: 'N-BK7' };
+    if (rf && RF_MAT[m.glass]) { subKind = 'rf'; subRf = m.glass; } else if (glassKey(m.glass)) subGlass = m.glass; else { subKind = 'n'; subN = refIndex(m, nm0); }
+  } else if (el && el.material) { const m = el.material; if (rf && RF_MAT[m.glass]) { subKind = 'rf'; subRf = m.glass; } else if (glassKey(m.glass)) subGlass = m.glass; else { subKind = 'n'; subN = refIndex(m, nm0); } }
+  // an RF face's frequency: the opener's (the RF designer's design frequency), the disc's own, or the bench's longest wave
+  const ghz = rf ? ((from && +from.ghz) || (el.grin && el.grin.ghz) || (() => { const nm = benchNms().find(v => v > 1e5); return nm ? +(C_NM_GHZ / nm).toPrecision(4) : 24; })()) : 24;
+  const design = coat && coat.mode === 'stack' && coat.design ? coat.design : rf ? C_NM_GHZ / ghz : nm0 < 1e4 ? nm0 : 550;
+  const S = { target: rf ? 'rf' : 'ar', subKind, subGlass, subRf, subN, n0: 1, design, lo: Math.max(100, Math.round(design * 0.82)), hi: Math.round(design * 1.18), theta: 0, pol: 'avg', R: 50, edge: design, passBelow: true,
+    ghz, bandPct: from && from.bandPct > 0 ? +from.bandPct : 10, fill: 50 };
+  if (!rf && !(coat && coat.mode === 'stack' && coat.design)) { S.lo = 450; S.hi = 650; S.design = 550; S.edge = 550; }
+  const spec = cwSpec(S);
+  let layers = coat && coat.mode === 'stack' && coat.layers && coat.layers.length ? coat.layers.map(L => ({ n: +L.n, d: +L.d })) : null;
+  if (!layers) layers = rf ? [{ n: Math.sqrt(spec.ns), d: qwot(Math.sqrt(spec.ns), spec.design) }] : coatPreset('mgf2', spec.design);
+  CW = { S, layers, from, sel: -1 };
+  const sec = cwShell();
+  sec.hidden = false;
+  document.body.classList.add('rt-lens-open');
+  cwRender();
+  sec.focus();
+  return true;
+}
+function closeCoatDesign() {
+  if (!CW) return;
+  CW = null;
+  document.getElementById('coatWs').hidden = true;
+  document.body.classList.remove('rt-lens-open');
+}
+function cwShell() {
+  let sec = document.getElementById('coatWs');
+  if (sec) return sec;
+  sec = h('section', { class: 'rt-lens rt-rfws rt-coatws', id: 'coatWs', hidden: '', tabindex: '-1', 'aria-label': 'Coating design' });
+  sec.addEventListener('keydown', e => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); closeCoatDesign(); } });
+  document.body.append(sec);
+  return sec;
+}
+const cwFmt = (v, p) => fmtWs(v, p || 4, 1e-12);
+const cwPct = v => (isFinite(v) ? (100 * v < 0.01 && v > 0 ? '< 0.01' : (100 * v).toPrecision(3)) + ' %' : '—');
+function cwNum(value, set, label, p) {
+  const i = h('input', { type: 'text', inputmode: 'decimal', value: cwFmt(value, p || 6), class: 'rt-lnum', 'aria-label': label, spellcheck: 'false' });
+  const go = () => { const v = +i.value; if (isFinite(v)) set(v); else cwRender(); };
+  i.addEventListener('change', go);
+  i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+  return i;
+}
+function cwSelect(options, value, set, label) {
+  const s = h('select', { 'aria-label': label }, ...options.map(([v, t]) => h('option', { value: v, selected: String(v) === String(value) ? '' : null }, t)));
+  s.addEventListener('change', () => set(s.value));
+  return s;
+}
+const cwRow = (label, ...kids) => h('label', { class: 'rt-lrow' }, h('span', null, label), ...kids);
+const cwEdit = fn => { fn(); cwRender(); };
+
+function cwRender() {
+  if (!CW) return;
+  const sec = document.getElementById('coatWs'), { S, layers, from } = CW, spec = cwSpec(S), rf = S.target === 'rf', sum = coatSummary(layers, spec);
+  const scroll = sec.querySelector('.rt-lbody') ? sec.querySelector('.rt-lbody').scrollTop : 0;
+  sec.replaceChildren();
+  const where = from ? (from.label || (from.el ? from.el.name : 'a face')) : 'A coating on its own';
+  sec.append(h('header', { class: 'rt-lhead' },
+    h('span', { class: 'rt-hmark' }, 'JEKray'),
+    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, 'Bench'), h('span', { 'aria-hidden': 'true' }, '›'), h('span', null, where), h('span', { class: 'rt-lpill' }, 'Coating design')),
+    h('span', { class: 'rt-lgap' }),
+    h('button', { class: 'rt-btn quiet', type: 'button', title: 'Keep this stack by name in this browser: every face’s Coating list offers it', onclick: () => {
+      const name = (prompt('Name the coating, to find it in every face’s Coating list', COAT_TARGETS[S.target] + ', ' + layers.length + ' layer' + (layers.length === 1 ? '' : 's')) || '').trim();
+      if (!name) return;
+      cwKeep(name, coatToStack(layers, spec, name), spec);
+      toast('Kept “' + name + '”: choose it from any face’s Coating list');
+    } }, 'Keep as a coating…'),
+    from ? h('button', { class: 'rt-btn primary', type: 'button', id: 'coatUse', title: 'Write this stack to the face it came from, and go back', onclick: () => {
+      const c = normCoat(coatToStack(layers, spec));
+      checkpoint();
+      if (from.onUse) from.onUse(c); else if (from.holder) { from.holder.coat = c; changed(true); }
+      closeCoatDesign();
+      toast('The coating is on ' + where);
+    } }, 'Use this coating') : null,
+    h('button', { class: from ? 'rt-btn' : 'rt-btn primary', type: 'button', id: 'coatLeave', title: 'Back to the bench (Esc)', onclick: closeCoatDesign }, 'Back to the bench')));
+  const body = h('div', { class: 'rt-lbody' });
+  body.append(cwSettings(S, spec), h('div', { class: 'rt-lmain' }, cwFigures(sum, spec), cwPlots(layers, spec), cwLayers(layers, spec)));
+  sec.append(body);
+  body.scrollTop = scroll;
+}
+function cwSettings(S, spec) {
+  const rf = S.target === 'rf';
+  const card = h('section', { class: 'rt-lcard rt-lcond rt-rfcond', 'aria-label': 'The coating' }, h('h2', null, 'The coating'));
+  card.append(h('p', { class: 'rt-lsub' }, 'What the stack is for, what it sits on and the light it is judged in. The thicknesses are then found from where they stand.'));
+  const rows = [cwRow('For', cwSelect(Object.entries(COAT_TARGETS), S.target, v => cwEdit(() => {
+    S.target = v;
+    if (v === 'rf' && S.subKind !== 'rf') { S.subKind = 'rf'; }
+    if (v !== 'rf' && S.subKind === 'rf') { S.subKind = 'glass'; }
+  }), 'What the coating is for'))];
+  // the substrate
+  const subOpts = rf ? Object.entries(RF_MAT).map(([k, v]) => ['rf:' + k, v.name + ', n = ' + v.n]) : CW_GLASSES.map(g => ['g:' + g, g]);
+  subOpts.push(['n', 'An index of my own']);
+  const subVal = S.subKind === 'n' ? 'n' : S.subKind === 'rf' ? 'rf:' + S.subRf : 'g:' + S.subGlass;
+  rows.push(cwRow('On', cwSelect(subOpts, subOpts.some(o => o[0] === subVal) ? subVal : subOpts[0][0], v => cwEdit(() => { if (v === 'n') { S.subKind = 'n'; S.subN = cwSubIndex(S); } else if (v.startsWith('rf:')) { S.subKind = 'rf'; S.subRf = v.slice(3); } else { S.subKind = 'glass'; S.subGlass = v.slice(2); } }), 'The substrate')));
+  if (S.subKind === 'n') rows.push(cwRow('Its index', cwNum(S.subN, v => cwEdit(() => { S.subN = Math.max(1, v); }), 'Substrate index')));
+  else rows.push(cwRow('Its index', h('span', { class: 'mono' }, cwFmt(spec.ns, 5) + (rf ? '' : ' at ' + cwFmt(spec.design, 5) + ' nm'))));
+  rows.push(cwRow('Light comes from', cwNum(S.n0, v => cwEdit(() => { S.n0 = Math.max(1, v); }), 'Index of the medium the light comes from'), h('span', { class: 'rt-lsub' }, 'n (1 for air)')));
+  if (rf) {
+    rows.push(cwRow('Frequency (GHz)', cwNum(S.ghz, v => cwEdit(() => { S.ghz = Math.max(0.1, v); }), 'Design frequency (GHz)')),
+      cwRow('Band (± %)', cwNum(S.bandPct, v => cwEdit(() => { S.bandPct = Math.max(0, v); }), 'Band either side of the frequency (%)')));
+  } else {
+    rows.push(cwRow('Band (nm)', cwNum(S.lo, v => cwEdit(() => { S.lo = Math.max(100, v); S.hi = Math.max(S.lo, S.hi); }), 'Band from (nm)'), h('span', null, 'to'), cwNum(S.hi, v => cwEdit(() => { S.hi = Math.max(S.lo, v); }), 'Band to (nm)')),
+      cwRow('Design wavelength (nm)', cwNum(S.design, v => cwEdit(() => { S.design = Math.max(100, v); }), 'Design wavelength (nm)')));
+  }
+  rows.push(cwRow('Angles up to (°)', cwNum(S.theta, v => cwEdit(() => { S.theta = Math.min(89, Math.max(0, v)); }), 'Largest angle of incidence (degrees)')),
+    cwRow('Polarisation', cwSelect([['avg', 's and p, the mean'], ['s', 's'], ['p', 'p']], S.pol, v => cwEdit(() => { S.pol = v; }), 'Polarisation judged')));
+  if (S.target === 'split') rows.push(cwRow('Reflects (%)', cwNum(S.R, v => cwEdit(() => { S.R = Math.min(100, Math.max(0, v)); }), 'Reflectance wanted (%)')));
+  if (S.target === 'edge') rows.push(cwRow('Turns at (nm)', cwNum(S.edge, v => cwEdit(() => { S.edge = Math.max(100, v); }), 'Edge wavelength (nm)')),
+    cwRow('Passes', cwSelect([['below', 'shorter wavelengths, reflects longer'], ['above', 'longer wavelengths, reflects shorter']], S.passBelow ? 'below' : 'above', v => cwEdit(() => { S.passBelow = v === 'below'; }), 'Which side passes')));
+  card.append(h('div', { class: 'rt-rfgrid' }, ...rows));
+  card.append(helpLine(rf ? 'A matching layer: a quarter wave of index √n of the plastic passes everything at its frequency; printed as a less dense skin of the same plastic.'
+    : 'Judged over the band and the angles, each wavelength and angle alike.', [rf ? 'The layer’s index is made by printing the lens’s own plastic less dense (core/rf.js: the mixing rule). A single layer with the label Matching layer is what the quote and the manufacturable check look for; a stack of more is traced as given, and made to order on request.'
+      : 'The merit is the mean square of the reflectance against its target over the band and the angles up to the largest, for the polarisation chosen; an edge’s own wavelength ± 2% is left out, as no stack turns in no width. The stack is traced with the one thin-film model the bench, the lens designer and the RF designer share, so what is designed here is what is traced.'], 'rt-lsub'));
+  return card;
+}
+function cwFigures(sum, spec) {
+  const r = (a, b, t) => h('div', { title: t || '' }, h('span', null, a), h('b', { class: 'mono' }, b));
+  return h('div', { class: 'rt-lfig' },
+    r('Reflects, over the band', cwPct(sum.mean) + ' mean, ' + cwPct(sum.worst) + ' worst', 'Square on, across the band'),
+    ...(spec.theta > 0 ? [r('At ' + cwFmt(spec.theta, 3) + '°', cwPct(sum.meanAt) + ' mean, ' + cwPct(sum.worstAt) + ' worst')] : []),
+    r('At ' + (spec.target === 'rf' ? cwFmt(C_NM_GHZ / spec.design, 4) + ' GHz' : cwFmt(spec.design, 5) + ' nm'), cwPct(sum.design)),
+    r('Bare face', cwPct(sum.bare), 'What the face would reflect square on with no coating'),
+    r('Merit', cwFmt(sum.merit, 3), 'The mean square of the reflectance against its target over the band and the angles'));
+}
+function cwPlots(layers, spec) {
+  const card = h('section', { class: 'rt-lcard' }, h('h2', null, 'Reflectance'));
+  const rf = spec.target === 'rf', xs = c => c.nms.map(v => (rf ? C_NM_GHZ / v : v));
+  const c0 = coatCurve(layers, spec, 0), series = [{ label: 'square on', colour: '#1f77b4', xs: xs(c0), ys: c0.R.map(v => 100 * v) }];
+  if (spec.theta > 0) { const ct = coatCurve(layers, spec, spec.theta); series.push({ label: 'at ' + cwFmt(spec.theta, 3) + '°', colour: '#e0a030', xs: xs(ct), ys: ct.R.map(v => 100 * v) }); }
+  series.push({ label: 'target', colour: '#999', dash: true, xs: xs(c0), ys: c0.nms.map(nm => 100 * (spec.target === 'edge' ? ((nm < spec.edge) === spec.passBelow ? 0 : 1) : spec.target === 'hr' ? 1 : spec.target === 'split' ? spec.R / 100 : 0)) });
+  const wrap = h('div', { class: 'rt-lpair' }), a = h('div'), b = h('div'); wrap.append(a, b); card.append(wrap);
+  const top = Math.min(100, Math.max(1, 1.15 * 100 * Math.max(...series.flatMap(s => s.ys))));
+  linePlot(a, { label: 'Reflectance across the band', x: { kind: 'plain', title: rf ? 'GHz' : 'nm' }, y: { kind: 'plain', title: 'R, %' }, yr: [0, top], series, xName: rf ? 'GHz' : 'nm', H: 240 });
+  const A = coatAngles(layers, spec);
+  linePlot(b, { label: 'Reflectance against the angle', x: { kind: 'plain', title: 'angle, °' }, y: { kind: 'plain', title: 'R, %' }, xr: [0, 89], yr: [0, 100], xName: 'angle',
+    series: [{ label: 's', colour: '#1f77b4', xs: A.degs, ys: A.s.map(v => 100 * v) }, { label: 'p', colour: '#e0a030', xs: A.degs, ys: A.p.map(v => 100 * v) }], H: 240 });
+  return card;
+}
+function cwLayers(layers, spec) {
+  const { S } = CW, rf = S.target === 'rf', M = rf && RF_MAT[S.subRf];
+  const card = h('section', { class: 'rt-lcard rt-coatlayers', 'aria-label': 'The layers' }, h('h2', null, 'The layers'), h('p', { class: 'rt-lsub' }, 'From the outside in, each layer’s index and thickness' + (rf ? ' (a printed skin: its density gives its index)' : ' (optical thickness in quarter waves at the design wavelength beside it)') + '.'));
+  const tbl = h('table', { class: 'rt-ltable', style: 'min-width:0' }), tb = h('tbody');
+  tbl.append(h('thead', null, h('tr', null, h('th', null, '#'), h('th', null, rf ? 'Density (%)' : 'Material'), h('th', null, 'n'), h('th', null, rf ? 'Thickness (mm)' : 'Thickness (nm)'), h('th', null, 'λ/4 at design'), h('th', null, ''))));
+  layers.forEach((L, k) => {
+    const qw = qwot(L.n, spec.design);
+    let matCell;
+    if (rf) {
+      const fill = M ? 100 * Math.min(1, Math.max(0, (Math.pow(L.n * L.n, 1) - 1) / (M.n * M.n - 1))) : 0;    // the density for this index, by volume
+      matCell = cwNum(fill, v => cwEdit(() => { L.n = M ? cwPrintedN(M, Math.min(100, Math.max(5, v))) : L.n; }), 'Layer ' + (k + 1) + ' density (%)', 4);
+    } else {
+      const opts = COAT_MATERIALS.map(([v, t]) => [String(+v), t]);
+      if (!opts.some(o => Math.abs(+o[0] - L.n) < 1e-9)) opts.push([String(+L.n), 'n = ' + cwFmt(L.n, 4)]);
+      opts.push(['custom', 'An index of my own…']);
+      matCell = cwSelect(opts, String(+L.n), v => cwEdit(() => { if (v === 'custom') { const n = +prompt('The layer’s index', String(L.n)); if (isFinite(n) && n >= 1) L.n = n; } else L.n = +v; }), 'Layer ' + (k + 1) + ' material');
+    }
+    tb.append(h('tr', null, h('td', { class: 'mono' }, String(k + 1)), h('td', null, matCell), h('td', { class: 'mono' }, cwFmt(L.n, 4)),
+      h('td', null, cwNum(rf ? L.d * 1e-6 : L.d, v => cwEdit(() => { L.d = Math.max(0.01, rf ? v * 1e6 : v); }), 'Layer ' + (k + 1) + ' thickness', 5)),
+      h('td', { class: 'mono' }, cwFmt(L.d / qw, 3)),
+      h('td', null, h('button', { class: 'rt-link', type: 'button', onclick: () => cwEdit(() => { L.d = qw; }) }, 'λ/4'), ' ',
+        h('button', { class: 'rt-link', type: 'button', onclick: () => cwEdit(() => { layers.splice(k, 1); }) }, 'Remove'))));
+  });
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const pre = cwSelect([['', 'A preset…'], ['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs'], ['match', 'RF matching layer, √n']], '', v => {
+    if (!v) return;
+    cwEdit(() => {
+      const d = spec.design;
+      CW.layers = v === 'bb3' ? [{ n: 1.38, d: qwot(1.38, d) }, { n: 2.10, d: qwot(2.10, d) / 2 }, { n: 1.63, d: qwot(1.63, d) }]
+        : v === 'match' ? [{ n: Math.sqrt(spec.ns), d: qwot(Math.sqrt(spec.ns), d) }] : coatPreset(v, d);
+    });
+  }, 'A preset stack');
+  card.append(h('div', { class: 'rt-rfacts' },
+    h('button', { class: 'rt-btn primary', type: 'button', id: 'coatOpt', title: 'Nelder–Mead on the thicknesses, from where they stand, against the target over the band and the angles', onclick: () => {
+      const o = coatOptimise(layers, spec);
+      CW.layers = o.layers;
+      toast('Merit ' + cwFmt(o.before, 3) + ' to ' + cwFmt(o.after, 3) + ' in ' + o.evals + ' tries');
+      cwRender();
+    } }, 'Optimise thicknesses'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: () => cwEdit(() => { layers.push(rf ? { n: Math.sqrt(spec.ns), d: qwot(Math.sqrt(spec.ns), spec.design) } : { n: 1.38, d: qwot(1.38, spec.design) }); }) }, 'Add a layer'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: () => cwEdit(() => { for (const L of layers) L.d = qwot(L.n, spec.design); }) }, 'All quarter waves'),
+    pre));
+  return card;
+}
+/* the page's wiring (from boot.js): a face's Coating setting and the lens designer's face table reach the workspace through the hooks */
+function wireCoatDesign() { hooks.openCoatDesign = openCoatDesign; hooks.keptCoatings = keptCoatings; }
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
    The tolerances by kind, the compensator and Monte Carlo's settings (kept with the design), and
@@ -26298,7 +26656,8 @@ function rwPartCard(asm, P, x) {
         rwRow('Centre (mm)', rwNum(P.gaps[idx], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[idx] = v; }), el.name + ' centre thickness (mm)')),
         rwRow('Front radius (mm)', rNum(s1, 0, 'face to the feed')), rwRow('Front conic', kNum(s1, 0, 'face to the feed')),
         rwRow('Back radius (mm)', rNum(s2, 1, 'other face')), rwRow('Back conic', kNum(s2, 1, 'other face')),
-        rwRow('Matching layers', h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) })),
+        rwRow('Matching layers', h('span', { class: 'rt-lrow' }, h('input', { type: 'checkbox', checked: matched ? '' : null, 'aria-label': el.name + ' matching layers', onchange: e => rwMatch(el, e.target.checked) }),
+          h('button', { class: 'rt-link', type: 'button', title: 'The coating design workspace on this lens’s faces: the layer’s density and thickness against the band', onclick: () => openCoatDesign({ el, holder: el.surfaces[0], label: el.name + ', both faces', ghz: RW.asm.rf.ghz, bandPct: 100 * Math.max(RW.asm.rf.ghz / RW.asm.rf.lo - 1, RW.asm.rf.hi / RW.asm.rf.ghz - 1), onUse: c => rwEdit(() => { el.surfaces.forEach(s => { s.coat = normCoat(c); }); return false; }) }) }, 'Design…'))),
         ...air),
       // cut in zones, or not: whole layers a wave deep at its zone frequency taken out where it is thick
       h('div', { class: 'rt-lchips rt-rfzone' },
@@ -44735,6 +45094,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    '<b>A coating workspace</b>: design a thin-film coating (an anti-reflection stack, a high reflector, a beam splitter, a dichroic edge or an RF matching layer) on its substrate, judged over a band of wavelengths and a range of angles, its reflectance plotted across the band and against the angle, s and p, and its thicknesses optimised; it is traced with the one thin-film model the bench and both designers use. Open it from any face\u2019s <b>Coating</b> setting (<b>Design a coating\u2026</b>), from the lens designer\u2019s Polarisation face table, from <b>Design\u2026</b> beside the RF designer\u2019s matching layers, or on its own from <b>File \u203a Open a workspace</b>; <b>Use this coating</b> writes the stack to the face it came from, and <b>Keep as a coating\u2026</b> saves it by name for every face\u2019s Coating list.',
     '<b>Offset reflectors and radomes</b> in the RF palette: a section of a paraboloid cut off its axis, whose panel gives its focal length, the turn it gives the beam and where its focus is, so the horn can be put there; and a radome sheet, whose panel gives what it passes square on and at the beam\u2019s angle and the half-wave thicknesses that pass everything but its loss. A curved RF mirror on its axis now gives its figures as an antenna, as a lens does, and the RF designer counts a metal mirror\u2019s ohmic loss.',
     '<b>A graded-index disc and a zoned lens, traced as they are made.</b> The bench now traces a graded-index RF disc as a slab of graded plastic between two flat faces (the same slab the RF designer and the lens engine take, so the three agree on where it focuses), with each part\u2019s loss at its own density and each face\u2019s matching layer at the radius met; and a zoned lens as it is cut, its curved face stepped back where whole layers come out, each step a sheer wall that shadows the rays and the diffracted field behind it. The 2D outline shows the steps, and the RF designer traces the same cut face: its walls\u2019 shadow and its zones\u2019 small defocus now count in its efficiency.',
     'The bench\u2019s <b>Tolerance the bench</b> study is now seeded by the number of builds asked for, so running it again gives the same spread; the lens designer\u2019s and the RF designer\u2019s Monte Carlo draw from the same seeded source. Under the surface, one copy each of the surface sag, the Bessel functions, the small linear solvers and the complex arithmetic now serves the bench, both designers and the drawings, and the RF designer\u2019s gain is checked against the bench\u2019s closed form for a lens antenna.',
@@ -46331,7 +46691,7 @@ installHooks({
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods(); wireView3d(); wireCart();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -46592,7 +46952,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTraceRaw(name, nm, rays) { const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm); return { origin: P.origin, dir: P.dir, out: rays.map(r => Array.from(traceRay(S, Float64Array.from([...r, 0, 0]), 0, S.N - 1))) }; },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
     openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
-    closeLensDesign() { closeLensDesign(); closeRfDesign(); },
+    closeLensDesign() { closeLensDesign(); closeRfDesign(); closeCoatDesign(); },
+    // the coating design workspace: on a part's face (its surface index for a lens) or on its own
+    openCoatDesign(name, i) { const el = name ? this.byName(name) : null; return openCoatDesign(el ? { el, holder: el.type === 'lens' ? el.surfaces[i || 0] : el, label: el.name } : null); },
+    coatDesignOpen() { return coatDesignOpen(); },
     selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },

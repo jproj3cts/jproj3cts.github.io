@@ -93,6 +93,7 @@ import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js
 import { reportPdfBlob } from './lens-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { closeRfDesign, newRfDesign } from './rf-workspace.js';
+import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from './coat-workspace.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
@@ -107,7 +108,7 @@ installHooks({
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireMods(); wireView3d(); wireCart();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -368,7 +369,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lensTraceRaw(name, nm, rays) { const a = assemblies().find(x => x.name === name), P = asmPrescription(a), S = lensSystem(P, nm); return { origin: P.origin, dir: P.dir, out: rays.map(r => Array.from(traceRay(S, Float64Array.from([...r, 0, 0]), 0, S.N - 1))) }; },
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
     openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
-    closeLensDesign() { closeLensDesign(); closeRfDesign(); },
+    closeLensDesign() { closeLensDesign(); closeRfDesign(); closeCoatDesign(); },
+    // the coating design workspace: on a part's face (its surface index for a lens) or on its own
+    openCoatDesign(name, i) { const el = name ? this.byName(name) : null; return openCoatDesign(el ? { el, holder: el.type === 'lens' ? el.surfaces[i || 0] : el, label: el.name } : null); },
+    coatDesignOpen() { return coatDesignOpen(); },
     selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },

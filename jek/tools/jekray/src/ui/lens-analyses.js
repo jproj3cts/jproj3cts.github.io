@@ -5,6 +5,7 @@ import { imsimPlan, imsimTraceable } from '../engines/lens-imsim.js';
 import { polAnalysis } from '../engines/lens-pol.js';
 import { HOUSINGS, T_NOMINAL, thermalAnalysis } from '../engines/lens-thermal.js';
 import { coatPreset } from '../core/coatings.js';
+import { hooks } from '../core/hooks.js';
 import { normCoat } from '../state/project.js';
 import { changed } from './actions.js';
 import { checkpoint } from './tabs.js';
@@ -436,7 +437,7 @@ function thermView(body, A, asm, P, key, st, redraw) {
 /* ---------- Polarisation ---------- */
 const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
 // the coatings that can be chosen here for a lens face; any other the face has is kept as it is
-const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)']];
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating…']];
 const coatChoice = c => {
   if (!c || c.mode === 'bare') return 'bare';
   if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';
@@ -448,6 +449,8 @@ const coatName = c => !c || c.mode === 'bare' ? 'Bare' : c.mode === 'stack' ? 'T
 function setCoat(P, i, kind, nm, redraw) {
   const s = P.surfaces[i], e = s.from && getEl(s.from.id);
   if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;
+  // the coating design workspace on this face, over the designer; its Use this coating writes the stack and redraws here
+  if (kind === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el: e, holder: e.surfaces[s.from.i], label: e.name + ', surface ' + (s.from.i + 1), onUse: c => { e.surfaces[s.from.i].coat = c; changed(false); redraw(); } }); return; }
   checkpoint();
   const design = Math.round(nm);
   e.surfaces[s.from.i].coat = kind === 'bare' ? normCoat({ mode: 'bare' }) : kind === 'ar' ? normCoat({ mode: 'ar', R: 0.5 }) : normCoat({ mode: 'stack', design, layers: coatPreset(kind, design) });

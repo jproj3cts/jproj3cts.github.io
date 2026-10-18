@@ -91,8 +91,9 @@ export async function passwordSignIn(req, env, ctx) {
   return { signed_in: true, email };
 }
 
-// PUT /v1/me/password  {password, current?} — set or change; the current one is asked for when there is one
-export async function setPassword(req, env, user) {
+// PUT /v1/me/password  {password, current?} — set or change; the current one is asked for when there is
+// one, and a change ends every other session (this one stays), in case the old password had leaked
+export async function setPassword(req, env, ctx, user) {
   const b = await body(req);
   const pw = String(b.password || '');
   const has = await hasPassword(env, user.id);
@@ -102,6 +103,7 @@ export async function setPassword(req, env, user) {
   }
   checkPassword(pw, user.email);
   await storePassword(env, user.id, pw);
+  if (has) await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').bind(user.id, ctx.sessionHash || '').run();
   return { set: true };
 }
 // DELETE /v1/me/password — the address alone signs in afterwards, by a code

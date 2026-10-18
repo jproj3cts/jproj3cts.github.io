@@ -186,7 +186,7 @@ const router = new Router()
   // Stripe proves itself by signature, not by Origin.
   .on('POST', '/stripe/webhook', async (req, env) => json(await webhook(req, env)), { anyOrigin: true })
   .on('POST', '/auth/password', async (req, env, ctx) => json(await passwordSignIn(req, env, ctx)))
-  .on('PUT', '/v1/me/password', async (req, env, ctx) => json(await setPassword(req, env, await requireUser(req, env, ctx))))
+  .on('PUT', '/v1/me/password', async (req, env, ctx) => json(await setPassword(req, env, ctx, await requireUser(req, env, ctx))))
   .on('DELETE', '/v1/me/password', async (req, env, ctx) => json(await removePassword(env, await requireUser(req, env, ctx))))
   .on('POST', '/auth/email/start', async (req, env, ctx) => json(await emailStart(req, env, ctx)))
   .on('POST', '/auth/email/code', async (req, env, ctx) => json(await emailCode(req, env, ctx)))

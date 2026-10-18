@@ -9278,8 +9278,9 @@ const TESTS = [
         const fEdit = Math.abs(lensEl().grin.f - Math.round(f0 + 20)) < 1e-9;
         rigDoc().querySelector('#rfWs header .rt-btn[title^="Undo"]').click();
         const fUndo = Math.abs(lensEl().grin.f - f0) < 1e-9;
+        tab('Element data');
+        const optF = !!ws().querySelector('.rt-rfdata .rt-lv[aria-label$="focal length of GRIN disc"]');
         tab('Optimise');
-        const optF = !!ws().querySelector('[aria-label="GRIN disc focal length"]');
         tab('Tolerance');
         btn('Sensitivity').click();
         const tolEps = [...ws().querySelectorAll('.rt-rftol tbody tr')].some(r => /GRIN disc: permittivity/.test(r.textContent));
@@ -9301,6 +9302,38 @@ const TESTS = [
         if (!all) console.log('RF grin', { raised, disc, flat, fig, apOk, fEdit, fUndo, optF, tolEps, ok, has3d, drawn, quoted, line, back, undone });
         return all ? 1 : 0;
       } finally { J.closeLensDesign(); try { if (saved === null) W.localStorage.removeItem(CART); else W.localStorage.setItem(CART, saved); } catch (e) { /* none */ } }
+    },
+  },
+  {
+    name: 'RF designer: Element data lists every surface from the feed to the goal, edits the lens there, and its V marks the optimiser’s variables',
+    why: 'a new RF design’s Element data tab (the first, open by default): rows FEED, 1, 2 and GOAL; the lens’s front radius typed there changes the lens on the bench and the layout; its V buttons start with the two radii and the front conic pressed; pressing the centre thickness’s V adds it to what Optimise says it varies, and Undo takes the radius back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs'), tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t);
+      try {
+        const first = ws().querySelector('[role=tab]').textContent === 'Element data' && ws().querySelector('[role=tab]').getAttribute('aria-selected') === 'true';
+        const rows = [...ws().querySelectorAll('.rt-rfdata tbody tr td.n')].map(td => td.textContent);
+        const listed = rows.join() === 'FEED,1,2,GOAL';
+        const lens = () => J.serialize().elements.find(e => e.group);
+        const r0 = lens().surfaces[0].R;
+        const inp = ws().querySelector('.rt-rfdata [aria-label="RF lens front radius (mm)"]');
+        inp.value = String(r0 * 1.1); inp.dispatchEvent(new (W.Event)('change'));
+        const edited = Math.abs(lens().surfaces[0].R - r0 * 1.1) < 1e-6;
+        const pressed = [...ws().querySelectorAll('.rt-rfdata .rt-lv[aria-pressed="true"]')].map(b => b.getAttribute('aria-label'));
+        const starts = pressed.length === 3 && pressed.some(l => /front radius/.test(l)) && pressed.some(l => /back radius/.test(l)) && pressed.some(l => /front conic/.test(l));
+        ws().querySelector('.rt-rfdata .rt-lv[aria-label="Vary centre thickness of RF lens"]').click();
+        tab('Optimise').click();
+        const varies = /centre thickness of RF lens/.test(ws().querySelector('.rt-rfvarlist').textContent);
+        ws().querySelector('header [aria-label="Undo"]').click();      // the V
+        ws().querySelector('header [aria-label="Undo"]').click();      // the radius
+        const undone = Math.abs(lens().surfaces[0].R - r0) < 1e-6;
+        const all = first && listed && edited && starts && varies && undone;
+        if (!all) console.log('rf element data', { first, listed, rows, edited, pressed, varies, undone });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
     },
   },
   {

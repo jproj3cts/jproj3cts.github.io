@@ -240,7 +240,11 @@ The Gaussian beam follows the system to first order, so it can't see what a face
 
 ### The system and its parts
 
-The system is listed down the left as the beam meets it: **Frequency**, **Feed horn**, each lens, **Add a lens** and **Goal**. The one chosen is edited beside the beam. A lens gives its material, diameter, centre thickness, each face's radius and conic, whether its faces have matching layers, whether it is cut in zones, and the air after it; **Remove** takes it out (a system keeps at least one lens). **Add a lens** puts a made-to-order lens after the last part and opens **Design this lens** on it. A change is made on the part on the bench, and can be undone. The steps for the whole system are tabs below: **Optimise**, **Analyses**, **Tolerance** and **Make it**.
+The system is listed down the left as the beam meets it: **Frequency**, **Feed horn**, each lens, **Add a lens** and **Goal**. The one chosen is edited beside the beam. A lens gives its material, diameter, centre thickness, each face's radius and conic, whether its faces have matching layers, whether it is cut in zones, and the air after it; **Remove** takes it out (a system keeps at least one lens). **Add a lens** puts a made-to-order lens after the last part and opens **Design this lens** on it. A change is made on the part on the bench, and can be undone. The steps for the whole system are tabs below: **Element data**, **Optimise**, **Analyses**, **Tolerance** and **Make it**.
+
+### Element data
+
+Every surface of the system in one table, as the optical designer's lens data: the feed horn first (its distance to the first surface is the first thickness), then each face with its radius, conic, the thickness after it (a lens's centre, or the air to the next part), the material after it and its clear radius, and the goal last. A lens's radii, conics, centre thickness and material and the air after each part are typed here and change the part on the bench, which Undo takes back; a graded-index disc shows its focal length, a mirror its radius as the bench has it. The **V** beside a value marks it as a variable for **Optimise**: orange when it is one. To start, each lens's two radii and its front conic are variables.
 
 ### Analyses
 
@@ -256,7 +260,7 @@ at the band's edges and its centre, with its half-power beamwidth and first side
 
 ### Optimise
 
-**Optimise** changes the values ticked (each lens's face radii and conics, its centre thickness, the air after each part, the feed's distance) to make the efficiency as high as it can be at five frequencies across the band; to collimate that is the gain at the lens's diameter. Every loss counts, the phase error from real rays among them, so a face's conic is found for what it does to the wavefront, not only to the lens's thickness. You can ask for the efficiency to be **flat across the band** as well, and set the **thinnest edge** a lens may have and the **thickest centre**. Each lens keeps that edge and the air between parts stays open.
+**Optimise** changes the values marked **V** in Element data (each lens's face radii and conics, its centre thickness, a disc's focal length, the air after each part, the feed's distance) to make the efficiency as high as it can be at five frequencies across the band; to collimate that is the gain at the lens's diameter. Every loss counts, the phase error from real rays among them, so a face's conic is found for what it does to the wavefront, not only to the lens's thickness. You can ask for the efficiency to be **flat across the band** as well, and set the **thinnest edge** a lens may have and the **thickest centre**. Each lens keeps that edge and the air between parts stays open.
 
 The search is quasi-Newton (BFGS) on the sum of the squares of the efficiency's shortfall at each frequency (and its spread, and the bounds), each variable in its own scale, its gradient by central differences, each step shortened until the merit falls enough. The efficiency can't reach 1, so a least-squares step, which assumes the merit's least is nought, would stall; this one doesn't. It runs a step at a time with the page live; **Stop** keeps what it has. The result goes into the design as one change, which **Undo** takes back.
 

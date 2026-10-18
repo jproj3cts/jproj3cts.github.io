@@ -1315,9 +1315,6 @@
   .rt-rfsum { min-width: 0; max-width: 40rem; margin: 0.4rem 0 0.8rem; }
   .rt-rfsum th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); padding-right: 1rem; text-transform: none; letter-spacing: 0; font-size: 0.85rem; }
   .rt-rfpill { background: #fff3d6; color: #8a5a00; }
-  .rt-rfopts { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; margin: 0.6rem 0; }
-  .rt-rfvars { border: 1px solid var(--jek-line); border-radius: 4px; padding: 0.4rem 0.7rem 0.5rem; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
-  .rt-rfvars legend { font-weight: 600; font-size: 0.8rem; padding: 0 0.3rem; }
   .rt-rftotal th, .rt-rftotal td { font-weight: 700; border-top: 2px solid var(--jek-line-2); }
   .rt-rfana .rt-ltable td.warn, .rt-rftol .rt-ltable td.warn { color: var(--jek-red, #b42318); }
   .rt-rflens { border-top: 1px solid var(--jek-line); padding-top: 0.6rem; margin-top: 0.8rem; }

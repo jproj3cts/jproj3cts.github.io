@@ -1330,9 +1330,6 @@
   .rt-rfsum { min-width: 0; max-width: 40rem; margin: 0.4rem 0 0.8rem; }
   .rt-rfsum th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); padding-right: 1rem; text-transform: none; letter-spacing: 0; font-size: 0.85rem; }
   .rt-rfpill { background: #fff3d6; color: #8a5a00; }
-  .rt-rfopts { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; margin: 0.6rem 0; }
-  .rt-rfvars { border: 1px solid var(--jek-line); border-radius: 4px; padding: 0.4rem 0.7rem 0.5rem; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
-  .rt-rfvars legend { font-weight: 600; font-size: 0.8rem; padding: 0 0.3rem; }
   .rt-rftotal th, .rt-rftotal td { font-weight: 700; border-top: 2px solid var(--jek-line-2); }
   .rt-rfana .rt-ltable td.warn, .rt-rftol .rt-ltable td.warn { color: var(--jek-red, #b42318); }
   .rt-rflens { border-top: 1px solid var(--jek-line); padding-top: 0.6rem; margin-top: 0.8rem; }
@@ -26330,7 +26327,7 @@ function openRfDesign(asm, opts) {
     asm.kind = 'rf'; asm.rf = T.rf;
   }
   rfSyncCond(asm, P);
-  RW = { asm, tab: 'opt', sel: null, design: false, draft: !!(opts && opts.draft), synth: null };
+  RW = { asm, tab: 'data', sel: null, design: false, draft: !!(opts && opts.draft), synth: null };
   const sec = rwShell();
   sec.hidden = false;
   document.body.classList.add('rt-lens-open');
@@ -26415,7 +26412,7 @@ function rwDraw() {
   const body = h('div', { class: 'rt-lbody' });
   rwSelOk(P);
   body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
-    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : rwOptCard(asm, P)));
+    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : rwDataCard(asm, P)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -26658,7 +26655,7 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
 /* ---------- A part of the system: its material, size and faces, and the air after it ---------- */
@@ -26967,23 +26964,93 @@ function rwAnaCard(asm, P, T) {
 
 /* ---------- Optimise ---------- */
 let RW_OPT = null;           // { asm, prob, st, running, note }
-function rwOptCard(asm, P) {
-  const card = h('section', { class: 'rt-lcard rt-rfopt', role: 'tabpanel', 'aria-label': 'Optimise' }, h('h3', null, 'Optimise'));
-  const o = asm.rfOpt = Object.assign({ keys: null, flat: 0, edgeMin: 1, tMax: 0 }, asm.rfOpt || {});
+/* the optimiser's settings on the assembly: the variables (keys from rfOptVars; to start, each lens's radii and front conic) and its bounds */
+function rwOptSpec(asm, P) {
+  // the one object, kept: the V buttons hold it between renders
+  const o = asm.rfOpt || (asm.rfOpt = {});
+  for (const [k, v] of Object.entries({ keys: null, flat: 0, edgeMin: 1, tMax: 0 })) if (o[k] === undefined) o[k] = v;
   const vars = rfOptVars(P);
   if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
   o.keys = o.keys.filter(k => vars.some(v => v.key === k));
-  card.append(helpLine('The ticked values, changed for the most efficiency across the band.', ['The values ticked are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'], 'rt-lsub'));
-  const running = RW_OPT && RW_OPT.running && RW_OPT.asm === asm;
-  const groups = new Map();
-  for (const v of vars) { const k = v.part || '_feed'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); }
-  const grid = h('div', { class: 'rt-rfopts' });
-  for (const [part, vs] of groups) {
-    const el = part === '_feed' ? null : getEl(part);
-    grid.append(h('fieldset', { class: 'rt-rfvars' }, h('legend', null, el ? el.name : 'Feed horn'), ...vs.map(v => h('label', null, h('input', { type: 'checkbox', checked: o.keys.includes(v.key) ? '' : null, disabled: running ? '' : null, 'aria-label': (el ? el.name + ' ' : '') + v.label.toLowerCase(),
-      onchange: e => { const s2 = new Set(o.keys); if (e.target.checked) s2.add(v.key); else s2.delete(v.key); o.keys = vars.map(q => q.key).filter(k => s2.has(k)); rwRender(); } }), ' ' + v.label))));
+  return { o, vars };
+}
+/* the variables chosen, named: 'front radius of RF lens, feed to the first lens' */
+function rwVarNames(asm, P) {
+  const { o, vars } = rwOptSpec(asm, P);
+  return o.keys.map(k => { const v = vars.find(q => q.key === k), el = v && v.part ? getEl(v.part) : null; return v ? v.label.toLowerCase() + (el ? ' of ' + el.name : '') : k; });
+}
+/* the V beside a value in Element data: a variable the optimiser may change, or fixed */
+function rwVarBtn(asm, P, key, label) {
+  const { o, vars } = rwOptSpec(asm, P), on = o.keys.includes(key), running = RW_OPT && RW_OPT.running && RW_OPT.asm === asm;
+  return h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(on), disabled: running ? '' : null, 'aria-label': (on ? 'Fix ' : 'Vary ') + label,
+    title: on ? 'A variable: Optimise may change it. Click to fix it.' : 'Click to let Optimise change it.',
+    onclick: () => { checkpoint(); const s2 = new Set(o.keys); if (on) s2.delete(key); else s2.add(key); o.keys = vars.map(q => q.key).filter(k => s2.has(k)); changed(false); rwRender(); } }, 'V');
+}
+/* ---------- Element data: every surface of the system in a table, as the optical designer's lens data ----------
+   Each value typed here changes the part on the bench (Undo takes it back); the V beside a value makes it a variable
+   for Optimise. The feed horn's distance comes first and the goal last, as the object and image do. */
+function rwDataCard(asm, P) {
+  const card = h('section', { class: 'rt-lcard rt-ldata rt-rfdata', role: 'tabpanel', 'aria-label': 'Element data' });
+  const R = asm.rf, parts = rwParts(P), sps = surfaceParts(P), N = P.surfaces.length;
+  const mono = (t, title) => h('td', { class: 'mono ro', title: title || null }, t);
+  const cell = (inp, vb) => h('td', { class: 'rt-lval' }, h('div', { class: 'rt-lcell' }, inp, vb || null));
+  const tbl = h('table', { class: 'rt-ltable' });
+  tbl.append(h('thead', null, h('tr', null, ...['', 'Surface', 'Radius (mm)', 'Conic', 'Thickness (mm)', 'Material', 'Clear radius (mm)'].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody');
+  // the feed: its distance to the first surface is the first thickness
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'FEED'), h('td', { class: 'nm' }, 'Feed horn'), mono('—'), mono(''),
+    cell(rwNum(R.feed.d, v => rwEdit((Pd, a) => { if (!(v > 0)) return 'The feed stands before the first lens.'; a.rf.feed.d = v; return false; }), 'Feed to the first surface (mm)'), rwVarBtn(asm, P, 'feed', 'feed to the first lens')),
+    mono('Air'), mono(rwFmt(R.feed.a, 4), 'The horn’s aperture radius')));
+  for (let i = 0; i < N; i++) {
+    const s = P.surfaces[i], sp = sps[i], x = parts[sp.pi], el = x.el, p = x.p, first = sp.j === 0, last = sp.j === p.n - 1, lastAll = i === N - 1;
+    const tr = h('tr', { class: RW.sel === p.id ? 'sel' : '', 'aria-selected': String(RW.sel === p.id) });
+    tr.addEventListener('click', e => { if (e.target.closest('input,button,select')) return; RW.sel = p.id; RW.design = false; rwRender(); });
+    const name = el ? el.name : p.id, face = p.n === 2 ? (first ? ', front' : ', back') : '', side = first ? 'front' : 'back';
+    tr.append(h('td', { class: 'n' }, String(i + 1)), h('td', { class: 'nm' }, name + face));
+    // radius and conic: a lens's typed and varied; a mirror's read; a disc's faces are flat, its focal length the design
+    if (p.kind === 'lens' && p.n === 2) {
+      tr.append(cell(rwNum(s.R === null ? Infinity : s.R, v => rwEdit(Pd => { Pd.surfaces[i].R = !isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? null : v; }), name + ' ' + side + ' radius (mm)'), rwVarBtn(asm, P, 'c:' + i, side + ' radius of ' + name)));
+      tr.append(cell(rwNum(s.k || 0, v => rwEdit(Pd => { Pd.surfaces[i].k = v; if (v && el) el.asphere = true; }), name + ' ' + side + ' conic'), rwVarBtn(asm, P, 'k:' + i, side + ' conic of ' + name)));
+    } else if (p.kind === 'grin' && first && el && el.grin) {
+      tr.append(cell(h('span', { class: 'mono' }, 'f = ', rwNum(el.grin.f, v => rwEdit(Pd => { if (!(v > 0)) return 'A focal length is more than 0.'; const ng = normGrin(Object.assign({}, el.grin, { f: v })); if (!rfGrinInto(Pd, i, ng, el.length)) return 'A disc of that focal length can’t be graded.'; el.grin = ng; applyGrin(el); }), name + ' focal length (mm)')), rwVarBtn(asm, P, 'p:' + i, 'focal length of ' + name)),
+        mono('flat', 'A graded disc’s faces are flat: its power is in its grading'));
+    } else if (p.kind === 'mirror') {
+      tr.append(mono(s.R === null ? 'Flat' : rwFmt(s.R, 5), 'Set on the bench: a mirror is not varied here'), mono(s.k ? rwFmt(s.k, 4) : ''));
+    } else tr.append(mono('Flat'), mono(''));
+    // thickness: inside a lens its centre; after a part the air to the next, or to the goal
+    if (p.kind === 'lens' && p.n === 2 && first) tr.append(cell(rwNum(P.gaps[i], v => rwEdit(Pd => { if (!(v > 0)) return 'A lens must be thicker than 0.'; Pd.gaps[i] = v; }), name + ' centre thickness (mm)'), rwVarBtn(asm, P, 't:' + i, 'centre thickness of ' + name)));
+    else if (p.kind === 'grin' && first) tr.append(mono(rwFmt(P.gaps[i], 5), 'The disc’s thickness follows its design'));
+    else if (last && !lastAll) tr.append(cell(rwNum(P.gaps[i], v => rwEdit(Pd => { if (!(v >= 0)) return 'A gap is 0 or more.'; Pd.gaps[i] = v; }), 'Air after ' + name + ' (mm)'), rwVarBtn(asm, P, 't:' + i, 'air after ' + name)));
+    else if (lastAll) tr.append(mono(rwFmt(R.goal.d, 5), 'To the goal: set on the goal’s own page'));
+    else tr.append(mono(''));
+    // the material after this surface
+    if (p.kind === 'lens' && p.n === 2 && first) {
+      const mat = P.materials[i].glass;
+      tr.append(h('td', null, rwSelect(Object.assign(RF_MAT[mat] ? {} : { [mat]: mat }, RW_MATS()), mat, v => rwEdit(Pd => { Pd.materials[i] = { glass: v }; }), name + ' material')));
+    } else if (p.kind === 'grin' && first) tr.append(mono((RF_MAT[P.materials[i].glass] || {}).name || P.materials[i].glass, 'Graded in density from the axis'));
+    else if (p.kind === 'mirror') tr.append(mono('Mirror'));
+    else tr.append(mono('Air'));
+    tr.append(mono(rwFmt(s.semi, 5), p.kind === 'mirror' ? 'Half the mirror’s length' : 'Half the diameter: set on the part’s own page'));
+    tb.append(tr);
   }
-  card.append(grid);
+  const g = R.goal;
+  tb.append(h('tr', { class: 'obj' }, h('td', { class: 'n' }, 'GOAL'), h('td', { class: 'nm' }, g.kind === 'collimate' ? 'Collimated beam' : g.kind === 'focus' ? 'Waist' : 'Receiving horn'), mono('—'), mono(''), mono(''), mono('Air'),
+    mono(g.kind === 'couple' ? rwFmt(g.rx.a, 4) : g.kind === 'focus' ? rwFmt(g.w, 4) : '', g.kind === 'couple' ? 'The receiving horn’s aperture radius' : g.kind === 'focus' ? 'The waist radius wanted' : null)));
+  tbl.append(tb);
+  card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const named = rwVarNames(asm, P);
+  card.append(h('p', { class: 'rt-lsub' }, 'Each value typed here changes the part on the bench (Undo takes it back). ', h('b', null, 'V'), ' marks a value Optimise may change: ' + (named.length ? named.join(', ') : 'none yet') + '.'));
+  return card;
+}
+function rwOptCard(asm, P) {
+  const card = h('section', { class: 'rt-lcard rt-rfopt', role: 'tabpanel', 'aria-label': 'Optimise' }, h('h3', null, 'Optimise'));
+  const { o } = rwOptSpec(asm, P);
+  card.append(helpLine('The values marked V in Element data, changed for the most efficiency across the band.', ['The values marked V in Element data are changed to make the system’s efficiency (to collimate, its gain) as high as it can be at five frequencies across the band, with every loss and the faces’ phase error from real rays counted. Each lens keeps its edge and the air between parts stays open.'], 'rt-lsub'));
+  const running = RW_OPT && RW_OPT.running && RW_OPT.asm === asm;
+  // the variables, as chosen in Element data
+  const named = rwVarNames(asm, P);
+  card.append(h('p', { class: 'rt-lsub rt-rfvarlist' }, h('b', null, 'Varying: '), named.length ? named.join(', ') + '.' : 'nothing yet.', ' ',
+    h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'data'; rwRender(); } }, 'Choose in Element data')));
   card.append(h('div', { class: 'rt-rfgrid' },
     rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => { o.flat = +v; rwRender(); }, 'Flat across the band')),
     rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => { o.edgeMin = Math.max(0, v); rwRender(); }, 'Thinnest edge (mm)')),
@@ -45181,6 +45248,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    'The RF designer has an <b>Element data</b> tab, as the optical designer has its lens data: every surface in one table, from the feed horn to the goal, each radius, conic, thickness and material typed there, and the <b>V</b> beside a value marking it as a variable for <b>Optimise</b>, which now lists what it will vary.',
     'The File menu\u2019s two lens-file imports are one: <b>Import a lens (.zmx)\u2026</b>, whose dialog has a tick to open the file in the lens design workspace as an assembly to design.',
     'Menu items that need an account or JEKrayPro (<b>My benches</b>, <b>Save to cloud</b>, <b>Fork this bench</b>, <b>Save to My parts</b>, the designers\u2019 <b>Keep as a part</b>) are now always there, greyed when they are not possible with a word on why (sign in, or subscribe); choosing one opens the way to make it so.',
     'A lens\u2019s panel now gives its focal lengths at the wavelengths whose light reaches it, rather than at every source\u2019s on the bench; a lens nothing reaches says so, and gives them at the bench\u2019s wavelengths.',

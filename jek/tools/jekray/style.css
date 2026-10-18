@@ -697,6 +697,17 @@
   .rt-news h3 span { margin-left: 0.4rem; font-weight: 400; font-size: 0.8rem; color: var(--jek-ink-soft); }
   .rt-news ul { margin: 0 0 0.4rem; padding-left: 1.2rem; }
   .rt-news-all { margin: 0 0 0.6rem; }
+  .rt-scripts #scriptCode { width: 100%; min-height: 13rem; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.8rem; line-height: 1.4; tab-size: 2; resize: vertical; margin: 0.4rem 0; }
+  .rt-script-bar { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.4rem 0; }
+  .rt-script-bar select { max-width: 14rem; }
+  .rt-script-out { max-height: 32vh; overflow: auto; margin-top: 0.4rem; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; background: rgba(0,0,0,0.03); font-family: var(--jek-mono); font-size: 0.78rem; }
+  .rt-script-out:empty { display: none; }
+  .rt-script-out pre { margin: 0; white-space: pre-wrap; }
+  .rt-script-out table { border-collapse: collapse; margin: 0.2rem 0; }
+  .rt-script-out th, .rt-script-out td { padding: 0.15rem 0.6rem 0.15rem 0; border-bottom: 1px solid var(--jek-line); text-align: right; white-space: nowrap; }
+  .rt-script-out th { font-weight: 600; }
+  .rt-script-err { color: var(--jek-red); }
+  .rt-script-note { color: var(--jek-ink-soft); font-family: inherit; font-size: 0.78rem; }
   .rt-packlist { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-height: 45vh; overflow-y: auto; }
   .rt-packrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; }
   .rt-packrow small, .rt-pby { color: var(--jek-ink-soft); font-weight: 400; }

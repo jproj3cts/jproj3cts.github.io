@@ -373,12 +373,22 @@ Two examples in the gallery's **RF and millimetre waves** group are designed in 
 | RF lens | A plano-convex HDPE lens, 100 mm across, $$f = R/(n-1) = 150$$ mm, in any of the dielectrics above. |
 | Flat mirror | A metal mirror, 100 mm. |
 | Focusing mirror | A concave metal mirror, $$R = 300$$ mm. |
+| Offset reflector | A section of a paraboloid of focal length 150 mm cut 120 mm off its axis, 160 mm across, aluminium (below). |
+| Radome | A flat sheet of HDPE 3 mm thick and 150 mm across, for the beam to pass through (below). |
 | Wire grid | A polariser of real wires: it reflects the field along its wires and passes the field across them, each by its pitch and wire size (below). |
 | Film beam splitter | A dielectric sheet, reflecting by its two faces' interference (below). |
 | Mesh filter | A metal mesh: inductive, capacitive or resonant, passing a band of frequencies and reflecting the rest (below). |
 | Absorber load | A screen that takes in what reaches it, to see the beam. |
 
 Each part is the same as its optical counterpart, with the sizes and materials of a millimetre-wave bench. Lenses, mirrors and the rest from the other tabs work on an RF beam too. The metal mirrors carry a **metal** (aluminium, copper, gold, brass, stainless steel, or a perfect conductor) and lose $$4 R_s / Z_0$$ a reflection to its surface resistance $$R_s = \sqrt{\pi f \mu_0 / \sigma}$$: 0.14% for aluminium at 150 GHz, 0.7% for stainless steel.
+
+## Offset reflectors
+
+A **mirror** with a parent radius $$R$$, a conic of $$-1$$ and an **off-axis offset** $$h$$ is a section of the paraboloid of focal length $$f = R/2$$ cut $$h$$ off its axis: the part's centre sits on the parent at height $$h$$, and the parent's focus lies $$f$$ along the parent axis from the parent vertex, which is $$h$$ across and the parent's sag $$h^2/4f$$ behind the centre. A feed at the focus sends a beam that leaves the section collimated along the parent axis, turned by $$2\arctan(h/2f)$$ from its way in, so the feed sits clear of the beam it sends out: no blockage, which is why offset reflectors are used. The mirror's panel gives the focal length, the turn, and the focus on the bench, so the horn can be put there. The bench traces the section exactly (rays and the diffracted field); a mirror on its own axis also gives its figures as an antenna, as a lens does. The RF designer takes an offset reflector as its parent paraboloid on the axis, fed from the focus: its focal length, aperture and the metal's loss, without the section's own distortion.
+
+## Radomes
+
+A **radome** is a sheet of dielectric the beam passes through: a lens of two flat faces in an RF material, as thick as the sheet. Its two faces interfere, so what it reflects goes with its thickness over the wavelength in it and with the angle: a sheet a whole number of half-waves thick in the material, $$t = m\,\lambda / 2n$$ at the beam's angle, reflects nothing and loses only what it absorbs, $$2\pi n \tan\delta\, t / \lambda$$ nepers. The panel gives what the sheet passes square on and at the traced beam's own angle, for s and p (the sheet as one stack: core/face-pol.js), and the half-wave thickness at the bench's frequency. Curved radomes are the same lens with both radii set alike; a sandwich is a lens of more layers.
 
 ## Wire grids
 

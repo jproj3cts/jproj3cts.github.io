@@ -715,7 +715,7 @@ function rwAnaCard(asm, P, T) {
     }
   } else {
     const m = T.mid, rows = [['Feed horn: its power in the Gaussian', m.g]];
-    for (const f of m.faces) { const sp = surfaceParts(P)[f.i], el = getEl(P.parts[sp.pi].id); rows.push(['Reflection, ' + (el ? el.name : 'face') + (sp.j === 0 ? ' front' : ' back') + (f.matched ? ' (matched)' : ''), 1 - f.R]); }
+    for (const f of m.faces) { const sp = surfaceParts(P)[f.i], el = getEl(P.parts[sp.pi].id); rows.push([f.mirror ? 'Ohmic loss, ' + (el ? el.name : 'mirror') : 'Reflection, ' + (el ? el.name : 'face') + (sp.j === 0 ? ' front' : ' back') + (f.matched ? ' (matched)' : ''), 1 - f.R]); }
     for (const l of m.lenses) { const el = getEl(P.parts[surfaceParts(P)[l.i].pi].id); rows.push(['Absorption, ' + (el ? el.name : 'lens') + ' (' + l.mat + ')', l.T]); }
     rows.push(['Spillover on the way', m.spill], ['Phase error, ' + rwFmt(m.sigma / m.lam, 2) + ' λ RMS', m.phaseEff]);
     if (m.shadow < 1) rows.push(['Shadow of the zones’ steps', m.shadow]);

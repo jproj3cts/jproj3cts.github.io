@@ -1,4 +1,4 @@
-import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, rfBeam, rfTanD } from '../core/rf.js';
+import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, metalR, rfBeam, rfTanD } from '../core/rf.js';
 import { faceRNormal } from '../core/face-pol.js';
 import { normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
@@ -85,11 +85,14 @@ export function rfAberr(P, S, Rin, Rout, w, lam, zones) {
   const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
   const hs = [], ws = [], W = [], R = new Float64Array(8);
   let wAll = 0, wLost = 0;
-  for (let k = 0; k < 32; k++) {
-    const h = a * (k + 0.5) / 32;
-    if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, 0, h / L, src / L, 0, 0]); }
-    else R.set([0, h, -1, 0, 0, 1, 0, 0]);
-    const rec = zones && zones.length ? [] : null, wq = h * Math.exp(-2 * h * h / (w * w));
+  // rays at 32 heights; round the aperture too (8 ways) where the system is not symmetric about its axis (a part decentred
+  // or tilted, as in tolerancing) or has a zoned face, so skew rays meet the walls and the defocus as the in-plane ones do
+  const M = (S.fr || (zones && zones.length)) ? 8 : 1;
+  for (let k = 0; k < 32 * M; k++) {
+    const h = a * ((k % 32) + 0.5) / 32, ph = 2 * Math.PI * (Math.floor(k / 32) + 0.5) / M, cx = Math.cos(ph), sy = Math.sin(ph);
+    if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, h * cx / L, h * sy / L, src / L, 0, 0]); }
+    else R.set([h * cx, h * sy, -1, 0, 0, 1, 0, 0]);
+    const rec = zones && zones.length ? [] : null, wq = h * Math.exp(-2 * h * h / (w * w)) / M;
     traceRay(S, R, 0, N - 1, true, rec);
     wAll += wq;
     // a zoned lens's cut face is traced as cut (lens-engine.js sag): a ray that runs into a step's wall is lost, the step's shadow
@@ -99,7 +102,7 @@ export function rfAberr(P, S, Rin, Rout, w, lam, zones) {
     // its path through the cut face is short by the whole layers k λz taken out where the ray met it: the whole waves at λ
     // they come to are no error, what is left of them is the phase slip away from the zone frequency
     if (rec) for (const { i, Z } of zones) { const at = rec[i + Z.face] && rec[i + Z.face].at; if (!at) continue; opl += lam * Math.round(Z.k(Math.hypot(at[0], at[1])) * Z.lam / lam); }
-    if (tgt !== null) opl += Math.hypot(R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
+    if (tgt !== null) opl += Math.hypot(R[0], R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
     hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
   }
   const shadow = wAll > 0 ? 1 - wLost / wAll : 1;
@@ -149,7 +152,9 @@ export function rfTrace(asm, P, ghz, opts) {
   const isGrin = i => P.parts[sps[i].pi].kind === 'grin';
   for (let i = 0; i < N; i++) {
     const s = P.surfaces[i];
-    if (S.mir[i] || s.stop || isGrin(i)) continue;
+    // a metal mirror: what its surface resistance takes a reflection (core/rf.js metalR)
+    if (S.mir[i]) { const el = s.from && getEl(s.from.id); if (el && el.metal) { const Rm = metalR(el.metal, ghz); faces.push({ i, R: 1 - Rm, matched: false, mirror: true }); refl *= Rm; } continue; }
+    if (s.stop || isGrin(i)) continue;
     const before = i ? P.materials[i - 1] : null, after = i < N - 1 ? P.materials[i] : null;
     if (!isGlass(before) && !isGlass(after)) continue;
     const el = s.from && getEl(s.from.id), coat = el && el.surfaces && el.surfaces[s.from.i] ? el.surfaces[s.from.i].coat : null;

@@ -8456,6 +8456,27 @@ const TESTS = [
     },
   },
   {
+    name: 'The RF palette’s offset reflector and radome: placed, and their panels read right',
+    why: 'the offset reflector placed from the RF palette is a paraboloid section (R 300, k −1, offset 120) whose panel gives its focal length (150 mm), the feed’s angle off the beam (43.6°) and where its focus is; fed from there, the beam leaves parallel (rays on a load all one way); the radome placed is a flat HDPE sheet whose panel gives what it passes square on and the half-wave thickness (4.09 mm at 24 GHz) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = document.getElementById('rig').contentDocument, sleep = ms => new Promise(r => setTimeout(r, ms));
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Horn', x: -126, y: 120, angle: -43.6, rays: 21, mmw: { kind: 'gauss', ghz: 24, dbm: 0, a: 15, L: 80 } }] });
+      const rn = J.add('rf:reflector'), el = J.serialize().elements.find(e => e.name === rn);
+      const okPart = el && el.type === 'mirror' && el.R === 300 && el.k === -1 && el.offset === 120 && el.metal === 'Al';
+      J.select(rn); await sleep(300);
+      const t1 = doc.querySelector('#panel').textContent;
+      const okPanel = /Focal length150 mm \(a paraboloid\)/.test(t1) && /43\.6° off the beam/.test(t1) && /Focus \(feed point\)/.test(t1) && /Reflects99\.9/.test(t1);
+      const dn = J.add('rf:radome'), rd = J.serialize().elements.find(e => e.name === dn);
+      const okRadome = rd && rd.type === 'lens' && rd.gaps[0] === 3 && rd.materials[0].glass === 'HDPE' && rd.surfaces.every(s => s.R === null);
+      J.select(dn); await sleep(300);
+      const t2 = doc.querySelector('#panel').textContent;
+      const okRPanel = /Radome: through, square on/.test(t2) && /Half-wave thickness4\.09/.test(t2) && !/Gain, horn and lens/.test(t2);
+      if (!(okPart && okPanel && okRadome && okRPanel)) console.log('RF parts', { okPart, okPanel, okRadome, okRPanel, t1: t1.slice(0, 400), t2: t2.slice(0, 300) });
+      return okPart && okPanel && okRadome && okRPanel ? 1 : 0;
+    },
+  },
+  {
     name: 'A graded-index RF lens: its design and what it comes to',
     why: 'the 24 GHz graded-index example: the lens is a GRIN lens, its panel gives its thickness (30.9 mm), its density from 100% at the centre and that it is manufacturable, the beam arriving at its first face (the disc is traced as a slab, so that face is half its thickness nearer the horn) with an edge taper near 39 dB, and speaks of density, never infill or slicing; a longer focal length makes it thinner (1 when all hold)',
     want: 1, tol: 0, unit: '',

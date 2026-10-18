@@ -9,6 +9,11 @@ import { eomSidebands } from '../core/modulators.js';
 import { C_NM_GHZ, PRINTER, RF_MAT, fibrePdNm, hornLam, lensZones, mountedDia, pdResp, printedMatch, responsivity, rfBeam } from '../core/rf.js';
 import { hornComps, hornPattern } from '../core/horns.js';
 import { antennaLater } from '../engines/antenna-field.js';
+import { faceAmps } from '../core/face-pol.js';
+import { cabs2 } from '../core/numeric.js';
+import { metalR } from '../core/rf.js';
+import { toWorld } from '../core/mask.js';
+import { mirrorFocus } from '../core/assembly.js';
 import { grinDesign, normGrin } from '../core/grin.js';
 import { deg, project } from '../state/project.js';
 import { benchNms, getEl, selected } from '../state/elements.js';
@@ -248,6 +253,9 @@ function updateReadoutsIn(container, el) {
   } else if (el.type === 'mask' && el.grin) {
     parts = grinReadout(el);
     if (!parts) return;
+  } else if (el.type === 'mirror' && el.mmw && el.R) {
+    parts = rfMirrorReadout(el);
+    if (!parts) return;
   } else if (el.type === 'chopper') {
     parts = ELEC.chopperReadout(el);                                                           // ELEC hook
   } else return;
@@ -330,6 +338,27 @@ function rfLensReadout(el, wls, rows) {
   });
   const reflDb = -10 * Math.log10(Math.max(1e-12, refl));
   rows.push(['Loss through the centre', absDb.toFixed(2) + ' dB absorbed, ' + reflDb.toFixed(2) + ' dB reflected'], ['Across', (el.diameter / lam).toFixed(1) + ' wavelengths']);
+  // a radome: a sheet of (nearly) no power the beam passes through: what it passes, square on and at the beam's own angle, its
+  // two faces interfering (core/face-pol.js, the sheet as one stack), and the thicknesses that pass everything but its loss
+  const efl = paraxial(el, nm).efl;
+  let radome = false;
+  if (M && mats.length === 1 && el.surfaces.length === 2 && (!isFinite(efl) || Math.abs(efl) > 50 * el.diameter)) {
+    const t = el.gaps[0], n = refIndex(m0, nm), alpha = absorbAt(m0, nm);
+    const through = ci => {
+      const F = faceAmps({ coat: { mode: 'stack', layers: [{ n, d: t * 1e6 }] } }, 1, 1, ci, nm), ct = Math.sqrt(Math.max(1e-9, 1 - (1 - ci * ci) / (n * n)));
+      const A = Math.exp(-alpha * t / ct);
+      return { s: cabs2(F.ts) * A, p: cabs2(F.tp) * A, A };
+    };
+    const T0 = through(1), db = v => (-10 * Math.log10(Math.max(1e-12, v))).toFixed(2) + ' dB';
+    rows.splice(0, rows.length, ['Radome: through, square on', db(T0.s) + ' (' + (-10 * Math.log10(T0.A)).toFixed(3) + ' dB of it absorbed)']);
+    // the beam's own angle at the sheet: the traced beam's event there
+    const ev = (lastTrace.beams || []).map(b => b.ev).find(e => e && e.surf && e.surf.el && e.surf.el.id === el.id && e.cth > 0 && e.cth < 0.9999);
+    if (ev) { const Ta = through(ev.cth), th = Math.acos(Math.min(1, ev.cth)) / deg; rows.push(['At the beam\u2019s ' + th.toFixed(1) + '\u00b0', db(Ta.s) + ' for s, ' + db(Ta.p) + ' for p']); }
+    const half = lam / (2 * n), mNear = Math.max(1, Math.round(t / half));
+    rows.push(['Half-wave thickness', fmtLen(half) + ' at ' + fmtGHz(nm) + ': ' + (Math.abs(t / half - mNear) < 0.02 ? 'this sheet is ' + mNear + ' half-wave' + (mNear > 1 ? 's' : '') + ' thick' : 'nearest ' + fmtLen(mNear * half) + ' (' + mNear + ' half-wave' + (mNear > 1 ? 's' : '') + ')')]);
+    radome = true;
+    notes.push('A radome: a sheet the beam passes through. Its two faces interfere, so what it reflects goes with its thickness over the wavelength in it: a sheet a whole number of half-waves thick (in the plastic, at the beam\u2019s angle) reflects nothing and loses only what it absorbs.');
+  }
   // the beam at the lens: the strongest traced beam that leaves its first face
   let best = null;
   for (const b of lastTrace.beams || []) {
@@ -360,10 +389,26 @@ function rfLensReadout(el, wls, rows) {
     if (!thin) checks.push('Its thinnest point, ' + fmtLen(geo.thinnest) + ', is under ' + PRINTER.minWall + ' mm, too thin to make: thicken the lens, or make it a little smaller across.');
     notes.push(M.name + ': typical values, n = ' + M.n + ' and loss tangent ' + M.tand + '. These plastics vary with brand, colour and moisture; measured values replace these in time.');
   }
-  const [aRows, aNote] = antennaRows(el);
+  const [aRows, aNote] = radome ? [[], ''] : antennaRows(el);
   rows.push(...aRows);
-  const text = 'At ' + fmtGHz(nm) + '. Paraxial focal lengths; loss through the centre, on the axis.' + aNote + ' ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
+  const text = 'At ' + fmtGHz(nm) + (radome ? '.' : '. Paraxial focal lengths; loss through the centre, on the axis.') + aNote + ' ' + notes.join(' ') + (checks.length ? ' Check: ' + checks.join(' ') : '');
   return [rows, text];
+}
+
+/* A curved RF mirror: its focal length, and for an offset section (a paraboloid cut off its axis) where the parent's focus
+   lies, so the feed can be put there; what its metal reflects; and, fed, its figures as an antenna (as a lens's) */
+function rfMirrorReadout(el) {
+  const nm = benchNms().find(v => v > 1e5);
+  if (!nm) return null;
+  const F = mirrorFocus(el), f = F.f, h = F.h, k = el.k || 0;
+  const [fx, fy] = toWorld(frame(el), F.x, F.y), rows = [['Focal length', fmtLen(f) + (k === -1 ? ' (a paraboloid)' : k ? ' (conic ' + k + ')' : ' (a sphere: paraxial)')]];
+  if (h) rows.push(['Offset', fmtLen(Math.abs(h)) + ' off the parent axis: the feed sits ' + (2 * Math.atan(Math.abs(h) / (2 * f)) / deg).toFixed(1) + '\u00b0 off the beam it sends out'], ['Focus (feed point)', 'x ' + fx.toFixed(1) + ', y ' + fy.toFixed(1) + ' mm on the bench']);
+  else rows.push(['Focus', 'x ' + fx.toFixed(1) + ', y ' + fy.toFixed(1) + ' mm on the bench, in the beam it sends out']);
+  if (el.metal) rows.push(['Reflects', (100 * metalR(el.metal, C_NM_GHZ / nm)).toPrecision(4) + '% at ' + fmtGHz(nm)]);
+  // as an antenna: for a mirror on its axis (the field leaving an offset section is not yet checked against the closed form, so its figures are withheld)
+  const [aRows, aNote] = h ? [[], ' As an antenna: its far field is not yet given for an offset section; the bench\u2019s rays and field through it are exact, the far-field figures await a check against the closed form.'] : antennaRows(el);
+  rows.push(...aRows);
+  return [rows, 'At ' + fmtGHz(nm) + '.' + (h ? ' An offset reflector: a section of the parent paraboloid cut off its axis, so a feed at the focus sits clear of the beam it sends out, with no blockage.' : '') + aNote.replace(/the lens/g, 'the mirror')];
 }
 
 /* An RF lens with the horn that feeds it, as an antenna: from the bench's own diffracted field just

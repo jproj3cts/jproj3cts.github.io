@@ -429,6 +429,13 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
     }
     return null;
   }
+  if (s.zone) {
+    // a zoned face met in 3D: its steps' walls split the search (core/geometry.js zoneHit); at a wall the light is lost
+    const Z = zoneHit(s, px, py, h0, dx, dy, u, t0, t1);
+    if (!Z || Math.hypot(py + Z.t * dy, h0 + Z.t * u) > s.semi + 1e-9) return null;
+    wallHit = Z.wall;
+    return Z.t;
+  }
   // otherwise bracket the first root of x(t) − sag(y(t), h(t)), then Illinois
   const f = t => px + t * dx - sag3(s, py + t * dy, h0 + t * u);
   const N = 24, step = (t1 - t0) / N;

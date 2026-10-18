@@ -411,6 +411,8 @@ export function asmPrescription(asm, els) {
       // its normal through it (away from the light): the axis of its own frame
       const thr = v2(e.angle + 180);
       tilt = hand * angFrom(d, thr);
+      // (an offset reflector is taken as its parent paraboloid on the axis, fed from the focus: its focal length and aperture,
+      // without the section's own distortion, which the bench's trace has)
       S2 = [{ R: e.R === null ? null : -e.R, k: e.k || 0, a2: 0, A: (e.A || []).map(v => -v), odd: null, F: ffTurn(e.F, FF_SY_MIRROR, -1), semi: e.length / 2, mirror: true, from: { id: e.id, i: 0 } }]; G2 = []; M2 = [];
     } else {
       const a = partAxis(e);
@@ -475,6 +477,13 @@ export function asmPrescription(asm, els) {
 const G0sum = e => asmKind(e) === 'lens' ? e.gaps.reduce((u, v) => u + v, 0) : asmKind(e) === 'window' ? e.thickness : asmKind(e) === 'grin' ? grinT(e) : 0;
 /* a graded-index RF disc's whole thickness (1 mm where it cannot be made, so it still has a place) */
 const grinT = e => { const G = grinSlab(e.grin, e.length); return G ? G.T : 1; };
+/* an offset reflector's parent focus, in the mirror's own frame (x along its facing, y across): f along the parent axis from
+   the parent vertex, which lies offset across and the parent's sag at the offset behind the section's centre */
+export function mirrorFocus(e) {
+  if (!e.R) return null;
+  const f = Math.abs(e.R) / 2, h = e.offset || 0, c = 1 / e.R, k = e.k || 0, q = 1 - (1 + k) * c * c * h * h, sag0 = q > 0 ? c * h * h / (1 + Math.sqrt(q)) : 0;
+  return { f, h, sag0, x: f - sag0, y: -h };
+}
 function firstDir(order, ref, asm) {
   const a0 = ref.angle, D0 = asmKind(ref) === 'mirror' ? v2(a0 + 180) : v2(a0);
   let dd = asm.rev ? [-D0[0], -D0[1]] : D0;

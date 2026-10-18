@@ -189,7 +189,7 @@ export function lensFieldAntenna(el) {
     const Pfeed = fieldPower(root.F0, root.eng) * segW(root);
     if (!(Pfeed > 0)) return null;
     const A = aperture(out.F0, eng, segW(out));
-    const a = (el.grin ? el.length : el.diameter) / 2, Dmax = 4 * Math.PI * Math.PI * a * a / (lam * lam);
+    const a = (el.grin || el.type === 'mirror' ? el.length : el.diameter) / 2, Dmax = 4 * Math.PI * Math.PI * a * a / (lam * lam);
     // the cuts: wide enough for a few beamwidths and the steering the engine's beam already has
     const bw = lam / (2 * a) / deg, tMax = Math.min(80, Math.max(6, 10 * bw)), M = Math.min(1200, Math.max(240, Math.ceil(2 * tMax / (bw / 10))));
     const X = cutOf(A, 'x', tMax, M), Y = A.round ? X : cutOf(A, 'y', tMax, M);
@@ -239,6 +239,7 @@ function lensMaterial(el) {
   return null;
 }
 function focalOf(el, nm) {
+  if (el.type === 'mirror') return el.R ? Math.abs(el.R) / 2 : null;
   if (el.grin) {
     const fn = maskFns(el).fn, lam = nm * 1e-6, r = 0.05 * el.length / 2, d = (fn(r, 0, lam)[1] - fn(0, 0, lam)[1]) * lam;
     return d < 0 ? r * r / (-2 * d) : null;

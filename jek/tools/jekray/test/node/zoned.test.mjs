@@ -71,3 +71,16 @@ test('traced: the lens as cut loses the rays that run into its wall, and bends t
   const axis = [...Hz.values()].reduce((b, h) => (Math.abs(h.y) < Math.abs(b.y) ? h : b)), axis0 = Hs.get(axis.k);
   assert.ok(Math.abs(axis0.opl - axis.opl - Z.kMax * lam) < 1e-6 * lam, 'on the axis a whole wave less: ' + ((axis0.opl - axis.opl) / lam));
 });
+
+test('tipped out of the plane, the cut face is still met with its steps: rays run into the wall in 3D too', () => {
+  const tipped = (zoned, tip) => {
+    loadProject({ format: 'jekray', version: 1, elements: [
+      { type: 'source', id: 'S', name: 'S', x: -feed.d, y: 0, angle: 0, rays: 401, width: 0, divergence: 60, wavelength: C.C_NM_GHZ / ghz },
+      { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, tip, diameter: 200, asphere: true, surfaces: [{ R: R1, k: k1 }, { R: null }], gaps: [t], materials: [{ glass: 'PLA' }], mmw: { part: true }, zoned },
+      { type: 'screen', id: 'T', name: 'T', x: 300, y: 0, angle: 180, length: 300 }] });
+    TRACE.setLastTraceKey(null); TRACE.traceScene();
+    return reaching(TRACE.lastTrace.rays.map(r => r.pts)).length;
+  };
+  const n0 = tipped(undefined, 8), n1 = tipped({ ghz }, 8);
+  assert.ok(n0 > 300 && n1 < n0 - 4, 'the tipped cut lens passes fewer rays: ' + n1 + ' of the smooth lens’s ' + n0);
+});

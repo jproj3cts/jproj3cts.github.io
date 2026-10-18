@@ -377,6 +377,10 @@ export function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   }
   const edgeFn = ev.surf ? (ev.surf.maskMargin || ((u, v) => ev.surf.semi - Math.hypot(u, v))) : null;
   const maskFn = ev.surf && ev.surf.maskFn;
+  // a face whose coating changes across it (a graded disc's matching layer): the scalar field takes each sample's own
+  // transmission against the beam's ray's, which the beam's power already carries (the polarised field has it per sample)
+  const coatAt = !F.re2 && ev.surf && ev.surf.coatAt && ev.mode === 'T' ? polCoeff(ev, lam0 * 1e6) : null;
+  const coatRef = coatAt ? Math.hypot(...coatAt(ev.cth, isFinite(ev.ly) ? ev.ly : 0, 0).slice(0, 2)) || 1 : 1;
   // the local quadratic and magnification, from four rays close in
   const hh = 1e-3 * Math.min(wix, wiy, Math.max(popClear(ev), 1e-6));
   let bx = 0, by = 0, Ax = 1, Ay = 1, Ai = null;
@@ -644,7 +648,8 @@ export function popSurface2(F, ev, gain, paraxial, tNext, pol) {
         // the transmission here: a mask's amplitude (its delay is already in the traced
         // path), or, where its formula jumps inside the sample, the mean over the sample
         fr = r[5]; fi = 0;
-        let T2 = r[5] * r[5];
+        if (coatAt && r[4]) { const c = coatAt(ev.cth, r[6], r[7]), g = Math.hypot(c[0], c[1]) / coatRef; fr *= g; }
+        let T2 = fr * fr;
         if (maskFn) {
           const fp = maskFootprint(maskFn, r[6], r[7], ax.d / (aAx * ev.cth), ay.d / aAy, lam0, false);
           if (fp) {

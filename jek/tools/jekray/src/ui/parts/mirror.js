@@ -11,7 +11,7 @@ import { removeSweeps } from '../plots.js';
 import { ffRows } from './lens.js';
 import { C_NM_GHZ, RF_METALS, filmCoef, metalR } from '../../core/rf.js';
 import { benchNms } from '../../state/elements.js';
-import { readoutTabs } from '../panels.js';
+import { readoutBox, readoutTabs } from '../panels.js';
 
 /* Mirror on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/mirror.js */
 
@@ -72,6 +72,7 @@ function mirrorPanel(el) {
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   ));
+  if (el.mmw && el.R) panel.append(readoutBox('mirror'));
   if (el.metal) panel.append(h('p', { class: 'note' }, 'Reflects ' + (100 * metalR(el.metal, ghz)).toPrecision(4) + ' % at ' + (+ghz.toPrecision(4)) + ' GHz: the loss is 4 Rs / Z0, Rs = \u221a(\u03c0 f \u03bc0 / \u03c3) the surface resistance of ' + RF_METALS[el.metal].name.toLowerCase() + '.'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An off-axis offset slides the aperture that far along the parent curve, which is how off-axis parabolas work: set the parent radius, a conic of \u22121 and the offset. Leave the radius blank for a plane mirror. A positive radius is concave towards the reflecting face. At 100% the back of the mirror absorbs; below that it behaves as a thin partial reflector, and the transmitted part carries straight on. A GDD makes it a chirped (dispersive) mirror: each reflection adds that group-delay dispersion to a pulse, about the pulse\u2019s centre wavelength; negative compresses a pulse that glass has stretched.'));
   if (el.source) panel.append(h('p', { class: 'note' }, 'Imported from ' + el.source + '.'));

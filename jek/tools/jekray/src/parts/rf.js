@@ -4,9 +4,10 @@ import { nextName } from '../state/project.js';
    as the palette's, with its sizes and materials */
 export const RF = {
   family: 'rf',
-  picker: [{ key: 'rf:horn', short: 'Horn', long: 'Feed horn (source)' }, { key: 'rf:rx', short: 'Receiver', long: 'Receiving horn and detector' }, { key: 'rf:lens', short: 'RF lens', long: 'RF lens (HDPE)' }, { key: 'rf:mirror', short: 'Mirror', long: 'Flat metal mirror' }, { key: 'rf:fmirror', short: 'Focusing mirror', long: 'Focusing metal mirror' }, { key: 'rf:grid', short: 'Wire grid', long: 'Wire-grid polariser' }, { key: 'rf:bs', short: 'Beam splitter', long: 'Film beam splitter' }, { key: 'rf:grin', short: 'GRIN lens', long: 'Graded-index lens, printed' }, { key: 'rf:mesh', short: 'Mesh filter', long: 'Metal mesh filter' }, { key: 'rf:load', short: 'Load', long: 'Absorber load' }],
+  picker: [{ key: 'rf:horn', short: 'Horn', long: 'Feed horn (source)' }, { key: 'rf:rx', short: 'Receiver', long: 'Receiving horn and detector' }, { key: 'rf:lens', short: 'RF lens', long: 'RF lens (HDPE)' }, { key: 'rf:mirror', short: 'Mirror', long: 'Flat metal mirror' }, { key: 'rf:fmirror', short: 'Focusing mirror', long: 'Focusing metal mirror' }, { key: 'rf:reflector', short: 'Offset reflector', long: 'Offset parabolic reflector' }, { key: 'rf:radome', short: 'Radome', long: 'Radome sheet (dielectric window)' }, { key: 'rf:grid', short: 'Wire grid', long: 'Wire-grid polariser' }, { key: 'rf:bs', short: 'Beam splitter', long: 'Film beam splitter' }, { key: 'rf:grin', short: 'GRIN lens', long: 'Graded-index lens, printed' }, { key: 'rf:mesh', short: 'Mesh filter', long: 'Metal mesh filter' }, { key: 'rf:load', short: 'Load', long: 'Absorber load' }],
   groups: [['Horns', ['rf:horn', 'rf:rx']],
-  ['Lenses and mirrors', ['rf:lens', 'rf:grin', 'rf:mirror', 'rf:fmirror']],
+  ['Lenses and mirrors', ['rf:lens', 'rf:grin', 'rf:mirror', 'rf:fmirror', 'rf:reflector']],
+  ['Windows', ['rf:radome']],
   ['Polarisation, splitting and filtering', ['rf:grid', 'rf:bs', 'rf:mesh']],
   ['Loads', ['rf:load']]],
   make(x, y, kind) {
@@ -17,6 +18,11 @@ export const RF = {
       case 'lens': return ({ type: 'lens', name: nextName('RF lens'), x, y, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'HDPE' }], mmw: rf });
       case 'mirror': return ({ type: 'mirror', name: nextName('Flat mirror'), x, y, angle: 135, length: 100, metal: 'Al', mmw: rf });
       case 'fmirror': return ({ type: 'mirror', name: nextName('Focusing mirror'), x, y, angle: 180, length: 100, R: 300, metal: 'Al', mmw: rf });
+      // an offset parabolic reflector: a section of a paraboloid of focal length R/2 = 150 mm, its centre 120 mm off the parent axis, so
+      // the feed at the focus sits clear of the beam it sends out (the panel gives where the focus is)
+      case 'reflector': return ({ type: 'mirror', name: nextName('Offset reflector'), x, y, angle: 180, length: 160, R: 300, k: -1, offset: 120, metal: 'Al', mmw: rf });
+      // a radome: a flat sheet of dielectric the beam passes through (its panel gives what it passes, and the half-wave thicknesses)
+      case 'radome': return ({ type: 'lens', name: nextName('Radome'), x, y, diameter: 150, surfaces: [{ R: null }, { R: null }], gaps: [3], materials: [{ glass: 'HDPE' }], mmw: rf });
       case 'grid': return ({ type: 'polariser', name: nextName('Wire grid'), x, y, angle: 135, axis: 0, length: 100, grid: { g: 0.025, a: 0.005 }, mmw: rf });
       case 'bs': return ({ type: 'mirror', name: nextName('Film beam splitter'), x, y, angle: 135, length: 100, reflect: 50, film: { n: 1.73, t: 0.1 }, mmw: rf });
       case 'mesh': return ({ type: 'filter', name: nextName('Mesh filter'), x, y, angle: 0, length: 100, ftype: 'mesh', mesh: 'bandpass', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0.2, reflect: true, mmw: rf });

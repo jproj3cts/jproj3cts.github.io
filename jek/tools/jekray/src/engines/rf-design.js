@@ -551,6 +551,89 @@ const rfSet = (P, asm, key, v) => {
   const [q, i] = key.split(':'), s = P.surfaces[+i];
   if (q === 'p') { const el = getEl(s.from.id); if (el && el.grin) rfGrinInto(P, +i, Object.assign({}, el.grin, { f: v > 1e-6 ? 1 / v : 1e6 }), el.length); return; }
   if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else P.gaps[+i] = v; };
+/* ---------- The merit function ----------
+   What Optimise works toward: terms, each a figure of the system measured at a frequency (or at each of the five across
+   the band), with a target, a sense (at least, at most, or equal to) and a weight. With no terms, the efficiency at each
+   of the five frequencies as high as it can be. A term's residual is its weight times its shortfall in its own scale (an
+   efficiency in hundredths, a decibel, a tenth of a degree, a hundredth of a wave, a millimetre), and the merit is the sum
+   of the squares of the residuals, the flatness term's and the boundaries'. */
+export const RF_MERIT_OPS = {
+  EFF: { label: 'Efficiency (%)', sense: '>=', scale: 100, def: 100, band: true },
+  GAIN: { label: 'Gain (dBi)', sense: '>=', scale: 1, band: true, coll: true },
+  COUP: { label: 'Coupling (%)', sense: '>=', scale: 100, def: 100, band: true, coll: false },
+  TAPER: { label: 'Edge taper at the last lens (dB)', sense: '=', scale: 1, def: 11, band: true },
+  PHASE: { label: 'Phase error (λ RMS)', sense: '<=', scale: 0.01, def: 0.02, band: true },
+  SPILL: { label: 'Spillover on the way (dB)', sense: '<=', scale: 1, def: 0.1, band: true },
+  REFL: { label: 'Reflections (dB)', sense: '<=', scale: 1, def: 0.1, band: true },
+  SLL: { label: 'First sidelobe (dB)', sense: '<=', scale: 1, def: -20, coll: true },
+  HPBW: { label: 'Half-power beamwidth (°)', sense: '=', scale: 0.1, coll: true },
+  SQUINT: { label: 'Beam steered (°)', sense: '=', scale: 0.1, def: 0 },
+  SCAN: { label: 'Scan loss at the feed’s offset (dB)', sense: '<=', scale: 0.1, def: 0.5 },
+  WAIST: { label: 'Waist made (mm)', sense: '=', scale: 1, coll: false },
+  THK: { label: 'Centre thickness, the thickest lens (mm)', sense: '<=', scale: 1, def: 30, fixed: true },
+  FEED: { label: 'Feed to the first lens (mm)', sense: '=', scale: 1, fixed: true },
+  TRACK: { label: 'Feed to the last face (mm)', sense: '<=', scale: 1, fixed: true },
+};
+export const RF_MERIT_SENSES = { '>=': 'at least', '<=': 'at most', '=': 'equal to' };
+export function normRfMeritOps(list) {
+  return (Array.isArray(list) ? list : []).filter(o => o && RF_MERIT_OPS[o.op]).slice(0, 40).map(o => ({
+    op: o.op, ghz: o.ghz === null || o.ghz === undefined || o.ghz === '' || !isFinite(+o.ghz) ? null : Math.max(0.5, +o.ghz),
+    target: isFinite(+o.target) ? +o.target : (RF_MERIT_OPS[o.op].def || 0), weight: isFinite(+o.weight) && +o.weight >= 0 ? +o.weight : 1,
+    sense: RF_MERIT_SENSES[o.sense] ? o.sense : RF_MERIT_OPS[o.op].sense }));
+}
+/* a term's value from a system's trace t at one frequency (its pattern worked out once, when asked for) */
+function rfOpValue(op, t, asm, P, extra) {
+  switch (op) {
+    case 'EFF': return 100 * t.eff;
+    case 'GAIN': return t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff));
+    case 'COUP': return 100 * (t.coupling !== undefined ? t.coupling : t.apEff);
+    case 'TAPER': { const ap = t.surf.filter(s => isFinite(s.semi) && s.kind !== 'stop'); return ap.length ? ap[ap.length - 1].taper : 0; }
+    case 'PHASE': return t.sigma / t.lam;
+    case 'SPILL': return -10 * Math.log10(Math.max(1e-12, t.spill));
+    case 'REFL': return -10 * Math.log10(Math.max(1e-12, t.refl));
+    case 'SLL': case 'HPBW': {
+      if (!t.apAt) return NaN;
+      if (!extra.pat) extra.pat = rfPattern(t.apAt, t.lam, 30, 181);
+      return op === 'SLL' ? (extra.pat.sidelobe === null ? -60 : extra.pat.sidelobe) : extra.pat.hpbw;
+    }
+    case 'SQUINT': return t.steer ? t.steer.squint : 0;
+    case 'SCAN': { if (!extra.ref) { const R = normRfCond(asm.rf); extra.ref = rfTrace(rfWithFeed(asm, R, { off: 0, aim: true, ang: 0 }), P, t.ghz, { steps: 2 }); } return rfFigOf(extra.ref) - rfFigOf(t); }
+    case 'WAIST': return t.waist ? t.waist.w : NaN;
+    case 'THK': { const sps = surfaceParts(P); let m = 0; P.parts.forEach((p, pi) => { if (p.kind === 'lens' || p.kind === 'grin') { const i0 = sps.findIndex(s => s.pi === pi); m = Math.max(m, P.gaps[i0] || 0); } }); return m; }
+    case 'FEED': return asm.rf.feed.d;
+    case 'TRACK': return asm.rf.feed.d + P.gaps.reduce((a, b) => a + b, 0);
+    default: return NaN;
+  }
+}
+const rfResidual = (o, v) => { const d = RF_MERIT_OPS[o.op], s = d.scale || 1; if (!isFinite(v)) return o.weight; return o.sense === '=' ? o.weight * (v - o.target) / s : o.sense === '>=' ? o.weight * Math.max(0, o.target - v) / s : o.weight * Math.max(0, v - o.target) / s; };
+/* the terms of a system c = { asm, P } against spec (its ops; none: the efficiency at each frequency as high as it can
+   be): each term's value and residual, with the efficiencies across the band */
+export function rfMeritTerms(c, spec) {
+  const R = normRfCond(c.asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
+  const ops = normRfMeritOps(spec.ops), terms = [], traces = new Map();
+  const traceAt = f => { let t = traces.get(f); if (!t) { t = { t: rfTrace(c.asm, c.P, f, { steps: 2 }), x: {} }; traces.set(f, t); } return t; };
+  const effs = fs.map(f => { const t = traceAt(f).t; return isFinite(t.eff) ? t.eff : 0; });
+  const mean = effs.reduce((a, b) => a + b, 0) / effs.length;
+  const list = ops.length ? ops : [{ op: 'EFF', ghz: null, target: 100, weight: 1, sense: '>=' }];
+  list.forEach((o, j) => {
+    const d = RF_MERIT_OPS[o.op];
+    const at = o.ghz !== null ? [o.ghz] : d.band ? fs : [R.ghz];
+    for (const f of at) {
+      const T = d.fixed ? null : traceAt(f), v = d.fixed ? rfOpValue(o.op, null, c.asm, c.P, {}) : rfOpValue(o.op, T.t, c.asm, c.P, T.x);
+      terms.push({ j, op: o.op, ghz: f, value: v, target: o.target, weight: o.weight, sense: o.sense, r: rfResidual(o, v) });
+      if (d.fixed) break;
+    }
+  });
+  return { terms, effs, mean, ops: list, own: ops.length > 0 };
+}
+/* what the merit is made of, for the Merit tab: each term's share, the boundaries' */
+export function rfMeritReport(asm, P, spec) {
+  const prob = rfOptProblem(asm, P, Object.assign({ keys: [] }, spec)), f = prob.res(prob.x0);
+  const tot = f.r.reduce((a, v) => a + v * v, 0) || 1, nT = f.terms.length;
+  const byOp = f.ops.map((o, j) => { const at = f.terms.filter(t => t.j === j); return { op: o.op, ghz: o.ghz, target: o.target, weight: o.weight, sense: o.sense, at: at.map(t => ({ ghz: t.ghz, value: t.value })), share: at.reduce((a, t) => a + t.r * t.r, 0) / tot }; });
+  const flatShare = f.r.slice(nT, nT + f.effs.length).reduce((a, v) => a + v * v, 0) / tot, boundShare = f.r.slice(nT + f.effs.length).reduce((a, v) => a + v * v, 0) / tot;
+  return { merit: Math.sqrt(tot === 1 && !f.r.length ? 0 : f.r.reduce((a, v) => a + v * v, 0)), ops: byOp, own: f.own, flatShare, boundShare, effs: f.effs, mean: f.mean };
+}
 export function rfOptProblem(asm, P, spec) {
   const keys = spec.keys.slice(), sps = surfaceParts(P);
   const clone = () => ({ P: Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) }), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)) }) });
@@ -558,10 +641,7 @@ export function rfOptProblem(asm, P, spec) {
   const x0 = keys.map(k => rfGet(P, asm, k));
   const at = x => { const c = clone(); keys.forEach((k, j) => rfSet(c.P, c.asm, k, x[j])); return c; };
   const res = x => {
-    const c = at(x), r = [];
-    const effs = fs.map(f => { const t = rfTrace(c.asm, c.P, f, { steps: 2 }); return isFinite(t.eff) ? t.eff : 0; });
-    effs.forEach(e => r.push(1 - e));
-    const mean = effs.reduce((a, b) => a + b, 0) / effs.length;
+    const c = at(x), M = rfMeritTerms(c, spec), r = M.terms.map(t => t.r), { effs, mean } = M;
     effs.forEach(e => r.push((spec.flat || 0) * (e - mean)));
     // the bounds: each lens's edge and centre, the air between parts, the feed's distance
     for (let i = 0; i < c.P.surfaces.length - 1; i++) {
@@ -575,7 +655,7 @@ export function rfOptProblem(asm, P, spec) {
     r.push(10 * Math.max(0, 1 - c.asm.rf.feed.d) / 10);
     // a graded-index disc its focal length can't be graded for
     r.push(c.P.surfaces.some(s => s.grin && s.grin.bad) ? 1 : 0);
-    return { r, effs, mean };
+    return { r, effs, mean, terms: M.terms, ops: M.ops, own: M.own };
   };
   return { keys, x0, at, res, fs };
 }

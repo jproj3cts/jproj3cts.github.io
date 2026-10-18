@@ -11,7 +11,7 @@ import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { commitDesign, designOf, designPrescription, insertSinglet, removeSurface, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { RF_LENS_TYPES, RF_TOL_KINDS, rfGrinInto, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfScan, rfSynth, rfSyncCond } from '../engines/rf-design.js';
+import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto, rfMeritReport, normRfMeritOps, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfScan, rfSynth, rfSyncCond } from '../engines/rf-design.js';
 import { linePlot } from './lens-analyses.js';
 import { helpLine, h } from './panel.js';
 import { matchLayer } from './panels.js';
@@ -189,7 +189,7 @@ function rwDraw() {
   const body = h('div', { class: 'rt-lbody' });
   rwSelOk(P);
   body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
-    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : rwDataCard(asm, P)));
+    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'merit' ? rwMeritCard(asm, P) : rwDataCard(asm, P)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -446,7 +446,7 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('merit', 'Merit'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
 /* ---------- A part of the system: its material, size and faces, and the air after it ---------- */
@@ -775,7 +775,8 @@ let RW_OPT = null;           // { asm, prob, st, running, note }
 function rwOptSpec(asm, P) {
   // the one object, kept: the V buttons hold it between renders
   const o = asm.rfOpt || (asm.rfOpt = {});
-  for (const [k, v] of Object.entries({ keys: null, flat: 0, edgeMin: 1, tMax: 0 })) if (o[k] === undefined) o[k] = v;
+  for (const [k, v] of Object.entries({ keys: null, flat: 0, edgeMin: 1, tMax: 0, ops: [] })) if (o[k] === undefined) o[k] = v;
+  o.ops = normRfMeritOps(o.ops);
   const vars = rfOptVars(P);
   if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
   o.keys = o.keys.filter(k => vars.some(v => v.key === k));
@@ -849,6 +850,49 @@ function rwDataCard(asm, P) {
   card.append(h('p', { class: 'rt-lsub' }, 'Each value typed here changes the part on the bench (Undo takes it back). ', h('b', null, 'V'), ' marks a value Optimise may change: ' + (named.length ? named.join(', ') : 'none yet') + '.'));
   return card;
 }
+/* ---------- Merit: what Optimise works toward ---------- */
+const rwShare = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
+function rwMeritCard(asm, P) {
+  const { o } = rwOptSpec(asm, P), R = asm.rf, coll = R.goal.kind === 'collimate';
+  const card = h('section', { class: 'rt-lcard rt-rfmerit', role: 'tabpanel', 'aria-label': 'Merit' }, h('h3', null, 'Merit'));
+  card.append(helpLine('What Optimise works toward: each term a figure of the system with a target, a sense and a weight.', ['Each term is a figure of the system (its efficiency, gain or coupling, edge taper, phase error, spillover, reflections, sidelobe, beamwidth, the beam steered, its scan loss, a waist, a thickness or a distance) measured at one frequency or at each of five across the band, with a target, a sense (at least, at most, equal to) and a weight. Its residual is the weight times the shortfall in the figure’s own scale (an efficiency in hundredths, a decibel, a tenth of a degree, a hundredth of a wave, a millimetre); the merit is the root of the sum of the squares, with the flatness term’s and the boundaries’. With no terms, the efficiency at each of the five frequencies is made as high as it can be.'], 'rt-lsub'));
+  const edit = fn => { checkpoint(); fn(o); o.ops = normRfMeritOps(o.ops); changed(false); rwRender(); };
+  const Rp = rfMeritReport(asm, P, { keys: [], flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
+  card.append(h('div', { class: 'rt-lmerit' }, h('span', null, 'Merit'), h('b', { class: 'mono' }, rwFmt(Rp.merit, 5)), h('span', { class: 'rt-lsub' }, Rp.own ? o.ops.length + ' term' + (o.ops.length === 1 ? '' : 's') : 'the efficiency across the band; add a term to say otherwise')));
+  const tbl = h('table', { class: 'rt-ltable rt-lmtable' });
+  tbl.append(h('thead', null, h('tr', null, ...['Term', 'At', 'Sense', 'Target', 'Weight', 'Now', 'Share of the merit', ''].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody'), atOpts = { band: 'each of 5 across the band', design: 'the design frequency', lo: 'the band’s low edge', hi: 'the band’s high edge', own: 'a frequency of my own' };
+  const atOf = q => (q.ghz === null ? 'band' : Math.abs(q.ghz - R.ghz) < 1e-9 ? 'design' : Math.abs(q.ghz - R.lo) < 1e-9 ? 'lo' : Math.abs(q.ghz - R.hi) < 1e-9 ? 'hi' : 'own');
+  Rp.ops.forEach((q, i) => {
+    const d = RF_MERIT_OPS[q.op], label = d.label;
+    const atCell = d.fixed ? h('span', { class: 'rt-lsub' }, '—') : h('span', { class: 'rt-lopw' },
+      rwSelect(d.band ? atOpts : Object.fromEntries(Object.entries(atOpts).filter(([k]) => k !== 'band')), atOf(q), v => edit(oo => { oo.ops[i].ghz = v === 'band' ? null : v === 'design' ? R.ghz : v === 'lo' ? R.lo : v === 'hi' ? R.hi : (q.ghz === null ? R.ghz : q.ghz); }), 'Where ' + label + ' is measured'),
+      ...(atOf(q) === 'own' ? [rwNum(q.ghz, v => edit(oo => { oo.ops[i].ghz = v; }), 'Frequency of ' + label + ' (GHz)', 5), h('span', { class: 'rt-lsub' }, 'GHz')] : []));
+    tb.append(h('tr', null, h('td', null, label), h('td', null, atCell),
+      h('td', null, rwSelect(RF_MERIT_SENSES, q.sense, v => edit(oo => { oo.ops[i].sense = v; }), 'Sense of ' + label)),
+      h('td', null, rwNum(q.target, v => edit(oo => { oo.ops[i].target = v; }), 'Target of ' + label)),
+      h('td', null, rwNum(q.weight, v => edit(oo => { oo.ops[i].weight = Math.max(0, v); }), 'Weight of ' + label)),
+      h('td', { class: 'mono', title: q.at.map(a => rwFmt(a.ghz, 4) + ' GHz: ' + rwFmt(a.value, 5)).join('\n') }, q.at.length > 1 ? rwFmt(Math.min(...q.at.map(a => a.value)), 4) + ' to ' + rwFmt(Math.max(...q.at.map(a => a.value)), 4) : rwFmt(q.at[0] ? q.at[0].value : NaN, 5)),
+      h('td', null, rwShare(q.share)),
+      h('td', null, Rp.own ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + label, onclick: () => edit(oo => { oo.ops.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lsub', title: 'The merit when no term is given' }, 'default'))));
+  });
+  if (Rp.flatShare > 0) tb.append(h('tr', null, h('td', null, 'Flat across the band'), h('td', { colspan: '4' }), h('td'), h('td', null, rwShare(Rp.flatShare)), h('td')));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { colspan: '4', class: 'rt-lsub' }, 'each lens’s edge and centre, the air between parts, the feed’s distance'), h('td'), h('td', null, rwShare(Rp.boundShare)), h('td')));
+  tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // a term to add, with the figure's value now as its target where that makes sense
+  const opts = Object.fromEntries(Object.entries(RF_MERIT_OPS).filter(([, d]) => d.coll === undefined || d.coll === coll).map(([k, d]) => [k, d.label]));
+  const add = rwSelect(opts, coll ? 'GAIN' : 'COUP', () => {}, 'Term to add');
+  card.append(h('div', { class: 'rt-lbar' }, add, h('button', { class: 'rt-btn', type: 'button', onclick: () => {
+    const k = add.value, d = RF_MERIT_OPS[k];
+    const probe = rfMeritReport(asm, P, { keys: [], ops: [{ op: k, ghz: d.band ? null : R.ghz, target: 0, weight: 1, sense: d.sense }] }), now = probe.ops[0] && probe.ops[0].at[0] ? probe.ops[0].at[0].value : NaN;
+    edit(oo => { oo.ops.push({ op: k, ghz: d.band ? null : R.ghz, target: d.def !== undefined ? d.def : isFinite(now) ? +now.toPrecision(5) : 0, weight: 1, sense: d.sense }); });
+  } }, 'Add a term')));
+  card.append(h('h3', null, 'Boundaries every design keeps to'), h('div', { class: 'rt-rfgrid' },
+    rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => edit(oo => { oo.flat = +v; }), 'Flat across the band')),
+    rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => edit(oo => { oo.edgeMin = Math.max(0, v); }), 'Thinnest edge (mm)')),
+    rwRow('Thickest centre (mm, 0 for none)', rwNum(o.tMax, v => edit(oo => { oo.tMax = Math.max(0, v); }), 'Thickest centre (mm)'))));
+  return card;
+}
 function rwOptCard(asm, P) {
   const card = h('section', { class: 'rt-lcard rt-rfopt', role: 'tabpanel', 'aria-label': 'Optimise' }, h('h3', null, 'Optimise'));
   const { o } = rwOptSpec(asm, P);
@@ -858,10 +902,8 @@ function rwOptCard(asm, P) {
   const named = rwVarNames(asm, P);
   card.append(h('p', { class: 'rt-lsub rt-rfvarlist' }, h('b', null, 'Varying: '), named.length ? named.join(', ') + '.' : 'nothing yet.', ' ',
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'data'; rwRender(); } }, 'Choose in Element data')));
-  card.append(h('div', { class: 'rt-rfgrid' },
-    rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => { o.flat = +v; rwRender(); }, 'Flat across the band')),
-    rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => { o.edgeMin = Math.max(0, v); rwRender(); }, 'Thinnest edge (mm)')),
-    rwRow('Thickest centre (mm, 0 for none)', rwNum(o.tMax, v => { o.tMax = Math.max(0, v); rwRender(); }, 'Thickest centre (mm)'))));
+  card.append(h('p', { class: 'rt-lsub rt-rfmeritline' }, h('b', null, 'Toward: '), o.ops.length ? o.ops.map(q => RF_MERIT_OPS[q.op].label.replace(/ \(.*\)$/, '').toLowerCase() + ' ' + RF_MERIT_SENSES[q.sense] + ' ' + rwFmt(q.target, 4)).join(', ') + '.' : 'the most efficiency at each of five frequencies across the band.', ' ',
+    h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'merit'; rwRender(); } }, 'Edit the merit')));
   const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
@@ -872,7 +914,7 @@ function rwOptCard(asm, P) {
 }
 function rwOptGo(asm) {
   const P = designPrescription(asm), o = asm.rfOpt;
-  const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax });
+  const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
   RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '' };
   rwRender();

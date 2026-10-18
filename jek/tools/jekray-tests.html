@@ -9305,6 +9305,38 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: the Merit tab lists what Optimise works toward, a term added with a target and weight shows its value and share, and Optimise points to it',
+    why: 'a new RF design’s Merit tab: with no terms it reports the efficiency across the band as the default (one row at each of five frequencies); Add a term with Edge taper gives a row with a target of 11 dB, a sense, a weight and its value now; its target set to 14 dB raises its share; the Optimise tab says it works toward it; the term removed, the default is back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs'), tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t).click();
+      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
+      const rows = () => [...ws().querySelectorAll('.rt-rfmerit .rt-lmtable tbody tr')].map(tr => tr.children[0].textContent);
+      try {
+        tab('Merit');
+        const dflt = rows()[0] === 'Efficiency (%)' && /default/.test(ws().querySelector('.rt-rfmerit').textContent) && /add a term/.test(ws().querySelector('.rt-lmerit').textContent);
+        set('Term to add', 'TAPER');
+        [...ws().querySelectorAll('.rt-rfmerit button')].find(b => b.textContent === 'Add a term').click();
+        const added = rows()[0] === 'Edge taper at the last lens (dB)' && ws().querySelector('[aria-label="Target of Edge taper at the last lens (dB)"]').value === '11' && ws().querySelector('[aria-label="Sense of Edge taper at the last lens (dB)"]').value === '=';
+        const share0 = parseFloat([...ws().querySelectorAll('.rt-rfmerit .rt-lshare .mono')][0].textContent);
+        set('Target of Edge taper at the last lens (dB)', '14');
+        const share1 = parseFloat([...ws().querySelectorAll('.rt-rfmerit .rt-lshare .mono')][0].textContent);
+        const merit = parseFloat(ws().querySelector('.rt-lmerit b').textContent), raised = merit > 1 && share1 >= share0 && share1 > 90;
+        tab('Optimise');
+        const toward = /Toward: edge taper at the last lens equal to 14/.test(ws().querySelector('.rt-rfmeritline').textContent);
+        tab('Merit');
+        ws().querySelector('[aria-label="Remove Edge taper at the last lens (dB)"]').click();
+        const back = rows()[0] === 'Efficiency (%)';
+        const all = dflt && added && raised && toward && back;
+        if (!all) console.log('rf merit', { dflt, added, share0, share1, merit, raised, toward, back, rows: rows() });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'RF designer: the feed off the axis steers the beam, the Scan analysis plots the cost, and Tolerance takes errors across the axis with a compensator',
     why: 'a new RF design with its feed 20 mm off the axis: the figures give Beam steered (the beam the other way, a deviation factor under 1) and a scan loss; the feed horn on the bench moves across and aims at the lens; Analyses › Scan draws two plots and a table of nine rows whose loss grows; Tolerance lists Lens decentre, Lens tilt and Feed across the axis, and with Refocus ticked the sensitivity table has a Beam moves column (1 when all hold)',
     want: 1, tol: 0, unit: '',

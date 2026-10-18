@@ -26421,7 +26421,7 @@ function rwDraw() {
   const body = h('div', { class: 'rt-lbody' });
   rwSelOk(P);
   body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
-    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : rwDataCard(asm, P)));
+    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'merit' ? rwMeritCard(asm, P) : rwDataCard(asm, P)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -26678,7 +26678,7 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('merit', 'Merit'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
 /* ---------- A part of the system: its material, size and faces, and the air after it ---------- */
@@ -27007,7 +27007,8 @@ let RW_OPT = null;           // { asm, prob, st, running, note }
 function rwOptSpec(asm, P) {
   // the one object, kept: the V buttons hold it between renders
   const o = asm.rfOpt || (asm.rfOpt = {});
-  for (const [k, v] of Object.entries({ keys: null, flat: 0, edgeMin: 1, tMax: 0 })) if (o[k] === undefined) o[k] = v;
+  for (const [k, v] of Object.entries({ keys: null, flat: 0, edgeMin: 1, tMax: 0, ops: [] })) if (o[k] === undefined) o[k] = v;
+  o.ops = normRfMeritOps(o.ops);
   const vars = rfOptVars(P);
   if (!o.keys) o.keys = vars.filter(v => v.label === 'Front radius' || v.label === 'Back radius' || v.label === 'Front conic').map(v => v.key);
   o.keys = o.keys.filter(k => vars.some(v => v.key === k));
@@ -27081,6 +27082,49 @@ function rwDataCard(asm, P) {
   card.append(h('p', { class: 'rt-lsub' }, 'Each value typed here changes the part on the bench (Undo takes it back). ', h('b', null, 'V'), ' marks a value Optimise may change: ' + (named.length ? named.join(', ') : 'none yet') + '.'));
   return card;
 }
+/* ---------- Merit: what Optimise works toward ---------- */
+const rwShare = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
+function rwMeritCard(asm, P) {
+  const { o } = rwOptSpec(asm, P), R = asm.rf, coll = R.goal.kind === 'collimate';
+  const card = h('section', { class: 'rt-lcard rt-rfmerit', role: 'tabpanel', 'aria-label': 'Merit' }, h('h3', null, 'Merit'));
+  card.append(helpLine('What Optimise works toward: each term a figure of the system with a target, a sense and a weight.', ['Each term is a figure of the system (its efficiency, gain or coupling, edge taper, phase error, spillover, reflections, sidelobe, beamwidth, the beam steered, its scan loss, a waist, a thickness or a distance) measured at one frequency or at each of five across the band, with a target, a sense (at least, at most, equal to) and a weight. Its residual is the weight times the shortfall in the figure’s own scale (an efficiency in hundredths, a decibel, a tenth of a degree, a hundredth of a wave, a millimetre); the merit is the root of the sum of the squares, with the flatness term’s and the boundaries’. With no terms, the efficiency at each of the five frequencies is made as high as it can be.'], 'rt-lsub'));
+  const edit = fn => { checkpoint(); fn(o); o.ops = normRfMeritOps(o.ops); changed(false); rwRender(); };
+  const Rp = rfMeritReport(asm, P, { keys: [], flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
+  card.append(h('div', { class: 'rt-lmerit' }, h('span', null, 'Merit'), h('b', { class: 'mono' }, rwFmt(Rp.merit, 5)), h('span', { class: 'rt-lsub' }, Rp.own ? o.ops.length + ' term' + (o.ops.length === 1 ? '' : 's') : 'the efficiency across the band; add a term to say otherwise')));
+  const tbl = h('table', { class: 'rt-ltable rt-lmtable' });
+  tbl.append(h('thead', null, h('tr', null, ...['Term', 'At', 'Sense', 'Target', 'Weight', 'Now', 'Share of the merit', ''].map(t => h('th', { scope: 'col' }, t)))));
+  const tb = h('tbody'), atOpts = { band: 'each of 5 across the band', design: 'the design frequency', lo: 'the band’s low edge', hi: 'the band’s high edge', own: 'a frequency of my own' };
+  const atOf = q => (q.ghz === null ? 'band' : Math.abs(q.ghz - R.ghz) < 1e-9 ? 'design' : Math.abs(q.ghz - R.lo) < 1e-9 ? 'lo' : Math.abs(q.ghz - R.hi) < 1e-9 ? 'hi' : 'own');
+  Rp.ops.forEach((q, i) => {
+    const d = RF_MERIT_OPS[q.op], label = d.label;
+    const atCell = d.fixed ? h('span', { class: 'rt-lsub' }, '—') : h('span', { class: 'rt-lopw' },
+      rwSelect(d.band ? atOpts : Object.fromEntries(Object.entries(atOpts).filter(([k]) => k !== 'band')), atOf(q), v => edit(oo => { oo.ops[i].ghz = v === 'band' ? null : v === 'design' ? R.ghz : v === 'lo' ? R.lo : v === 'hi' ? R.hi : (q.ghz === null ? R.ghz : q.ghz); }), 'Where ' + label + ' is measured'),
+      ...(atOf(q) === 'own' ? [rwNum(q.ghz, v => edit(oo => { oo.ops[i].ghz = v; }), 'Frequency of ' + label + ' (GHz)', 5), h('span', { class: 'rt-lsub' }, 'GHz')] : []));
+    tb.append(h('tr', null, h('td', null, label), h('td', null, atCell),
+      h('td', null, rwSelect(RF_MERIT_SENSES, q.sense, v => edit(oo => { oo.ops[i].sense = v; }), 'Sense of ' + label)),
+      h('td', null, rwNum(q.target, v => edit(oo => { oo.ops[i].target = v; }), 'Target of ' + label)),
+      h('td', null, rwNum(q.weight, v => edit(oo => { oo.ops[i].weight = Math.max(0, v); }), 'Weight of ' + label)),
+      h('td', { class: 'mono', title: q.at.map(a => rwFmt(a.ghz, 4) + ' GHz: ' + rwFmt(a.value, 5)).join('\n') }, q.at.length > 1 ? rwFmt(Math.min(...q.at.map(a => a.value)), 4) + ' to ' + rwFmt(Math.max(...q.at.map(a => a.value)), 4) : rwFmt(q.at[0] ? q.at[0].value : NaN, 5)),
+      h('td', null, rwShare(q.share)),
+      h('td', null, Rp.own ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + label, onclick: () => edit(oo => { oo.ops.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lsub', title: 'The merit when no term is given' }, 'default'))));
+  });
+  if (Rp.flatShare > 0) tb.append(h('tr', null, h('td', null, 'Flat across the band'), h('td', { colspan: '4' }), h('td'), h('td', null, rwShare(Rp.flatShare)), h('td')));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { colspan: '4', class: 'rt-lsub' }, 'each lens’s edge and centre, the air between parts, the feed’s distance'), h('td'), h('td', null, rwShare(Rp.boundShare)), h('td')));
+  tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  // a term to add, with the figure's value now as its target where that makes sense
+  const opts = Object.fromEntries(Object.entries(RF_MERIT_OPS).filter(([, d]) => d.coll === undefined || d.coll === coll).map(([k, d]) => [k, d.label]));
+  const add = rwSelect(opts, coll ? 'GAIN' : 'COUP', () => {}, 'Term to add');
+  card.append(h('div', { class: 'rt-lbar' }, add, h('button', { class: 'rt-btn', type: 'button', onclick: () => {
+    const k = add.value, d = RF_MERIT_OPS[k];
+    const probe = rfMeritReport(asm, P, { keys: [], ops: [{ op: k, ghz: d.band ? null : R.ghz, target: 0, weight: 1, sense: d.sense }] }), now = probe.ops[0] && probe.ops[0].at[0] ? probe.ops[0].at[0].value : NaN;
+    edit(oo => { oo.ops.push({ op: k, ghz: d.band ? null : R.ghz, target: d.def !== undefined ? d.def : isFinite(now) ? +now.toPrecision(5) : 0, weight: 1, sense: d.sense }); });
+  } }, 'Add a term')));
+  card.append(h('h3', null, 'Boundaries every design keeps to'), h('div', { class: 'rt-rfgrid' },
+    rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => edit(oo => { oo.flat = +v; }), 'Flat across the band')),
+    rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => edit(oo => { oo.edgeMin = Math.max(0, v); }), 'Thinnest edge (mm)')),
+    rwRow('Thickest centre (mm, 0 for none)', rwNum(o.tMax, v => edit(oo => { oo.tMax = Math.max(0, v); }), 'Thickest centre (mm)'))));
+  return card;
+}
 function rwOptCard(asm, P) {
   const card = h('section', { class: 'rt-lcard rt-rfopt', role: 'tabpanel', 'aria-label': 'Optimise' }, h('h3', null, 'Optimise'));
   const { o } = rwOptSpec(asm, P);
@@ -27090,10 +27134,8 @@ function rwOptCard(asm, P) {
   const named = rwVarNames(asm, P);
   card.append(h('p', { class: 'rt-lsub rt-rfvarlist' }, h('b', null, 'Varying: '), named.length ? named.join(', ') + '.' : 'nothing yet.', ' ',
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'data'; rwRender(); } }, 'Choose in Element data')));
-  card.append(h('div', { class: 'rt-rfgrid' },
-    rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => { o.flat = +v; rwRender(); }, 'Flat across the band')),
-    rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => { o.edgeMin = Math.max(0, v); rwRender(); }, 'Thinnest edge (mm)')),
-    rwRow('Thickest centre (mm, 0 for none)', rwNum(o.tMax, v => { o.tMax = Math.max(0, v); rwRender(); }, 'Thickest centre (mm)'))));
+  card.append(h('p', { class: 'rt-lsub rt-rfmeritline' }, h('b', null, 'Toward: '), o.ops.length ? o.ops.map(q => RF_MERIT_OPS[q.op].label.replace(/ \(.*\)$/, '').toLowerCase() + ' ' + RF_MERIT_SENSES[q.sense] + ' ' + rwFmt(q.target, 4)).join(', ') + '.' : 'the most efficiency at each of five frequencies across the band.', ' ',
+    h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'merit'; rwRender(); } }, 'Edit the merit')));
   const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
@@ -27104,7 +27146,7 @@ function rwOptCard(asm, P) {
 }
 function rwOptGo(asm) {
   const P = designPrescription(asm), o = asm.rfOpt;
-  const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax });
+  const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
   RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '' };
   rwRender();
@@ -38558,6 +38600,89 @@ const rfSet = (P, asm, key, v) => {
   const [q, i] = key.split(':'), s = P.surfaces[+i];
   if (q === 'p') { const el = getEl(s.from.id); if (el && el.grin) rfGrinInto(P, +i, Object.assign({}, el.grin, { f: v > 1e-6 ? 1 / v : 1e6 }), el.length); return; }
   if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else P.gaps[+i] = v; };
+/* ---------- The merit function ----------
+   What Optimise works toward: terms, each a figure of the system measured at a frequency (or at each of the five across
+   the band), with a target, a sense (at least, at most, or equal to) and a weight. With no terms, the efficiency at each
+   of the five frequencies as high as it can be. A term's residual is its weight times its shortfall in its own scale (an
+   efficiency in hundredths, a decibel, a tenth of a degree, a hundredth of a wave, a millimetre), and the merit is the sum
+   of the squares of the residuals, the flatness term's and the boundaries'. */
+const RF_MERIT_OPS = {
+  EFF: { label: 'Efficiency (%)', sense: '>=', scale: 100, def: 100, band: true },
+  GAIN: { label: 'Gain (dBi)', sense: '>=', scale: 1, band: true, coll: true },
+  COUP: { label: 'Coupling (%)', sense: '>=', scale: 100, def: 100, band: true, coll: false },
+  TAPER: { label: 'Edge taper at the last lens (dB)', sense: '=', scale: 1, def: 11, band: true },
+  PHASE: { label: 'Phase error (λ RMS)', sense: '<=', scale: 0.01, def: 0.02, band: true },
+  SPILL: { label: 'Spillover on the way (dB)', sense: '<=', scale: 1, def: 0.1, band: true },
+  REFL: { label: 'Reflections (dB)', sense: '<=', scale: 1, def: 0.1, band: true },
+  SLL: { label: 'First sidelobe (dB)', sense: '<=', scale: 1, def: -20, coll: true },
+  HPBW: { label: 'Half-power beamwidth (°)', sense: '=', scale: 0.1, coll: true },
+  SQUINT: { label: 'Beam steered (°)', sense: '=', scale: 0.1, def: 0 },
+  SCAN: { label: 'Scan loss at the feed’s offset (dB)', sense: '<=', scale: 0.1, def: 0.5 },
+  WAIST: { label: 'Waist made (mm)', sense: '=', scale: 1, coll: false },
+  THK: { label: 'Centre thickness, the thickest lens (mm)', sense: '<=', scale: 1, def: 30, fixed: true },
+  FEED: { label: 'Feed to the first lens (mm)', sense: '=', scale: 1, fixed: true },
+  TRACK: { label: 'Feed to the last face (mm)', sense: '<=', scale: 1, fixed: true },
+};
+const RF_MERIT_SENSES = { '>=': 'at least', '<=': 'at most', '=': 'equal to' };
+function normRfMeritOps(list) {
+  return (Array.isArray(list) ? list : []).filter(o => o && RF_MERIT_OPS[o.op]).slice(0, 40).map(o => ({
+    op: o.op, ghz: o.ghz === null || o.ghz === undefined || o.ghz === '' || !isFinite(+o.ghz) ? null : Math.max(0.5, +o.ghz),
+    target: isFinite(+o.target) ? +o.target : (RF_MERIT_OPS[o.op].def || 0), weight: isFinite(+o.weight) && +o.weight >= 0 ? +o.weight : 1,
+    sense: RF_MERIT_SENSES[o.sense] ? o.sense : RF_MERIT_OPS[o.op].sense }));
+}
+/* a term's value from a system's trace t at one frequency (its pattern worked out once, when asked for) */
+function rfOpValue(op, t, asm, P, extra) {
+  switch (op) {
+    case 'EFF': return 100 * t.eff;
+    case 'GAIN': return t.gain !== undefined ? t.gain : 10 * Math.log10(Math.max(1e-12, t.eff));
+    case 'COUP': return 100 * (t.coupling !== undefined ? t.coupling : t.apEff);
+    case 'TAPER': { const ap = t.surf.filter(s => isFinite(s.semi) && s.kind !== 'stop'); return ap.length ? ap[ap.length - 1].taper : 0; }
+    case 'PHASE': return t.sigma / t.lam;
+    case 'SPILL': return -10 * Math.log10(Math.max(1e-12, t.spill));
+    case 'REFL': return -10 * Math.log10(Math.max(1e-12, t.refl));
+    case 'SLL': case 'HPBW': {
+      if (!t.apAt) return NaN;
+      if (!extra.pat) extra.pat = rfPattern(t.apAt, t.lam, 30, 181);
+      return op === 'SLL' ? (extra.pat.sidelobe === null ? -60 : extra.pat.sidelobe) : extra.pat.hpbw;
+    }
+    case 'SQUINT': return t.steer ? t.steer.squint : 0;
+    case 'SCAN': { if (!extra.ref) { const R = normRfCond(asm.rf); extra.ref = rfTrace(rfWithFeed(asm, R, { off: 0, aim: true, ang: 0 }), P, t.ghz, { steps: 2 }); } return rfFigOf(extra.ref) - rfFigOf(t); }
+    case 'WAIST': return t.waist ? t.waist.w : NaN;
+    case 'THK': { const sps = surfaceParts(P); let m = 0; P.parts.forEach((p, pi) => { if (p.kind === 'lens' || p.kind === 'grin') { const i0 = sps.findIndex(s => s.pi === pi); m = Math.max(m, P.gaps[i0] || 0); } }); return m; }
+    case 'FEED': return asm.rf.feed.d;
+    case 'TRACK': return asm.rf.feed.d + P.gaps.reduce((a, b) => a + b, 0);
+    default: return NaN;
+  }
+}
+const rfResidual = (o, v) => { const d = RF_MERIT_OPS[o.op], s = d.scale || 1; if (!isFinite(v)) return o.weight; return o.sense === '=' ? o.weight * (v - o.target) / s : o.sense === '>=' ? o.weight * Math.max(0, o.target - v) / s : o.weight * Math.max(0, v - o.target) / s; };
+/* the terms of a system c = { asm, P } against spec (its ops; none: the efficiency at each frequency as high as it can
+   be): each term's value and residual, with the efficiencies across the band */
+function rfMeritTerms(c, spec) {
+  const R = normRfCond(c.asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
+  const ops = normRfMeritOps(spec.ops), terms = [], traces = new Map();
+  const traceAt = f => { let t = traces.get(f); if (!t) { t = { t: rfTrace(c.asm, c.P, f, { steps: 2 }), x: {} }; traces.set(f, t); } return t; };
+  const effs = fs.map(f => { const t = traceAt(f).t; return isFinite(t.eff) ? t.eff : 0; });
+  const mean = effs.reduce((a, b) => a + b, 0) / effs.length;
+  const list = ops.length ? ops : [{ op: 'EFF', ghz: null, target: 100, weight: 1, sense: '>=' }];
+  list.forEach((o, j) => {
+    const d = RF_MERIT_OPS[o.op];
+    const at = o.ghz !== null ? [o.ghz] : d.band ? fs : [R.ghz];
+    for (const f of at) {
+      const T = d.fixed ? null : traceAt(f), v = d.fixed ? rfOpValue(o.op, null, c.asm, c.P, {}) : rfOpValue(o.op, T.t, c.asm, c.P, T.x);
+      terms.push({ j, op: o.op, ghz: f, value: v, target: o.target, weight: o.weight, sense: o.sense, r: rfResidual(o, v) });
+      if (d.fixed) break;
+    }
+  });
+  return { terms, effs, mean, ops: list, own: ops.length > 0 };
+}
+/* what the merit is made of, for the Merit tab: each term's share, the boundaries' */
+function rfMeritReport(asm, P, spec) {
+  const prob = rfOptProblem(asm, P, Object.assign({ keys: [] }, spec)), f = prob.res(prob.x0);
+  const tot = f.r.reduce((a, v) => a + v * v, 0) || 1, nT = f.terms.length;
+  const byOp = f.ops.map((o, j) => { const at = f.terms.filter(t => t.j === j); return { op: o.op, ghz: o.ghz, target: o.target, weight: o.weight, sense: o.sense, at: at.map(t => ({ ghz: t.ghz, value: t.value })), share: at.reduce((a, t) => a + t.r * t.r, 0) / tot }; });
+  const flatShare = f.r.slice(nT, nT + f.effs.length).reduce((a, v) => a + v * v, 0) / tot, boundShare = f.r.slice(nT + f.effs.length).reduce((a, v) => a + v * v, 0) / tot;
+  return { merit: Math.sqrt(tot === 1 && !f.r.length ? 0 : f.r.reduce((a, v) => a + v * v, 0)), ops: byOp, own: f.own, flatShare, boundShare, effs: f.effs, mean: f.mean };
+}
 function rfOptProblem(asm, P, spec) {
   const keys = spec.keys.slice(), sps = surfaceParts(P);
   const clone = () => ({ P: Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) }), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)) }) });
@@ -38565,10 +38690,7 @@ function rfOptProblem(asm, P, spec) {
   const x0 = keys.map(k => rfGet(P, asm, k));
   const at = x => { const c = clone(); keys.forEach((k, j) => rfSet(c.P, c.asm, k, x[j])); return c; };
   const res = x => {
-    const c = at(x), r = [];
-    const effs = fs.map(f => { const t = rfTrace(c.asm, c.P, f, { steps: 2 }); return isFinite(t.eff) ? t.eff : 0; });
-    effs.forEach(e => r.push(1 - e));
-    const mean = effs.reduce((a, b) => a + b, 0) / effs.length;
+    const c = at(x), M = rfMeritTerms(c, spec), r = M.terms.map(t => t.r), { effs, mean } = M;
     effs.forEach(e => r.push((spec.flat || 0) * (e - mean)));
     // the bounds: each lens's edge and centre, the air between parts, the feed's distance
     for (let i = 0; i < c.P.surfaces.length - 1; i++) {
@@ -38582,7 +38704,7 @@ function rfOptProblem(asm, P, spec) {
     r.push(10 * Math.max(0, 1 - c.asm.rf.feed.d) / 10);
     // a graded-index disc its focal length can't be graded for
     r.push(c.P.surfaces.some(s => s.grin && s.grin.bad) ? 1 : 0);
-    return { r, effs, mean };
+    return { r, effs, mean, terms: M.terms, ops: M.ops, own: M.own };
   };
   return { keys, x0, at, res, fs };
 }
@@ -45427,6 +45549,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    '<b>A merit function for the RF designer</b>: a <b>Merit</b> tab, as the optical designer has, where what Optimise works toward is a table of terms, each a figure of the system (efficiency, gain or coupling, edge taper, phase error, spillover, reflections, sidelobe, beamwidth, the beam steered, scan loss, a waist, a thickness, a distance) at one frequency or across the band, with a target, a sense and a weight, its value now and its share of the merit; the boundaries live there too. With no terms it is the efficiency across the band, as before.',
     '<b>The RF designer scans</b>: the feed horn can stand <b>off the axis</b>, aimed at the first lens, and the beam leaves steered the other way: the figures give its direction, the beam deviation factor and the scan loss against the feed on the axis, the layout shows the beam walking across the lenses, and <b>Analyses \u203a Scan</b> takes the feed round in steps. The beam\u2019s centre is followed through the system beside the Gaussian beam, so spillover and aperture efficiency are those of a beam off centre, and the phase error is that of the rays from where the feed stands. <b>Tolerance</b> takes errors across the axis too (a lens decentred or tilted, the feed moved across), says how far each turns the beam, and can refocus the feed for each build as a compensator.',
     'The RF designer has an <b>Element data</b> tab, as the optical designer has its element data: every surface in one table, from the feed horn to the goal, each radius, conic, thickness and material typed there, and the <b>V</b> beside a value marking it as a variable for <b>Optimise</b>, which now lists what it will vary.',
     'The File menu\u2019s two lens-file imports are one: <b>Import a lens (.zmx)\u2026</b>, whose dialog has a tick to open the file in the lens design workspace as an assembly to design.',

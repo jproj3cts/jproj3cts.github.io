@@ -252,3 +252,31 @@ test('tolerances across the axis, and the compensator: a decentred lens mostly s
   const run = () => { const p = RF.rfMcPlan(a, P, Object.assign({}, T, { comp: true })); while (!p.done) p.run(10); return p.builds; };
   assert.deepEqual(run(), run());
 });
+
+test('the merit function: no terms is the efficiency across the band; a term with a target, sense and weight is reported and optimised to', () => {
+  const B = C.rfBeam(feed, ghz), z = feed.d + B.dz, Rg = z * (1 + (B.zR / z) ** 2), n = C.RF_MAT.HDPE.n;
+  const { a, P } = system((n - 1) * Rg, -n * n, null, 0, 30, { kind: 'collimate', d: 300 });
+  // no terms: the residuals are 1 − efficiency at five frequencies, as the old merit was
+  const prob0 = RF.rfOptProblem(a, P, { keys: [], flat: 0, edgeMin: 1, tMax: 0 }), f0 = prob0.res(prob0.x0);
+  assert.equal(f0.terms.length, 5);
+  f0.terms.forEach((t, k) => assert.ok(t.op === 'EFF' && Math.abs(t.r - (1 - f0.effs[k])) < 1e-12));
+  const R0 = RF.rfMeritReport(a, P, { keys: [], ops: [] });
+  assert.ok(!R0.own && R0.ops.length === 1 && R0.ops[0].at.length === 5 && Math.abs(R0.ops[0].share + R0.boundShare - 1) < 1e-9);
+  // a term met exactly has no residual; one asked for more has its shortfall over its scale, weighted
+  const t = RF.rfTrace(a, P, ghz);
+  const ops = [{ op: 'GAIN', ghz, target: t.gain, weight: 2, sense: '>=' }, { op: 'TAPER', ghz, target: 5, weight: 1, sense: '=' }];
+  const R1 = RF.rfMeritReport(a, P, { keys: [], ops });
+  assert.ok(R1.own && Math.abs(R1.ops[0].share) < 1e-12 && R1.ops[1].share > 0.5, JSON.stringify(R1.ops.map(o => o.share)));
+  const pr = RF.rfOptProblem(a, P, { keys: [], ops: [{ op: 'GAIN', ghz, target: t.gain + 3, weight: 2, sense: '>=' }] }), fr = pr.res(pr.x0);
+  assert.ok(Math.abs(fr.terms[0].r - 2 * 3) < 1e-9, String(fr.terms[0].r));
+  // optimised to an edge taper of 14 dB with the feed distance free: the feed moves in until the taper is met
+  const taper = () => { const T = RF.rfTrace(a, P, ghz); return T.surf[T.surf.length - 1].taper; };
+  const t0 = taper();
+  const pr2 = RF.rfOptProblem(a, P, { keys: ['feed'], ops: [{ op: 'TAPER', ghz, target: 14, weight: 1, sense: '=' }] });
+  let st = RF.rfOptStart(pr2);
+  for (let i = 0; i < 100 && !st.done; i++) st = RF.rfOptStep(pr2, st);
+  const c = pr2.at(st.x), T2 = RF.rfTrace(c.asm, c.P, ghz), got = T2.surf[T2.surf.length - 1].taper;
+  assert.ok(Math.abs(got - 14) < 0.2 && Math.abs(t0 - 14) > 1, t0 + ' → ' + got);
+  // the senses: at most and equal to
+  assert.ok(RF.normRfMeritOps([{ op: 'PHASE', target: 0.05, sense: '<=' }])[0].sense === '<=' && RF.normRfMeritOps([{ op: 'NOPE' }]).length === 0);
+});

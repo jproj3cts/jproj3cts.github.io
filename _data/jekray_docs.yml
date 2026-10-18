@@ -187,5 +187,7 @@
   url: /jek/docs/jekray/part-packs/
 - title: Modules
   url: /jek/docs/jekray/modules/
+- title: Scripting and headless use
+  url: /jek/docs/jekray/scripting/
 - title: FAQ
   url: /jek/docs/jekray/faq/

@@ -113,23 +113,26 @@ function lensPanel(el) {
     }
     panel.append(rows);
     panel.append(coatingRows(el, s));
-    // the face mirrored: whole, a spot in the middle (a solid telescope's secondary) or an annulus (its primary, with a hole)
+    // the face's centre and its mirroring (state/elements.js normMirror): mirrored whole, as a spot (the centre) or as an
+    // annulus (the rim), and the centre with a shape of its own (a flat ground into the middle), mirrored or not
+    const m = s.mirror, own = !!(m && m.R !== undefined), zoned = !!(m && m.zone !== 'all');
+    const setM = patch => { const mm = Object.assign({}, m || {}, patch); if (mm.zone !== 'all' && !(mm.r > 0)) mm.r = Math.round(el.diameter / 6 * 10) / 10; s.mirror = normMirror(mm); if (!s.mirror) delete s.mirror; };
     const mrow = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-      selectField('Mirrored', [['none', 'Not mirrored'], ['all', 'Whole face'], ['in', 'A spot inside a radius'], ['out', 'Outside a radius (a hole in the middle)']],
-        () => (s.mirror ? s.mirror.zone : 'none'),
-        v => { if (v === 'none') delete s.mirror; else s.mirror = normMirror({ zone: v, r: s.mirror && s.mirror.r || Math.round(el.diameter / 6 * 10) / 10 }); }, { wide: !s.mirror || s.mirror.zone === 'all' }));
-    if (s.mirror && s.mirror.zone !== 'all') mrow.append(param('Zone radius (mm)', el, `surfaces.${i}.mirror.r`));
+      selectField('Mirrored', [['none', 'Not mirrored'], ['all', 'Whole face'], ['in', 'The centre (a spot)'], ['out', 'The rim (an annulus round a clear centre)']],
+        () => (m ? m.zone : 'none'),
+        v => { if (v === 'all') { s.mirror = { zone: 'all' }; } else setM({ zone: v }); }, { wide: !zoned }));
+    if (zoned) mrow.append(param('Centre radius (mm)', el, `surfaces.${i}.mirror.r`));
     panel.append(mrow);
-    if (s.mirror && s.mirror.zone !== 'all') {
-      // the spot or annulus as a surface of its own over the face's vertex (a solid telescope's secondary ground into its front)
-      const own = s.mirror.R !== undefined;
+    if (!m || zoned) {
+      // the centre as a surface of its own over the face's vertex: flat, or its own radius and conic
       const zrow = h('div', { class: 'rt-rows' },
-        selectField('Zone shape', [['face', 'The face\u2019s'], ['own', 'Its own radius and conic']], () => (own ? 'own' : 'face'),
-          v => { if (v === 'own') s.mirror = normMirror(Object.assign({}, s.mirror, { R: s.R, k: s.k })); else { const m = Object.assign({}, s.mirror); delete m.R; delete m.k; s.mirror = normMirror(m); } }, { wide: !own }));
-      if (own) { zrow.append(param('Zone radius of curvature (mm)', el, `surfaces.${i}.mirror.R`, { blank: null, placeholder: 'flat' })); zrow.append(param('Zone conic k', el, `surfaces.${i}.mirror.k`)); }
+        selectField('Centre shape', [['face', 'The face\u2019s'], ['flat', 'Flat'], ['own', 'Its own radius and conic']], () => (!own ? 'face' : m.R === null && !m.k ? 'flat' : 'own'),
+          v => { if (v === 'face') { if (m) { const mm = Object.assign({}, m); delete mm.R; delete mm.k; s.mirror = normMirror(mm); if (!s.mirror) delete s.mirror; } } else setM({ zone: m ? m.zone : 'none', R: v === 'flat' ? null : s.R, k: v === 'flat' ? 0 : s.k }); }, { wide: !own }));
+      if (own && !zoned) zrow.append(param('Centre radius (mm)', el, `surfaces.${i}.mirror.r`));
+      if (own && !(m.R === null && !m.k)) { zrow.append(param('Centre radius of curvature (mm)', el, `surfaces.${i}.mirror.R`, { blank: null, placeholder: 'flat' })); zrow.append(param('Centre conic k', el, `surfaces.${i}.mirror.k`)); }
       panel.append(zrow);
     }
-    if (s.mirror) panel.append(h('p', { class: 'note' }, 'Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. A back face mirrored whole is a Mangin mirror; a front spot and a back annulus make a solid telescope.'));
+    if (m && m.zone !== 'none') panel.append(h('p', { class: 'note' }, 'Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. A back face mirrored whole is a Mangin mirror; a front spot and a back annulus make a solid telescope.'));
 
     if (i < N - 1) {
       const m = el.materials[i];

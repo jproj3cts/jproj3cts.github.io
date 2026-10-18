@@ -44,6 +44,12 @@ export function surfaceParts(P) {
   return out;
 }
 /* what can be changed: a lens's or a mirror's radii; an asphere's or a mirror's conic and aspheric terms; any gap; a lens's glass (the gaps inside it) */
+/* the gap after surface i may be negative: air between parts (the next part behind this one), not glass, and not after a
+   mirror, where distances run along the light the mirror turns */
+export function gapMayBeNegative(P, i) {
+  const m = P.materials[i], s = P.surfaces[i];
+  return !!m && m.glass === 'AIR' && !(s && s.mirror) && i < P.surfaces.length - 1;
+}
 export function editable(P, q, i) {
   const sp = surfaceParts(P)[i], s = P.surfaces[i];
   if (!sp) return false;
@@ -124,7 +130,7 @@ export function setV(P, at, v) {
     partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0, u, at.q === 'X' && isFinite(v) ? v : x0);
   }
   else if (at.image) P.image = isFinite(v) ? v : P.image;
-  else if (isFinite(v)) P.gaps[at.i] = Math.max(0, v);
+  else if (isFinite(v)) P.gaps[at.i] = gapMayBeNegative(P, at.i) ? v : Math.max(0, v);
 }
 /* a surface's sag at height h in the plane of the fields (core/sag.js; NaN beyond a sphere's edge) */
 export const surfSag = sagInPlane;

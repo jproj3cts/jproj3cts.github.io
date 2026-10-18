@@ -89,8 +89,9 @@ test('which parts can be one: lenses and round stops on one axis, upright and no
   assert.equal(A.asmCheck(set).ok, true);
   by('L2').roll = 30;
   assert.match(A.asmCheck(set).why, /cylindrical/);
+  // parts may overlap along the axis (a negative gap in the design puts one behind the one before)
   delete by('L2').cyl; delete by('L2').roll; by('L3').x = 10;
-  assert.match(A.asmCheck(set).why, /overlaps/);
+  assert.equal(A.asmCheck(set).ok, true);
   by('L3').x = 16.493; by('S').angle = 90;
   assert.match(A.asmCheck(set).why, /faces another way/);
 });

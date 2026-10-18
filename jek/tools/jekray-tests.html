@@ -7184,7 +7184,7 @@ const TESTS = [
       const okSpot = !!st && st.count >= 4 && st.rms < 0.3;      // the rays inside the spot are blocked; the four outside it land
       J.makeAssembly(['Telescope']);
       const a = J.assemblies()[0], P = J.asmPrescription(a.name), efl = J.asmEfl(a.name);
-      const okP = P.surfaces.length === 4 && P.surfaces.map(s => !!s.mirror).join() === 'false,true,true,false' && P.surfaces[2].zown && P.surfaces[3].faceOwn && !P.surfaces[2].link && P.surfaces[0].obs === 16.5 && P.surfaces[3].semi === 6.5;
+      const okP = P.surfaces.length === 4 && P.surfaces.map(s => !!s.mirror).join() === 'false,true,true,false' && P.surfaces[2].zown && P.surfaces[3].zown && P.surfaces[1].faceOwn && !P.surfaces[2].link && P.surfaces[0].obs === 16.5 && P.surfaces[3].semi === 6.5;
       // the engine's first order follows the folds: a real, positive focal length
       const okB = isFinite(efl) && efl > 0 && efl < 100;
       // a Mangin mirror's light comes back: the lens folds the axis for the assembly

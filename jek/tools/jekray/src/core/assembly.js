@@ -1,3 +1,4 @@
+import { mirrorZ } from '../state/elements.js';
 import { clamp } from './constants.js';
 import { ffTurn } from './freeform.js';
 import { normOrder, normPh } from './diffractive.js';
@@ -377,13 +378,7 @@ export function asmCheck(els, opts) {
     const a = partAxis(e), t = Math.abs(angFrom(d, a)), tilt = Math.min(t, 180 - t);
     if (tilt > TILT_MAX + 1e-9) return { ok: false, why: name(e) + ' faces another way from the axis (by ' + (+tilt.toPrecision(3)) + '°): an assembly’s parts face along its axis, within ' + TILT_MAX + '°.' };
   }
-  // none overlapping along the axis, within each straight run
-  for (let i = 1; i < chain.length; i++) {
-    const p = chain[i - 1], c = chain[i];
-    if (asmKind(p.e) === 'mirror' || asmKind(c.e) === 'mirror' || lensFolds(p.e, p.d) || lensFolds(c.e, c.d)) continue;
-    const span = x => { const t = dot2([x.e.x - ref.x, x.e.y - ref.y], x.d), T = G0sum(x.e); return [t - T / 2, t + T / 2]; };
-    if (span(c)[0] < span(p)[1] - 1e-6) return { ok: false, why: name(c.e) + ' overlaps ' + name(p.e) + '.' };
-  }
+  // (parts may overlap along the axis: a negative gap in the design puts one behind the one before)
   const folded = chain.some(c => asmKind(c.e) === 'mirror' || lensFolds(c.e, c.d));
   return { ok: true, ref: ref.id, rev, order: chain.map(c => c.e.id), dirs: chain.map(c => c.d), folded };
 }
@@ -449,8 +444,8 @@ export function lensVisits(S2, G2) {
 }
 /* a bench lens as the light meets it (flip: against its own facing): whether it folds the axis, and where the light leaves it */
 export function lensFoldOf(e, flip) {
-  if (e.type !== 'lens' || !e.surfaces.some(s => s.mirror)) return null;
-  let S2 = e.surfaces.map((s, i) => ({ semi: s.semi || e.diameter / 2, mz: s.mirror, i })), G2 = e.gaps.slice();
+  if (e.type !== 'lens' || !e.surfaces.some(s => mirrorZ(s.mirror))) return null;
+  let S2 = e.surfaces.map((s, i) => ({ semi: s.semi || e.diameter / 2, mz: mirrorZ(s.mirror), i })), G2 = e.gaps.slice();
   if (flip) { S2 = S2.slice().reverse(); G2 = G2.slice().reverse(); }
   const V = lensVisits(S2, G2), zs = [0]; for (const g of G2) zs.push(zs[zs.length - 1] + g);
   return { folds: V.folds, exitAlong: zs[V.exit], inside: V.inside, T: zs[zs.length - 1] };
@@ -496,8 +491,9 @@ export function asmPrescription(asm, els) {
         S2 = e.surfaces.map((s, i) => ({ R: s.R, k: s.k, a2: s.a2, A: s.A.slice(), odd: s.odd ? s.odd.slice() : null, F: ffTurn(s.F, FF_SY_LENS, 1), ...(cl ? { cyl: cl } : {}),
           // a diffractive lens's faces carry their phase (all four terms, so each can be set), in its order
           ...(e.diffractive ? { ph: [0, 1, 2, 3].map(j => (s.ph && s.ph[j]) || 0), dm: normOrder(e.diffOrder) } : {}), semi: s.semi || e.diameter / 2, from: { id: e.id, i },
-          // a mirrored face: its zone, carried to each meeting of it
-          ...(s.mirror ? { mz: Object.assign({}, s.mirror) } : {}) }));
+          // a mirrored face: its zone, carried to each meeting of it; an unmirrored face's shaped centre: its own sag inside r
+          ...(mirrorZ(s.mirror) ? { mz: Object.assign({}, s.mirror) } : {}),
+          ...(s.mirror && s.mirror.zone === 'none' ? { cz: { r: s.mirror.r, R: s.mirror.R, k: s.mirror.k || 0 } } : {}) }));
         G2 = e.gaps.slice();
         // a graded lens's glass keeps its terms, and the step its rays take in it (as the bench's do); another's is plain
         M2 = e.materials.map(m => { const c = Object.assign({}, m); if (e.graded) { if (m.grad) c.grad = m.grad.slice(); c.gh = grH(e.diameter); } else delete c.grad; return c; });
@@ -510,23 +506,23 @@ export function asmPrescription(asm, els) {
         S2 = [0, 1].map(i => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi: e.size / 2, from: { id: e.id, i } }));
         G2 = [e.thickness]; M2 = [Object.assign({}, e.material)];
       }
-      if (flip) { S2 = S2.reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, from: s.from, ...(s.mz ? { mz: s.mz } : {}) })); G2.reverse(); M2.reverse(); }
+      if (flip) { S2 = S2.reverse().map(s => Object.assign(flipSurf(s), { semi: s.semi, from: s.from, ...(s.mz ? { mz: s.mz } : {}), ...(s.cz ? { cz: s.cz } : {}) })); G2.reverse(); M2.reverse(); }
       T = G2.reduce((u, v) => u + v, 0);
       // a lens with a mirrored face: its faces as the light meets them, each meeting an entry (lensVisits)
       if (kind === 'lens' && S2.some(s => s.mz)) {
-        // each face's shape belongs to the row first meeting the face proper (refracting, or mirrored whole); a spot or
-        // an annulus is a surface of its own over the same vertex, belonging to the row first meeting it; later rows link
+        // each face's shape belongs to the row first meeting its rim (or the whole face); its centre (a spot, or the hole in
+        // an annulus) is a surface of its own over the same vertex, belonging to the row first meeting it; later rows link
         const V = lensVisits(S2, G2), S3 = [], G3 = [], M3 = [], faceOwner = new Array(S2.length).fill(-1), zoneOwner = new Array(S2.length).fill(-1), gapOwner = new Array(Math.max(0, S2.length - 1)).fill(-1);
         V.visits.forEach((x, k) => {
           const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, full: base.semi, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j, fflip: flip !== flipped });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (x.obs > 0) s.obs = x.obs;
           if (x.role === 'mirror') s.mirror = true;
-          const zoned = x.role === 'mirror' && base.mz && base.mz.zone !== 'all';
+          const zoned = base.mz && base.mz.zone !== 'all' && (x.role === 'mirror') === (base.mz.zone === 'in');   // the row meeting the centre
           if (zoned) {
             if (zoneOwner[x.j] < 0) {
               zoneOwner[x.j] = S3.length; s.zown = true;
-              // the zone's own shape, or the face's until it is given one
+              // the centre's own shape, or the face's until it is given one
               const z = base.mz; if (z.R !== undefined) { const R0 = z.R === null ? null : (s.fflip ? -z.R : z.R); Object.assign(s, { R: R0, k: z.k || 0, a2: 0, A: [], odd: null, F: undefined, ph: undefined }); }
               else Object.assign(s, { a2: 0, A: [], odd: null, F: undefined, ph: undefined });
             } else s.link = { i: zoneOwner[x.j], flip: flipped !== S3[zoneOwner[x.j]].vflip };
@@ -536,7 +532,7 @@ export function asmPrescription(asm, els) {
           if (k) { const a = Math.min(V.visits[k - 1].j, x.j); G3.push(G2[a]); M3.push(Object.assign({}, M2[a])); if (gapOwner[a] < 0) { gapOwner[a] = S3.length - 1; S3[S3.length - 1].gidx = flip ? S2.length - 2 - a : a; } else S3[S3.length - 1].glink = gapOwner[a]; }
           S3.push(s);
         });
-        // a face only ever met as its zone lends the zone its shape
+        // a face only ever met at its centre lends the centre its shape
         S2.forEach((b, j) => { if (faceOwner[j] < 0 && zoneOwner[j] >= 0) { const s = S3[zoneOwner[j]]; s.faceOwn = true; s.zown = false; } });
         const zF = [0]; for (const g of G2) zF.push(zF[zF.length - 1] + g);
         S2 = S3; G2 = G3; M2 = M3; lensFold = V.folds ? { exitAlong: zF[V.exit], inside: V.inside } : null;
@@ -549,7 +545,7 @@ export function asmPrescription(asm, els) {
     // its own axis in the engine's frame, and its first vertex: the centre less half its thickness along it
     const g = [sb, st * cb, ct * cb];
     const tv = t - (T / 2) * g[2], ov = off - (T / 2) * g[1], ox = xc - (T / 2) * g[0];
-    if (idx) { gaps.push(Math.max(0, along + tv - lastAx)); materials.push({ glass: 'AIR' }); }
+    if (idx) { gaps.push(along + tv - lastAx); materials.push({ glass: 'AIR' }); }     // negative where a part sits behind the one before
     let cum = 0;
     const faceZ = [0]; if (lensFold || (kind === 'lens' && S2.some(s => s.link))) for (const g of (flip ? e.gaps.slice().reverse() : e.gaps)) faceZ.push(faceZ[faceZ.length - 1] + g);
     S2.forEach((s, k) => {
@@ -670,7 +666,8 @@ export function asmApply(asm, P, els) {
     // the first vertex on the bench: the axis point, then across by the decentre (in the bench's sense of y)
     const at = asmAxisAt(P, zs[k]), dz0 = s0.dec ? s0.dec[2] || 0 : 0;     // (along: a section's parent vertex before or past its centre)
     const base = [at.p[0] + hand * lperp(d)[0] * dec + d[0] * dz0, at.p[1] + hand * lperp(d)[1] * dec + d[1] * dz0];
-    const ax = rot2(d, hand * tilt), T = G.reduce((u, v) => u + v, 0), cb = Math.cos(tb);
+    // the part's thickness: its gaps (a lens with a mirrored face lists each gap once per crossing; its own are the first crossings')
+    const ax = rot2(d, hand * tilt), T = S.some(s => s.gidx !== undefined) ? S.reduce((u, s, q) => u + (s.gidx !== undefined && q < G.length ? G[q] : 0), 0) : G.reduce((u, v) => u + v, 0), cb = Math.cos(tb);
     // centre: the first vertex on along the part's own axis by half its thickness (its part in the plane, and up)
     const nx = base[0] + ax[0] * T / 2 * cb, ny = base[1] + ax[1] * T / 2 * cb;
     if (Math.hypot(nx - e.x, ny - e.y) > 1e-9) { e.x = nx; e.y = ny; }
@@ -711,7 +708,7 @@ export function asmApply(asm, P, els) {
             t.R = u.R === 0 || !isFinite(u.R) ? null : u.R; t.k = u.k; t.a2 = u.a2 || 0; t.A = (u.A || []).slice(); if (u.odd) t.odd = u.odd.slice(); else delete t.odd;
             const tF = ffTurn(u.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
             const tP = normPh(u.ph); if (tP) t.ph = tP; else delete t.ph;
-            const was = t.mirror; if (s.mz) { t.mirror = Object.assign({}, s.mz); if (was && was.R !== undefined && t.mirror.R === undefined) { t.mirror.R = was.R; t.mirror.k = was.k; } } else delete t.mirror;
+            const was = t.mirror; if (s.mz) { t.mirror = Object.assign({}, s.mz); if (was && was.R !== undefined && t.mirror.R === undefined) { t.mirror.R = was.R; t.mirror.k = was.k; } } else if (s.cz) t.mirror = { zone: 'none', r: s.cz.r, R: s.cz.R === undefined ? null : s.cz.R, k: s.cz.k || 0 }; else delete t.mirror;
             const semi = isFinite(s.full) ? s.full : s.semi;
             if (Math.abs(semi - e.diameter / 2) >= 1e-9) t.semi = semi; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
           }
@@ -731,8 +728,8 @@ export function asmApply(asm, P, els) {
           t.R = s.R === 0 || !isFinite(s.R) ? null : s.R; t.k = s.k; t.a2 = s.a2; t.A = s.A.slice(); if (s.odd) t.odd = s.odd.slice(); else delete t.odd;
           const tF = ffTurn(s.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
           const tP = normPh(s.ph); if (tP) t.ph = tP; else delete t.ph;
-          // the face mirrored, as the design has it
-          if (s.mz) t.mirror = Object.assign({}, s.mz); else delete t.mirror;
+          // the face mirrored, as the design has it, or its centre shaped (a flat in its middle)
+          if (s.mz) t.mirror = Object.assign({}, s.mz); else if (s.cz) t.mirror = { zone: 'none', r: s.cz.r, R: s.cz.R === undefined ? null : s.cz.R, k: s.cz.k || 0 }; else delete t.mirror;
           // a clear radius that is the lens's own stays unset (a mirrored face's meetings narrow theirs by the zone; the face keeps its own)
           const semi = s.mz && isFinite(s.full) ? s.full : s.semi;
           if (Math.abs(semi - e.diameter / 2) >= 1e-9) t.semi = semi;

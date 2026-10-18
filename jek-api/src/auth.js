@@ -13,6 +13,8 @@ import { createSession, currentUser } from './sessions.js';
 import { orcidLegacy, orcidOn } from './orcid.js';
 import { createUser } from './users.js';
 import { ApiError, cookie, newToken, now, sha256 } from './util.js';
+import { sendEmail } from './mail.js';
+import { readCapped } from './limits.js';
 
 const STATE_TTL = 600; // seconds
 const STATE_COOKIE = 'jek_oauth';
@@ -298,9 +300,138 @@ export async function callback(req, env, ctx, { provider: name }) {
 
 // DELETE /v1/me/identities/:provider — only while another way in remains.
 export async function unlink(req, env, ctx, { provider: name }, user) {
-  provider(name);
+  if (name !== 'email') provider(name);
   const { results } = await env.DB.prepare('SELECT provider FROM identities WHERE user_id = ?').bind(user.id).all();
   if (!results.some((r) => r.provider === name)) throw new ApiError(404, 'not_found', 'That sign-in is not linked.');
   if (results.length < 2) throw new ApiError(409, 'last_identity', 'Link another way to sign in before removing this one.');
   await env.DB.prepare('DELETE FROM identities WHERE user_id = ? AND provider = ?').bind(user.id, name).run();
+}
+
+// ---------- Sign-in with an email address, by a code sent to it ----------
+// For people whose university does not let them sign in with Microsoft, and
+// anyone without a Google or Microsoft account. The address, proved by the
+// code, is the identity's subject and the account's verified email. Codes are
+// 6 digits, last 15 minutes, allow 5 tries, and only their hash is kept; an
+// address gets 3 a day and a network address 20, over the per-address
+// sign-in limit (limits.js RL_AUTH).
+
+const EMAIL_CODE_MS = 15 * 60 * 1000;
+const EMAIL_MAX_TRIES = 5;
+const EMAIL_PER_ADDRESS = 3;
+const EMAIL_PER_IP = 20;
+const EMAIL_RE = /^[^\s@<>()",;:]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const emailCodeHash = (email, code) => sha256(`signin:${email}:${code}`);
+
+async function emailBody(req) {
+  const buf = await readCapped(req, 4096);
+  if (!buf) throw new ApiError(413, 'too_large', 'That is too much.');
+  try { return JSON.parse(new TextDecoder().decode(buf)) || {}; } catch (err) { throw new ApiError(400, 'bad_json', 'The body is not JSON.'); }
+}
+
+function signinEmail(code) {
+  const text = `Your JEKray sign-in code is ${code}\n\nType it into JEKray to sign in with this address. It lasts 15 minutes.\n\nIf you did not ask for it, ignore this email: nothing changes, and no one can sign in without the code.\n\nJEK Systems · support@jeksys.net`;
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#111;">
+<div style="max-width:520px;margin:0 auto;background:#fff;padding:28px;border:1px solid #e3e3e3;border-radius:2px;">
+<div style="height:4px;background:linear-gradient(90deg,#ffb347 0 20%,#f47742 20% 40%,#db3550 40% 60%,#73b9ca 60% 80%,#0092b2 80% 100%);margin-bottom:22px;"></div>
+<p style="margin:0 0 10px;font-size:15px;">Your JEKray sign-in code is</p>
+<p style="margin:0 0 18px;font:700 32px/1.2 'Courier New',monospace;letter-spacing:6px;">${code}</p>
+<p style="margin:0 0 12px;line-height:1.6;">Type it into JEKray to sign in with this address. It lasts 15 minutes.</p>
+<p style="margin:0 0 12px;line-height:1.6;color:#555;">If you did not ask for it, ignore this email: nothing changes, and no one can sign in without the code.</p>
+<p style="margin:20px 0 0;padding-top:14px;border-top:1px solid #e3e3e3;font-size:13px;color:#666;">JEK Systems &middot; <a href="mailto:support@jeksys.net" style="color:#0092b2;">support@jeksys.net</a></p>
+</div></body></html>`;
+  return { text, html };
+}
+
+// A name for a new account from its address: the part before @, words apart, capitalised.
+const nameFromEmail = (email) => email.split('@')[0].split(/[._\-+]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ').slice(0, 100) || 'JEKray user';
+
+// POST /auth/email/start  {email, link?} — sends a code; link: the signed-in account adds the address
+export async function emailStart(req, env, ctx) {
+  const body = await emailBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  if (email.length > 254 || !EMAIL_RE.test(email)) throw new ApiError(400, 'bad_email', 'That does not look like an email address.');
+  let linkUser = null;
+  if (body.link) {
+    const user = await currentUser(req, env, ctx);
+    if (!user) throw new ApiError(401, 'signed_out', 'Sign in first to link an address.');
+    linkUser = user.id;
+  }
+  const t = now();
+  const ipKey = 'ip:' + (await sha256(req.headers.get('CF-Connecting-IP') || 'unknown')).slice(0, 24);
+  const [byAddress, byIp] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS n FROM email_sends WHERE email = ? AND user_id = 'signin' AND at > ?").bind(email, t - DAY_MS).first(),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM email_sends WHERE email = ? AND user_id = 'signin' AND at > ?").bind(ipKey, t - DAY_MS).first(),
+  ]);
+  if (byAddress.n >= EMAIL_PER_ADDRESS || byIp.n >= EMAIL_PER_IP) {
+    throw new ApiError(429, 'too_many_codes', 'That is as many codes as we send in a day. Please try again tomorrow, or sign in another way.');
+  }
+  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+  await sendEmail(env, { to: email, subject: `Your JEKray sign-in code: ${code}`, ...signinEmail(code) });
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO signin_codes (email, code_hash, expires_at, tries, link_user) VALUES (?, ?, ?, 0, ?)
+       ON CONFLICT (email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, tries = 0, link_user = excluded.link_user`,
+    ).bind(email, await emailCodeHash(email, code), t + EMAIL_CODE_MS, linkUser),
+    env.DB.prepare("INSERT INTO email_sends (email, user_id, at) VALUES (?, 'signin', ?)").bind(email, t),
+    env.DB.prepare("INSERT INTO email_sends (email, user_id, at) VALUES (?, 'signin', ?)").bind(ipKey, t),
+  ]);
+  return { sent: true, email, expires_at: t + EMAIL_CODE_MS };
+}
+
+// POST /auth/email/code  {email, code} — the code typed in: a session (the cookie set on the
+// response), or the address linked to the signed-in account
+export async function emailCode(req, env, ctx) {
+  const body = await emailBody(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const code = String(body.code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(code)) throw new ApiError(400, 'bad_code', 'The code is the 6 digits in the email.');
+  const row = email ? await env.DB.prepare('SELECT code_hash, expires_at, tries, link_user FROM signin_codes WHERE email = ?').bind(email).first() : null;
+  if (!row) throw new ApiError(404, 'no_code', 'Ask for a code first.');
+  const t = now();
+  const drop = () => env.DB.prepare('DELETE FROM signin_codes WHERE email = ?').bind(email).run();
+  if (row.expires_at <= t) {
+    await drop();
+    throw new ApiError(410, 'code_expired', 'That code has run out. Ask for a new one.');
+  }
+  if ((await emailCodeHash(email, code)) !== row.code_hash) {
+    const tries = row.tries + 1;
+    if (tries >= EMAIL_MAX_TRIES) {
+      await drop();
+      throw new ApiError(429, 'too_many_tries', 'Too many wrong codes. Ask for a new one.');
+    }
+    await env.DB.prepare('UPDATE signin_codes SET tries = ? WHERE email = ?').bind(tries, email).run();
+    throw new ApiError(400, 'wrong_code', `That is not the code. ${EMAIL_MAX_TRIES - tries} ${EMAIL_MAX_TRIES - tries === 1 ? 'try' : 'tries'} left.`, { left: EMAIL_MAX_TRIES - tries });
+  }
+  await drop();
+  const found = await env.DB.prepare(
+    `SELECT u.id, u.deleted_at FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = 'email' AND i.subject = ?`,
+  ).bind(email).first();
+  if (row.link_user) {
+    // the address added to the account that asked for the code, which must still be the one signed in
+    const user = await currentUser(req, env, ctx);
+    if (!user || user.id !== row.link_user) throw new ApiError(401, 'signed_out', 'Sign in first to link an address.');
+    if (found && found.id !== user.id) throw new ApiError(409, 'taken', 'That address already signs in to another JEKray account.');
+    if (!found) await env.DB.prepare("INSERT INTO identities (provider, subject, user_id, created_at) VALUES ('email', ?, ?, ?)").bind(email, user.id, t).run();
+    await env.DB.prepare('UPDATE users SET email = COALESCE(email, ?) WHERE id = ?').bind(email, user.id).run();
+    return { linked: true, email };
+  }
+  if (found && found.deleted_at) throw new ApiError(410, 'gone', 'That account was deleted.');
+  let userId;
+  if (found) {
+    userId = found.id;
+    await env.DB.prepare('UPDATE users SET email = ? WHERE id = ?').bind(email, userId).run();
+  } else {
+    try {
+      const { user } = await createUser(env, { name: nameFromEmail(email), email, identity: { provider: 'email', subject: email } });
+      userId = user.id;
+    } catch (err) {
+      const again = await env.DB.prepare("SELECT user_id FROM identities WHERE provider = 'email' AND subject = ?").bind(email).first();
+      if (!again) throw err;
+      userId = again.user_id;
+    }
+  }
+  const session = await createSession(env, userId, req.headers.get('User-Agent'));
+  ctx.setCookie = session.cookie;
+  return { signed_in: true, email };
 }

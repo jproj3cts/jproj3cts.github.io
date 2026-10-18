@@ -41,7 +41,6 @@ export function cloudLink(link) {
   setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
-  document.getElementById('btnCloudCopy').hidden = !cloud || !cloudOn() || !copyPlaces(cloud.ws).length;
   leaseStart();
 }
 /* ---------- the editing lease ----------
@@ -841,7 +840,6 @@ export function cloudMenuShown() {
   fillRail();
   for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
   document.getElementById('btnCloudFork').hidden = !on || !cloud;
-  document.getElementById('btnCloudCopy').hidden = !on || !cloud || !copyPlaces(cloud.ws).length;
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
   if (!on) closeHome();
 }
@@ -874,28 +872,6 @@ export function wireCloud() {
         cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
         toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
       } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
-    });
-    // a copy of the open bench into another workspace: a fork there, and the work goes on in it
-    document.getElementById('btnCloudCopy').addEventListener('click', async () => {
-      if (!cloud) return;
-      const link = cloud, places = copyPlaces(link.ws);
-      if (!places.length) { toast('There is no other workspace to copy to', true); return; }
-      let pick = places[0];
-      if (places.length > 1) {
-        const n = parseInt(prompt('Copy to which workspace? Type its number:\n' + places.map((w, i) => (i + 1) + '. ' + placeName(w)).join('\n'), '1'), 10);
-        pick = places[n - 1];
-      }
-      if (!pick) return;
-      const name = prompt('Name of the copy in ' + placeName(pick), project.name || link.name);
-      if (name === null) return;
-      if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;
-      try {
-        const f = await api('/v1/benches/' + link.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: pick.id })));
-        setCloudOpening(true);
-        try { project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave(); } finally { setCloudOpening(false); }
-        cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
-        toast('Copied to ' + placeName(pick) + ': you are now working on “' + f.name + '” there. The original is as it was.');
-      } catch (err) { toast(err.status === 402 ? 'That workspace has no active plan.' : 'Could not copy: ' + err.message, true); }
     });
     document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
     document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());

@@ -11178,9 +11178,15 @@ async function runAll() {
   const t0 = performance.now();
   let pass = 0, fail = 0;
 
-  // ?only=text runs just the checks whose names hold it (for working on a few)
-  const only = (new URLSearchParams(location.search).get('only') || '').toLowerCase();
+  // ?only=text runs just the checks whose names hold it (for working on a few); ?groups=A|B just these groups
+  // (test/run.mjs picks them for the code a change touches); the results are left on window.__tt as well
+  const Q = new URLSearchParams(location.search), only = (Q.get('only') || '').toLowerCase(), groups = (Q.get('groups') || '').split('|').filter(Boolean);
+  const TT = { groups: {}, rows: [] }; window.__tt = TT;
+  let inGroup = '', tg0 = 0, ran = 0;
+  const closeGroup = () => { if (inGroup && ran) TT.groups[inGroup] = (TT.groups[inGroup] || 0) + performance.now() - tg0; ran = 0; };
   for (const t of TESTS) {
+    if (t.group) { closeGroup(); inGroup = t.group; tg0 = performance.now(); if (groups.length && !groups.includes(t.group)) continue; }
+    else if (groups.length && !groups.includes(inGroup)) continue;
     if (only && !t.group && !t.name.toLowerCase().includes(only)) continue;
     if (t.group) {
       const tr = document.createElement('tr');
@@ -11191,6 +11197,7 @@ async function runAll() {
       continue;
     }
     let got, err = null;
+    const tt0 = performance.now();
     try { got = await t.run(J); } catch (e) { err = e; got = NaN; }
     const want = t.wantFrom ? t.wantFrom() : t.want;
     const tol = t.rel ? Math.abs(want * t.tol) : t.tol;
@@ -11198,6 +11205,7 @@ async function runAll() {
     let note = t.extra ? t.extra() : '';
     if (note) ok = false;
     ok ? pass++ : fail++;
+    TT.rows.push({ group: inGroup, name: t.name, ok, ms: Math.round(performance.now() - tt0) }); ran++;
 
     const tr = document.createElement('tr');
     if (!ok) tr.className = 'failed';
@@ -11217,6 +11225,7 @@ async function runAll() {
     rows.append(tr);
   }
 
+  closeGroup();
   const ms = Math.round(performance.now() - t0);
   summary.textContent = fail ? `${fail} failed, ${pass} passed` : `all ${pass} checks passed`;
   summary.className = 'tt-summary ' + (fail ? 'fail' : 'pass');

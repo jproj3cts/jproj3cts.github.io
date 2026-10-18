@@ -5,6 +5,10 @@
   "scripts": {
     "build": "node build.mjs",
     "check": "node build.mjs --check",
-    "test": "node --test test/node/*.test.mjs"
+    "test": "node --test test/node/*.test.mjs",
+    "test:changed": "node test/run.mjs",
+    "test:areas": "node test/run.mjs --areas",
+    "test:full": "node test/run.mjs --full",
+    "test:list": "node test/run.mjs --list"
   }
 }

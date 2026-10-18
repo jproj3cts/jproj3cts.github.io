@@ -318,7 +318,7 @@ export async function unlink(req, env, ctx, { provider: name }, user) {
 
 const EMAIL_CODE_MS = 15 * 60 * 1000;
 const EMAIL_MAX_TRIES = 5;
-const EMAIL_PER_ADDRESS = 3;
+const EMAIL_PER_ADDRESS = 6;
 const EMAIL_PER_IP = 20;
 const EMAIL_RE = /^[^\s@<>()",;:]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;

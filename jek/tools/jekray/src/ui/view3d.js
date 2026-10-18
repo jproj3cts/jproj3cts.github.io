@@ -92,7 +92,7 @@ export const V3D = (() => {
     mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
     const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
     // Fly: a bird in flight
-    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Q and E to roll, Esc to land', () => flyStart());
+    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land', () => flyStart());
     flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
     flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
     // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
@@ -494,8 +494,8 @@ export const V3D = (() => {
         return g;
       }
       case 'chopper': {
-        // the wheel across the beam, a gap over the beam (shown open, as on the bench), its motor behind
-        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x2b3338);
+        // the wheel across the beam, black where it blocks, a gap over the beam (shown open, as on the bench), its motor behind
+        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x050505);
         const s = new T.Shape(); s.moveTo(0, 0);
         for (let k = 0; k < n; k++) { const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap; s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(0, 0); }
         const wheel = plateShape(s, 1, 1.5); wheel.translate(0, yc, 0);
@@ -1411,13 +1411,13 @@ export const V3D = (() => {
 
   /* ---------- fly: the bench full screen, flown through ----------
      W A S D (or the arrows) move the way the camera looks and across it, Space and Ctrl up and
-     down the picture, Q and E roll it left and right, Shift four times as fast; the mouse turns
+     down the picture, Shift four times as fast (no roll keys: a rolling picture made people queasy); the mouse turns
      the view about its own axes, as a pilot would; the wheel sets the speed. Landing levels it. The pointer is held to the canvas while
      flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
   let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
   const flyOk = () => true;                               // (part of the tool proper since 1.1)
   const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
-    KeyE: 'rollR', KeyQ: 'rollL', Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
+    Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
   // the camera's own axes, as it is turned now: it looks along its -z, its y is up the picture
   const flyAxis = (x, y, z) => new T.Vector3(x, y, z).applyQuaternion(fly.q);
   const flyDir = () => flyAxis(0, 0, -1);
@@ -1432,7 +1432,7 @@ export const V3D = (() => {
   function flyHintText() {
     if (!fly) return;
     const locked = document.pointerLockElement === D.cv;
-    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 Q / E: roll \u00b7 Space / Ctrl: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
+    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 Space / Ctrl: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
       (fly.speed >= 1000 ? +(fly.speed / 1000).toPrecision(2) + ' m' : Math.round(fly.speed) + ' mm') + '/s) \u00b7 Esc: land';
   }
   function flyLock() { try { const q = D.cv.requestPointerLock && D.cv.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) { /* no pointer lock: drag to look */ } }
@@ -1532,11 +1532,8 @@ export const V3D = (() => {
       .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
       .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))
       .addScaledVector(up, (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
-    // E rolls to the right, Q to the left, about the way it looks: 45 degrees a second
-    const roll = (K.has('rollL') ? 1 : 0) - (K.has('rollR') ? 1 : 0);
-    if (roll && dt > 0) flyRot(0, 0, 1, roll * Math.PI / 4 * dt);
-    if ((m.lengthSq() > 0 || roll) && dt > 0) {
-      if (m.lengthSq() > 0) R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
+    if (m.lengthSq() > 0 && dt > 0) {
+      R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
       flyLook(); need();
     }
     fly.raf = requestAnimationFrame(flyStep);

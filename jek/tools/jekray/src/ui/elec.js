@@ -244,12 +244,18 @@ function elecDrawExtras(el) {
     }
   });
 }
-/* the chopper: its blade across the beam (solid, dashed where the slots let light by) and its motor */
+/* the chopper: its blade across the beam (black where it blocks, open where the slots let light by,
+   a slot over the beam as on the bench, the slots its duty of each period) and its motor */
 function elecDrawChopper(el, sel) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 1.2 * k;
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 3 * k;
+  const P = 12 * k, open = clamp((el.duty || 50) / 100, 0.05, 0.95) * P;
+  ctx.fillStyle = '#000';
+  for (let y = -Math.ceil(L / P) * P + open / 2; y < L; y += P) {
+    const a = Math.max(-L, y), b = Math.min(L, y + P - open);
+    if (b > a) { pathLocal(f, [[-t, a], [t, a], [t, b], [-t, b]], true); ctx.fill(); }
+  }
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
-  ctx.fillStyle = 'rgba(200,205,210,0.18)'; ctx.fill();
-  ctx.setLineDash([5, 4]); ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
   pathLocal(f, [[-2.5, -L - CHOP_HUB], [2.5, -L - CHOP_HUB], [2.5, -L - 0.6], [-2.5, -L - 0.6]], true);
   ctx.fillStyle = bodyFill('#2b3338'); ctx.fill(); ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
 }

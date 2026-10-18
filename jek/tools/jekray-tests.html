@@ -6686,7 +6686,7 @@ const TESTS = [
   },
   {
     name: 'Fly mode flies the way the view looks',
-    why: 'the Michelson in 3D: Fly is offered with experimental features off (it is part of the tool); holding W moves the camera straight along the way it looks, the mouse turns it, holding E rolls the picture without moving the camera, and Esc lands with the view level again (1 when all hold)',
+    why: 'the Michelson in 3D: Fly is offered with experimental features off (it is part of the tool); holding W moves the camera straight along the way it looks, the mouse turns it, holding Q or E neither rolls the picture nor moves the camera (no roll keys), and Esc lands with the view level again (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
@@ -6702,16 +6702,15 @@ const TESTS = [
         V.flyTurn(200, 0);
         const c2 = V.camera(), l2 = c2.t.map((v, i) => v - c2.p[i]);
         const turned = Math.abs(Math.atan2(l2[1], l2[0]) - Math.atan2(look[1], look[0])) > 0.2;
-        // held until it has rolled (frames come slowly on a busy machine), 3 s at most
-        const upOf = () => V.camera().up, ang = (a, b) => Math.acos(Math.min(1, a.reduce((s, v, i) => s + v * b[i], 0)));
-        V.flyKey('KeyE', true); for (let i = 0; i < 60 && ang(upOf(), c2.up) <= 0.2; i++) await wait(50); V.flyKey('KeyE', false);
+        // held a while: Q and E do nothing now (a rolling picture made people queasy)
+        V.flyKey('KeyE', true); V.flyKey('KeyQ', true); await wait(400); V.flyKey('KeyE', false); V.flyKey('KeyQ', false);
         const c3 = V.camera(), still = Math.hypot(...c3.p.map((v, i) => v - c2.p[i])) < 1e-6;
-        const rolled = Math.acos(Math.min(1, c3.up.reduce((a, v, i) => a + v * c2.up[i], 0))) > 0.2;
+        const unrolled = Math.acos(Math.min(1, c3.up.reduce((a, v, i) => a + v * c2.up[i], 0))) < 1e-6;
         V.flyKey('Escape', true);
         // landed: the picture's across direction lies level again (its up has no roll)
         const c4 = V.camera(), lk = c4.t.map((v, i) => v - c4.p[i]), acr = [lk[1] * c4.up[2] - lk[2] * c4.up[1], lk[2] * c4.up[0] - lk[0] * c4.up[2], lk[0] * c4.up[1] - lk[1] * c4.up[0]];
         const level = Math.abs(acr[2]) / Math.hypot(...acr) < 1e-6;
-        return along && turned && still && rolled && level && !V.flying() ? 1 : 0;
+        return along && turned && still && unrolled && level && !V.flying() ? 1 : 0;
       } finally { V.fly(false); J.experimental(false); await V.set(false); }
     },
   },

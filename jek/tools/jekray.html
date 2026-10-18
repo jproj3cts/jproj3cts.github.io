@@ -17845,7 +17845,7 @@ const V3D = (() => {
     mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
     const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
     // Fly: a bird in flight
-    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Q and E to roll, Esc to land', () => flyStart());
+    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land', () => flyStart());
     flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
     flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
     // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
@@ -18247,8 +18247,8 @@ const V3D = (() => {
         return g;
       }
       case 'chopper': {
-        // the wheel across the beam, a gap over the beam (shown open, as on the bench), its motor behind
-        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x2b3338);
+        // the wheel across the beam, black where it blocks, a gap over the beam (shown open, as on the bench), its motor behind
+        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x050505);
         const s = new T.Shape(); s.moveTo(0, 0);
         for (let k = 0; k < n; k++) { const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap; s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(0, 0); }
         const wheel = plateShape(s, 1, 1.5); wheel.translate(0, yc, 0);
@@ -19164,13 +19164,13 @@ const V3D = (() => {
 
   /* ---------- fly: the bench full screen, flown through ----------
      W A S D (or the arrows) move the way the camera looks and across it, Space and Ctrl up and
-     down the picture, Q and E roll it left and right, Shift four times as fast; the mouse turns
+     down the picture, Shift four times as fast (no roll keys: a rolling picture made people queasy); the mouse turns
      the view about its own axes, as a pilot would; the wheel sets the speed. Landing levels it. The pointer is held to the canvas while
      flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
   let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
   const flyOk = () => true;                               // (part of the tool proper since 1.1)
   const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
-    KeyE: 'rollR', KeyQ: 'rollL', Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
+    Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
   // the camera's own axes, as it is turned now: it looks along its -z, its y is up the picture
   const flyAxis = (x, y, z) => new T.Vector3(x, y, z).applyQuaternion(fly.q);
   const flyDir = () => flyAxis(0, 0, -1);
@@ -19185,7 +19185,7 @@ const V3D = (() => {
   function flyHintText() {
     if (!fly) return;
     const locked = document.pointerLockElement === D.cv;
-    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 Q / E: roll \u00b7 Space / Ctrl: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
+    D.flyHint.textContent = 'Flying \u00b7 W A S D: move \u00b7 ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' \u00b7 Space / Ctrl: up, down \u00b7 Shift: faster \u00b7 Wheel: speed (' +
       (fly.speed >= 1000 ? +(fly.speed / 1000).toPrecision(2) + ' m' : Math.round(fly.speed) + ' mm') + '/s) \u00b7 Esc: land';
   }
   function flyLock() { try { const q = D.cv.requestPointerLock && D.cv.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) { /* no pointer lock: drag to look */ } }
@@ -19285,11 +19285,8 @@ const V3D = (() => {
       .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
       .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))
       .addScaledVector(up, (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
-    // E rolls to the right, Q to the left, about the way it looks: 45 degrees a second
-    const roll = (K.has('rollL') ? 1 : 0) - (K.has('rollR') ? 1 : 0);
-    if (roll && dt > 0) flyRot(0, 0, 1, roll * Math.PI / 4 * dt);
-    if ((m.lengthSq() > 0 || roll) && dt > 0) {
-      if (m.lengthSq() > 0) R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
+    if (m.lengthSq() > 0 && dt > 0) {
+      R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
       flyLook(); need();
     }
     fly.raf = requestAnimationFrame(flyStep);
@@ -20008,12 +20005,18 @@ function elecDrawExtras(el) {
     }
   });
 }
-/* the chopper: its blade across the beam (solid, dashed where the slots let light by) and its motor */
+/* the chopper: its blade across the beam (black where it blocks, open where the slots let light by,
+   a slot over the beam as on the bench, the slots its duty of each period) and its motor */
 function elecDrawChopper(el, sel) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 1.2 * k;
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 3 * k;
+  const P = 12 * k, open = clamp((el.duty || 50) / 100, 0.05, 0.95) * P;
+  ctx.fillStyle = '#000';
+  for (let y = -Math.ceil(L / P) * P + open / 2; y < L; y += P) {
+    const a = Math.max(-L, y), b = Math.min(L, y + P - open);
+    if (b > a) { pathLocal(f, [[-t, a], [t, a], [t, b], [-t, b]], true); ctx.fill(); }
+  }
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
-  ctx.fillStyle = 'rgba(200,205,210,0.18)'; ctx.fill();
-  ctx.setLineDash([5, 4]); ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
   pathLocal(f, [[-2.5, -L - CHOP_HUB], [2.5, -L - CHOP_HUB], [2.5, -L - 0.6], [-2.5, -L - 0.6]], true);
   ctx.fillStyle = bodyFill('#2b3338'); ctx.fill(); ctx.strokeStyle = sel ? selInk() : '#c8cdd2'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
 }
@@ -46240,6 +46243,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    '<b>Steadier flying, a plainer chopper</b>: Q and E no longer roll the view in Fly, a rolling picture having made people queasy; the optical chopper\u2019s blade is drawn black where it blocks the beam and open where its slots let light by (their share its duty), in 2D and 3D.',
     '<b>Brightness follows power</b>: a ray is drawn as bright as the power it carries to the 0.4, and a Gaussian beam\u2019s envelope fades with its share of the source\u2019s power, so the two arms of a polarising split are seen trading power as a waveplate turns (before, a beam kept nearly its full brightness down to a tenth of the power and then went out within a few degrees). A 4% ghost still shows at about a third of the brightness; a beam 40 dB down is a trace.',
     '<b>An RF design report</b>: <b>Report (PDF)</b> in the RF designer writes the design as one PDF to hand on, as the optical designer\u2019s does: its conditions and figures, the layout and where the power goes, Element data with the merit and configurations, its analyses, tolerances and sensitivity, what can be made, and each lens\u2019s drawing.',
     '<b>Four more RF analyses</b>: a <b>phase map</b> of the wavefront error over the beam; the <b>cross-polar</b> field the system makes, followed ray by ray from a balanced horn through each face\u2019s Fresnel amplitudes and each mirror\u2019s reflection (a lens\u2019s from its faces, an offset reflector\u2019s from its geometry); the <b>beam to the goal</b>, its radius along the way and where its waist falls; and the design over <b>temperature</b>, each lens grown by its plastic\u2019s expansion and the air by the housing\u2019s, with the feed refocused or not.',

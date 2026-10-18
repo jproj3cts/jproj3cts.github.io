@@ -9284,7 +9284,7 @@ const TESTS = [
   },
   {
     name: 'RF designer: a lens cut in zones is thinner, the same at its zone frequency, and drawn and quoted as cut',
-    why: 'the new design\u2019s lens designed 200 mm across for an 11 dB edge and cut in zones: at 24 GHz its steps are 19.4 mm deep (a wave in PLA), it is under 25 mm at its thickest (40 smooth), its phase error none at 24 GHz but more at the band\u2019s edges; Make it lists its zones, its drawing says where it is cut, its quote says it is zoned; unticked it is whole again (1 when all hold)',
+    why: 'the new design\u2019s lens designed 200 mm across for an 11 dB edge and cut in zones: at 24 GHz its steps are 19.4 mm deep (a wave in PLA), it is under 25 mm at its thickest (40 smooth), its phase error at 24 GHz small (the zones\u2019 own defocus, traced as cut) but more at the band\u2019s edges, and its steps\u2019 shadow counted; Make it lists its zones, its drawing says where it is cut, its quote says it is zoned; unticked it is whole again (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), CART = 'JEK_QUOTE_CART';
@@ -9308,7 +9308,7 @@ const TESTS = [
         tab('Lenses');
         const zt = ws().querySelector('.rt-rfzone').textContent, m = /each ([\d.]+) mm deep.*; ([\d.]+) mm at its thickest/.exec(zt);
         const steps = !!m && Math.abs(+m[1] - 0.299792458 * 1000 / 24 / (1.643 - 1)) < 0.05 && +m[2] < 25;
-        const fig = ws().querySelector('.rt-lfig').textContent, pe = /Phase error([\d.e+-]+) λ/.exec(fig), flatAt = !!pe && +pe[1] < 1e-4;
+        const fig = ws().querySelector('.rt-lfig').textContent, pe = /Phase error([\d.e+-]+) λ/.exec(fig), flatAt = !!pe && +pe[1] < 0.05 && /Steps’ shadow/.test(fig);
         tab('Analyses');
         const edgeSlip = /Phase error/.test(ws().textContent);
         tab('Make it');

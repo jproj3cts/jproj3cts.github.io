@@ -84,27 +84,33 @@ export function rfAberr(P, S, Rin, Rout, w, lam, zones) {
   const N = S.N, semi = Math.min(...P.surfaces.map(s => s.semi > 0 && isFinite(s.semi) ? s.semi : Infinity)), a = isFinite(semi) ? semi : 3 * w;
   const zL = S.z[N - 1], src = isFinite(Rin) && Rin > 0 && Rin < 1e7 ? Rin : null, tgt = isFinite(Rout) && Rout < 0 && -Rout < 1e7 ? zL - Rout : null;
   const hs = [], ws = [], W = [], R = new Float64Array(8);
+  let wAll = 0, wLost = 0;
   for (let k = 0; k < 32; k++) {
     const h = a * (k + 0.5) / 32;
     if (src) { const L = Math.hypot(h, src); R.set([0, 0, -src, 0, h / L, src / L, 0, 0]); }
     else R.set([0, h, -1, 0, 0, 1, 0, 0]);
-    const rec = zones && zones.length ? [] : null;
+    const rec = zones && zones.length ? [] : null, wq = h * Math.exp(-2 * h * h / (w * w));
     traceRay(S, R, 0, N - 1, true, rec);
+    wAll += wq;
+    // a zoned lens's cut face is traced as cut (lens-engine.js sag): a ray that runs into a step's wall is lost, the step's shadow
+    if (R[7] > 0 && zones && zones.some(({ i, Z }) => R[7] === 1 + i + Z.face)) { wLost += wq; continue; }
     if (R[7] || !isFinite(R[6])) continue;
     let opl = R[6];
-    // a zoned lens: its whole layers k λz taken out where the ray met it, less the whole waves at λ they come to
-    if (rec) for (const { i, Z } of zones) { const at = rec[i] && rec[i].at; if (!at) continue; const kl = Z.k(Math.hypot(at[0], at[1])) * Z.lam; opl -= kl - lam * Math.round(kl / lam); }
+    // its path through the cut face is short by the whole layers k λz taken out where the ray met it: the whole waves at λ
+    // they come to are no error, what is left of them is the phase slip away from the zone frequency
+    if (rec) for (const { i, Z } of zones) { const at = rec[i + Z.face] && rec[i + Z.face].at; if (!at) continue; opl += lam * Math.round(Z.k(Math.hypot(at[0], at[1])) * Z.lam / lam); }
     if (tgt !== null) opl += Math.hypot(R[1], tgt - R[2]) * S.n[N]; else opl += (zL + 1 - R[2]) / R[5] * S.n[N];
     hs.push(h); ws.push(h * Math.exp(-2 * h * h / (w * w))); W.push(opl);
   }
-  if (hs.length < 4) return { sigma: 0, eff: 1 };
+  const shadow = wAll > 0 ? 1 - wLost / wAll : 1;
+  if (hs.length < 4) return { sigma: 0, eff: 1, shadow };
   // weighted least squares: W ≈ c0 + c2 h²
   let s0 = 0, s1 = 0, s2 = 0, t0 = 0, t1 = 0;
   hs.forEach((h, k) => { const u = h * h, q = ws[k]; s0 += q; s1 += q * u; s2 += q * u * u; t0 += q * W[k]; t1 += q * u * W[k]; });
   const det = s0 * s2 - s1 * s1, c2 = det ? (s0 * t1 - s1 * t0) / det : 0, c0 = (t0 - c2 * s1) / s0;
   let v = 0; hs.forEach((h, k) => { const e = W[k] - c0 - c2 * h * h; v += ws[k] * e * e; });
   const sigma = Math.sqrt(v / s0);
-  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)) };
+  return { sigma, eff: Math.exp(-((2 * Math.PI * sigma / lam) ** 2)), shadow };
 }
 /* the system at one frequency: the beam followed from the feed horn's aperture to the goal's plane, sampled
    along the unfolded axis (z from the first vertex, w the beam's radius); at each surface its radius, the
@@ -183,15 +189,17 @@ export function rfTrace(asm, P, ghz, opts) {
   for (const s of apert) byPart.set(s.pi, Math.max(byPart.get(s.pi) || 0, s.spill));
   for (const [pi, sp] of byPart) if (!(g.kind === 'collimate' && pi === lastPi)) spill *= 1 - sp;
   // the phase error beyond first order, from real rays (not when asked for the beam alone)
-  const ab = opts.noAberr ? { sigma: 0, eff: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones);
-  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff };
+  // the zoned lenses' cut faces, for the rays (lens-engine.js sag): the face's steps, a wave of path deep, cut back into the lens
+  if (zones.length) { S.zone = new Array(N); for (const { i, Z } of zones) if (Z.steps.length) S.zone[i + Z.face] = { k: Z.k, dz: Z.dz, steps: Z.steps, sg: Z.face === 0 ? 1 : -1 }; }
+  const ab = opts.noAberr ? { sigma: 0, eff: 1, shadow: 1 } : rfAberr(P, S, surf[0].R, out.R, surf[0].w, lam, zones);
+  const res = { ghz, lam, samples, surf, faces, lenses, out, zL, zEnd, feed: B, g: H.g, refl, absorb, spill, sigma: ab.sigma, phaseEff: ab.eff, shadow: ab.shadow };
   if (g.kind === 'collimate') {
     const last = apert[apert.length - 1], a = last ? last.semi : out.w * 1.5;
     // the field at the last lens: the beam leaving it, its radius and curvature there
     const wl = beamOf(q, lam).w, Rl = out.R;
     res.apEff = apertureEff(a, wl, Rl, lam);
     res.D = 2 * a; res.apAt = { a, w: wl, R: Rl };
-    res.eff = H.g * refl * absorb * spill * res.apEff * ab.eff;
+    res.eff = H.g * refl * absorb * spill * res.apEff * ab.eff * ab.shadow;
     res.gain = 10 * Math.log10(res.eff * (Math.PI * 2 * a / lam) ** 2);
     res.waist = { w: Math.sqrt(lam * out.zR / Math.PI), at: -out.z };
     res.theta = Math.atan(lam / (Math.PI * res.waist.w)) / Math.PI * 180;
@@ -202,7 +210,7 @@ export function rfTrace(asm, P, ghz, opts) {
     res.waist = { w: Math.sqrt(lam * out.zR / Math.PI), at: -out.z };
     res.target = { w: wt, at: zEnd - zL };
     res.gRx = g.kind === 'couple' ? (RF_HORNS[g.rx.kind] || RF_HORNS.corrugated).g : 1;
-    res.eff = H.g * refl * absorb * spill * res.coupling * res.gRx * ab.eff;
+    res.eff = H.g * refl * absorb * spill * res.coupling * res.gRx * ab.eff * ab.shadow;
   }
   return res;
 }

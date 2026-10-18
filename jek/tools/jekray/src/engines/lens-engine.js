@@ -3,6 +3,7 @@ import { ffGrad, ffList, ffSag } from '../core/freeform.js';
 import { GR_REACH, grDelta, grMatrix, grSlopeOverR, grStep } from '../core/gradient.js';
 import { refIndex } from '../core/glass.js';
 import { sagR2 } from '../core/sag.js';
+import { zoneHit } from '../core/geometry.js';
 import { dot3 } from '../core/numeric.js';
 
 /* ==========================================================================
@@ -162,7 +163,17 @@ export function paraxialOf(S) {
 // a diffractive face's power at the system's wavelength (0 for any other)
 const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
-const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true);
+/* the sag; a zoned RF lens's cut face (S.zone[i], as the RF designer sets it: core/rf.js lensZones) is the smooth face stepped
+   back by the whole layers taken out at that radius, each step a sheer wall, as the bench traces it (core/geometry.js) */
+const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true) + (S.zone && S.zone[i] ? S.zone[i].sg * S.zone[i].k(Math.sqrt(r2)) * S.zone[i].dz : 0);
+/* a ray at a zoned face: where it meets the face along its line (the bench's own search, its steps splitting it), or null
+   where it runs into a step's wall and is lost; t from (x, y, z) along (L, M, N), the face's vertex at zi */
+function zoneMeet(S, i, x, y, z, L, M, Nn, zi) {
+  const Z = S.zone[i], sz = { c: S.c[i], k: S.k[i], a2: S.a2[i], A: S.A[i], odd: S.odd[i], zone: Z };
+  const reach = (Z.k(0) + 1) * Z.dz + Math.abs(sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], S.semi[i] * S.semi[i], true)) + 1, tv = (zi - z) / Nn;
+  const H = zoneHit(sz, z - zi, x, y, Nn, L, M, tv - reach / Math.abs(Nn), tv + reach / Math.abs(Nn));
+  return H && !H.wall ? H.t : null;
+}
 /* d sag / d rho, divided by rho (finite on the axis) */
 function dsagOverR(S, i, r2) {
   const c = S.c[i];
@@ -243,9 +254,10 @@ export function traceRay(S, R, i0, i1, noClip, rec) {
     F = S.fr ? S.fr[i] : null;
     if (F) local();
     const ni = S.n[i], zi = F ? 0 : S.z[i];
-    // to the vertex plane, then Newton along the ray onto the surface
+    // to the vertex plane, then Newton along the ray onto the surface (a zoned face: searched with its steps; at a wall the ray is lost)
     let t = (zi - z) / Nn, ok = false;
-    for (let it = 0; it < 40; it++) {
+    if (S.zone && S.zone[i]) { const tz = zoneMeet(S, i, x, y, z, L, M, Nn, zi); if (tz === null) return stop(1 + i); t = tz; ok = true; }
+    else for (let it = 0; it < 40; it++) {
       // a cylinder's sag goes with one coordinate alone: y (curved in the plane of the fields) or x (out of it)
       const cl = S.cyl ? S.cyl[i] : 0, X = x + L * t, Y = y + M * t, Z = z + Nn * t, r2 = cl === 1 ? Y * Y : cl === 2 ? X * X : X * X + Y * Y, FF = S.FL && S.FL[i];
       let f = Z - zi - sag(S, i, r2), d = Nn - dsagOverR(S, i, r2) * (cl === 1 ? Y * M : cl === 2 ? X * L : X * L + Y * M);

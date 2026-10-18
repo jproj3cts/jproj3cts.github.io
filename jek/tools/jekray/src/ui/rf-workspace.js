@@ -417,7 +417,8 @@ function rwFigures(asm, T) {
     row('Reflections', rwDb(m.refl), 'From every face: matched faces through their layer at each frequency'),
     row('Absorption', rwDb(m.absorb), 'In the lenses’ plastic, over the beam’s profile'),
     row('Spillover', rwDb(m.spill), 'Past the apertures on the way' + (R.goal.kind === 'collimate' ? ' (the last lens’s own is in its aperture efficiency)' : '')),
-    row('Phase error', rwFmt(m.sigma / m.lam, 2) + ' λ RMS (' + rwDb(m.phaseEff) + ')', 'What the faces add beyond the Gaussian beam’s first order, from real rays: its RMS over the beam, and its loss exp(−(2πσ/λ)²)'));
+    row('Phase error', rwFmt(m.sigma / m.lam, 2) + ' λ RMS (' + rwDb(m.phaseEff) + ')', 'What the faces add beyond the Gaussian beam’s first order, from real rays: its RMS over the beam, and its loss exp(−(2πσ/λ)²)'),
+    ...(m.shadow < 1 ? [row('Steps’ shadow', rwDb(m.shadow), 'The share of the beam that runs into a zoned lens’s step walls and is lost, from real rays')] : []));
   return h('div', { class: 'rt-lfig' }, ...items);
 }
 function rwTabs() {
@@ -717,6 +718,7 @@ function rwAnaCard(asm, P, T) {
     for (const f of m.faces) { const sp = surfaceParts(P)[f.i], el = getEl(P.parts[sp.pi].id); rows.push(['Reflection, ' + (el ? el.name : 'face') + (sp.j === 0 ? ' front' : ' back') + (f.matched ? ' (matched)' : ''), 1 - f.R]); }
     for (const l of m.lenses) { const el = getEl(P.parts[surfaceParts(P)[l.i].pi].id); rows.push(['Absorption, ' + (el ? el.name : 'lens') + ' (' + l.mat + ')', l.T]); }
     rows.push(['Spillover on the way', m.spill], ['Phase error, ' + rwFmt(m.sigma / m.lam, 2) + ' λ RMS', m.phaseEff]);
+    if (m.shadow < 1) rows.push(['Shadow of the zones’ steps', m.shadow]);
     if (coll) rows.push(['Aperture efficiency of the last lens', m.apEff]);
     else { rows.push(['Coupling to the goal’s beam', m.coupling]); if (R.goal.kind === 'couple') rows.push(['Receiving horn: the share its mode takes', m.gRx]); }
     rows.push(['All of it', m.eff]);

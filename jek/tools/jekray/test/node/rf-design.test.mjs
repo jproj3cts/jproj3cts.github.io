@@ -185,11 +185,13 @@ test('a zoned lens: steps a wave deep, thinner, the same at its zone frequency a
   assert.ok(Math.abs(Z.dz * (n - 1) - lam) < 1e-12);
   assert.ok(Z.steps.length >= 1 && Z.t(0) < t);
   for (let r = 0; r <= 100; r += 0.5) assert.ok(Z.t(r) >= Z.tMin - 1e-9 && Z.t(r) < Z.tMin + Z.dz + 1e-9, 'r ' + r);
-  // at its zone frequency the beam is the smooth lens's, its phase error none, and it absorbs less
+  // at its zone frequency the beam is the smooth lens's and it absorbs less; traced as cut, its steps' walls shadow a share of the
+  // beam and each zone (the smooth face moved back a step) defocuses its rays a little, where the smooth lens has no error
   const a1 = RF.rfTrace(zz.a, zz.P, ghz);
-  assert.ok(Math.abs(a0.apEff - a1.apEff) < 1e-12 && Math.abs(a1.sigma - a0.sigma) < 1e-6 * lam && a1.absorb > a0.absorb + 0.05, JSON.stringify([a0.apEff, a1.apEff, a0.sigma, a1.sigma, a0.absorb, a1.absorb]));
+  assert.ok(Math.abs(a0.apEff - a1.apEff) < 1e-12 && a1.absorb > a0.absorb + 0.05, JSON.stringify([a0.apEff, a1.apEff, a0.absorb, a1.absorb]));
+  assert.ok(a0.sigma < 1e-6 * lam && a0.shadow === 1 && a1.sigma / lam > 0.005 && a1.sigma / lam < 0.05 && a1.shadow < 0.99 && a1.shadow > 0.85, JSON.stringify([a0.sigma, a1.sigma / lam, a1.shadow]));
   // away from it each step slips the phase: an error that grows with the distance from it, and none for the smooth lens
   const e = f => RF.rfTrace(zz.a, zz.P, f).sigma / RF.rfTrace(zz.a, zz.P, f).lam;
-  assert.ok(e(22) > 0.01 && e(20) > e(22) && e(26) > 0.01 && e(28) > e(26), [e(20), e(22), e(26), e(28)].join(', '));
+  assert.ok(e(22) > 0.01 && e(20) > e(22) && e(26) > e(24) && e(28) > e(26), [e(20), e(22), e(24), e(26), e(28)].join(', '));
   assert.ok(s20.sigma / s20.lam < 1e-3);
 });

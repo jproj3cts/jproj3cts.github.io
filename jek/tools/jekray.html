@@ -7998,6 +7998,9 @@ const FIBRE = {
       core: Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
       na: clamp(num(e.na, 0.12), 0.01, 0.9),
       emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
+      // what the light it sends out is drawn and worked out as, as a source's ticks: the ray fan, the Gaussian beam (its field)
+      ...(e.emitTraceRays === false ? { emitTraceRays: false } : {}),
+      ...(e.emitGauss === false ? { emitGauss: false } : {}),
       ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
       mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
       // how the field of the beam it sends out is worked out, as a source's
@@ -8010,7 +8013,7 @@ const FIBRE = {
     what: 'A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out.',
     angle: 'the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.',
     fields: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
-    emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
+    emitRays: 'rays in the fan it sends out, 0 to 51.', emitTraceRays: 'false: no ray fan is traced from it (the Gaussian beam still is).', emitGauss: 'false: no Gaussian beam or field is propagated from it, rays only (nothing downstream can then couple or interfere with its light).', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
     popN: 'grid points for the field of the beam it sends out: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d" (always 2D, with polarisation).',
     mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
   },
@@ -15804,8 +15807,8 @@ function tipSources(net) {
           x: tip.x, y: tip.y, ...(tip.z !== undefined ? { z: tip.z } : {}), ...(tip.tip ? { tip: tip.tip } : {}), ...(tip.roll ? { roll: tip.roll } : {}), angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
           // single mode: the fibre's mode; multimode: a filled core, waist the core's radius
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
-          gauss: true, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
-          m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
+          gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
+          m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitTraceRays !== false && tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
           popN: tip.popN || 256, popModel: tip.popModel || 'auto', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
           // a pulsed fibre laser's pulse, chirped by the fibres it came through
@@ -21233,14 +21236,26 @@ function fibrePanel(el) {
     }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
     param('Ferrule face (mm)', el, 'length', { wide: true })));
+  // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
   panel.append(h('h3', null, 'Light from the fibre network'));
-  panel.append(h('div', { class: 'rt-rows' },
+  const tick = (key, label) => {
+    const c = h('input', { type: 'checkbox' });
+    c.checked = el[key] !== false;
+    c.addEventListener('change', () => { checkpoint(); if (c.checked) delete el[key]; else el[key] = false; changed(true); });
+    return h('label', { class: 'rt-check' }, c, label);
+  };
+  panel.append(tick('emitTraceRays', 'Trace the ray fan'));
+  if (el.emitTraceRays !== false) panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
     param('Rays', el, 'emitRays'),
     // across the beam: the line of the 2D bench, or up and down it too (in 3D), as a source's
-    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true }),
+    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true })));
+  panel.append(tick('emitGauss', 'Propagate a Gaussian beam along the axis'));
+  if (el.emitGauss !== false) panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
     // its beam's diffracted field, worked out as a source's is
     selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel || 'auto', v => { el.popModel = v; }),
     selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
+  else panel.append(h('p', { class: 'note' }, 'Rays only: with no Gaussian beam, nothing downstream can couple into a fibre, read a field or interfere with this light.'));
+  if (el.emitTraceRays === false && el.emitGauss === false) panel.append(h('p', { class: 'note' }, 'Nothing leaves the tip: tick the ray fan, the Gaussian beam, or both.'));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
@@ -46462,6 +46477,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Fibre tips</b> have a source\u2019s two ticks for the light they send out: <b>Trace the ray fan</b> and <b>Propagate a Gaussian beam</b>, each with its settings under it, so a tip can show rays alone or a beam alone.',
     '<b>Scripts on the bench</b> (JEKrayPro): <b>File \u203a Scripts\u2026</b> opens an editor where JavaScript runs against the bench with the documented calls: read a screen or a detector, move a part and read again, sweep a parameter to a table saved as CSV, or check a figure. Scripts are kept in this browser by name, or as .js files; Undo puts the bench back after a run.',
     '<b>A JEKray account of your own</b>: sign in with an email address and a password, beside Google and Microsoft, for anyone whose university does not let them sign in with Microsoft (the \u201cNeed admin approval\u201d page) or who has neither account. New here, or forgotten the password? Ask for a 6-digit code by email, type it, and you are in, choosing a password as you go if you like; set, change or remove it on your account page. Passwords are kept only as salted hashes, and ten wrong ones lock the address for a quarter of an hour. Someone already signed in links an address from the account menu, and a university address counts for its licence and the academic price as before.',
     '<b>Names</b>: the lens design workspace is the <b>Optical designer</b> (it designs mirrors, windows and stops as well as lenses), a part is opened in it with <b>Design as an assembly\u2026</b> and an RF part with <b>Design as an RF assembly\u2026</b>, and the .zmx menu items read <b>Import an element</b> and <b>Export an element</b>. <b>Element data</b>: <b>Insert a surface</b> offers the kind of surface (flat, spherical, conic, freeform, diffractive, graded glass), <b>Duplicate surface type</b> repeats the selected one\u2019s kind, and <b>Insert an element</b> offers the bench\u2019s asphere, diffractive lens, GRIN rod lens and cylindrical lens as well as a singlet. <b>Experimental features</b> are part of JEKrayPro.',

@@ -18,6 +18,9 @@ import {
 } from './account.js';
 import { keepSnapshot, scheduleSave } from './autosave.js';
 import { newProject, openZmx } from '../ui/tours.js';
+import { newLensDesign } from '../ui/assembly.js';
+import { newRfDesign } from '../ui/rf-workspace.js';
+import { openCoatDesign } from '../ui/coat-workspace.js';
 
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
@@ -171,9 +174,10 @@ async function cloudSave() {
 /* A bench put in the cloud, in My benches or in a team the person can edit in (and in the folder shown,
    when made from My benches' page there), then linked and saving there: what is on the bench (Save to
    cloud), or a new, empty one (New bench on My benches' page; the bench being worked on is kept in
-   Earlier versions first, and nothing is cleared unless the new one is made). */
+   Earlier versions first, and nothing is cleared unless the new one is made). A new bench can open
+   straight into a workspace (then: 'lens', 'rf' or 'coat'), from My benches' Open a workspace. */
 const newPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
-export function newCloudBench(ws, folder, saveThis) {
+export function newCloudBench(ws, folder, saveThis, then) {
   if (!cloudOn()) return;
   const places = newPlaces();
   if (!places.length) return;
@@ -191,7 +195,7 @@ export function newCloudBench(ws, folder, saveThis) {
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, saveThis ? 'Save' : 'Make it');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
-    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : 'New cloud bench'),
+    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : then === 'lens' ? 'New lens design' : then === 'rf' ? 'New RF design' : then === 'coat' ? 'New bench, with a coating to design' : 'New cloud bench'),
     h('div', { class: 'rt-rows' },
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewName' }, 'Name'), name),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewWhere' }, 'In'), where)),
@@ -220,6 +224,8 @@ export function newCloudBench(ws, folder, saveThis) {
       cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
       if (homeOpen()) closeHome();
       toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
+      // straight into a workspace: a starting design on the new bench, or the coating workspace on its own
+      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') openCoatDesign(null);
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not make the bench: ' + err.message, true);
@@ -554,7 +560,7 @@ export async function fillHome() {
     h('h2', null, places.length > 1 ? top : 'Benches'),
     railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
     railBtn('Recent', 'recent', here('recent'), go('recent')),
-    railBtn('My parts', 'star', P.view === 'parts', go('parts')),
+    railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', go('parts')),
     ...tree,
     railBtn('Bin', 'trash', here('bin'), go('bin')),
     h('div', { class: 'rt-hfoot' },
@@ -712,7 +718,8 @@ export async function fillHome() {
     const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => a.name.localeCompare(b.name));
     const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
     const list = data.parts.filter(p => words.every(w => (p.name + ' ' + p.summary + ' ' + PALETTE_NAMES[p.palette]).toLowerCase().includes(w))).sort(by);
-    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? 'My parts: “' + P.q + '”' : 'My parts');
+    const partsName = wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts';
+    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? partsName + ': “' + P.q + '”' : partsName);
     const cards = list.map(p => {
       const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
       const add = () => { closeHome(); placeMine(p); };
@@ -720,7 +727,7 @@ export async function fillHome() {
         ['Add to the bench', 'open', add],
         'sep',
         can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the part', p.name) || '').trim(); if (name && name !== p.name) homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(); }] : null,
-        writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from My parts? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
+        writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from ' + partsName + '? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
       return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
         h('button', { type: 'button', class: 'rt-hopen', title: 'Add “' + p.name + '” to the bench', onclick: add },
           p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
@@ -904,6 +911,12 @@ export function wireCloud() {
     document.getElementById('homeBack').addEventListener('click', closeHome);
     // New bench on My benches' page: a cloud bench, in the workspace and folder shown
     document.getElementById('homeNew').addEventListener('click', () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null));
+    // Open a workspace: a new cloud bench here, opened straight into the lens designer, the RF designer or the coating workspace
+    const wsBtn = document.getElementById('homeWs');
+    wsBtn.addEventListener('click', () => {
+      const into = then => () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null, false, then);
+      openHomeMenu(wsBtn, [['Lens design', 'bench', into('lens')], ['RF design', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
+    });
 
     const search = document.getElementById('homeSearch');
     let searchT = null;

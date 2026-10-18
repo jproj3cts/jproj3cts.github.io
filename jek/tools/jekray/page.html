@@ -32,9 +32,17 @@
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
-            <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from, in the lens design workspace">New lens design…</button>
-
-            <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">New RF design…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from, in the lens design workspace">Lens design, new…</button>
+                <button type="button" role="menuitem" id="btnLensOfSel" data-icon="open" title="The selected lenses and stops, on one axis, designed as one in the lens design workspace">Lens design of the selection</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF design, new…</button>
+                <button type="button" role="menuitem" id="btnRfOfSel" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF design of the selection</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitem" id="btnCoatDesign" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
+              </div>
+            </div>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
             <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
@@ -155,6 +163,16 @@
               <div class="sep"></div>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
               <button type="button" role="menuitem" data-click="btnShare" data-icon="link">Copy a share link</button>
+              <div class="sep"></div>
+              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
+                <div class="rt-menu rt-imenu" role="menu">
+                  <button type="button" role="menuitem" data-click="btnNewLens" data-icon="new">Lens design, new…</button>
+                  <button type="button" role="menuitem" data-click="btnLensOfSel" data-icon="open">Lens design of the selection</button>
+                  <button type="button" role="menuitem" data-click="btnNewRf" data-icon="new">RF design, new…</button>
+                  <button type="button" role="menuitem" data-click="btnRfOfSel" data-icon="open">RF design of the selection</button>
+                  <button type="button" role="menuitem" data-click="btnCoatDesign" data-icon="new">Coating design</button>
+                </div>
+              </div>
               <div class="sep"></div>
               <a role="menuitem" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart">Quote cart<span class="k" id="moreCart"></span></a>
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
@@ -366,6 +384,7 @@
       <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
       <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
       <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
+      <button class="rt-btn" id="homeWs" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench here, opened straight into a workspace: lens design, RF design or coating design">Open a workspace ▾</button>
       <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
     </header>
     <div class="rt-hbody">

@@ -1296,6 +1296,12 @@
   .rt-rfcond .rt-lrow select, .rt-rfgrid .rt-lrow select { max-width: 12rem; }
   .rt-rfcond .rt-btn { margin-top: 0.8rem; align-self: flex-start; }
   .rt-rfcond .rt-lsub.mono { margin-top: 0.3rem; font-size: 0.75rem; }
+  /* the coating workspace: its settings card down the left, wide enough for its selects and numbers */
+  .rt-coatws .rt-lcond { flex: 0 0 21rem; max-width: 21rem; }
+  .rt-coatws .rt-lcond .rt-lrow { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
+  .rt-coatws .rt-lcond .rt-lrow select { max-width: 11.5rem; min-width: 0; }
+  .rt-coatws .rt-lcond .rt-lrow .rt-lnum { width: 5.6rem; }
+  .rt-coatws .rt-coatlayers .rt-ltable select { max-width: 9rem; }
   .rt-rfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.25rem 2rem; margin: 0.6rem 0; }
   .rt-rftable td, .rt-rftable th { white-space: nowrap; }
   .rt-rftable .rt-lnum { width: 5rem; }

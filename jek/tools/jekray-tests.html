@@ -9304,6 +9304,36 @@ const TESTS = [
     },
   },
   {
+    name: 'File › Open a workspace: a submenu of the designers, with lens design of the selection, RF design of the selection and coating design',
+    why: 'the File menu’s Open a workspace holds five items (lens design new and of the selection, RF design new and of the selection, coating design); with a lens selected, Lens design of the selection makes it an assembly and opens the lens workspace; RF design of the selection refuses an optical lens and opens the RF designer on an RF lens; Coating design opens the coating workspace on its own (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), ws = id => { const el = D.getElementById(id); return !!el && !el.hidden; };
+      const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
+      try {
+        const items = [...D.querySelectorAll('#wsMenu button')].map(b => b.textContent);
+        const five = items.length === 5 && items[0] === 'Lens design, new…' && items[4] === 'Coating design' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
+        lens(); J.select('Lens');
+        D.getElementById('btnLensOfSel').click();
+        const lensOpen = ws('lensWs') && (J.serialize().assemblies || []).length === 1;
+        J.closeLensDesign();
+        D.getElementById('btnRfOfSel').click();
+        const refused = !ws('rfWs');
+        D.getElementById('btnCoatDesign').click();
+        const coat = J.coatDesignOpen() && /A coating on its own/.test(D.querySelector('#coatWs .rt-lcrumb').textContent);
+        J.closeLensDesign();
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        J.newRfDesign(); J.closeLensDesign();
+        J.select(J.serialize().elements.find(e => e.type === 'lens').name);
+        D.getElementById('btnRfOfSel').click();
+        const rfOpen = ws('rfWs');
+        const all = five && lensOpen && refused && coat && rfOpen;
+        if (!all) console.log('ws menu', { items, five, lensOpen, refused, coat, rfOpen });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'Coating design: opened from a lens face, the broadband preset optimised under 0.5% mean over 450–650 nm to 20°, and used on the face',
     why: 'the coating workspace on a BK7 lens’s first face: its substrate is the lens’s glass, the band and the largest angle set, the three-layer preset chosen and optimised brings the mean reflectance square on under 0.5% (the preset’s own is over 1%), Use this coating writes a three-layer stack at 550 nm to that face and closes the workspace, and Esc leaves it closed (1 when all hold)',
     want: 1, tol: 0, unit: '',

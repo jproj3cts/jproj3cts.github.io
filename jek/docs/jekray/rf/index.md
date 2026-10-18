@@ -194,7 +194,7 @@ which its panel gives, with the band over which its matching layers reflect unde
 
 ## The RF designer
 
-A system of RF lenses and mirrors is designed as a whole in the **RF designer**: a feed horn's beam through the lenses to what it is for. Open it with **Design the RF system…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, or from the menu with **New RF design…**, which starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [lens design workspace](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
+A system of RF lenses and mirrors is designed as a whole in the **RF designer**: a feed horn's beam through the lenses to what it is for. Open it with **Design the RF system…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, with **File › Open a workspace › RF design of the selection**, or from **My benches › Open a workspace**, which makes a new cloud bench and opens it in the designer; **Keep as a part…** in its header saves the whole system in My parts or a team's parts. **File › Open a workspace › RF design, new…** starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [lens design workspace](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
 
 ### Its conditions
 

@@ -25,7 +25,9 @@ If they are not, the panel says which part is in the way and why. The light is t
 
 An assembly is picked and moved as one, drawn with a dashed outline (one round each straight run of a folded one) and its name. Its panel places it on the bench by its own **X** and **Y** (its first vertex, where its axis meets its first surface), **Angle** (the way its axis runs from there) and **Height z** (of all its parts): set, they move or turn every part together about that vertex, so the design itself is unchanged. Ctrl-click one of its parts to edit that part alone; if a part is then moved off the axis, the outline turns red and the panel says so. **Split into parts** gives back the separate lenses and stops, where they are.
 
-**File › New lens design…** puts a starting assembly on the bench, a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length designed for the F, d and C lines, and opens it in the design workspace.
+**File › Open a workspace › Lens design, new…** puts a starting assembly on the bench, a stop 10 mm across and a biconvex N-BK7 singlet of about 50 mm focal length designed for the F, d and C lines, and opens it in the design workspace.
+
+**File › Open a workspace › Lens design of the selection** opens the selected lenses and stops as one design (their assembly if they are one already; otherwise they are made one, on one axis). The same menu opens the [RF designer](/jek/docs/jekray/rf/#the-rf-designer) and the [coating workspace](/jek/docs/jekray/coating-design/). On **My benches**, **Open a workspace** makes a new cloud bench in the workspace and folder shown and opens it straight into the designer chosen, so a design can start in a team's folder. In the workspace, **Keep as a part…** saves the whole design (its parts, with their conditions and design) by name in **My parts** or, with a team, in that team's **Team parts**, from where it is added to any bench.
 
 ## The prescription
 
@@ -119,7 +121,7 @@ A new assembly starts with its stop's opening as the entrance pupil, the axis al
 
 **Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own: the lens design workspace. The bar names the bench it is on and the assembly (its name can be edited there). **Back to the bench** (or Esc) returns. Nothing is copied: every change in the workspace is written to the assembly's parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places.
 
-A design started with File › New lens design has no light on the bench yet. Its button reads **Place on a bench**: it adds a source for each field (collimated, as wide as the entrance pupil, aimed through its centre, at the primary wavelength with the others as extra lines) and a screen at the image, then returns to the bench.
+A design started with Lens design, new… has no light on the bench yet. Its button reads **Place on a bench**: it adds a source for each field (collimated, as wide as the entrance pupil, aimed through its centre, at the primary wavelength with the others as extra lines) and a screen at the image, then returns to the bench.
 
 **File › Import a lens file (.zmx) as a design…** reads a lens file as an assembly and opens it here.
 

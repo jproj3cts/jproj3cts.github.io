@@ -1311,6 +1311,12 @@
   .rt-rfcond .rt-lrow select, .rt-rfgrid .rt-lrow select { max-width: 12rem; }
   .rt-rfcond .rt-btn { margin-top: 0.8rem; align-self: flex-start; }
   .rt-rfcond .rt-lsub.mono { margin-top: 0.3rem; font-size: 0.75rem; }
+  /* the coating workspace: its settings card down the left, wide enough for its selects and numbers */
+  .rt-coatws .rt-lcond { flex: 0 0 21rem; max-width: 21rem; }
+  .rt-coatws .rt-lcond .rt-lrow { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
+  .rt-coatws .rt-lcond .rt-lrow select { max-width: 11.5rem; min-width: 0; }
+  .rt-coatws .rt-lcond .rt-lrow .rt-lnum { width: 5.6rem; }
+  .rt-coatws .rt-coatlayers .rt-ltable select { max-width: 9rem; }
   .rt-rfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.25rem 2rem; margin: 0.6rem 0; }
   .rt-rftable td, .rt-rftable th { white-space: nowrap; }
   .rt-rftable .rt-lnum { width: 5rem; }
@@ -1539,9 +1545,17 @@
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
-            <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from, in the lens design workspace">New lens design…</button>
-
-            <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">New RF design…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from, in the lens design workspace">Lens design, new…</button>
+                <button type="button" role="menuitem" id="btnLensOfSel" data-icon="open" title="The selected lenses and stops, on one axis, designed as one in the lens design workspace">Lens design of the selection</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF design, new…</button>
+                <button type="button" role="menuitem" id="btnRfOfSel" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF design of the selection</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitem" id="btnCoatDesign" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
+              </div>
+            </div>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
             <button type="button" role="menuitem" id="btnPasteProj" data-icon="paste" title="Such as one an AI assistant wrote">Open pasted text…<span class="k">Ctrl+V</span></button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
@@ -1662,6 +1676,16 @@
               <div class="sep"></div>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
               <button type="button" role="menuitem" data-click="btnShare" data-icon="link">Copy a share link</button>
+              <div class="sep"></div>
+              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
+                <div class="rt-menu rt-imenu" role="menu">
+                  <button type="button" role="menuitem" data-click="btnNewLens" data-icon="new">Lens design, new…</button>
+                  <button type="button" role="menuitem" data-click="btnLensOfSel" data-icon="open">Lens design of the selection</button>
+                  <button type="button" role="menuitem" data-click="btnNewRf" data-icon="new">RF design, new…</button>
+                  <button type="button" role="menuitem" data-click="btnRfOfSel" data-icon="open">RF design of the selection</button>
+                  <button type="button" role="menuitem" data-click="btnCoatDesign" data-icon="new">Coating design</button>
+                </div>
+              </div>
               <div class="sep"></div>
               <a role="menuitem" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart">Quote cart<span class="k" id="moreCart"></span></a>
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
@@ -1873,6 +1897,7 @@
       <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
       <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
       <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
+      <button class="rt-btn" id="homeWs" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench here, opened straight into a workspace: lens design, RF design or coating design">Open a workspace ▾</button>
       <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
     </header>
     <div class="rt-hbody">
@@ -2052,6 +2077,8 @@ const hooks = {
   frames: () => null,                   // the sweep's rendered frames: { bench, screens, closeup } Maps
   // the field worker, when the page has one
   fieldWorker: () => null, fwRequest: () => Promise.reject(new Error('no field worker')), fwMismatch() {},
+  // the account's parts library, when the page has one: keep a selection as a part (ui/myparts.js saveToMine)
+  saveParts: null,
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -25186,7 +25213,7 @@ function cwPlots(layers, spec) {
   if (spec.theta > 0) { const ct = coatCurve(layers, spec, spec.theta); series.push({ label: 'at ' + cwFmt(spec.theta, 3) + '°', colour: '#e0a030', xs: xs(ct), ys: ct.R.map(v => 100 * v) }); }
   series.push({ label: 'target', colour: '#999', dash: true, xs: xs(c0), ys: c0.nms.map(nm => 100 * (spec.target === 'edge' ? ((nm < spec.edge) === spec.passBelow ? 0 : 1) : spec.target === 'hr' ? 1 : spec.target === 'split' ? spec.R / 100 : 0)) });
   const wrap = h('div', { class: 'rt-lpair' }), a = h('div'), b = h('div'); wrap.append(a, b); card.append(wrap);
-  const top = Math.min(100, Math.max(1, 1.15 * 100 * Math.max(...series.flatMap(s => s.ys))));
+  const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
   linePlot(a, { label: 'Reflectance across the band', x: { kind: 'plain', title: rf ? 'GHz' : 'nm' }, y: { kind: 'plain', title: 'R, %' }, yr: [0, top], series, xName: rf ? 'GHz' : 'nm', H: 240 });
   const A = coatAngles(layers, spec);
   linePlot(b, { label: 'Reflectance against the angle', x: { kind: 'plain', title: 'angle, °' }, y: { kind: 'plain', title: 'R, %' }, xr: [0, 89], yr: [0, 100], xName: 'angle',
@@ -26382,6 +26409,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
+    hooks.saveParts ? h('button', { class: 'rt-btn quiet', type: 'button', id: 'rfKeep', title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => hooks.saveParts(asmMembers(asm)) }, 'Keep as a part…') : null,
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
@@ -27285,6 +27313,7 @@ function drawWs() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
     ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
+    hooks.saveParts ? h('button', { class: 'rt-btn quiet', type: 'button', id: 'lensKeep', title: 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => hooks.saveParts(asmMembers(asm)) }, 'Keep as a part…') : null,
     h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -42960,27 +42989,68 @@ function partContent(list) {
   }
   return txt.length <= PART_MAX ? txt : null;
 }
-async function saveToMine(list) {
+/* where a part can be kept: My parts, or a team's parts (a team with a plan, in which the person can edit) */
+const partPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
+const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Team parts');
+/* keep a selection (or a whole assembly, with its design) as a part: named, and in My parts or a team's parts.
+   With one place to choose from it asks the name alone; with a team to choose, a small dialog asks both.
+   opts: { ws: the workspace to keep it in, chosen already; name: its name, given already } */
+async function saveToMine(list, opts) {
   if (!list.length) return;
   if (!mineOn()) { toast('Sign in, top right, to keep parts in My parts, with JEKrayPro', true); return; }
-  const mine = account.workspaces.find(w => w.id === personalWs().id);
-  if (!(mine && mine.active)) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
-  const one = list.length === 1;
-  const name = prompt('Name it, to find it again in My parts', one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : ''));
-  if (name === null) return;
+  const places = partPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
+  if (!(mine && mine.active) && places.length < 2) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
+  const one = list.length === 1, asm = asmOfSelection(list);
+  const suggested = asm ? asm.name : one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : '');
+  let ws = opts && opts.ws, name = opts && opts.name;
+  if (!ws || name === undefined) {
+    if (places.length < 2) { ws = personalWs().id; name = prompt('Name it, to find it again in My parts', suggested); if (name === null) return; }
+    else { const r = await askPlace(suggested, places, ws); if (!r) return; ({ ws, name } = r); }
+  }
+  const w = places.find(x => x.id === ws) || mine;
+  if (w.kind === 'personal' && !w.active) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
   const icon = clipIcon(list) || clipIcon(list, 40);
   try {
     const content = partContent(list);
     if (!content) { toast('Too big to keep as a part (a part can be at most 256 KB).', true); return; }
-    const p = await api('/v1/workspaces/' + personalWs().id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() || undefined, summary: one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
-    if (MINE.list) MINE.list.push(p);
-    mineChanged();
-    toast('Kept “' + p.name + '” in My parts: find it under + Add part');
+    const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Lens design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
+    if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
+    else if (!document.getElementById('home').hidden && cloudPlace.view === 'parts' && cloudPlace.ws === w.id) fillHome();
+    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on My benches, under ' + w.name + ' › Team parts');
+    return p;
   } catch (err) {
     if (err.status === 402) { showSubscribe(); return; }
     toast('Could not keep it: ' + err.message, true);
   }
+}
+/* the dialog asking a part's name and where it goes */
+function askPlace(suggested, places, ws) {
+  return new Promise(resolve => {
+    let dlg = document.getElementById('partKeepDialog');
+    if (dlg) dlg.remove();
+    const name = h('input', { type: 'text', id: 'partKeepName', value: suggested, spellcheck: 'false', maxlength: '120' });
+    const where = h('select', { id: 'partKeepWhere' }, ...places.map(w => h('option', { value: w.id }, placeLabel(w))));
+    where.value = places.some(w => w.id === ws) ? ws : places[0].id;
+    const note = h('p', { class: 'rt-subsmall' });
+    const say = () => { const w = places.find(x => x.id === where.value); note.textContent = w.kind === 'personal' ? 'Yours alone: on every bench under + Add part › ★ My parts, and on My benches.' : 'Shared with everyone in ' + w.name + ': on My benches under ' + w.name + ' › Team parts, to add to any bench.'; };
+    where.addEventListener('change', say); say();
+    let done = false;
+    const finish = v => { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); };
+    const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'partKeepGo', onclick: () => finish({ ws: where.value, name: name.value }) }, 'Keep');
+    dlg = h('dialog', { class: 'rt-dialog', id: 'partKeepDialog', 'aria-labelledby': 'partKeepTitle' },
+      h('h2', { id: 'partKeepTitle' }, 'Keep as a part'),
+      h('div', { class: 'rt-rows' },
+        h('div', { class: 'rt-f wide' }, h('label', { for: 'partKeepName' }, 'Name'), name),
+        h('div', { class: 'rt-f wide' }, h('label', { for: 'partKeepWhere' }, 'In'), where)),
+      note,
+      h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => finish(null) }, 'Cancel'), go));
+    dlg.addEventListener('close', () => finish(null));
+    name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+    document.body.append(dlg);
+    dlg.showModal();
+    name.select();
+  });
 }
 async function placeMine(p, at) {
   try {
@@ -44268,9 +44338,10 @@ async function cloudSave() {
 /* A bench put in the cloud, in My benches or in a team the person can edit in (and in the folder shown,
    when made from My benches' page there), then linked and saving there: what is on the bench (Save to
    cloud), or a new, empty one (New bench on My benches' page; the bench being worked on is kept in
-   Earlier versions first, and nothing is cleared unless the new one is made). */
+   Earlier versions first, and nothing is cleared unless the new one is made). A new bench can open
+   straight into a workspace (then: 'lens', 'rf' or 'coat'), from My benches' Open a workspace. */
 const newPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
-function newCloudBench(ws, folder, saveThis) {
+function newCloudBench(ws, folder, saveThis, then) {
   if (!cloudOn()) return;
   const places = newPlaces();
   if (!places.length) return;
@@ -44288,7 +44359,7 @@ function newCloudBench(ws, folder, saveThis) {
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, saveThis ? 'Save' : 'Make it');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
-    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : 'New cloud bench'),
+    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : then === 'lens' ? 'New lens design' : then === 'rf' ? 'New RF design' : then === 'coat' ? 'New bench, with a coating to design' : 'New cloud bench'),
     h('div', { class: 'rt-rows' },
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewName' }, 'Name'), name),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewWhere' }, 'In'), where)),
@@ -44317,6 +44388,8 @@ function newCloudBench(ws, folder, saveThis) {
       cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
       if (homeOpen()) closeHome();
       toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
+      // straight into a workspace: a starting design on the new bench, or the coating workspace on its own
+      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') openCoatDesign(null);
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not make the bench: ' + err.message, true);
@@ -44651,7 +44724,7 @@ async function fillHome() {
     h('h2', null, places.length > 1 ? top : 'Benches'),
     railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
     railBtn('Recent', 'recent', here('recent'), go('recent')),
-    railBtn('My parts', 'star', P.view === 'parts', go('parts')),
+    railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', go('parts')),
     ...tree,
     railBtn('Bin', 'trash', here('bin'), go('bin')),
     h('div', { class: 'rt-hfoot' },
@@ -44809,7 +44882,8 @@ async function fillHome() {
     const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => a.name.localeCompare(b.name));
     const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
     const list = data.parts.filter(p => words.every(w => (p.name + ' ' + p.summary + ' ' + PALETTE_NAMES[p.palette]).toLowerCase().includes(w))).sort(by);
-    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? 'My parts: “' + P.q + '”' : 'My parts');
+    const partsName = wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts';
+    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? partsName + ': “' + P.q + '”' : partsName);
     const cards = list.map(p => {
       const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
       const add = () => { closeHome(); placeMine(p); };
@@ -44817,7 +44891,7 @@ async function fillHome() {
         ['Add to the bench', 'open', add],
         'sep',
         can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the part', p.name) || '').trim(); if (name && name !== p.name) homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(); }] : null,
-        writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from My parts? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
+        writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from ' + partsName + '? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
       return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
         h('button', { type: 'button', class: 'rt-hopen', title: 'Add “' + p.name + '” to the bench', onclick: add },
           p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
@@ -45001,6 +45075,12 @@ function wireCloud() {
     document.getElementById('homeBack').addEventListener('click', closeHome);
     // New bench on My benches' page: a cloud bench, in the workspace and folder shown
     document.getElementById('homeNew').addEventListener('click', () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null));
+    // Open a workspace: a new cloud bench here, opened straight into the lens designer, the RF designer or the coating workspace
+    const wsBtn = document.getElementById('homeWs');
+    wsBtn.addEventListener('click', () => {
+      const into = then => () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null, false, then);
+      openHomeMenu(wsBtn, [['Lens design', 'bench', into('lens')], ['RF design', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
+    });
 
     const search = document.getElementById('homeSearch');
     let searchT = null;
@@ -45094,6 +45174,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    '<b>Open a workspace</b>, on the File menu, gathers the designers: lens design (new, or of the selection), RF design (new, or of the selected RF parts) and coating design. On <b>My benches</b>, <b>Open a workspace</b> makes a new cloud bench in the folder shown and opens it straight into the designer chosen. Each designer\u2019s header has <b>Keep as a part\u2026</b>, which saves the whole design (its parts, with their conditions and design) by name in <b>My parts</b> or, with a team, in that team\u2019s <b>Team parts</b> on My benches, from where it is added to any bench; Save to My parts on the right-click menu offers the same choice.',
     '<b>A coating workspace</b>: design a thin-film coating (an anti-reflection stack, a high reflector, a beam splitter, a dichroic edge or an RF matching layer) on its substrate, judged over a band of wavelengths and a range of angles, its reflectance plotted across the band and against the angle, s and p, and its thicknesses optimised; it is traced with the one thin-film model the bench and both designers use. Open it from any face\u2019s <b>Coating</b> setting (<b>Design a coating\u2026</b>), from the lens designer\u2019s Polarisation face table, from <b>Design\u2026</b> beside the RF designer\u2019s matching layers, or on its own from <b>File \u203a Open a workspace</b>; <b>Use this coating</b> writes the stack to the face it came from, and <b>Keep as a coating\u2026</b> saves it by name for every face\u2019s Coating list.',
     '<b>Offset reflectors and radomes</b> in the RF palette: a section of a paraboloid cut off its axis, whose panel gives its focal length, the turn it gives the beam and where its focus is, so the horn can be put there; and a radome sheet, whose panel gives what it passes square on and at the beam\u2019s angle and the half-wave thicknesses that pass everything but its loss. A curved RF mirror on its axis now gives its figures as an antenna, as a lens does, and the RF designer counts a metal mirror\u2019s ohmic loss.',
     '<b>A graded-index disc and a zoned lens, traced as they are made.</b> The bench now traces a graded-index RF disc as a slab of graded plastic between two flat faces (the same slab the RF designer and the lens engine take, so the three agree on where it focuses), with each part\u2019s loss at its own density and each face\u2019s matching layer at the radius met; and a zoned lens as it is cut, its curved face stepped back where whole layers come out, each step a sheer wall that shadows the rays and the diffracted field behind it. The 2D outline shows the steps, and the RF designer traces the same cut face: its walls\u2019 shadow and its zones\u2019 small defocus now count in its efficiency.',
@@ -45734,6 +45815,18 @@ function wireTours() {
   document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
   document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
+  // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
+  // system needs RF parts among them, and opens in the RF designer (openLensDesign routes an RF assembly there)
+  const ofSelection = rf => {
+    const list = selection().filter(e => e.type !== 'source' && e.type !== 'screen' && e.type !== 'detector');
+    if (!list.length) { toast(rf ? 'Select the RF lenses and mirrors to design as a system first (their horns follow)' : 'Select the lenses and stops to design first', true); return; }
+    if (rf && !list.every(e => e.mmw)) { toast('Not an RF system: every part selected must be an RF part', true); return; }
+    const a = asmOfSelection(list) || makeAssembly(list);
+    if (a) openLensDesign(a, rf ? {} : { optical: true });
+  };
+  document.getElementById('btnLensOfSel').addEventListener('click', () => ofSelection(false));
+  document.getElementById('btnRfOfSel').addEventListener('click', () => ofSelection(true));
+  document.getElementById('btnCoatDesign').addEventListener('click', () => openCoatDesign(null));
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 
@@ -46690,6 +46783,7 @@ installHooks({
   view3dReset: () => { try { V3D.reset(); } catch (e) { /* not set up yet */ } },
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
+  saveParts: accountsOn() ? saveToMine : null,
 });
 wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
 

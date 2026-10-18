@@ -186,7 +186,7 @@ function cwPlots(layers, spec) {
   if (spec.theta > 0) { const ct = coatCurve(layers, spec, spec.theta); series.push({ label: 'at ' + cwFmt(spec.theta, 3) + '°', colour: '#e0a030', xs: xs(ct), ys: ct.R.map(v => 100 * v) }); }
   series.push({ label: 'target', colour: '#999', dash: true, xs: xs(c0), ys: c0.nms.map(nm => 100 * (spec.target === 'edge' ? ((nm < spec.edge) === spec.passBelow ? 0 : 1) : spec.target === 'hr' ? 1 : spec.target === 'split' ? spec.R / 100 : 0)) });
   const wrap = h('div', { class: 'rt-lpair' }), a = h('div'), b = h('div'); wrap.append(a, b); card.append(wrap);
-  const top = Math.min(100, Math.max(1, 1.15 * 100 * Math.max(...series.flatMap(s => s.ys))));
+  const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
   linePlot(a, { label: 'Reflectance across the band', x: { kind: 'plain', title: rf ? 'GHz' : 'nm' }, y: { kind: 'plain', title: 'R, %' }, yr: [0, top], series, xName: rf ? 'GHz' : 'nm', H: 240 });
   const A = coatAngles(layers, spec);
   linePlot(b, { label: 'Reflectance against the angle', x: { kind: 'plain', title: 'angle, °' }, y: { kind: 'plain', title: 'R, %' }, xr: [0, 89], yr: [0, 100], xName: 'angle',

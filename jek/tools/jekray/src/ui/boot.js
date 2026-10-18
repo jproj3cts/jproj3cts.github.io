@@ -80,7 +80,7 @@ import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
-import { MINE, partContent, placeMine } from './myparts.js';
+import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
 import { normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
 import { account, accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
@@ -107,6 +107,7 @@ installHooks({
   view3dReset: () => { try { V3D.reset(); } catch (e) { /* not set up yet */ } },
   playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
+  saveParts: accountsOn() ? saveToMine : null,
 });
 wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
 

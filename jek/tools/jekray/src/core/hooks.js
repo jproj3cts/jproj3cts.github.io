@@ -15,6 +15,8 @@ export const hooks = {
   frames: () => null,                   // the sweep's rendered frames: { bench, screens, closeup } Maps
   // the field worker, when the page has one
   fieldWorker: () => null, fwRequest: () => Promise.reject(new Error('no field worker')), fwMismatch() {},
+  // the account's parts library, when the page has one: keep a selection as a part (ui/myparts.js saveToMine)
+  saveParts: null,
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };

@@ -5,6 +5,7 @@ import {
   DPR, H, W, canvas, ctx, draw, getCss, halfSize, requestRender, selection, setCtx, setDPR, setH, setW,
   wx, wy
 } from './render.js';
+import { asmOfSelection } from '../core/assembly.js';
 import { snapVal } from './pointer.js';
 import { V3D } from './view3d.js';
 import { helpLine, h } from './panel.js';
@@ -75,27 +76,68 @@ export function partContent(list) {
   }
   return txt.length <= PART_MAX ? txt : null;
 }
-export async function saveToMine(list) {
+/* where a part can be kept: My parts, or a team's parts (a team with a plan, in which the person can edit) */
+export const partPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
+const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Team parts');
+/* keep a selection (or a whole assembly, with its design) as a part: named, and in My parts or a team's parts.
+   With one place to choose from it asks the name alone; with a team to choose, a small dialog asks both.
+   opts: { ws: the workspace to keep it in, chosen already; name: its name, given already } */
+export async function saveToMine(list, opts) {
   if (!list.length) return;
   if (!mineOn()) { toast('Sign in, top right, to keep parts in My parts, with JEKrayPro', true); return; }
-  const mine = account.workspaces.find(w => w.id === personalWs().id);
-  if (!(mine && mine.active)) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
-  const one = list.length === 1;
-  const name = prompt('Name it, to find it again in My parts', one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : ''));
-  if (name === null) return;
+  const places = partPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
+  if (!(mine && mine.active) && places.length < 2) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
+  const one = list.length === 1, asm = asmOfSelection(list);
+  const suggested = asm ? asm.name : one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : '');
+  let ws = opts && opts.ws, name = opts && opts.name;
+  if (!ws || name === undefined) {
+    if (places.length < 2) { ws = personalWs().id; name = prompt('Name it, to find it again in My parts', suggested); if (name === null) return; }
+    else { const r = await askPlace(suggested, places, ws); if (!r) return; ({ ws, name } = r); }
+  }
+  const w = places.find(x => x.id === ws) || mine;
+  if (w.kind === 'personal' && !w.active) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
   const icon = clipIcon(list) || clipIcon(list, 40);
   try {
     const content = partContent(list);
     if (!content) { toast('Too big to keep as a part (a part can be at most 256 KB).', true); return; }
-    const p = await api('/v1/workspaces/' + personalWs().id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() || undefined, summary: one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
-    if (MINE.list) MINE.list.push(p);
-    mineChanged();
-    toast('Kept “' + p.name + '” in My parts: find it under + Add part');
+    const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Lens design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
+    if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
+    else if (!document.getElementById('home').hidden && cloudPlace.view === 'parts' && cloudPlace.ws === w.id) fillHome();
+    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on My benches, under ' + w.name + ' › Team parts');
+    return p;
   } catch (err) {
     if (err.status === 402) { showSubscribe(); return; }
     toast('Could not keep it: ' + err.message, true);
   }
+}
+/* the dialog asking a part's name and where it goes */
+function askPlace(suggested, places, ws) {
+  return new Promise(resolve => {
+    let dlg = document.getElementById('partKeepDialog');
+    if (dlg) dlg.remove();
+    const name = h('input', { type: 'text', id: 'partKeepName', value: suggested, spellcheck: 'false', maxlength: '120' });
+    const where = h('select', { id: 'partKeepWhere' }, ...places.map(w => h('option', { value: w.id }, placeLabel(w))));
+    where.value = places.some(w => w.id === ws) ? ws : places[0].id;
+    const note = h('p', { class: 'rt-subsmall' });
+    const say = () => { const w = places.find(x => x.id === where.value); note.textContent = w.kind === 'personal' ? 'Yours alone: on every bench under + Add part › ★ My parts, and on My benches.' : 'Shared with everyone in ' + w.name + ': on My benches under ' + w.name + ' › Team parts, to add to any bench.'; };
+    where.addEventListener('change', say); say();
+    let done = false;
+    const finish = v => { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); };
+    const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'partKeepGo', onclick: () => finish({ ws: where.value, name: name.value }) }, 'Keep');
+    dlg = h('dialog', { class: 'rt-dialog', id: 'partKeepDialog', 'aria-labelledby': 'partKeepTitle' },
+      h('h2', { id: 'partKeepTitle' }, 'Keep as a part'),
+      h('div', { class: 'rt-rows' },
+        h('div', { class: 'rt-f wide' }, h('label', { for: 'partKeepName' }, 'Name'), name),
+        h('div', { class: 'rt-f wide' }, h('label', { for: 'partKeepWhere' }, 'In'), where)),
+      note,
+      h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => finish(null) }, 'Cancel'), go));
+    dlg.addEventListener('close', () => finish(null));
+    name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+    document.body.append(dlg);
+    dlg.showModal();
+    name.select();
+  });
 }
 export async function placeMine(p, at) {
   try {

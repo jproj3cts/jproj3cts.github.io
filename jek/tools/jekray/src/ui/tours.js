@@ -1,11 +1,14 @@
 import { BEAM_Z, EMBED, IN_WORKER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
-import { newLensDesign } from './assembly.js';
+import { makeAssembly, newLensDesign } from './assembly.js';
 import { newRfDesign } from './rf-workspace.js';
+import { openLensDesign } from './lens-workspace.js';
+import { openCoatDesign } from './coat-workspace.js';
+import { asmOfSelection } from '../core/assembly.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { curBench, ensureBenches, onTab } from '../state/tabs.js';
 import { lastTrace, setZ, zOf } from '../engines/trace.js';
-import { W, requestRender, stage } from './render.js';
+import { W, requestRender, selection, stage } from './render.js';
 import { snapVal } from './pointer.js';
 import { allSweeps, paramLabel, pauseAll, playAll, syncPhases } from './sweeps.js';
 import { V3D } from './view3d.js';
@@ -243,6 +246,18 @@ export function wireTours() {
   document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
   document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
+  // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
+  // system needs RF parts among them, and opens in the RF designer (openLensDesign routes an RF assembly there)
+  const ofSelection = rf => {
+    const list = selection().filter(e => e.type !== 'source' && e.type !== 'screen' && e.type !== 'detector');
+    if (!list.length) { toast(rf ? 'Select the RF lenses and mirrors to design as a system first (their horns follow)' : 'Select the lenses and stops to design first', true); return; }
+    if (rf && !list.every(e => e.mmw)) { toast('Not an RF system: every part selected must be an RF part', true); return; }
+    const a = asmOfSelection(list) || makeAssembly(list);
+    if (a) openLensDesign(a, rf ? {} : { optical: true });
+  };
+  document.getElementById('btnLensOfSel').addEventListener('click', () => ofSelection(false));
+  document.getElementById('btnRfOfSel').addEventListener('click', () => ofSelection(true));
+  document.getElementById('btnCoatDesign').addEventListener('click', () => openCoatDesign(null));
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 

@@ -302,6 +302,7 @@
   .rt-menu-right { left: auto; right: 0; }
   .rt-dropup { position: relative; display: inline-block; }
   .rt-dropup .rt-dropmenu { top: auto; bottom: calc(100% + 4px); min-width: 13rem; }
+  .rt-dropup .rt-dropmenu[hidden] { display: none !important; }   /* the workspaces sit outside .rt-wrap, whose rule hides [hidden] there */
   .rt-exppro { margin: 0.3rem 0 0.5rem; color: var(--jek-ink-soft); }
   /* the examples: grouped, in two columns where there is room */
   .rt-beta { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-orange); color: #ffffff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }

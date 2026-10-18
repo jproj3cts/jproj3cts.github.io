@@ -6,7 +6,7 @@ redirect_from: /jek/docs/jekray2d/
 description: "What JEKray models and how: free-space optics, fibre, electronics, photonic chips and RF quasi-optics on one bench, three design workspaces on top, and the equations behind each part."
 ---
 
-<p class="dx-lead">JEKray is a bench simulator that runs in the browser. You lay out sources, optics, fibres, electronics, photonic chips and RF horns and lenses on a bench, and it works out what the light, or the millimetre-wave beam, does: rays, beams, diffraction, interference, cavities, and the signals your detectors would read. Three design workspaces sit on the same bench, for lens systems, RF lens systems and thin-film coatings.</p>
+<p class="dx-lead">JEKray is a bench simulator used in a web browser, with nothing to install. You lay out sources, optics, fibres, electronics, photonic chips and RF horns and lenses on a bench, and it works out what the light, or the millimetre-wave beam, does: rays, beams, diffraction, interference, cavities, and the signals your detectors would read. Three design workspaces sit on the same bench, for lens systems, RF lens systems and thin-film coatings.</p>
 
 <div class="dx-tip" markdown="1">
 [Open JEKray](/jek/tools/jekray.html) in another tab and try each effect on a bench as you read. The **Examples** gallery has a working bench for most of them.
@@ -71,4 +71,4 @@ Lengths are in millimetres unless a unit is given, angles in degrees, wavelength
 
 ## Checking the models
 
-The [validation page](/jek/tools/jekray-validation.html) compares JEKray with analytic results and published data, case by case, and runs in your browser. Part pages link to the cases that test them, and the design pages list what each feature was checked against.
+The [validation page](/jek/tools/jekray-validation.html) compares JEKray with analytic results and published data, case by case, live, each time it is opened. Part pages link to the cases that test them, and the design pages list what each feature was checked against.

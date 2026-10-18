@@ -51,66 +51,63 @@
   <main class="main-content">
     <h1 class="page-title" data-eyebrow="JEKrayPro">JEKrayPro security overview</h1>
 
-    <p><em>Version 1.3, 5 October 2026</em></p>
+    <p><em>Version 1.4, 18 October 2026</em></p>
 
-    <p>How JEKray and JEKrayPro are built and protected, for information security teams reviewing them. It answers most of a typical supplier security questionnaire; we are glad to complete yours as well. Questions: <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
+    <p>How JEKray and JEKrayPro protect users and their data, for information security teams reviewing them. It answers most of a typical supplier security questionnaire; we are glad to complete yours as well. Questions: <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
 
-    <h2>1. How it is built</h2>
-    <ul>
-      <li><strong>The simulator runs in the browser.</strong> JEKray is a single web page served from jeksys.net. Every calculation runs on the user&rsquo;s own computer. A bench leaves the computer only when the user saves it to the cloud, shares it, or exports it.</li>
-      <li><strong>The cloud service</strong> (api.jeksys.net) is a Cloudflare Worker with a Cloudflare D1 database for accounts and current benches, Cloudflare R2 storage for version history and thumbnails, and Cloudflare Workers KV for short-lived sign-in state. It has no servers of our own to maintain or patch.</li>
-      <li><strong>The website</strong> is static and hosted by GitHub Pages. It holds no account data.</li>
-      <li><strong>Payments</strong> go through Stripe&rsquo;s hosted Checkout, customer portal and invoices. Card numbers never reach our systems.</li>
-      <li>The cloud service is separate from our other systems: it shares no database, storage or secrets with them.</li>
-    </ul>
+    <h2>1. What it is</h2>
+<ul>
+<li><strong>The simulator</strong> is a web page served from jeksys.net, with nothing to install. A bench leaves the user&rsquo;s device only when they save it to the cloud, share it or export it.</li>
+<li><strong>The cloud service</strong> (api.jeksys.net) holds accounts, benches and their history. It runs on established cloud infrastructure; we operate no servers of our own.</li>
+<li><strong>The website</strong> holds no account data.</li>
+<li><strong>Payments</strong> go through Stripe&rsquo;s hosted Checkout, customer portal and invoices. Card numbers never reach our systems.</li>
+<li>The cloud service is separate from our other systems: it shares no data, storage or credentials with them.</li>
+</ul>
 
-    <h2>2. Sign-in and sessions</h2>
-    <ul>
-      <li>Users sign in with Google or Microsoft (OpenID Connect, with PKCE). We never see or store passwords. We ask Google and Microsoft only for the basic sign-in scopes, and read nothing from a university&rsquo;s directory.</li>
-      <li>Microsoft sign-in accepts university and work accounts only. A person is identified by their tenant and object identifiers; their email address is taken from their sign-in name, whose domain the tenant has had to prove it owns, never from the editable email claim, and guest accounts give none.</li>
-      <li>Each sign-in is tied to the browser that started it by a one-time state value, which expires after 10 minutes.</li>
-      <li>Accounts are never merged because two sign-ins share an email address. A second sign-in method can only be linked by someone already signed in.</li>
-      <li>A session is a 256-bit random token in a cookie that is <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Lax</code> and limited to api.jeksys.net. We store only its SHA-256 hash, so a copy of our database would not let anyone sign in. Sessions last 30 days from last use and end on sign-out or account deletion.</li>
-    </ul>
+<h2>2. Sign-in and sessions</h2>
+<ul>
+<li>Users sign in with a Google or Microsoft account, or with an email address proved by a code sent to it, with a password of their own if they choose one. From Google and Microsoft we ask only for the basic sign-in details, and we read nothing from a university&rsquo;s directory.</li>
+<li>Microsoft sign-in accepts university and work accounts only. A person&rsquo;s email address is taken only from an identity their organisation has verified, never from a field the user can edit.</li>
+<li>Passwords are stored in a form that cannot be reversed, protected by a secret kept outside the database. Wrong guesses are limited and then locked out for a time. A forgotten password is replaced by proving the address again, which ends every existing session.</li>
+<li>Accounts are never merged because two sign-ins share an email address. A second sign-in method can only be linked by someone already signed in.</li>
+<li>A session is bound to the browser that started it, cannot be read by scripts or by other websites, and would not let anyone sign in from a copy of our database. Sessions last 30 days from last use and end on sign-out, on a password change, or on account deletion.</li>
+</ul>
 
-    <h2>3. Access control</h2>
-    <ul>
-      <li>Every request is checked against the user&rsquo;s membership and role in the workspace concerned (owner, admin, editor or viewer). Another workspace&rsquo;s benches are indistinguishable from ones that do not exist.</li>
-      <li>Changes need an allowed origin (jeksys.net), as well as the session cookie, so other websites cannot act for a signed-in user. Only jeksys.net may read the service&rsquo;s responses in a browser.</li>
-      <li>Saving needs an active plan; reading and exporting never do, so people can always get their data out.</li>
-      <li>Requests are rate limited: sign-in per network address, changes and slower actions (eligibility checks, exports, payments, account deletion) per person, and every request body is capped in size however it is sent.</li>
-      <li>A university&rsquo;s licence administrators see only counts, and can invite or take off people by email address; taking someone off answers the same whether or not they have an account.</li>
-      <li>Our own administration of university licences uses a separate 256-bit key over HTTPS, and is switched off entirely when the key is not set.</li>
-    </ul>
+<h2>3. Access control</h2>
+<ul>
+<li>Each user&rsquo;s work is private to them and the teams they share it with. Every request is checked against the user&rsquo;s membership and role in the workspace concerned (owner, admin, editor or viewer). Another workspace&rsquo;s benches are indistinguishable from ones that do not exist.</li>
+<li>Only jeksys.net can act for a signed-in user: changes from other websites are refused, and other websites cannot read the service&rsquo;s responses.</li>
+<li>Saving needs an active plan; reading and exporting never do, so people can always get their data out.</li>
+<li>Requests are rate limited, per network address for sign-in and per person for changes and slower actions, and every request is capped in size.</li>
+<li>A university&rsquo;s licence administrators see only counts, and can invite or take off people by email address; taking someone off answers the same whether or not they have an account.</li>
+<li>Our own administration of university licences uses separate credentials over HTTPS, and is switched off entirely when they are not set.</li>
+</ul>
 
-    <h2>4. Data protection in transit and at rest</h2>
-    <ul>
-      <li>All traffic to the website and the service is over HTTPS.</li>
-      <li>Cloudflare encrypts the database, storage and key-value data at rest.</li>
-      <li>API keys and other secrets are held as encrypted Cloudflare secrets, never in our source code. Our Stripe key is a restricted key with only the permissions the service needs.</li>
-      <li>The app runs under a content security policy that lets it load code and images, and send data, only to jeksys.net and the service; benches, including ones opened from share links, are only ever shown as text, never run, and the formulas in masks are parsed by the app itself, with only arithmetic and named maths functions allowed.</li>
-      <li>The service&rsquo;s answers carry headers that stop browsers treating them as pages, framing them, or using them over plain HTTP.</li>
-      <li>Uploaded data is checked: a bench must be a valid bench file of at most 2 MB; a thumbnail must really be a WebP, PNG or JPEG image of at most 128 KB, and is served back so that browsers cannot treat it as anything else.</li>
-      <li>Stripe webhooks are accepted only with a valid signature made within the last five minutes. Each event is processed once, and the subscription&rsquo;s state is always fetched from Stripe rather than trusted from the message.</li>
-    </ul>
+<h2>4. Data protection in transit and at rest</h2>
+<ul>
+<li>Data is encrypted in transit and at rest: all traffic to the website and the service is over HTTPS, and stored data is encrypted by our infrastructure provider.</li>
+<li>API keys and other secrets are held encrypted, never in our source code. Our Stripe key has only the permissions the service needs.</li>
+<li>The app can load code from, and send data to, jeksys.net and the service only. Benches, including ones opened from share links, are only ever treated as data, never run; the formulas in masks allow arithmetic and named maths functions only.</li>
+<li>Uploaded data is checked: a bench must be a valid bench file of at most 2 MB, and a thumbnail must really be an image of at most 128 KB, and is served back so that browsers cannot treat it as anything else.</li>
+<li>Payment events are accepted only when Stripe&rsquo;s signature on them is valid and recent, each is processed once, and the subscription&rsquo;s state is always fetched from Stripe rather than trusted from the message.</li>
+</ul>
 
-    <h2>5. Backups, history and deletion</h2>
-    <ul>
-      <li>Every bench keeps a version history: the last 50 saved versions, and one a day for 90 days. Users can restore any of them.</li>
-      <li>Deleted benches stay in a bin for 30 days, then are deleted with their history.</li>
-      <li>The database can be restored to an earlier point in time using Cloudflare D1&rsquo;s recovery feature.</li>
-      <li>Users can export all their benches at any time and delete their account. Account deletion removes their workspace, benches, history, sign-ins and sessions at once.</li>
-    </ul>
+<h2>5. Backups, history and deletion</h2>
+<ul>
+<li>Every bench keeps a version history: the last 50 saved versions, and one a day for 90 days. Users can restore any of them.</li>
+<li>Deleted benches stay in a bin for 30 days, then are deleted with their history.</li>
+<li>The service&rsquo;s data can be restored to an earlier point in time.</li>
+<li>Users can export all their benches at any time and delete their account. Account deletion removes their workspace, benches, history, sign-ins, password and sessions at once.</li>
+</ul>
 
-    <h2>6. How changes are made</h2>
-    <ul>
-      <li>All code is kept in version control, with the history of every change.</li>
-      <li>The service has an automated test suite (over 100 tests, including tests that one account cannot reach another&rsquo;s data, that writes from other websites are refused, and that billing and deletion behave correctly), and the simulator has over 400 automated checks. Both are run before changes are released.</li>
-      <li>Database changes are made through numbered migrations.</li>
-      <li>Before the first users, the whole service and app were reviewed for security, with a test that calls every route naming another person&rsquo;s data as someone else, signed out, and from another website, and checks that nothing is returned or changed. The service runs no third-party code.</li>
-    </ul>
+<h2>6. How changes are made</h2>
+<ul>
+<li>All code is kept in version control, with the history of every change.</li>
+<li>The service has an automated test suite, including tests that one account cannot reach another&rsquo;s data, that changes from other websites are refused, and that billing and deletion behave correctly. The simulator is checked by some 870 automated checks against closed-form results and published data. Both are run before changes are released.</li>
+<li>Before the first users, the whole service and app were reviewed for security, including a test that calls every part of the service naming another person&rsquo;s data as someone else, signed out, and from another website, and checks that nothing is returned or changed. The service runs no third-party code.</li>
+</ul>
 
-    <h2>7. People and administration</h2>
+<h2>7. People and administration</h2>
     <ul>
       <li>JEK Systems is a small business. Administrative access to the hosting, payment and code accounts is held by its director only, and each of those accounts is protected by two-factor authentication.</li>
       <li>We do not look at users&rsquo; benches, except when a user asks us to help with one.</li>

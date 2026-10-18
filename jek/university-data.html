@@ -75,16 +75,16 @@
     <h2>3. Providers who handle the data</h2>
     <table class="doc-table">
       <tr><th>Provider</th><td><strong>What it does</strong></td></tr>
-      <tr><th>Cloudflare, Inc.</th><td>Runs the JEKrayPro service and stores account data, benches and their history. Data is encrypted in transit and at rest.</td></tr>
+      <tr><th>Cloudflare, Inc.</th><td>Hosts the JEKrayPro service and stores account data, benches and their history.</td></tr>
       <tr><th>Stripe Payments Europe, Ltd. and Stripe, Inc.</th><td>Produces and sends invoices and takes payments; holds the Institution&rsquo;s billing contact and, for individual subscribers, card details. We never see card numbers.</td></tr>
       <tr><th>Resend, Inc.</th><td>Sends account emails, where the service sends them.</td></tr>
-      <tr><th>GitHub, Inc.</th><td>Hosts the jeksys.net website and the JEKray app. It holds no account data.</td></tr>
+      <tr><th>GitHub, Inc.</th><td>Hosts the jeksys.net website. It holds no account data.</td></tr>
     </table>
     <p>Google and Microsoft confirm who a person is when they sign in with them, under their own privacy policies. They are not our processors.</p>
     <p><strong>Transfers outside the UK.</strong> Some of these providers process data in the United States and elsewhere. Where they do, the transfer is protected by UK adequacy regulations (including the UK extension to the EU&ndash;US Data Privacy Framework) or the UK International Data Transfer Addendum to the European Commission&rsquo;s standard contractual clauses, under each provider&rsquo;s data processing agreement with us.</p>
 
     <h2>4. Security</h2>
-    <p>Our technical and organisational measures are described in the <a href="/jek/security.html">Security overview</a>. In short: sign-in through Google or Microsoft with no passwords held by us; sessions in secure, HttpOnly cookies whose tokens are stored only as hashes; every request checked against the person&rsquo;s workspace and role; encryption in transit and at rest; version history, a 30-day bin and database recovery.</p>
+    <p>Our technical and organisational measures are described in the <a href="/jek/security.html">Security overview</a>. In short: sign-in through Google or Microsoft, or by an email address proved by a code, with any password stored only in a form that cannot be reversed; sessions that scripts and other websites cannot read; every request checked against the person&rsquo;s workspace and role; encryption in transit and at rest; version history, a 30-day bin and point-in-time recovery.</p>
 
     <h2>5. Keeping and deleting data</h2>
     <ul>

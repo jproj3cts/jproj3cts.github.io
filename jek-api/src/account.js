@@ -83,6 +83,8 @@ export async function deleteAccount(req, env, user) {
     del('DELETE FROM sessions WHERE user_id = ?', user.id),
     del('DELETE FROM email_codes WHERE user_id = ?', user.id),
     del('DELETE FROM email_sends WHERE user_id = ?', user.id),
+    del('DELETE FROM passwords WHERE user_id = ?', user.id),
+    del('DELETE FROM signin_codes WHERE link_user = ?', user.id),
     del(
       "UPDATE users SET name = 'Deleted user', email = NULL, academic_until = NULL, academic_via = NULL, academic_email = NULL, avatar_key = NULL, deleted_at = ? WHERE id = ?",
       now(), user.id,

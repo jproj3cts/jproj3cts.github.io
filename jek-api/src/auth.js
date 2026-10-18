@@ -381,8 +381,8 @@ export async function emailStart(req, env, ctx) {
 }
 
 // POST /auth/email/code  {email, code, password?} — the code typed in: a session (the cookie set on the
-// response), or the address linked to the signed-in account. A password given is set for an account
-// with none (a new account choosing one, or one that forgot its old one), checked before anything else.
+// response), or the address linked to the signed-in account. A password given is set for the account
+// (a new account choosing one, or one that forgot its old one), checked before anything else.
 export async function emailCode(req, env, ctx) {
   const body = await emailBody(req);
   const email = String(body.email || '').trim().toLowerCase();
@@ -435,9 +435,15 @@ export async function emailCode(req, env, ctx) {
       userId = again.user_id;
     }
   }
-  // the password chosen on the way in: set when there is none (a forgotten one is replaced this way)
+  // the password chosen on the way in: set, or replaced (the code proved the address, which is how a
+  // forgotten password is reset); a replacement ends every other session, in case the old one leaked
   let passwordSet = false;
-  if (newPw !== null && !(await hasPassword(env, userId))) { await storePassword(env, userId, newPw); passwordSet = true; }
+  if (newPw !== null) {
+    const had = await hasPassword(env, userId);
+    await storePassword(env, userId, newPw);
+    if (had) await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+    passwordSet = true;
+  }
   const session = await createSession(env, userId, req.headers.get('User-Agent'));
   ctx.setCookie = session.cookie;
   return { signed_in: true, email, password_set: passwordSet };

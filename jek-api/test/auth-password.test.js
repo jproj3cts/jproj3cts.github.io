@@ -57,7 +57,7 @@ describe('an account with a password', () => {
     expect((await pw('lock@example.org', PW)).status).toBe(200);
   });
 
-  it('refuses weak passwords, and the code sign-in never replaces a password that exists', async () => {
+  it('refuses weak passwords; a code sign-in with a new password replaces the old one and ends every other session', async () => {
     const sent = resend();
     await start('weak@example.org');
     expect((await json(await code('weak@example.org', codeOf(sent[0]), { password: 'short' }))).body.error.code).toBe('weak_password');
@@ -66,10 +66,23 @@ describe('an account with a password', () => {
     // the code is still good: a weak password is refused before it is used up
     const res = await code('weak@example.org', codeOf(sent[0]), { password: PW });
     expect((await res.json()).password_set).toBe(true);
+    const old = sessionOf(res)[1];
+    // forgotten: a code with a new password replaces it, and the old session is ended
     await start('weak@example.org');
     const res2 = await code('weak@example.org', codeOf(sent[1]), { password: 'another fine phrase' });
-    expect((await res2.json()).password_set).toBe(false);
-    expect((await pw('weak@example.org', PW)).status).toBe(200);
+    expect((await res2.json()).password_set).toBe(true);
+    expect((await pw('weak@example.org', PW)).status).toBe(401);
+    expect((await pw('weak@example.org', 'another fine phrase')).status).toBe(200);
+    expect((await call('/v1/me', { token: old })).status).toBe(401);
+    expect((await call('/v1/me', { token: sessionOf(res2)[1] })).status).toBe(200);
+  });
+
+  it('is gone with the account', async () => {
+    const token = await newAccount('bye@example.org');
+    const me = (await json(await call('/v1/me', { token }))).body;
+    expect((await send('/v1/me', 'DELETE', token, { confirm: 'delete my account' })).status).toBe(200);
+    expect(await env.DB.prepare('SELECT 1 AS y FROM passwords WHERE user_id = ?').bind(me.user.id).first()).toBeNull();
+    expect((await json(await pw('bye@example.org', PW))).body.error.code).toBe('wrong_password');
   });
 
   it('is set, changed with the current one, and removed from the account page, and needs an email sign-in', async () => {
@@ -78,7 +91,12 @@ describe('an account with a password', () => {
     await env.DB.prepare("INSERT INTO identities (provider, subject, user_id, created_at) VALUES ('email', 'kim@example.org', ?, 0)").bind(s.user.id).run();
     expect((await send('/v1/me/password', 'PUT', s.token, { password: PW })).status).toBe(200);
     expect((await json(await send('/v1/me/password', 'PUT', s.token, { password: 'a new long phrase' }))).body.error.code).toBe('wrong_password');
+    // a change ends the other sessions, not this one
+    const other = (await import('../src/sessions.js')).createSession;
+    const { token: otherToken } = await other(env, s.user.id, 'elsewhere');
     expect((await send('/v1/me/password', 'PUT', s.token, { password: 'a new long phrase', current: PW })).status).toBe(200);
+    expect((await call('/v1/me', { token: otherToken })).status).toBe(401);
+    expect((await call('/v1/me', { token: s.token })).status).toBe(200);
     expect((await pw('kim@example.org', 'a new long phrase')).status).toBe(200);
     expect((await call('/v1/me/password', { method: 'DELETE', token: s.token })).status).toBe(200);
     expect((await json(await call('/v1/me', { token: s.token }))).body.has_password).toBe(false);

@@ -69,3 +69,29 @@ test('a solid telescope: round the spot, the annulus as a mirror, the spot as a 
   assert.deepEqual(e2.gaps, [40]);
   assert.equal(e2.surfaces[1].R, -200);
 });
+
+test('a zone reaching the face’s edge degenerates, the face keeps its own clear radius on the bench, and the image distance is the design’s to edit', async () => {
+  const LD = await import('../../src/engines/lens-design.js');
+  // an asphere 12.7 mm wide whose back is "mirrored outside 20 mm": no annulus exists, so the light goes straight through
+  const e = lensOf({ diameter: 12.7, surfaces: [{ R: 8.2, k: -0.9, mirror: { zone: 'in', r: 2.1 } }, { R: null, mirror: { zone: 'out', r: 20 } }], gaps: [10], materials: [{ glass: 'S-LAH64' }] });
+  const P = A.asmPrescription(asmOf(), [e]);
+  assert.equal(P.surfaces.length, 2);
+  assert.deepEqual(P.surfaces.map(s => !!s.mirror), [false, false]);
+  assert.deepEqual(P.surfaces.map(s => s.semi), [6.35, 6.35]);
+  assert.equal(P.surfaces[0].obs, 2.1);
+  // a spot as wide as the face is the whole face mirrored
+  const e3 = lensOf({ diameter: 12.7, surfaces: [{ R: 8.2 }, { R: null, mirror: { zone: 'in', r: 9 } }], gaps: [10], materials: [{ glass: 'S-LAH64' }] });
+  const P3 = A.asmPrescription(asmOf(), [e3]);
+  assert.deepEqual(P3.surfaces.map(s => !!s.mirror), [false, true, false]);
+  assert.deepEqual(P3.surfaces.map(s => s.semi), [6.35, 6.35, 6.35]);
+  // written back, the faces are as wide as the lens, not as wide as a zone
+  const e2 = JSON.parse(JSON.stringify(e3));
+  A.asmApply(asmOf(), P3, [e2]);
+  assert.deepEqual(e2.surfaces.map(s => s.semi || null), [null, null]);
+  assert.equal(e2.diameter, 12.7);
+  // the last row is a linked meeting, but its thickness is the image distance: editable
+  assert.equal(LD.editable(P3, 't', 2), true);
+  assert.equal(LD.editable(P3, 'R', 2), false);
+  assert.equal(LD.editable(P3, 't', 0), true);
+  assert.equal(LD.editable(P3, 't', 1), false);                 // the glass crossed back is the glass crossed in
+});

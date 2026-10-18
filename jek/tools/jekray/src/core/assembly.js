@@ -430,9 +430,11 @@ export function lensVisits(S2, G2) {
   const n = S2.length, met = new Array(n).fill(0), out = [];
   let j = 0, dir = 1;
   for (let guard = 0; guard < MIRROR_VISITS_MAX && j >= 0 && j < n; guard++) {
-    const s = S2[j], mz = s.mz, v = met[j]++;
+    const s = S2[j], v = met[j]++, semi = s.semi;
+    // a zone reaching the face's edge: a spot that wide is the whole face, an annulus that far out is nothing
+    let mz = s.mz; if (mz && mz.zone !== 'all' && !(mz.r < semi - 1e-9)) mz = mz.zone === 'in' ? { zone: 'all' } : null;
     const role = !mz ? 'refract' : mz.zone === 'all' ? 'mirror' : mz.zone === 'out' ? (v % 2 === 0 ? 'mirror' : 'refract') : (v % 2 === 0 ? 'refract' : 'mirror');
-    const semi = s.semi, r = mz && mz.zone !== 'all' ? Math.min(mz.r, semi) : 0;
+    const r = mz && mz.zone !== 'all' ? mz.r : 0;
     const clear = !mz || mz.zone === 'all' ? semi : (role === 'mirror') === (mz.zone === 'in') ? r : semi;
     const obs = !mz || mz.zone === 'all' ? 0 : (role === 'mirror') === (mz.zone === 'out') ? r : 0;
     out.push({ j, v, role, dir, clear, obs });
@@ -514,7 +516,7 @@ export function asmPrescription(asm, els) {
       if (kind === 'lens' && S2.some(s => s.mz)) {
         const V = lensVisits(S2, G2), S3 = [], G3 = [], M3 = [], owner = new Array(S2.length).fill(-1), gapOwner = new Array(Math.max(0, S2.length - 1)).fill(-1);
         V.visits.forEach((x, k) => {
-          const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j });
+          const base = S2[x.j], flipped = x.dir < 0, s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: x.clear, full: base.semi, from: { id: base.from.id, i: base.from.i, v: x.v }, mz: base.mz, cum: x.j });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (x.obs > 0) s.obs = x.obs;
           if (x.role === 'mirror') s.mirror = true;
@@ -698,8 +700,8 @@ export function asmApply(asm, P, els) {
           const tP = normPh(s.ph); if (tP) t.ph = tP; else delete t.ph;
           // the face mirrored, as the design has it
           if (s.mz) t.mirror = Object.assign({}, s.mz); else delete t.mirror;
-          // a clear radius that is the lens's own stays unset (a mirrored face's meetings narrow theirs by the zone, not the face)
-          const semi = s.mz ? (s.mz.zone === 'all' ? s.semi : Math.max(s.semi, s.obs || 0, s.mz.r)) : s.semi;
+          // a clear radius that is the lens's own stays unset (a mirrored face's meetings narrow theirs by the zone; the face keeps its own)
+          const semi = s.mz && isFinite(s.full) ? s.full : s.semi;
           if (Math.abs(semi - e.diameter / 2) >= 1e-9) t.semi = semi;
           else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
           return t;

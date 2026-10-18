@@ -31,7 +31,7 @@ import { hooks } from '../core/hooks.js';
    the band's edges, and each lens's edge taper; the figures are the ones an RF designer reads (engines/
    rf-design.js). The horns on the bench the conditions were taken from follow them. The system is listed
    down the left as the beam meets it (the frequency, the feed horn, each lens, the goal); the one chosen is
-   edited beside the beam, a lens by hand or made from a spec (Design this lens); the full lens data is the
+   edited beside the beam, a lens by hand or made from a spec (Design this lens); the full element data is the
    optical designer's. The steps for the whole system (Optimise, Analyses, Tolerance, Make it) are tabs.
    ========================================================================== */
 let RW = null;                     // { asm, tab, sel (freq, feed, goal or a part's id), design (sel's lens being designed), draft, synth }
@@ -757,7 +757,7 @@ function rwVarBtn(asm, P, key, label) {
     title: on ? 'A variable: Optimise may change it. Click to fix it.' : 'Click to let Optimise change it.',
     onclick: () => { checkpoint(); const s2 = new Set(o.keys); if (on) s2.delete(key); else s2.add(key); o.keys = vars.map(q => q.key).filter(k => s2.has(k)); changed(false); rwRender(); } }, 'V');
 }
-/* ---------- Element data: every surface of the system in a table, as the optical designer's lens data ----------
+/* ---------- Element data: every surface of the system in a table, as the optical designer's element data ----------
    Each value typed here changes the part on the bench (Undo takes it back); the V beside a value makes it a variable
    for Optimise. The feed horn's distance comes first and the goal last, as the object and image do. */
 function rwDataCard(asm, P) {

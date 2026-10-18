@@ -8722,8 +8722,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A Cooke triplet typed into the lens data from its published prescription has its focal length and Seidel sums',
-    why: 'File › New lens design, two singlets inserted in front, then the published triplet (f 50 mm, a 10 mm pupil, fields to 20°, F d C) typed into the lens data table cell by cell: its focal length and its Seidel sums SI to SV against an independent program’s (theirs of the other sign), and its axial and lateral colour (the largest relative difference)',
+    name: 'A Cooke triplet typed into the element data from its published prescription has its focal length and Seidel sums',
+    why: 'File › New lens design, two singlets inserted in front, then the published triplet (f 50 mm, a 10 mm pupil, fields to 20°, F d C) typed into the element data table cell by cell: its focal length and its Seidel sums SI to SV against an independent program’s (theirs of the other sign), and its axial and lateral colour (the largest relative difference)',
     want: 0, tol: 1e-6, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [] });
@@ -8745,7 +8745,7 @@ const TESTS = [
     },
   },
   {
-    name: 'In the lens data, solves, pickups and variables are set, kept and undone',
+    name: 'In the element data, solves, pickups and variables are set, kept and undone',
     why: 'the triplet assembly opened with Design…: its last radius solved for f/4 (the focal length 4 times the pupil), its fourth radius picking up the third’s turned, its first thickness solved for a 1 mm edge, its second thickness marked V; the image kept at focus; one Undo takes the edge solve away; saved and opened again all are kept, and its parts on the bench are as designed (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
@@ -8852,7 +8852,7 @@ const TESTS = [
   },
   {
     name: 'A glass marked V becomes a model glass the optimiser changes, then the nearest real glass',
-    why: 'a cemented doublet of one glass (no colour correction) with both glasses and two radii marked V in the lens data: optimised, its axial colour (CL) falls tenfold and its second glass is a flint; Replace model glasses with the nearest real ones puts catalogue glasses in their place (1 when all hold)',
+    why: 'a cemented doublet of one glass (no colour correction) with both glasses and two radii marked V in the element data: optimised, its axial colour (CL) falls tenfold and its second glass is a flint; Replace model glasses with the nearest real ones puts catalogue glasses in their place (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [
@@ -9613,7 +9613,7 @@ const TESTS = [
         wsClick('Undo');
         const undone = Math.abs(J.lensMerit('Cooke triplet') - merits[0]) < 1e-5;
         // a design of its own (a radius changed by hand), kept
-        wsClick('Lens data', null, 'tab'); wsSet('Radius of surface 1', 24); wsClick('Optimise the design', null, 'tab');
+        wsClick('Element data', null, 'tab'); wsSet('Radius of surface 1', 24); wsClick('Optimise the design', null, 'tab');
         wsClick('Keep this design');
         const hand = rows().some(r => /kept by hand/.test(r.textContent));
         const n = rows().length, B = J.serialize();
@@ -9884,8 +9884,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A graded lens takes its glass’s gradient in its panel and in the lens data',
-    why: 'a graded singlet’s panel: Grade this glass gives an r² field, typed in; designed alone, its lens data has that r² to type and vary, and + n(r) on a plain one opens its row (1 when all hold)',
+    name: 'A graded lens takes its glass’s gradient in its panel and in the element data',
+    why: 'a graded singlet’s panel: Grade this glass gives an r² field, typed in; designed alone, its element data has that r² to type and vary, and + n(r) on a plain one opens its row (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Gr', x: 0, y: 0, angle: 0, graded: true, diameter: 8, surfaces: [{ R: 30 }, { R: -30 }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
@@ -9927,7 +9927,7 @@ const TESTS = [
     },
   },
   {
-    name: 'A lens’s tilt and decentre out of the plane are typed in the lens data and put on the bench as its tip and height',
+    name: 'A lens’s tilt and decentre out of the plane are typed in the element data and put on the bench as its tip and height',
     why: 'two singlets made an assembly and opened with Design…, Tilts and decentres shown: the second’s tilt up typed as 2° and decentre up as 0.3 mm puts it on the bench tipped 2° and raised 0.3 mm plus half its thickness times sin 2° (to 1e-9 mm); the first’s stays as it was (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
@@ -9974,8 +9974,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A mirror takes aspheric terms in its panel and in the lens data',
-    why: 'a concave mirror’s panel: Add aspheric terms gives it an A4 field, typed in and drawn on the bench; designed alone, its lens data has its A4 to type and vary (1 when all hold)',
+    name: 'A mirror takes aspheric terms in its panel and in the element data',
+    why: 'a concave mirror’s panel: Add aspheric terms gives it an A4 field, typed in and drawn on the bench; designed alone, its element data has its A4 to type and vary (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', name: 'Cup', x: 0, y: 0, angle: 180, length: 40, R: 200 }] });
@@ -9996,8 +9996,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A diffractive lens takes its order and phase in its panel, and its phase in the lens data',
-    why: 'a diffractive lens’s panel: Add a diffractive phase on surface 2 gives a ρ² field, typed in, and its order set to 2; designed alone, its lens data has that ρ² to type and vary, and + φ opens a phase row on surface 1 (1 when all hold)',
+    name: 'A diffractive lens takes its order and phase in its panel, and its phase in the element data',
+    why: 'a diffractive lens’s panel: Add a diffractive phase on surface 2 gives a ρ² field, typed in, and its order set to 2; designed alone, its element data has that ρ² to type and vary, and + φ opens a phase row on surface 1 (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Kino', x: 0, y: 0, angle: 0, diffractive: true, diameter: 12.7, surfaces: [{ R: 27.28 }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
@@ -10074,8 +10074,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A freeform term is added on the bench and in the lens data',
-    why: 'an asphere’s panel: a freeform term picked from its list (x²) is a field to type, and takes effect on the trace; designed, its lens data has the term, + XY on another surface opens a freeform row, a second term added there and typed is on the bench part, and its × takes it off again (1 when all hold)',
+    name: 'A freeform term is added on the bench and in the element data',
+    why: 'an asphere’s panel: a freeform term picked from its list (x²) is a field to type, and takes effect on the trace; designed, its element data has the term, + XY on another surface opens a freeform row, a second term added there and typed is on the bench part, and its × takes it off again (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Asph', asphere: true, x: 0, y: 0, angle: 0, diameter: 20, surfaces: [{ R: 30 }, { R: -60 }], gaps: [4], materials: [{ glass: 'N-BK7' }] }] });
@@ -10147,8 +10147,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A folded assembly opens in the design workspace with its mirror in the lens data',
-    why: 'a lens, a fold mirror at 45° and a second lens tilted and moved across, made an assembly and opened with Design…: the mirror is surface 3, its glass Mirror and its tilt a 45° fold; the tilted lens shows its tilt and decentre; the mirror’s radius set to -400 in the lens data makes the mirror on the bench concave with radius 400; the mirror can’t be removed; the layout is drawn; and its lens file writes the fold and the tilted lens as coordinate breaks (1 when all hold)',
+    name: 'A folded assembly opens in the design workspace with its mirror in the element data',
+    why: 'a lens, a fold mirror at 45° and a second lens tilted and moved across, made an assembly and opened with Design…: the mirror is surface 3, its glass Mirror and its tilt a 45° fold; the tilted lens shows its tilt and decentre; the mirror’s radius set to -400 in the element data makes the mirror on the bench concave with radius 400; the mirror can’t be removed; the layout is drawn; and its lens file writes the fold and the tilted lens as coordinate breaks (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const L = (name, x, y, ang, R1, R2, t, glass) => ({ type: 'lens', name, x, y, angle: ang, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }] });
@@ -10225,7 +10225,7 @@ const TESTS = [
     },
   },
   {
-    name: 'Aspheric terms are added, typed, varied and optimised in the lens data, and drawn',
+    name: 'Aspheric terms are added, typed, varied and optimised in the element data, and drawn',
     why: 'a plano-convex N-BK7 lens at f/2 opened with Design…: + asphere on its curved surface gives an A4 cell, Add A6 and Add A8 more; A4 typed reaches the lens on the bench; all three marked V and optimised: the RMS spot from hundreds of micrometres to within a fifth of the Airy radius; its drawing gives the aspheric departure; Remove A8 takes the last term off (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
@@ -10293,7 +10293,7 @@ const TESTS = [
     },
   },
   {
-    name: 'A lens’s tilt and decentre are typed and varied in the lens data, and the optimiser puts a knocked lens back',
+    name: 'A lens’s tilt and decentre are typed and varied in the element data, and the optimiser puts a knocked lens back',
     why: 'two singlets on one axis: Tilts and decentres shows the column; the second lens’s tilt typed as 2° and decentre as 0.3 mm turn and move it on the bench; both marked V with the image distance and optimised on the axis: its spot as small as the centred lens’s at its best focus, its tilt and decentre back within a fraction (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
@@ -10333,7 +10333,7 @@ const TESTS = [
         add.value = 'CRA'; wsClick('Add a term');
         wsSet('Target of Chief ray’s angle at the image (°)', 0); wsSet('Weight of Chief ray’s angle at the image (°)', 10000);
         const fsel = rigDoc().querySelector('#lensWs [aria-label="Field of Chief ray’s angle at the image (°)"]'), fieldOk = !!fsel && fsel.value === '1';
-        wsClick('Lens data', null, 'tab');
+        wsClick('Element data', null, 'tab');
         wsClick('V', 'Vary thickness of surface 1');
         for (let k = 0; k < 3; k++) J.lensOptimise('dls');
         const g = J.asmPrescription('Tele').gaps[0], F = J.lensFigures('Tele');
@@ -10390,7 +10390,7 @@ const TESTS = [
         wsSet('Frequency of MTF, mean of the two', 20); wsSet('Weight of MTF, mean of the two', 10000);
         const nowOf = () => parseFloat([...rigDoc().querySelectorAll('#lensWs .rt-lmtable tr')].find(r => /MTF, mean/.test(r.textContent)).children[3].textContent);
         const m0 = nowOf(), rowOk = m0 > 0 && m0 <= 1;
-        wsClick('Lens data', null, 'tab');
+        wsClick('Element data', null, 'tab');
         wsClick('V', 'Vary image distance of surface 3');
         for (let k = 0; k < 6; k++) J.lensOptimise('dls');
         wsClick('Merit', null, 'tab');
@@ -10402,7 +10402,7 @@ const TESTS = [
   },
   {
     name: 'A single lens goes straight into lens design from its own panel',
-    why: 'a lone singlet selected: its panel’s Design as a lens… makes it an assembly of one and opens the workspace on it (two surfaces in the lens data, its focal length the lens’s own); Insert a singlet there adds a second lens to it (1 when all hold)',
+    why: 'a lone singlet selected: its panel’s Design as a lens… makes it an assembly of one and opens the workspace on it (two surfaces in the element data, its focal length the lens’s own); Insert a singlet there adds a second lens to it (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [
@@ -10475,7 +10475,7 @@ const TESTS = [
         set(q('select[aria-label="Value to make differ between the configurations"]'), [...q('select[aria-label="Value to make differ between the configurations"]').options].find(o => o.textContent === 'Thickness after surface 3 (Front, back)').value);
         wsClick('Make it differ');
         wsClick('Configurations', null, 'tab');
-        wsClick('Lens data', null, 'tab');
+        wsClick('Element data', null, 'tab');
         wsClick('V', 'Vary thickness of surface 3');
         wsClick('Merit', null, 'tab');
         for (const c of [0, 1]) {

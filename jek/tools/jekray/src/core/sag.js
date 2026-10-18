@@ -1,7 +1,7 @@
 /* ==========================================================================
    A surface's sag, written once
    A rotationally symmetric surface: a conic of curvature c and constant k, an r² term a2, even aspheric
-   terms A (r⁴, r⁶, ...) and odd ones (r, r², r³, ...). The bench's tracer, the lens engine, the lens data,
+   terms A (r⁴, r⁶, ...) and odd ones (r, r², r³, ...). The bench's tracer, the lens engine, the element data,
    the drawings and the CAD export all take it from here, so a surface term added later is added in one place.
    ========================================================================== */
 

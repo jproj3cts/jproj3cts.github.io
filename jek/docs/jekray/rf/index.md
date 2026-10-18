@@ -244,7 +244,7 @@ The system is listed down the left as the beam meets it: **Frequency**, **Feed h
 
 ### Element data
 
-Every surface of the system in one table, as the optical designer's lens data: the feed horn first (its distance to the first surface is the first thickness), then each face with its radius, conic, the thickness after it (a lens's centre, or the air to the next part), the material after it and its clear radius, and the goal last. A lens's radii, conics, centre thickness and material and the air after each part are typed here and change the part on the bench, which Undo takes back; a graded-index disc shows its focal length, a mirror its radius as the bench has it. The **V** beside a value marks it as a variable for **Optimise**: orange when it is one. To start, each lens's two radii and its front conic are variables.
+Every surface of the system in one table, as the optical designer's element data: the feed horn first (its distance to the first surface is the first thickness), then each face with its radius, conic, the thickness after it (a lens's centre, or the air to the next part), the material after it and its clear radius, and the goal last. A lens's radii, conics, centre thickness and material and the air after each part are typed here and change the part on the bench, which Undo takes back; a graded-index disc shows its focal length, a mirror its radius as the bench has it. The **V** beside a value marks it as a variable for **Optimise**: orange when it is one. To start, each lens's two radii and its front conic are variables.
 
 ### Analyses
 

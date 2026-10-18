@@ -30,7 +30,7 @@ import { fmtWs } from '../core/format.js';
 /* ==========================================================================
    The lens design workspace
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
-   by the lens engine, and its lens data, surface by surface, to edit as a lens designer does.
+   by the lens engine, and its element data, surface by surface, to edit as a lens designer does.
    Every change is written to its parts on the bench as it is made (and can be undone there), so
    leaving the workspace is only going back to the bench. A design started from nothing has no
    light on the bench yet: Place on a bench gives it a source for each field and a screen at its
@@ -417,10 +417,10 @@ function figuresStrip(F) {
 }
 function tabsRow() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Lens data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
-/* ---------- Lens data ---------- */
+/* ---------- Element data ---------- */
 function surfaceName(P, sps, i) {
   const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?';
   if (sp.kind === 'stop') return /\bstop\b/i.test(nm) ? nm : nm + ' (stop)';
@@ -621,7 +621,7 @@ function parseGlass(t) {
 function cfgPicker(asm) {
   const M = mcOf(designOf(asm));
   if (!M) return [];
-  const x = h('select', { class: 'rt-lcfgsel', 'aria-label': 'Configuration shown', title: 'The configuration on the bench, and in the layout, lens data and analyses' }, ...M.configs.map((c, i) => h('option', { value: String(i) }, c.name)));
+  const x = h('select', { class: 'rt-lcfgsel', 'aria-label': 'Configuration shown', title: 'The configuration on the bench, and in the layout, element data and analyses' }, ...M.configs.map((c, i) => h('option', { value: String(i) }, c.name)));
   x.value = String(M.active);
   x.addEventListener('change', fromField(x, () => cfgShow(+x.value)));
   return [x];
@@ -666,7 +666,7 @@ function configsCard(asm, P) {
     const nm = h('input', { type: 'text', class: 'rt-lcfgname', value: c.name, 'aria-label': 'Name of configuration ' + (ci + 1), spellcheck: 'false' });
     nm.addEventListener('change', fromField(nm, () => { checkpoint(); c.name = String(nm.value || 'Configuration ' + (ci + 1)).slice(0, 40); changed(false); renderWs(); }));
     head.append(h('th', { scope: 'col', class: ci === M.active ? 'on' : '' }, h('div', { class: 'rt-lcfgh' }, nm,
-      ci === M.active ? h('span', { class: 'rt-lpill', title: 'On the bench, and in the layout, lens data and analyses' }, 'Shown') : h('button', { type: 'button', class: 'rt-link', onclick: () => cfgShow(ci) }, 'Show'),
+      ci === M.active ? h('span', { class: 'rt-lpill', title: 'On the bench, and in the layout, element data and analyses' }, 'Shown') : h('button', { type: 'button', class: 'rt-link', onclick: () => cfgShow(ci) }, 'Show'),
       h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Remove ' + c.name, title: 'Take this configuration out (with any merit term set for it alone)', onclick: () => { checkpoint(); mcRemove(asm, ci); changed(true); renderWs(); } }, '×'))));
   });
   tbl.append(h('thead', null, head));
@@ -721,7 +721,7 @@ function configsCard(asm, P) {
   card.append(h('div', { class: 'rt-lbar' }, pick, h('button', { class: 'rt-btn', type: 'button', disabled: opts.length ? null : '', title: 'Give each configuration its own value of it, starting from the one it has now', onclick: () => {
     checkpoint(); mcKey(asm, designPrescription(asm), pick.value, true); changed(false); renderWs();
   } }, 'Make it differ'), addBtn));
-  card.append(helpLine('The configuration shown is the one on the bench.', ['The configuration shown is the one on the bench and in the layout, lens data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'], 'rt-lsub'));
+  card.append(helpLine('The configuration shown is the one on the bench.', ['The configuration shown is the one on the bench and in the layout, element data, analyses, drawings and tolerancing. A value marked V that differs between configurations is optimised in each; one shared is optimised once for all. A merit term is measured in every configuration unless set for one. Solves are worked out in each configuration.'], 'rt-lsub'));
   return card;
 }
 
@@ -804,8 +804,8 @@ function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note
 export function optStart(mode, opts) {
   if (!WS) return false;
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
-  if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the lens data first.', true); return false; }
-  if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the lens data first.', true); return false; }
+  if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
+  if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
@@ -908,7 +908,7 @@ function limitsCard(asm, prob, V, running) {
   });
   const det = h('details', { class: 'rt-llims' }, h('summary', null, 'Limits on the variables' + (Object.keys(L).length ? ' (' + Object.keys(L).length + ' set)' : '')),
     h('div', { class: 'rt-ltwrap' }, h('table', { class: 'rt-ltable' }, h('thead', null, h('tr', null, ...['Variable', 'Now', 'Least', 'Greatest', ''].map(t => h('th', { scope: 'col' }, t)))), tb)),
-    helpLine('The optimiser keeps each value within its limits.', ['The optimiser never takes a value past its limits, in the units the lens data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'], 'rt-lsub'));
+    helpLine('The optimiser keeps each value within its limits.', ['The optimiser never takes a value past its limits, in the units the element data shows (radii, thicknesses and decentres in mm, tilts in degrees). A radius limited keeps the sign of its limits: between two of one sign, or one alone on its own side of flat (at least 20: from 20 out to flat; at most -20: from -20 out to flat). Aspheric, freeform, phase and gradient terms, and values each configuration has its own of, take no limits.'], 'rt-lsub'));
   if (WS.limsOpen || Object.keys(L).length) det.open = true;
   det.addEventListener('toggle', () => { if (WS) WS.limsOpen = det.open; });
   return det;
@@ -918,7 +918,7 @@ function limitBad(P, id, m) {
   if (!m || id[0] !== 'R' || !isFinite(m.lo) || !isFinite(m.hi)) return null;
   return m.lo * m.hi <= 0 ? 'A radius\u2019s two limits must be of one sign: a radius between them would pass through flat' : null;
 }
-/* a kept value as the lens data shows it: 'R:Front.1' as Front R2, a radius from its curvature (flat at none) */
+/* a kept value as the element data shows it: 'R:Front.1' as Front R2, a radius from its curvature (flat at none) */
 const foundLabel = v => { const m = /^([A-Za-z]\w*):(.*)\.(\d+)$/.exec(v.k); return m ? ((getEl(m[2]) || {}).name || m[2]) + ' ' + (m[1] === 'g' ? 'glass ' + (v.part || '') : m[1] + (+m[3] + 1)) + (v.cfg !== null && v.cfg !== undefined ? ' (configuration ' + (v.cfg + 1) + ')' : '') : v.k === 't:image' ? 'image distance' : v.k; };
 const foundVal = (v, x) => v.k[0] === 'R' && !v.part ? (Math.abs(x) < 1e-12 ? 'flat' : wsFmt(1 / x, 5)) : wsFmt(x, 5);
 /* the designs kept: those the global search found (the best distinct ones), and any kept by hand; each can be
@@ -951,7 +951,7 @@ function optCard(asm, P) {
   const prob = optProblem(asm, P), V = optVars(prob), O = OPT && OPT.id === asm.id ? OPT : null, running = !!(O && O.running);
   const card = h('div', { class: 'rt-lcard rt-lopt', role: 'tabpanel' });
   const count = q => V.filter(v => v.at.q === q && v.part !== 'vd').length;
-  card.append(h('p', null, 'Variables: ', h('b', null, String(V.length)), V.length ? ' (radii ' + count('R') + ', thicknesses ' + count('t') + ', conics ' + count('k') + (count('g') ? ', model glasses ' + count('g') + ', each its nd and Vd' : '') + ')' : ' — mark values V in the lens data.'));
+  card.append(h('p', null, 'Variables: ', h('b', null, String(V.length)), V.length ? ' (radii ' + count('R') + ', thicknesses ' + count('t') + ', conics ' + count('k') + (count('g') ? ', model glasses ' + count('g') + ', each its nd and Vd' : '') + ')' : ' — mark values V in the element data.'));
   if (V.length) card.append(limitsCard(asm, prob, V, running));
   WS.method = WS.method || 'dls';
   const radio = (k, label, t) => h('button', { type: 'button', role: 'radio', class: 'rt-ltab', 'aria-checked': String(WS.method === k), 'aria-selected': String(WS.method === k), title: t, disabled: running ? '' : null, onclick: () => { WS.method = k; renderWs(); } }, label);
@@ -966,7 +966,7 @@ function optCard(asm, P) {
     num.addEventListener('change', () => { const v = Math.round(+num.value); S.n = isFinite(v) ? Math.max(1, Math.min(200, v)) : 12; renderWs(); });
     card.append(h('div', { class: 'rt-lsubst' }, h('div', { class: 'rt-lrow', role: 'group', 'aria-label': 'Makers' }, h('span', { class: 'rt-lsub' }, 'From'), ...GLASS_MAKERS.map(box)),
       h('label', { class: 'rt-lrow' }, h('span', { class: 'rt-lsub' }, 'Candidates for each glass, nearest on the glass map'), num),
-      helpLine(nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute.' : 'Mark a lens’s glass V in the lens data to substitute it.', [nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the lens data to substitute it.'], 'rt-lsub')));
+      helpLine(nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute.' : 'Mark a lens’s glass V in the element data to substitute it.', [nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the element data to substitute it.'], 'rt-lsub')));
   }
   card.append(h('div', { class: 'rt-lbar' }, running
     ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')

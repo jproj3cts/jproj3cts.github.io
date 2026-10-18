@@ -19,7 +19,7 @@ import { sagInPlane } from '../core/sag.js';
      4/ σ     centring: each surface's tilt to the lens's reference axis, in arcminutes: the lens's
               tilt tolerance plus its decentre over the surface's radius;
      the thickness ± mm; the glass's nd ± Δn and νd ± per cent.
-   The light runs left to right, as on the lens data: a radius is positive with its centre to the right.
+   The light runs left to right, as on the element data: a radius is positive with its centre to the right.
    ========================================================================== */
 const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
 
@@ -69,7 +69,7 @@ export function drawingData(P, pi, opts) {
   }
   const notes = [];
   if (S.some(s => s.cyl)) notes.push('A cylindrical lens: its radii are of its curve ' + (S.find(s => s.cyl).cyl === 'y' ? 'in the section drawn; it is flat at right angles to it.' : 'at right angles to the section drawn, which is flat.'));
-  S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the lens data.'); });
+  S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the element data.'); });
   // a diffractive face: its phase, and what its zones come to over the clear radius (each a wrap of 2π in φ, m waves deep)
   S.forEach((s, j) => {
     if (!s.ph || !s.ph.some(v => v)) return;

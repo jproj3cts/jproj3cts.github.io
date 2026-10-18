@@ -183,7 +183,7 @@ export function reportRecs(asm) {
     if (MC.configs.length > shown.length) rpPara(pg, 'And ' + (MC.configs.length - shown.length) + ' more configurations, not shown.', { ink: RP_SOFT });
   }
   const nSolve = Object.keys(D.solves).length, nPick = Object.keys(D.pickups).length;
-  if (nSolve || nPick || D.vars.length) { rpHead(pg, 'Solves, pickups and variables'); rpPara(pg, nSolve + ' solve' + (nSolve === 1 ? '' : 's') + ', ' + nPick + ' pickup' + (nPick === 1 ? '' : 's') + ' and ' + D.vars.length + ' variable' + (D.vars.length === 1 ? '' : 's') + ' for the optimiser are set in the lens data.'); }
+  if (nSolve || nPick || D.vars.length) { rpHead(pg, 'Solves, pickups and variables'); rpPara(pg, nSolve + ' solve' + (nSolve === 1 ? '' : 's') + ', ' + nPick + ' pickup' + (nPick === 1 ? '' : 's') + ' and ' + D.vars.length + ' variable' + (D.vars.length === 1 ? '' : 's') + ' for the optimiser are set in the element data.'); }
   rpHead(pg, 'Seidel sums at the largest field, ' + rf(F.fmax, 4) + FU + ' (transverse, mm)');
   const sd = F.seidel, K = ['SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT'];
   const sc = [{ label: '#', w: 30 }].concat(K.map(k => ({ label: k, w: 67, mono: true, align: 'right' })));

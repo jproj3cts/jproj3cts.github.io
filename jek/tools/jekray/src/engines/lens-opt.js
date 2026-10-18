@@ -491,7 +491,7 @@ export function keepFound(list, item, n) {
 
 /* ---------- Limits on values ----------
    A value marked V may be given a least and a greatest value (design.lims, by its key, and for a model glass
-   its key and /nd or /vd), in the units the lens data shows: a radius, a thickness or gap, the image distance,
+   its key and /nd or /vd), in the units the element data shows: a radius, a thickness or gap, the image distance,
    a conic, a tilt or decentre, a glass's nd or Vd. The optimiser never takes it past them. A radius is varied as
    its curvature, so a radius limited keeps the sign of its limits: between two of one sign, or one alone on
    its own side of flat (at least 20: 20 ≤ R, out to flat; at most 20: 0 < R ≤ 20; at least -20: -20 ≤ R < 0;

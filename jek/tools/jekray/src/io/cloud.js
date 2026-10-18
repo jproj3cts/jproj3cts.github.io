@@ -1,4 +1,5 @@
 import { EMBED, TEST_MODE, cloud, cloudOpening, setCloud, setCloudOpening } from '../core/constants.js';
+import { hooks } from '../core/hooks.js';
 import { V, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
@@ -40,7 +41,7 @@ export function cloudLink(link) {
   if (cloud && (!link || link.id !== cloud.id)) leaseStop(cloud);
   setCloud(link); clearTimeout(cloudTimer);
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
-  document.getElementById('btnCloudFork').hidden = !cloud || !cloudOn();
+  cloudGates();
   leaseStart();
 }
 /* ---------- the editing lease ----------
@@ -104,6 +105,34 @@ function cloudSay(text) {
   setStatus(cloud ? text : 'Autosaved in this browser');
 }
 export const cloudOn = () => accountsOn() && !!account;
+/* why saving to the cloud, forking and keeping parts are not possible now: not signed in, or no plan anywhere the
+   person can save (their own JEKrayPro, or a team with a plan); '' when they are */
+export const proWhy = () => (!account ? 'Sign in, top right, to use the cloud' : newPlaces().some(w => w.active) ? '' : 'Needs JEKrayPro: subscribe from the account menu, or join a team with a plan');
+/* the way to make it possible: the sign-in menu, or the subscribe dialog */
+export function proFix() {
+  // after the menu the click came from has closed
+  setTimeout(() => { if (!account) { const b = document.getElementById('btnAcct'); if (b && document.getElementById('acctMenu').hidden) b.click(); } else showSubscribe(); });
+}
+/* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix */
+export function gateItem(el, why, badge) {
+  const off = !!why;
+  el.hidden = false;
+  el.classList.toggle('rt-off', off);
+  el.setAttribute('aria-disabled', off ? 'true' : 'false');
+  if (el.dataset.title === undefined) el.dataset.title = el.title || '';
+  el.title = off ? why : el.dataset.title;
+  el.dataset.why = off ? why : '';
+  let k = el.querySelector('.k.rt-why');
+  if (off) { if (!k) { k = h('span', { class: 'k rt-why' }); el.append(k); } k.textContent = badge || (account ? 'JEKrayPro' : 'Sign in'); }
+  else if (k) k.remove();
+}
+/* a gated item's click: true when it was off (explained, and the fix offered), so the handler stops */
+export function gated(el) {
+  if (!el.dataset.why) return false;
+  toast(el.dataset.why, true);
+  if (el.dataset.why.startsWith('Sign in') || account) proFix();
+  return true;
+}
 export function cloudChanged() {
   if (!cloud || cloudOpening) return;          // opening replaces the bench: not an edit of the old link
   if (!cloud.dirty) { cloud.dirty = true; cloudKeep(); }
@@ -834,18 +863,28 @@ function closeHome() {
   if (location.hash === '#benches') window.history.replaceState(null, '', location.pathname + location.search);
   requestRender();
 }
+/* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
+function cloudGates() {
+  const on = cloudOn(), show = accountsOn(), why = proWhy();
+  document.getElementById('btnHome').hidden = !on;
+  for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
+  if (!show) return;
+  gateItem(document.getElementById('btnCloudList'), account ? '' : why);
+  gateItem(document.getElementById('btnCloudSave'), why);
+  gateItem(document.getElementById('btnCloudFork'), why || (cloud ? '' : 'This bench is not in the cloud yet: Save to cloud first'), why ? null : 'Not in the cloud');
+}
 export function cloudMenuShown() {
   const on = cloudOn();
   if (!on || (MINE.ws && personalWs() && MINE.ws !== personalWs().id)) { MINE.list = null; MINE.ws = null; }
   fillRail();
-  for (const b of document.querySelectorAll('.rt-cloud')) b.hidden = !on;
-  document.getElementById('btnCloudFork').hidden = !on || !cloud;
+  cloudGates();
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
   if (!on) closeHome();
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireCloud() {
+  hooks.proWhy = proWhy; hooks.proFix = proFix;
   window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
 
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
@@ -856,12 +895,12 @@ export function wireCloud() {
 
   {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
-    document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
-    document.getElementById('btnCloudList').addEventListener('click', () => openHome());
+    document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
+    document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openHome(); });
     document.getElementById('btnHome').addEventListener('click', () => openHome());
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
-    document.getElementById('btnCloudFork').addEventListener('click', async () => {
-      if (!cloud) return;
+    document.getElementById('btnCloudFork').addEventListener('click', async e => {
+      if (gated(e.currentTarget) || !cloud) return;
       const link = cloud, name = prompt('Name of the fork', (project.name || link.name) + ' (fork)');
       if (name === null) return;
       if (link.dirty && !(await cloudPush({ checkpoint: true }))) return;

@@ -17,6 +17,8 @@ export const hooks = {
   fieldWorker: () => null, fwRequest: () => Promise.reject(new Error('no field worker')), fwMismatch() {},
   // the account's parts library, when the page has one: keep a selection as a part (ui/myparts.js saveToMine)
   saveParts: null,
+  // the cloud: why a saving, forking or keeping action is not possible now ('' when it is), and the way to make it so (sign in, or subscribe)
+  proWhy: () => '', proFix() {},
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };

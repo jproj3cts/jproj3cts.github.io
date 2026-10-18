@@ -1044,6 +1044,12 @@
   .rt-imenu > button:hover .ic, .rt-imenu > .rt-sub:hover > .ic { opacity: 1; }
   .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
   .rt-imenu .sep { height: 1px; margin: 4px 0; background: var(--jek-line); }
+  /* an item present but not possible now (not signed in, no plan): a greyed box that says why, and offers the way */
+  .rt-imenu > button.rt-off, .rt-ctx button.rt-off { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
+  .rt-imenu > button.rt-off:hover, .rt-imenu > button.rt-off:focus-visible, .rt-ctx button.rt-off:hover { background: var(--jek-well); color: var(--jek-ink-soft); }
+  .rt-imenu > button.rt-off .ic { opacity: 0.45; }
+  .rt-menu.rt-imenu > button.rt-off .k.rt-why, .rt-ctx button.rt-off .k.rt-why { font: 600 0.68rem var(--jek-sans, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-btn.rt-off { opacity: 0.5; }
   .rt-imenu .rt-menunote { padding: 0.25rem 0.9rem 0.2rem 2.35rem; font-size: 0.75rem; }
   .rt-imenu [aria-checked="false"] .ic { opacity: 0; }
   .rt-imenu .rt-dot { margin-left: 0.35rem; }

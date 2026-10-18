@@ -21,6 +21,7 @@ import { checkpoint, switchTab } from './tabs.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
 import { accountsOn } from '../io/account.js';
+import { hooks } from '../core/hooks.js';
 import { scheduleSave } from '../io/autosave.js';
 
 /* ==========================================================================
@@ -169,7 +170,8 @@ export function hideCtxMenu() { const m = document.getElementById('ctxMenu'); if
 export function showCtxMenu(x, y, items) {
   const m = document.getElementById('ctxMenu');
   m.replaceChildren(...items.map(it => it === '-' ? h('div', { class: 'sep' }) :
-    h('button', { type: 'button', role: 'menuitem', disabled: it.off ? '' : null, onclick: () => { hideCtxMenu(); it.fn(); } }, it.label, it.key ? h('span', { class: 'k' }, it.key) : null)));
+    h('button', { type: 'button', role: 'menuitem', disabled: it.off && !it.why ? '' : null, class: it.off && it.why ? 'rt-off' : null, 'aria-disabled': it.off && it.why ? 'true' : null, title: it.off && it.why ? it.why : null,
+      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { toast(it.why, true); hooks.proFix(); } } else it.fn(); } }, it.label, it.off && it.why ? h('span', { class: 'k rt-why' }, it.why.startsWith('Sign in') ? 'Sign in' : 'JEKrayPro') : it.key ? h('span', { class: 'k' }, it.key) : null)));
   m.hidden = false;
   // placed, then moved by however far off it landed: whatever box it is fixed to
   m.style.left = '0px'; m.style.top = '0px';
@@ -195,7 +197,7 @@ export function benchMenu(X, Y, hit, at, in3d) {
     { label: 'Cut', key: 'Ctrl+X', fn: () => { clipMem = clipOf(list); try { navigator.clipboard.writeText(JSON.stringify(clipMem)); } catch (err) { /* kept here */ } removeEls(list); } },
     paste,
     { label: 'Delete', key: 'Del', fn: () => removeEls(list) }, '-',
-    ...(accountsOn() ? [{ label: n > 1 ? '★ Save ' + n + ' to My parts…' : '★ Save to My parts…', fn: () => saveToMine(list) }, '-'] : []),
+    ...(accountsOn() ? [{ label: n > 1 ? '★ Save ' + n + ' to My parts…' : '★ Save to My parts…', off: !!hooks.proWhy(), why: hooks.proWhy(), fn: () => saveToMine(list) }, '-'] : []),
     { label: 'Rotate 90\u00b0 anticlockwise', key: 'R', fn: () => rotateEls(list, 90) },
     { label: 'Rotate 90\u00b0 clockwise', key: 'Shift+R', fn: () => rotateEls(list, -90) },
     { label: 'Turn round (180\u00b0)', fn: () => rotateEls(list, 180) },

@@ -14,11 +14,12 @@ export async function engine() {
   globalThis.self = globalThis;
   if (!globalThis.location) globalThis.location = { hostname: '', hash: '', search: '', href: '' };
   workerShim();
-  const [ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN] = await Promise.all([
+  const [ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO] = await Promise.all([
     import('./src/state/project.js'), import('./src/state/elements.js'), import('./src/engines/trace.js'), import('./src/engines/screen-stats.js'),
     import('./src/engines/fibre-face.js'), import('./src/engines/antenna-field.js'), import('./src/engines/detector.js'), import('./src/engines/cavity.js'),
-    import('./src/state/params.js'), import('./src/engines/lens-design.js'), import('./src/engines/rf-design.js'), import('./src/engines/rf-sweep.js'), import('./src/core/horns.js')]);
-  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN };
+    import('./src/state/params.js'), import('./src/engines/lens-design.js'), import('./src/engines/rf-design.js'), import('./src/engines/rf-sweep.js'), import('./src/core/horns.js'),
+    import('./src/engines/lens-analysis.js'), import('./src/core/assembly.js'), import('./src/io/zmx-export.js'), import('./src/engines/lens-opt.js')]);
+  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO };
   return ENGINE;
 }
 const round = (v, p = 6) => (typeof v === 'number' && isFinite(v) ? +v.toPrecision(p) : v);
@@ -56,6 +57,38 @@ export async function openBench(data) {
     /* a receiving horn against frequency, and its link budget (RF) */
     rfSweep(name) { ensure(); return plain(E.RS.rfSweep(byName(name))); },
     linkBudget(name) { ensure(); return plain(E.RS.linkBudget(byName(name))); },
+    /* ---------- the lens designer: an assembly's prescription and analyses ---------- */
+    /* the assemblies on the bench: name, kind (lens or rf) and their parts */
+    assemblies() { return (E.ST.project.assemblies || []).map(a => ({ name: a.name, kind: a.kind === 'rf' ? 'rf' : 'lens', parts: E.ASM.asmMembers(a).map(e => e.name) })); },
+    /* its prescription as the designer reads it: surfaces (R, k, aspheric terms, semi-aperture), gaps, materials, the stop */
+    prescription(asmName) { const P = E.LD.designPrescription(asmByName(asmName)); return plain({ surfaces: P.surfaces, gaps: P.gaps, materials: P.materials, stopIndex: P.stopIndex, image: P.image }); },
+    /* first order: focal lengths, the entrance pupil, the working F-number and NA, at the primary wavelength (or nm) */
+    lens(asmName, nm) {
+      const asm = asmByName(asmName), P = E.LD.designPrescription(asm), A = E.LA.anaSystems(asm, P), w = nm || A.nm0;
+      const px = E.ASM.asmParaxial(P, w, E.TRACE.paraxial);
+      return plain({ nm: w, efl: px.efl, bfl: px.bfl, epd: A.epd, fNumber: A.fw, na: A.na, finite: A.finite, fields: A.c.fields.map(f => f.deg), waves: A.c.waves.map(x => x.nm) });
+    },
+    /* the spot at a field angle (degrees; an object height for a finite object): rms and largest radius, the Airy radius */
+    spot(asmName, deg, n) { const asm = asmByName(asmName), A = E.LA.anaSystems(asm, E.LD.designPrescription(asm)), S = E.LA.spotDiagram(A, deg || 0, n); return plain({ deg: S.deg, rms: S.rms, geo: S.geo, airy: S.airy, centroid: S.centroid, rays: S.rays, lost: S.waves.reduce((a, w) => a + w.lost, 0) }); },
+    /* the wavefront at a field angle, at the primary wavelength (or wave index wi): rms and peak-to-valley in waves, the first Zernike terms */
+    wavefront(asmName, deg, wi) { const asm = asmByName(asmName), A = E.LA.anaSystems(asm, E.LD.designPrescription(asm)), W = E.LA.wavefrontMap(A, deg || 0, wi); return plain({ deg: W.deg, nm: W.nm, rms: W.rms, pv: W.pv, zernike: W.coef }); },
+    /* the diffraction MTF at a field angle: tangential and sagittal at the frequencies given (cycles/mm), and the cutoff */
+    mtf(asmName, deg, freqs) {
+      const asm = asmByName(asmName), A = E.LA.anaSystems(asm, E.LD.designPrescription(asm)), M = E.LA.mtfAnalysis(A, deg || 0);
+      const at = nu => { const i = M.freqs.findIndex(f => f >= nu); if (i < 0) return [0, 0]; if (i === 0) return [M.tan[0], M.sag[0]]; const f = (nu - M.freqs[i - 1]) / (M.freqs[i] - M.freqs[i - 1]); return [M.tan[i - 1] + f * (M.tan[i] - M.tan[i - 1]), M.sag[i - 1] + f * (M.sag[i] - M.sag[i - 1])]; };
+      const fs = freqs && freqs.length ? freqs : [10, 20, 50, 100].filter(v => v < M.cutoff);
+      return plain({ deg: M.deg, cutoff: M.cutoff, at: fs.map(nu => { const [t, s] = at(nu); return { nu, tan: t, sag: s }; }) });
+    },
+    /* field curvature (tangential and sagittal focus shift, mm) and distortion (%) across the field */
+    fieldCurves(asmName) { const asm = asmByName(asmName); return plain(E.LA.fieldCurves(E.LA.anaSystems(asm, E.LD.designPrescription(asm)))); },
+    /* relative illumination across the field, and the vignetting */
+    relIllum(asmName) { const asm = asmByName(asmName); return plain(E.LA.relIllum(E.LA.anaSystems(asm, E.LD.designPrescription(asm)))); },
+    /* the designer's merit function, as its optimiser scores the design */
+    merit(asmName) { const asm = asmByName(asmName); return plain(E.LO.meritReport(E.LO.optProblem(asm, E.LD.designPrescription(asm))).merit); },
+    /* parts (or an assembly's) as a lens file: the text, and any warnings */
+    zmx(names, nms) { const els = (Array.isArray(names) ? names : [names]).map(byName), out = E.ZMX.zmxExport(els, nms); return { name: out.name, text: out.text, warnings: [...out.warnings] }; },
+    /* the Gaussian beams arriving at a part's face: each one's q, direction and power (the bench's beam view) */
+    arrivals(name) { ensure(); return plain(E.FF.faceArrivals(byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, opl: A.opl, J: A.J }))); },
     /* the RF designer's figures for an RF assembly at a frequency (GHz; its design frequency when left out) */
     rf(asmName, ghz) {
       const asm = asmByName(asmName), P = E.LD.designPrescription(asm); E.RF.rfSyncCond(asm, P);

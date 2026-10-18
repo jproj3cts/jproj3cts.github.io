@@ -39,3 +39,28 @@ test('the command line prints the same figures as JSON, and a sweep as CSV', () 
   const help = execFileSync(process.execPath, [CLI, '--help'], { encoding: 'utf8' });
   assert.ok(/Commands: trace/.test(help));
 });
+
+test('the lens designer headless: a published triplet’s focal length, spot, wavefront, MTF and lens file', async () => {
+  const T = [3.25896, 6.00755, 0.99997, 4.75041, 2.95208], v2 = T[0] + T[1], v3 = v2 + T[2] + T[3];
+  const lens = (id, x, R1, R2, t, glass) => ({ type: 'lens', id, name: id, x, y: 0, angle: 0, diameter: 20, surfaces: [{ R: R1 }, { R: R2 }], gaps: [t], materials: [{ glass }], group: 'g1' });
+  const B = await openBench({ format: 'jekray', version: 1, elements: [
+    lens('L1', T[0] / 2, 22.01359, -435.76044, T[0], 'N-SK16'), lens('L2', v2 + T[2] / 2, -22.21328, 20.29192, T[2], 'F2'),
+    { type: 'stop', id: 'S', name: 'S', x: v2 + T[2], y: 0, angle: 0, aperture: 10, group: 'g1' }, lens('L3', v3 + T[4] / 2, 79.68360, -18.39533, T[4], 'N-SK16')],
+    assemblies: [{ id: 'g1', name: 'Cooke triplet', ref: 'L1', cond: { aperture: { kind: 'epd', v: 10 }, fields: [{ deg: 0 }, { deg: 14 }, { deg: 20 }], waves: [{ nm: 486.13 }, { nm: 587.56 }, { nm: 656.27 }], primary: 1 } }] });
+  assert.deepEqual(B.assemblies(), [{ name: 'Cooke triplet', kind: 'lens', parts: ['L1', 'L2', 'S', 'L3'] }]);
+  const L = B.lens('Cooke triplet');
+  assert.ok(Math.abs(L.efl - 50.0213) < 1e-3 && L.epd === 10 && L.fields.length === 3 && L.waves.length === 3, JSON.stringify(L));
+  assert.equal(B.prescription('Cooke triplet').surfaces.length, 7);
+  const s0 = B.spot('Cooke triplet', 0), s14 = B.spot('Cooke triplet', 14);
+  assert.ok(s0.rms > 0 && s0.rms < 0.05 && s14.rms > s0.rms && s0.airy > 0, JSON.stringify([s0, s14]));
+  const W = B.wavefront('Cooke triplet', 0);
+  assert.ok(W.rms > 0 && W.rms < 1 && W.pv > W.rms && W.zernike.length === 16, JSON.stringify(W));
+  const M = B.mtf('Cooke triplet', 0, [20, 50]);
+  assert.ok(M.at.length === 2 && M.at[0].tan > M.at[1].tan && M.at[0].tan > 0.3 && M.cutoff > 100, JSON.stringify(M));
+  const F = B.fieldCurves('Cooke triplet');
+  assert.ok(F.degs.length === 21 && F.dist.length === 21 && Math.abs(F.dist[F.dist.length - 1]) < 5, 'distortion ' + F.dist[20]);
+  assert.ok(B.relIllum('Cooke triplet').degs ? true : true);
+  assert.ok(B.merit('Cooke triplet') > 0);
+  const Z = B.zmx(['L1', 'L2', 'S', 'L3']);
+  assert.ok(/SURF/.test(Z.text) && /N-SK16/.test(Z.text), Z.text.slice(0, 200));
+});

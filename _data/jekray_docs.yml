@@ -1,7 +1,11 @@
 # The JEKray documentation's contents: the sidebar, the breadcrumbs and Previous / Next all
-# follow this order. A page is listed once; "pages" nests under its section.
+# follow this order. A page is listed once; "pages" nests under its section. A "group" on an
+# entry starts a new heading in the sidebar above it; the groups are the reading order:
+# first the tool, then the five kinds of model on the bench with their parts, then the three
+# design workspaces built on them, then how to extend and drive it, then the FAQ.
 - title: Introduction
   url: /jek/docs/jekray/
+  group: Start here
 - title: Getting started
   url: /jek/docs/jekray/getting-started/
 - title: Concepts
@@ -9,6 +13,7 @@
 - title: Free-space optics
   url: /jek/docs/jekray/free-space/
   cat: free
+  group: The bench
   pages:
     - title: Source
       url: /jek/docs/jekray/free-space/source/
@@ -178,18 +183,23 @@
       url: /jek/docs/jekray/chips/phase-shifter/
     - title: On-chip photodiode
       url: /jek/docs/jekray/chips/photodiode/
-- title: Optical designer
-  url: /jek/docs/jekray/lens-design/
 - title: RF and millimetre waves
   url: /jek/docs/jekray/rf/
   cat: rf
+- title: Optical designer
+  url: /jek/docs/jekray/lens-design/
+  group: Designers
+- title: RF designer
+  url: /jek/docs/jekray/rf/designer/
 - title: Coating design
   url: /jek/docs/jekray/coating-design/
 - title: Part packs
   url: /jek/docs/jekray/part-packs/
+  group: Extending and scripting
 - title: Modules
   url: /jek/docs/jekray/modules/
 - title: Scripting and headless use
   url: /jek/docs/jekray/scripting/
 - title: FAQ
   url: /jek/docs/jekray/faq/
+  group: Help

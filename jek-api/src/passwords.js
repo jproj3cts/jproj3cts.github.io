@@ -6,9 +6,9 @@
 //
 // Every hash also takes PASSWORD_PEPPER, a secret of the Worker's that is not
 // in the database: a stolen copy of the database cannot be cracked without it.
-// That lets the round count stay modest (about 5 ms of CPU; a Worker on the
-// free plan has 10 ms a request), where 200,000 rounds took 40 ms and were cut
-// off. Each row keeps its own round count, so older hashes still verify.
+// Workers' WebCrypto allows PBKDF2 at most 100,000 rounds (more throws), so
+// that is the count, and the pepper makes up for what Argon2 would add. Each
+// row keeps its own round count, so older hashes still verify.
 // Wrong passwords are counted per address and per network address: ten in a
 // quarter of an hour locks that key for a quarter of an hour.
 
@@ -16,7 +16,7 @@ import { readCapped } from './limits.js';
 import { createSession } from './sessions.js';
 import { ApiError, hex, now, sha256 } from './util.js';
 
-export const PBKDF2_ITERS = 20000;
+export const PBKDF2_ITERS = 100000;   // Workers' maximum
 const MIN_LEN = 10, MAX_LEN = 200;
 const FAILS = 10, FAIL_WINDOW = 15 * 60 * 1000;
 const EMAIL_RE = /^[^\s@<>()",;:]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/;

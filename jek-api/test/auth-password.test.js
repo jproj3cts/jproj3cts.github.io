@@ -36,7 +36,7 @@ describe('an account with a password', () => {
     const me = (await json(await call('/v1/me', { token }))).body;
     expect(me.has_password).toBe(true);
     const row = await env.DB.prepare('SELECT * FROM passwords WHERE user_id = ?').bind(me.user.id).first();
-    expect(row.iters).toBe(20000);
+    expect(row.iters).toBe(100000);
     expect(JSON.stringify(row)).not.toContain(PW);
     const res = await pw('Pat@Example.org', PW);
     expect(res.status).toBe(200);

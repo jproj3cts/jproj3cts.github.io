@@ -32,8 +32,8 @@ Signs follow the usual optical convention along the lens's axis: $$R > 0$$ has i
 The presets build on this:
 
 - **Asphere:** a conic surface with $$k \ne 0$$.
-- **Diffractive lens:** a lens whose faces may carry a phase, $$\phi = c_1\rho^2 + c_2\rho^4 + \dots$$ radians, in one order of diffraction: it adds $$m\lambda\phi/2\pi$$ of path and bends rays by the phase's slope, with a power $$-m\lambda c_1/\pi$$ that grows with the wavelength. See [Lens design › Diffractive surfaces](/jek/docs/jekray/lens-design/#diffractive-surfaces).
-- **Graded (GRIN) lens:** a lens whose glass may grade from its axis, $$n(r) = n + g_2r^2 + g_4r^4 + g_6r^6$$; rays in it curve, traced step by step. A GRIN rod lens, a quarter of its pitch long, focuses a collimated beam on its back face. See [Lens design › Graded glass](/jek/docs/jekray/lens-design/#graded-glass).
+- **Diffractive lens:** a lens whose faces may carry a phase, $$\phi = c_1\rho^2 + c_2\rho^4 + \dots$$ radians, in one order of diffraction: it adds $$m\lambda\phi/2\pi$$ of path and bends rays by the phase's slope, with a power $$-m\lambda c_1/\pi$$ that grows with the wavelength. See [Optical designer › Diffractive surfaces](/jek/docs/jekray/lens-design/#diffractive-surfaces).
+- **Graded (GRIN) lens:** a lens whose glass may grade from its axis, $$n(r) = n + g_2r^2 + g_4r^4 + g_6r^6$$; rays in it curve, traced step by step. A GRIN rod lens, a quarter of its pitch long, focuses a collimated beam on its back face. See [Optical designer › Graded glass](/jek/docs/jekray/lens-design/#graded-glass).
 - **Axicon:** a flat surface with a first odd term $$\alpha_1 = \tan\beta$$, a cone of half-angle $$\beta$$.
 - **Cylindrical lens:** a lens with power in only one direction, either in the bench plane or out of it. Power out of the plane is flat to the rays, which stay in the plane, but rides along for the beam, the field and cavity matrices.
 
@@ -77,7 +77,7 @@ Each surface in `surfaces` takes `R` (mm, or `null` for flat), `k`, `A` (a list 
 
 ## Importing a catalogue lens
 
-**File › Import a lens (.zmx)** reads the Zemax files Thorlabs, Edmund and other makers publish into a lens on the bench, with its surfaces and glasses: singlets, achromats and triplets, even aspheres with their conic and polynomial terms, cylindrical lenses (a toroidal surface with no curvature the other way), windows and beam splitter cubes. A .zar archive is read too: the .zmx inside it is taken, and the glass catalogue the archive carries supplies the dispersion of any glass the tool does not know. The file's primary wavelength is kept as the lens's design wavelength. Where the part number names a standard coating (Thorlabs' -A, -B and -C AR bands), or the file names one (Edmund's EO_VIS0, VIS-NIR, NIR I and II, SWIR, UV-AR and MgF₂ codes), the surfaces are given its band. A moulded asphere's file often ends with the laser diode's cover glass; that window is left out, and the note says so.
+**File › Import an element (.zmx)…** reads the Zemax files Thorlabs, Edmund and other makers publish into a lens on the bench, with its surfaces and glasses: singlets, achromats and triplets, even aspheres with their conic and polynomial terms, cylindrical lenses (a toroidal surface with no curvature the other way), windows and beam splitter cubes. A .zar archive is read too: the .zmx inside it is taken, and the glass catalogue the archive carries supplies the dispersion of any glass the tool does not know. The file's primary wavelength is kept as the lens's design wavelength. Where the part number names a standard coating (Thorlabs' -A, -B and -C AR bands), or the file names one (Edmund's EO_VIS0, VIS-NIR, NIR I and II, SWIR, UV-AR and MgF₂ codes), the surfaces are given its band. A moulded asphere's file often ends with the laser diode's cover glass; that window is left out, and the note says so.
 
 The glasses are the makers' own: Schott, Ohara, Hoya, CDGM and Sumita catalogues, some 1,200 glasses by their catalogue formulas, plus the crystals and the optical plastics (PMMA, polycarbonate, Zeonex E48R, polystyrene) and Schott's B 270, Borofloat and Zerodur. Names are read as the files spell them (N-BK7, NBK7, N-BK7_SCHOTT, H-K9L, S-LAH64, M-TAF1, K-VC89), and the moulded glasses of Thorlabs' aspheres (D-ZK3M, D-ZLAF52LAM, H-LAK54M) carry their moulded index. Under **Material**, **Search the glass catalogues…** finds any of them by name.
 
@@ -87,7 +87,7 @@ A part kept in **My parts** comes onto the bench under the name it is kept as, s
 
 ## Exporting a lens
 
-**File › Export a lens (.zmx)** writes the lenses you have selected as a sequential .zmx prescription, which lens-design programs open. It holds:
+**File › Export an element (.zmx)** writes the lenses you have selected as a sequential .zmx prescription, which lens-design programs open. It holds:
 
 - every face's radius, conic and aspheric terms (even or odd), its glass and its semi-diameter;
 - the wavelengths of the bench's sources, the first as the primary;
@@ -97,7 +97,7 @@ Several lenses and [windows](/jek/docs/jekray/free-space/prism/) on one axis are
 
 A catalogue glass is written by its catalogue name. Any other material, such as a fixed index, a measured table or an RF dielectric, is written as a model glass, by its index and Abbe number at the d line. A lens designer may want to replace those with the real glass.
 
-Coatings, tilts and decentres are not written. Cylindrical lenses, lenses that are not on one axis, and other parts are refused, with the reason. An assembly that folds or has a part tilted or decentred is exported from its panel with coordinate breaks: see [Lens design](/jek/docs/jekray/lens-design/).
+Coatings, tilts and decentres are not written. Cylindrical lenses, lenses that are not on one axis, and other parts are refused, with the reason. An assembly that folds or has a part tilted or decentred is exported from its panel with coordinate breaks: see [Optical designer](/jek/docs/jekray/lens-design/).
 
 The .zmx format is plain text. Reading or writing it needs no licence. Zemax and OpticStudio are trademarks of Ansys, Inc. JEKray is not affiliated with or endorsed by Ansys.
 

@@ -8728,7 +8728,7 @@ const TESTS = [
       J.load({ format: 'jekray', version: 1, elements: [] });
       const name = J.newLensDesign();
       try {
-        for (let k = 0; k < 2; k++) { wsPick('OBJ'); wsClick('Insert a singlet'); }
+        for (let k = 0; k < 2; k++) { wsPick('OBJ'); wsClick('Insert an element'); wsClick('Singlet'); }
         const R = [22.01359, -435.76044, -22.21328, 20.29192, null, 79.68360, -18.39533], T = [3.25896, 6.00755, 0.99997, 0, 4.75041, 2.95208];
         R.forEach((r, i) => { if (r !== null) wsSet('Radius of surface ' + (i + 1), r); });
         T.forEach((t, i) => wsSet('Thickness of surface ' + (i + 1), t));
@@ -9554,7 +9554,7 @@ const TESTS = [
       const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
       try {
         const items = [...D.querySelectorAll('#wsMenu button')].map(b => b.textContent);
-        const five = items.length === 5 && items[0] === 'Lens design, new…' && items[4] === 'Coating design' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
+        const five = items.length === 5 && items[0] === 'Optical designer, new…' && items[4] === 'Coating design' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
         lens(); J.select('Lens');
         D.getElementById('btnLensOfSel').click();
         const lensOpen = ws('lensWs') && (J.serialize().assemblies || []).length === 1;
@@ -10087,7 +10087,7 @@ const TESTS = [
       if (!f) return 0;
       type(f.querySelector('input'), '-0.004');
       const el = J.byName('Gr'), panelOk = el.materials[0].grad && el.materials[0].grad[0] === -0.004;
-      btn('Design as a lens…').click();
+      btn('Design as an assembly…').click();
       try {
         const ws = () => rigDoc().querySelector('#lensWs'), g = ws().querySelector('input[aria-label="Gradient r² after surface 1"]');
         const vary = !!ws().querySelector('button[aria-label="Vary gradient r² after surface 1"]');
@@ -10176,7 +10176,7 @@ const TESTS = [
       if (!f) return 0;
       const inp = f.querySelector('input'); inp.value = '-1.5e-8'; inp.dispatchEvent(new (rigWin().Event)('input', { bubbles: true })); inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
       const panelOk = J.byName('Cup').A && J.byName('Cup').A[0] === -1.5e-8;
-      btn('Design as a lens…').click();
+      btn('Design as an assembly…').click();
       try {
         const a4 = rigDoc().querySelector('#lensWs input[aria-label="A4 of surface 1"]');
         const ok = panelOk && !!a4 && Math.abs(parseFloat(a4.value) - 1.5e-8) < 1e-14 && !!rigDoc().querySelector('#lensWs button[aria-label="Vary a4 of surface 1"]');
@@ -10202,7 +10202,7 @@ const TESTS = [
       if (!o) return 0;
       type(o.querySelector('input'), '2');
       const el = J.byName('Kino'), panelOk = el.surfaces[1].ph && el.surfaces[1].ph[0] === -5.938 && el.diffOrder === 2;
-      btn('Design as a lens…').click();
+      btn('Design as an assembly…').click();
       try {
         const ws = () => rigDoc().querySelector('#lensWs'), p2 = ws().querySelector('input[aria-label="Phase ρ² of surface 2"]');
         const vary = !!ws().querySelector('button[aria-label="Vary phase ρ² of surface 2"]');
@@ -10278,7 +10278,7 @@ const TESTS = [
       if (!f) return 0;
       const inp = f.querySelector('input'); inp.value = '0.001'; inp.dispatchEvent(Ev('input')); inp.dispatchEvent(Ev('change'));
       const benchOk = J.byName('Asph').surfaces[0].F && J.byName('Asph').surfaces[0].F['20'] === 0.001;
-      [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…').click();
+      [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as an assembly…').click();
       try {
         const has20 = !!D.querySelector('#lensWs input[aria-label="Freeform x² of surface 1"]');
         wsClick('+ XY', 'Freeform terms for surface 2');
@@ -10320,12 +10320,12 @@ const TESTS = [
   },
   {
     name: 'A cylindrical lens goes into lens design and is marked as one',
-    why: 'a cylindrical lens on its own: Design as a lens… opens it, its surfaces marked as a cylinder curved in the plane; one rolled about its axis is refused with the reason (1 when all hold)',
+    why: 'a cylindrical lens on its own: Design as an assembly… opens it, its surfaces marked as a cylinder curved in the plane; one rolled about its axis is refused with the reason (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Cyl', cyl: 'plane', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 25.8 }, { R: null }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
       J.select('Cyl');
-      const D = rigDoc(), b = [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…');
+      const D = rigDoc(), b = [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as an assembly…');
       if (!b) return 0;
       b.click();
       let tagged = false;
@@ -10592,7 +10592,7 @@ const TESTS = [
   },
   {
     name: 'A single lens goes straight into lens design from its own panel',
-    why: 'a lone singlet selected: its panel’s Design as a lens… makes it an assembly of one and opens the workspace on it (two surfaces in the element data, its focal length the lens’s own); Insert a singlet there adds a second lens to it (1 when all hold)',
+    why: 'a lone singlet selected: its panel’s Design as an assembly… makes it an assembly of one and opens the workspace on it (two surfaces in the element data, its focal length the lens’s own); Insert a singlet there adds a second lens to it (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load({ format: 'jekray', version: 1, elements: [
@@ -10600,13 +10600,13 @@ const TESTS = [
         { type: 'lens', name: 'Solo', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }] });
       const f0 = J.lensParaxial('Solo', 587.56).efl;
       J.select('Solo');
-      const b = [...rigDoc().querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…');
+      const b = [...rigDoc().querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as an assembly…');
       if (!b) return 0;
       b.click();
       try {
         const name = J.assemblies().length === 1 ? J.assemblies()[0].name : null, open = J.lensDesignOpen();
         const F = name && J.lensFigures(name), oneOk = !!name && open && F.surfaces === 2 && Math.abs(F.efl - f0) < 1e-9;
-        wsClick('Insert a singlet');
+        wsClick('Insert an element'); wsClick('Singlet');
         const twoOk = J.lensFigures(name).surfaces === 4 && J.byName('Solo').group === J.assemblies()[0].id;
         if (!(oneOk && twoOk)) console.log('solo', oneOk, twoOk, open, F && F.surfaces);
         return oneOk && twoOk ? 1 : 0;
@@ -10624,7 +10624,7 @@ const TESTS = [
       const D = rigDoc(), labels = () => [...D.querySelectorAll('#panel label')].map(l => l.textContent.trim());
       J.select('Solo');
       const plainOk = !labels().includes('Conic k') && !/aspheric/i.test(D.querySelector('#panel').textContent);
-      [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as a lens…').click();
+      [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Design as an assembly…').click();
       const inp = D.querySelector('#lensWs input[aria-label="Radius of surface 2"]');
       inp.value = '0'; inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
       const noA = !D.querySelector('#lensWs button[aria-label="Aspheric terms for surface 1"]');
@@ -10633,7 +10633,7 @@ const TESTS = [
       const flatOk = J.byName('Solo').surfaces[1].R === null && Math.abs(J.lensParaxial('Solo', 587.56).efl - 99.3) < 1;
       const lock = D.querySelector('#panel button.rt-padlock'), radius = [...D.querySelectorAll('#panel .rt-f')].find(f => /Radius/.test(f.textContent));
       const lockedOk = !!lock && lock.getAttribute('aria-pressed') === 'true' && radius.querySelector('input').disabled;
-      const reopen = [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Open lens design…');
+      const reopen = [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Open the assembly design…');
       const reopenOk = !!reopen && !reopen.disabled;
       lock.click();
       const radius2 = [...D.querySelectorAll('#panel .rt-f')].find(f => /Radius/.test(f.textContent));

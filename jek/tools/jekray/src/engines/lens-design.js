@@ -1,6 +1,7 @@
 import { DESIGN_KEY, MC_MAX, asmApply, asmMembers, asmPrescription, normCond, normDesign } from '../core/assembly.js';
 import { deg, nextName, project, uid } from '../state/project.js';
 import { normElement } from '../state/elements.js';
+import { LENS } from '../parts/lens.js';
 import { lensSystem, seidel } from './lens-engine.js';
 import { sagInPlane } from '../core/sag.js';
 
@@ -351,12 +352,36 @@ const zsOf = P => { const z = [0]; for (const g of P.gaps) z.push(z[z.length - 1
 const gapsFrom = (P, z) => { P.gaps = z.slice(1).map((v, i) => Math.max(0, v - z[i])); };
 /* a flat surface after surface i: inside a lens, splitting the glass after it in two (a cemented
    doublet); after a lens's last surface, a new glass 2 mm thick behind it, the rest pushed back */
-export function insertSurface(asm, P, i) {
+/* the kinds of surface the element data can insert: each sets the new surface's shape, and marks the part for
+   what the surface needs (an asphere's conic, a freeform's terms, a diffractive face's phase, a graded glass) */
+export const SURFACE_KINDS = [
+  ['flat', 'Flat', 'A plane surface'], ['sphere', 'Spherical', 'A sphere, 100 mm in radius to start'],
+  ['conic', 'Conic (asphere)', 'A conic surface: a paraboloid to start, with aspheric terms to add; the part becomes an asphere'],
+  ['freeform', 'Freeform', 'An XY polynomial surface, flat to start; the part becomes an asphere'],
+  ['diffractive', 'Diffractive', 'A flat face carrying a diffractive phase, nil to start; the part becomes a diffractive lens'],
+  ['graded', 'Graded glass', 'A flat surface, the glass after it graded from the axis (its terms nil to start); the part becomes a graded lens'],
+  ['same', 'Duplicate surface type', 'A surface of the same kind as the one selected: its radius and conic, with the same kinds of term, nil'],
+];
+export function insertSurface(asm, P, i, kind = 'flat') {
   const sps = surfaceParts(P), sp = sps[i];
-  if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert a singlet instead.';
+  if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert an element instead.';
+  if (!SURFACE_KINDS.some(k => k[0] === kind)) return 'No such kind of surface.';
   return reKey(asm, P, () => {
     const z = zsOf(P), last = sp.j === sp.n - 1, glass = last ? Object.assign({}, P.materials[i - 1] || { glass: 'N-BK7' }) : null;
     const s = { R: null, k: 0, a2: 0, A: [], odd: null, semi: P.surfaces[i].semi, from: { id: sp.id, i: -1 } };
+    const el = project.elements.find(e => e.id === sp.id), s0 = P.surfaces[i];
+    if (kind === 'sphere') s.R = 100;
+    else if (kind === 'conic') { s.R = 100; s.k = -1; if (el) el.asphere = true; }
+    else if (kind === 'freeform') { s.F = { 20: 0, '02': 0 }; if (el) el.asphere = true; }
+    else if (kind === 'diffractive') { s.ph = [0]; s.dm = (el && el.diffOrder) || 1; if (el) el.diffractive = true; }
+    else if (kind === 'same') {
+      s.R = s0.R; s.k = s0.k || 0;
+      if (s0.A && s0.A.some(a => a)) s.A = s0.A.map(() => 0);
+      if (s0.F) { s.F = {}; for (const key of Object.keys(s0.F)) s.F[key] = 0; }
+      if (s0.ph) { s.ph = s0.ph.map(() => 0); s.dm = s0.dm || 1; }
+      if (s0.cyl) s.cyl = s0.cyl;
+    }
+    if (kind === 'graded' && el) el.graded = true;
     if (!last) {
       z.splice(i + 1, 0, (z[i] + z[i + 1]) / 2);
       P.materials.splice(i, 0, Object.assign({}, P.materials[i]));
@@ -365,59 +390,76 @@ export function insertSurface(asm, P, i) {
       z.splice(i + 1, 0, z[i] + 2);
       P.materials.splice(i, 0, glass);
     }
+    if (kind === 'graded') P.materials[i + 1] = Object.assign({}, P.materials[i + 1], { grad: (P.materials[i + 1].grad || [0, 0, 0]).slice() });
     P.surfaces.splice(i + 1, 0, s);
     gapsFrom(P, z);
     P.parts[sp.pi].n++;
     return j => j <= i ? j : j + 1;
   }) || 'Nothing was inserted.';
 }
-/* a new flat singlet (N-BK7, 2 mm) after the part surface i is on, in the gap after it, the rest
-   pushed back if the gap is short of room; i 'front': before the first surface */
-export function insertSinglet(asm, P, i) {
+/* the kinds of element the element data can insert: a flat singlet, or one of the bench's lens presets (parts/lens.js) */
+export const ELEMENT_KINDS = [
+  ['singlet', 'Singlet', 'A flat N-BK7 singlet, 2 mm thick, as wide as the design'],
+  ['asphere', 'Asphere', 'The bench\u2019s asphere: a conic front face with aspheric terms to add'],
+  ['diffractive', 'Diffractive lens', 'The bench\u2019s diffractive lens: a hybrid achromat, its flat face carrying a phase'],
+  ['grinrod', 'GRIN rod lens', 'The bench\u2019s graded-index rod lens, a quarter of its pitch long'],
+  ['cylinder', 'Cylindrical lens', 'The bench\u2019s cylindrical lens, curved in the plane of the fields'],
+];
+/* a new element after the part surface i is on, in the gap after it, the rest pushed back if the gap is
+   short of room; i 'front': before the first surface. kind: one of ELEMENT_KINDS (a flat singlet unless given) */
+export function insertSinglet(asm, P, i, kind = 'singlet') {
   const sps = surfaceParts(P), front = i === 'front';
   i = front ? 0 : i === undefined || i < 0 ? P.surfaces.length - 1 : i;
   const sp = sps[i], after = front ? -1 : i + (sp.n - 1 - sp.j);        // the part's last surface (or before them all)
+  if (!ELEMENT_KINDS.some(k => k[0] === kind)) return 'No such kind of element.';
   let el = null;
   const ok = reKey(asm, P, () => {
-    const z = zsOf(P), T = 2;
+    const z = zsOf(P);
+    const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
+    el = newPart(asm, P, semi, kind);
+    const S = partSurfaces(el), M = partMaterials(el), n = S.length, T = el.gaps.reduce((a, b) => a + b, 0);
+    const zs = [0]; for (const g of el.gaps) zs.push(zs[zs.length - 1] + g);
     if (front) {
       // before the first surface, 2 mm clear of it: the first vertex moves back, nothing else does
-      const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
-      el = newSinglet(asm, P, semi);
-      z.unshift(-T - 2, -2);
-      P.surfaces.unshift(sing(el, 0, semi), sing(el, 1, semi));
-      P.materials.unshift({ glass: 'N-BK7' }, { glass: 'AIR' });
+      z.unshift(...zs.map(v => v - T - 2));
+      P.surfaces.unshift(...S);
+      P.materials.unshift(...M, { glass: 'AIR' });
       P.origin = [P.origin[0] - P.dir[0] * (T + 2), P.origin[1] - P.dir[1] * (T + 2)];
       gapsFrom(P, z.map(v => v - z[0]));
-      P.parts.unshift({ id: el.id, kind: 'lens', flip: false, n: 2 });
-      return j => j + 2;
+      P.parts.unshift({ id: el.id, kind: 'lens', flip: false, n });
+      return j => j + n;
     }
-    const room = after < P.surfaces.length - 1 ? P.gaps[after] : P.image;
-    const lead = after < P.surfaces.length - 1 ? Math.max(1, (room - T) / 2) : Math.max(1, Math.min(5, room / 4));
-    const push = after < P.surfaces.length - 1 ? Math.max(0, lead + T + 1 - room) : 0;
+    const wasLast = after === P.surfaces.length - 1;
+    const room = !wasLast ? P.gaps[after] : P.image;
+    const lead = !wasLast ? Math.max(1, (room - T) / 2) : Math.max(1, Math.min(5, room / 4));
+    const push = !wasLast ? Math.max(0, lead + T + 1 - room) : 0;
     for (let j = after + 1; j < z.length; j++) z[j] += push;
     const za = z[after] + lead;
-    const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
-    el = newSinglet(asm, P, semi);
-    z.splice(after + 1, 0, za, za + T);
-    P.surfaces.splice(after + 1, 0, sing(el, 0, semi), sing(el, 1, semi));
-    P.materials.splice(after, 0, { glass: 'AIR' }, { glass: 'N-BK7' });
+    z.splice(after + 1, 0, ...zs.map(v => za + v));
+    P.surfaces.splice(after + 1, 0, ...S);
+    P.materials.splice(after, 0, { glass: 'AIR' }, ...M);
     gapsFrom(P, z);
-    if (after === P.surfaces.length - 3) P.image = Math.max(1, P.image - lead - T);
-    P.parts.splice(sp.pi + 1, 0, { id: el.id, kind: 'lens', flip: false, n: 2 });
-    return j => j <= after ? j : j + 2;
+    if (wasLast) P.image = Math.max(1, P.image - lead - T);
+    P.parts.splice(sp.pi + 1, 0, { id: el.id, kind: 'lens', flip: false, n });
+    return j => j <= after ? j : j + n;
   });
   return ok ? el : 'Nothing was inserted.';
 }
-function newSinglet(asm, P, semi) {
-  const ref = project.elements.find(e => e.id === asm.ref) || asmMembers(asm)[0];
-  const el = normElement({ type: 'lens', id: uid(), name: nextName('Singlet'), x: ref.x, y: ref.y, z: ref.z, angle: Math.atan2(P.dir[1], P.dir[0]) / deg, diameter: 2 * semi,
-    surfaces: [{ R: null }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }], group: asm.id, bench: asm.bench });
+/* the new part on the bench, at the assembly's reference and along its axis: a flat singlet as wide as asked,
+   or a lens preset as the bench makes it (its own size) */
+function newPart(asm, P, semi, kind) {
+  const ref = project.elements.find(e => e.id === asm.ref) || asmMembers(asm)[0], ang = Math.atan2(P.dir[1], P.dir[0]) / deg;
+  const base = kind === 'singlet' ? { type: 'lens', name: nextName('Singlet'), diameter: 2 * semi, surfaces: [{ R: null }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }] }
+    : LENS.make(ref.x, ref.y, kind);
+  const el = normElement(Object.assign(base, { id: uid(), x: ref.x, y: ref.y, z: ref.z, angle: ang, group: asm.id, bench: asm.bench }));
   if (ref.z === undefined) delete el.z;
   project.elements.push(el);
   return el;
 }
-const sing = (el, j, semi) => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi, from: { id: el.id, i: j } });
+/* the part's surfaces and the glasses between them as the prescription holds them (as asmPrescription reads a lens) */
+const partSurfaces = el => el.surfaces.map((s, j) => ({ R: s.R, k: s.k || 0, a2: s.a2 || 0, A: (s.A || []).slice(), odd: s.odd ? s.odd.slice() : null, semi: el.diameter / 2, from: { id: el.id, i: j },
+  ...(s.F ? { F: Object.assign({}, s.F) } : {}), ...(s.ph ? { ph: s.ph.slice(), dm: el.diffOrder || 1 } : {}), ...(el.cyl ? { cyl: el.cyl } : {}) }));
+const partMaterials = el => el.materials.map(m => Object.assign({ glass: m.glass }, m.grad ? { grad: m.grad.slice() } : {}));
 /* surface i taken out: a lens of two surfaces goes whole (the gaps either side and its glass
    becoming one gap); a lens's extra surface goes, the glass either side becoming one */
 export function removeSurface(asm, P, i) {

@@ -116,7 +116,7 @@ function zmxSystem(els) {
 function zmxAssemblySystem(asm) {
   const P = asmPrescription(asm), warnings = new Set();
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
-  if (P.surfaces.some(s => s.cyl)) throw new Error(asm.name + ' has a cylindrical lens: export its parts from the bench instead (select them, then Export a lens), where a cylinder is written as one.');
+  if (P.surfaces.some(s => s.cyl)) throw new Error(asm.name + ' has a cylindrical lens: export its parts from the bench instead (select them, then Export an element), where a cylinder is written as one.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
   if (P.surfaces.some(s => s.F && Object.values(s.F).some(v => v))) warnings.add('freeform terms are not written');
   if (P.surfaces.some(s => s.ph && s.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');

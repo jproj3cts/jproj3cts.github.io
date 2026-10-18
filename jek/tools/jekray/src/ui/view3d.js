@@ -5,7 +5,7 @@ import { fmtIrr, fmtLine } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
-import { hornLam } from '../core/rf.js';
+import { RF_METALS, hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, FREE_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
@@ -384,12 +384,27 @@ export const V3D = (() => {
             add(mesh(lathe(pts), m));
           }
         }
+        // a made-to-order RF lens's flange: a ring out from the rim, as thick as set along the axis and centred on
+        // the rim's middle, with its bolt holes on the circle through its middle (render.js drawMount draws the same in 2D)
+        const mt = el.mount;
+        if (mt && mt.kind === 'flange' && ss.length >= 2 && !el.cyl) {
+          const a0 = ss[0], a1 = ss[ss.length - 1], ra = el.diameter / 2, x0 = (a0.z + sagFn(a0, a0.semi) + a1.z + sagFn(a1, a1.semi)) / 2;
+          const sh = new T.Shape(); sh.absarc(0, 0, ra + mt.width, 0, 2 * Math.PI, false);
+          const inner = new T.Path(); inner.absarc(0, 0, ra, 0, 2 * Math.PI, true); sh.holes.push(inner);
+          for (let k = 0; k < (mt.holes || 0); k++) { const th = 2 * Math.PI * k / mt.holes, c = ra + mt.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(th), c * Math.sin(th), mt.hole / 2, 0, 2 * Math.PI, true); sh.holes.push(hp); }
+          const fg = new T.ExtrudeGeometry(sh, { depth: mt.thick, bevelEnabled: false, curveSegments: 48 });
+          fg.rotateY(Math.PI / 2); fg.translate(x0 - mt.thick / 2, 0, 0);
+          add(mesh(fg, mat.matte(0xf4f4ee)));
+        }
         return g;
       }
       case 'mirror': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         let lo = sg(0, 0); for (let j = 0; j < 32; j++) lo = Math.min(lo, sg(s.semi * Math.cos(j * Math.PI / 16), s.semi * Math.sin(j * Math.PI / 16)));
         const t = Math.max(2, Math.min(10, L * 0.25)), R0 = el.reflect >= 100;
+        // an RF metal mirror is the colour of its metal, through and through; an optical one a coated glass
+        const MC = { Al: 0xd9dde2, Cu: 0xc87b4a, Au: 0xd8a650, brass: 0xc9a54a, steel: 0xaeb4b9, ideal: 0xe6eaee };
+        if (el.metal && RF_METALS[el.metal]) { const mm = mat.metal(MC[el.metal] || 0xd9dde2, el.metal === 'steel' ? 0.3 : 0.18); add(...sagSolid(sg, s.semi, lo - t, false, mm, mm)); return g; }
         add(...sagSolid(sg, s.semi, lo - t, false, R0 ? mat.metal() : Object.assign(mat.metal(0xd8e4ea, 0.05), { transparent: true, opacity: 0.35 + 0.55 * el.reflect / 100 }), mat.glass(0xa9d8e6, 0.45)));
         return g;
       }
@@ -1417,9 +1432,10 @@ export const V3D = (() => {
 
   /* ---------- fly: the bench full screen, flown through ----------
      W A S D (or the arrows) move the way the camera looks and across it, Space and Ctrl up and
-     down the picture, Shift four times as fast (no roll keys: a rolling picture made people queasy); the mouse turns
-     the view about its own axes, as a pilot would; the wheel sets the speed. Landing levels it. The pointer is held to the canvas while
-     flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
+     down (straight up and down in the room), Shift four times as fast; the mouse turns the view about the room's
+     up (looking round) and tips it up and down, never rolled, so the viewer always stands upright, as in a
+     game's free camera; the wheel sets the speed. The pointer is held to the canvas while flying; Esc lets it
+     go and lands, leaving the view orbiting a point straight ahead. */
   let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
   const flyOk = () => true;                               // (part of the tool proper since 1.1)
   const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
@@ -1433,8 +1449,15 @@ export const V3D = (() => {
     if (Math.hypot(f.x, f.y) > 1e-6) R.heading = Math.atan2(-f.y, -f.x);
     R.target.copy(R.camera.position).add(f.multiplyScalar(fly.dist));
   }
-  // a turn about one of the camera's own axes
-  const flyRot = (x, y, z, a) => { fly.q.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(x, y, z), a)).normalize(); };
+  // the camera set upright, looking along a heading (about the room's up, +z) and a pitch (up positive): never rolled
+  const FLY_PITCH = 88 * deg;
+  function flySet(yaw, pitch) {
+    pitch = clamp(pitch, -FLY_PITCH, FLY_PITCH);
+    const d = new T.Vector3(Math.cos(yaw) * Math.cos(pitch), Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch));
+    fly.q.setFromRotationMatrix(new T.Matrix4().lookAt(new T.Vector3(0, 0, 0), d, new T.Vector3(0, 0, 1)));
+  }
+  // the heading and pitch the camera looks along now
+  const flyPose = () => { const f = flyDir(); return [Math.atan2(f.y, f.x), Math.asin(clamp(f.z, -1, 1))]; };
   function flyHintText() {
     if (!fly) return;
     const locked = document.pointerLockElement === D.cv;
@@ -1448,6 +1471,7 @@ export const V3D = (() => {
     const d = R.camera.position.clone().sub(R.target), r = d.length() || 100;
     aim();
     fly = { keys: new Set(), q: R.camera.quaternion.clone(), dist: r, speed: clamp(r * 0.5, 20, 5000), last: null, raf: 0, fs: false };
+    flySet(...flyPose());                                 // upright from the start, whatever the orbit left
     D.stage.classList.add('rt-flying');
     D.flyHint.hidden = false;
     flyHintText();
@@ -1524,16 +1548,17 @@ export const V3D = (() => {
     if (!fly || !(document.pointerLockElement === D.cv || (e.buttons && e.target === D.cv))) return;
     flyTurn(e.movementX || 0, e.movementY || 0);
   }
-  // the mouse turns the view about its own axes, as a pilot turns, rolled or not
+  // the mouse looks round (about the room's up) and up and down (to just short of straight up or down): never rolled
   function flyTurn(dx, dy) {
-    flyRot(0, 1, 0, -dx * 0.0022); flyRot(1, 0, 0, -dy * 0.0022);
+    const [yaw, pitch] = flyPose();
+    flySet(yaw - dx * 0.0022, pitch - dy * 0.0022);
     flyLook(); need();
   }
   function flyStep(t) {
     if (!fly) return;
     const dt = fly.last === null ? 0 : Math.min(0.1, (t - fly.last) / 1000);
     fly.last = t;
-    const K = fly.keys, f = flyDir(), right = flyAxis(1, 0, 0), up = flyAxis(0, 1, 0);
+    const K = fly.keys, f = flyDir(), right = flyAxis(1, 0, 0), up = new T.Vector3(0, 0, 1);   // up is the room's, as a game's free camera has it
     const m = new T.Vector3()
       .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
       .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))

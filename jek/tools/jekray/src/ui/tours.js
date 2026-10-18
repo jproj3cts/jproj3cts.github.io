@@ -164,10 +164,10 @@ export function updateEmpty() {
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples'))));
 }
-// the same dialog, onto the bench (File > Import a lens) or into My parts (its tab's button)
+// the same dialog, onto the bench (File > Import an element) or into My parts (its tab's button)
 export function openZmx(toMine) {
   setZmxToMine(toMine);
-  document.getElementById('zmxTitle').textContent = toMine ? 'Import lens files (.zmx) into My parts' : 'Import a lens file (.zmx)';
+  document.getElementById('zmxTitle').textContent = toMine ? 'Import element files (.zmx) into My parts' : 'Import an element file (.zmx)';
   document.getElementById('zmxWhere').textContent = toMine
     ? 'Choose one file or several: each is kept in My parts, named by its part number, ready to add to any bench. Light travels left to right through it, as in the file.'
     : 'The part is placed at the centre of the view with light travelling left to right, as in the file.';

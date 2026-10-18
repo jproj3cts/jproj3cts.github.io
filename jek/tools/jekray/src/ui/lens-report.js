@@ -128,7 +128,7 @@ export function reportRecs(asm) {
   let pg = rpPage(meta, '');
   const g = pg.g;
   rpText(g, asm.name, RP_M, pg.y + 8, { size: 22, bold: true }); pg.y += 26;
-  rpText(g, 'Lens design report · ' + benchName(asm.bench) + ' in ' + (project.name || 'Untitled bench'), RP_M, pg.y, { size: 9.5, ink: RP_SOFT }); pg.y += 22;
+  rpText(g, 'Optical design report · ' + benchName(asm.bench) + ' in ' + (project.name || 'Untitled bench'), RP_M, pg.y, { size: 9.5, ink: RP_SOFT }); pg.y += 22;
   rpHead(pg, 'Design conditions');
   const ap = c.aperture.kind === 'epd' ? 'Entrance pupil diameter ' + rf(c.aperture.v) + ' mm' : c.aperture.kind === 'fno' ? 'Working F-number ' + rf(c.aperture.v) : 'Object-space NA ' + rf(c.aperture.v);
   rpPara(pg, (fin ? 'An object ' + rf(F.object, 6) + ' mm before the first surface. ' : 'Light from infinity. ') + 'Aperture: ' + ap + '. Fields' + (fin ? ' (object heights)' : '') + ': ' + c.fields.map(f => rf(f.deg, 4) + FU + (f.w !== 1 ? ' (weight ' + rf(f.w, 3) + ')' : '')).join(', ') + '. Wavelengths: ' +

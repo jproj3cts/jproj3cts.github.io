@@ -79,5 +79,5 @@ Every number in a panel can be typed or dragged. Beside most is the sweep button
 
 - [Concepts](/jek/docs/jekray/concepts/): coordinates, units and the ideas the rest of these pages use.
 - [Free-space optics](/jek/docs/jekray/free-space/): how rays, beams and fields are worked out.
-- [Lens design](/jek/docs/jekray/lens-design/) and [RF](/jek/docs/jekray/rf/): the two design workspaces.
+- [Optical designer](/jek/docs/jekray/lens-design/) and [RF](/jek/docs/jekray/rf/): the two design workspaces.
 - The [FAQ](/jek/docs/jekray/faq/), for common questions.

@@ -194,7 +194,7 @@ which its panel gives, with the band over which its matching layers reflect unde
 
 ## The RF designer
 
-A system of RF lenses and mirrors is designed as a whole in the **RF designer**: a feed horn's beam through the lenses to what it is for. Open it with **Design the RF system…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, with **File › Open a workspace › RF design of the selection**, or from **My benches › Open a workspace**, which makes a new cloud bench and opens it in the designer; **Keep as a part…** in its header saves the whole system in My parts or a team's parts. **File › Open a workspace › RF design, new…** starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [lens design workspace](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
+A system of RF lenses and mirrors is designed as a whole in the **RF designer**: a feed horn's beam through the lenses to what it is for. Open it with **Design as an RF assembly…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, with **File › Open a workspace › RF designer, of the selection**, or from **My benches › Open a workspace**, which makes a new cloud bench and opens it in the designer; **Keep as a part…** in its header saves the whole system in My parts or a team's parts. **File › Open a workspace › RF designer, new…** starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [Optical designer](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
 
 ### Its conditions
 
@@ -338,7 +338,7 @@ Designing a lens as a disc makes that part a graded-index disc in the same place
 
 ### Graded-index discs
 
-A graded-index disc on the bench (the RF tab's **GRIN lens**) can be part of a system: select it and press **Design the RF system…**, or design any lens of the system as one. To the RF designer it is a slab between two flat faces, as thick as the whole disc with its matching layers, of the plastic graded so that its optical path at radius $$r$$ is the disc's own:
+A graded-index disc on the bench (the RF tab's **GRIN lens**) can be part of a system: select it and press **Design as an RF assembly…**, or design any lens of the system as one. To the RF designer it is a slab between two flat faces, as thick as the whole disc with its matching layers, of the plastic graded so that its optical path at radius $$r$$ is the disc's own:
 
 $$
 n(r) = n_0 - \frac{\mathrm{opd}(r)}{T}, \qquad \mathrm{opd}(r) = \sqrt{r^2 + f^2} - f,
@@ -364,7 +364,7 @@ On the bench a zoned lens is traced as it is cut: its curved face stepped back b
 
 ### Worked examples
 
-Two examples in the gallery's **RF and millimetre waves** group are designed in the RF designer; select a lens and press **Design the RF system…** to open each.
+Two examples in the gallery's **RF and millimetre waves** group are designed in the RF designer; select a lens and press **Design as an RF assembly…** to open each.
 
 - **Lens antenna, 24 GHz**: a 120 mm PLA lens on a corrugated horn, made with **Design this lens**: the feed 116 mm away for an 11 dB edge taper, its face to the feed a hyperbola, both faces matched. It gives 28.19 dBi at 24 GHz (27.3 to 28.9 dBi across 21.6 to 26.4 GHz) at 81.4 % aperture efficiency; PLA's loss takes about 0.5 dB. It has a flange, and a gain specification of 27 dBi set in **Tolerance** for the Monte Carlo.
 - **Gaussian beam telescope, 150 GHz**: two plano-hyperbolic polypropylene lenses, 100 mm across, between two identical corrugated horns. Lens 1 is placed for a 20 dB edge taper (195 mm from the feed); lens 2 is its mirror image, 430 mm on, so the receiver sees the feed imaged on itself. It couples 94.9 % to 99.8 % of the beam across 135 to 165 GHz (98.3 % at 150 GHz), 75.8 % (−1.20 dB) all told: the four bare faces reflect 0.67 dB of it, since at 150 GHz a printed matching layer would be coarser than a quarter wave.

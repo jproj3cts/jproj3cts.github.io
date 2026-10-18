@@ -10,7 +10,7 @@ import { rayPath } from '../engines/lens-engine.js';
 import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
 import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, keepFound, limitKey, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
-import { commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
+import { ELEMENT_KINDS, SURFACE_KINDS, commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, getV, insertSinglet,
   insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, surfSag, surfaceParts } from '../engines/lens-design.js';
 import { helpLine, h } from './panel.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
@@ -28,7 +28,7 @@ import { isRfAsm, openRfDesign } from './rf-workspace.js';
 import { fmtWs } from '../core/format.js';
 
 /* ==========================================================================
-   The lens design workspace
+   The Optical designer (the lens design workspace)
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
    by the lens engine, and its element data, surface by surface, to edit as a lens designer does.
    Every change is written to its parts on the bench as it is made (and can be undone there), so
@@ -83,7 +83,7 @@ export function closeLensDesign() {
 function shell() {
   let sec = document.getElementById('lensWs');
   if (sec) return sec;
-  sec = h('section', { class: 'rt-lens', id: 'lensWs', hidden: '', tabindex: '-1', 'aria-label': 'Lens design' });
+  sec = h('section', { class: 'rt-lens', id: 'lensWs', hidden: '', tabindex: '-1', 'aria-label': 'Optical designer' });
   // the bench's own keys stay on the bench: here Esc goes back, and undo and redo act on the design
   sec.addEventListener('keydown', e => {
     const k = e.key.toLowerCase(), typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
@@ -143,7 +143,7 @@ function drawWs() {
   name.addEventListener('change', fromField(name, () => { checkpoint(); asm.name = String(name.value || 'Assembly').slice(0, 80); changed(false); }));
   sec.append(h('header', { class: 'rt-lhead' },
     h('span', { class: 'rt-hmark' }, 'JEKray'),
-    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
+    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Optical designer')),
     h('span', { class: 'rt-lgap' }),
     ...cfgPicker(asm),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
@@ -420,6 +420,19 @@ function tabsRow() {
   return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
+/* a button that opens a small menu above itself (a drop-up) of the kinds to choose from: [key, label, title] each */
+function dropUp(label, title, kinds, pick) {
+  const wrap = h('div', { class: 'rt-dropup' });
+  const menu = h('div', { class: 'rt-menu rt-dropmenu', role: 'menu', hidden: '' });
+  const btn = h('button', { class: 'rt-btn', type: 'button', title, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, label + ' \u25b4');
+  const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', away, true); };
+  const away = e => { if (!wrap.contains(e.target)) close(); };
+  for (const [key, text, why] of kinds) menu.append(h('button', { type: 'button', role: 'menuitem', title: why || null, onclick: () => { close(); pick(key); } }, text));
+  btn.addEventListener('click', e => { e.stopPropagation(); if (menu.hidden) { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); setTimeout(() => document.addEventListener('click', away, true)); const f = menu.querySelector('button'); if (f) f.focus(); } else close(); });
+  menu.addEventListener('keydown', e => { if (e.key === 'Escape') { close(); btn.focus(); e.stopPropagation(); } });
+  wrap.append(btn, menu);
+  return wrap;
+}
 /* ---------- Element data ---------- */
 function surfaceName(P, sps, i) {
   const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?';
@@ -498,13 +511,21 @@ function dataCard(asm, P) {
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
   const bar = h('div', { class: 'rt-lbar' },
-    h('button', { class: 'rt-btn', type: 'button', title: 'A flat surface after the one selected: inside a lens it splits the glass (a cemented doublet); after its back, it adds glass behind', onclick: () => {
+    // a surface of a chosen kind after the one selected (inside a lens it splits the glass, as a cemented doublet;
+    // after its back it adds glass behind), the same kind as the one selected, or a whole element of a chosen kind
+    dropUp('Insert a surface', 'A surface of the kind chosen, after the one selected: inside a lens it splits the glass (a cemented doublet); after its back, it adds glass behind',
+      SURFACE_KINDS.filter(k => k[0] !== 'same'), kind => {
+        if (sel < 0) { toast('Select a surface of a lens first: the new one goes after it.', true); return; }
+        checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel, kind); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
+      }),
+    h('button', { class: 'rt-btn', type: 'button', title: SURFACE_KINDS.find(k => k[0] === 'same')[2] + ', after it', onclick: () => {
       if (sel < 0) { toast('Select a surface of a lens first: the new one goes after it.', true); return; }
-      checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
-    } }, 'Insert a surface'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'A flat N-BK7 singlet, 2 mm thick, after the part selected (in front of the first surface with the object selected; at the end with nothing selected)', onclick: () => {
-      checkpoint(); const r = insertSinglet(asm, designPrescription(asm), WS.sel === -2 ? 'front' : sel); if (typeof r === 'string') { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
-    } }, 'Insert a singlet'),
+      checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel, 'same'); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
+    } }, 'Duplicate surface type'),
+    dropUp('Insert an element', 'An element of the kind chosen, after the part selected (in front of the first surface with the object selected; at the end with nothing selected)',
+      ELEMENT_KINDS, kind => {
+        checkpoint(); const r = insertSinglet(asm, designPrescription(asm), WS.sel === -2 ? 'front' : sel, kind); if (typeof r === 'string') { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
+      }),
     h('button', { class: 'rt-btn', type: 'button', disabled: sel < 0 ? '' : null, title: 'Take out the surface selected; a lens of two surfaces goes whole', onclick: () => {
       checkpoint(); const r = removeSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
     } }, 'Remove'),

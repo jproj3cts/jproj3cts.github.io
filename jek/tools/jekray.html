@@ -315,6 +315,9 @@
   .rt-plot { position: relative; }
   .rt-more { position: relative; }
   .rt-menu-right { left: auto; right: 0; }
+  .rt-dropup { position: relative; display: inline-block; }
+  .rt-dropup .rt-dropmenu { top: auto; bottom: calc(100% + 4px); min-width: 13rem; }
+  .rt-exppro { margin: 0.3rem 0 0.5rem; color: var(--jek-ink-soft); }
   /* the examples: grouped, in two columns where there is room */
   .rt-beta { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-orange); color: #ffffff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   dialog.rt-dialog.rt-gallery { width: min(64rem, calc(100vw - 2rem)); height: min(46rem, calc(100vh - 3rem)); padding: 0; text-align: left; overflow: hidden; }
@@ -1550,11 +1553,11 @@
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
               <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="A lens or assembly to design: a stop and a singlet to start from, in the lens design workspace">Lens design, new…</button>
-                <button type="button" role="menuitem" id="btnLensOfSel" data-icon="open" title="The selected lenses and stops, on one axis, designed as one in the lens design workspace">Lens design of the selection</button>
+                <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optical designer">Optical designer, new…</button>
+                <button type="button" role="menuitem" id="btnLensOfSel" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optical designer">Optical designer, of the selection</button>
                 <div class="sep"></div>
-                <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF design, new…</button>
-                <button type="button" role="menuitem" id="btnRfOfSel" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF design of the selection</button>
+                <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
+                <button type="button" role="menuitem" id="btnRfOfSel" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
                 <div class="sep"></div>
                 <button type="button" role="menuitem" id="btnCoatDesign" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
               </div>
@@ -1566,8 +1569,8 @@
             <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
-            <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
+            <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
@@ -1679,10 +1682,10 @@
               <div class="sep"></div>
               <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
                 <div class="rt-menu rt-imenu" role="menu">
-                  <button type="button" role="menuitem" data-click="btnNewLens" data-icon="new">Lens design, new…</button>
-                  <button type="button" role="menuitem" data-click="btnLensOfSel" data-icon="open">Lens design of the selection</button>
-                  <button type="button" role="menuitem" data-click="btnNewRf" data-icon="new">RF design, new…</button>
-                  <button type="button" role="menuitem" data-click="btnRfOfSel" data-icon="open">RF design of the selection</button>
+                  <button type="button" role="menuitem" data-click="btnNewLens" data-icon="new">Optical designer, new…</button>
+                  <button type="button" role="menuitem" data-click="btnLensOfSel" data-icon="open">Optical designer, of the selection</button>
+                  <button type="button" role="menuitem" data-click="btnNewRf" data-icon="new">RF designer, new…</button>
+                  <button type="button" role="menuitem" data-click="btnRfOfSel" data-icon="open">RF designer, of the selection</button>
                   <button type="button" role="menuitem" data-click="btnCoatDesign" data-icon="new">Coating design</button>
                 </div>
               </div>
@@ -1887,7 +1890,7 @@
       <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
       <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
       <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
-      <button class="rt-btn" id="homeWs" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench here, opened straight into a workspace: lens design, RF design or coating design">Open a workspace ▾</button>
+      <button class="rt-btn" id="homeWs" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench here, opened straight into a workspace: the Optical designer, the RF designer or coating design">Open a workspace ▾</button>
       <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
     </header>
     <div class="rt-hbody">
@@ -1986,7 +1989,7 @@
   <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
 
   <dialog class="rt-dialog" id="zmxDialog">
-    <h2 id="zmxTitle">Import a lens file (.zmx)</h2>
+    <h2 id="zmxTitle">Import an element file (.zmx)</h2>
     <ol>
       <li>Open the maker’s product page for the lens, mirror, beam splitter or prism. Most optics makers publish a Zemax file for each part, usually beside the part number or under its downloads.</li>
       <li>Download the .zmx file (or a .zar archive). If it arrives as a .zip, extract it first.</li>
@@ -1996,7 +1999,7 @@
       <label for="zmxAs">Import as</label>
       <select id="zmxAs"></select>
     </div>
-    <label class="rt-check" id="zmxDesignRow" style="margin:0 0 0.75rem"><input type="checkbox" id="zmxDesign"> Open it in the lens design workspace, as an assembly to design</label>
+    <label class="rt-check" id="zmxDesignRow" style="margin:0 0 0.75rem"><input type="checkbox" id="zmxDesign"> Open it in the Optical designer, as an assembly to design</label>
     <p id="zmxWhere">The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
     <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
     <p class="rt-error" id="zmxError" hidden></p>
@@ -7985,6 +7988,9 @@ const FIBRE = {
       emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
       ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
       mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
+      // how the field of the beam it sends out is worked out, as a source's
+      popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
+      popModel: e.popModel === '2d' ? '2d' : 'auto',
       absorb: true,
     });
   },
@@ -7993,6 +7999,7 @@ const FIBRE = {
     angle: 'the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.',
     fields: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
     emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
+    popN: 'grid points for the field of the beam it sends out: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d" (always 2D, with polarisation).',
     mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
   },
 };
@@ -15787,7 +15794,7 @@ function tipSources(net) {
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
           gauss: true, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
           m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
-          popN: 256, popModel: 'auto', pol: 's', polAngle: 0,
+          popN: tip.popN || 256, popModel: tip.popModel || 'auto', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
           // a pulsed fibre laser's pulse, chirped by the fibres it came through
           tau: K.root.tau || 0, pshape: K.root.pshape || 'sech2', rep: K.root.rep || 80, gdd0: (c.sp ? 0 : K.root.gdd0 || 0) + (c.pw > 0 ? c.gw / c.pw : 0),
@@ -18137,12 +18144,27 @@ const V3D = (() => {
             add(mesh(lathe(pts), m));
           }
         }
+        // a made-to-order RF lens's flange: a ring out from the rim, as thick as set along the axis and centred on
+        // the rim's middle, with its bolt holes on the circle through its middle (render.js drawMount draws the same in 2D)
+        const mt = el.mount;
+        if (mt && mt.kind === 'flange' && ss.length >= 2 && !el.cyl) {
+          const a0 = ss[0], a1 = ss[ss.length - 1], ra = el.diameter / 2, x0 = (a0.z + sagFn(a0, a0.semi) + a1.z + sagFn(a1, a1.semi)) / 2;
+          const sh = new T.Shape(); sh.absarc(0, 0, ra + mt.width, 0, 2 * Math.PI, false);
+          const inner = new T.Path(); inner.absarc(0, 0, ra, 0, 2 * Math.PI, true); sh.holes.push(inner);
+          for (let k = 0; k < (mt.holes || 0); k++) { const th = 2 * Math.PI * k / mt.holes, c = ra + mt.width / 2, hp = new T.Path(); hp.absarc(c * Math.cos(th), c * Math.sin(th), mt.hole / 2, 0, 2 * Math.PI, true); sh.holes.push(hp); }
+          const fg = new T.ExtrudeGeometry(sh, { depth: mt.thick, bevelEnabled: false, curveSegments: 48 });
+          fg.rotateY(Math.PI / 2); fg.translate(x0 - mt.thick / 2, 0, 0);
+          add(mesh(fg, mat.matte(0xf4f4ee)));
+        }
         return g;
       }
       case 'mirror': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         let lo = sg(0, 0); for (let j = 0; j < 32; j++) lo = Math.min(lo, sg(s.semi * Math.cos(j * Math.PI / 16), s.semi * Math.sin(j * Math.PI / 16)));
         const t = Math.max(2, Math.min(10, L * 0.25)), R0 = el.reflect >= 100;
+        // an RF metal mirror is the colour of its metal, through and through; an optical one a coated glass
+        const MC = { Al: 0xd9dde2, Cu: 0xc87b4a, Au: 0xd8a650, brass: 0xc9a54a, steel: 0xaeb4b9, ideal: 0xe6eaee };
+        if (el.metal && RF_METALS[el.metal]) { const mm = mat.metal(MC[el.metal] || 0xd9dde2, el.metal === 'steel' ? 0.3 : 0.18); add(...sagSolid(sg, s.semi, lo - t, false, mm, mm)); return g; }
         add(...sagSolid(sg, s.semi, lo - t, false, R0 ? mat.metal() : Object.assign(mat.metal(0xd8e4ea, 0.05), { transparent: true, opacity: 0.35 + 0.55 * el.reflect / 100 }), mat.glass(0xa9d8e6, 0.45)));
         return g;
       }
@@ -19170,9 +19192,10 @@ const V3D = (() => {
 
   /* ---------- fly: the bench full screen, flown through ----------
      W A S D (or the arrows) move the way the camera looks and across it, Space and Ctrl up and
-     down the picture, Shift four times as fast (no roll keys: a rolling picture made people queasy); the mouse turns
-     the view about its own axes, as a pilot would; the wheel sets the speed. Landing levels it. The pointer is held to the canvas while
-     flying; Esc lets it go and lands, leaving the view orbiting a point straight ahead. */
+     down (straight up and down in the room), Shift four times as fast; the mouse turns the view about the room's
+     up (looking round) and tips it up and down, never rolled, so the viewer always stands upright, as in a
+     game's free camera; the wheel sets the speed. The pointer is held to the canvas while flying; Esc lets it
+     go and lands, leaving the view orbiting a point straight ahead. */
   let fly = null;                                         // { keys, h, th, dist, speed, last, raf, fs }
   const flyOk = () => true;                               // (part of the tool proper since 1.1)
   const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r',
@@ -19186,8 +19209,15 @@ const V3D = (() => {
     if (Math.hypot(f.x, f.y) > 1e-6) R.heading = Math.atan2(-f.y, -f.x);
     R.target.copy(R.camera.position).add(f.multiplyScalar(fly.dist));
   }
-  // a turn about one of the camera's own axes
-  const flyRot = (x, y, z, a) => { fly.q.multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(x, y, z), a)).normalize(); };
+  // the camera set upright, looking along a heading (about the room's up, +z) and a pitch (up positive): never rolled
+  const FLY_PITCH = 88 * deg;
+  function flySet(yaw, pitch) {
+    pitch = clamp(pitch, -FLY_PITCH, FLY_PITCH);
+    const d = new T.Vector3(Math.cos(yaw) * Math.cos(pitch), Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch));
+    fly.q.setFromRotationMatrix(new T.Matrix4().lookAt(new T.Vector3(0, 0, 0), d, new T.Vector3(0, 0, 1)));
+  }
+  // the heading and pitch the camera looks along now
+  const flyPose = () => { const f = flyDir(); return [Math.atan2(f.y, f.x), Math.asin(clamp(f.z, -1, 1))]; };
   function flyHintText() {
     if (!fly) return;
     const locked = document.pointerLockElement === D.cv;
@@ -19201,6 +19231,7 @@ const V3D = (() => {
     const d = R.camera.position.clone().sub(R.target), r = d.length() || 100;
     aim();
     fly = { keys: new Set(), q: R.camera.quaternion.clone(), dist: r, speed: clamp(r * 0.5, 20, 5000), last: null, raf: 0, fs: false };
+    flySet(...flyPose());                                 // upright from the start, whatever the orbit left
     D.stage.classList.add('rt-flying');
     D.flyHint.hidden = false;
     flyHintText();
@@ -19277,16 +19308,17 @@ const V3D = (() => {
     if (!fly || !(document.pointerLockElement === D.cv || (e.buttons && e.target === D.cv))) return;
     flyTurn(e.movementX || 0, e.movementY || 0);
   }
-  // the mouse turns the view about its own axes, as a pilot turns, rolled or not
+  // the mouse looks round (about the room's up) and up and down (to just short of straight up or down): never rolled
   function flyTurn(dx, dy) {
-    flyRot(0, 1, 0, -dx * 0.0022); flyRot(1, 0, 0, -dy * 0.0022);
+    const [yaw, pitch] = flyPose();
+    flySet(yaw - dx * 0.0022, pitch - dy * 0.0022);
     flyLook(); need();
   }
   function flyStep(t) {
     if (!fly) return;
     const dt = fly.last === null ? 0 : Math.min(0.1, (t - fly.last) / 1000);
     fly.last = t;
-    const K = fly.keys, f = flyDir(), right = flyAxis(1, 0, 0), up = flyAxis(0, 1, 0);
+    const K = fly.keys, f = flyDir(), right = flyAxis(1, 0, 0), up = new T.Vector3(0, 0, 1);   // up is the room's, as a game's free camera has it
     const m = new T.Vector3()
       .addScaledVector(f, (K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0))
       .addScaledVector(right, (K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0))
@@ -20744,7 +20776,7 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
   // an RF lens: the system it is part of designed in the RF designer (made an assembly of its own first if it is not one)
   if (el.mmw) panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the lens and the system in the RF designer',
-    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design the RF system…')));
+    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design as an RF assembly…')));
   if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },
@@ -21093,7 +21125,7 @@ function grinPanel(el) {
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : '')], 'note')));
   // the system it is part of, designed in the RF designer (made an assembly of its own first if it is not one)
   panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the disc and the system in the RF designer',
-    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design the RF system…')));
+    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design as an RF assembly…')));
   mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   rfLensPatternSection(el);
@@ -21193,7 +21225,10 @@ function fibrePanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Rays', el, 'emitRays'),
     // across the beam: the line of the 2D bench, or up and down it too (in 3D), as a source's
-    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true })));
+    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true }),
+    // its beam's diffracted field, worked out as a source's is
+    selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel || 'auto', v => { el.popModel = v; }),
+    selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
@@ -24178,7 +24213,7 @@ function groupPanel(list) {
     h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEls(list) }, 'Delete')));
   // lenses and stops on one axis: one assembly, to design as one
   const mk = makeAssemblyRow(list);
-  if (mk) { panel.append(h('h3', null, 'Lens design')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
+  if (mk) { panel.append(h('h3', null, 'Optical designer')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
   panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
@@ -24385,8 +24420,8 @@ function assemblyPanel(asm) {
   }
   const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
-    h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the lens design workspace: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
-    B('Export as a lens file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
+    h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the Optical designer: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
+    B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
     B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
     B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
@@ -24400,15 +24435,15 @@ function designOne(el) {
   if (asm) openLensDesign(asm);
   return asm;
 }
-/* in a part's own panel: the way into lens design for it alone */
+/* in a part's own panel: the way into the Optical designer for it alone */
 function designOneRow(el) {
   const k = asmKind(el), A = asmOf(el);
   // a part of an assembly: its design opened again
-  if (A) return h('button', { class: 'rt-btn primary', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
+  if (A) return h('button', { class: 'rt-btn primary', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the Optical designer', onclick: () => openLensDesign(A) }, 'Open the assembly design\u2026');
   if (!k || k === 'stop' || el.group) return null;
   const C = asmCheck([el], {});
   if (!C.ok) return null;
-  return h('button', { class: 'rt-btn primary', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, element data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
+  return h('button', { class: 'rt-btn primary', type: 'button', title: 'Make it an assembly of its own and open it in the Optical designer: conditions, element data, optimising, analyses. Lenses, mirrors and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as an assembly\u2026');
 }
 /* in a selection's panel: the button that makes these parts one, or why it can't */
 function makeAssemblyRow(list) {
@@ -25984,7 +26019,7 @@ function reportRecs(asm) {
   let pg = rpPage(meta, '');
   const g = pg.g;
   rpText(g, asm.name, RP_M, pg.y + 8, { size: 22, bold: true }); pg.y += 26;
-  rpText(g, 'Lens design report · ' + benchName(asm.bench) + ' in ' + (project.name || 'Untitled bench'), RP_M, pg.y, { size: 9.5, ink: RP_SOFT }); pg.y += 22;
+  rpText(g, 'Optical design report · ' + benchName(asm.bench) + ' in ' + (project.name || 'Untitled bench'), RP_M, pg.y, { size: 9.5, ink: RP_SOFT }); pg.y += 22;
   rpHead(pg, 'Design conditions');
   const ap = c.aperture.kind === 'epd' ? 'Entrance pupil diameter ' + rf(c.aperture.v) + ' mm' : c.aperture.kind === 'fno' ? 'Working F-number ' + rf(c.aperture.v) : 'Object-space NA ' + rf(c.aperture.v);
   rpPara(pg, (fin ? 'An object ' + rf(F.object, 6) + ' mm before the first surface. ' : 'Light from infinity. ') + 'Aperture: ' + ap + '. Fields' + (fin ? ' (object heights)' : '') + ': ' + c.fields.map(f => rf(f.deg, 4) + FU + (f.w !== 1 ? ' (weight ' + rf(f.w, 3) + ')' : '')).join(', ') + '. Wavelengths: ' +
@@ -26497,7 +26532,7 @@ function rwDraw() {
     // (not for a system with a graded-index disc: the optical designer has no such part)
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
-    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
+    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optical designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
     hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
     h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
@@ -27778,7 +27813,7 @@ async function saveRfReport(asm, opts) {
   return name;
 }
 /* ==========================================================================
-   The lens design workspace
+   The Optical designer (the lens design workspace)
    An assembly opened on a page of its own: the conditions it is designed for, its layout traced
    by the lens engine, and its element data, surface by surface, to edit as a lens designer does.
    Every change is written to its parts on the bench as it is made (and can be undone there), so
@@ -27833,7 +27868,7 @@ function closeLensDesign() {
 function shell() {
   let sec = document.getElementById('lensWs');
   if (sec) return sec;
-  sec = h('section', { class: 'rt-lens', id: 'lensWs', hidden: '', tabindex: '-1', 'aria-label': 'Lens design' });
+  sec = h('section', { class: 'rt-lens', id: 'lensWs', hidden: '', tabindex: '-1', 'aria-label': 'Optical designer' });
   // the bench's own keys stay on the bench: here Esc goes back, and undo and redo act on the design
   sec.addEventListener('keydown', e => {
     const k = e.key.toLowerCase(), typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
@@ -27893,7 +27928,7 @@ function drawWs() {
   name.addEventListener('change', fromField(name, () => { checkpoint(); asm.name = String(name.value || 'Assembly').slice(0, 80); changed(false); }));
   sec.append(h('header', { class: 'rt-lhead' },
     h('span', { class: 'rt-hmark' }, 'JEKray'),
-    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Lens design')),
+    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Optical designer')),
     h('span', { class: 'rt-lgap' }),
     ...cfgPicker(asm),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
@@ -28170,6 +28205,19 @@ function tabsRow() {
   return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
+/* a button that opens a small menu above itself (a drop-up) of the kinds to choose from: [key, label, title] each */
+function dropUp(label, title, kinds, pick) {
+  const wrap = h('div', { class: 'rt-dropup' });
+  const menu = h('div', { class: 'rt-menu rt-dropmenu', role: 'menu', hidden: '' });
+  const btn = h('button', { class: 'rt-btn', type: 'button', title, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, label + ' \u25b4');
+  const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', away, true); };
+  const away = e => { if (!wrap.contains(e.target)) close(); };
+  for (const [key, text, why] of kinds) menu.append(h('button', { type: 'button', role: 'menuitem', title: why || null, onclick: () => { close(); pick(key); } }, text));
+  btn.addEventListener('click', e => { e.stopPropagation(); if (menu.hidden) { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); setTimeout(() => document.addEventListener('click', away, true)); const f = menu.querySelector('button'); if (f) f.focus(); } else close(); });
+  menu.addEventListener('keydown', e => { if (e.key === 'Escape') { close(); btn.focus(); e.stopPropagation(); } });
+  wrap.append(btn, menu);
+  return wrap;
+}
 /* ---------- Element data ---------- */
 function surfaceName(P, sps, i) {
   const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?';
@@ -28248,13 +28296,21 @@ function dataCard(asm, P) {
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const sel = WS.sel >= 0 && WS.sel < N ? WS.sel : -1;
   const bar = h('div', { class: 'rt-lbar' },
-    h('button', { class: 'rt-btn', type: 'button', title: 'A flat surface after the one selected: inside a lens it splits the glass (a cemented doublet); after its back, it adds glass behind', onclick: () => {
+    // a surface of a chosen kind after the one selected (inside a lens it splits the glass, as a cemented doublet;
+    // after its back it adds glass behind), the same kind as the one selected, or a whole element of a chosen kind
+    dropUp('Insert a surface', 'A surface of the kind chosen, after the one selected: inside a lens it splits the glass (a cemented doublet); after its back, it adds glass behind',
+      SURFACE_KINDS.filter(k => k[0] !== 'same'), kind => {
+        if (sel < 0) { toast('Select a surface of a lens first: the new one goes after it.', true); return; }
+        checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel, kind); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
+      }),
+    h('button', { class: 'rt-btn', type: 'button', title: SURFACE_KINDS.find(k => k[0] === 'same')[2] + ', after it', onclick: () => {
       if (sel < 0) { toast('Select a surface of a lens first: the new one goes after it.', true); return; }
-      checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
-    } }, 'Insert a surface'),
-    h('button', { class: 'rt-btn', type: 'button', title: 'A flat N-BK7 singlet, 2 mm thick, after the part selected (in front of the first surface with the object selected; at the end with nothing selected)', onclick: () => {
-      checkpoint(); const r = insertSinglet(asm, designPrescription(asm), WS.sel === -2 ? 'front' : sel); if (typeof r === 'string') { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
-    } }, 'Insert a singlet'),
+      checkpoint(); const r = insertSurface(asm, designPrescription(asm), sel, 'same'); if (r !== true) { toast(r, true); return; } WS.sel = sel + 1; changed(true); renderWs();
+    } }, 'Duplicate surface type'),
+    dropUp('Insert an element', 'An element of the kind chosen, after the part selected (in front of the first surface with the object selected; at the end with nothing selected)',
+      ELEMENT_KINDS, kind => {
+        checkpoint(); const r = insertSinglet(asm, designPrescription(asm), WS.sel === -2 ? 'front' : sel, kind); if (typeof r === 'string') { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
+      }),
     h('button', { class: 'rt-btn', type: 'button', disabled: sel < 0 ? '' : null, title: 'Take out the surface selected; a lens of two surfaces goes whole', onclick: () => {
       checkpoint(); const r = removeSurface(asm, designPrescription(asm), sel); if (r !== true) { toast(r, true); return; } WS.sel = -1; changed(true); renderWs();
     } }, 'Remove'),
@@ -29234,21 +29290,22 @@ function drawDiff(cv, D, el) {
   };
   if (!D) { size(square ? Math.round(w) : 150); return; }
   if (square) {
-    // irradiance on the screen: along it (in the bench plane) across, out of the plane up,
-    // both from the middle of the map
-    const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
-    const [xa, xb] = zoomRange(Z, 'x', -half, half), [ya, yb] = zoomRange(Z, 'y', -vh, vh);
-    const sx = { kind: 'len', title: 'along' }, sy = { kind: 'len', title: 'out of the plane' };
+    // the screen's own face: along it (in the bench plane) across, out of the plane up, both from its
+    // centre, as wide as the screen is; the map of the light lies on it where the light lands, the rest
+    // of the face dark (zoom in on the map for its detail)
+    const L = Math.max(el.length / 2, 1e-6), u0 = D.map.u0, u1 = D.map.u1, v0 = D.map.v0, v1 = D.map.v1;
+    const [xa, xb] = zoomRange(Z, 'x', -L, L), [ya, yb] = zoomRange(Z, 'y', -L, L);
+    const sx = { kind: 'len', title: 'along the screen' }, sy = { kind: 'len', title: 'out of the plane' };
     // its margin measured at about its own height, where the axis has as many labels as it will be drawn with
     const A1 = plotArea(c, w, 100, [ya, yb], sy), A0 = plotArea(c, w, Math.max(40, w - A1.l - 6) + A1.t + 18, [ya, yb], sy);
     const side = Math.max(40, w - A0.l - 6), hgt = side + A0.t + 18;
     size(hgt);
     const A = { l: A0.l, t: A0.t, w: side, h: side };
-    cv._area = A; cv._full = { x: [-half, half], y: [-vh, vh] };
+    cv._area = A; cv._full = { x: [-L, L], y: [-L, L] };
     const M = D.map.n, img = c.createImageData(M, M);
     plotCsv(cv, el.name + ' irradiance map', ['along_mm', 'out_of_plane_mm', 'irradiance', 'incoherent'], () => {
       const r = [];
-      for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([-half + (i + 0.5) * 2 * half / M, -vh + (j + 0.5) * 2 * vh / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);
+      for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([u0 + (i + 0.5) * (u1 - u0) / M, v0 + (j + 0.5) * (v1 - v0) / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);
       return r;
     });
     // scaled to its own peak, but never above what the beams would give without interfering,
@@ -29273,22 +29330,23 @@ function drawDiff(cv, D, el) {
     }
     const off = document.createElement('canvas'); off.width = M; off.height = M;
     off.getContext('2d').putImageData(img, 0, 0);
-    // the window in fractions of the map; past its edges (a map matched to a bigger one) is
-    // outside the field computed, drawn as its darkest colour with the map's edge dashed
-    const ua = (xa + half) / (2 * half), ub = (xb + half) / (2 * half), va = (ya + vh) / (2 * vh), vb = (yb + vh) / (2 * vh);
-    const U0 = Math.max(0, ua), U1 = Math.min(1, ub), V0 = Math.max(0, va), V1 = Math.min(1, vb);
-    const dx = u => A.l + (u - ua) / (ub - ua) * side, dy = v => A.t + (vb - v) / (vb - va) * side;
+    // the face in the window, and the map's rectangle on it, cut to the window; past the map's edges is
+    // outside the field computed, drawn as its darkest colour with the map's edge dashed where it shows
+    const ux = u => A.l + (u - xa) / (xb - xa) * side, vy = v => A.t + (yb - v) / (yb - ya) * side;
+    const U0 = Math.max(0, (xa - u0) / (u1 - u0)), U1 = Math.min(1, (xb - u0) / (u1 - u0)), V0 = Math.max(0, (ya - v0) / (v1 - v0)), V1 = Math.min(1, (yb - v0) / (v1 - v0));
     c.fillStyle = 'rgb(' + magma(0).join(',') + ')';
     c.fillRect(A.l, A.t, side, side);
-    c.imageSmoothingEnabled = !zoomed(Z) || M / Z.kx > side / 3;     // show the samples once they are big
-    if (U1 > U0 && V1 > V0) c.drawImage(off, U0 * M, (1 - V1) * M, (U1 - U0) * M, (V1 - V0) * M, dx(U0), dy(V1), dx(U1) - dx(U0), dy(V0) - dy(V1));
-    if (ua < 0 || ub > 1 || va < 0 || vb > 1) {
+    const px = side * (u1 - u0) / ((xb - xa) * M);                // screen pixels per map sample
+    c.imageSmoothingEnabled = px < 3;                              // show the samples once they are big
+    const mu = f => u0 + f * (u1 - u0), mv = f => v0 + f * (v1 - v0);
+    if (U1 > U0 && V1 > V0) c.drawImage(off, U0 * M, (1 - V1) * M, (U1 - U0) * M, (V1 - V0) * M, ux(mu(U0)), vy(mv(V1)), ux(mu(U1)) - ux(mu(U0)), vy(mv(V0)) - vy(mv(V1)));
+    if (U1 > U0 && V1 > V0 && (u0 > xa || u1 < xb || v0 > ya || v1 < yb)) {
       c.strokeStyle = 'rgba(255,255,255,0.35)'; c.setLineDash([3, 3]);
-      c.strokeRect(dx(U0) + 0.5, dy(V1) + 0.5, dx(U1) - dx(U0) - 1, dy(V0) - dy(V1) - 1); c.setLineDash([]);
+      c.strokeRect(ux(mu(U0)) + 0.5, vy(mv(V1)) + 0.5, ux(mu(U1)) - ux(mu(U0)) - 1, vy(mv(V0)) - vy(mv(V1)) - 1); c.setLineDash([]);
     }
     if (view === 'pol' && D.map.s1) {
       // an ellipse every few pixels where there is light: the shape the field traces there
-      const P = D.map, step = Math.max(1, Math.round(M * Math.min(1, ub - ua) / 14)), cell = side / (M * (ub - ua)) * step;
+      const P = D.map, step = Math.max(1, Math.round(M * Math.min(1, U1 - U0) / 14)), cell = px * step;
       c.save(); c.beginPath(); c.rect(A.l, A.t, side, side); c.clip();
       c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 1.1;
       for (let j = Math.floor(step / 2); j < M; j += step) for (let i = Math.floor(step / 2); i < M; i += step) {
@@ -29296,7 +29354,7 @@ function drawDiff(cv, D, el) {
         if (!(S0 > 0.04 * pk)) continue;
         const S1 = P.s1[q], S2 = P.s2[q], S3 = P.s3[q], Sp = Math.hypot(S1, S2, S3), dop = Math.min(1, Sp / S0);
         const psi = 0.5 * Math.atan2(S2, S1), chi = 0.5 * Math.asin(clamp(S3 / (Sp || 1), -1, 1));
-        const a = 0.42 * cell * dop * Math.sqrt(Math.min(1, S0 / pk) * 0.6 + 0.4), x = dx((i + 0.5) / M), y = dy((j + 0.5) / M);
+        const a = 0.42 * cell * dop * Math.sqrt(Math.min(1, S0 / pk) * 0.6 + 0.4), x = ux(mu((i + 0.5) / M)), y = vy(mv((j + 0.5) / M));
         c.beginPath(); c.ellipse(x, y, Math.max(0.6, a * Math.cos(chi)), Math.max(0.6, a * Math.abs(Math.sin(chi))), -psi, 0, 2 * Math.PI); c.stroke();
       }
       c.restore();
@@ -36581,12 +36639,36 @@ const zsOf = P => { const z = [0]; for (const g of P.gaps) z.push(z[z.length - 1
 const gapsFrom = (P, z) => { P.gaps = z.slice(1).map((v, i) => Math.max(0, v - z[i])); };
 /* a flat surface after surface i: inside a lens, splitting the glass after it in two (a cemented
    doublet); after a lens's last surface, a new glass 2 mm thick behind it, the rest pushed back */
-function insertSurface(asm, P, i) {
+/* the kinds of surface the element data can insert: each sets the new surface's shape, and marks the part for
+   what the surface needs (an asphere's conic, a freeform's terms, a diffractive face's phase, a graded glass) */
+const SURFACE_KINDS = [
+  ['flat', 'Flat', 'A plane surface'], ['sphere', 'Spherical', 'A sphere, 100 mm in radius to start'],
+  ['conic', 'Conic (asphere)', 'A conic surface: a paraboloid to start, with aspheric terms to add; the part becomes an asphere'],
+  ['freeform', 'Freeform', 'An XY polynomial surface, flat to start; the part becomes an asphere'],
+  ['diffractive', 'Diffractive', 'A flat face carrying a diffractive phase, nil to start; the part becomes a diffractive lens'],
+  ['graded', 'Graded glass', 'A flat surface, the glass after it graded from the axis (its terms nil to start); the part becomes a graded lens'],
+  ['same', 'Duplicate surface type', 'A surface of the same kind as the one selected: its radius and conic, with the same kinds of term, nil'],
+];
+function insertSurface(asm, P, i, kind = 'flat') {
   const sps = surfaceParts(P), sp = sps[i];
-  if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert a singlet instead.';
+  if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert an element instead.';
+  if (!SURFACE_KINDS.some(k => k[0] === kind)) return 'No such kind of surface.';
   return reKey(asm, P, () => {
     const z = zsOf(P), last = sp.j === sp.n - 1, glass = last ? Object.assign({}, P.materials[i - 1] || { glass: 'N-BK7' }) : null;
     const s = { R: null, k: 0, a2: 0, A: [], odd: null, semi: P.surfaces[i].semi, from: { id: sp.id, i: -1 } };
+    const el = project.elements.find(e => e.id === sp.id), s0 = P.surfaces[i];
+    if (kind === 'sphere') s.R = 100;
+    else if (kind === 'conic') { s.R = 100; s.k = -1; if (el) el.asphere = true; }
+    else if (kind === 'freeform') { s.F = { 20: 0, '02': 0 }; if (el) el.asphere = true; }
+    else if (kind === 'diffractive') { s.ph = [0]; s.dm = (el && el.diffOrder) || 1; if (el) el.diffractive = true; }
+    else if (kind === 'same') {
+      s.R = s0.R; s.k = s0.k || 0;
+      if (s0.A && s0.A.some(a => a)) s.A = s0.A.map(() => 0);
+      if (s0.F) { s.F = {}; for (const key of Object.keys(s0.F)) s.F[key] = 0; }
+      if (s0.ph) { s.ph = s0.ph.map(() => 0); s.dm = s0.dm || 1; }
+      if (s0.cyl) s.cyl = s0.cyl;
+    }
+    if (kind === 'graded' && el) el.graded = true;
     if (!last) {
       z.splice(i + 1, 0, (z[i] + z[i + 1]) / 2);
       P.materials.splice(i, 0, Object.assign({}, P.materials[i]));
@@ -36595,59 +36677,76 @@ function insertSurface(asm, P, i) {
       z.splice(i + 1, 0, z[i] + 2);
       P.materials.splice(i, 0, glass);
     }
+    if (kind === 'graded') P.materials[i + 1] = Object.assign({}, P.materials[i + 1], { grad: (P.materials[i + 1].grad || [0, 0, 0]).slice() });
     P.surfaces.splice(i + 1, 0, s);
     gapsFrom(P, z);
     P.parts[sp.pi].n++;
     return j => j <= i ? j : j + 1;
   }) || 'Nothing was inserted.';
 }
-/* a new flat singlet (N-BK7, 2 mm) after the part surface i is on, in the gap after it, the rest
-   pushed back if the gap is short of room; i 'front': before the first surface */
-function insertSinglet(asm, P, i) {
+/* the kinds of element the element data can insert: a flat singlet, or one of the bench's lens presets (parts/lens.js) */
+const ELEMENT_KINDS = [
+  ['singlet', 'Singlet', 'A flat N-BK7 singlet, 2 mm thick, as wide as the design'],
+  ['asphere', 'Asphere', 'The bench\u2019s asphere: a conic front face with aspheric terms to add'],
+  ['diffractive', 'Diffractive lens', 'The bench\u2019s diffractive lens: a hybrid achromat, its flat face carrying a phase'],
+  ['grinrod', 'GRIN rod lens', 'The bench\u2019s graded-index rod lens, a quarter of its pitch long'],
+  ['cylinder', 'Cylindrical lens', 'The bench\u2019s cylindrical lens, curved in the plane of the fields'],
+];
+/* a new element after the part surface i is on, in the gap after it, the rest pushed back if the gap is
+   short of room; i 'front': before the first surface. kind: one of ELEMENT_KINDS (a flat singlet unless given) */
+function insertSinglet(asm, P, i, kind = 'singlet') {
   const sps = surfaceParts(P), front = i === 'front';
   i = front ? 0 : i === undefined || i < 0 ? P.surfaces.length - 1 : i;
   const sp = sps[i], after = front ? -1 : i + (sp.n - 1 - sp.j);        // the part's last surface (or before them all)
+  if (!ELEMENT_KINDS.some(k => k[0] === kind)) return 'No such kind of element.';
   let el = null;
   const ok = reKey(asm, P, () => {
-    const z = zsOf(P), T = 2;
+    const z = zsOf(P);
+    const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
+    el = newPart(asm, P, semi, kind);
+    const S = partSurfaces(el), M = partMaterials(el), n = S.length, T = el.gaps.reduce((a, b) => a + b, 0);
+    const zs = [0]; for (const g of el.gaps) zs.push(zs[zs.length - 1] + g);
     if (front) {
       // before the first surface, 2 mm clear of it: the first vertex moves back, nothing else does
-      const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
-      el = newSinglet(asm, P, semi);
-      z.unshift(-T - 2, -2);
-      P.surfaces.unshift(sing(el, 0, semi), sing(el, 1, semi));
-      P.materials.unshift({ glass: 'N-BK7' }, { glass: 'AIR' });
+      z.unshift(...zs.map(v => v - T - 2));
+      P.surfaces.unshift(...S);
+      P.materials.unshift(...M, { glass: 'AIR' });
       P.origin = [P.origin[0] - P.dir[0] * (T + 2), P.origin[1] - P.dir[1] * (T + 2)];
       gapsFrom(P, z.map(v => v - z[0]));
-      P.parts.unshift({ id: el.id, kind: 'lens', flip: false, n: 2 });
-      return j => j + 2;
+      P.parts.unshift({ id: el.id, kind: 'lens', flip: false, n });
+      return j => j + n;
     }
-    const room = after < P.surfaces.length - 1 ? P.gaps[after] : P.image;
-    const lead = after < P.surfaces.length - 1 ? Math.max(1, (room - T) / 2) : Math.max(1, Math.min(5, room / 4));
-    const push = after < P.surfaces.length - 1 ? Math.max(0, lead + T + 1 - room) : 0;
+    const wasLast = after === P.surfaces.length - 1;
+    const room = !wasLast ? P.gaps[after] : P.image;
+    const lead = !wasLast ? Math.max(1, (room - T) / 2) : Math.max(1, Math.min(5, room / 4));
+    const push = !wasLast ? Math.max(0, lead + T + 1 - room) : 0;
     for (let j = after + 1; j < z.length; j++) z[j] += push;
     const za = z[after] + lead;
-    const semi = Math.min(25, Math.max(...P.surfaces.filter(s => isFinite(s.semi) && s.semi > 0).map(s => s.semi), 5));
-    el = newSinglet(asm, P, semi);
-    z.splice(after + 1, 0, za, za + T);
-    P.surfaces.splice(after + 1, 0, sing(el, 0, semi), sing(el, 1, semi));
-    P.materials.splice(after, 0, { glass: 'AIR' }, { glass: 'N-BK7' });
+    z.splice(after + 1, 0, ...zs.map(v => za + v));
+    P.surfaces.splice(after + 1, 0, ...S);
+    P.materials.splice(after, 0, { glass: 'AIR' }, ...M);
     gapsFrom(P, z);
-    if (after === P.surfaces.length - 3) P.image = Math.max(1, P.image - lead - T);
-    P.parts.splice(sp.pi + 1, 0, { id: el.id, kind: 'lens', flip: false, n: 2 });
-    return j => j <= after ? j : j + 2;
+    if (wasLast) P.image = Math.max(1, P.image - lead - T);
+    P.parts.splice(sp.pi + 1, 0, { id: el.id, kind: 'lens', flip: false, n });
+    return j => j <= after ? j : j + n;
   });
   return ok ? el : 'Nothing was inserted.';
 }
-function newSinglet(asm, P, semi) {
-  const ref = project.elements.find(e => e.id === asm.ref) || asmMembers(asm)[0];
-  const el = normElement({ type: 'lens', id: uid(), name: nextName('Singlet'), x: ref.x, y: ref.y, z: ref.z, angle: Math.atan2(P.dir[1], P.dir[0]) / deg, diameter: 2 * semi,
-    surfaces: [{ R: null }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }], group: asm.id, bench: asm.bench });
+/* the new part on the bench, at the assembly's reference and along its axis: a flat singlet as wide as asked,
+   or a lens preset as the bench makes it (its own size) */
+function newPart(asm, P, semi, kind) {
+  const ref = project.elements.find(e => e.id === asm.ref) || asmMembers(asm)[0], ang = Math.atan2(P.dir[1], P.dir[0]) / deg;
+  const base = kind === 'singlet' ? { type: 'lens', name: nextName('Singlet'), diameter: 2 * semi, surfaces: [{ R: null }, { R: null }], gaps: [2], materials: [{ glass: 'N-BK7' }] }
+    : LENS.make(ref.x, ref.y, kind);
+  const el = normElement(Object.assign(base, { id: uid(), x: ref.x, y: ref.y, z: ref.z, angle: ang, group: asm.id, bench: asm.bench }));
   if (ref.z === undefined) delete el.z;
   project.elements.push(el);
   return el;
 }
-const sing = (el, j, semi) => ({ R: null, k: 0, a2: 0, A: [], odd: null, semi, from: { id: el.id, i: j } });
+/* the part's surfaces and the glasses between them as the prescription holds them (as asmPrescription reads a lens) */
+const partSurfaces = el => el.surfaces.map((s, j) => ({ R: s.R, k: s.k || 0, a2: s.a2 || 0, A: (s.A || []).slice(), odd: s.odd ? s.odd.slice() : null, semi: el.diameter / 2, from: { id: el.id, i: j },
+  ...(s.F ? { F: Object.assign({}, s.F) } : {}), ...(s.ph ? { ph: s.ph.slice(), dm: el.diffOrder || 1 } : {}), ...(el.cyl ? { cyl: el.cyl } : {}) }));
+const partMaterials = el => el.materials.map(m => Object.assign({ glass: m.glass }, m.grad ? { grad: m.grad.slice() } : {}));
 /* surface i taken out: a lens of two surfaces goes whole (the gaps either side and its glass
    becoming one gap); a lens's extra surface goes, the glass either side becoming one */
 function removeSurface(asm, P, i) {
@@ -41032,8 +41131,8 @@ function benchMenu(X, Y, hit, at, in3d) {
       { label: 'Raise to top', key: 'Home', fn: () => restack(list, 'top') }, { label: 'Lower to bottom', key: 'End', fn: () => restack(list, 'bottom') }] : []), '-',
     ...(n > 1 && !grouped ? [{ label: 'Group', key: 'Ctrl+G', fn: () => groupEls(list) }] : []),
     ...(n > 1 && !asmOfSelection(list) && asmCheck(list).ok ? [{ label: 'Make an assembly', fn: () => makeAssembly(list) }] : []),
-    ...(n === 1 && asmOf(list[0]) && !asmOfSelection(list) ? [{ label: 'Open lens design\u2026', fn: () => openLensDesign(asmOf(list[0])) }] : []),
-    ...(n === 1 && !list[0].group && asmKind(list[0]) && asmKind(list[0]) !== 'stop' && asmCheck(list).ok ? [{ label: 'Design as a lens\u2026', fn: () => designOne(list[0]) }] : []),
+    ...(n === 1 && asmOf(list[0]) && !asmOfSelection(list) ? [{ label: 'Open the assembly design\u2026', fn: () => openLensDesign(asmOf(list[0])) }] : []),
+    ...(n === 1 && !list[0].group && asmKind(list[0]) && asmKind(list[0]) !== 'stop' && asmCheck(list).ok ? [{ label: 'Design as an assembly\u2026', fn: () => designOne(list[0]) }] : []),
     ...(asmOfSelection(list) ? [{ label: 'Split the assembly into parts', fn: () => splitAssembly(asmOfSelection(list)) }] : []),
     ...(list.some(x => x.group) ? [{ label: 'Ungroup', key: 'Ctrl+Shift+G', fn: () => ungroupEls(list) }] : []),
     ...(one && one.type !== 'draw' && !in3d ? [{ label: 'Edit name', fn: () => editText(one, 'name') }] : []),
@@ -43114,7 +43213,7 @@ function zmxSystem(els) {
 function zmxAssemblySystem(asm) {
   const P = asmPrescription(asm), warnings = new Set();
   // a fold or a part off the axis needs coordinate breaks, which this export does not write
-  if (P.surfaces.some(s => s.cyl)) throw new Error(asm.name + ' has a cylindrical lens: export its parts from the bench instead (select them, then Export a lens), where a cylinder is written as one.');
+  if (P.surfaces.some(s => s.cyl)) throw new Error(asm.name + ' has a cylindrical lens: export its parts from the bench instead (select them, then Export an element), where a cylinder is written as one.');
   if (P.parts.some(p => p.kind === 'lens' && project.elements.find(e => e.id === p.id).surfaces.some(t => t.coat && t.coat.mode !== 'bare'))) warnings.add('coatings are not written');
   if (P.surfaces.some(s => s.F && Object.values(s.F).some(v => v))) warnings.add('freeform terms are not written');
   if (P.surfaces.some(s => s.ph && s.ph.some(v => v))) warnings.add('diffractive phases are not written: the faces go as their substrates');
@@ -43666,13 +43765,18 @@ const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experim
 let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
 let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
 const expPicked = key => expPicks[key] !== false;
-const exp = key => expOn && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
+// experimental features are part of JEKrayPro: the gate says why they are not available (not signed in, no plan), or ''
+// when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
+let expGate = () => '';
+const expWhy = () => (TEST_MODE ? '' : expGate() || '');
+function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); }
+const exp = key => expOn && !expWhy() && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 function setExperimental(on, picks) {
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
   const dot = document.getElementById('expDot');
-  if (dot) dot.hidden = !expOn;
+  if (dot) dot.hidden = !(expOn && !expWhy());
   modsSync();
   layoutPalette(); renderPanel(); requestRender();
   if (typeof accountShown === 'function') accountShown();
@@ -44075,7 +44179,7 @@ async function saveToMine(list, opts) {
     const content = partContent(list);
     if (!content) { toast('Too big to keep as a part (a part can be at most 256 KB).', true); return; }
     const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Lens design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
+      body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Optical design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
     if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
     else if (!document.getElementById('home').hidden && cloudPlace.view === 'parts' && cloudPlace.ws === w.id) fillHome();
     toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on My benches, under ' + w.name + ' › Team parts');
@@ -45447,7 +45551,7 @@ function newCloudBench(ws, folder, saveThis, then) {
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, saveThis ? 'Save' : 'Make it');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
-    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : then === 'lens' ? 'New lens design' : then === 'rf' ? 'New RF design' : then === 'coat' ? 'New bench, with a coating to design' : 'New cloud bench'),
+    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : then === 'lens' ? 'New optical design' : then === 'rf' ? 'New RF design' : then === 'coat' ? 'New bench, with a coating to design' : 'New cloud bench'),
     h('div', { class: 'rt-rows' },
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewName' }, 'Name'), name),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewWhere' }, 'In'), where)),
@@ -46109,6 +46213,7 @@ function cloudMenuShown() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 function wireCloud() {
   hooks.proWhy = proWhy; hooks.proFix = proFix;
+  setExpGate(() => (accountsOn() ? proWhy() : ''));    // experimental features are JEKrayPro's
   window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
 
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
@@ -46154,7 +46259,7 @@ function wireCloud() {
     const wsBtn = document.getElementById('homeWs');
     wsBtn.addEventListener('click', () => {
       const into = then => () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null, false, then);
-      openHomeMenu(wsBtn, [['Lens design', 'bench', into('lens')], ['RF design', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
+      openHomeMenu(wsBtn, [['Optical designer', 'bench', into('lens')], ['RF designer', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
     });
 
     const search = document.getElementById('homeSearch');
@@ -46248,6 +46353,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Names</b>: the lens design workspace is the <b>Optical designer</b> (it designs mirrors, windows and stops as well as lenses), a part is opened in it with <b>Design as an assembly\u2026</b> and an RF part with <b>Design as an RF assembly\u2026</b>, and the .zmx menu items read <b>Import an element</b> and <b>Export an element</b>. <b>Element data</b>: <b>Insert a surface</b> offers the kind of surface (flat, spherical, conic, freeform, diffractive, graded glass), <b>Duplicate surface type</b> repeats the selected one\u2019s kind, and <b>Insert an element</b> offers the bench\u2019s asphere, diffractive lens, GRIN rod lens and cylindrical lens as well as a singlet. <b>Experimental features</b> are part of JEKrayPro.',
+    '<b>Fibre tips</b> have a source\u2019s field settings (its model and grid points) for the beam they send out. <b>Fly</b> keeps you upright: the mouse looks round about the room\u2019s up and tips the view to just short of straight up or down, never rolled, and Space and Ctrl move straight up and down. A screen\u2019s <b>Diffraction</b> map is drawn on the screen\u2019s own face, at its true size and place (zoom in for the spot\u2019s detail). In 3D an RF metal mirror is the colour of its metal, and a made-to-order lens\u2019s flange shows its bolt holes.',
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
     '<b>Steadier flying, a plainer chopper</b>: Q and E no longer roll the view in Fly, a rolling picture having made people queasy; the optical chopper\u2019s blades are filled where they block the beam, open where its slots let light by (their share its duty): in 3D they had been drawn hollow.',
     '<b>Brightness follows power</b>: a ray is drawn as bright as the power it carries to the 0.4, and a Gaussian beam\u2019s envelope fades with its share of the source\u2019s power, so the two arms of a polarising split are seen trading power as a waveplate turns (before, a beam kept nearly its full brightness down to a tenth of the power and then went out within a few degrees). A 4% ghost still shows at about a third of the brightness; a beam 40 dB down is a trace.',
@@ -46573,6 +46680,7 @@ function wireNews() {
 
   {
     const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
+    const account = () => !(hooks.proWhy && /^Sign in/.test(hooks.proWhy() || ''));
     const fill = () => {
       const cb = h('input', { type: 'checkbox' });
       cb.checked = expOn;
@@ -46585,7 +46693,11 @@ function wireNews() {
         t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
         return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
       };
-      menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
+      // part of JEKrayPro: without a plan the switch is shown but held off, with the way to one
+      const why = expWhy();
+      cb.disabled = !!why;
+      menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
+        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'Part of JEKrayPro. '), (account() ? 'They need a plan: your own JEKrayPro, or a team with one. ' : 'Sign in, top right, with an account that has a plan. '), h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix(); } }, account() ? 'Subscribe…' : 'Sign in…')) : null,
         h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
         EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
           : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
@@ -46594,7 +46706,7 @@ function wireNews() {
     btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
     document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
-    document.getElementById('expDot').hidden = !expOn;
+    document.getElementById('expDot').hidden = !(expOn && !expWhy());
   }
 
   {
@@ -46820,10 +46932,10 @@ function updateEmpty() {
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples'))));
 }
-// the same dialog, onto the bench (File > Import a lens) or into My parts (its tab's button)
+// the same dialog, onto the bench (File > Import an element) or into My parts (its tab's button)
 function openZmx(toMine) {
   setZmxToMine(toMine);
-  document.getElementById('zmxTitle').textContent = toMine ? 'Import lens files (.zmx) into My parts' : 'Import a lens file (.zmx)';
+  document.getElementById('zmxTitle').textContent = toMine ? 'Import element files (.zmx) into My parts' : 'Import an element file (.zmx)';
   document.getElementById('zmxWhere').textContent = toMine
     ? 'Choose one file or several: each is kept in My parts, named by its part number, ready to add to any bench. Light travels left to right through it, as in the file.'
     : 'The part is placed at the centre of the view with light travelling left to right, as in the file.';

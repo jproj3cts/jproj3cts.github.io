@@ -1,15 +1,15 @@
 ---
 layout: docs
-title: Lens design
+title: Optical designer
 permalink: /jek/docs/jekray/lens-design/
-description: Assemblies and lens design in JEKray. Lenses, mirrors and stops on one axis are made one assembly and designed together in the lens design workspace (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
+description: Assemblies and the Optical designer in JEKray. Lenses, mirrors and stops on one axis are made one assembly and designed together in the Optical designer (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
 ---
 
 <p class="dx-lead">An assembly is a set of lenses, mirrors and stops on one axis that are designed together: a doublet, a triplet, an objective, a folded telescope. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
 
 ## Making an assembly
 
-**One part.** A lens, mirror or window on its own has **Design as a lens…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the design workspace, where surfaces and singlets can be added to it.
+**One part.** A lens, mirror or window on its own has **Design as an assembly…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the design workspace, where surfaces and singlets can be added to it.
 
 **Several parts.** Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or the right-click menu. They must be:
 
@@ -22,7 +22,7 @@ A lens off the axis by less than its half-width is *decentred*, one turned from 
 
 An assembly is picked and moved as one, drawn with a dashed outline and its name. Its panel places it by its **X** and **Y** (its first vertex), **Angle** (the way its axis runs) and **Height z**: these move or turn every part together, leaving the design unchanged. Ctrl-click a part to edit it alone; a part moved off the axis turns the outline red. **Split into parts** gives back the separate lenses and stops where they are.
 
-**Starting from nothing.** **File › Open a workspace › Lens design, new…** puts a starting assembly on the bench (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) and opens it in the workspace. **Lens design of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/#the-rf-designer) and the [coating workspace](/jek/docs/jekray/coating-design/). On **My benches**, **Open a workspace** makes a new cloud bench straight in the designer chosen. In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
+**Starting from nothing.** **File › Open a workspace › Optical designer, new…** puts a starting assembly on the bench (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) and opens it in the workspace. **Optical designer, of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/#the-rf-designer) and the [coating workspace](/jek/docs/jekray/coating-design/). On **My benches**, **Open a workspace** makes a new cloud bench straight in the designer chosen. In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
 
 ## The prescription
 
@@ -79,7 +79,7 @@ in three dimensions, so skew rays are traced as exactly as meridional ones. A ra
 
 **Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own. The bar names the bench and the assembly (its name can be edited there); **Back to the bench** (or Esc) returns. Nothing is copied: every change is written to the parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places. A design started from nothing has **Place on a bench** instead: it adds a source for each field (collimated, as wide as the entrance pupil) and a screen at the image, then returns.
 
-**File › Import a lens (.zmx)…** with **Open it in the lens design workspace** ticked reads a lens file as an assembly and opens it here.
+**File › Import an element (.zmx)…** with **Open it in the Optical designer** ticked reads a lens file as an assembly and opens it here.
 
 ### Design conditions
 
@@ -118,7 +118,7 @@ Beside each radius, thickness and conic:
 
   Pickups are worked out, then solves, then pickups again, twice over so a chain settles, then the image distance.
 
-Click a row to select it. **Insert a surface** puts a flat surface after it: inside a lens it splits the glass (a cemented doublet); after a lens's back it adds 2 mm of the same glass. **Insert a singlet** puts a flat N-BK7 singlet 2 mm thick after the selected part (in front with the Object row selected, at the end with nothing selected), pushing the rest back only if there is no room. **Remove** takes out a surface, or a two-surface lens whole. Every other surface keeps its place, and marks, solves and pickups stay with their surfaces.
+Click a row to select it. **Insert a surface** opens a list of kinds (flat, spherical, conic, freeform, diffractive, graded glass) and puts one after the selected surface: inside a lens it splits the glass (a cemented doublet); after a lens's back it adds 2 mm of the same glass. **Duplicate surface type** puts a surface of the selected one's kind after it. **Insert an element** offers a flat N-BK7 singlet 2 mm thick, or the bench's asphere, diffractive lens, GRIN rod lens or cylindrical lens, after the selected part (in front with the Object row selected, at the end with nothing selected), pushing the rest back only if there is no room. **Remove** takes out a surface, or a two-surface lens whole. Every other surface keeps its place, and marks, solves and pickups stay with their surfaces.
 
 ### Merit
 
@@ -364,13 +364,13 @@ Each ghost is traced as a design of its own, unfolded: forward to $$a$$, back th
 
 ### On the bench
 
-**Locked as designed.** Leaving the workspace locks its parts: their panels show their values but don't take changes, so a careful design isn't changed by a stray click. The padlock beside the part's name opens it; **Open lens design…** goes back to the design. Moving the assembly as a whole is not locked.
+**Locked as designed.** Leaving the workspace locks its parts: their panels show their values but don't take changes, so a careful design isn't changed by a stray click. The padlock beside the part's name opens it; **Open the assembly design…** goes back to the design. Moving the assembly as a whole is not locked.
 
 An assembly's panel compares the light the bench sends it with its design conditions, and says when it is used outside them: a field beyond its largest, a wavelength outside its range, or a beam wider than its entrance pupil.
 
 ## Lens files
 
-**File › Import a lens (.zmx)…** reads a file of several lenses, or one with a stop of its own, as an assembly with the file's aperture, fields and wavelengths as its conditions. **Export as a lens file** from an assembly's panel writes its prescription with the stop where it is and its conditions (a finite object as the object surface's thickness, its fields as object heights). A folded, tilted or decentred assembly is written with coordinate breaks, each surface in its own frame: the step along the current z is the previous thickness, then a break decentres along x and y and tilts about x, the new y and the new z, right-handed, in degrees. After an odd number of mirrors the light runs along −z, with negative thicknesses and sags of the other sign, as the format has it. Coatings are not written.
+**File › Import an element (.zmx)…** reads a file of several lenses, or one with a stop of its own, as an assembly with the file's aperture, fields and wavelengths as its conditions. **Export as an element file** from an assembly's panel writes its prescription with the stop where it is and its conditions (a finite object as the object surface's thickness, its fields as object heights). A folded, tilted or decentred assembly is written with coordinate breaks, each surface in its own frame: the step along the current z is the previous thickness, then a break decentres along x and y and tilts about x, the new y and the new z, right-handed, in degrees. After an odd number of mirrors the light runs along −z, with negative thicknesses and sags of the other sign, as the format has it. Coatings are not written.
 
 **Export for CAD (.step)** writes the parts as solids for mechanical design, in the design's own frame (first vertex at the origin, light along +z, folds and tilts as designed), to ISO 10303-21 and the AP214 protocol, in millimetres; **Export as a mesh (.stl)** writes the same solids in triangles. Each glass between two faces is a solid (a cemented doublet gives two), its faces run out to the diameter with a flat shoulder where a steep face cannot, and its edge a cylinder; a mirror is a disk with a flat back; a stop a washer 1 mm thick. A sphere is written as a sphere, a flat as a plane, and a conic or asphere as its profile turned about the axis, a cubic B-spline through 33 points. Cylindrical and freeform faces are left out, and the export says so.
 

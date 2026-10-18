@@ -4,7 +4,8 @@ import { h } from './panel.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
-import { EXPERIMENTAL, exp, expOn, expPicked, setExperimental } from './experimental.js';
+import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './experimental.js';
+import { hooks } from '../core/hooks.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
 
@@ -14,6 +15,8 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Names</b>: the lens design workspace is the <b>Optical designer</b> (it designs mirrors, windows and stops as well as lenses), a part is opened in it with <b>Design as an assembly\u2026</b> and an RF part with <b>Design as an RF assembly\u2026</b>, and the .zmx menu items read <b>Import an element</b> and <b>Export an element</b>. <b>Element data</b>: <b>Insert a surface</b> offers the kind of surface (flat, spherical, conic, freeform, diffractive, graded glass), <b>Duplicate surface type</b> repeats the selected one\u2019s kind, and <b>Insert an element</b> offers the bench\u2019s asphere, diffractive lens, GRIN rod lens and cylindrical lens as well as a singlet. <b>Experimental features</b> are part of JEKrayPro.',
+    '<b>Fibre tips</b> have a source\u2019s field settings (its model and grid points) for the beam they send out. <b>Fly</b> keeps you upright: the mouse looks round about the room\u2019s up and tips the view to just short of straight up or down, never rolled, and Space and Ctrl move straight up and down. A screen\u2019s <b>Diffraction</b> map is drawn on the screen\u2019s own face, at its true size and place (zoom in for the spot\u2019s detail). In 3D an RF metal mirror is the colour of its metal, and a made-to-order lens\u2019s flange shows its bolt holes.',
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
     '<b>Steadier flying, a plainer chopper</b>: Q and E no longer roll the view in Fly, a rolling picture having made people queasy; the optical chopper\u2019s blades are filled where they block the beam, open where its slots let light by (their share its duty): in 3D they had been drawn hollow.',
     '<b>Brightness follows power</b>: a ray is drawn as bright as the power it carries to the 0.4, and a Gaussian beam\u2019s envelope fades with its share of the source\u2019s power, so the two arms of a polarising split are seen trading power as a waveplate turns (before, a beam kept nearly its full brightness down to a tenth of the power and then went out within a few degrees). A 4% ghost still shows at about a third of the brightness; a beam 40 dB down is a trace.',
@@ -339,6 +342,7 @@ export function wireNews() {
 
   {
     const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
+    const account = () => !(hooks.proWhy && /^Sign in/.test(hooks.proWhy() || ''));
     const fill = () => {
       const cb = h('input', { type: 'checkbox' });
       cb.checked = expOn;
@@ -351,7 +355,11 @@ export function wireNews() {
         t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
         return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
       };
-      menu.replaceChildren(h('label', null, cb, 'Turn on experimental features'),
+      // part of JEKrayPro: without a plan the switch is shown but held off, with the way to one
+      const why = expWhy();
+      cb.disabled = !!why;
+      menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
+        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'Part of JEKrayPro. '), (account() ? 'They need a plan: your own JEKrayPro, or a team with one. ' : 'Sign in, top right, with an account that has a plan. '), h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix(); } }, account() ? 'Subscribe…' : 'Sign in…')) : null,
         h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
         EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
           : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
@@ -360,7 +368,7 @@ export function wireNews() {
     btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
     document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
-    document.getElementById('expDot').hidden = !expOn;
+    document.getElementById('expDot').hidden = !(expOn && !expWhy());
   }
 
   {

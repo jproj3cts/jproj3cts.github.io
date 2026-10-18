@@ -130,8 +130,8 @@ export function assemblyPanel(asm) {
   }
   const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
-    h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the lens design workspace: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
-    B('Export as a lens file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
+    h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the Optical designer: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
+    B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
     B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
     B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
@@ -145,15 +145,15 @@ export function designOne(el) {
   if (asm) openLensDesign(asm);
   return asm;
 }
-/* in a part's own panel: the way into lens design for it alone */
+/* in a part's own panel: the way into the Optical designer for it alone */
 export function designOneRow(el) {
   const k = asmKind(el), A = asmOf(el);
   // a part of an assembly: its design opened again
-  if (A) return h('button', { class: 'rt-btn primary', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the lens design workspace', onclick: () => openLensDesign(A) }, 'Open lens design\u2026');
+  if (A) return h('button', { class: 'rt-btn primary', type: 'button', 'data-keep': '', title: 'Open ' + A.name + ', which this part is in, in the Optical designer', onclick: () => openLensDesign(A) }, 'Open the assembly design\u2026');
   if (!k || k === 'stop' || el.group) return null;
   const C = asmCheck([el], {});
   if (!C.ok) return null;
-  return h('button', { class: 'rt-btn primary', type: 'button', title: 'Make it an assembly of its own and open it in the lens design workspace: conditions, element data, optimising, analyses. Lenses and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as a lens\u2026');
+  return h('button', { class: 'rt-btn primary', type: 'button', title: 'Make it an assembly of its own and open it in the Optical designer: conditions, element data, optimising, analyses. Lenses, mirrors and a stop can be added there; nothing on the bench changes until you change the design.', onclick: () => designOne(el) }, 'Design as an assembly\u2026');
 }
 /* in a selection's panel: the button that makes these parts one, or why it can't */
 export function makeAssemblyRow(list) {

@@ -427,21 +427,22 @@ function drawDiff(cv, D, el) {
   };
   if (!D) { size(square ? Math.round(w) : 150); return; }
   if (square) {
-    // irradiance on the screen: along it (in the bench plane) across, out of the plane up,
-    // both from the middle of the map
-    const half = 0.5 * (D.map.u1 - D.map.u0), vh = 0.5 * (D.map.v1 - D.map.v0);
-    const [xa, xb] = zoomRange(Z, 'x', -half, half), [ya, yb] = zoomRange(Z, 'y', -vh, vh);
-    const sx = { kind: 'len', title: 'along' }, sy = { kind: 'len', title: 'out of the plane' };
+    // the screen's own face: along it (in the bench plane) across, out of the plane up, both from its
+    // centre, as wide as the screen is; the map of the light lies on it where the light lands, the rest
+    // of the face dark (zoom in on the map for its detail)
+    const L = Math.max(el.length / 2, 1e-6), u0 = D.map.u0, u1 = D.map.u1, v0 = D.map.v0, v1 = D.map.v1;
+    const [xa, xb] = zoomRange(Z, 'x', -L, L), [ya, yb] = zoomRange(Z, 'y', -L, L);
+    const sx = { kind: 'len', title: 'along the screen' }, sy = { kind: 'len', title: 'out of the plane' };
     // its margin measured at about its own height, where the axis has as many labels as it will be drawn with
     const A1 = plotArea(c, w, 100, [ya, yb], sy), A0 = plotArea(c, w, Math.max(40, w - A1.l - 6) + A1.t + 18, [ya, yb], sy);
     const side = Math.max(40, w - A0.l - 6), hgt = side + A0.t + 18;
     size(hgt);
     const A = { l: A0.l, t: A0.t, w: side, h: side };
-    cv._area = A; cv._full = { x: [-half, half], y: [-vh, vh] };
+    cv._area = A; cv._full = { x: [-L, L], y: [-L, L] };
     const M = D.map.n, img = c.createImageData(M, M);
     plotCsv(cv, el.name + ' irradiance map', ['along_mm', 'out_of_plane_mm', 'irradiance', 'incoherent'], () => {
       const r = [];
-      for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([-half + (i + 0.5) * 2 * half / M, -vh + (j + 0.5) * 2 * vh / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);
+      for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([u0 + (i + 0.5) * (u1 - u0) / M, v0 + (j + 0.5) * (v1 - v0) / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);
       return r;
     });
     // scaled to its own peak, but never above what the beams would give without interfering,
@@ -466,22 +467,23 @@ function drawDiff(cv, D, el) {
     }
     const off = document.createElement('canvas'); off.width = M; off.height = M;
     off.getContext('2d').putImageData(img, 0, 0);
-    // the window in fractions of the map; past its edges (a map matched to a bigger one) is
-    // outside the field computed, drawn as its darkest colour with the map's edge dashed
-    const ua = (xa + half) / (2 * half), ub = (xb + half) / (2 * half), va = (ya + vh) / (2 * vh), vb = (yb + vh) / (2 * vh);
-    const U0 = Math.max(0, ua), U1 = Math.min(1, ub), V0 = Math.max(0, va), V1 = Math.min(1, vb);
-    const dx = u => A.l + (u - ua) / (ub - ua) * side, dy = v => A.t + (vb - v) / (vb - va) * side;
+    // the face in the window, and the map's rectangle on it, cut to the window; past the map's edges is
+    // outside the field computed, drawn as its darkest colour with the map's edge dashed where it shows
+    const ux = u => A.l + (u - xa) / (xb - xa) * side, vy = v => A.t + (yb - v) / (yb - ya) * side;
+    const U0 = Math.max(0, (xa - u0) / (u1 - u0)), U1 = Math.min(1, (xb - u0) / (u1 - u0)), V0 = Math.max(0, (ya - v0) / (v1 - v0)), V1 = Math.min(1, (yb - v0) / (v1 - v0));
     c.fillStyle = 'rgb(' + magma(0).join(',') + ')';
     c.fillRect(A.l, A.t, side, side);
-    c.imageSmoothingEnabled = !zoomed(Z) || M / Z.kx > side / 3;     // show the samples once they are big
-    if (U1 > U0 && V1 > V0) c.drawImage(off, U0 * M, (1 - V1) * M, (U1 - U0) * M, (V1 - V0) * M, dx(U0), dy(V1), dx(U1) - dx(U0), dy(V0) - dy(V1));
-    if (ua < 0 || ub > 1 || va < 0 || vb > 1) {
+    const px = side * (u1 - u0) / ((xb - xa) * M);                // screen pixels per map sample
+    c.imageSmoothingEnabled = px < 3;                              // show the samples once they are big
+    const mu = f => u0 + f * (u1 - u0), mv = f => v0 + f * (v1 - v0);
+    if (U1 > U0 && V1 > V0) c.drawImage(off, U0 * M, (1 - V1) * M, (U1 - U0) * M, (V1 - V0) * M, ux(mu(U0)), vy(mv(V1)), ux(mu(U1)) - ux(mu(U0)), vy(mv(V0)) - vy(mv(V1)));
+    if (U1 > U0 && V1 > V0 && (u0 > xa || u1 < xb || v0 > ya || v1 < yb)) {
       c.strokeStyle = 'rgba(255,255,255,0.35)'; c.setLineDash([3, 3]);
-      c.strokeRect(dx(U0) + 0.5, dy(V1) + 0.5, dx(U1) - dx(U0) - 1, dy(V0) - dy(V1) - 1); c.setLineDash([]);
+      c.strokeRect(ux(mu(U0)) + 0.5, vy(mv(V1)) + 0.5, ux(mu(U1)) - ux(mu(U0)) - 1, vy(mv(V0)) - vy(mv(V1)) - 1); c.setLineDash([]);
     }
     if (view === 'pol' && D.map.s1) {
       // an ellipse every few pixels where there is light: the shape the field traces there
-      const P = D.map, step = Math.max(1, Math.round(M * Math.min(1, ub - ua) / 14)), cell = side / (M * (ub - ua)) * step;
+      const P = D.map, step = Math.max(1, Math.round(M * Math.min(1, U1 - U0) / 14)), cell = px * step;
       c.save(); c.beginPath(); c.rect(A.l, A.t, side, side); c.clip();
       c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 1.1;
       for (let j = Math.floor(step / 2); j < M; j += step) for (let i = Math.floor(step / 2); i < M; i += step) {
@@ -489,7 +491,7 @@ function drawDiff(cv, D, el) {
         if (!(S0 > 0.04 * pk)) continue;
         const S1 = P.s1[q], S2 = P.s2[q], S3 = P.s3[q], Sp = Math.hypot(S1, S2, S3), dop = Math.min(1, Sp / S0);
         const psi = 0.5 * Math.atan2(S2, S1), chi = 0.5 * Math.asin(clamp(S3 / (Sp || 1), -1, 1));
-        const a = 0.42 * cell * dop * Math.sqrt(Math.min(1, S0 / pk) * 0.6 + 0.4), x = dx((i + 0.5) / M), y = dy((j + 0.5) / M);
+        const a = 0.42 * cell * dop * Math.sqrt(Math.min(1, S0 / pk) * 0.6 + 0.4), x = ux(mu((i + 0.5) / M)), y = vy(mv((j + 0.5) / M));
         c.beginPath(); c.ellipse(x, y, Math.max(0.6, a * Math.cos(chi)), Math.max(0.6, a * Math.abs(Math.sin(chi))), -psi, 0, 2 * Math.PI); c.stroke();
       }
       c.restore();

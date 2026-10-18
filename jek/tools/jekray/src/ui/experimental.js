@@ -39,13 +39,18 @@ const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experim
 export let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
 export let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
 export const expPicked = key => expPicks[key] !== false;
-export const exp = key => expOn && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
+// experimental features are part of JEKrayPro: the gate says why they are not available (not signed in, no plan), or ''
+// when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
+let expGate = () => '';
+export const expWhy = () => (TEST_MODE ? '' : expGate() || '');
+export function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); }
+export const exp = key => expOn && !expWhy() && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 export function setExperimental(on, picks) {
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
   const dot = document.getElementById('expDot');
-  if (dot) dot.hidden = !expOn;
+  if (dot) dot.hidden = !(expOn && !expWhy());
   modsSync();
   layoutPalette(); renderPanel(); requestRender();
   if (typeof accountShown === 'function') accountShown();

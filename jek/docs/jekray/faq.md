@@ -12,7 +12,7 @@ description: Common questions about JEKray, its models and its limits.
 
 ### Is JEKray free?
 
-Yes. The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html). JEKrayPro is an optional subscription that adds a cloud account: benches saved online with version history, forks, team workspaces and your own parts library.
+Yes. The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html). JEKrayPro is an optional subscription that adds a cloud account: benches saved online with version history, forks, team workspaces, your own parts library, and the experimental features under the Help menu.
 
 ### Does my bench leave my computer?
 
@@ -56,7 +56,7 @@ A source can launch a *ray fan*, many rays across its width, and a *Gaussian bea
 
 ### How do I model a part from a catalogue?
 
-Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or import a lens file: **File › Import a lens (.zmx)…** reads the files lens makers publish. **File › Export a lens (.zmx)** goes the other way, writing the selected lenses as a prescription that lens-design programs open (see [Lens](/jek/docs/jekray/free-space/lens/#exporting-a-lens)). With JEKrayPro you can keep parts in **My parts** to use on any bench.
+Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or import a lens file: **File › Import an element (.zmx)…** reads the files lens makers publish. **File › Export an element (.zmx)** goes the other way, writing the selected lenses as a prescription that lens-design programs open (see [Lens](/jek/docs/jekray/free-space/lens/#exporting-a-lens)). With JEKrayPro you can keep parts in **My parts** to use on any bench.
 
 ### Can an AI assistant build a bench for me?
 

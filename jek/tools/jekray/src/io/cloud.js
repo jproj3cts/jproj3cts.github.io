@@ -9,7 +9,7 @@ import { helpLine, h } from '../ui/panel.js';
 import { markUnsaved, setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from './merge.js';
-import { PALETTE_NAMES } from '../ui/experimental.js';
+import { PALETTE_NAMES, setExpGate } from '../ui/experimental.js';
 import { fillRail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
 import { MENU_ICONS } from './packs.js';
@@ -223,7 +223,7 @@ export function newCloudBench(ws, folder, saveThis, then) {
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, saveThis ? 'Save' : 'Make it');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
-    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : then === 'lens' ? 'New lens design' : then === 'rf' ? 'New RF design' : then === 'coat' ? 'New bench, with a coating to design' : 'New cloud bench'),
+    h('h2', { id: 'cloudNewTitle' }, saveThis ? 'Save to the cloud' : then === 'lens' ? 'New optical design' : then === 'rf' ? 'New RF design' : then === 'coat' ? 'New bench, with a coating to design' : 'New cloud bench'),
     h('div', { class: 'rt-rows' },
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewName' }, 'Name'), name),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewWhere' }, 'In'), where)),
@@ -885,6 +885,7 @@ export function cloudMenuShown() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireCloud() {
   hooks.proWhy = proWhy; hooks.proFix = proFix;
+  setExpGate(() => (accountsOn() ? proWhy() : ''));    // experimental features are JEKrayPro's
   window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
 
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
@@ -930,7 +931,7 @@ export function wireCloud() {
     const wsBtn = document.getElementById('homeWs');
     wsBtn.addEventListener('click', () => {
       const into = then => () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null, false, then);
-      openHomeMenu(wsBtn, [['Lens design', 'bench', into('lens')], ['RF design', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
+      openHomeMenu(wsBtn, [['Optical designer', 'bench', into('lens')], ['RF designer', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
     });
 
     const search = document.getElementById('homeSearch');

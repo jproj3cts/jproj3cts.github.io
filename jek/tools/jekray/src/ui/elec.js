@@ -244,12 +244,12 @@ function elecDrawExtras(el) {
     }
   });
 }
-/* the chopper: its blade across the beam (black where it blocks, open where the slots let light by,
+/* the chopper: its blade across the beam (filled grey where it blocks, open where the slots let light by,
    a slot over the beam as on the bench, the slots its duty of each period) and its motor */
 function elecDrawChopper(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 3 * k;
   const P = 12 * k, open = clamp((el.duty || 50) / 100, 0.05, 0.95) * P;
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = 'rgba(200,205,210,0.55)';
   for (let y = -Math.ceil(L / P) * P + open / 2; y < L; y += P) {
     const a = Math.max(-L, y), b = Math.min(L, y + P - open);
     if (b > a) { pathLocal(f, [[-t, a], [t, a], [t, b], [-t, b]], true); ctx.fill(); }

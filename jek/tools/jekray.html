@@ -18247,10 +18247,16 @@ const V3D = (() => {
         return g;
       }
       case 'chopper': {
-        // the wheel across the beam, black where it blocks, a gap over the beam (shown open, as on the bench), its motor behind
-        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x050505);
-        const s = new T.Shape(); s.moveTo(0, 0);
-        for (let k = 0; k < n; k++) { const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap; s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(0, 0); }
+        // the wheel across the beam, a gap over the beam (shown open, as on the bench), its motor behind; its outline one
+        // simple loop, blade out and back round the hub, so the blades are filled (through the centre each time, they were not)
+        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x2b3338);
+        const Rh = Rw * 0.3, s = new T.Shape();
+        for (let k = 0; k < n; k++) {
+          const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap;
+          if (k) s.absarc(0, 0, Rh, a0 - gap, a0, false); else s.moveTo(Rh * Math.cos(a0), Rh * Math.sin(a0));
+          s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(Rh * Math.cos(a1), Rh * Math.sin(a1));
+        }
+        s.absarc(0, 0, Rh, Math.PI / 2 + gap / 2 - gap + 2 * Math.PI, Math.PI / 2 + gap / 2 + 2 * Math.PI, false);
         const wheel = plateShape(s, 1, 1.5); wheel.translate(0, yc, 0);
         add(mesh(wheel, m), mesh(plateShape(shapeOf(circle(Rw * 0.3)), 1.2, 1.5).translate(0, yc, 0), m), mesh(disc(10, 6, -4.5).translate(0, yc, 0), mat.body(0x1b1f22)));
         return g;
@@ -20005,12 +20011,12 @@ function elecDrawExtras(el) {
     }
   });
 }
-/* the chopper: its blade across the beam (black where it blocks, open where the slots let light by,
+/* the chopper: its blade across the beam (filled grey where it blocks, open where the slots let light by,
    a slot over the beam as on the bench, the slots its duty of each period) and its motor */
 function elecDrawChopper(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = 3 * k;
   const P = 12 * k, open = clamp((el.duty || 50) / 100, 0.05, 0.95) * P;
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = 'rgba(200,205,210,0.55)';
   for (let y = -Math.ceil(L / P) * P + open / 2; y < L; y += P) {
     const a = Math.max(-L, y), b = Math.min(L, y + P - open);
     if (b > a) { pathLocal(f, [[-t, a], [t, a], [t, b], [-t, b]], true); ctx.fill(); }
@@ -46243,7 +46249,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
-    '<b>Steadier flying, a plainer chopper</b>: Q and E no longer roll the view in Fly, a rolling picture having made people queasy; the optical chopper\u2019s blade is drawn black where it blocks the beam and open where its slots let light by (their share its duty), in 2D and 3D.',
+    '<b>Steadier flying, a plainer chopper</b>: Q and E no longer roll the view in Fly, a rolling picture having made people queasy; the optical chopper\u2019s blades are filled where they block the beam, open where its slots let light by (their share its duty): in 3D they had been drawn hollow.',
     '<b>Brightness follows power</b>: a ray is drawn as bright as the power it carries to the 0.4, and a Gaussian beam\u2019s envelope fades with its share of the source\u2019s power, so the two arms of a polarising split are seen trading power as a waveplate turns (before, a beam kept nearly its full brightness down to a tenth of the power and then went out within a few degrees). A 4% ghost still shows at about a third of the brightness; a beam 40 dB down is a trace.',
     '<b>An RF design report</b>: <b>Report (PDF)</b> in the RF designer writes the design as one PDF to hand on, as the optical designer\u2019s does: its conditions and figures, the layout and where the power goes, Element data with the merit and configurations, its analyses, tolerances and sensitivity, what can be made, and each lens\u2019s drawing.',
     '<b>Four more RF analyses</b>: a <b>phase map</b> of the wavefront error over the beam; the <b>cross-polar</b> field the system makes, followed ray by ray from a balanced horn through each face\u2019s Fresnel amplitudes and each mirror\u2019s reflection (a lens\u2019s from its faces, an offset reflector\u2019s from its geometry); the <b>beam to the goal</b>, its radius along the way and where its waist falls; and the design over <b>temperature</b>, each lens grown by its plastic\u2019s expansion and the air by the housing\u2019s, with the feed refocused or not.',

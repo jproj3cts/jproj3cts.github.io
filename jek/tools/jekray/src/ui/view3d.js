@@ -494,10 +494,16 @@ export const V3D = (() => {
         return g;
       }
       case 'chopper': {
-        // the wheel across the beam, black where it blocks, a gap over the beam (shown open, as on the bench), its motor behind
-        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x050505);
-        const s = new T.Shape(); s.moveTo(0, 0);
-        for (let k = 0; k < n; k++) { const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap; s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(0, 0); }
+        // the wheel across the beam, a gap over the beam (shown open, as on the bench), its motor behind; its outline one
+        // simple loop, blade out and back round the hub, so the blades are filled (through the centre each time, they were not)
+        const Rw = 2 * L + 5, yc = -(L + 5), n = 8, D0 = clamp((el.duty || 50) / 100, 0.05, 0.95), gap = 2 * Math.PI * D0 / n, m = mat.body(0x2b3338);
+        const Rh = Rw * 0.3, s = new T.Shape();
+        for (let k = 0; k < n; k++) {
+          const a0 = Math.PI / 2 + gap / 2 + k * 2 * Math.PI / n, a1 = a0 + 2 * Math.PI / n - gap;
+          if (k) s.absarc(0, 0, Rh, a0 - gap, a0, false); else s.moveTo(Rh * Math.cos(a0), Rh * Math.sin(a0));
+          s.lineTo(Rw * Math.cos(a0), Rw * Math.sin(a0)); s.absarc(0, 0, Rw, a0, a1, false); s.lineTo(Rh * Math.cos(a1), Rh * Math.sin(a1));
+        }
+        s.absarc(0, 0, Rh, Math.PI / 2 + gap / 2 - gap + 2 * Math.PI, Math.PI / 2 + gap / 2 + 2 * Math.PI, false);
         const wheel = plateShape(s, 1, 1.5); wheel.translate(0, yc, 0);
         add(mesh(wheel, m), mesh(plateShape(shapeOf(circle(Rw * 0.3)), 1.2, 1.5).translate(0, yc, 0), m), mesh(disc(10, 6, -4.5).translate(0, yc, 0), mat.body(0x1b1f22)));
         return g;

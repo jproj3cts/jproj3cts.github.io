@@ -298,11 +298,21 @@ export function layoutData(asm, P, F) {
       out.mirrors.push({ face: pr.map(([y, z]) => at(i, y, z)), back: pr.map(([y, z]) => at(i, y, z + Math.max(0.6, 0.04 * semiOf(P.surfaces[i])))) });
       i++; continue;
     }
-    // a lens or window: an outline round its surfaces, each pair joined at the rim of the larger
-    const ps = [];
-    for (let j = 0; j < sp.n; j++) ps.push(prof(i + j, semiOf(P.surfaces[i + j])));
-    for (let j = 0; j + 1 < sp.n; j++) {
-      const a = ps[j], b = ps[j + 1], ka = i + j, kb = ka + 1, ha = a[a.length - 1][0], hb = b[b.length - 1][0], poly = [];
+    // a lens or window: an outline round its surfaces, each pair joined at the rim of the larger (a face met more than
+    // once, its first meeting; a face's own radius there, not the meeting's zone); the mirrored zones marked on the faces
+    const ks = [];
+    for (let j = 0; j < sp.n; j++) { const s = P.surfaces[i + j]; if (!s.from || !s.from.v) ks.push(i + j); }
+    const faceSemi = k => { const s = P.surfaces[k], e = getEl(s.from && s.from.id); return s.mz && e ? (s.from.i < e.surfaces.length && e.surfaces[s.from.i] && e.surfaces[s.from.i].semi) || e.diameter / 2 : semiOf(s); };
+    const ps = ks.map(k => prof(k, faceSemi(k)));
+    for (let j = 0; j < sp.n; j++) {
+      const k = i + j, s = P.surfaces[k];
+      if (!s.mirror) continue;
+      const r1 = s.semi, r0 = s.obs || 0, zz = y => { const v = wsSag(s, y); return isFinite(v) ? v : 0; };
+      const seg = (lo, hi) => { const pts = []; for (let q = 0; q <= 12; q++) { const y = lo + (hi - lo) * q / 12; pts.push(at(k, y, zz(y))); } return pts; };
+      (out.zones || (out.zones = [])).push(seg(r0, r1), seg(-r1, -r0));
+    }
+    for (let j = 0; j + 1 < ks.length; j++) {
+      const a = ps[j], b = ps[j + 1], ka = ks[j], kb = ks[j + 1], ha = a[a.length - 1][0], hb = b[b.length - 1][0], poly = [];
       for (const [y, z] of a) poly.push(at(ka, y, z));
       if (hb > ha) poly.push(at(ka, hb, a[a.length - 1][1]));
       if (ha > hb) poly.push(at(kb, ha, b[b.length - 1][1]));
@@ -383,6 +393,8 @@ function drawLayout(cv, asm, P, F) {
   g.strokeStyle = 'rgba(255,255,255,0.15)'; g.lineWidth = 1; g.setLineDash([4, 4]); path(L.axis); g.stroke(); g.setLineDash([]);
   // the lenses
   for (const pr of L.lenses) { path(pr); g.closePath(); g.fillStyle = 'rgba(115,185,202,0.28)'; g.fill(); g.strokeStyle = '#9ccfdc'; g.lineWidth = 1.2; g.stroke(); }
+  // a lens face's mirrored zones: silvered
+  if (L.zones) { g.strokeStyle = '#e4ebf0'; g.lineWidth = 2.6; for (const z of L.zones) { path(z); g.stroke(); } }
   // the mirrors: the face bright, the back shaded
   for (const m of L.mirrors) {
     path(m.face.concat(m.back.slice().reverse())); g.closePath(); g.fillStyle = 'rgba(200,210,220,0.25)'; g.fill();
@@ -440,9 +452,15 @@ function dropUp(label, title, kinds, pick) {
 }
 /* ---------- Element data ---------- */
 function surfaceName(P, sps, i) {
-  const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?';
+  const sp = sps[i], e = getEl(sp.id), nm = e ? e.name : '?', s = P.surfaces[i];
   if (sp.kind === 'stop') return /\bstop\b/i.test(nm) ? nm : nm + ' (stop)';
   if (sp.n === 1) return nm;
+  // a lens with a mirrored face: each row a meeting of one of its faces (s.from.i), the later ones marked
+  if (sp.kind === 'lens' && s && s.from && e && e.surfaces && P.parts[sp.pi].n !== e.surfaces.length) {
+    const nf = e.surfaces.length, j = sp.n && P.parts[sp.pi].flip ? nf - 1 - s.from.i : s.from.i;
+    const face = nf === 2 ? (j === 0 ? 'front' : 'back') : ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][j] || String(j + 1);
+    return nm + ', ' + face + (s.from.v ? ' again' : '');
+  }
   if (sp.n === 2) return nm + (sp.j === 0 ? ', front' : ', back');
   return nm + ', ' + ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][sp.j] + (sp.j > 5 ? ' ' + (sp.j + 1) : '');
 }
@@ -486,7 +504,12 @@ function dataCard(asm, P) {
     tr.append(valueCell(P, D, 'R', i), valueCell(P, D, 't', i));
     // glass: inside a lens; air between the parts
     const gtd = h('td');
-    if (editable(P, 'g', i)) {
+    if (sp.kind === 'lens' && s.mirror) {
+      // a mirrored face's reflecting meeting: the zone it reflects in, its radius typed here (on every meeting of the face)
+      const mz = s.mz || { zone: 'all' };
+      gtd.append(h('span', { class: 'mono ro', title: 'This face is mirrored here: the light reflects and stays in the glass' }, 'Mirror' + (mz.zone === 'in' ? ', spot to' : mz.zone === 'out' ? ', outside' : '')));
+      if (mz.zone !== 'all') gtd.append(wsNumInput(mz.r, v => edit(PP => { if (!(v > 0)) return 'A zone radius is more than 0.'; for (const q of PP.surfaces) if (q.from && q.from.id === s.from.id && q.from.i === s.from.i && q.mz) q.mz = Object.assign({}, q.mz, { r: v }); }), { label: 'Mirrored zone radius (mm) of surface ' + (i + 1), width: '4.2rem' }));
+    } else if (editable(P, 'g', i)) {
       const gk = keyAt(P, 'g', i), gv = D.vars.includes(gk), lab = 'glass after surface ' + (i + 1);
       gtd.append(h('div', { class: 'rt-lcell' }, glassInput(P.materials[i], 'Glass after surface ' + (i + 1), name => edit(PP => { const m = parseGlass(name); if (!m) return 'No glass called ' + name + '. Type a catalogue name, or a model glass as nd/Vd (1.62/60).'; PP.materials[i] = m; })),
         h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(gv), 'aria-label': (gv ? 'Fix ' : 'Vary ') + lab, title: gv ? 'A variable: the optimiser may change this model glass’s nd and Vd. Click to fix it.' : 'Click to let the optimiser change it: it becomes a model glass (its nd and Vd), to be replaced by the nearest real glass afterwards',
@@ -497,7 +520,8 @@ function dataCard(asm, P) {
     tr.append(gtd);
     // clear radius: a lens's surface's own; the stop's is set by the aperture
     const ctd = h('td');
-    if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
+    if (sp.kind === 'lens' && (s.link || s.mz)) ctd.append(h('span', { class: 'mono ro', title: s.obs ? 'From the mirrored zone: clear to ' + wsFmt(s.semi, 5) + ' mm, blocked inside ' + wsFmt(s.obs, 5) + ' mm' : 'From the mirrored zone' }, wsFmt(s.semi, 5) + (s.obs ? ' (obs. ' + wsFmt(s.obs, 4) + ')' : '')));
+    else if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
     else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd);
     tr.append(valueCell(P, D, 'k', i));
@@ -546,7 +570,12 @@ const POSE_HEADS = [['Tilt (°)', 'In the plane of the fields: turned across the
 /* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
 function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
-  if (!editable(P, q, i)) { if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 })))); else td.append(h('span', { class: 'mono ro' }, 'Flat')); return td; }
+  if (!editable(P, q, i)) {
+    // a face met again shows its first meeting's values, read only; a stop or a window's face is flat
+    const s = P.surfaces[i], lk = s && s.link;
+    if (q === 't' || q === 'k') td.append(h('span', { class: 'mono ro' }, q === 'k' && !lk ? '' : wsFmt(getV(P, { q, i, image: i === P.surfaces.length - 1 }))));
+    else td.append(h('span', { class: 'mono ro', title: lk ? 'The face as first met, seen from this side' : null }, lk && q === 'R' ? fmtR(s.R) : 'Flat'));
+    return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
   const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q[0] === 'n' ? 'Gradient ' + grLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + (q[0] === 'n' ? ' after surface ' : ' of surface ') + (i + 1);
   const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));

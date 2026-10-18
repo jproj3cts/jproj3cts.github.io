@@ -384,6 +384,14 @@ export const V3D = (() => {
             add(mesh(lathe(pts), m));
           }
         }
+        // a mirrored face: its mirrored part as a thin silvered shell just outside the glass (a spot, an annulus or the whole face)
+        if (!el.cyl) ss.forEach((s, i) => {
+          const m = s.mirror; if (!m) return;
+          const r0 = m.zone === 'out' ? Math.min(m.r, s.semi) : 0, r1 = m.zone === 'in' ? Math.min(m.r, s.semi) : s.semi, off = (i === 0 ? -1 : i === ss.length - 1 ? 1 : 0) * 0.04;
+          if (r1 <= r0) return;
+          const pts = []; for (let k = 0; k <= 32; k++) { const r = r0 + (r1 - r0) * k / 32; pts.push([s.z + sagFn(s, r) + off, r]); }
+          add(mesh(lathe(pts), mat.metal(0xe3e8ec, 0.1)));
+        });
         // a made-to-order RF lens's flange: a ring out from the rim, as thick as set along the axis and centred on
         // the rim's middle, with its bolt holes on the circle through its middle (render.js drawMount draws the same in 2D)
         const mt = el.mount;

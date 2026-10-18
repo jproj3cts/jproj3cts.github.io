@@ -2,6 +2,7 @@ import { orderRow } from '../../io/order.js';
 import { glassKey } from '../../core/glass.js';
 import { deg } from '../../state/project.js';
 import { lensSurfaces } from '../../core/geometry.js';
+import { normMirror } from '../../state/elements.js';
 import { elementSurfaces } from '../../core/stl.js';
 import { frame } from '../../core/mask.js';
 import { ctx, drawMount, getCss, lightLayer, pathLocal, selInk, surfPoints } from '../render.js';
@@ -38,6 +39,15 @@ function drawLens(el, sel) {
     ctx.strokeStyle = sel ? selInk() : el.mmw ? (lightLayer ? '#8f8f88' : '#f2f2ec') : glass;
     ctx.lineWidth = sel ? 2 : 1.4;
     ctx.stroke();
+  }
+  // a mirrored face: its mirrored part silvered, a thick bright line along the face there
+  for (const s of ss) {
+    if (!s.mirror) continue;
+    const pts = surfPoints(s, 64, false, f), m = s.mirror, inZone = p => m.zone === 'all' || (m.zone === 'in' ? Math.abs(p[1]) <= m.r : Math.abs(p[1]) >= m.r);
+    let run = [];
+    const flush = () => { if (run.length > 1) { pathLocal(f, run); ctx.save(); ctx.lineWidth = sel ? 4 : 3.2; ctx.strokeStyle = sel ? selInk() : '#dfe5ea'; ctx.lineCap = 'butt'; ctx.stroke(); ctx.restore(); } run = []; };
+    for (const p of pts) { if (inZone(p)) run.push(p); else flush(); }
+    flush();
   }
   // a diffractive face: its zones, as a broken line along it
   for (const s of ss) {
@@ -103,6 +113,14 @@ function lensPanel(el) {
     }
     panel.append(rows);
     panel.append(coatingRows(el, s));
+    // the face mirrored: whole, a spot in the middle (a solid telescope's secondary) or an annulus (its primary, with a hole)
+    const mrow = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
+      selectField('Mirrored', [['none', 'Not mirrored'], ['all', 'Whole face'], ['in', 'A spot inside a radius'], ['out', 'Outside a radius (a hole in the middle)']],
+        () => (s.mirror ? s.mirror.zone : 'none'),
+        v => { if (v === 'none') delete s.mirror; else s.mirror = normMirror({ zone: v, r: s.mirror && s.mirror.r || Math.round(el.diameter / 6 * 10) / 10 }); }, { wide: !s.mirror || s.mirror.zone === 'all' }));
+    if (s.mirror && s.mirror.zone !== 'all') mrow.append(param('Zone radius (mm)', el, `surfaces.${i}.mirror.r`));
+    panel.append(mrow);
+    if (s.mirror) panel.append(h('p', { class: 'note' }, 'Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. A back face mirrored whole is a Mangin mirror; a front spot and a back annulus make a solid telescope.'));
 
     if (i < N - 1) {
       const m = el.materials[i];

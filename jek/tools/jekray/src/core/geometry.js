@@ -4,6 +4,7 @@ import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
 import { sagR2 } from './sag.js';
 import { lensZones } from './rf.js';
+import { mirrorAt } from '../state/elements.js';
 
 /* ==========================================================================
    Geometry
@@ -143,6 +144,7 @@ export function makeSurf(el, z, c, k, a2, A, semi, extra) {
   return s;
 }
 
+const MIRROR_COAT = { mode: 'custom', R: 100 };
 export function lensSurfaces(el) {
   const T = el.gaps.reduce((a, b) => a + b, 0);
   let z = -T / 2;
@@ -160,6 +162,8 @@ export function lensSurfaces(el) {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
+        // a mirrored zone: wholly reflecting where it lies (the coating given by the radius met), the face's own coating elsewhere
+        mirror: sd.mirror, coatAt: sd.mirror ? (r => (mirrorAt(sd.mirror, r) ? MIRROR_COAT : sd.coat)) : undefined,
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],

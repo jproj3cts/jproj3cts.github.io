@@ -18,6 +18,16 @@ import { modsCarried, normCarried } from '../engines/mods.js';
 import { normF } from '../core/freeform.js';
 import { normPh } from '../core/diffractive.js';
 
+/* a lens face mirrored: the whole face, a spot inside radius r (a solid telescope's secondary), or an annulus
+   outside it (its primary, with a clear hole in the middle). Light meeting the mirrored part reflects wholly,
+   staying in the glass it came from; the rest of the face refracts as its coating says. */
+export function normMirror(m) {
+  if (!m || typeof m !== 'object') return undefined;
+  const zone = m.zone === 'in' || m.zone === 'out' ? m.zone : 'all';
+  return zone === 'all' ? { zone } : { zone, r: Math.max(0.01, num(m.r, 5)) };
+}
+/* is radius r on the face inside its mirrored part? */
+export const mirrorAt = (m, r) => !!m && (m.zone === 'all' || (m.zone === 'in' ? r <= m.r : r >= m.r));
 export function normSurface(s) {
   s = s || {};
   const R = (s.R === null || s.R === undefined || s.R === '' || !isFinite(s.R) || s.R === 0) ? null : +s.R;
@@ -29,6 +39,7 @@ export function normSurface(s) {
     ph: normPh(s.ph),                  // diffractive phase terms (a diffractive lens's): core/diffractive.js
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
     coat: normCoat(s.coat),
+    mirror: normMirror(s.mirror),
   };
 }
 export function normElement(e) {

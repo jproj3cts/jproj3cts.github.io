@@ -26,7 +26,7 @@ import { sagInPlane } from '../core/sag.js';
    ========================================================================== */
 export const designOf = asm => (asm.design = asm.design && asm.design.solves ? asm.design : normDesign(asm.design));
 /* ---------- Where a key is in the prescription ---------- */
-export const sidOf = s => s.from.id + '.' + s.from.i;
+export const sidOf = s => s.from.id + '.' + s.from.i + (s.from.v ? '~' + s.from.v : '');
 export function keyAt(P, q, i) { return q === 't' && i === P.surfaces.length - 1 ? 't:image' : q + ':' + sidOf(P.surfaces[i]); }
 export function posOf(P, key) {
   const N = P.surfaces.length;
@@ -45,8 +45,11 @@ export function surfaceParts(P) {
 }
 /* what can be changed: a lens's or a mirror's radii; an asphere's or a mirror's conic and aspheric terms; any gap; a lens's glass (the gaps inside it) */
 export function editable(P, q, i) {
-  const sp = surfaceParts(P)[i];
+  const sp = surfaceParts(P)[i], s = P.surfaces[i];
   if (!sp) return false;
+  // a face met again copies its first meeting (core/assembly.js lensVisits): edited there
+  if (s && s.link) return false;
+  if (q === 't' && s && s.glink !== undefined) return false;
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
   if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
@@ -362,7 +365,9 @@ export const SURFACE_KINDS = [
   ['graded', 'Graded glass', 'A flat surface, the glass after it graded from the axis (its terms nil to start); the part becomes a graded lens'],
   ['same', 'Duplicate surface type', 'A surface of the same kind as the one selected: its radius and conic, with the same kinds of term, nil'],
 ];
+const LINKED_MSG = 'That row is the light meeting a face again: the face is edited at its first row.';
 export function insertSurface(asm, P, i, kind = 'flat') {
+  if (P.surfaces[i] && (P.surfaces[i].link || P.surfaces[i].glink !== undefined || P.surfaces[i].mz)) return P.surfaces[i].link ? LINKED_MSG : 'A surface cannot be added inside a lens with a mirrored face.';
   const sps = surfaceParts(P), sp = sps[i];
   if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert an element instead.';
   if (!SURFACE_KINDS.some(k => k[0] === kind)) return 'No such kind of surface.';
@@ -404,6 +409,8 @@ export const ELEMENT_KINDS = [
   ['diffractive', 'Diffractive lens', 'The bench\u2019s diffractive lens: a hybrid achromat, its flat face carrying a phase'],
   ['grinrod', 'GRIN rod lens', 'The bench\u2019s graded-index rod lens, a quarter of its pitch long'],
   ['cylinder', 'Cylindrical lens', 'The bench\u2019s cylindrical lens, curved in the plane of the fields'],
+  ['mangin', 'Mangin mirror', 'A meniscus whose back face is mirrored: the light crosses the glass twice and comes back'],
+  ['solidtel', 'Solid telescope', 'A block of glass with a mirrored spot on its front face and a mirrored annulus on its back: a solid Cassegrain, the image behind the hole'],
 ];
 /* a new element after the part surface i is on, in the gap after it, the rest pushed back if the gap is
    short of room; i 'front': before the first surface. kind: one of ELEMENT_KINDS (a flat singlet unless given) */
@@ -463,6 +470,7 @@ const partMaterials = el => el.materials.map(m => Object.assign({ glass: m.glass
 /* surface i taken out: a lens of two surfaces goes whole (the gaps either side and its glass
    becoming one gap); a lens's extra surface goes, the glass either side becoming one */
 export function removeSurface(asm, P, i) {
+  if (P.surfaces[i] && P.surfaces[i].link) return LINKED_MSG;
   const sps = surfaceParts(P), sp = sps[i];
   if (!sp || sp.kind === 'stop') return 'The stop stays: it sets the aperture. Split the assembly to take it out.';
   if (sp.kind === 'mirror') return 'The mirror stays: it folds the axis. Split the assembly to take it out.';

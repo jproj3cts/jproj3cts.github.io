@@ -317,6 +317,7 @@
   .rt-menu-right { left: auto; right: 0; }
   .rt-dropup { position: relative; display: inline-block; }
   .rt-dropup .rt-dropmenu { top: auto; bottom: calc(100% + 4px); min-width: 13rem; }
+  .rt-dropup .rt-dropmenu[hidden] { display: none !important; }   /* the workspaces sit outside .rt-wrap, whose rule hides [hidden] there */
   .rt-exppro { margin: 0.3rem 0 0.5rem; color: var(--jek-ink-soft); }
   /* the examples: grouped, in two columns where there is room */
   .rt-beta { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-orange); color: #ffffff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
@@ -28238,7 +28239,12 @@ function dropUp(label, title, kinds, pick) {
   const menu = h('div', { class: 'rt-menu rt-dropmenu', role: 'menu', hidden: '' });
   const btn = h('button', { class: 'rt-btn', type: 'button', title, 'aria-label': label, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, label + ' \u25b4');
   const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', away, true); };
+  const open = () => { if (!menu.hidden) return; menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); setTimeout(() => document.addEventListener('click', away, true)); };
   const away = e => { if (!wrap.contains(e.target)) close(); };
+  // the menu opens while the pointer is over its button or itself, and goes when it leaves (a moment's grace to cross the gap); a click or Enter opens it for keyboards and touch
+  let leaving = 0;
+  wrap.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { clearTimeout(leaving); open(); } });
+  wrap.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') leaving = setTimeout(close, 220); });
   for (const [key, text, why] of kinds) menu.append(h('button', { type: 'button', role: 'menuitem', title: why || null, onclick: () => { close(); pick(key); } }, text));
   btn.addEventListener('click', e => { e.stopPropagation(); if (menu.hidden) { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); setTimeout(() => document.addEventListener('click', away, true)); const f = menu.querySelector('button'); if (f) f.focus(); } else close(); });
   menu.addEventListener('keydown', e => { if (e.key === 'Escape') { close(); btn.focus(); e.stopPropagation(); } });

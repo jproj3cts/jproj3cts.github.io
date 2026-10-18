@@ -426,7 +426,12 @@ function dropUp(label, title, kinds, pick) {
   const menu = h('div', { class: 'rt-menu rt-dropmenu', role: 'menu', hidden: '' });
   const btn = h('button', { class: 'rt-btn', type: 'button', title, 'aria-label': label, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, label + ' \u25b4');
   const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', away, true); };
+  const open = () => { if (!menu.hidden) return; menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); setTimeout(() => document.addEventListener('click', away, true)); };
   const away = e => { if (!wrap.contains(e.target)) close(); };
+  // the menu opens while the pointer is over its button or itself, and goes when it leaves (a moment's grace to cross the gap); a click or Enter opens it for keyboards and touch
+  let leaving = 0;
+  wrap.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { clearTimeout(leaving); open(); } });
+  wrap.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') leaving = setTimeout(close, 220); });
   for (const [key, text, why] of kinds) menu.append(h('button', { type: 'button', role: 'menuitem', title: why || null, onclick: () => { close(); pick(key); } }, text));
   btn.addEventListener('click', e => { e.stopPropagation(); if (menu.hidden) { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); setTimeout(() => document.addEventListener('click', away, true)); const f = menu.querySelector('button'); if (f) f.focus(); } else close(); });
   menu.addEventListener('keydown', e => { if (e.key === 'Escape') { close(); btn.focus(); e.stopPropagation(); } });

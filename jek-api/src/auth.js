@@ -313,7 +313,7 @@ export async function unlink(req, env, ctx, { provider: name }, user) {
 // anyone without a Google or Microsoft account. The address, proved by the
 // code, is the identity's subject and the account's verified email. Codes are
 // 6 digits, last 15 minutes, allow 5 tries, and only their hash is kept; an
-// address gets 3 a day and a network address 20, over the per-address
+// address gets 6 a day and a network address 20, over the per-address
 // sign-in limit (limits.js RL_AUTH).
 
 const EMAIL_CODE_MS = 15 * 60 * 1000;
@@ -398,13 +398,19 @@ export async function emailCode(req, env, ctx) {
     await drop();
     throw new ApiError(410, 'code_expired', 'That code has run out. Ask for a new one.');
   }
+  // the try is counted before the code is compared, in one statement, so a burst of guesses sent
+  // together still gets EMAIL_MAX_TRIES between them and not one each
+  const counted = await env.DB.prepare('UPDATE signin_codes SET tries = tries + 1 WHERE email = ? RETURNING tries').bind(email).first();
+  const tries = counted ? counted.tries : EMAIL_MAX_TRIES;
+  if (tries > EMAIL_MAX_TRIES) {
+    await drop();
+    throw new ApiError(429, 'too_many_tries', 'Too many wrong codes. Ask for a new one.');
+  }
   if ((await emailCodeHash(email, code)) !== row.code_hash) {
-    const tries = row.tries + 1;
     if (tries >= EMAIL_MAX_TRIES) {
       await drop();
       throw new ApiError(429, 'too_many_tries', 'Too many wrong codes. Ask for a new one.');
     }
-    await env.DB.prepare('UPDATE signin_codes SET tries = ? WHERE email = ?').bind(tries, email).run();
     throw new ApiError(400, 'wrong_code', `That is not the code. ${EMAIL_MAX_TRIES - tries} ${EMAIL_MAX_TRIES - tries === 1 ? 'try' : 'tries'} left.`, { left: EMAIL_MAX_TRIES - tries });
   }
   // the right code: used up once it has done its work below, so a fault on the way (a store that is down)

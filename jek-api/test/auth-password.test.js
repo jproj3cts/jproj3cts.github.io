@@ -57,6 +57,14 @@ describe('an account with a password', () => {
     expect((await pw('lock@example.org', PW)).status).toBe(200);
   });
 
+  it('a burst of guesses sent together gets ten between them, not one each', async () => {
+    await newAccount('burst@example.org');
+    const answers = await Promise.all(Array.from({ length: 25 }, (_, k) => pw('burst@example.org', 'guess number ' + k).then((r) => r.status)));
+    expect(answers.filter((st) => st === 401)).toHaveLength(10);
+    expect(answers.filter((st) => st === 429)).toHaveLength(15);
+    expect((await json(await pw('burst@example.org', PW))).body.error.code).toBe('locked');
+  });
+
   it('refuses weak passwords; a code sign-in with a new password replaces the old one and ends every other session', async () => {
     const sent = resend();
     await start('weak@example.org');

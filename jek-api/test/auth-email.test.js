@@ -67,6 +67,14 @@ describe('sign-in with an email address, by a code sent to it', () => {
     }
     expect((await json(await code('a.person@b.co', wrong))).body.error.code).toBe('too_many_tries');
     expect((await json(await code('a.person@b.co', right))).body.error.code).toBe('no_code');
+    // a burst of guesses sent together gets five between them, not one each
+    await start('burst@b.co');
+    const right2 = codeOf(sent[1]);
+    const guesses = Array.from({ length: 12 }, (_, k) => String((Number(right2) + 1 + k) % 1000000).padStart(6, '0'));
+    const answers = await Promise.all(guesses.map((g) => code('burst@b.co', g).then((r) => r.status)));
+    expect(answers.filter((st) => st === 400)).toHaveLength(4);
+    expect(answers.filter((st) => st === 429).length).toBeGreaterThanOrEqual(1);
+    expect((await json(await code('burst@b.co', right2))).body.error.code).toBe('no_code');
   });
 
   it('refuses a code that has run out', async () => {

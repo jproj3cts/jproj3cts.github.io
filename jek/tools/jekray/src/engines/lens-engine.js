@@ -1,5 +1,5 @@
 import { dpBend, dpOn, dpPhase, dpPower, dpSlopeOverR, normOrder } from '../core/diffractive.js';
-import { ffGrad, ffList, ffSag } from '../core/freeform.js';
+import { ffGrad, ffList, ffSag, ffTurn } from '../core/freeform.js';
 import { GR_REACH, grDelta, grMatrix, grSlopeOverR, grStep } from '../core/gradient.js';
 import { refIndex } from '../core/glass.js';
 import { sagR2 } from '../core/sag.js';
@@ -41,8 +41,24 @@ function indexOf(m, nm) {
    plane's distance after the last surface; else the paraxial focus), imageMaterial (the medium after
    the last surface, air unless given), object (the object's distance before the first surface, mm;
    none, or 0, for an object at infinity) */
+/* a face met again (core/assembly.js lensVisits): its shape is its first meeting's, of the other sign when met from the
+   other side; the gap it crosses is the one first crossed. Done here, so a change to the first (typed, varied, solved)
+   reaches every meeting before anything is traced. */
+export function syncLinks(P) {
+  const N = P.surfaces.length;
+  for (let i = 0; i < N; i++) {
+    const s = P.surfaces[i], L = s.link;
+    if (L && P.surfaces[L.i]) {
+      const o = P.surfaces[L.i], g = L.flip ? -1 : 1;
+      s.R = o.R === null || o.R === undefined ? null : g * o.R; s.k = o.k || 0; s.a2 = g * (o.a2 || 0); s.A = (o.A || []).map(v => g * v); s.odd = o.odd ? o.odd.map(v => g * v) : null;
+      s.F = L.flip ? ffTurn(o.F, -1, -1) : (o.F ? Object.assign({}, o.F) : undefined);
+    }
+    if (s.glink !== undefined && i < N - 1 && P.gaps[s.glink] !== undefined) P.gaps[i] = P.gaps[s.glink];
+  }
+}
 export function lensSystem(P, nm, opts) {
   opts = opts || {};
+  if (P.surfaces.some(s => s.link || s.glink !== undefined)) syncLinks(P);
   const N = P.surfaces.length, z = new Float64Array(N), c = new Float64Array(N), k = new Float64Array(N), a2 = new Float64Array(N);
   const semi = new Float64Array(N), n = new Float64Array(N + 1), A = [], odd = [], FL = [], cy = [], PH = [], DM = new Float64Array(N), GR = [];
   n[0] = 1;
@@ -64,6 +80,8 @@ export function lensSystem(P, nm, opts) {
   const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, GR: GR.some(g => g) ? GR : null, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
+  // a central obscuration at a meeting of a mirrored face (the spot the light goes round, the hole it later passes through)
+  S.obs = P.surfaces.some(s => s.obs > 0) ? Float64Array.from(P.surfaces, s => s.obs > 0 ? s.obs : 0) : null;
   // a surface's first-order power given apart from its vertex (an offset reflector's, about the beam's centre on the section)
   S.PC = P.surfaces.some(s => s.pc !== undefined) ? P.surfaces.map(s => s.pc) : null;
   if (P.surfaces.some(s => s.mirror || s.tilt || s.dtilt || s.dec)) geometry(S, P, opts);
@@ -273,6 +291,7 @@ export function traceRay(S, R, i0, i1, noClip, rec) {
     x += L * t; y += M * t; z += Nn * t; opl += (GM ? nHere : ni) * t;
     const r2 = x * x + y * y;
     if (!noClip && r2 > S.semi[i] * S.semi[i] * (1 + 1e-12)) return stop(1 + i);
+    if (!noClip && S.obs && S.obs[i] && r2 < S.obs[i] * S.obs[i] * (1 - 1e-12)) return stop(1 + i);
     // the surface's normal, along +z: (-s' x / rho, -s' y / rho, 1), and Snell's law
     const cl = S.cyl ? S.cyl[i] : 0, rs = cl === 1 ? y * y : cl === 2 ? x * x : r2;
     const g = dsagOverR(S, i, rs), FG = S.FL && S.FL[i] ? ffGrad(S.FL[i], x, y) : null, nx = (cl === 1 ? 0 : -g * x) - (FG ? FG[0] : 0), ny = (cl === 2 ? 0 : -g * y) - (FG ? FG[1] : 0), nn = Math.sqrt(nx * nx + ny * ny + 1);

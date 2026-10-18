@@ -350,7 +350,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     splitAssembly(name) { const a = (project.assemblies || []).find(x => x.name === name); if (a) splitAssembly(a); traceScene(); return !!a; },
     assemblies() { return assemblies().map(a => JSON.parse(JSON.stringify(a))); },
     asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
-    asmEfl(name) { const a = assemblies().find(x => x.name === name); return a ? asmParaxial(asmPrescription(a), a.cond.waves[a.cond.primary].nm, paraxial).efl : null; },
+    // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
+    asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },
     importZmxAssembly(text, fileName) {
       const Z = parseZmx(text, fileName), el = zmxPart(Z, fileName, 'auto'), A = zmxAssembly(Z, el);
       if (!A) return null;

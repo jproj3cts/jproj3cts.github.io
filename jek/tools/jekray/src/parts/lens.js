@@ -6,8 +6,8 @@ import { normOrder } from '../core/diffractive.js';
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
 export const LENS = {
   type: 'lens', label: 'Lens',
-  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'grinrod', short: 'GRIN rod lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }],
-  keys: ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon'],
+  picker: [{ key: 'lens', short: 'Lens' }, { key: 'asphere', short: 'Asphere' }, { key: 'diffractive', short: 'Diffractive lens' }, { key: 'grinrod', short: 'GRIN rod lens' }, { key: 'cylinder', short: 'Cylindrical lens' }, { key: 'axicon', short: 'Axicon' }, { key: 'mangin', short: 'Mangin mirror' }, { key: 'solidtel', short: 'Solid telescope' }],
+  keys: ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon', 'mangin', 'solidtel'],
   make(x, y, kind) {
     switch (kind) {
       case 'lens':
@@ -32,6 +32,18 @@ export const LENS = {
       case 'axicon':
         return { type: 'lens', name: nextName('Axicon'), x, y, diameter: 25.4,
           surfaces: [{ R: null, odd: [Math.tan(10 * deg)] }, { R: null }], gaps: [5], materials: [{ glass: 'Fused silica' }] };
+      case 'mangin':
+        // a Mangin mirror: a meniscus whose back face is silvered, so the light crosses the glass twice; the
+        // glass corrects the mirror's spherical aberration (f about 39 mm, its focus back towards the light)
+        return { type: 'lens', name: nextName('Mangin mirror'), x, y, diameter: 30,
+          surfaces: [{ R: -200 }, { R: -100, mirror: { zone: 'all' } }], gaps: [6], materials: [{ glass: 'N-BK7' }] };
+      case 'solidtel':
+        // a solid Cassegrain: a block of glass whose back face is a concave mirror round a clear hole, and whose
+        // flat front carries a mirrored spot. Light enters round the spot, reflects off the back, back to the
+        // spot, and out through the hole to a focus 13 mm behind the block (the primary's focus, R/2 = 100 mm,
+        // less twice the thickness, the last 20 mm in glass). Optimise it in the Optical designer from here.
+        return { type: 'lens', name: nextName('Solid telescope'), x, y, diameter: 50,
+          surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] };
     }
   },
   norm(e, base) {
@@ -59,7 +71,7 @@ export const LENS = {
   guide: {
     what: 'A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass.',
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
-    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
+    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating, "mirror": optional {"zone": "all" | "in" | "out", "r": mm}: the face mirrored whole, as a spot inside r, or outside r (a hole in the middle); light meeting the mirrored part reflects wholly and stays in the glass}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
     diffractive: 'true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π.',

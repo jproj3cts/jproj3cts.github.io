@@ -7170,6 +7170,34 @@ const TESTS = [
       const p1 = ends(J.byName('Output 1').id), p2 = ends(J.byName('Output 2').id);
       return p1 > 0 && p2 >= 0 ? Math.min(p1, p2) / Math.max(p1, p2) : NaN;
     },
+  },  { group: 'Mirrored faces' },
+  {
+    name: 'A solid telescope on the bench focuses behind its hole where the Optical designer says; its prescription lists each face twice',
+    why: 'a block of N-BK7, flat front with a mirrored spot (r 16.5), back R −200 mirrored outside r 6.5, 40 mm thick: rays entering round the spot come to a focus about 12.8 mm behind the block (R/2 − 2T, the last 20 mm in glass); the assembly’s prescription has four rows, the two later ones linked; the bench’s focus and the engine’s agree to 0.3 mm (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('soltel', [src({ name: 'Src', x: -80, width: 44, rays: 15 }),
+        { type: 'lens', id: 'T', name: 'Telescope', x: 0, y: 0, angle: 0, diameter: 50, surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'S', x: 20 + 12.75, length: 10 })], { minPower: 1e-6 }));
+      J.trace();
+      const st = J.stats('S');
+      const okSpot = !!st && st.count >= 4 && st.rms < 0.3;      // the rays inside the spot are blocked; the four outside it land
+      J.makeAssembly(['Telescope']);
+      const a = J.assemblies()[0], P = J.asmPrescription(a.name), efl = J.asmEfl(a.name);
+      const okP = P.surfaces.length === 4 && P.surfaces.map(s => !!s.mirror).join() === 'false,true,true,false' && P.surfaces[2].link && P.surfaces[3].link && P.surfaces[0].obs === 16.5 && P.surfaces[3].semi === 6.5;
+      // the engine's first order follows the folds: a real, positive focal length
+      const okB = isFinite(efl) && efl > 0 && efl < 100;
+      // a Mangin mirror's light comes back: the lens folds the axis for the assembly
+      J.load(bench('mangin', [src({ name: 'Src', x: -80, width: 20, rays: 9 }),
+        { type: 'lens', id: 'M', name: 'Mangin', x: 0, y: 0, angle: 0, diameter: 30, surfaces: [{ R: -200 }, { R: -100, mirror: { zone: 'all' } }], gaps: [6], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'F', x: -3 - 34.94, angle: 0, length: 10 })], { minPower: 1e-6 }));     // the front vertex is at -3; the focus 34.94 before it
+      J.trace();
+      const sf = J.stats('F'); J.makeAssembly(['Mangin']);
+      const b = J.assemblies()[0], PM = J.asmPrescription(b.name);
+      const okM = !!sf && sf.count >= 8 && sf.rms < 0.3 && PM.surfaces.length === 3 && PM.folded && Math.abs(J.asmEfl(b.name) - 38.85) < 0.05;
+      if (!(okSpot && okP && okB && okM)) throw new Error(JSON.stringify({ okSpot, okP, okB, okM, st: st && { count: st.count, rms: st.rms }, efl, sf: sf && { count: sf.count, rms: sf.rms }, n: PM.surfaces.length, folded: PM.folded, eflM: J.asmEfl(b.name) }));
+      return 1;
+    },
   },  { group: 'Scripts' },
   {
     name: 'A script runs against the bench with the documented calls: a sweep to rows, a read, and an error reported rather than thrown',

@@ -69,6 +69,10 @@ These are read-outs only. The trace itself is exact.
 
 A Gaussian beam goes through each surface by the ray-transfer matrix of its local curvature, in the plane and out of it. The diffracted field takes each surface as a phase screen: rays traced through it in three dimensions give the real surface's phase, aberrations included (see [Free-space optics: surfaces as phase screens](/jek/docs/jekray/free-space/#surfaces-as-phase-screens)).
 
+## Mirrored faces
+
+A face can be **Mirrored**: the whole face, a spot inside a radius, or an annulus outside one (a hole in the middle). Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. A back face mirrored whole makes a Mangin mirror, the glass correcting the mirror's spherical aberration; a flat front with a mirrored spot and a concave back mirrored round a hole make a solid telescope, both offered ready-made under **+ Add part**. The [Optical designer](/jek/docs/jekray/lens-design/#mirrored-faces) follows the light through such a lens face by face.
+
 ## Settings
 
 {% include jekray_params.html group="free" key="lens" %}

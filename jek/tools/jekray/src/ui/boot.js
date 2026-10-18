@@ -91,6 +91,7 @@ import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { reportPdfBlob } from './lens-report.js';
+import { rfReportPdfBlob, rfReportRecs } from './rf-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { closeRfDesign, newRfDesign } from './rf-workspace.js';
 import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from './coat-workspace.js';
@@ -384,6 +385,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },
     lensDrawingSvg(name, i) { const a = assemblies().find(x => x.name === name); return a ? drawingSvgText(a, i || 0) : null; },
+    rfReportSvg(name, i) { const a = assemblies().find(x => x.name === name); if (!a) return null; const recs = rfReportRecs(a); return i === undefined ? recs.length : layoutSvg(recs[i], a.name); },
+    async rfReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await rfReportPdfBlob(a, { raw: true })).text() : null; },
     async lensReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await reportPdfBlob(a, { raw: true })).text() : null; },
     async lensDrawingsPdf(name, i) { const a = assemblies().find(x => x.name === name); return a ? await (await drawingsPdfBlob(a, i)).text() : null; },
     lensAnalysis(name, kind, deg, wi) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = designPrescription(a), A = anaSystems(a, P);

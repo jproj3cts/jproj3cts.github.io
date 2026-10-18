@@ -9508,6 +9508,26 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: Report (PDF) writes the design as a PDF with its summary, Element data, analyses, tolerance pages and a drawing',
+    why: 'a new RF design’s report: a PDF of four portrait pages and one landscape drawing sheet, naming its Element data, Analyses, Tolerance and making, the cross-polar field and the sensitivity; the header has a Report (PDF) button (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      const name = J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs');
+      try {
+        const btn = !!ws().querySelector('#rfReport');
+        const pdf = await J.rfReportPdf(name);
+        const pages = pdf.match(/\/MediaBox\[0 0 [\d.]+ [\d.]+\]/g) || [];
+        const portrait = pages.filter(m => /0 0 595 842/.test(m)).length, landscape = pages.filter(m => /0 0 842 595/.test(m)).length;
+        const has = t => pdf.includes('(' + t);
+        const ok = btn && /^%PDF-1\.4/.test(pdf) && portrait === 4 && landscape === 1 && has('Element data)') && has('Analyses)') && has('Tolerance and making)') && has('Cross-polar field') && has('Sensitivity') && has('RF design report');
+        if (!ok) console.log('rf report', { btn, portrait, landscape, head: pdf.slice(0, 20) });
+        return ok ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
     want: 1, tol: 0, unit: '',

@@ -130,6 +130,7 @@
  "ui/lens-stock.js",
  "ui/rf-lens3d.js",
  "ui/rf-workspace.js",
+ "ui/rf-report.js",
  "ui/lens-workspace.js",
  "ui/plots.js",
  "ui/panel-cavity.js",

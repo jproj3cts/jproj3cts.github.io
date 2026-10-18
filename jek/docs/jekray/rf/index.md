@@ -306,6 +306,10 @@ A printed plastic's permittivity is known to a few per cent until tiles of it ar
 
 Errors across the axis move the beam's centre off the faces (the spillover and the aperture efficiency of a beam off centre) and are traced by real rays through the moved faces (the phase error of a lens met off its axis); the beam's direction turns a little too, and **Beam moves** in the sensitivity table says how far, since a lens decentred mostly steers the beam rather than spoiling it. **Refocus the feed for each build** is the compensator: as on the bench, each built system's feed distance is refocused (within 15 % of the design's, by golden section) for the most of its figure before it is read, so a thickness or permittivity error that only moves the focus costs what remains after refocusing. The nominal is then refocused too.
 
+### The report
+
+**Report (PDF)**, at the top of the workspace, writes the whole design as one PDF to hand on: A4 pages of its conditions and figures, the layout with the beam and where the power goes; its Element data (the feed, every surface and the goal), the optimiser's variables and merit, and its configurations; its analyses (over the band, the far-field pattern or the beam to the goal, the wavefront map, the cross-polar field, the scan and the design over temperature); its tolerances with the sensitivity of each error and the Monte Carlo if it was run on the design as it is; what can be made of each lens; and, last, each lens's drawing. Everything in it is drawn as vectors.
+
 ### Make it
 
 **Make it** checks each lens against what can be made to order:

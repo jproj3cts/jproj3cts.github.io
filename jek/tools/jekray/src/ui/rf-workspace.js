@@ -23,6 +23,7 @@ import { checkpoint, redo, undo } from './tabs.js';
 import { openLensDesign } from './lens-workspace.js';
 import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
+import { saveRfReport } from './rf-report.js';
 
 /* ==========================================================================
    The RF designer
@@ -187,6 +188,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the optical lens designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
     hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
+    h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }) }, 'Report (PDF)'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
@@ -342,9 +344,9 @@ function rwLayoutCard(asm, P, T) {
   requestAnimationFrame(() => rwDrawLayout(cv, asm, P, T));
   return card;
 }
-function rwDrawLayout(cv, asm, P, T) {
-  const R = asm.rf, dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 800;
-  const fg = hornGeom({ type: 'source', mmw: { a: R.feed.a, L: R.feed.L, ghz: R.ghz } });
+/* the layout's extent: the horns, the parts and the beam, along the unfolded axis (z) and across (y) */
+function rwLayoutExtent(asm, P, T) {
+  const R = asm.rf, fg = hornGeom({ type: 'source', mmw: { a: R.feed.a, L: R.feed.L, ghz: R.ghz } });
   const zFeed = -R.feed.d, zBack = zFeed - fg.Lax - 0.15 * fg.Lax;
   let zEnd = Math.max(T.mid.zEnd, T.lo.zEnd, T.hi.zEnd);
   let rxG = null;
@@ -353,16 +355,27 @@ function rwDrawLayout(cv, asm, P, T) {
   for (const s of P.surfaces) if (isFinite(s.semi)) yMax = Math.max(yMax, s.semi);
   for (const t of [T.lo, T.mid, T.hi]) for (const s of t.samples) if (isFinite(s.w)) yMax = Math.max(yMax, Math.min(Math.abs(s.yc || 0) + s.w, 4 * yMax + 1));
   yMax *= 1.12;
-  const za = zBack, zb = zEnd + 0.02 * (zEnd - zBack);
-  const H = Math.max(220, Math.min(460, W * (2 * yMax) / (zb - za) + 40));
+  return { fg, rxG, zFeed, zEnd, yMax, za: zBack, zb: zEnd + 0.02 * (zEnd - zBack) };
+}
+/* the workspace's colours for the layout, on the dark card; the report's, on white */
+const RW_DARK = { bg: '#1e2227', axis: 'rgba(255,255,255,0.15)', part: '#f2f2ec', fill: 'rgba(242,242,236,0.28)', grin: ['rgba(242,242,236,0.08)', 'rgba(242,242,236,0.5)'], mirror: '#e4ebf0', text: '#f2f2ec', font: '11px system-ui, sans-serif' };
+export const RW_LIGHT = { bg: '#ffffff', axis: 'rgba(0,0,0,0.25)', part: '#1b1f24', fill: 'rgba(120,170,190,0.25)', grin: ['rgba(120,170,190,0.08)', 'rgba(120,170,190,0.5)'], mirror: '#1b1f24', text: '#1b1f24', font: '8px Helvetica, Arial, sans-serif' };
+function rwDrawLayout(cv, asm, P, T) {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 800, E = rwLayoutExtent(asm, P, T);
+  const H = Math.max(220, Math.min(460, W * (2 * E.yMax) / (E.zb - E.za) + 40));
   cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
   const g = cv.getContext('2d');
   g.scale(dpr, dpr);
-  g.fillStyle = '#1e2227'; g.fillRect(0, 0, W, H);
+  rwPaintLayout(g, W, H, asm, P, T, RW_DARK);
+}
+/* the layout painted into any context W by H: the workspace's canvas, or the report's page */
+export function rwPaintLayout(g, W, H, asm, P, T, th) {
+  const R = asm.rf, { fg, rxG, zFeed, yMax, za, zb } = rwLayoutExtent(asm, P, T);
+  g.fillStyle = th.bg; g.fillRect(0, 0, W, H);
   const k = Math.min((W - 24) / (zb - za), (H - 36) / (2 * yMax));
   const X = z => 12 + (z - za) * k + ((W - 24) - (zb - za) * k) / 2, Y = y => H / 2 + 6 - y * k;
   // the axis
-  g.strokeStyle = 'rgba(255,255,255,0.15)'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(za), Y(0)); g.lineTo(X(zb), Y(0)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = th.axis; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(X(za), Y(0)); g.lineTo(X(zb), Y(0)); g.stroke(); g.setLineDash([]);
   // the beam at the design frequency, filled; the band's edges dashed
   const env = (t, fill) => {
     const S = t.samples.filter(s => isFinite(s.w) && s.z <= zb), yc = s => s.yc || 0;
@@ -378,7 +391,7 @@ function rwDrawLayout(cv, asm, P, T) {
     if (s.mirror) {
       // a section: the parent's face about the section's centre, its vertex off (where the beam's centre meets it is level with the axis)
       const yv = s.sec ? (s.dec[1] || 0) - (s.sec.c[1] || 0) : 0, zv = s.sec ? surfSag(s, Math.abs(yv)) : 0;
-      g.strokeStyle = '#e4ebf0'; g.lineWidth = 2; g.beginPath(); for (let q = 0; q <= 40; q++) { const y = -s.semi + 2 * s.semi * q / 40; const z = z0 + surfSag(s, Math.abs(y - yv)) - zv; q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); } g.stroke(); continue;
+      g.strokeStyle = th.mirror; g.lineWidth = 2; g.beginPath(); for (let q = 0; q <= 40; q++) { const y = -s.semi + 2 * s.semi * q / 40; const z = z0 + surfSag(s, Math.abs(y - yv)) - zv; q ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)); } g.stroke(); continue;
     }
     if (i < P.surfaces.length - 1 && P.materials[i] && P.materials[i].glass !== 'AIR' && sps[i].pi === sps[i + 1].pi) {
       const a = Math.min(s.semi, P.surfaces[i + 1].semi), z1 = S[i + 1].z, b = P.surfaces[i + 1];
@@ -389,11 +402,11 @@ function rwDrawLayout(cv, asm, P, T) {
       for (let q = nq; q >= 0; q--) { const y = -a + 2 * a * q / nq; g.lineTo(X(z1 + surfSag(b, Math.abs(y)) - cut(1, y)), Y(y)); }
       g.closePath();
       // a graded-index disc: denser at its centre, shaded so
-      if (sps[i].kind === 'grin') { const gr = g.createLinearGradient(0, Y(a), 0, Y(-a)); gr.addColorStop(0, 'rgba(242,242,236,0.08)'); gr.addColorStop(0.5, 'rgba(242,242,236,0.5)'); gr.addColorStop(1, 'rgba(242,242,236,0.08)'); g.fillStyle = gr; }
-      else g.fillStyle = 'rgba(242,242,236,0.28)';
-      g.fill(); g.strokeStyle = '#f2f2ec'; g.lineWidth = 1.2; g.stroke();
+      if (sps[i].kind === 'grin' && g.createLinearGradient) { const gr = g.createLinearGradient(0, Y(a), 0, Y(-a)); gr.addColorStop(0, th.grin[0]); gr.addColorStop(0.5, th.grin[1]); gr.addColorStop(1, th.grin[0]); g.fillStyle = gr; }
+      else g.fillStyle = th.fill;
+      g.fill(); g.strokeStyle = th.part; g.lineWidth = 1.2; g.stroke();
       // its edge taper, over it
-      g.fillStyle = '#f2f2ec'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
+      g.fillStyle = th.text; g.font = th.font; g.textAlign = 'center';
       g.fillText(isFinite(S[i].taper) ? '−' + S[i].taper.toFixed(1) + ' dB edge' : '', X((z0 + z1) / 2), Y(a) - 6);
     }
   }
@@ -408,12 +421,12 @@ function rwDrawLayout(cv, asm, P, T) {
   const hornPath = (zAp, sgn, G, a) => { g.beginPath(); g.moveTo(X(zAp - sgn * G.Lax * 1.15), Y(G.rg)); g.lineTo(X(zAp - sgn * G.Lax), Y(G.rg)); g.lineTo(X(zAp), Y(a)); g.lineTo(X(zAp), Y(-a)); g.lineTo(X(zAp - sgn * G.Lax), Y(-G.rg)); g.lineTo(X(zAp - sgn * G.Lax * 1.15), Y(-G.rg)); };
   g.fillStyle = 'rgba(224,160,48,0.35)'; g.strokeStyle = RW_BEAM; g.lineWidth = 1.4;
   hornPathAt(zFeed, feedOff, feedTh, 1, fg, R.feed.a); g.fill(); g.stroke();
-  g.fillStyle = '#f2f2ec'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
+  g.fillStyle = th.text; g.font = th.font; g.textAlign = 'center';
   g.fillText('Feed', X(zFeed - fg.Lax / 2), Y(feedOff + R.feed.a) - 8);
   if (rxG) {
     const zr = T.mid.zL + R.goal.d;
     g.fillStyle = 'rgba(224,160,48,0.35)'; hornPath(zr, -1, rxG, R.goal.rx.a); g.fill(); g.stroke();
-    g.fillStyle = '#f2f2ec'; g.fillText('Receiver', X(zr + rxG.Lax / 2), Y(R.goal.rx.a) - 8);
+    g.fillStyle = th.text; g.fillText('Receiver', X(zr + rxG.Lax / 2), Y(R.goal.rx.a) - 8);
   } else if (R.goal.kind === 'focus') {
     const zw = T.mid.zL + R.goal.d, w = R.goal.w;
     g.strokeStyle = '#7ee0a1'; g.lineWidth = 2; g.beginPath(); g.moveTo(X(zw), Y(w)); g.lineTo(X(zw), Y(-w)); g.stroke();
@@ -1148,7 +1161,7 @@ function rwMakeCard(asm, P, T) {
 }
 
 /* what a lens comes to, made: its plastic, size, thicknesses and weight, and the checks against what can be made */
-function rwMakeLens(el, R) {
+export function rwMakeLens(el, R) {
   const mats = el.materials.filter(m => m.glass !== 'AIR'), M = mats.length && RF_MAT[mats[0].glass];
   const geo = lensThickness(el), outside = mountedDia(el.diameter, el.mount), grams = M ? (lensVolume(el) + mountVolume(el.diameter, el.mount)) / 1000 * (M.density || 1.2) : NaN;
   const skins = M ? el.surfaces.map(s => printedMatch(M, s.coat)).filter(Boolean) : [];
@@ -1164,7 +1177,7 @@ function rwMakeLens(el, R) {
   ] };
 }
 /* the same for a graded-index disc: its density range, and the frequency its least dense part holds to */
-function rwMakeGrin(el, R) {
+export function rwMakeGrin(el, R) {
   const D = grinDesign(el.grin, el.length), M = D.M, outside = mountedDia(el.length, el.mount);
   const T = D.usable ? D.tTot : NaN, geo = { centre: T, edge: T, thickest: T, thinnest: T };
   const grams = D.usable ? D.grams + mountVolume(el.length, el.mount) / 1000 * (M.density || 1.2) : NaN;

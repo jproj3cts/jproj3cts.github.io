@@ -130,6 +130,7 @@ import './ui/lens-report.js';
 import './ui/lens-stock.js';
 import './ui/rf-lens3d.js';
 import './ui/rf-workspace.js';
+import './ui/rf-report.js';
 import './ui/lens-workspace.js';
 import './ui/plots.js';
 import './ui/panel-cavity.js';

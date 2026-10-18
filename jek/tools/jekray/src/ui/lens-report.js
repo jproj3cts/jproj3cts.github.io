@@ -20,12 +20,13 @@ import { compLabel, tolResultsFor } from './lens-tolerance.js';
    Carlo runs if they were made on the design as it is), then each lens's drawing, landscape.
    Every page is drawn with the canvas's own calls into a VecCtx, so all of it stays vector.
    ========================================================================== */
-const RP_W = 595, RP_H = 842, RP_M = 48;
-const RP_INK = '#1b1f24', RP_SOFT = '#5b6570', RP_RULE = '#c8ced4';
+export const RP_W = 595, RP_H = 842, RP_M = 48;
+export const RP_INK = '#1b1f24', RP_SOFT = '#5b6570', RP_RULE = '#c8ced4';
+export const rpNum = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 6));
 const rf = (v, p) => v === null || v === undefined || !isFinite(v) ? '—' : String(+(+v).toPrecision(p || 6));
 const colourOf = i => WAVE_COLOURS[i % WAVE_COLOURS.length];
 
-function rpText(g, t, x, y, o) {
+export function rpText(g, t, x, y, o) {
   o = o || {};
   g.font = (o.bold ? '600 ' : '') + (o.size || 9) + 'px ' + (o.mono ? 'Courier, monospace' : 'Helvetica, Arial, sans-serif');
   g.fillStyle = o.ink || RP_INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
@@ -34,10 +35,10 @@ function rpText(g, t, x, y, o) {
 const rpWrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
 
 /* a page: its header and footer, and a cursor down it */
-function rpPage(meta, title) {
+export function rpPage(meta, title) {
   const g = new VecCtx(RP_W, RP_H, { plain: true });
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, RP_W, RP_H);
-  rpText(g, meta.name + ' · lens design report', RP_M, 30, { size: 8, ink: RP_SOFT });
+  rpText(g, meta.name + ' · ' + (meta.kind || 'lens design report'), RP_M, 30, { size: 8, ink: RP_SOFT });
   rpText(g, meta.date, RP_W - RP_M, 30, { size: 8, ink: RP_SOFT, align: 'right' });
   g.strokeStyle = RP_RULE; g.lineWidth = 0.5; g.beginPath(); g.moveTo(RP_M, 36); g.lineTo(RP_W - RP_M, 36); g.stroke();
   const pg = { g, y: 66, title };
@@ -45,10 +46,10 @@ function rpPage(meta, title) {
   meta.pages.push(pg);
   return pg;
 }
-function rpHead(pg, t) { pg.y += 6; rpText(pg.g, t, RP_M, pg.y, { size: 11, bold: true }); pg.y += 16; }
-function rpPara(pg, t, o) { for (const ln of rpWrap(t, (o && o.wrap) || 100)) { rpText(pg.g, ln, RP_M, pg.y, { size: 8.5, ink: (o && o.ink) || RP_INK }); pg.y += 12; } }
+export function rpHead(pg, t) { pg.y += 6; rpText(pg.g, t, RP_M, pg.y, { size: 11, bold: true }); pg.y += 16; }
+export function rpPara(pg, t, o) { for (const ln of rpWrap(t, (o && o.wrap) || 100)) { rpText(pg.g, ln, RP_M, pg.y, { size: 8.5, ink: (o && o.ink) || RP_INK }); pg.y += 12; } }
 /* a table: cols [{ label, w, mono, align }], rows of strings */
-function rpTable(pg, cols, rows, o) {
+export function rpTable(pg, cols, rows, o) {
   o = o || {};
   const g = pg.g, size = o.size || 8, lh = size + 5;
   let x = RP_M;
@@ -64,7 +65,7 @@ function rpTable(pg, cols, rows, o) {
 }
 /* a plot in the box: axes with ticks, the series ({ xs, ys, colour, dash }), labels */
 const rpStep = span => { const p = Math.pow(10, Math.floor(Math.log10(span / 4))); for (const m of [1, 2, 2.5, 5, 10]) if (span / (m * p) <= 6) return m * p; return 10 * p; };
-function rpPlot(g, x, y, w, h, o) {
+export function rpPlot(g, x, y, w, h, o) {
   const [x0, x1] = o.xr, [y0, y1] = o.yr, X = v => x + (v - x0) / (x1 - x0) * w, Y = v => y + h - (v - y0) / (y1 - y0) * h;
   g.strokeStyle = RP_RULE; g.lineWidth = 0.35;
   const sx = rpStep(x1 - x0), sy = rpStep(y1 - y0);
@@ -83,8 +84,8 @@ function rpPlot(g, x, y, w, h, o) {
   if (o.xName) rpText(g, o.xName, x + w / 2, y + h + 21, { size: 7, ink: RP_SOFT, align: 'center' });
   if (o.yName) { g.save(); g.translate(x - 26, y + h / 2); g.rotate(-Math.PI / 2); rpText(g, o.yName, 0, 0, { size: 7, ink: RP_SOFT, align: 'center' }); g.restore(); }
 }
-const rpRange = (vals, pad) => { const v = vals.filter(isFinite); let a = Math.min(...v), b = Math.max(...v); if (!v.length) return [0, 1]; if (b - a < 1e-12) { a -= 1; b += 1; } const p = (b - a) * (pad || 0.05); return [a - p, b + p]; };
-function rpKey(g, x, y, items) {
+export const rpRange = (vals, pad) => { const v = vals.filter(isFinite); let a = Math.min(...v), b = Math.max(...v); if (!v.length) return [0, 1]; if (b - a < 1e-12) { a -= 1; b += 1; } const p = (b - a) * (pad || 0.05); return [a - p, b + p]; };
+export function rpKey(g, x, y, items) {
   for (const [t, c, dash] of items) {
     g.strokeStyle = c; g.lineWidth = 1.4; g.setLineDash(dash ? [4, 2.5] : []); g.beginPath(); g.moveTo(x, y - 3); g.lineTo(x + 16, y - 3); g.stroke(); g.setLineDash([]);
     rpText(g, t, x + 20, y, { size: 7, ink: RP_SOFT }); x += 28 + t.length * 3.8;

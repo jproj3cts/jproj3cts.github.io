@@ -58,22 +58,25 @@ export async function storePassword(env, userId, pw) {
 }
 export async function verifyPassword(env, userId, pw) {
   const row = await env.DB.prepare('SELECT hash, salt, iters FROM passwords WHERE user_id = ?').bind(userId).first();
-  if (!row) return false;
+  // an account without a password takes as long to answer as one with, so timing does not tell them apart
+  if (!row) { await pbkdf2(env, pw, 'none', PBKDF2_ITERS); return false; }
   return same(await pbkdf2(env, pw, row.salt, row.iters), row.hash);
 }
 export const hasPassword = async (env, userId) => !!(await env.DB.prepare('SELECT 1 AS y FROM passwords WHERE user_id = ?').bind(userId).first());
 
-// the lock on wrong passwords, per key
-async function locked(env, key, t) {
-  const r = await env.DB.prepare('SELECT n, until FROM password_fails WHERE key = ?').bind(key).first();
-  return r && r.n >= FAILS && r.until > t;
-}
-async function failed(env, key, t) {
-  await env.DB.prepare(
+// The lock on wrong passwords, per key. Every try is counted before the password is checked, in one
+// statement, so a burst of guesses sent together cannot slip past the lock; a right password takes
+// its try back. A key with FAILS tries in its window is locked until the window ends.
+async function tried(env, key, t) {
+  const r = await env.DB.prepare(
     `INSERT INTO password_fails (key, n, until) VALUES (?, 1, ?)
-     ON CONFLICT (key) DO UPDATE SET n = CASE WHEN password_fails.until > ? THEN password_fails.n + 1 ELSE 1 END, until = ?`,
-  ).bind(key, t + FAIL_WINDOW, t, t + FAIL_WINDOW).run();
+     ON CONFLICT (key) DO UPDATE SET n = CASE WHEN password_fails.until > ? THEN password_fails.n + 1 ELSE 1 END,
+                                   until = CASE WHEN password_fails.until > ? THEN password_fails.until ELSE ? END
+     RETURNING n`,
+  ).bind(key, t + FAIL_WINDOW, t, t, t + FAIL_WINDOW).first();
+  return r ? r.n : 1;
 }
+const untried = (env, key) => env.DB.prepare('UPDATE password_fails SET n = n - 1 WHERE key = ? AND n > 0').bind(key).run();
 
 // POST /auth/password  {email, password} — a session for the address's account
 export async function passwordSignIn(req, env, ctx) {
@@ -84,7 +87,8 @@ export async function passwordSignIn(req, env, ctx) {
   pepper(env);
   const t = now();
   const ipKey = 'ip:' + (await sha256(req.headers.get('CF-Connecting-IP') || 'unknown')).slice(0, 24), emKey = 'email:' + email;
-  if ((await locked(env, emKey, t)) || (await locked(env, ipKey, t))) {
+  const [byEmail, byIp] = await Promise.all([tried(env, emKey, t), tried(env, ipKey, t)]);
+  if (byEmail > FAILS || byIp > FAILS) {
     throw new ApiError(429, 'locked', 'Too many wrong passwords. Wait a quarter of an hour, or sign in with a code sent to your address.');
   }
   const found = await env.DB.prepare(
@@ -93,11 +97,10 @@ export async function passwordSignIn(req, env, ctx) {
   // one answer whether the address or the password is wrong, and the same work either way
   const ok = found && !found.deleted_at && (await verifyPassword(env, found.id, pw));
   if (!ok) {
-    if (!found) await pbkdf2(env, pw, 'none', PBKDF2_ITERS);
-    await Promise.all([failed(env, emKey, t), failed(env, ipKey, t)]);
+    if (!found || found.deleted_at) await pbkdf2(env, pw, 'none', PBKDF2_ITERS);
     throw new ApiError(401, 'wrong_password', 'That address and password do not match. Forgotten it? Sign in with a code sent to your address instead, then set a new one.');
   }
-  await env.DB.prepare('DELETE FROM password_fails WHERE key = ?').bind(emKey).run();
+  await Promise.all([env.DB.prepare('DELETE FROM password_fails WHERE key = ?').bind(emKey).run(), untried(env, ipKey)]);
   const session = await createSession(env, found.id, req.headers.get('User-Agent'));
   ctx.setCookie = session.cookie;
   return { signed_in: true, email };

@@ -79,5 +79,6 @@ Every number in a panel can be typed or dragged. Beside most is the sweep button
 
 - [Concepts](/jek/docs/jekray/concepts/): coordinates, units and the ideas the rest of these pages use.
 - [Free-space optics](/jek/docs/jekray/free-space/): how rays, beams and fields are worked out.
-- [Optical designer](/jek/docs/jekray/lens-design/) and [RF](/jek/docs/jekray/rf/): the two design workspaces.
+- [RF and millimetre waves](/jek/docs/jekray/rf/): the same bench from 1 GHz to 3 THz, with horns and RF lenses.
+- [Optical designer](/jek/docs/jekray/lens-design/), [RF designer](/jek/docs/jekray/rf/designer/) and [Coating design](/jek/docs/jekray/coating-design/): the three design workspaces.
 - The [FAQ](/jek/docs/jekray/faq/), for common questions.

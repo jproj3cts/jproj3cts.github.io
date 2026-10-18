@@ -64,6 +64,9 @@
       </div>
       <ul class="dx-tree">
       {%- for s in site.data.jekray_docs %}
+        {%- if s.group %}
+        <li class="dx-group" aria-hidden="true">{{ s.group }}</li>
+        {%- endif %}
         <li class="{% if s.url == page.url %}on{% endif %}{% if section.url == s.url %} open{% endif %}{% if s.cat %} dx-cat-{{ s.cat }}{% endif %}">
           <a href="{{ s.url }}"{% if s.url == page.url %} aria-current="page"{% endif %}>{{ s.title }}</a>
           {%- if s.pages %}

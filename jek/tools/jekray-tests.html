@@ -4444,8 +4444,9 @@ const TESTS = [
     why: 'every button of every palette pressed in turn on an empty bench (the fibre coupler once made an LED, and the fibre amplifier nothing): the fibre parts that came out wrong and the buttons of any palette that made nothing, listed (none, 0, required)',
     want: 0, tol: 0, unit: '',
     run: J => {
-      J.load(fnet([], []));
+      // each part on a bench of its own (one bench taking every part retraced the whole lot at each add: minutes)
       const bad = J.palette('fibre').filter(k => {
+        J.load(fnet([], []));
         const el = J.byName(J.add(k));
         if (k === 'fibre') return el.type !== 'fibre';
         if (k === 'led') return !(el.kind === 'laser' && el.led);
@@ -4455,7 +4456,7 @@ const TESTS = [
         return el.type !== 'fcomp' || el.kind !== ({ faom: 'aom', feom: 'eom' }[k] || k) || !!el.led;
       });
       J.experimental(true);
-      try { for (const P of ['free', 'pic', 'elec', 'rf']) for (const k of J.palette(P)) { let ok = false; try { ok = !!J.byName(J.add(k)); } catch (e) { /* counted below */ } if (!ok) bad.push(P + ':' + k); } }
+      try { for (const P of ['free', 'pic', 'elec', 'rf']) for (const k of J.palette(P)) { let ok = false; try { J.load(fnet([], [])); ok = !!J.byName(J.add(k)); } catch (e) { /* counted below */ } if (!ok) bad.push(P + ':' + k); } }
       finally { J.experimental(false); }
       if (bad.length) console.log('wrong parts:', bad);
       return bad.length;
@@ -8500,6 +8501,7 @@ const TESTS = [
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
+  { group: 'RF parts on the bench' },
   {
     name: 'A plastic RF lens reads its loss, its beam and whether it can be made',
     why: 'the 24 GHz ABS lens example: its panel gives an edge taper near 34 dB, about 0.7 dB absorbed, and is manufacturable with no warning; made 40 mm across, the edge taper falls under 20 dB and the warning comes (1 when all hold)',
@@ -8656,6 +8658,7 @@ const TESTS = [
       return F.Gdbi - C.Gdbi;
     },
   },
+  { group: 'The Optical designer' },
   {
     name: 'Lenses and a stop made an assembly change nothing on the bench, read as one prescription, and split back the same',
     why: 'a Cooke triplet (three lenses and an iris on one axis, a published prescription of 50 mm focal length) and a sensor: made an assembly, the sensor sees exactly what it saw before; the assembly reads as 7 surfaces with the stop the 5th and a focal length of 50 mm; split, the sensor still sees the same and the record is gone; a source can’t join one (1 when all hold)',
@@ -9182,6 +9185,7 @@ const TESTS = [
       } finally { J.closeLensDesign(); try { rigWin().localStorage.removeItem('JEK_STOCK_LENSES'); } catch (e) { /* none */ } }
     },
   },
+  { group: 'The RF designer' },
   {
     name: 'RF designer: a new design collimates its feed, a two-face lens designed to couple into a receiver, placed on the bench with its horns',
     why: 'New RF design opens the RF designer with a made-to-order lens for 24 GHz: its gain between 25 and 31 dBi and its aperture efficiency within a point of the 81.5% an 11 dB edge taper gives; the goal set to a receiving horn 300 mm on, Design a lens with two hyperbolic faces matched to it couples over 99.9%; Place on a bench puts the feed horn and the receiver on the bench at their distances along the axis, facing it, and Undo takes them off again (1 when all hold)',
@@ -9587,6 +9591,7 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
+  { group: 'The Optical designer and the workspaces' },
   {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
@@ -9664,6 +9669,7 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
+  { group: 'The RF designer' },
   {
     name: 'RF designer: a lens cut in zones is thinner, the same at its zone frequency, and drawn and quoted as cut',
     why: 'the new design\u2019s lens designed 200 mm across for an 11 dB edge and cut in zones: at 24 GHz its steps are 19.4 mm deep (a wave in PLA), it is under 25 mm at its thickest (40 smooth), its phase error at 24 GHz small (the zones\u2019 own defocus, traced as cut) but more at the band\u2019s edges, and its steps\u2019 shadow counted; Make it lists its zones, its drawing says where it is cut, its quote says it is zoned; unticked it is whole again (1 when all hold)',
@@ -9785,6 +9791,7 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
+  { group: 'The Optical designer' },
   {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
@@ -10760,6 +10767,7 @@ const TESTS = [
       return ok;
     },
   },
+  { group: 'The 3D view' },
   {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
@@ -10846,6 +10854,7 @@ const TESTS = [
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
+  { group: 'Physical optics propagation' },
   {
     name: 'A narrow slit\u2019s first minimum lands where \u03bbL/a says, at the default sampling',
     why: 'a 3 mm beam through a 0.1 mm slit used to be sampled too coarsely (the grid spanned the beam, not the slit), which put the first minimum 10 % in; past a slit the grid now spans only its openings',
@@ -10863,6 +10872,7 @@ const TESTS = [
       return 0;
     },
   },
+  { group: 'System, absorption and screens' },
   {
     name: 'Light that reaches a laser from the front goes into it, not through it',
     why: 'a laser\u2019s output face takes in a return beam (a mirror facing it, the other laser of a counter-propagating pair); it used to pass through the housing and carry on',

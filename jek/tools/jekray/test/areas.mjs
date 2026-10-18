@@ -57,20 +57,20 @@ export const AREAS = {
     what: 'the 3D view, STL objects and the field drawn in 3D',
     src: ['src/ui/view3d.js', 'src/ui/rf-lens3d.js', 'src/core/stl.js', 'src/parts/stl.js', 'src/ui/parts/stl.js'],
     node: ['zoned.test.mjs'],
-    browser: ['The 3D view', 'STL objects', 'The field in 3D'],
+    browser: ['The 3D view', 'STL objects', 'The field in 3D'],   // The 3D view is two groups of that name
   },
   'lens-design': {
     what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
     src: ['src/engines/lens-', 'src/core/assembly.js', 'src/ui/lens-', 'src/ui/assembly.js'],
     node: ['lens-', 'assembly.test.mjs', 'cad-export.test.mjs', 'zmx-cb.test.mjs'],
-    browser: ['Mirrored faces', 'Import, files and tools'],
+    browser: ['Mirrored faces', 'Import, files and tools', 'The Optical designer', 'The Optical designer and the workspaces'],
   },
   rf: {
     what: 'RF: horns, antennas, metal and dielectric parts, graded and zoned lenses, the RF designer',
     src: ['src/core/rf.js', 'src/core/antenna.js', 'src/core/horns.js', 'src/core/grin.js', 'src/engines/rf-design.js', 'src/engines/rf-sweep.js', 'src/engines/antenna-field.js',
       'src/ui/rf-workspace.js', 'src/ui/rf-report.js', 'src/ui/rf-lens3d.js', 'src/parts/rf.js'],
     node: ['rf-antenna.test.mjs', 'rf-design.test.mjs', 'rf-parts.test.mjs', 'rf-print.test.mjs', 'antenna.test.mjs', 'grin.test.mjs', 'zoned.test.mjs'],
-    browser: ['RF: millimetre-wave quasi-optics'],
+    browser: ['RF: millimetre-wave quasi-optics', 'RF parts on the bench', 'The RF designer'],
   },
   scripts: {
     what: 'scripts run against the bench',

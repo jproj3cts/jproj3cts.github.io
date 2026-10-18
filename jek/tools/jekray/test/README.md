@@ -36,19 +36,20 @@ runs the checks whose names hold a text).
 | fibre | fibre networks and parts, electronics, modulators, pulses, vapour cells, crystals | demos | fibres and detectors, Fibre networks, Fibre extras, Modulators, Sources split, Short pulses, Atomic vapour cells, Nonlinear crystals |
 | io | files, links, lens files, CAD, merging, packs, modules, the AI guide | headless, merge, zmx-cb, cad-export, lens-stock | Import, files and tools; Projects written elsewhere; Share links; Tabs and link planes; Part packs; Modules |
 | view3d | the 3D view, STL objects | zoned | The 3D view, STL objects, The field in 3D |
-| lens-design | the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings | the lens-* tests, assembly, cad-export, zmx-cb | Mirrored faces; Import, files and tools |
-| rf | RF parts, antennas, graded and zoned lenses, the RF designer | rf-*, antenna, grin, zoned | RF: millimetre-wave quasi-optics |
+| lens-design | the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings | the lens-* tests, assembly, cad-export, zmx-cb | The Optical designer (two groups), Mirrored faces; Import, files and tools |
+| rf | RF parts, antennas, graded and zoned lenses, the RF designer | rf-*, antenna, grin, zoned | RF: millimetre-wave quasi-optics; RF parts on the bench; The RF designer (two groups) |
 | scripts | scripts run against the bench | — | Scripts |
 | site | the documentation pages and their data | site-pages | Projects written elsewhere, and the AI guide |
 | shared | the data model, the project, the page boot, the registry, constants, hooks, the tests page, this runner | all | all |
 
 ## Where the time goes
 
-A full run takes about 15 minutes on one machine, almost all of it in two browser groups: Fibre networks (about 7½
-minutes) and Heights (about 4½ minutes). Every other browser group together takes under two minutes, and the Node
-tests about a minute (the headless test, which starts the command line several times, is 25 seconds of that). So a
-change outside fibre and heights runs its browser groups in a minute or two, and a fibre change runs its own long group
-alone.
+A full run took about 15 minutes before one test was mended: the check that every palette button makes its part
+added all 150-odd parts to one bench, retracing the lot at each add, and took 7½ minutes by itself; on a fresh bench
+per part it takes seconds. The designers' tests are the next cost (the Optical designer's groups about 3 minutes, the RF
+designer's about 1½), then the Node tests at about a minute (the headless test, which starts the command line several
+times, is 25 seconds of that). Everything else is small change, so a change outside the designers runs its browser groups
+in a minute or two.
 
 When a feature's tests land, put its browser group and its Node test file in the area it belongs to, and claim any new
 source file; the runner says `no area claims <file>` and runs everything when one is missed.

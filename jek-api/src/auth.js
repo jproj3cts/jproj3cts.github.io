@@ -15,6 +15,7 @@ import { createUser } from './users.js';
 import { ApiError, cookie, newToken, now, sha256 } from './util.js';
 import { sendEmail } from './mail.js';
 import { readCapped } from './limits.js';
+import { checkPassword, hasPassword, storePassword } from './passwords.js';
 
 const STATE_TTL = 600; // seconds
 const STATE_COOKIE = 'jek_oauth';
@@ -379,13 +380,16 @@ export async function emailStart(req, env, ctx) {
   return { sent: true, email, expires_at: t + EMAIL_CODE_MS };
 }
 
-// POST /auth/email/code  {email, code} — the code typed in: a session (the cookie set on the
-// response), or the address linked to the signed-in account
+// POST /auth/email/code  {email, code, password?} — the code typed in: a session (the cookie set on the
+// response), or the address linked to the signed-in account. A password given is set for an account
+// with none (a new account choosing one, or one that forgot its old one), checked before anything else.
 export async function emailCode(req, env, ctx) {
   const body = await emailBody(req);
   const email = String(body.email || '').trim().toLowerCase();
   const code = String(body.code || '').replace(/\s+/g, '');
   if (!/^\d{6}$/.test(code)) throw new ApiError(400, 'bad_code', 'The code is the 6 digits in the email.');
+  const newPw = body.password === undefined || body.password === null || body.password === '' ? null : String(body.password);
+  if (newPw !== null) checkPassword(newPw, email);
   const row = email ? await env.DB.prepare('SELECT code_hash, expires_at, tries, link_user FROM signin_codes WHERE email = ?').bind(email).first() : null;
   if (!row) throw new ApiError(404, 'no_code', 'Ask for a code first.');
   const t = now();
@@ -431,7 +435,10 @@ export async function emailCode(req, env, ctx) {
       userId = again.user_id;
     }
   }
+  // the password chosen on the way in: set when there is none (a forgotten one is replaced this way)
+  let passwordSet = false;
+  if (newPw !== null && !(await hasPassword(env, userId))) { await storePassword(env, userId, newPw); passwordSet = true; }
   const session = await createSession(env, userId, req.headers.get('User-Agent'));
   ctx.setCookie = session.cookie;
-  return { signed_in: true, email };
+  return { signed_in: true, email, password_set: passwordSet };
 }

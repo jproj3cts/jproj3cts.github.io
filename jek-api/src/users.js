@@ -4,6 +4,7 @@ import { avatarPath } from './benches.js';
 import { useLicence } from './institutions.js';
 import { orcidLegacy, orcidLegacyUntil } from './orcid.js';
 import { ApiError, newId, now } from './util.js';
+import { hasPassword } from './passwords.js';
 
 // With `identity` ({ provider, subject }), the sign-in is attached in the
 // same batch, so a person is never left without a way in.
@@ -90,7 +91,9 @@ export async function me(env, user) {
   const ac = await env.DB.prepare('SELECT academic_until, academic_via, academic_email FROM users WHERE id = ?').bind(user.id).first();
   const licence = await useLicence(env, user, t);
   const seat = await teamSeatActive(env, user, t);
+  const password = await hasPassword(env, user.id);
   return {
+    has_password: password,
     user: { id: user.id, name: user.name, email: user.email, created_at: user.created_at, avatar: avatarPath(user.id, user.avatar_key) },
     academic: ac && ac.academic_until > t ? { until: ac.academic_until, via: ac.academic_via, email: ac.academic_email || null } : null,
     licence: licence && !licence.full ? { name: licence.name, via: licence.via } : null,

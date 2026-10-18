@@ -203,7 +203,7 @@ export function fillAccount() {
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
-    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with an email code', () => showEmailSignIn(false)),
+    menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with email and a password', () => showEmailSignIn(false)),
       h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
@@ -244,22 +244,46 @@ export function fillAccount() {
   menuIcons(menu);
   cloudMenuShown();
 }
-/* ---------- Sign-in with an email code ----------
-   For people whose university does not let them sign in with Microsoft, and anyone without a Google or Microsoft
-   account: the address, then the 6-digit code the API emails to it. The session arrives as the cookie on the code's
-   reply (the API and the app are one site), so no page leaves. link: the signed-in account adds the address. */
+/* ---------- Sign-in with an email address ----------
+   An account of JEKray's own: the address, with a password, or with the 6-digit code the API emails to it (which is
+   also how a forgotten password is replaced: sign in by code, choose a new one). The session arrives as the cookie on
+   the reply (the API and the app are one site), so no page leaves. link: the signed-in account adds the address. */
 export function showEmailSignIn(link) {
   let dlg = document.getElementById('emailDialog');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'emailDialog', 'aria-labelledby': 'emailTitle' }); document.body.append(dlg); }
-  const title = h('h2', { id: 'emailTitle' }, link ? 'Link an email address' : 'Sign in with an email code');
-  const email = h('input', { type: 'email', id: 'emailAddr', autocomplete: 'email', placeholder: 'you@university.ac.uk', spellcheck: 'false', required: '' });
+  let mode = link ? 'code' : 'password';                    // 'password' | 'code'
+  const title = h('h2', { id: 'emailTitle' }, link ? 'Link an email address' : 'Sign in with email');
+  const email = h('input', { type: 'email', id: 'emailAddr', autocomplete: 'username', placeholder: 'you@university.ac.uk', spellcheck: 'false', required: '' });
+  const pw = h('input', { type: 'password', id: 'emailPw', autocomplete: 'current-password', placeholder: 'Your password' });
   const codeIn = h('input', { type: 'text', id: 'emailCode', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9 ]*', placeholder: '6 digits', spellcheck: 'false' });
+  const newPw = h('input', { type: 'password', id: 'emailNewPw', autocomplete: 'new-password', placeholder: 'At least 10 characters, or leave empty' });
   const err = h('p', { class: 'rt-error', hidden: '' });
-  const note = h('p', { class: 'note' }, link ? 'The address is added to this account as a way to sign in, and becomes its verified email. We send a 6-digit code to it; type the code here.'
-    : 'We send a 6-digit code to the address; type it here and you are signed in. No password is made. If you have signed in with Google or Microsoft before, link the address from the account menu instead, so your benches stay in one account.');
-  const sendBtn = h('button', { class: 'rt-btn primary', type: 'button' }, 'Send a code'), okBtn = h('button', { class: 'rt-btn primary', type: 'button', hidden: '' }, link ? 'Link it' : 'Sign in'), cancel = h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel');
-  const codeRow = h('div', { class: 'rt-rows', hidden: '' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailCode' }, 'The code from the email'), codeIn));
   const fail = m => { err.textContent = m; err.hidden = false; };
+  const note = h('p', { class: 'note' });
+  const pwRow = h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailPw' }, 'Password'), pw));
+  const codeRow = h('div', { class: 'rt-rows', hidden: '' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailCode' }, 'The code from the email'), codeIn),
+    link ? null : h('div', { class: 'rt-f wide' }, h('label', { for: 'emailNewPw' }, 'Choose a password (optional)'), newPw));
+  const sendBtn = h('button', { class: 'rt-btn primary', type: 'button' }, 'Email me a code');
+  const okBtn = h('button', { class: 'rt-btn primary', type: 'button' }, 'Sign in');
+  const other = h('button', { class: 'rt-link', type: 'button' });
+  const cancel = h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel');
+  const show = () => {
+    err.hidden = true;
+    const code = mode === 'code';
+    pwRow.hidden = code; sendBtn.hidden = !code; okBtn.hidden = !code ? false : codeRow.hidden;
+    if (!code) codeRow.hidden = true;
+    okBtn.textContent = link ? 'Link it' : 'Sign in';
+    other.hidden = !!link; other.textContent = code ? 'I have a password' : 'Forgotten your password, or new here? Email me a code instead';
+    note.textContent = link ? 'The address is added to this account as a way to sign in, and becomes its verified email. We send a 6-digit code to it; type the code here.'
+      : code ? 'We send a 6-digit code to the address; type it here and you are signed in. New here? That makes your account, and you may choose a password for next time. Forgotten a password? Sign in this way and choose a new one.'
+      : 'Your JEKray account: the address and the password you chose. If you have signed in with Google or Microsoft before, use those, or link the address from the account menu so your benches stay in one account.';
+  };
+  const finish = async r => {
+    dlg.close();
+    await loadAccount(); fillAccount();
+    toast(r.linked ? 'Email address linked to your account' : r.password_set ? 'Signed in, and your password is set' : 'Signed in');
+    if (!r.linked && typeof accountShown === 'function') accountShown();
+  };
   sendBtn.addEventListener('click', async () => {
     err.hidden = true; const v = email.value.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { fail('That does not look like an email address.'); email.focus(); return; }
@@ -274,18 +298,46 @@ export function showEmailSignIn(link) {
   okBtn.addEventListener('click', async () => {
     err.hidden = true; okBtn.disabled = true;
     try {
-      const r = await api('/auth/email/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.value.trim(), code: codeIn.value }) });
-      dlg.close();
-      await loadAccount(); fillAccount();
-      toast(r.linked ? 'Email address linked to your account' : 'Signed in');
-      if (!r.linked && typeof accountShown === 'function') accountShown();
-    } catch (e) { fail(e.message); okBtn.disabled = false; codeIn.focus(); }
+      const v = email.value.trim();
+      if (mode === 'password') {
+        if (!pw.value) { fail('Give the password, or ask for a code.'); okBtn.disabled = false; pw.focus(); return; }
+        await finish(await api('/auth/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: v, password: pw.value }) }));
+      } else {
+        const body = { email: v, code: codeIn.value };
+        if (!link && newPw.value) body.password = newPw.value;
+        await finish(await api('/auth/email/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+      }
+    } catch (e) { fail(e.message); okBtn.disabled = false; (mode === 'password' ? pw : codeIn).focus(); }
   });
-  codeIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); } });
-  email.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (codeRow.hidden ? sendBtn : okBtn).click(); } });
-  dlg.replaceChildren(title, note, h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailAddr' }, 'Email address'), email)), codeRow, err,
-    h('div', { class: 'rt-actions' }, cancel, sendBtn, okBtn));
+  other.addEventListener('click', () => { mode = mode === 'code' ? 'password' : 'code'; show(); (mode === 'code' ? email : pw).focus(); });
+  for (const inp of [pw, codeIn, newPw]) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); } });
+  email.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (mode === 'code' && codeRow.hidden ? sendBtn : okBtn).click(); } });
+  dlg.replaceChildren(title, note, h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'emailAddr' }, 'Email address'), email)), pwRow, codeRow, err,
+    h('div', { class: 'rt-actions', style: 'justify-content:space-between;flex-wrap:wrap;gap:0.5rem' }, other, h('span', { style: 'display:flex;gap:0.5rem' }, cancel, sendBtn, okBtn)));
+  show();
   dlg.showModal(); email.focus();
+}
+/* the account page's password section: set, change or remove the password that goes with the email sign-in */
+function passwordSection() {
+  const hasEmail = (account.identities || []).some(i => i.provider === 'email'), has = !!account.has_password;
+  const box = h('div', { class: 'rt-acctpw' }, h('h3', null, 'Password'));
+  if (!hasEmail) { box.append(h('p', null, 'A password goes with an email address. Link one from the account menu, and you can set a password here.')); return box; }
+  const cur = h('input', { type: 'password', id: 'pwCur', autocomplete: 'current-password', placeholder: 'Current password' });
+  const nw = h('input', { type: 'password', id: 'pwNew', autocomplete: 'new-password', placeholder: 'New password, at least 10 characters' });
+  const err = h('p', { class: 'rt-error', hidden: '' });
+  const save = h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    err.hidden = true;
+    try { await api('/v1/me/password', jsonReq('PUT', Object.assign({ password: nw.value }, has ? { current: cur.value } : {}))); await loadAccount(); fillAccount(); showAccount(); toast(has ? 'Password changed' : 'Password set'); }
+    catch (e) { err.textContent = e.message; err.hidden = false; }
+  } }, has ? 'Change' : 'Set a password');
+  const drop = has ? h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    if (!confirm('Remove your password? You will sign in with a code sent to your address, or with Google or Microsoft.')) return;
+    try { await api('/v1/me/password', { method: 'DELETE' }); await loadAccount(); fillAccount(); showAccount(); toast('Password removed'); } catch (e) { toast(e.message, true); }
+  } }, 'Remove') : null;
+  box.append(h('p', null, has ? 'You sign in with your address and this password, or with a code sent to the address.' : 'No password yet: you sign in with a code sent to your address. Set one to sign in without waiting for an email.'),
+    h('div', { class: 'rt-rows' }, has ? h('div', { class: 'rt-f wide' }, h('label', { for: 'pwCur' }, 'Current'), cur) : null, h('div', { class: 'rt-f wide' }, h('label', { for: 'pwNew' }, has ? 'New' : 'Password'), nw)),
+    err, h('div', { class: 'rt-row' }, save, drop));
+  return box;
 }
 /* ---------- The account page ----------
    The picture others see beside the name (resized here to 128 px and sent as WebP, so a photo of
@@ -334,7 +386,8 @@ export function showAccount() {
     h('div', { class: 'rt-acctpic' }, pic, h('div', null, h('p', null, 'Your picture is shown beside your name to the people you share a team with: on their benches, and while you are editing one.'), h('div', { class: 'rt-row' }, choose, remove, file))),
     h('label', { for: 'acctName' }, 'Your name, as others see it'), h('div', { class: 'rt-row' }, name, save),
     h('p', null, u.email ? 'Email: ' + u.email + ' (from your sign-in; it is where invitations and receipts go).' : 'Your sign-in gave no email address.'),
-    h('p', null, 'Signed in with ' + (ids.join(' and ') || 'nothing yet') + '. Link another, or delete the account, from the account menu.'));
+    h('p', null, 'Signed in with ' + (ids.join(' and ') || 'nothing yet') + '. Link another, or delete the account, from the account menu.'),
+    passwordSection());
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- Teams ----------

@@ -19,6 +19,7 @@ const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 // The actions that call ORCID or Stripe, build a zip, send email, or delete an account.
 const SLOW = [
   ['POST', /^\/v1\/me\/(academic|institution)(\/(email|code))?$/],
+  ['PUT', /^\/v1\/me\/password$/],
   ['GET', /^\/v1\/me\/export$/],
   ['POST', /^\/v1\/workspaces\/[^/]+\/billing\//],
   ['DELETE', /^\/v1\/me$/],

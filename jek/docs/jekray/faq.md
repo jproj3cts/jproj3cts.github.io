@@ -16,17 +16,17 @@ Yes. The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.
 
 ### Does my bench leave my computer?
 
-Not unless you choose to send it. The simulator runs in your browser and your bench is autosaved there. A share link carries the bench in the part of the address after #, which browsers never send to a server. Only benches you save to a JEKrayPro account are stored online.
+Not unless you choose to send it. Your bench is autosaved in this browser, and nothing is sent anywhere until you save it to the cloud, share it or export it. A share link carries the bench in the part of the address after #, which browsers never send to a server. Only benches you save to a JEKrayPro account are stored online.
 
 ### Which browsers does it run in?
 
-Current Chrome, Edge, Firefox and Safari. Heavy work runs in background threads, so a recent computer helps with large benches and the diffracted field.
+Current Chrome, Edge, Firefox and Safari. A recent computer helps with large benches and the diffracted field.
 
 ## Models
 
 ### How accurate is it?
 
-The ray tracer is exact for the geometry it models: real surfaces, real glass (Sellmeier data), Fresnel coefficients and coatings. The Gaussian-beam and diffracted-field models are paraxial except where they say otherwise; near a steep focus the field is summed directly by the Rayleigh–Sommerfeld integral. The [validation page](/jek/tools/jekray-validation.html) compares the results with analytic answers and published data, and runs in your browser.
+The ray tracer is exact for the geometry it models: real surfaces, real glass (Sellmeier data), Fresnel coefficients and coatings. The Gaussian-beam and diffracted-field models are paraxial except where they say otherwise; near a steep focus the field is summed directly by the Rayleigh–Sommerfeld integral. The [validation page](/jek/tools/jekray-validation.html) compares the results with analytic answers and published data, live, each time it is opened.
 
 ### Is the bench two-dimensional?
 

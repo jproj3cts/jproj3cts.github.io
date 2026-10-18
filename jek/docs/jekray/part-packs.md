@@ -10,7 +10,7 @@ description: Sets of parts and glasses made by others (a maker's catalogue, a co
 
 ## Installing a pack
 
-Choose **File › Part packs and modules…**, then **Install from a file…** or **Install from a link…**, or drop a `.jekpack` file onto the bench. Before anything is installed, JEKray shows what is in the pack: its name, who made it, its version and licence, how many parts and glasses it has, and anything in it that could not be used (which is left out). Choose **Install** to keep it, or **Cancel**.
+Choose **File › Part packs and modules…**, then **Install a pack/module from a file…** or **Install a pack/module from a link…**, or drop a `.jekpack` file onto the bench. Before anything is installed, JEKray shows what is in the pack: its name, who made it, its version and licence, how many parts and glasses it has, and anything in it that could not be used (which is left out). Choose **Install** to keep it, or **Cancel**.
 
 Once installed, a pack's parts are under **+ Add part › Packs**, grouped as the pack groups them, and they turn up in the search there too. Click one to add it in the middle of the view, or drag it onto the bench. A pack's glasses appear in every lens's **Material** menu, marked with the pack's name.
 

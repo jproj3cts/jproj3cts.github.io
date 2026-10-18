@@ -2,7 +2,7 @@
 layout: docs
 title: Scripting and headless use
 permalink: /jek/docs/jekray/scripting/
-description: Drive JEKray from a script: the window.JEKray object in the page, the same engine in Node without a browser, and a command line that traces a bench file and prints its readouts or sweeps a parameter to a table.
+description: "Drive JEKray from a script: the window.JEKray object in the page, the same engine in Node without a browser, and a command line that traces a bench file and prints its readouts or sweeps a parameter to a table."
 ---
 
 <p class="dx-lead">Everything the bench works out can be asked for from a script: in the page, through the <code>JEKray</code> object the tool puts on <code>window</code>; outside it, through the same engine running in Node, with no browser; and from the command line, which traces a bench file and prints what its panels would show. A design can sit in a repository with a check that runs it, and a parameter study can be a loop.</p>

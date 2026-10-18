@@ -391,8 +391,10 @@ function drawBeams(fieldShown) {
       for (let i = 0; i < up.length; i++) wide = Math.max(wide, Math.hypot(up[i][0] - dn[i][0], up[i][1] - dn[i][1]));
       if (wide < 10) continue;
     }
-    // a share of the beam that went round a rim shows as faintly as it is weak
-    const faint = seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1;
+    // the envelope carries the beam's power: its fill in proportion to the share of the source's power the beam
+    // has (so power moving between the two arms of a polarising split is seen moving), its edges as the amplitude,
+    // with a floor so a weak beam (a ghost, a share that went round a rim) still shows as an outline
+    const faint = clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1);
     ctx.save(); clipSegPlanes(PL, seg.len + wMax * 6);
     ctx.beginPath();
     if (upIn.length === up.length) {
@@ -408,7 +410,7 @@ function drawBeams(fieldShown) {
       ctx.closePath();
     }
     ctx.fillStyle = seg.colour;
-    ctx.globalAlpha = outline ? 0 : glowA(0.16 * faint);
+    ctx.globalAlpha = outline ? 0 : glowA(0.16 * faint * faint);
     ctx.fill();
     // stroke the two edges only: closing the path would draw a bar at every surface
     ctx.globalAlpha = glowA((outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55) * faint);
@@ -523,9 +525,12 @@ function drawRaysOn(ctx, rays) {
   ctx.restore();
 }
 
-/* A ray's brightness from the power it carries, on a log scale: a 4% Fresnel ghost is plainly
-   fainter than the beam it came off, a beam 40 dB down is a trace. w: its power as a fraction */
-export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, 1 + Math.log10(Math.max(w, 1e-9)) / 3)); }
+/* A ray's brightness from the power it carries, as the power to the 0.4: the two arms of a 50/50 split are each
+   plainly dimmer than the beam that fed them and power moving between the arms of a polarising split is seen
+   moving (on a log scale a beam kept nearly its full brightness down to a tenth of the power, then went out
+   within a few degrees of a waveplate), while a 4% Fresnel ghost still shows at about a third of the
+   brightness and a beam 40 dB down is a trace. w: its power as a fraction */
+export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, Math.pow(Math.max(w, 1e-9), 0.4))); }
 /* the strongest ray of each source on a tab, by source id: a ray's brightness is against its own
    launch, so a fibre tip fed through a lossy network is as bright as a laser, and a return beam
    or a window's reflection is fainter than the beam it came off (a kept ray is never drawn at

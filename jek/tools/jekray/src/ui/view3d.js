@@ -742,7 +742,7 @@ export const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (seg.hole > 0 ? clamp(Math.sqrt(seg.w || 0), 0.15, 1) : 1), blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });

@@ -9,7 +9,7 @@ description: Assemblies and lens design in JEKray. Lenses, mirrors and stops on 
 
 ## Making an assembly
 
-**One part.** A lens, mirror or window on its own has **Design as a lens…** in its panel (and its right-click menu): it is made an assembly of one and opened in the design workspace at once, to design, optimise and add to (Insert a singlet, Insert a surface) there.
+**One part.** A lens, mirror or window on its own has **Design as a lens…** in its panel, just under its name (and in its right-click menu): it is made an assembly of one and opened in the design workspace at once, to design, optimise and add to (Insert a singlet, Insert a surface) there.
 
 **Several parts.**
 Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or from the right-click menu. They must be:
@@ -123,7 +123,7 @@ A new assembly starts with its stop's opening as the entrance pupil, the axis al
 
 A design started with Lens design, new… has no light on the bench yet. Its button reads **Place on a bench**: it adds a source for each field (collimated, as wide as the entrance pupil, aimed through its centre, at the primary wavelength with the others as extra lines) and a screen at the image, then returns to the bench.
 
-**File › Import a lens file (.zmx) as a design…** reads a lens file as an assembly and opens it here.
+**File › Import a lens (.zmx)…** with its dialog's **Open it in the lens design workspace** ticked reads a lens file as an assembly and opens it here.
 
 ### Design conditions
 

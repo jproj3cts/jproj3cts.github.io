@@ -1570,7 +1570,6 @@
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnImportDesign" data-icon="import" title="A lens file opened as an assembly in the lens design workspace">Import a lens file (.zmx) as a design…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
@@ -2000,6 +1999,7 @@
       <label for="zmxAs">Import as</label>
       <select id="zmxAs"></select>
     </div>
+    <label class="rt-check" id="zmxDesignRow" style="margin:0 0 0.75rem"><input type="checkbox" id="zmxDesign"> Open it in the lens design workspace, as an assembly to design</label>
     <p id="zmxWhere">The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
     <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
     <p class="rt-error" id="zmxError" hidden></p>
@@ -23125,6 +23125,9 @@ function renderPanelBody(el) {
   if (asm) panel.append(asm);
   panel.append(h('div', { class: 'rt-rows' },
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  // a lens, mirror or window on its own: straight into lens design, right under its name
+  const dz = panel === mainPanel ? designOneRow(el) : null;
+  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
   panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
@@ -23161,9 +23164,6 @@ function renderPanelBody(el) {
   if (el.mod) modPanel(el);                                                                   // a mod's part
   // the part's own sections (a horn's stand in for a source's or a detector's; a mod's for its part's)
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
-  // a lens, mirror or window on its own: straight into lens design
-  const dz = panel === mainPanel ? designOneRow(el) : null;
-  if (dz) panel.append(h('h3', null, 'Lens design'), h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, dz));
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
@@ -42270,16 +42270,13 @@ function zmxAssembly(Z, el) {
     fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
   return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
 }
-/* the next lens file imported opens in the lens design workspace */
-let zmxAsDesign = false;
-function setZmxAsDesign(v) { return (zmxAsDesign = !!v); }
 async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');
   const mode = dlg.open ? document.getElementById('zmxAs').value : 'auto';
   files = files instanceof File ? [files] : [...files];
-  const asDesign = zmxAsDesign;
-  zmxAsDesign = false;
+  // the dialog's tick: the file opened in the lens design workspace, as an assembly to design
+  const asDesign = dlg.open && !zmxToMine && document.getElementById('zmxDesign').checked;
   if (zmxToMine) { await zmxIntoMine(files, mode); return; }
   try {
     const { Z, el } = await zmxElement(files[0], mode);
@@ -42302,6 +42299,8 @@ async function importZmx(files) {
     changed(true);
     if (dlg.open) dlg.close();
     const w = [...Z.warnings];
+    // asked for as a design, a single lens or mirror is made an assembly of its own and opened
+    if (asDesign && ['lens', 'mirror', 'window'].includes(el.type)) designOne(el);
     toast('Imported ' + el.name + ' (' + typeLabel(el).toLowerCase() + ')' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
   } catch (err) {
     if (dlg.open) { errBox.textContent = err.message; errBox.hidden = false; }
@@ -45182,6 +45181,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Scripting and headless use</b>: the engine runs in Node without a browser (<code>headless.mjs</code>), and a command line (<code>cli.mjs</code>) traces a bench file and prints its readouts, the RF designer\u2019s figures, or a parameter sweep as CSV, with the lens designer\u2019s analyses (focal lengths, spots, wavefronts, MTF, field curves, the merit function, lens files) and the RF designer\u2019s figures, so a design can be checked in a repository and a parameter study can be a loop; the page\u2019s <code>window.JEKray</code> calls that are kept stable are now listed in the docs.',
+    'The File menu\u2019s two lens-file imports are one: <b>Import a lens (.zmx)\u2026</b>, whose dialog has a tick to open the file in the lens design workspace as an assembly to design.',
     'Menu items that need an account or JEKrayPro (<b>My benches</b>, <b>Save to cloud</b>, <b>Fork this bench</b>, <b>Save to My parts</b>, the designers\u2019 <b>Keep as a part</b>) are now always there, greyed when they are not possible with a word on why (sign in, or subscribe); choosing one opens the way to make it so.',
     'A lens\u2019s panel now gives its focal lengths at the wavelengths whose light reaches it, rather than at every source\u2019s on the bench; a lens nothing reaches says so, and gives them at the bench\u2019s wavelengths.',
     '<b>Open a workspace</b>, on the File menu, gathers the designers: lens design (new, or of the selection), RF design (new, or of the selected RF parts) and coating design. On <b>My benches</b>, <b>Open a workspace</b> makes a new cloud bench in the folder shown and opens it straight into the designer chosen. Each designer\u2019s header has <b>Keep as a part\u2026</b>, which saves the whole design (its parts, with their conditions and design) by name in <b>My parts</b> or, with a team, in that team\u2019s <b>Team parts</b> on My benches, from where it is added to any bench; Save to My parts on the right-click menu offers the same choice.',
@@ -45751,6 +45751,8 @@ function openZmx(toMine) {
     ? 'Choose one file or several: each is kept in My parts, named by its part number, ready to add to any bench. Light travels left to right through it, as in the file.'
     : 'The part is placed at the centre of the view with light travelling left to right, as in the file.';
   document.getElementById('zmxChoose').textContent = toMine ? 'Choose .zmx files' : 'Choose .zmx file';
+  document.getElementById('zmxDesignRow').hidden = !!toMine;              // into My parts, nothing opens
+  document.getElementById('zmxDesign').checked = false;
   document.getElementById('zmxError').hidden = true;
   document.getElementById('zmxDialog').showModal();
 }
@@ -45821,8 +45823,7 @@ function wireTours() {
 
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
-  document.getElementById('btnImport').addEventListener('click', () => { setZmxAsDesign(false); openZmx(false); });
-  document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
+  document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
   document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
   // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
@@ -45859,7 +45860,7 @@ function wireTours() {
 
   document.getElementById('fileZmx').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importZmx(fs); e.target.value = ''; });
 
-  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); setTimeout(() => setZmxAsDesign(false), 0); });
+  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); });
 
   {
     const dlg = document.getElementById('matDialog');

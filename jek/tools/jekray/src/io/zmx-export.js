@@ -14,6 +14,7 @@ import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
 import { personalWs } from './cloud.js';
 import { openLensDesign } from '../ui/lens-workspace.js';
+import { designOne } from '../ui/assembly.js';
 
 /* ==========================================================================
    .zmx lens file export
@@ -339,16 +340,13 @@ export function zmxAssembly(Z, el) {
     fields: c.fields || undefined, waves: c.waves || undefined, primary: c.primary });
   return { els, asm: { id: g, name: el.name, ref: lenses[0].id, rev: false, cond } };
 }
-/* the next lens file imported opens in the lens design workspace */
-let zmxAsDesign = false;
-export function setZmxAsDesign(v) { return (zmxAsDesign = !!v); }
 export async function importZmx(files) {
   const errBox = document.getElementById('zmxError');
   const dlg = document.getElementById('zmxDialog');
   const mode = dlg.open ? document.getElementById('zmxAs').value : 'auto';
   files = files instanceof File ? [files] : [...files];
-  const asDesign = zmxAsDesign;
-  zmxAsDesign = false;
+  // the dialog's tick: the file opened in the lens design workspace, as an assembly to design
+  const asDesign = dlg.open && !zmxToMine && document.getElementById('zmxDesign').checked;
   if (zmxToMine) { await zmxIntoMine(files, mode); return; }
   try {
     const { Z, el } = await zmxElement(files[0], mode);
@@ -371,6 +369,8 @@ export async function importZmx(files) {
     changed(true);
     if (dlg.open) dlg.close();
     const w = [...Z.warnings];
+    // asked for as a design, a single lens or mirror is made an assembly of its own and opened
+    if (asDesign && ['lens', 'mirror', 'window'].includes(el.type)) designOne(el);
     toast('Imported ' + el.name + ' (' + typeLabel(el).toLowerCase() + ')' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
   } catch (err) {
     if (dlg.open) { errBox.textContent = err.message; errBox.hidden = false; }

@@ -49,7 +49,6 @@
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import a lens (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnImportDesign" data-icon="import" title="A lens file opened as an assembly in the lens design workspace">Import a lens file (.zmx) as a design…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirror selected, as a lens prescription">Export a lens (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
@@ -479,6 +478,7 @@
       <label for="zmxAs">Import as</label>
       <select id="zmxAs"></select>
     </div>
+    <label class="rt-check" id="zmxDesignRow" style="margin:0 0 0.75rem"><input type="checkbox" id="zmxDesign"> Open it in the lens design workspace, as an assembly to design</label>
     <p id="zmxWhere">The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
     <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
     <p class="rt-error" id="zmxError" hidden></p>

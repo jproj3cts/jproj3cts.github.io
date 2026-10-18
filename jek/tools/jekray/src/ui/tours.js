@@ -24,7 +24,7 @@ import { addBench, checkpoint, redo, renderBenchTabs, undo } from './tabs.js';
 import { exportLayout } from '../io/layout.js';
 import { openJekray, openProjectData } from '../io/open.js';
 import { IMPORT_AS } from '../io/zmx-import.js';
-import { exportZmx, importZmx, setZmxAsDesign, setZmxToMine } from '../io/zmx-export.js';
+import { exportZmx, importZmx, setZmxToMine } from '../io/zmx-export.js';
 import { assignPalette, importStl, palette } from './experimental.js';
 import { layoutPalette } from './rail.js';
 import { packInstallText } from '../io/packs.js';
@@ -172,6 +172,8 @@ export function openZmx(toMine) {
     ? 'Choose one file or several: each is kept in My parts, named by its part number, ready to add to any bench. Light travels left to right through it, as in the file.'
     : 'The part is placed at the centre of the view with light travelling left to right, as in the file.';
   document.getElementById('zmxChoose').textContent = toMine ? 'Choose .zmx files' : 'Choose .zmx file';
+  document.getElementById('zmxDesignRow').hidden = !!toMine;              // into My parts, nothing opens
+  document.getElementById('zmxDesign').checked = false;
   document.getElementById('zmxError').hidden = true;
   document.getElementById('zmxDialog').showModal();
 }
@@ -242,8 +244,7 @@ export function wireTours() {
 
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
-  document.getElementById('btnImport').addEventListener('click', () => { setZmxAsDesign(false); openZmx(false); });
-  document.getElementById('btnImportDesign').addEventListener('click', () => { openZmx(false); setZmxAsDesign(true); document.getElementById('zmxTitle').textContent = 'Import a lens file (.zmx) as a design'; });
+  document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
   document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
   document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
   // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
@@ -280,7 +281,7 @@ export function wireTours() {
 
   document.getElementById('fileZmx').addEventListener('change', e => { const fs = [...e.target.files]; if (fs.length) importZmx(fs); e.target.value = ''; });
 
-  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); setTimeout(() => setZmxAsDesign(false), 0); });
+  document.getElementById('zmxDialog').addEventListener('close', () => { setZmxToMine(false); });
 
   {
     const dlg = document.getElementById('matDialog');

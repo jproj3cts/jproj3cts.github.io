@@ -551,6 +551,9 @@ function renderPanelBody(el) {
   if (asm) panel.append(asm);
   panel.append(h('div', { class: 'rt-rows' },
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  // a lens, mirror or window on its own: straight into lens design, right under its name
+  const dz = panel === mainPanel ? designOneRow(el) : null;
+  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
   panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   rows.append(
@@ -587,9 +590,6 @@ function renderPanelBody(el) {
   if (el.mod) modPanel(el);                                                                   // a mod's part
   // the part's own sections (a horn's stand in for a source's or a detector's; a mod's for its part's)
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
-  // a lens, mirror or window on its own: straight into lens design
-  const dz = panel === mainPanel ? designOneRow(el) : null;
-  if (dz) panel.append(h('h3', null, 'Lens design'), h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, dz));
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },

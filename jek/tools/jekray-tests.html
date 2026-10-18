@@ -9444,6 +9444,44 @@ const TESTS = [
     },
   },
   {
+    name: 'RF designer: configurations hold the system in several states; the second’s band and feed are its own, showing it puts them on the bench, a term can be set for one alone, and Undo takes it back',
+    why: 'a new RF design’s Configurations tab: Make configurations gives two columns; configuration 2’s design frequency typed as 35 leaves the bench at 24 (the header picker names configuration 1); Show puts 35 GHz on the Frequency card and moves the picker; the Merit tab’s terms gain an in-configuration select; the lens’s centre thickness made its own in each adds a row; Undo back to one configuration (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      J.newRfDesign();
+      const ws = () => rigDoc().querySelector('#rfWs'), tab = t => [...ws().querySelectorAll('[role=tab]')].find(b => b.textContent === t), asm = () => J.serialize().assemblies[0];
+      try {
+        tab('Configurations').click();
+        const none = !ws().querySelector('.rt-lcfgsel');
+        [...ws().querySelectorAll('.rt-rfcfg button')].find(b => b.textContent === 'Make configurations').click();
+        const cols = ws().querySelectorAll('.rt-lcfgt thead th').length === 3 && !!ws().querySelector('.rt-lcfgsel');
+        const fIn = ws().querySelector('[aria-label="Design frequency (GHz) in Configuration 2"]');
+        fIn.value = '35'; fIn.dispatchEvent(new (W.Event)('change'));
+        const a1 = asm();
+        const own = Math.abs(a1.rf.ghz - 24) < 1e-9 && Math.abs(a1.rfMc.configs[1].rf.ghz - 35) < 1e-9 && ws().querySelector('.rt-lcfgsel').selectedOptions[0].textContent === 'Configuration 1';
+        [...ws().querySelectorAll('.rt-rfcfg .rt-link')].find(b => b.textContent === 'Show').click();
+        const a2 = asm();
+        const shown = Math.abs(a2.rf.ghz - 35) < 1e-9 && a2.rfMc.active === 1 && ws().querySelector('.rt-lcfgsel').selectedOptions[0].textContent === 'Configuration 2' && /35/.test([...ws().querySelectorAll('.rt-rfsi')].find(b => /Frequency/.test(b.textContent)).textContent);
+        // a value of its own in each: the lens's centre thickness
+        tab('Configurations').click();
+        const pick = ws().querySelector('[aria-label="Value to differ between the configurations"]');
+        pick.value = [...pick.options].find(o => /Centre thickness/.test(o.textContent)).value; pick.dispatchEvent(new (W.Event)('change'));
+        [...ws().querySelectorAll('.rt-rfcfg button')].find(b => b.textContent === 'Its own in each').click();
+        const keyRow = !!ws().querySelector('[aria-label^="Centre thickness of RF lens in Configuration 2"]') && asm().rfMc.keys.length === 1;
+        tab('Merit').click();
+        const perCfg = ws().querySelectorAll('.rt-rfmerit [aria-label^="Configuration of"]').length >= 1;
+        // undo: the key, the show, the frequency, the making
+        for (let k = 0; k < 4; k++) ws().querySelector('header [aria-label="Undo"]').click();
+        const undone = !asm().rfMc && Math.abs(asm().rf.ghz - 24) < 1e-9 && !ws().querySelector('.rt-lcfgsel');
+        const all = none && cols && own && shown && keyRow && perCfg && undone;
+        if (!all) console.log('rf configs', { none, cols, own, shown, keyRow, perCfg, undone, rf: asm().rf, mc: asm().rfMc });
+        return all ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
     want: 1, tol: 0, unit: '',

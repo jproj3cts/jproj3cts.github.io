@@ -316,3 +316,45 @@ test('an offset reflector in the RF designer: fed from the focus of its parent p
   const a = ST.project.assemblies[0], P = D.designPrescription(a), keys = RF.rfOptVars(P).map(v => v.key);
   assert.deepEqual(keys, ['c:0', 'k:0', 'feed']);
 });
+
+test('configurations: a second band with its own feed distance; the merit adds both by weight, switching puts the other’s conditions and values on the bench, and the optimiser finds each configuration’s own feed distance', () => {
+  const { a, P } = system(104, -2.7, null, 0, 30, { kind: 'collimate', d: 300 }, 'HDPE');
+  assert.equal(RF.rfMcOf(a), null);
+  assert.equal(RF.rfMcAdd(a, P), true);
+  const M = RF.rfMcOf(a);
+  assert.ok(M && M.configs.length === 2 && M.active === 0 && M.configs[1].rf.ghz === 24, 'two, copies of the design');
+  // the second at 35 GHz with its feed 20 mm further; the air after the lens its own in each
+  M.configs[1].rf.ghz = 35; M.configs[1].rf.lo = 33; M.configs[1].rf.hi = 37; M.configs[1].rf.feed.d = 170;
+  assert.equal(RF.rfMcKey(a, P, 't:1', true), false, 'the air after the last surface is not a key');
+  const m1 = RF.rfMeritReport(a, P, { keys: [], ops: [] }), one = RF.rfMeritReport(Object.assign({}, a, { rfMc: null }), P, { keys: [], ops: [] });
+  // the active configuration's five efficiencies are reported; the merit holds both configurations' terms
+  assert.ok(m1.effs.length === 5 && Math.abs(m1.mean - one.mean) < 1e-12, 'the active one’s band');
+  const terms = RF.rfMeritTerms({ asm: a, P }, { ops: [] }).terms;
+  assert.ok(terms.length === 10 && terms.filter(t => t.c === 1).length === 5 && Math.abs(terms[5].ghz - 33) < 1e-9, JSON.stringify(terms.map(t => [t.c, t.ghz])));
+  // a term for one configuration alone counts there only; the weights share the residuals
+  const t2 = RF.rfMeritTerms({ asm: a, P }, { ops: [{ op: 'TAPER', target: 11, weight: 1, sense: '=', c: 1 }] }).terms;
+  assert.ok(t2.length === 5 && t2.every(t => t.c === 1), 'in configuration 2 only');
+  M.configs[0].w = 3; M.configs[1].w = 1;
+  const t3 = RF.rfMeritTerms({ asm: a, P }, { ops: [{ op: 'TAPER', target: 0, weight: 1, sense: '=' }] }).terms, v0 = t3.filter(t => t.c === 0)[0], v1 = t3.filter(t => t.c === 1)[0];
+  assert.ok(Math.abs(v0.r / v0.value - Math.sqrt(0.75)) < 1e-9 && Math.abs(v1.r / v1.value - Math.sqrt(0.25)) < 1e-9, 'weighed by share: ' + [v0.r / v0.value, v1.r / v1.value]);
+  // switching: the bench takes the second's conditions; back again, the first's; the feed's horn id stays
+  a.rf.feed.id = 'horn';
+  assert.equal(RF.rfMcSwitch(a, 1), true);
+  assert.ok(a.rf.ghz === 35 && a.rf.feed.d === 170 && a.rf.feed.id === 'horn' && M.configs[0].rf.ghz === 24 && M.configs[0].rf.feed.d === 150, JSON.stringify(a.rf));
+  assert.equal(RF.rfMcSwitch(a, 0), true);
+  assert.ok(a.rf.ghz === 24 && a.rf.feed.d === 150, 'back');
+  // the feed distance a variable: one in each configuration; optimised, each finds its own focus (the second further out than it started: the lens's power is the same, the phase centre moves with the frequency)
+  const P2 = D.designPrescription(a), prob = RF.rfOptProblem(a, P2, { keys: ['feed'] });
+  assert.deepEqual(prob.keys, ['feed@0', 'feed@1']);
+  assert.deepEqual(prob.x0, [150, 170]);
+  let st = RF.rfOptStart(prob); for (let i = 0; i < 40 && !st.done; i++) st = RF.rfOptStep(prob, st);
+  const c = prob.at(st.x), r0 = RF.rfMeritTerms({ asm: a, P: P2 }, { ops: [] }).terms.reduce((q, t) => q + t.r * t.r, 0), r1 = RF.rfMeritTerms(c, { ops: [] }).terms.reduce((q, t) => q + t.r * t.r, 0);
+  assert.ok(r1 < r0 && Math.abs(c.asm.rf.feed.d - c.asm.rfMc.configs[1].rf.feed.d) > 0.5 && a.rf.feed.d === 150 && a.rfMc.configs[1].rf.feed.d === 170, JSON.stringify([r0, r1, c.asm.rf.feed.d, c.asm.rfMc.configs[1].rf.feed.d]));
+  // a key of its own in each: the lens's centre thickness; the second configuration keeps its value when set apart
+  assert.equal(RF.rfMcKey(a, P2, 't:0', true), true);
+  M.configs[1].v['t:0'] = 40;
+  assert.ok(Math.abs(RF.rfCfgP(a, P2, 1).gaps[0] - 40) < 1e-12 && Math.abs(P2.gaps[0] - 30) < 1e-12 && RF.rfMcValue(a, P2, 1, 't:0') === 40);
+  // removed down to one: no configurations left
+  assert.equal(RF.rfMcRemove(a, 1), true);
+  assert.equal(RF.rfMcOf(a), null);
+});

@@ -11,7 +11,7 @@ import { V, normCoat, project, uid } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { commitDesign, designOf, designPrescription, insertSinglet, removeSurface, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto, rfMeritReport, normRfMeritOps, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfScan, rfSynth, rfSyncCond } from '../engines/rf-design.js';
+import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto, rfMeritReport, normRfMeritOps, rfZonesAt, normRfTol, rfMcPlan, rfSensitivity, rfYield, rfBand, rfOptProblem, rfOptStart, rfOptStep, rfOptVars, rfPattern, rfBandSweep, rfScan, rfSynth, rfSyncCond, rfMcOf, rfMcAdd, rfMcRemove, rfMcSwitch, rfMcKey, rfMcValue, rfSetKey } from '../engines/rf-design.js';
 import { linePlot } from './lens-analyses.js';
 import { helpLine, h } from './panel.js';
 import { matchLayer } from './panels.js';
@@ -179,6 +179,7 @@ function rwDraw() {
     h('span', { class: 'rt-hmark' }, 'JEKray'),
     h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design')),
     h('span', { class: 'rt-lgap' }),
+    ...rwCfgPicker(asm),
     // (not for a system with a graded-index disc: the optical designer has no such part)
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
@@ -189,7 +190,7 @@ function rwDraw() {
   const body = h('div', { class: 'rt-lbody' });
   rwSelOk(P);
   body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
-    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'merit' ? rwMeritCard(asm, P) : rwDataCard(asm, P)));
+    RW.tab === 'ana' ? rwAnaCard(asm, P, T) : RW.tab === 'tol' ? rwTolCard(asm, P) : RW.tab === 'make' ? rwMakeCard(asm, P, T) : RW.tab === 'opt' ? rwOptCard(asm, P) : RW.tab === 'merit' ? rwMeritCard(asm, P) : RW.tab === 'cfg' ? rwCfgCard(asm, P) : rwDataCard(asm, P)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'rfToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -254,7 +255,8 @@ function rwSysList(asm, P) {
     onclick: () => { RW.sel = key; RW.design = false; rwRender(); } },
     h('span', { class: 'ic', 'aria-hidden': 'true' }, icon), h('span', { class: 'tx' }, h('b', null, name), h('small', { class: 'mono' }, sub)));
   const card = h('nav', { class: 'rt-lcard rt-lcond rt-rfsys', 'aria-label': 'The system' }, h('h2', null, 'The system'));
-  card.append(item('freq', '≈', 'Frequency', rwFmt(R.ghz, 4) + ' GHz · ' + rwFmt(R.lo, 4) + '–' + rwFmt(R.hi, 4), 'The design frequency, and the band it is judged over'),
+  const MC = rfMcOf(asm);
+  card.append(item('freq', '≈', 'Frequency', rwFmt(R.ghz, 4) + ' GHz · ' + rwFmt(R.lo, 4) + '–' + rwFmt(R.hi, 4) + (MC ? ' · ' + MC.configs[MC.active].name : ''), 'The design frequency, and the band it is judged over' + (MC ? ' (the configuration shown)' : '')),
     item('feed', '◁', 'Feed horn', (RW_HORN_SHORT[R.feed.kind] || R.feed.kind) + ' · a ' + rwFmt(R.feed.a, 3) + ' mm', 'The horn lighting the system, and how far it stands from the first lens'),
     h('div', { class: 'rt-rfsep' }));
   for (const x of rwParts(P)) {
@@ -450,7 +452,7 @@ function rwFigures(asm, T) {
 }
 function rwTabs() {
   const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
-  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('merit', 'Merit'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
+  return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
 /* ---------- A part of the system: its material, size and faces, and the air after it ---------- */
@@ -894,11 +896,12 @@ function rwMeritCard(asm, P) {
     const atCell = d.fixed ? h('span', { class: 'rt-lsub' }, '—') : h('span', { class: 'rt-lopw' },
       rwSelect(d.band ? atOpts : Object.fromEntries(Object.entries(atOpts).filter(([k]) => k !== 'band')), atOf(q), v => edit(oo => { oo.ops[i].ghz = v === 'band' ? null : v === 'design' ? R.ghz : v === 'lo' ? R.lo : v === 'hi' ? R.hi : (q.ghz === null ? R.ghz : q.ghz); }), 'Where ' + label + ' is measured'),
       ...(atOf(q) === 'own' ? [rwNum(q.ghz, v => edit(oo => { oo.ops[i].ghz = v; }), 'Frequency of ' + label + ' (GHz)', 5), h('span', { class: 'rt-lsub' }, 'GHz')] : []));
-    tb.append(h('tr', null, h('td', null, label), h('td', null, atCell),
+    const MC = rfMcOf(asm), cfgSel = MC ? rwSelect(Object.assign({ '-1': 'in every configuration' }, Object.fromEntries(MC.configs.map((cf, ci) => [String(ci), 'in ' + cf.name]))), q.c === undefined ? '-1' : String(q.c), v => edit(oo => { if (+v < 0) delete oo.ops[i].c; else oo.ops[i].c = +v; }), 'Configuration of ' + label) : null;
+    tb.append(h('tr', null, h('td', null, label, cfgSel ? h('div', null, cfgSel) : null), h('td', null, atCell),
       h('td', null, rwSelect(RF_MERIT_SENSES, q.sense, v => edit(oo => { oo.ops[i].sense = v; }), 'Sense of ' + label)),
       h('td', null, rwNum(q.target, v => edit(oo => { oo.ops[i].target = v; }), 'Target of ' + label)),
       h('td', null, rwNum(q.weight, v => edit(oo => { oo.ops[i].weight = Math.max(0, v); }), 'Weight of ' + label)),
-      h('td', { class: 'mono', title: q.at.map(a => rwFmt(a.ghz, 4) + ' GHz: ' + rwFmt(a.value, 5)).join('\n') }, q.at.length > 1 ? rwFmt(Math.min(...q.at.map(a => a.value)), 4) + ' to ' + rwFmt(Math.max(...q.at.map(a => a.value)), 4) : rwFmt(q.at[0] ? q.at[0].value : NaN, 5)),
+      h('td', { class: 'mono', title: q.at.map(a => (MC && a.c !== undefined ? MC.configs[a.c].name + ', ' : '') + rwFmt(a.ghz, 4) + ' GHz: ' + rwFmt(a.value, 5)).join('\n') }, q.at.length > 1 ? rwFmt(Math.min(...q.at.map(a => a.value)), 4) + ' to ' + rwFmt(Math.max(...q.at.map(a => a.value)), 4) : rwFmt(q.at[0] ? q.at[0].value : NaN, 5)),
       h('td', null, rwShare(q.share)),
       h('td', null, Rp.own ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + label, onclick: () => edit(oo => { oo.ops.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lsub', title: 'The merit when no term is given' }, 'default'))));
   });
@@ -917,6 +920,78 @@ function rwMeritCard(asm, P) {
     rwRow('Flat across the band', rwSelect({ 0: 'Not asked', 0.5: 'Somewhat', 2: 'Strongly' }, String(o.flat), v => edit(oo => { oo.flat = +v; }), 'Flat across the band')),
     rwRow('Thinnest edge (mm)', rwNum(o.edgeMin, v => edit(oo => { oo.edgeMin = Math.max(0, v); }), 'Thinnest edge (mm)')),
     rwRow('Thickest centre (mm, 0 for none)', rwNum(o.tMax, v => edit(oo => { oo.tMax = Math.max(0, v); }), 'Thickest centre (mm)'))));
+  return card;
+}
+/* ---------- Configurations: the system in several states, a column each ---------- */
+function rwCfgPicker(asm) {
+  const M = rfMcOf(asm);
+  if (!M) return [];
+  const x = h('select', { class: 'rt-lcfgsel', 'aria-label': 'Configuration shown', title: 'The configuration on the bench, and in the layout, figures, Element data and analyses' }, ...M.configs.map((c, i) => h('option', { value: String(i) }, c.name)));
+  x.value = String(M.active);
+  x.addEventListener('change', rwField(x, () => rwCfgShow(+x.value)));
+  return [x];
+}
+function rwCfgShow(ci) {
+  if (RW_OPT && RW_OPT.running) rwOptStop('Stopped: another configuration was shown.');
+  checkpoint();
+  const asm = RW.asm;
+  if (!rfMcSwitch(asm, ci)) return;
+  const P = designPrescription(asm);
+  rfSyncCond(asm, P); rwToBench(asm, P);
+  changed(true);
+  rwRender();
+}
+/* a key's value in the units Element data shows: a curvature as a radius, a disc's power as its focal length */
+const rwKeyShow = (key, v) => key[0] === 'c' || key[0] === 'p' ? (Math.abs(v) < 1e-12 ? Infinity : 1 / v) : v;
+const rwKeyRead = (key, v) => key[0] === 'c' || key[0] === 'p' ? (!isFinite(v) || Math.abs(v) > 1e9 || v === 0 ? 0 : 1 / v) : v;
+function rwCfgCard(asm, P) {
+  const M = rfMcOf(asm), card = h('section', { class: 'rt-lcard rt-lcfg rt-rfcfg', role: 'tabpanel', 'aria-label': 'Configurations' }, h('h3', null, 'Configurations'));
+  const addBtn = h('button', { class: 'rt-btn', type: 'button', title: 'A copy of the configuration shown, to change', onclick: () => {
+    checkpoint(); const r = rfMcAdd(asm, P); if (r !== true) { toast(r, true); return; } changed(false); rwRender();
+  } }, M ? 'Add a configuration' : 'Make configurations');
+  card.append(helpLine('The system in several states: a second band, a switched feed, another goal.', ['Each configuration has its own conditions (frequency and band, feed horn, goal) and its own values of the Element data you choose to differ between them; everything else is shared. The one shown is the bench’s: its conditions and values are the parts’, and showing another puts that one’s there. The merit adds the configurations up, each by its weight, and a value that differs between them is optimised in each one; the feed’s distance always is. Analyses, tolerancing and Make it work on the configuration shown.'], 'rt-lsub'));
+  if (!M) { card.append(h('div', { class: 'rt-lbar' }, addBtn)); return card; }
+  const vars = rfOptVars(P).filter(v => v.key !== 'feed'), nameOf = v => { const el = v.part ? getEl(v.part) : null; return v.label + (el ? ' of ' + el.name : ''); };
+  const cfgEdit = fn => { if (RW_OPT && RW_OPT.running) rwOptStop('Stopped: a configuration was changed.'); checkpoint(); fn(); changed(false); rwRender(); };
+  const tbl = h('table', { class: 'rt-ltable rt-lcfgt' }), head = h('tr', null, h('th', { scope: 'col' }, ''));
+  M.configs.forEach((c, ci) => {
+    const nm = h('input', { type: 'text', class: 'rt-lcfgname', value: c.name, 'aria-label': 'Name of configuration ' + (ci + 1), spellcheck: 'false' });
+    nm.addEventListener('change', rwField(nm, () => cfgEdit(() => { c.name = String(nm.value || 'Configuration ' + (ci + 1)).slice(0, 40); })));
+    head.append(h('th', { scope: 'col', class: ci === M.active ? 'on' : '' }, h('div', { class: 'rt-lcfgh' }, nm,
+      ci === M.active ? h('span', { class: 'rt-lpill', title: 'On the bench, and in the layout, figures, Element data and analyses' }, 'Shown') : h('button', { type: 'button', class: 'rt-link', onclick: () => rwCfgShow(ci) }, 'Show'),
+      h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Remove ' + c.name, title: 'Take this configuration out (with any merit term set for it alone)', onclick: () => { checkpoint(); rfMcRemove(asm, ci); const P2 = designPrescription(asm); rfSyncCond(asm, P2); rwToBench(asm, P2); changed(true); rwRender(); } }, '×'))));
+  });
+  tbl.append(h('thead', null, head));
+  const tb = h('tbody'), row = (label, cells, cls) => tb.append(h('tr', cls ? { class: cls } : null, h('td', { class: 'nm' }, ...[].concat(label)), ...cells));
+  // a condition's cell: the shown configuration's edits the design's conditions, another's its own
+  const rfOf = ci => (ci === M.active ? asm.rf : M.configs[ci].rf);
+  const condNum = (label, get, set, p) => M.configs.map((c, ci) => h('td', null, rwNum(get(rfOf(ci)), v => { if (ci === M.active) rwCondEdit(r => set(r, v)); else cfgEdit(() => { set(c.rf, v); c.rf = normRfCond(c.rf); }); }, label + ' in ' + c.name, p)));
+  const condSel = (label, opts, get, set) => M.configs.map((c, ci) => h('td', null, rwSelect(opts, get(rfOf(ci)), v => { if (ci === M.active) rwCondEdit(r => set(r, v)); else cfgEdit(() => { set(c.rf, v); c.rf = normRfCond(c.rf); }); }, label + ' in ' + c.name)));
+  row('Weight in the merit', M.configs.map(c => h('td', null, rwNum(c.w, v => cfgEdit(() => { c.w = Math.max(0, Math.min(1e3, v)); }), 'Weight of ' + c.name))));
+  row('Design frequency (GHz)', condNum('Design frequency (GHz)', r => r.ghz, (r, v) => { const k = v / r.ghz; r.ghz = v; r.lo *= k; r.hi *= k; }));
+  row('Band from (GHz)', condNum('Band from (GHz)', r => r.lo, (r, v) => { r.lo = v; }));
+  row('Band to (GHz)', condNum('Band to (GHz)', r => r.hi, (r, v) => { r.hi = v; }));
+  row('Feed horn', condSel('Feed horn kind', RW_HORN_NAMES, r => r.feed.kind, (r, v) => { r.feed.kind = v; }));
+  row('Feed aperture radius (mm)', condNum('Feed aperture radius (mm)', r => r.feed.a, (r, v) => { r.feed.a = v; }));
+  row(['Feed to the first lens (mm)', h('span', { class: 'rt-lsub' }, ' its own in each')], condNum('Feed to the first lens (mm)', r => r.feed.d, (r, v) => { r.feed.d = v; }));
+  row('Feed off the axis (mm)', condNum('Feed off the axis (mm)', r => r.feed.off || 0, (r, v) => { r.feed.off = v; delete r.feed.aim; delete r.feed.ang; }));
+  row('Goal', condSel('Goal', RW_GOAL_NAMES, r => r.goal.kind, (r, v) => { r.goal.kind = v; }));
+  row('Goal distance (mm)', condNum('Goal distance (mm)', r => r.goal.d, (r, v) => { r.goal.d = v; }));
+  // the values that differ: a column each, the shown one's edited into the parts
+  for (const key of M.keys) {
+    const v = vars.find(q => q.key === key); if (!v) continue;
+    const lab = nameOf(v), isVar = (asm.rfOpt && asm.rfOpt.keys || []).includes(key);
+    row([lab + (key[0] === 'k' ? '' : ' (mm)'), h('span', { class: 'rt-lsub' }, isVar ? ' varied in each' : ''),
+      h('button', { type: 'button', class: 'rt-lx', 'aria-label': 'Share ' + lab + ' again', title: 'One value for every configuration again (the one shown now)', onclick: () => cfgEdit(() => rfMcKey(asm, P, key, false)) }, '×')],
+      M.configs.map((c, ci) => h('td', null, rwNum(rwKeyShow(key, rfMcValue(asm, P, ci, key)), val => {
+        const x = rwKeyRead(key, val);
+        if (ci === M.active) rwEdit(Pd => { rfSetKey(Pd, asm, key, x); }); else cfgEdit(() => { c.v[key] = x; });
+      }, lab + ' in ' + c.name))));
+  }
+  tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
+  const left = vars.filter(v => !M.keys.includes(v.key));
+  const pick = left.length ? rwSelect(Object.fromEntries(left.map(v => [v.key, nameOf(v)])), left[0].key, () => {}, 'Value to differ between the configurations') : null;
+  card.append(h('div', { class: 'rt-lbar' }, addBtn, ...(pick ? [pick, h('button', { class: 'rt-btn quiet', type: 'button', title: 'This value its own in each configuration, starting from the one it has now', onclick: () => cfgEdit(() => rfMcKey(asm, P, pick.value, true)) }, 'Its own in each')] : [])));
   return card;
 }
 function rwOptCard(asm, P) {
@@ -960,7 +1035,10 @@ function rwOptStop(note) {
   const c = R.prob.at(R.st.x);
   if (RW && RW.asm === R.asm && R.st.mean > R.mean0) {
     rwEdit((Pd, asm) => {
-      R.prob.keys.forEach(k => {
+      R.prob.keys.forEach(k0 => {
+        // a variable of one configuration: the active one's into the parts as below, another's kept on it
+        const [k, ci] = k0.split('@'), M = rfMcOf(asm);
+        if (ci !== undefined && M && +ci !== M.active) { const cfg = M.configs[+ci], src = c.asm.rfMc.configs[+ci]; if (k === 'feed') cfg.rf.feed.d = src.rf.feed.d; else cfg.v[k] = src.v[k]; return; }
         if (k === 'feed') { asm.rf.feed.d = c.asm.rf.feed.d; return; }
         const [q, i] = k.split(':'), j = +i;
         if (q === 'p') { Pd.surfaces[j] = c.P.surfaces[j]; Pd.surfaces[j + 1] = c.P.surfaces[j + 1]; Pd.gaps[j] = c.P.gaps[j]; Pd.materials[j] = c.P.materials[j]; return; }

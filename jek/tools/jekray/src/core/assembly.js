@@ -75,13 +75,29 @@ export function normRfCond(r) {
   if (f.aim === false) { feed.aim = false; feed.ang = clamp(num(f.ang, 0), -89, 89); }
   return { ghz, lo, hi, feed, goal };
 }
+/* an RF design's configurations: the system in several states (a second band, a switched feed, another goal), each with its own
+   conditions and its own values of the Element data keys listed (c:i, k:i, t:i, o:i, p:i); the active one's are the bench's. None
+   with fewer than two. */
+export const RF_MC_MAX = 8;
+const RF_MC_KEY = k => typeof k === 'string' && /^[cktop]:\d+$/.test(k);
+export function normRfMc(m) {
+  if (!m || typeof m !== 'object' || !Array.isArray(m.configs) || m.configs.length < 2) return null;
+  const keys = Array.isArray(m.keys) ? [...new Set(m.keys.filter(RF_MC_KEY))].slice(0, 100) : [];
+  const configs = m.configs.slice(0, RF_MC_MAX).map((c, i) => {
+    c = c && typeof c === 'object' ? c : {};
+    const v = {}, src = c.v && typeof c.v === 'object' ? c.v : {};
+    for (const k of keys) if (k in src && isFinite(+src[k]) && src[k] !== null && src[k] !== '') v[k] = clamp(+src[k], -1e9, 1e9);
+    return { name: String(c.name || 'Configuration ' + (i + 1)).slice(0, 40), w: clamp(num(c.w, 1), 0, 1e3), rf: normRfCond(c.rf), v };
+  });
+  return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
+}
 export function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
   for (const a of Array.isArray(list) ? list : []) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf), ...(a.rfTol && typeof a.rfTol === 'object' ? { rfTol: JSON.parse(JSON.stringify(a.rfTol)) } : {}), ...(a.rfOpt && typeof a.rfOpt === 'object' ? { rfOpt: JSON.parse(JSON.stringify(a.rfOpt)) } : {}) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf), ...(a.rfTol && typeof a.rfTol === 'object' ? { rfTol: JSON.parse(JSON.stringify(a.rfTol)) } : {}), ...(a.rfOpt && typeof a.rfOpt === 'object' ? { rfOpt: JSON.parse(JSON.stringify(a.rfOpt)) } : {}), ...(normRfMc(a.rfMc) ? { rfMc: normRfMc(a.rfMc) } : {}) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
   }
   return out;
 }

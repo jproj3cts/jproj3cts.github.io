@@ -246,6 +246,14 @@ The system is listed down the left as the beam meets it: **Frequency**, **Feed h
 
 Every surface of the system in one table, as the optical designer's element data: the feed horn first (its distance to the first surface is the first thickness), then each face with its radius, conic (a mirror's as its part has them, positive concave, and an offset reflector's offset beside its material), the thickness after it (a lens's centre, or the air to the next part), the material after it and its clear radius, and the goal last. A lens's radii, conics, centre thickness and material and the air after each part are typed here and change the part on the bench, which Undo takes back; a graded-index disc shows its focal length, a mirror its radius as the bench has it. The **V** beside a value marks it as a variable for **Optimise**: orange when it is one. To start, each lens's two radii and its front conic are variables.
 
+### Configurations
+
+The **Configurations** tab holds the system in several states: a second band for a dual-band antenna, a switched feed (another horn, or the same horn moved off the axis), another goal. **Make configurations** gives two, the design as it is and a copy; **Add a configuration** copies the one shown. Each has a name, a weight in the merit, and its own conditions: design frequency and band, feed horn and its distance and offset, goal and its distance. Everything else is shared, unless you make an Element data value **its own in each** (a lens's centre thickness, a face's radius, the air after a part): it then has a column of its own, starting from the value it has now.
+
+- **The one shown** is the bench's: its conditions are the design's and its values the parts'. **Show** another and that one's conditions and values go onto the bench (the feed horn there is moved and set as it says); the picker in the header does the same.
+- **The merit** adds every configuration up, each by its weight (a term can be set for one configuration alone with the select beside it); **Optimise** varies a shared value once for all of them and a value that differs separately in each, the feed's distance always.
+- **Analyses**, **Tolerance** and **Make it** work on the configuration shown.
+
 ### Analyses
 
 - **Over the band**: the gain (to collimate) or the coupling (the system's S21, from the feed's Gaussian to the goal's) across the band and a tenth beyond each edge, and beneath it what each loss takes, in dB: reflections, absorption, spillover, phase error and the aperture efficiency.

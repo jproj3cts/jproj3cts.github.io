@@ -1,10 +1,10 @@
 import { C_NM_GHZ, RF_HORNS, RF_MAT, isMatchCoat, lensZones, metalR, rfBeam, rfTanD } from '../core/rf.js';
 import { faceRNormal } from '../core/face-pol.js';
-import { mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
+import { RF_MC_MAX, mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
 import { lensSystem, lensToImage, traceRay } from './lens-engine.js';
-import { surfSag, surfaceParts } from './lens-design.js';
+import { commitDesign, designPrescription, surfSag, surfaceParts } from './lens-design.js';
 import { grMatrix } from '../core/gradient.js';
 import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
 import { besselJ01 } from '../core/special.js';
@@ -557,6 +557,88 @@ const rfSet = (P, asm, key, v) => {
   if (q === 'p') { const el = getEl(s.from.id); if (el && el.grin) rfGrinInto(P, +i, Object.assign({}, el.grin, { f: v > 1e-6 ? 1 / v : 1e6 }), el.length); return; }
   if (q === 'c') s.R = Math.abs(v) < 1e-9 ? null : 1 / v; else if (q === 'k') s.k = v; else if (q === 'o') s.sec = Object.assign({}, s.sec, { h: v }); else P.gaps[+i] = v;
   if (s.sec && q !== 't') mirrorSecApply(s); };
+export const rfSetKey = rfSet;
+/* a key with its configuration (key@ci): the active one's value is the prescription's, another's is kept on it */
+const rfGetX = (P, asm, key) => {
+  const [k, c] = key.split('@'), M = rfMcOf(asm);
+  if (c === undefined || !M || +c === M.active) return rfGet(P, asm, k);
+  const cfg = M.configs[+c];
+  return k === 'feed' ? cfg.rf.feed.d : k in cfg.v ? cfg.v[k] : rfGet(P, asm, k);
+};
+const rfSetX = (P, asm, key, v) => {
+  const [k, c] = key.split('@'), M = rfMcOf(asm);
+  if (c === undefined || !M || +c === M.active) { rfSet(P, asm, k, v); return; }
+  const cfg = M.configs[+c];
+  if (k === 'feed') cfg.rf.feed.d = v; else cfg.v[k] = v;
+};
+const rfCloneP = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
+
+/* ---------- Configurations ----------
+   The system in several states (a second band, a switched feed, another goal): each configuration has its own conditions
+   (frequency and band, feed, goal) and its own values of the Element data keys listed; everything else is shared. The active
+   one is the bench's: its conditions are asm.rf and its values the parts'. The merit adds the configurations up, each by its
+   weight; a variable that differs between them is optimised in each. */
+export const rfMcOf = asm => asm && asm.rfMc && asm.rfMc.configs && asm.rfMc.configs.length > 1 ? asm.rfMc : null;
+/* the assembly as configuration ci has it: its conditions (the active one's is the assembly itself) */
+export function rfCfgAsm(asm, ci) { const M = rfMcOf(asm); return !M || ci === M.active ? asm : Object.assign({}, asm, { rf: M.configs[ci].rf }); }
+/* the prescription with configuration ci's own values (the active one's is P itself) */
+export function rfCfgP(asm, P, ci) {
+  const M = rfMcOf(asm); if (!M || ci === M.active) return P;
+  const Q = rfCloneP(P), cfg = M.configs[ci];
+  for (const k of M.keys) if (k in cfg.v) rfSet(Q, asm, k, cfg.v[k]);
+  return Q;
+}
+/* the active configuration's conditions and values (from the bench) kept as its own */
+export function rfMcStore(asm, P) {
+  const M = rfMcOf(asm); if (!M) return;
+  const cfg = M.configs[M.active];
+  cfg.rf = JSON.parse(JSON.stringify(normRfCond(asm.rf)));
+  for (const k of M.keys) cfg.v[k] = rfGet(P, asm, k);
+}
+/* another configuration made active: its conditions onto the assembly (the horns on the bench stay the same parts), its values into the parts */
+export function rfMcSwitch(asm, ci) {
+  const M = rfMcOf(asm); if (!M || ci === M.active || !M.configs[ci]) return false;
+  rfMcStore(asm, designPrescription(asm));
+  M.active = ci;
+  const was = asm.rf, cfg = M.configs[ci], rf = JSON.parse(JSON.stringify(cfg.rf));
+  if (was.feed.id) rf.feed.id = was.feed.id; else delete rf.feed.id;
+  if (rf.goal.rx) { if (was.goal.rx && was.goal.rx.id) rf.goal.rx.id = was.goal.rx.id; else delete rf.goal.rx.id; }
+  asm.rf = normRfCond(rf);
+  const P = designPrescription(asm);
+  for (const k of M.keys) if (k in cfg.v) rfSet(P, asm, k, cfg.v[k]);
+  commitDesign(asm, P);
+  rfSyncCond(asm, designPrescription(asm));
+  return true;
+}
+/* a configuration added, a copy of the active one (the first time two: the design as it is, and its copy) */
+export function rfMcAdd(asm, P) {
+  let M = rfMcOf(asm);
+  if (!M) asm.rfMc = M = { keys: [], configs: [{ name: 'Configuration 1', w: 1, rf: JSON.parse(JSON.stringify(normRfCond(asm.rf))), v: {} }], active: 0 };
+  if (M.configs.length >= RF_MC_MAX) return 'A design has at most ' + RF_MC_MAX + ' configurations.';
+  rfMcStore(asm, P || designPrescription(asm));
+  const a = M.configs[M.active];
+  M.configs.push({ name: 'Configuration ' + (M.configs.length + 1), w: a.w, rf: JSON.parse(JSON.stringify(a.rf)), v: Object.assign({}, a.v) });
+  return true;
+}
+/* configuration ci taken out (the active one hands over to its neighbour); with one left, the design has none */
+export function rfMcRemove(asm, ci) {
+  const M = rfMcOf(asm); if (!M || !M.configs[ci]) return false;
+  if (ci === M.active) rfMcSwitch(asm, ci ? ci - 1 : 1);
+  M.configs.splice(ci, 1);
+  if (M.active > ci) M.active--;
+  if (asm.rfOpt && Array.isArray(asm.rfOpt.ops)) asm.rfOpt.ops = asm.rfOpt.ops.filter(o => o.c !== ci).map(o => o.c > ci ? Object.assign({}, o, { c: o.c - 1 }) : o);
+  if (M.configs.length < 2) delete asm.rfMc;
+  return true;
+}
+/* a key made to differ between the configurations (each starts from the value it has now), or made shared again (the active one's kept) */
+export function rfMcKey(asm, P, key, on) {
+  const M = rfMcOf(asm); if (!M || key === 'feed' || !rfOptVars(P).some(v => v.key === key)) return false;
+  if (on) { if (M.keys.includes(key)) return false; M.keys.push(key); const v = rfGet(P, asm, key); for (const cfg of M.configs) cfg.v[key] = v; }
+  else { M.keys = M.keys.filter(k => k !== key); for (const cfg of M.configs) delete cfg.v[key]; }
+  return true;
+}
+/* one configuration's value of a key (the active one's is the bench's) */
+export function rfMcValue(asm, P, ci, key) { const M = rfMcOf(asm); return !M || ci === M.active || !(key in M.configs[ci].v) ? rfGet(P, asm, key) : M.configs[ci].v[key]; }
 /* ---------- The merit function ----------
    What Optimise works toward: terms, each a figure of the system measured at a frequency (or at each of the five across
    the band), with a target, a sense (at least, at most, or equal to) and a weight. With no terms, the efficiency at each
@@ -585,7 +667,8 @@ export function normRfMeritOps(list) {
   return (Array.isArray(list) ? list : []).filter(o => o && RF_MERIT_OPS[o.op]).slice(0, 40).map(o => ({
     op: o.op, ghz: o.ghz === null || o.ghz === undefined || o.ghz === '' || !isFinite(+o.ghz) ? null : Math.max(0.5, +o.ghz),
     target: isFinite(+o.target) ? +o.target : (RF_MERIT_OPS[o.op].def || 0), weight: isFinite(+o.weight) && +o.weight >= 0 ? +o.weight : 1,
-    sense: RF_MERIT_SENSES[o.sense] ? o.sense : RF_MERIT_OPS[o.op].sense }));
+    sense: RF_MERIT_SENSES[o.sense] ? o.sense : RF_MERIT_OPS[o.op].sense,
+    ...(o.c !== undefined && o.c !== null && isFinite(+o.c) && +o.c >= 0 ? { c: Math.round(Math.min(RF_MC_MAX - 1, +o.c)) } : {}) }));
 }
 /* a term's value from a system's trace t at one frequency (its pattern worked out once, when asked for) */
 function rfOpValue(op, t, asm, P, extra) {
@@ -615,6 +698,18 @@ const rfResidual = (o, v) => { const d = RF_MERIT_OPS[o.op], s = d.scale || 1; i
 /* the terms of a system c = { asm, P } against spec (its ops; none: the efficiency at each frequency as high as it can
    be): each term's value and residual, with the efficiencies across the band */
 export function rfMeritTerms(c, spec) {
+  const M = rfMcOf(c.asm);
+  if (!M) return rfMeritOne(c, spec, null);
+  // several configurations: each its own terms (a term set for one alone counts there only), its residuals weighed by its share
+  const W = M.configs.reduce((a, q) => a + q.w, 0) || 1, out = { terms: [], effs: [], mean: 0, ops: [], own: false };
+  M.configs.forEach((cfg, ci) => {
+    const T = rfMeritOne({ asm: rfCfgAsm(c.asm, ci), P: rfCfgP(c.asm, c.P, ci) }, spec, ci), sq = Math.sqrt(cfg.w / W);
+    T.terms.forEach(t => { t.r *= sq; t.c = ci; out.terms.push(t); });
+    if (ci === M.active) { out.effs = T.effs; out.mean = T.mean; out.ops = T.ops; out.own = T.own; }
+  });
+  return out;
+}
+function rfMeritOne(c, spec, ci) {
   const R = normRfCond(c.asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
   const ops = normRfMeritOps(spec.ops), terms = [], traces = new Map();
   const traceAt = f => { let t = traces.get(f); if (!t) { t = { t: rfTrace(c.asm, c.P, f, { steps: 2 }), x: {} }; traces.set(f, t); } return t; };
@@ -622,6 +717,7 @@ export function rfMeritTerms(c, spec) {
   const mean = effs.reduce((a, b) => a + b, 0) / effs.length;
   const list = ops.length ? ops : [{ op: 'EFF', ghz: null, target: 100, weight: 1, sense: '>=' }];
   list.forEach((o, j) => {
+    if (ci !== null && o.c !== undefined && o.c !== ci) return;
     const d = RF_MERIT_OPS[o.op];
     const at = o.ghz !== null ? [o.ghz] : d.band ? fs : [R.ghz];
     for (const f of at) {
@@ -636,16 +732,18 @@ export function rfMeritTerms(c, spec) {
 export function rfMeritReport(asm, P, spec) {
   const prob = rfOptProblem(asm, P, Object.assign({ keys: [] }, spec)), f = prob.res(prob.x0);
   const tot = f.r.reduce((a, v) => a + v * v, 0) || 1, nT = f.terms.length;
-  const byOp = f.ops.map((o, j) => { const at = f.terms.filter(t => t.j === j); return { op: o.op, ghz: o.ghz, target: o.target, weight: o.weight, sense: o.sense, at: at.map(t => ({ ghz: t.ghz, value: t.value })), share: at.reduce((a, t) => a + t.r * t.r, 0) / tot }; });
+  const byOp = f.ops.map((o, j) => { const at = f.terms.filter(t => t.j === j); return { op: o.op, ghz: o.ghz, target: o.target, weight: o.weight, sense: o.sense, ...(o.c !== undefined ? { c: o.c } : {}), at: at.map(t => ({ ghz: t.ghz, value: t.value, ...(t.c !== undefined ? { c: t.c } : {}) })), share: at.reduce((a, t) => a + t.r * t.r, 0) / tot }; });
   const flatShare = f.r.slice(nT, nT + f.effs.length).reduce((a, v) => a + v * v, 0) / tot, boundShare = f.r.slice(nT + f.effs.length).reduce((a, v) => a + v * v, 0) / tot;
   return { merit: Math.sqrt(tot === 1 && !f.r.length ? 0 : f.r.reduce((a, v) => a + v * v, 0)), ops: byOp, own: f.own, flatShare, boundShare, effs: f.effs, mean: f.mean };
 }
 export function rfOptProblem(asm, P, spec) {
-  const keys = spec.keys.slice(), sps = surfaceParts(P);
-  const clone = () => ({ P: Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) }), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)) }) });
+  const sps = surfaceParts(P), MC = rfMcOf(asm);
+  // a value the configurations each have their own of (the feed's distance always, with its conditions) is a variable in each: key@ci
+  const keys = []; spec.keys.forEach(k => { if (MC && (k === 'feed' || MC.keys.includes(k))) MC.configs.forEach((_, ci) => keys.push(k + '@' + ci)); else keys.push(k); });
+  const clone = () => ({ P: rfCloneP(P), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)), ...(asm.rfMc ? { rfMc: JSON.parse(JSON.stringify(asm.rfMc)) } : {}) }) });
   const R = normRfCond(asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
-  const x0 = keys.map(k => rfGet(P, asm, k));
-  const at = x => { const c = clone(); keys.forEach((k, j) => rfSet(c.P, c.asm, k, x[j])); return c; };
+  const x0 = keys.map(k => rfGetX(P, asm, k));
+  const at = x => { const c = clone(); keys.forEach((k, j) => rfSetX(c.P, c.asm, k, x[j])); return c; };
   const res = x => {
     const c = at(x), M = rfMeritTerms(c, spec), r = M.terms.map(t => t.r), { effs, mean } = M;
     effs.forEach(e => r.push((spec.flat || 0) * (e - mean)));
@@ -659,6 +757,7 @@ export function rfOptProblem(asm, P, spec) {
       } else r.push(10 * Math.max(0, 0.5 - (isFinite(edge) ? Math.min(edge, g) : -10)));
     }
     r.push(10 * Math.max(0, 1 - c.asm.rf.feed.d) / 10);
+    if (MC) c.asm.rfMc.configs.forEach(q => r.push(10 * Math.max(0, 1 - q.rf.feed.d) / 10));
     // a graded-index disc its focal length can't be graded for
     r.push(c.P.surfaces.some(s => s.grin && s.grin.bad) ? 1 : 0);
     return { r, effs, mean, terms: M.terms, ops: M.ops, own: M.own };
@@ -670,7 +769,7 @@ export function rfOptProblem(asm, P, spec) {
    differences, each step shortened until the merit falls enough (Armijo). The efficiency can't reach 1, so the
    merit's least is not zero, which a least-squares step assumes; this finds it all the same. */
 const RF_SCALE = { c: 1e-3, p: 1e-3, k: 1, t: 1, o: 1, feed: 10 };
-const rfScale = k => k === 'feed' ? RF_SCALE.feed : RF_SCALE[k[0]] || 1;
+const rfScale = k => { k = k.split('@')[0]; return k === 'feed' ? RF_SCALE.feed : RF_SCALE[k[0]] || 1; };
 export function rfOptStart(prob) {
   const sc = prob.keys.map(rfScale), u = prob.x0.map((v, j) => v / sc[j]);
   const st = { sc, u, n: u.length, H: null, iter: 0, done: false };

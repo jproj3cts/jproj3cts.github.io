@@ -39,7 +39,7 @@ A tip needs a Gaussian source to couple from: a ray fan has no field to overlap.
 
 ### Light out of the fibre
 
-Light the network sends to the tip leaves into free space as the fibre's mode, its waist on the face. It is a source *split from* the laser it came from, so it interferes with the rest of that laser's light. There is one such source for each launch, or for a laser with a line of its own, one for each group of delays within a fiftieth of its coherence length, up to six. The beam is drawn as its outline or as its diffracted field, with a fan of up to 51 rays.
+Light the network sends to the tip leaves into free space as the fibre's mode, its waist on the face. As a source has, the tip has two ticks for that light under **Light from the fibre network**: **Trace the ray fan** (with the number of rays and their pattern across the beam) and **Propagate a Gaussian beam along the axis** (with the field model and grid points); each can be off, for a picture of rays alone or a beam alone. It is a source *split from* the laser it came from, so it interferes with the rest of that laser's light. There is one such source for each launch, or for a laser with a line of its own, one for each group of delays within a fiftieth of its coherence length, up to six. The beam is drawn as its outline or as its diffracted field, with a fan of up to 51 rays.
 
 ### Multimode fibre
 

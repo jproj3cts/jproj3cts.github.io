@@ -3907,6 +3907,20 @@ const TESTS = [
     },
   },
   {
+    name: 'A fibre tip’s ticks: the ray fan and the Gaussian beam each leave on their own',
+    why: 'a fibre laser into a tip facing a screen: both on, rays land and a beam arrives; the fan off, no rays land but the beam still arrives; the beam off, rays land and nothing arrives as a field; both off, nothing (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const mk = o => bench('ftick', [fc('laser', 'L', { x: -60, y: 40, wavelength: 1550, power: 1 }),
+        Object.assign({ type: 'fibre', id: 'T', name: 'T', x: 0, y: 0, angle: 0, core: 8.2, na: 0.14, emitRays: 3 }, o), screen({ name: 'S', x: 30, length: 20 })],
+        { minPower: 1e-6, fibres: [{ a: ['L', 0], b: ['T', 0], len: 1, loss: 0 }] });
+      const look = o => { J.load(mk(o)); J.trace(); const st = J.stats('S'); return [!!(st && st.count > 0), J.arrivals('S').length > 0]; };
+      const both = look({}), noRays = look({ emitTraceRays: false }), noBeam = look({ emitGauss: false }), none = look({ emitTraceRays: false, emitGauss: false });
+      const kept = J.serialize().elements.find(e => e.id === 'T');
+      return both[0] && both[1] && !noRays[0] && noRays[1] && noBeam[0] && !noBeam[1] && !none[0] && !none[1] && kept.emitTraceRays === false && kept.emitGauss === false ? 1 : 0;
+    },
+  },
+  {
     name: 'A fibre laser’s polarisation reaches free space as set',
     why: 'out of a tip onto a screen, the normalised Stokes parameters: s (S1 −1), p (S1 +1), linear 45° from s (S2 +1), right and left circular (S3 ±1), and a file with only an angle of 30° (S1 −cos 60°), worst error',
     want: 0, tol: 1e-9, unit: '',

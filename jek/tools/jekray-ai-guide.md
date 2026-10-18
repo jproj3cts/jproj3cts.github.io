@@ -20,7 +20,7 @@ It works in 3D: every free-space part is placed freely in space, by its x and y,
 2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different "z", as in a periscope.
 3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.
 4. **Record your assumptions.** Put in "notes" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.
-5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **Open ▾ → A .jekray file**.
+5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **File › Open a .jekray file…**.
 6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.
 
 ## The file
@@ -127,7 +127,7 @@ When a file is opened, JEKray lists anything it could not use as written: an unk
 
 ## Part packs
 
-A person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File → Part packs…** and then add from **+ Add part → Packs**. A pack is one JSON object, {"format": "jekpack", "version": 1, "id": "maker.name" (2 to 64 lower-case letters, digits, dots, dashes or underscores), "name", "author", "packVersion", "description", "licence", "glasses": [{"glass": a name, "table": {"wl": [µm], "n": [...]}} or {"glass", "nd", "vd"}], "parts": [{"name", "summary", "group", "elements": [elements exactly as in a .jekray file, positioned about (0, 0)], "fibres": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add "code" or "scripts", which make the tool refuse the pack.
+A person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File › Part packs and modules…** and then add from **+ Add part › Packs**. A pack is one JSON object, {"format": "jekpack", "version": 1, "id": "maker.name" (2 to 64 lower-case letters, digits, dots, dashes or underscores), "name", "author", "packVersion", "description", "licence", "glasses": [{"glass": a name, "table": {"wl": [µm], "n": [...]}} or {"glass", "nd", "vd"}], "parts": [{"name", "summary", "group", "elements": [elements exactly as in a .jekray file, positioned about (0, 0)], "fibres": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add "code" or "scripts", which make the tool refuse the pack.
 
 ## Element reference
 
@@ -353,6 +353,8 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | na | `0.12` | numerical aperture. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
 | mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
+| popN | `256` | grid points for the field of the beam it sends out: 128, 256, 512 or 1024. |
+| popModel | `"auto"` | "auto" (round when it can be) or "2d" (always 2D, with polarisation). |
 
 ### "detector": Photodetector
 

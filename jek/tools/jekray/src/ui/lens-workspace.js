@@ -424,7 +424,7 @@ function tabsRow() {
 function dropUp(label, title, kinds, pick) {
   const wrap = h('div', { class: 'rt-dropup' });
   const menu = h('div', { class: 'rt-menu rt-dropmenu', role: 'menu', hidden: '' });
-  const btn = h('button', { class: 'rt-btn', type: 'button', title, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, label + ' \u25b4');
+  const btn = h('button', { class: 'rt-btn', type: 'button', title, 'aria-label': label, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, label + ' \u25b4');
   const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', away, true); };
   const away = e => { if (!wrap.contains(e.target)) close(); };
   for (const [key, text, why] of kinds) menu.append(h('button', { type: 'button', role: 'menuitem', title: why || null, onclick: () => { close(); pick(key); } }, text));

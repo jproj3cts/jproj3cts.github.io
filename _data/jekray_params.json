@@ -647,6 +647,16 @@
      "k": "mm",
      "def": "false",
      "meaning": "true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA."
+    },
+    {
+     "k": "popN",
+     "def": "256",
+     "meaning": "grid points for the field of the beam it sends out: 128, 256, 512 or 1024."
+    },
+    {
+     "k": "popModel",
+     "def": "\"auto\"",
+     "meaning": "\"auto\" (round when it can be) or \"2d\" (always 2D, with polarisation)."
     }
    ]
   },

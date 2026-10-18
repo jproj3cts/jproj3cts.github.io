@@ -9294,7 +9294,7 @@ const TESTS = [
         tab('Design a lens');
         set('Lens kind', 'hyperbolic');
         btn('Use this lens').click();
-        const back = lensEl().type === 'lens' && lensEl().surfaces[0].k < -2 && !!ws().querySelector('#rfWs header [title^="The same parts in the optical"]');
+        const back = lensEl().type === 'lens' && lensEl().surfaces[0].k < -2 && !!ws().querySelector('#rfWs header [title^="The same parts in the Optical"]');
         rigDoc().querySelector('#rfWs header .rt-btn[title^="Undo"]').click();
         const undone = lensEl().type === 'mask' && !!lensEl().grin;
         const all = raised && disc && flat && apOk && fEdit && fUndo && optF && tolEps && ok && has3d && drawn && quoted && back && undone;

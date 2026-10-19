@@ -471,9 +471,35 @@
     window.addEventListener("resize", closeAll);
     window.addEventListener("scroll", closeAll, { passive: true });
   }
+  // Phones: a Menu button folds the nav links away under the masthead (the CSS hides it on wider screens)
+  function initNavToggle() {
+    var top = document.querySelector(".top-container");
+    var bar = top && top.querySelector(".bar6");
+    if (!bar || bar.querySelector(".nav-toggle")) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "nav-toggle";
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", "Menu");
+    btn.innerHTML = "<i aria-hidden=\"true\"></i><span>Menu</span>";
+    bar.appendChild(btn);
+    function set(open) {
+      top.classList.toggle("nav-open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      set(!top.classList.contains("nav-open"));
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && top.classList.contains("nav-open")) { set(false); btn.focus(); }
+    });
+    window.matchMedia("(min-width: 901px)").addEventListener("change", function (m) { if (m.matches) set(false); });
+  }
+  function initNav() { initNavDrops(); initNavToggle(); }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initNavDrops);
+    document.addEventListener("DOMContentLoaded", initNav);
   } else {
-    initNavDrops();
+    initNav();
   }
 })(window, document);

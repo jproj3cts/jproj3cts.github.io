@@ -47,4 +47,9 @@ test('share links are JEKrayPro’s: made through the API with a plan, the QR co
   assert.ok(re.test('/s/ABCDEFGHJK') && re.test('/S/abcdefghjk/') && !re.test('/s/ABC') && !re.test('/s/ABCDEFGHJ1'));
   assert.match(nf, /\/jek\/tools\/jekray\.html#s=" \+ short\[1\]\.toUpperCase\(\)/);
   assert.match(nf, /var bench = \/\^\\\/R\\\//);
+  // My links in the cloud window: the person's links, opened, copied and deleted there, with their personal workspace only
+  const cl = read('src/io/cloud.js');
+  assert.match(cl, /P\.view === 'links' \? api\('\/v1\/me\/links'\)/);
+  assert.match(cl, /wsInfo && wsInfo\.kind === 'personal' \? railBtn\('My links', 'link'/);
+  assert.match(cl, /api\('\/v1\/links\/' \+ l\.id, \{ method: 'DELETE' \}\)/);
 });

@@ -13,6 +13,7 @@ import { PALETTE_NAMES, setExpGate } from '../ui/experimental.js';
 import { fillRail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
 import { MENU_ICONS } from './packs.js';
+import { openShortLink, shortUrl } from './share.js';
 import {
   API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, avatarNode, awaitPlan, fillAccount, setAccount,
   showSubscribe
@@ -380,7 +381,7 @@ const HOME_ICONS = {
   list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
   bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
   history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
-  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6', star: MENU_ICONS.star,
+  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6', star: MENU_ICONS.star, link: MENU_ICONS.link,
 };
 const homeIcon = name => {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -557,6 +558,7 @@ export async function fillHome() {
     [{ folders }, data] = await Promise.all([api('/v1/workspaces/' + ws + '/folders'),
       P.view === 'history' ? api('/v1/benches/' + P.history.id + '/versions')
         : P.view === 'parts' ? api('/v1/workspaces/' + ws + '/parts')
+        : P.view === 'links' ? api('/v1/me/links')
         : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(P.view === 'bin' ? { bin: '1' } : P.q ? { q: P.q } : P.view === 'recent' ? {} : { folder: P.folder || '' }))]);
   } catch (err) {
     if (seq !== homeSeq) return;
@@ -570,6 +572,8 @@ export async function fillHome() {
   box.removeAttribute('aria-busy');
   const byId = new Map(folders.map(f => [f.id, f]));
   if (P.folder && !byId.has(P.folder)) P.folder = null;
+  // share links are the person's own, not a workspace's: shown with their personal workspace
+  if (P.view === 'links' && wsInfo && wsInfo.kind !== 'personal') { P.view = 'folder'; fillHome(); return; }
   const go = (view, folder = null) => () => { closeHomeMenu(); Object.assign(P, { view, folder, q: '', history: null }); document.getElementById('homeSearch').value = ''; fillHome(); document.getElementById('homeMain').scrollTop = 0; };
   const pathOf = id => { const out = []; for (let f = byId.get(id); f; f = byId.get(f.parent_id)) out.unshift(f); return out; };
   // the rail: workspaces, then this one's places and folders
@@ -589,6 +593,7 @@ export async function fillHome() {
     railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
     railBtn('Recent', 'recent', here('recent'), go('recent')),
     railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', go('parts')),
+    wsInfo && wsInfo.kind === 'personal' ? railBtn('My links', 'link', P.view === 'links', go('links')) : null,
     ...tree,
     railBtn('Bin', 'trash', here('bin'), go('bin')),
     h('div', { class: 'rt-hfoot' },
@@ -739,6 +744,44 @@ export async function fillHome() {
       ev.length ? graph : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'))));
     if (homeRO) homeRO.disconnect();
     if (ev.length) { draw(); homeRO = new ResizeObserver(draw); homeRO.observe(list); }
+    return;
+  }
+  // My links: the share links made, each a snapshot of a bench as it was: open it, copy its link, or delete it
+  if (P.view === 'links') {
+    const by = { changed: (a, b) => b.created_at - a.created_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => b.created_at - a.created_at);
+    const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const list = data.links.filter(l => words.every(w => (l.name + ' ' + l.id).toLowerCase().includes(w))).sort(by);
+    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? 'My links: “' + P.q + '”' : 'My links');
+    const linkNote = !!(hooks.proWhy && hooks.proWhy());
+    note.hidden = !linkNote;
+    note.replaceChildren('Making share links needs JEKrayPro. The links you made still open for everyone, and you can delete them here. ', link('Subscribe', () => { closeHome(); showSubscribe(); }));
+    const copyLink = (l, btn) => navigator.clipboard.writeText(shortUrl(l.id)).then(() => { toast('Copied ' + shortUrl(l.id)); if (btn) btn.textContent = 'Copied'; }, () => toast(shortUrl(l.id)));
+    const open = l => { closeHome(); openShortLink(l.id); };
+    const del = l => () => {
+      if (!confirm('Delete the link to “' + l.name + '”? Anyone who has ' + shortUrl(l.id) + ' will no longer be able to open it. Your benches are not changed.')) return;
+      homeSay(() => api('/v1/links/' + l.id, { method: 'DELETE' }), 'Deleted: ' + shortUrl(l.id) + ' no longer opens')();
+    };
+    const cards = list.map(l => {
+      const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + l.name, title: 'More' }, '⋯');
+      more.addEventListener('click', () => openHomeMenu(more, [
+        ['Open on the bench', 'open', () => open(l)],
+        ['Copy the link', 'copy', () => copyLink(l)],
+        'sep',
+        ['Delete…', 'trash', del(l), 'danger']]));
+      const copyBtn = h('button', { type: 'button', class: 'rt-link', onclick: e => copyLink(l, e.target) }, 'Copy link');
+      return h('div', { class: 'rt-hcard rt-hlink', 'data-link': l.id },
+        h('button', { type: 'button', class: 'rt-hopen', title: 'Open “' + l.name + '” as it was shared', onclick: () => open(l) }, homeIcon('link'), h('span', { class: 'mono' }, '/s/' + l.id)),
+        h('div', { class: 'rt-hinfo' },
+          h('b', { title: l.name }, l.name),
+          h('small', null, 'Made ' + whenAgo(l.created_at) + ' · ' + kb(l.size_bytes)),
+          h('small', null, l.opens ? 'Opened ' + l.opens + (l.opens === 1 ? ' time' : ' times') + (l.opened_at ? ', last ' + whenAgo(l.opened_at) : '') : 'Not opened yet'),
+          h('small', null, copyBtn)),
+        more);
+    });
+    box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
+      : [h('p', { class: 'rt-hempty' }, P.q ? 'No link matches “' + P.q + '”.'
+        : 'No share links yet. On the bench, Share link makes a short link to the bench as it is then: anyone who opens it sees that snapshot, and it is listed here.')]),
+      helpLine('Each link opens the bench as it was when the link was made.', ['A share link is a snapshot: changing the bench afterwards does not change what the link opens. Share again for a new link to the bench as it is now. Delete a link here and it stops opening at once, for everyone; the benches themselves are not touched. Anyone with a link can open it without an account.'], 'rt-subsmall'));
     return;
   }
   // My parts: the parts kept, as cards with their pictures, to add to the bench, rename or delete

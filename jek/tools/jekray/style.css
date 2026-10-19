@@ -1406,6 +1406,10 @@
   .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
   .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
   /* work that is JEKrayPro's, marked while it is not open (ui/pro.js) */
+  /* a share link's card in My links: its address where a bench's picture would be */
+  .rt-hcard.rt-hlink .rt-hopen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; min-height: 5.5rem; color: var(--jek-ink-soft); }
+  .rt-hcard.rt-hlink .rt-hopen svg { width: 1.6rem; height: 1.6rem; }
+  .rt-hcard.rt-hlink .rt-hopen .mono { font-family: var(--jek-mono); font-size: 0.8rem; letter-spacing: 0.04em; }
   .rt-sharelinks { list-style: none; margin: 0.3rem 0 0; padding: 0; max-height: 12rem; overflow: auto; font-size: 0.82rem; }
   .rt-sharelinks li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 0.15rem 0.6rem; align-items: baseline; padding: 0.25rem 0; border-bottom: 1px solid var(--jek-line); }
   .rt-sharelinks li.cur .nm { font-weight: 700; }

@@ -93,3 +93,13 @@ test('off the axis the blur turns with the point’s azimuth', () => {
   assert.ok(Math.abs(ax - ay) > 0.2 * Math.max(ax, ay), `not round: ${ax}, ${ay}`);
   assert.ok(Math.abs(ax - by) < 0.03 * ax && Math.abs(ay - bx) < 0.03 * ay, `turned: ${ax}, ${ay} against ${by}, ${bx}`);
 });
+
+test('a design with one wavelength keeps the picture\'s colours, each channel blurred alike', () => {
+  const A = systems(singlet(), [0, 10], [587.56], 6), W = 33, H = 33;
+  // a red left half and a blue right half
+  const R = IM.imsimRun(A, pic(W, H, i => (i < 16 ? [1, 0, 0] : [0, 0, 1])), { grid: 2 });
+  const at = (c, i) => R.ch[c][16 * W + i];
+  assert.ok(R.mono);
+  assert.ok(at(0, 6) > 0.5 && at(2, 6) < 0.05 && at(1, 6) < 0.05, `left: ${at(0, 6)}, ${at(1, 6)}, ${at(2, 6)}`);
+  assert.ok(at(2, 26) > 0.5 && at(0, 26) < 0.05 && at(1, 26) < 0.05, `right: ${at(0, 26)}, ${at(1, 26)}, ${at(2, 26)}`);
+});

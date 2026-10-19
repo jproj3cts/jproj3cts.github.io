@@ -84,7 +84,7 @@ export function imsimPlan(A, src, o) {
   const L = (() => { let n = 1; while (n < Math.max(W, H) + 2 * 64) n <<= 1; return n; })();
   const sgn = Math.sign(par(fmax)) || 1;
   const out = [0, 1, 2].map(() => new Float32Array(W * H));
-  const D = {}, Dk = {}, done = {};
+  const D = {}, Dk = {}, KF = {};
 
   // 1. each wavelength's image moved and dimmed, and its spectrum
   const distort = (c, wi) => () => {
@@ -134,12 +134,22 @@ export function imsimPlan(A, src, o) {
     return wx * wy;
   };
   const used = [];
+  // a kernel's transform, made once for each wavelength and grid point: channels sharing a wavelength share it
+  const kernelF = (wi, nIdx) => {
+    const k = wi + '|' + nIdx;
+    if (!KF[k]) {
+      const K0 = kernelAt(wi, nodes[nIdx]), { Kr, n, half } = K0;
+      const re = new Float64Array(L * L), im = new Float64Array(L * L);
+      for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) { const v = Kr[b * n + a]; if (!v) continue; const y = (b - half + L) % L, x = (a - half + L) % L; re[y * L + x] += v; }
+      fft2(re, im, L);
+      KF[k] = { re, im, f: K0.f, geometric: K0.geometric };
+    }
+    return KF[k];
+  };
   const convolve = (c, wi, nIdx) => () => {
-    const P = nodes[nIdx], K0 = kernelAt(wi, P), { Kr, n, half } = K0;
+    const P = nodes[nIdx], K0 = kernelF(wi, nIdx);
     used.push({ c, at: P, f: K0.f, geometric: K0.geometric });
-    const re = new Float64Array(L * L), im = new Float64Array(L * L);
-    for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) { const v = Kr[b * n + a]; if (!v) continue; const y = (b - half + L) % L, x = (a - half + L) % L; re[y * L + x] += v; }
-    fft2(re, im, L);
+    const re = Float64Array.from(K0.re), im = Float64Array.from(K0.im);
     const [dr, di] = Dk[c];
     for (let q = 0; q < L * L; q++) { const r0 = re[q] * dr[q] - im[q] * di[q], i0 = re[q] * di[q] + im[q] * dr[q]; re[q] = r0; im[q] = i0; }
     fft2(re, im, L, true);
@@ -148,8 +158,8 @@ export function imsimPlan(A, src, o) {
   };
   const steps = [];
   for (let c = 0; c < 3; c++) {
-    const wi = chW[c], twin = chW.indexOf(wi);
-    if (twin < c) { steps.push(() => { done[c] = twin; }); continue; }
+    // each channel's own picture, blurred at its wavelength
+    const wi = chW[c];
     steps.push(distort(c, wi));
     for (let k = 0; k < nodes.length; k++) steps.push(convolve(c, wi, k));
   }
@@ -159,7 +169,6 @@ export function imsimPlan(A, src, o) {
     get done() { return at0; },
     next() { if (at0 < steps.length) steps[at0++](); return at0 >= steps.length; },
     result() {
-      for (const c in done) out[c].set(out[done[c]]);
       return { W, H, pitch: p, at, atOut, whole, ch: out, nm: chW.map(nmOf), mono: uniq.length === 1, nodes: used, grid: G, rmax, ideal: D };
     },
   };

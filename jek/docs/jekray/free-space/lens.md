@@ -69,15 +69,17 @@ These are read-outs only. The trace itself is exact.
 
 A Gaussian beam goes through each surface by the ray-transfer matrix of its local curvature, in the plane and out of it. The diffracted field takes each surface as a phase screen: rays traced through it in three dimensions give the real surface's phase, aberrations included (see [Free-space optics: surfaces as phase screens](/jek/docs/jekray/free-space/#surfaces-as-phase-screens)).
 
-## Mirrored faces
+## Holes, stacked surfaces and mirror coatings
 
-A face can be **Mirrored**: the whole face, a spot inside a radius, or an annulus outside one (a hole in the middle). Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. The face is split at the **Centre radius** into its centre and its rim, and the centre can have a shape of its own (**Centre shape**: flat, or its own radius of curvature and conic), a surface over the face's vertex with a step where it meets the rim, as a solid telescope's secondary is ground into its front or a flat is ground into the middle of a lens; mirrored or not. A back face mirrored whole makes a Mangin mirror, the glass correcting the mirror's spherical aberration; a flat front with a mirrored spot and a concave back mirrored round a hole make a solid telescope. The [Optical designer](/jek/docs/jekray/lens-design/#mirrored-faces) follows the light through such a lens face by face.
+Each surface has a **clear radius** (how far out from the axis it reaches: the lens's own radius unless set smaller) and a **hole radius** (inside it the surface is not there), and its **coating** can be a **mirror**: ideal (everything back), or aluminium, silver or gold with the metal's reflectance at each wavelength, the rest absorbed; a dielectric high reflector is a band coating of 99.9 %. Light meeting a mirror coating reflects wholly and stays in the glass it came from; a surface in a lens's middle with a mirror coat is a secondary ground into it.
+
+A surface given a thickness of **0** is **stacked** on the one before it: the two share a vertex and make one face, each applying between its hole and its clear radius, with a step where they meet. So a face can be a flat with a hole and a mirror-coated spot stacked in the hole, or a concave mirror coat with a hole and a plain flat stacked in the middle: a Mangin mirror is a lens whose back is mirror coated; a solid telescope is a block with the first face in front and the second behind, 40 mm of glass between. A flat ground into the middle of an ordinary lens is a flat surface stacked in a hole in its curved face. The [Optical designer](/jek/docs/jekray/lens-design/#folds-tilts-and-decentres) follows the light through such a lens surface by surface, and can stack a surface on any face. A bench saved before surfaces had holes and stacks (a face *Mirrored* whole, as a spot or as an annulus, or with a *Centre shape*) opens as the surfaces that stood for, stacked.
 
 ## Settings
 
 {% include jekray_params.html group="free" key="lens" %}
 
-Each surface in `surfaces` takes `R` (mm, or `null` for flat), `k`, `A` (a list of aspheric coefficients from $$y^4$$), `odd` and `coat`. A material is a glass from the catalogue, such as `{"glass": "N-BK7"}`, a fixed index, `{"glass": "custom", "n": 1.52}`, or a table of $$n$$ and $$k$$ against wavelength.
+Each surface in `surfaces` takes `R` (mm, or `null` for flat), `k`, `A` (a list of aspheric coefficients from $$y^4$$), `odd`, `semi` (its clear radius, mm; the lens's own when left out), `hole` (its hole radius, mm; 0 for none) and `coat` (`{"mode": "mirror", "metal": "Al"}` for a mirror coat: `ideal`, `Al`, `Ag` or `Au`). A gap of 0 in `gaps` stacks the next surface on the one before. A material is a glass from the catalogue, such as `{"glass": "N-BK7"}`, a fixed index, `{"glass": "custom", "n": 1.52}`, or a table of $$n$$ and $$k$$ against wavelength.
 
 ## Importing a catalogue lens
 

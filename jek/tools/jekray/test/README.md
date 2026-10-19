@@ -30,13 +30,13 @@ runs the checks whose names hold a text).
 | Area | Code | Node tests | Browser groups |
 |---|---|---|---|
 | build | the build, the worker entry, the page shell, the built pages | build | — |
-| bench | the tracer and the parts: geometry, coatings, glasses, parts and their panels, the 2D view | engines, demos, parts, numeric, face-pol, coatdesign, zoned, grin | the optics groups from Materials to Heights, Mirrored faces |
+| bench | the tracer and the parts: geometry, coatings, glasses, parts and their panels, the 2D view | engines, demos, parts, numeric, face-pol, coatdesign, zoned, grin | the optics groups from Materials to Heights, Surfaces: holes, stacks and mirror coatings |
 | field | the diffracted field, the close-up, vector focusing, coherence, the 3D field volume | demos | the field groups: propagation, screens, interference, slits, polarisation, high NA, coherence, dipole traps, the field in 3D |
 | cavity | cavities and lasers that settle | ghost-cavity, demos | the three Cavities groups, Lasers that settle |
 | fibre | fibre networks and parts, electronics, modulators, pulses, vapour cells, crystals | demos | fibres and detectors, Fibre networks, Fibre extras, Modulators, Sources split, Short pulses, Atomic vapour cells, Nonlinear crystals |
 | io | files, links, lens files, CAD, merging, packs, modules, the AI guide | headless, merge, zmx-cb, cad-export, lens-stock | Import, files and tools; Projects written elsewhere; Share links; Tabs and link planes; Part packs; Modules |
 | view3d | the 3D view, STL objects | zoned | The 3D view, STL objects, The field in 3D |
-| lens-design | the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings | the lens-* tests, assembly, cad-export, zmx-cb | The Optical designer (two groups), Mirrored faces; Import, files and tools |
+| lens-design | the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings | the lens-* tests, assembly, cad-export, zmx-cb | The Optical designer (two groups), Surfaces: holes, stacks and mirror coatings; Import, files and tools |
 | rf | RF parts, antennas, graded and zoned lenses, the RF designer | rf-*, antenna, grin, zoned | RF: millimetre-wave quasi-optics; RF parts on the bench; The RF designer (two groups) |
 | scripts | scripts run against the bench | — | Scripts |
 | site | the documentation pages and their data | site-pages | Projects written elsewhere, and the AI guide |

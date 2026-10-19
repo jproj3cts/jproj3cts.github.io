@@ -60,7 +60,7 @@ export function editable(P, q, i) {
   if (q === 't' && s && s.glink !== undefined) return false;
   if (q === 'R') return sp.kind === 'lens' || sp.kind === 'mirror';
   // a conic and aspheric terms: an asphere's (a plain lens's surfaces are spheres) and a mirror's conic
-  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && (!!P.parts[sp.pi].asph || !!s.zown);
+  if (q === 'k') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   if (q[0] === 'a' || q[0] === 'f') return sp.kind === 'mirror' || sp.kind === 'lens' && !!P.parts[sp.pi].asph;
   // a diffractive lens's phase terms
   if (q[0] === 'p') return sp.kind === 'lens' && !!P.parts[sp.pi].diff;
@@ -375,7 +375,7 @@ export const SURFACE_KINDS = [
 ];
 const LINKED_MSG = 'That row is the light meeting a face again: the face is edited at its first row.';
 export function insertSurface(asm, P, i, kind = 'flat') {
-  if (P.surfaces[i] && (P.surfaces[i].link || P.surfaces[i].glink !== undefined || P.surfaces[i].mz)) return P.surfaces[i].link ? LINKED_MSG : 'A surface cannot be added inside a lens with a mirrored face.';
+  if (P.surfaces[i] && (P.surfaces[i].link || P.surfaces[i].glink !== undefined)) return P.surfaces[i].link ? LINKED_MSG : 'A surface cannot be added inside a lens with a mirrored face.';
   const sps = surfaceParts(P), sp = sps[i];
   if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert an element instead.';
   if (!SURFACE_KINDS.some(k => k[0] === kind)) return 'No such kind of surface.';
@@ -409,6 +409,39 @@ export function insertSurface(asm, P, i, kind = 'flat') {
     P.parts[sp.pi].n++;
     return j => j <= i ? j : j + 1;
   }) || 'Nothing was inserted.';
+}
+/* a surface stacked on surface i's: a new surface on the part at the same vertex (a gap of 0 after surface i's), taking
+   the centre of the face (its clear radius half way out across the face's annulus), surface i holed to where the new one
+   reaches: the two make one face, each applying between its hole and its clear radius. Flat and bare to start; a surface met
+   from the far side (a flipped part) stacks the same way, the new one taking the centre of its face. The design's keys on
+   the part's later surfaces move along one */
+export function stackSurface(asm, P, i) {
+  const s = P.surfaces[i];
+  if (!s) return 'Select a surface of a lens first: the new one shares its vertex.';
+  if (s.link) return LINKED_MSG;
+  const sps = surfaceParts(P), sp = sps[i];
+  if (!sp || sp.kind !== 'lens' || !s.from || s.from.i === undefined) return 'Pick a surface of a lens: a stop or a window takes no stacked surface.';
+  const el = project.elements.find(e => e.id === sp.id);
+  if (!el || !el.surfaces || !el.gaps) return 'That part cannot take a stacked surface.';
+  const j = s.from.i, t = el.surfaces[j], outer = t.semi || el.diameter / 2, inner = t.hole || 0;
+  if (outer - inner < 1e-6) return 'That surface has no face left to share: it is holed to its clear radius.';
+  const r = Math.round((inner + (outer - inner) / 2) * 1000) / 1000;
+  const n = { R: null, k: 0, a2: 0, A: [], odd: null, semi: r, hole: inner || 0, coat: { mode: 'bare' } };
+  t.hole = r;
+  // the new one after surface j along the part, stacked on it: the same glass as surface j's gap carries
+  el.surfaces.splice(j + 1, 0, n);
+  el.gaps.splice(j, 0, 0);
+  el.materials.splice(j, 0, Object.assign({}, el.materials[Math.min(j, el.materials.length - 1)] || { glass: 'N-BK7' }));
+  const D = designOf(asm), id = el.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rx = new RegExp('^([A-Za-z]+\\d*):' + id + '\\.(\\d+)(~\\d+)?$');
+  const re = key => key.replace(rx, (m, q, k, v) => +k > j ? q + ':' + el.id + '.' + (+k + 1) + (v || '') : m);
+  const nd = { image: D.image, vars: D.vars.map(re), solves: Object.fromEntries(Object.entries(D.solves).map(([k, v]) => [re(k), v])),
+    pickups: Object.fromEntries(Object.entries(D.pickups).map(([k, v]) => [re(k), Object.assign({}, v, { from: re(v.from) })])), merit: D.merit, tol: D.tol };
+  if (mcOf(D)) nd.mc = { active: D.mc.active, keys: D.mc.keys.map(re), configs: D.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(Object.entries(c.v).map(([k, v]) => [re(k), v])) })) };
+  asm.design = normDesign(nd);
+  const P2 = asmPrescription(asm); P2.image = P.image;
+  commitDesign(asm, P2);
+  return true;
 }
 /* the kinds of element the element data can insert: a flat singlet, or one of the bench's lens presets (parts/lens.js) */
 export const ELEMENT_KINDS = [

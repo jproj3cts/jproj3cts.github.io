@@ -42,7 +42,7 @@ export const LENS = {
     // on the face (a gap of 0): a spot is a small mirror-coated surface on a face with a hole; an annulus a mirror-coated face
     // with a hole and a plain surface in its middle; a shaped centre a surface of its own in a hole; a whole face its coating
     if (Array.isArray(e.surfaces) && e.surfaces.some(s => s && s.mirror)) {
-      const S = [], G = [], M = [], MIRROR = { mode: 'mirror', metal: 'ideal' };
+      let S = [], G = [], M = []; const MIRROR = { mode: 'mirror', metal: 'ideal' };
       surfaces.forEach((f, i) => {
         const m = normMirror(e.surfaces[i] && e.surfaces[i].mirror), after = i < materials.length ? materials[i] : materials[materials.length - 1];
         S.push(f);
@@ -58,6 +58,33 @@ export const LENS = {
         }
         if (i < gaps.length) { G.push(gaps[i]); M.push(materials[i]); }
       });
+      // faces the old file had at one vertex (a gap of 0 between them) now share a stack with the surfaces made from their
+      // zones, and may overlap: a narrower member wins where two reach, the wider one holed or clipped back to it, and a member
+      // left with nothing is dropped
+      const dia2 = base.diameter / 2 || 12.7, outer = s => (s.semi || dia2), width = s => outer(s) - (s.hole || 0);
+      const stacks = []; S.forEach((s, i) => { if (!i || G[i - 1] !== 0) stacks.push([i]); else stacks[stacks.length - 1].push(i); });
+      const drop = new Set();
+      for (const st of stacks) {
+        const order = st.slice().sort((a, b) => width(S[a]) - width(S[b]));
+        for (let q = 1; q < order.length; q++) {
+          const w = S[order[q]];
+          for (let n = 0; n < q; n++) {
+            const m = S[order[n]]; if (drop.has(order[n])) continue;
+            const lo = Math.max(m.hole || 0, w.hole || 0), hi = Math.min(outer(m), outer(w));
+            if (hi - lo <= 1e-9) continue;                                              // no overlap
+            if ((m.hole || 0) <= (w.hole || 0) + 1e-9) w.hole = outer(m);               // the narrow one at the wide one's inside: holed to it
+            else if (outer(m) >= outer(w) - 1e-9) w.semi = m.hole;                      // at its outside: clipped to it
+            else { w.semi = m.hole; }                                                   // in its middle: the wide one keeps its inside
+          }
+          if (width(w) <= 1e-9) drop.add(order[q]);
+        }
+      }
+      if (drop.size) {
+        const S2 = [], G2 = [], M2 = [];
+        S.forEach((s, i) => { if (drop.has(i)) { if (i < G.length && G[i] !== 0 && G2.length) G2[G2.length - 1] += G[i]; return; } S2.push(s); if (i < G.length) { G2.push(G[i]); M2.push(M[i]); } });
+        while (G2.length >= S2.length) { G2.pop(); M2.pop(); }
+        S = S2; G = G2; M = M2;
+      }
       surfaces = S; gaps = G; materials = M;
     }
     return Object.assign(base, {

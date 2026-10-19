@@ -1,6 +1,7 @@
 import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { designPrescription } from '../engines/lens-design.js';
+import { lensPathed } from '../core/assembly.js';
 import { normRfTol } from '../engines/rf-design.js';
 import { drawableParts, drawingData, drawSag, rfDrawableParts, rfDrawingData } from '../engines/lens-drawing.js';
 import { VecCtx, layoutSvg, pdfDoc } from '../io/layout.js';
@@ -26,7 +27,14 @@ export function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol, rf = asm.kind === 'rf' && asm.rf;
   return (rf ? rfDrawableParts(P) : drawableParts(P)).map(pi => {
     const e = getEl(P.parts[pi].id), o = { name: e ? e.name : 'Lens', dia: e ? (e.type === 'lens' ? e.diameter : e.type === 'mask' ? e.length : e.size) : 0, T };
-    return asm.kind === 'rf' && asm.rf ? rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin, zoned: e && e.zoned })) : drawingData(P, pi, o);
+    if (asm.kind === 'rf' && asm.rf) return rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin, zoned: e && e.zoned }));
+    // a lens the light is followed through (mirror coats, stacked surfaces): drawn as the part is, its surfaces in their
+    // own order with its own gaps, not as the light meets them
+    if (e && e.type === 'lens' && e.surfaces && lensPathed(e)) {
+      const Pe = { surfaces: e.surfaces.map(q => Object.assign({}, q, { semi: q.semi || e.diameter / 2, hole: q.hole || 0 })), gaps: e.gaps.slice(), materials: e.materials.map(m => Object.assign({}, m)), parts: [{ id: e.id, kind: 'lens', n: e.surfaces.length }], stopIndex: -1 };
+      return drawingData(Pe, 0, o);
+    }
+    return drawingData(P, pi, o);
   });
 }
 
@@ -63,11 +71,22 @@ export function drawSheet(g, D, meta) {
   const ZN = D.zones, zcut = (j, y) => ZN && ZN.face === j ? (j ? -1 : 1) * (ZN.k(Math.abs(y)) - ZN.k(0)) * ZN.dz : 0;
   const X = (j, y) => { const s = D.surfaces[j]; let z = drawSag(s, y); if (!isFinite(z)) z = s.R ? Math.sign(s.R) * Math.abs(s.R) : 0; return cx + (zs[j] + z + zcut(j, y)) * k; };
   const Y = y => cy - y * k;
-  // each glass between its two surfaces, the rim straight across
-  const prof = j => { const out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = rr(D.surfaces[j]), nq = ZN ? 400 : 40; for (let q = 0; q <= nq; q++) { const y = -h0 + 2 * h0 * q / nq; out.push([X(j, y), Y(y)]); } return out; };
+  // the faces: each the stack of the surfaces at one vertex; across it the member whose annulus (hole to clear aperture)
+  // holds the height, else the widest
+  const stacks = D.stacks || D.surfaces.map((s, j) => [j]), stackOf = []; stacks.forEach((st, q) => st.forEach(j => { stackOf[j] = q; }));
+  const memberAt = (q, y) => { const st = stacks[q], h = Math.abs(y); return st.filter(j => h >= D.surfaces[j].hole / 2 - 1e-9 && h <= D.surfaces[j].clear / 2 + 1e-9).sort((a, b) => (D.surfaces[a].clear - D.surfaces[a].hole) - (D.surfaces[b].clear - D.surfaces[b].hole))[0] ?? st.reduce((a, b) => (D.surfaces[b].clear > D.surfaces[a].clear ? b : a)); };
+  // each glass between its two faces, the rim straight across
+  const prof = q => {
+    const st = stacks[q], out = [], rr = s => s.R ? Math.min(r, Math.abs(s.R)) : r, h0 = Math.max(...st.map(j => rr(D.surfaces[j]))), nq = ZN ? 400 : 40, ys = [];
+    for (let i = 0; i <= nq; i++) ys.push(-h0 + 2 * h0 * i / nq);
+    if (st.length > 1) for (const j of st) for (const d of [D.surfaces[j].hole / 2, D.surfaces[j].clear / 2]) if (d > 0 && d < h0) for (const sg of [1, -1]) ys.push(sg * (d - 1e-6), sg * (d + 1e-6));
+    ys.sort((a, b) => a - b);
+    for (const y of ys) out.push([X(memberAt(q, y), y), Y(y)]);
+    return out;
+  };
   D.elements.forEach((e, i) => {
-    if (e.air) return;
-    const a = prof(i), b = prof(i + 1).reverse();
+    if (e.air || e.stack) return;
+    const a = prof(stackOf[i]), b = prof(stackOf[i + 1]).reverse();
     g.beginPath(); a.forEach(([x, y], q) => q ? g.lineTo(x, y) : g.moveTo(x, y)); b.forEach(([x, y]) => g.lineTo(x, y)); g.closePath();
     g.fillStyle = SH_GLASS; g.fill(); g.strokeStyle = SH_INK; g.lineWidth = 1.1; g.stroke();
   });
@@ -90,7 +109,7 @@ export function drawSheet(g, D, meta) {
   g.beginPath(); g.moveTo(cx - 30, cy); g.lineTo(cx + D.length * k + 30, cy); g.stroke(); g.setLineDash([]);
   // the clear apertures: a short tick at each surface's edge of use
   g.strokeStyle = '#2f7d95'; g.lineWidth = 0.8;
-  D.surfaces.forEach((s, j) => { const hh = s.clear / 2; if (hh >= r - 1e-9) return; for (const y of [hh, -hh]) { const x = X(j, y); g.beginPath(); g.moveTo(x - 4, Y(y)); g.lineTo(x + 4, Y(y)); g.stroke(); } });
+  D.surfaces.forEach((s, j) => { for (const hh of [s.clear / 2, s.hole / 2]) { if (hh <= 0 || hh >= r - 1e-9) continue; for (const y of [hh, -hh]) { const x = X(j, y); g.beginPath(); g.moveTo(x - 4, Y(y)); g.lineTo(x + 4, Y(y)); g.stroke(); } } });
   // dimensions: the diameter on the left; each centre thickness below; each edge thickness above
   g.strokeStyle = SH_INK; g.fillStyle = SH_INK; g.lineWidth = 0.5;
   const xl = Math.min(...D.surfaces.map((s, j) => Math.min(X(j, r), X(j, 0)))) - 26;
@@ -104,20 +123,20 @@ export function drawSheet(g, D, meta) {
     g.save(); g.translate(xo - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(2 * ro), 0, 0, { align: 'center', size: 9 }); g.restore();
   }
   D.elements.forEach((e, i) => {
-    if (e.air) return;
-    const xa = X(i, 0), xb = X(i + 1, 0), yb = Y(-ro) + 22 + 14 * (i % 2), yt = Y(ro) - 22 - 14 * (i % 2);
+    if (e.air || e.stack) return;
+    const qa = stackOf[i], qb = stackOf[i + 1], xa = X(memberAt(qa, 0), 0), xb = X(memberAt(qb, 0), 0), yb = Y(-ro) + 22 + 14 * (i % 2), yt = Y(ro) - 22 - 14 * (i % 2);
     for (const x of [xa, xb]) { g.beginPath(); g.moveTo(x, cy + 3); g.lineTo(x, yb + 4); g.stroke(); }
     arrowLine(g, xa, yb, xb, yb);
     text(g, dfmt(e.ct) + (e.ctTol ? ' ± ' + dfmt(e.ctTol) : ''), (xa + xb) / 2, yb + 11, { align: 'center', size: 8.5 });
     if (isFinite(e.et)) {
-      const ea = X(i, r), eb = X(i + 1, r);
+      const ea = X(memberAt(qa, r), r), eb = X(memberAt(qb, r), r);
       for (const x of [ea, eb]) { g.beginPath(); g.moveTo(x, Y(r) - 3); g.lineTo(x, yt - 4); g.stroke(); }
       arrowLine(g, ea, yt, eb, yt);
       text(g, '(' + dfmt(e.et) + ')', (ea + eb) / 2, yt - 5, { align: 'center', size: 8.5 });
     }
   });
   // each surface's number on its face
-  D.surfaces.forEach((s, j) => text(g, 'S' + s.n, X(j, 0) + (j === 0 ? -4 : 4), cy - 4, { align: j === 0 ? 'right' : 'left', size: 7, ink: SH_SOFT }));
+  D.surfaces.forEach((s, j) => { const q = stackOf[j], at = stacks[q].indexOf(j); text(g, 'S' + s.n, X(memberAt(q, 0), 0) + (q === 0 ? -4 : 4), cy - 4 - 9 * at, { align: q === 0 ? 'right' : 'left', size: 7, ink: SH_SOFT }); });
   text(g, (RF ? 'The feed on the left. Scale ' : 'Light from the left. Scale ') + sa + ':' + sb + '.', box.x, box.y + box.h + 6, { size: 7.5, ink: SH_SOFT });
 
   // ---- the table ----
@@ -134,6 +153,8 @@ export function drawSheet(g, D, meta) {
   row('Radius R', D.surfaces.map(s => s.R === null ? 'Flat' : sgn(s.R) + (s.face ? ' ' + s.face : '')));
   if (D.surfaces.some(s => s.dR !== undefined)) row('  tolerance', D.surfaces.map(s => s.dR === null || s.dR === undefined ? '—' : '± ' + dfmt(s.dR, 4)));
   row('Clear aperture Øe', D.surfaces.map(s => dfmt(s.clear)));
+  if (D.surfaces.some(s => s.hole)) row('Hole Ø', D.surfaces.map(s => s.hole ? dfmt(s.hole) : '—'));
+  if (D.surfaces.some(s => s.coat)) row('Coating', D.surfaces.map(s => s.coat || '—'));
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
@@ -146,10 +167,10 @@ export function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
   ty += 10;
-  text(g, RF ? 'Material' : D.elements.filter(e => !e.air).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
-  const gl = D.elements.filter(e => !e.air), gw = (tw - c0) / Math.max(1, gl.length);
+  text(g, RF ? 'Material' : D.elements.filter(e => !e.air && !e.stack).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
+  const gl = D.elements.filter(e => !e.air && !e.stack), gw = (tw - c0) / Math.max(1, gl.length);
   const grow = (label, f) => { text(g, label, tx, ty, { size: 8, ink: SH_SOFT }); gl.forEach((e, q) => text(g, f(e), tx + c0 + q * gw, ty, { size: 8, mono: true })); ty += 4; g.strokeStyle = '#c8ced4'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx + tw, ty); g.stroke(); ty += 10; };
-  grow('Between', e => 'S' + D.surfaces[e.from].n + '–S' + D.surfaces[e.from + 1].n);
+  grow('Between', e => stacks[stackOf[e.from]].map(j => 'S' + D.surfaces[j].n).join('/') + '–' + stacks[stackOf[e.from + 1]].map(j => 'S' + D.surfaces[j].n).join('/'));
   grow('Material', e => e.glass);
   if (RF) {
     grow('Permittivity εr', () => RF.grin ? 'graded as below, at ' + dfmt(RF.ghz, 4) + ' GHz' + (RF.epsTol ? '; ± ' + dfmt(RF.epsTol, 1) + ' %' : '') : dfmt(RF.eps, 3) + (RF.epsTol ? ' ± ' + dfmt(RF.epsTol, 1) + ' %' : '') + ' at ' + dfmt(RF.ghz, 4) + ' GHz');

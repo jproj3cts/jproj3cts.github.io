@@ -7171,32 +7171,69 @@ const TESTS = [
       const p1 = ends(J.byName('Output 1').id), p2 = ends(J.byName('Output 2').id);
       return p1 > 0 && p2 >= 0 ? Math.min(p1, p2) / Math.max(p1, p2) : NaN;
     },
-  },  { group: 'Mirrored faces' },
+  },  { group: 'Surfaces: holes, stacks and mirror coatings' },
   {
-    name: 'A solid telescope on the bench focuses behind its hole where the Optical designer says; its prescription lists each face twice',
-    why: 'a block of N-BK7, flat front with a mirrored spot (r 16.5), back R −200 mirrored outside r 6.5, 40 mm thick: rays entering round the spot come to a focus about 12.8 mm behind the block (R/2 − 2T, the last 20 mm in glass); the assembly’s prescription has four rows, the two later ones linked; the bench’s focus and the engine’s agree to 0.3 mm (1 when all hold)',
+    name: 'A solid telescope of two stacked faces focuses behind its centre where the Optical designer says; a Mangin mirror folds',
+    why: 'a block of N-BK7 40 mm thick: a flat front with a hole of 16.5 and a flat mirror-coated spot stacked in it, a back R −200 mirror coated (aluminium) with a hole of 6.5 and a flat stacked in it: rays entering round the spot come to a focus about 12.8 mm behind the block; the assembly’s prescription has four rows, each surface met once, in the order the light meets them, with the holes as obscurations; the designer’s path and the bench’s rays agree; a Mangin mirror (its back mirror coated) brings the light back and folds the axis (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
-      J.load(bench('soltel', [src({ name: 'Src', x: -80, width: 44, rays: 15 }),
-        { type: 'lens', id: 'T', name: 'Telescope', x: 0, y: 0, angle: 0, diameter: 50, surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] },
-        screen({ name: 'S', x: 20 + 12.75, length: 10 })], { minPower: 1e-6 }));
+      const block = { type: 'lens', id: 'T', name: 'Telescope', x: 0, y: 0, angle: 0, diameter: 50,
+        surfaces: [{ R: null, hole: 16.5 }, { R: null, semi: 16.5, coat: { mode: 'mirror' } }, { R: -200, hole: 6.5, coat: { mode: 'mirror', metal: 'Al' } }, { R: null, semi: 6.5 }],
+        gaps: [0, 40, 0], materials: [{ glass: 'N-BK7' }, { glass: 'N-BK7' }, { glass: 'N-BK7' }] };
+      J.load(bench('soltel', [src({ name: 'Src', x: -80, width: 44, rays: 15 }), block, screen({ name: 'S', x: 20 + 12.75, angle: 180, length: 10 })], { minPower: 1e-6 }));
       J.trace();
       const st = J.stats('S');
-      const okSpot = !!st && st.count >= 4 && st.rms < 0.3;      // the rays inside the spot are blocked; the four outside it land
+      const okSpot = !!st && st.count >= 4 && st.rms < 0.3;      // the rays inside the spot are turned back; the ones outside it land
       J.makeAssembly(['Telescope']);
       const a = J.assemblies()[0], P = J.asmPrescription(a.name), efl = J.asmEfl(a.name);
-      const okP = P.surfaces.length === 4 && P.surfaces.map(s => !!s.mirror).join() === 'false,true,true,false' && P.surfaces[2].zown && P.surfaces[3].zown && P.surfaces[1].faceOwn && !P.surfaces[2].link && P.surfaces[0].obs === 16.5 && P.surfaces[3].semi === 6.5;
-      // the engine's first order follows the folds: a real, positive focal length
+      const okP = P.surfaces.length === 4 && P.surfaces.map(s => s.from.i).join() === '0,2,1,3' && P.surfaces.map(s => !!s.mirror).join() === 'false,true,true,false' && !P.surfaces.some(s => s.link) &&
+        P.surfaces[0].obs === 16.5 && P.surfaces[1].obs === 6.5 && P.surfaces[2].semi === 16.5 && P.surfaces[3].semi === 6.5 && P.gaps.join() === '40,40,40' && P.surfaces[1].coat && P.surfaces[1].coat.metal === 'Al';
       const okB = isFinite(efl) && efl > 0 && efl < 100;
+      // written back: four surfaces, stacked as they were
+      J.openLensDesign(a.name); const tbl = document.getElementById('rig').contentDocument.querySelector('.rt-lpath'); J.closeLensDesign && J.closeLensDesign();
+      const T2 = J.project().elements.find(e => e.id === 'T');
+      const okBack = T2.surfaces.length === 4 && T2.gaps.join() === '0,40,0' && T2.surfaces[0].hole === 16.5 && T2.surfaces[2].coat.metal === 'Al' && !!tbl;
       // a Mangin mirror's light comes back: the lens folds the axis for the assembly
       J.load(bench('mangin', [src({ name: 'Src', x: -80, width: 20, rays: 9 }),
-        { type: 'lens', id: 'M', name: 'Mangin', x: 0, y: 0, angle: 0, diameter: 30, surfaces: [{ R: -200 }, { R: -100, mirror: { zone: 'all' } }], gaps: [6], materials: [{ glass: 'N-BK7' }] },
+        { type: 'lens', id: 'M', name: 'Mangin', x: 0, y: 0, angle: 0, diameter: 30, surfaces: [{ R: -200 }, { R: -100, coat: { mode: 'mirror' } }], gaps: [6], materials: [{ glass: 'N-BK7' }] },
         screen({ name: 'F', x: -3 - 34.94, angle: 0, length: 10 })], { minPower: 1e-6 }));     // the front vertex is at -3; the focus 34.94 before it
       J.trace();
       const sf = J.stats('F'); J.makeAssembly(['Mangin']);
       const b = J.assemblies()[0], PM = J.asmPrescription(b.name);
       const okM = !!sf && sf.count >= 8 && sf.rms < 0.3 && PM.surfaces.length === 3 && PM.folded && Math.abs(J.asmEfl(b.name) - 38.85) < 0.05;
-      if (!(okSpot && okP && okB && okM)) throw new Error(JSON.stringify({ okSpot, okP, okB, okM, st: st && { count: st.count, rms: st.rms }, efl, sf: sf && { count: sf.count, rms: sf.rms }, n: PM.surfaces.length, folded: PM.folded, eflM: J.asmEfl(b.name) }));
+      if (!(okSpot && okP && okB && okBack && okM)) throw new Error(JSON.stringify({ okSpot, okP, okB, okBack, okM, st: st && { count: st.count, rms: st.rms }, efl, from: P.surfaces.map(s => s.from.i), sf: sf && { count: sf.count, rms: sf.rms }, n: PM.surfaces.length, folded: PM.folded, eflM: J.asmEfl(b.name) }));
+      return 1;
+    },
+  },
+  {
+    name: 'A lens saved with mirrored zones loads as stacked surfaces and traces the same; a surface stacked in the designer takes the centre of its face',
+    why: 'the solid telescope as an older file saved it (a mirrored spot "in" 16.5 on the front, the back mirrored "out" 6.5) loads as four surfaces with gaps 0, 40, 0 and lands the same rays on the screen; in the designer, Stack a surface on a singlet’s front makes a flat centre of half its radius in a hole, the design following the centre, and a variable on the back moves along with its key (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('soltel2', [src({ name: 'Src', x: -80, width: 44, rays: 15 }),
+        { type: 'lens', id: 'T', name: 'Telescope', x: 0, y: 0, angle: 0, diameter: 50, surfaces: [{ R: null, mirror: { zone: 'in', r: 16.5 } }, { R: -200, mirror: { zone: 'out', r: 6.5 } }], gaps: [40], materials: [{ glass: 'N-BK7' }] },
+        screen({ name: 'S', x: 20 + 12.75, angle: 180, length: 10 })], { minPower: 1e-6 }));
+      J.trace();
+      const T = J.project().elements.find(e => e.id === 'T'), st = J.stats('S');
+      const okConv = T.surfaces.length === 4 && T.gaps.join() === '0,40,0' && T.surfaces.map(s => s.coat.mode).join() === 'bare,mirror,mirror,bare' && T.surfaces[0].hole === 16.5 && T.surfaces[1].semi === 16.5 && T.surfaces[2].hole === 6.5 && T.surfaces[3].semi === 6.5 && !T.surfaces.some(s => s.mirror);
+      const okRays = !!st && st.count >= 4 && st.rms < 0.3;
+      // stacking in the designer
+      J.load(bench('stack', [src({ name: 'Src', x: -80, width: 20, rays: 9 }), { type: 'lens', id: 'L', name: 'Lens', x: 60, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }, screen({ name: 'C', x: 110, angle: 180, length: 20 })], { minPower: 1e-6 }));
+      J.trace(); J.makeAssembly(['Lens']); const a = J.assemblies()[0].name; J.openLensDesign(a);
+      await new Promise(r => setTimeout(r, 300));
+      const doc = document.getElementById('rig').contentDocument;
+      doc.querySelector('button[aria-label="Vary radius of surface 2"]').click();
+      await new Promise(r => setTimeout(r, 200));
+      [...doc.querySelectorAll('.rt-ltable:not(.rt-lpath) tbody tr')].find(r => /Lens, front/.test(r.textContent)).querySelector('td.nm').click();
+      await new Promise(r => setTimeout(r, 200));
+      [...doc.querySelectorAll('.rt-lbar button')].find(b => b.textContent === 'Stack a surface').click();
+      await new Promise(r => setTimeout(r, 400));
+      const P = J.asmPrescription(a), D = J.assemblies()[0].design, L = J.project().elements.find(e => e.id === 'L');
+      const rows = [...doc.querySelectorAll('.rt-ltable:not(.rt-lpath) tbody tr')].map(r => r.textContent.replace(/\s+/g, ' ').trim());
+      const okStack = L.surfaces.length === 3 && L.gaps.join() === '0,3.6' && L.surfaces[0].hole === 6.35 && L.surfaces[1].semi === 6.35 && L.surfaces[1].R === null &&
+        P.surfaces.map(s => s.from.i).join() === '1,2' && D.vars.join() === 'R:L.2' && rows.some(r => /Lens 2 \(on 1\)/.test(r)) && rows.some(r => /Lens 1.*not on the light/.test(r)) && !!doc.querySelector('.rt-lpath');
+      J.closeLensDesign && J.closeLensDesign();
+      if (!(okConv && okRays && okStack)) throw new Error(JSON.stringify({ okConv, okRays, okStack, gaps: T.gaps, st: st && { count: st.count, rms: st.rms }, L: L.surfaces.map(s => [s.R, s.semi, s.hole]), from: P.surfaces.map(s => s.from.i), vars: D.vars, rows }));
       return 1;
     },
   },  { group: 'Scripts' },

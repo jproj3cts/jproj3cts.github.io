@@ -1510,7 +1510,8 @@ function traceSceneOnce() {
           // on the way in, that of the light refracted (found by going round twice)
           const thFrom = tc && mFrom.bire && tag === mFrom.ePol ? angTo(mFrom, [ldx, ldy, ldz]) : undefined;
           // a face of a graded glass: its index where the ray meets the face
-          const grF = s.el && (s.el.graded || s.el.grin) && (mFrom.grad || mInto.grad), grR2 = grF ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
+          // a coating that varies across the face (s.coatAt, a graded slab's matching layer): the one at this radius
+          const grF = s.el && (s.el.graded || s.el.grin) && (mFrom.grad || mInto.grad), grR2 = grF || s.coatAt ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
           const n1 = nOf(mFrom, tag, thFrom) + (grF && mFrom.grad ? grDelta(mFrom.grad, grR2) : 0);
           let thInto;
           if (tc && mInto.bire && tag === mInto.ePol) for (let it = 0, nn = nOf(mInto, tag, Math.PI / 2); it < 3; it++) {
@@ -1523,7 +1524,7 @@ function traceSceneOnce() {
           const k = 1 - eta * eta * (1 - ci * ci);
           // the face's own amplitudes, reflected and passed (core/face-pol.js: the same numbers the field, the lens
           // designer and the RF designer take)
-          const F = faceAmps(s, n1, n2, ci, nm), total = F.tir;
+          const F = faceAmps(s.coatAt ? { coat: s.coatAt(Math.sqrt(grR2)) } : s, n1, n2, ci, nm), total = F.tir;
           const rsr = F.rs[0], rsi = F.rs[1], rpr = F.rp[0], rpi = F.rp[1];
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm

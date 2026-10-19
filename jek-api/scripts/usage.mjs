@@ -11,6 +11,7 @@
 // on three days is three visits. JEK_API overrides https://api.jeksys.net.
 
 import { writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const API = process.env.JEK_API || 'https://api.jeksys.net';
@@ -34,6 +35,8 @@ async function get() {
   if (!TOKEN) throw new Error('Set JEK_OPS_TOKEN first (the value you gave `npx wrangler secret put OPS_TOKEN`).');
   const res = await fetch(`${API}/ops/usage?days=${Number(o.days) || 30}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
   const out = await res.json().catch(() => ({}));
+  // the API answers 404 to a wrong token, as it does to anyone guessing at /ops
+  if (res.status === 404) throw new Error(`${API} did not accept JEK_OPS_TOKEN: it is not the value of the OPS_TOKEN secret, or the API with usage counts is not deployed yet.`);
   if (!res.ok) throw new Error((out.error && out.error.message) || `HTTP ${res.status}`);
   return out;
 }
@@ -131,7 +134,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowra
 </main></body></html>`;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// run, not imported (as a URL, so Windows paths compare too)
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const r = await get();
     if (o.json) console.log(JSON.stringify(r, null, 2));

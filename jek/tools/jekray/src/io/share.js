@@ -9,11 +9,16 @@ import { h, holdScroll, mainPanel, pinBoxes, pinOk, pins, renderPanel, setPins, 
 import { toast } from '../ui/actions.js';
 import { undo } from '../ui/tabs.js';
 import { openProjectData } from './open.js';
+import { accountsOn, api } from './account.js';
+import { designPro, designWhy } from '../ui/pro.js';
 
 /* ---------- Sharing a bench as a link ----------
-   The project, less everything that is its default, compressed into the part of the address
-   after #, which browsers never send to the server: the link is the file. It opens through
-   the same door as a pasted project, so a damaged link gets the same report. */
+   The project, less everything that is its default, compressed. A share link is JEKrayPro's: the
+   compressed bench is kept with the person's account and the link is short, /s/ and ten capitals,
+   which the API makes only for someone with a plan (jek-api src/links.js); anyone opens it. Links made
+   before, which carried the bench itself after #p=, and the QR codes' /R/ ones, still open. Either way
+   it opens through the same door as a pasted project, so a damaged link gets the same report. A build
+   without accounts (the tests) still makes the long kind. */
 const SHARE_LONG = 2000;                 // characters past which some apps cut a link
 /* The panels as they are: the element shown, those pinned (in order), each one's tab and plot
    choices and where each panel and the page are scrolled. A link carries them, so whoever
@@ -156,8 +161,25 @@ function shareDataCompact() {
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const b32 = bytes => { let out = '', acc = 0, bits = 0; for (const b of bytes) { acc = (acc << 8) | b; bits += 8; while (bits >= 5) { out += B32[(acc >>> (bits - 5)) & 31]; bits -= 5; } acc &= (1 << bits) - 1; } if (bits) out += B32[(acc << (5 - bits)) & 31]; return out; };
 const unb32 = t => { const out = []; let acc = 0, bits = 0; for (const ch of t.toUpperCase()) { const v = B32.indexOf(ch); if (v < 0) throw new Error('bad'); acc = (acc << 5) | v; bits += 5; if (bits >= 8) { out.push((acc >>> (bits - 8)) & 255); bits -= 8; } acc &= (1 << bits) - 1; } return new Uint8Array(out); };
-/* the QR link: [url, alphanumeric?]: capitals throughout where the site's address allows it */
+/* a short link to the bench as it is now: its id, made once for the same bench in this visit */
+const MADE = new Map();
+export async function shortLink(data) {
+  const text = await shareHash(data);
+  if (MADE.has(text)) return MADE.get(text);
+  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: project.name || 'Untitled bench', data: text }) });
+  MADE.set(text, r.id);
+  return r.id;
+}
+export const shortUrl = id => location.origin + '/s/' + id;
+/* the QR link: [url, alphanumeric?]: capitals throughout where the site's address allows it. With accounts,
+   a short link (JEKrayPro's), /S/ and its id in capitals */
 export async function qrLink() {
+  if (accountsOn()) {
+    const why = designWhy('make a QR code of the bench');
+    if (why) throw new Error(why);
+    const id = await shortLink(), host = location.origin.toUpperCase();
+    return /^[0-9A-Z $%*+\-.\/:]+$/.test(host) ? [host + '/S/' + id, true] : [shortUrl(id), false];
+  }
   const json = new TextEncoder().encode(JSON.stringify(shareDataCompact()));
   const host = location.origin.toUpperCase();
   if (typeof CompressionStream !== 'undefined' && /^[0-9A-Z $%*+\-.\/:]+$/.test(host)) {
@@ -166,18 +188,48 @@ export async function qrLink() {
   return [shareBase() + '#p=' + await shareHash(shareDataCompact()), false];
 }
 async function shareLink() {
-  const hash = '#p=' + await shareHash(), url = shareBase() + hash;
+  const short = accountsOn();
+  if (short && !designPro('share a link')) return;
+  const id = short ? await shortLink() : null, hash = short ? '#s=' + id : '#p=' + await shareHash(), url = short ? shortUrl(id) : shareBase() + hash;
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
   box.value = url;
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   const embed = () => { document.getElementById('shareEmbed').value = '<iframe src="' + esc(shareBase() + (document.getElementById('shareLocked').checked ? '?embed=locked' : '?embed') + hash) + '" width="800" height="500" style="border:0;max-width:100%" loading="lazy" title="' + esc('JEKray: ' + (project.name || 'bench')) + '"></iframe>'; document.getElementById('shareEmbedCopy').textContent = 'Copy embed code'; };
   document.getElementById('shareLocked').onchange = embed; embed();
-  note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
+  if (short) { note.textContent = 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play. A copy of it is kept with your account until you delete the link below.'; linksList(id); }
+  else note.textContent = url.length.toLocaleString() + ' characters. ' + (url.length > SHARE_LONG
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
     : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
   dlg.showModal(); box.focus(); box.select();
   try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; }
   catch (err) { document.getElementById('shareCopy').textContent = 'Copy'; }
+}
+/* the person's share links, in the dialog: each with when it was made and how often opened, to copy or delete */
+async function linksList(current) {
+  const box = document.getElementById('shareLinks');
+  if (!box) return;
+  box.replaceChildren(h('p', { class: 'note' }, 'Your share links\u2026'));
+  let links;
+  try { links = (await api('/v1/me/links')).links; } catch (err) { box.replaceChildren(h('p', { class: 'note' }, 'Your share links could not be listed: ' + err.message)); return; }
+  const day = t => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const rows = links.map(l => h('li', { class: l.id === current ? 'cur' : '' },
+    h('span', { class: 'nm' }, l.name), h('span', { class: 'mono' }, '/s/' + l.id), h('span', { class: 'rt-lsub' }, day(l.created_at) + ' \u00b7 opened ' + l.opens + (l.opens === 1 ? ' time' : ' times')),
+    h('button', { type: 'button', class: 'rt-link', onclick: e => { navigator.clipboard.writeText(shortUrl(l.id)).then(() => { e.target.textContent = 'Copied'; }, () => {}); } }, 'Copy'),
+    h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Delete the link ' + l.id, onclick: async () => {
+      try { await api('/v1/links/' + l.id, { method: 'DELETE' }); } catch (err) { toast('Could not delete it: ' + err.message, true); return; }
+      for (const [k, v] of MADE) if (v === l.id) MADE.delete(k);
+      toast('Deleted: ' + shortUrl(l.id) + ' no longer opens.');
+      linksList(current);
+    } }, 'Delete')));
+  box.replaceChildren(h('details', { open: links.length <= 5 ? '' : null }, h('summary', null, 'Your share links (' + links.length + ')'),
+    links.length ? h('ul', { class: 'rt-sharelinks' }, ...rows) : h('p', { class: 'note' }, 'None yet.')));
+}
+/* a short link opened: its bench fetched, for anyone, and opened as a long one is */
+export async function openShortLink(id) {
+  let r;
+  try { r = await api('/v1/links/' + encodeURIComponent(id)); }
+  catch (err) { toast('Could not open that link: ' + err.message, true); return; }
+  return openShareHash(r.data);
 }
 /* a link opened: its bench replaces this one (Ctrl+Z brings this one back) */
 export async function openShareHash(h) {

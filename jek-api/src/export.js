@@ -1,6 +1,7 @@
 // GET /v1/me/export: everything we hold about the person, as a zip — their
 // account as JSON, the current version of every bench in every workspace
-// they belong to, in its folders, and their saved parts. Works with or without a plan.
+// they belong to, in its folders, their saved parts, and the benches in their
+// share links (with a list of the links). Works with or without a plan.
 
 import { me } from './users.js';
 import { zip } from './zip.js';
@@ -10,6 +11,20 @@ import { zip } from './zip.js';
 // never '.' or '..').
 const safe = (s) =>
   String(s || 'Untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').trim().slice(0, 80) || 'Untitled';
+
+// a share link's bench as JSON text: its text is "z" then base64url of deflated JSON, or "j" then base64url of JSON
+async function linkBench(t) {
+  try {
+    const b = atob(t.slice(1).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length - 1 + 3) % 4));
+    let bytes = Uint8Array.from(b, (c) => c.charCodeAt(0));
+    if (t[0] === 'z') bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    const json = new TextDecoder().decode(bytes);
+    JSON.parse(json);
+    return json;
+  } catch {
+    return null;
+  }
+}
 
 export async function exportAll(env, user) {
   const account = await me(env, user);
@@ -48,6 +63,19 @@ export async function exportAll(env, user) {
       taken.add(name.toLowerCase());
       files.push({ name, data: b.head_json });
     }
+  }
+  // share links: each link's bench as a .jekray file, and the links themselves listed
+  const { results: links } = await env.DB.prepare('SELECT id, name, r2_key, created_at, opens, opened_at FROM share_links WHERE user_id = ? ORDER BY created_at')
+    .bind(user.id)
+    .all();
+  const site = String(env.APP_ORIGINS || 'https://jeksys.net').split(',')[0].trim();
+  for (const l of links) {
+    const obj = await env.BENCHES.get(l.r2_key);
+    const text = obj && (await linkBench(await obj.text()));
+    if (text) files.push({ name: `Share links/${safe(l.name)} (${l.id}).jekray`, data: text });
+  }
+  if (links.length) {
+    files.push({ name: 'Share links/links.json', data: JSON.stringify(links.map((l) => ({ url: `${site}/s/${l.id}`, name: l.name, created_at: l.created_at, opens: l.opens, opened_at: l.opened_at })), null, 2) });
   }
   const { results: sessions } = await env.DB.prepare(
     'SELECT created_at, expires_at, user_agent FROM sessions WHERE user_id = ?',

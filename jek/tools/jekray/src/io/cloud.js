@@ -866,6 +866,9 @@ function closeHome() {
 /* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
 function cloudGates() {
   const on = cloudOn(), show = accountsOn(), why = proWhy();
+  // share links are JEKrayPro's: the button marked Pro while they are not open
+  const sb = document.getElementById('btnShare');
+  if (sb) sb.classList.toggle('rt-proneed', show && !!why);
   document.getElementById('btnHome').hidden = !on;
   for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
   if (!show) return;

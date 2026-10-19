@@ -142,7 +142,7 @@
     if (m.licence) return "JEKrayPro, through " + m.licence.name + ".";
     if (p && p.active && p.plan) return (p.plan.plan === "academic" ? "JEKrayPro (academic)" : "JEKrayPro") + (p.plan.cancel_at ? ", ends " + date(p.plan.cancel_at) : p.plan.period_end ? ", renews " + date(p.plan.period_end) : "") + ".";
     if (m.academic) return "Free academic JEKrayPro until " + date(m.academic.until) + ".";
-    return "JEKray, free. JEKrayPro adds the designers' optimiser, tolerancing and drawings, keeps your benches online with their history, your own parts, and teams.";
+    return "JEKray, free. JEKrayPro adds the designers' optimiser, tolerancing and drawings and short share links, keeps your benches online with their history, your own parts, and teams.";
   }
 
   function show(m) {

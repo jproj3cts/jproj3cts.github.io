@@ -114,7 +114,7 @@
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
           <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
-          <button class="rt-btn" id="btnShare" title="Copy a link that opens this bench as it is now">Share link</button>
+          <button class="rt-btn" id="btnShare" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <div class="rt-more rt-phonegone">
             <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
@@ -301,6 +301,7 @@
     <h2 id="shareTitle">Share this bench</h2>
     <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
     <p class="note" id="shareNote"></p>
+    <div id="shareLinks"></div>
     <h3 class="rt-subhead">Embed in a web page</h3>
     <textarea id="shareEmbed" rows="3" readonly spellcheck="false" aria-label="Code to embed this bench in a web page"></textarea>
     <p class="note"><label><input type="checkbox" id="shareLocked"> Lock the parts: readers pan, zoom, turn the 3D view and play the sweeps, but cannot move or change anything</label></p>
@@ -427,7 +428,7 @@
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Do the full design work in the Optical and RF designers: the optimiser, global search and glass substitution, tolerancing, design reports, lens drawings and exporting a design. Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The rest of the simulator stays free.</p>
+    <p>Do the full design work in the Optical and RF designers: the optimiser, global search and glass substitution, tolerancing, design reports, lens drawings and exporting a design. Share any bench as a short link, an embed or a QR code. Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The rest of the simulator stays free.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>

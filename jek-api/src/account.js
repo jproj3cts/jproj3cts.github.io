@@ -12,6 +12,7 @@
 // emptied of everything personal ("Deleted user"), and can never sign in.
 
 import { stripe } from './billing.js';
+import { removeAll as removeLinks } from './links.js';
 import { syncSeats } from './teams.js';
 import { ApiError, now } from './util.js';
 
@@ -65,6 +66,8 @@ export async function deleteAccount(req, env, user) {
       .all();
     for (let i = 0; i < ts.length; i += 1000) await env.BENCHES.delete(ts.slice(i, i + 1000).map((x) => x.thumb_key));
   }
+  // their share links stop working: the benches in them are gone with the rows
+  await removeLinks(env, user.id);
   const av = await env.DB.prepare('SELECT avatar_key FROM users WHERE id = ?').bind(user.id).first();
   if (av && av.avatar_key) await env.BENCHES.delete(av.avatar_key);
   const del = (sql, ...args) => env.DB.prepare(sql).bind(...args);

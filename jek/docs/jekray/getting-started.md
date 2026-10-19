@@ -71,7 +71,7 @@ Every number in a panel can be typed or dragged. Beside most is the sweep button
 
 - **Autosave.** Your bench is kept in this browser as you work, so closing the tab loses nothing.
 - **File › Save as .jekray** saves a file you can open again anywhere.
-- **Share link** (on the bar, or **File › Copy a share link**) puts the whole bench in a link. Anyone who opens it sees your bench, and nothing is stored on a server.
+- **Share link** (on the bar, or **File › Copy a share link**) makes a short link to the bench as it is now, with JEKrayPro, and an embed code for a web page. Anyone who opens the link sees your bench, with no account needed. A copy is kept with your account until you delete the link, from the same dialog, where your links are listed with how often each has been opened.
 - **File › Export layout** saves a PNG, SVG or PDF of the bench for a paper or a talk; **Export layout (current view)** saves just what is on screen.
 - With JEKrayPro, benches can be saved to your account, with version history, forks and team workspaces.
 

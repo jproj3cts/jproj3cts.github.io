@@ -67,7 +67,7 @@ import {
 import { addBench, renderBenchTabs, switchTab, undo, redo } from './tabs.js';
 import { layoutSvg, recordLayout } from '../io/layout.js';
 import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } from '../io/guide.js';
-import { b64u, embedMode, openShareHash, readShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
+import { b64u, embedMode, openShareHash, openShortLink, readShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
 import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
@@ -127,8 +127,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   if (EMBED) embedMode();
-  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/);
-  if (shared) { if (!EMBED) window.history.replaceState(null, '', location.pathname); openShareHash(shared[1]); }
+  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
+  if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   renderPanel();
   updateUndoButtons();
@@ -559,10 +559,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a link pasted into the address bar of a page already open changes only the hash
   if (!TEST_MODE) window.addEventListener('hashchange', () => {
     if (!EMBED && helpLink()) return;
-    const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
-    if (!sh && !dm) return;
+    const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
+    if (!sh && !ss && !dm) return;
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
-    if (sh) openShareHash(sh[1]); else openDemo(dm[1], true);
+    if (sh) openShareHash(sh[1]); else if (ss) openShortLink(ss[1]); else openDemo(dm[1], true);
   });
 })();
 

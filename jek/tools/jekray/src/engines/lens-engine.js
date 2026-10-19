@@ -400,6 +400,14 @@ export function rayAt(S, th, px, py, R, noClip) {
   return R;
 }
 
+/* the reference (chief) ray of a field: the real ray through the pupil's centre, or, where that is blocked (a telescope's
+   secondary, a hole's obscuration, a clear radius), the same ray traced past the blocking as a design takes its chief ray:
+   the bundle's centre for distortion, the image point and the reference sphere, though no light goes along it */
+export function chiefRay(S, th, R) {
+  const C = rayAt(S, th, 0, 0, R);
+  if (C && C[7] === 0) return C;
+  return rayAt(S, th, 0, 0, R, true);
+}
 /* a ray's path through the system, for drawing: [y, z] where it starts (on the launch plane), at
    each surface and on the image plane, in the global frame (folds and all); lost: the surface it was
    stopped at, or -1 */
@@ -421,7 +429,7 @@ export function rayPath(S, th, px, py) {
    Its chief ray, and each pupil point's ray: where it lands on the image plane, and its wavefront
    error in waves (positive where its path to the reference sphere is longer than the chief ray's). */
 export function traceField(S, fieldDeg, pts, noClip) {
-  const th = fieldDeg * Math.PI / 180, C = rayAt(S, th, 0, 0, null, noClip);
+  const th = fieldDeg * Math.PI / 180, C = noClip ? rayAt(S, th, 0, 0, null, true) : chiefRay(S, th);
   if (!C || C[7] !== 0) return null;
   // the reference sphere: about the chief ray's image point, through where it crosses the exit pupil's plane
   const cx = C[0], cy = C[1], cz = C[2], xpz = S.par.xpz;

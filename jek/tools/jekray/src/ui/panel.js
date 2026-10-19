@@ -50,6 +50,29 @@ export function setFid(v) { return (fid = v); }
 export function beginEdit() { if (!editing) { checkpoint(); editing = true; } }
 export function endEdit() { editing = false; }
 
+/* A Stop button for a run that redraws as it goes: it acts as the pointer goes down, not on the click that follows
+   (the redraw may have replaced the button by the time the pointer comes up, and a click needs both on the same
+   element); a key press (Enter, Space) still clicks it. The click that follows a press it acted on is ignored, so a
+   button redrawn as Start under the pointer is not pressed too. */
+let pressedAt = 0;
+export function stopButton(label, fn, attrs) {
+  const act = () => { pressedAt = performance.now(); fn(); };
+  const b = h('button', Object.assign({ type: 'button', class: 'rt-btn primary' }, attrs || {}), label);
+  b.addEventListener('pointerdown', e => { if (e.button === 0) { e.preventDefault(); act(); } });
+  b.addEventListener('click', () => { if (performance.now() - pressedAt > 600) act(); });
+  return b;
+}
+/* true for a click that comes just after a Stop button's press: the pointer coming up over what replaced it */
+export const justStopped = () => performance.now() - pressedAt < 600;
+/* a redraw at most every ms milliseconds while a run goes on (the last one always made) */
+export function throttle(fn, ms = 200) {
+  let last = 0, timer = 0;
+  return () => {
+    const now = performance.now();
+    if (now - last >= ms) { last = now; clearTimeout(timer); timer = 0; fn(); }
+    else if (!timer) timer = setTimeout(() => { timer = 0; last = performance.now(); fn(); }, ms - (now - last));
+  };
+}
 export function h(tag, attrs, ...kids) {
   const n = document.createElement(tag);
   if (attrs) for (const [k, v] of Object.entries(attrs)) {

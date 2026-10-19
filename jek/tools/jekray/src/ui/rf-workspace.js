@@ -15,7 +15,7 @@ import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto,
 import { diverge, heat, linePlot } from './lens-analyses.js';
 import { HOUSINGS } from '../engines/lens-thermal.js';
 import { magma } from './plots.js';
-import { helpLine, h } from './panel.js';
+import { helpLine, h, justStopped, stopButton, throttle } from './panel.js';
 import { matchLayer } from './panels.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
@@ -1072,7 +1072,8 @@ function rwOptCard(asm, P) {
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'data'; rwRender(); } }, 'Choose in Element data')));
   card.append(h('p', { class: 'rt-lsub rt-rfmeritline' }, h('b', null, 'Toward: '), o.ops.length ? o.ops.map(q => RF_MERIT_OPS[q.op].label.replace(/ \(.*\)$/, '').toLowerCase() + ' ' + RF_MERIT_SENSES[q.sense] + ' ' + rwFmt(q.target, 4)).join(', ') + '.' : 'the most efficiency at each of five frequencies across the band.', ' ',
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'merit'; rwRender(); } }, 'Edit the merit')));
-  const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
+  const btn = running ? stopButton('Stop', () => rwOptStop('Stopped.'))
+    : h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => { if (!justStopped()) rwOptGo(asm); } }, 'Optimise');
   if (!running) proMark(btn, 'optimise a design');
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
@@ -1081,6 +1082,8 @@ function rwOptCard(asm, P) {
   }
   return card;
 }
+// while a run goes on, the RF designer redrawn a few times a second, so its Stop button stays put
+const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
   if (!designPro('optimise a design')) return;
   const P = designPrescription(asm), o = asm.rfOpt;
@@ -1093,7 +1096,7 @@ function rwOptGo(asm) {
     const t0 = performance.now();
     while (performance.now() - t0 < 60 && !RW_OPT.st.done && RW_OPT.st.iter < 200) RW_OPT.st = rfOptStep(prob, RW_OPT.st);
     if (RW_OPT.st.done || RW_OPT.st.iter >= 200) { rwOptStop(RW_OPT.st.done ? 'Done.' : 'Stopped after 200 steps.'); return; }
-    rwRender(); setTimeout(tick, 0);
+    rwLive(); setTimeout(tick, 0);
   };
   setTimeout(tick, 0);
 }
@@ -1228,7 +1231,8 @@ function rwTolCard(asm, P) {
     rwRow('Errors drawn', rwSelect({ uniform: 'Evenly within their limits', normal: 'Normally, limits at 2σ' }, tol.dist, v => set(t => { t.dist = v; }, 'mc'), 'Errors drawn')),
     rwRow('Specification: at least (' + unit + ')', rwNum(tol.spec, v => set(t => { t.spec = v; }, 'spec'), 'Specification (' + unit + ')'))));
   const mc = RW_MC && RW_MC.asm === asm ? RW_MC : null, running = !!(mc && mc.running);
-  card.append(h('div', { class: 'rt-lchips' }, (b => (running ? b : proMark(b, 'tolerance a design')))(h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo'))));
+  card.append(h('div', { class: 'rt-lchips' }, running ? stopButton('Stop', rwMcStop)
+    : proMark(h('button', { type: 'button', class: 'rt-btn primary', onclick: () => { if (!justStopped()) rwMcGo(asm); } }, 'Run Monte Carlo'), 'tolerance a design')));
   if (mc) {
     const B = mc.plan.builds, n = B.length;
     card.append(h('p', { class: 'rt-lsub', role: 'status' }, (running ? 'Building… ' : '') + n + ' of ' + mc.plan.tol.trials + ' builds.'));
@@ -1278,7 +1282,7 @@ function rwMcGo(asm) {
     const t0 = performance.now();
     while (performance.now() - t0 < 60 && !plan.done) plan.run(4);
     if (plan.done) RW_MC.running = false;
-    rwRender();
+    if (plan.done) rwRender(); else rwLive();
     if (!plan.done) setTimeout(tick, 0);
   };
   rwRender(); setTimeout(tick, 0);

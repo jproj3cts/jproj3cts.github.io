@@ -117,6 +117,8 @@ export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
   focus: { on: k => k === 't:image', label: 'Paraxial focus' },
+  // the image plane held still: v mm from the first surface along the axis (the total track), whatever the gaps before it do
+  hold: { on: k => k === 't:image', label: 'Image plane held still', v: 100 },
   fno: { on: k => k[0] === 'R', label: 'F-number', v: 4 },
   edge: { on: k => k[0] === 't' && k !== 't:image', label: 'Edge thickness', v: 1 },
 };
@@ -130,6 +132,7 @@ export function normDesign(d) {
     const s = sv[k], K = s && SOLVE_KINDS[s.kind];
     if (!okKey(k) || !K || !K.on(k)) continue;
     if (s.kind === 'focus') { solves[k] = { kind: 'focus' }; continue; }
+    if (s.kind === 'hold') { solves[k] = { kind: 'hold', v: clamp(num(s.v, K.v), -1e6, 1e6) }; continue; }
     let v = clamp(num(s.v, K.v), -1e3, 1e3);
     if (s.kind === 'fno' && Math.abs(v) < 0.2) v = v < 0 ? -0.2 : 0.2;
     if (s.kind === 'edge') v = Math.max(0, v);

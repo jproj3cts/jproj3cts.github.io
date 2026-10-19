@@ -164,3 +164,23 @@ test('the light’s path through a stacked face: the member whose annulus holds 
   const e3 = lensOf({ diameter: 25.4, surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] });
   assert.ok(!A.lensPathed(e3));
 });
+
+test('the image simulation of a solid telescope: its chief ray blocked by the secondary, it still forms the picture, on the axis and off it', async () => {
+  const LA = await import('../../src/engines/lens-analysis.js'), IS = await import('../../src/engines/lens-imsim.js');
+  const e = telescope();
+  const run = (fields, o) => {
+    const c = { aperture: { kind: 'epd', v: 44 }, fields, waves: [{ nm: 587.56, w: 1 }], primary: 0 };
+    const P = A.asmPrescription({ id: 'asm', name: 'A', bench: 'b', ref: 'L', rev: false, cond: c }, [e]);
+    P.image = E.lensSystem(P, 587.56).par.back;
+    const An = LA.anaSystems({ cond: c }, P), W = 24, H = 18, ch = [0, 1, 2].map(() => Float32Array.from({ length: W * H }, () => 1));
+    // the reference ray through the pupil's centre is blocked, and is traced past the secondary instead
+    assert.equal(E.rayAt(An.Sp, 0, 0, 0)[7] !== 0, true);
+    assert.equal(E.chiefRay(An.Sp, 0)[7], 0);
+    const plan = IS.imsimPlan(An, { w: W, h: H, ch }, o); while (!plan.next()); const out = plan.result();
+    let t = 0; for (const v of out.ch[1]) t += v;
+    return t / (W * H);
+  };
+  // the whole field to 0.5°, and only the axis (a patch about it): a white picture comes out lit, not black
+  assert.ok(run([{ deg: 0, w: 1 }, { deg: 0.5, w: 1 }]) > 0.3);
+  assert.ok(run([{ deg: 0, w: 1 }], { mode: 'patch', at: [0, 0], pitch: 0.05 }) > 0.3);
+});

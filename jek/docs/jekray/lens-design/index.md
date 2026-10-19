@@ -118,6 +118,7 @@ Beside each radius, thickness and conic:
 - **V** marks a variable for the optimiser. A glass's V makes it a model glass.
 - **…** sets a **solve** or a **pickup**, shown as **S** or **P**, its value then worked out and shown in grey:
   - *Paraxial focus* (the image distance): the image plane where the primary wavelength's marginal ray crosses the axis. A new design has it. Typing a distance in its cell places the image plane there instead, and the solve is dropped.
+  - *Image plane held still* (the image distance): the image plane kept a set distance from the first surface along the axis. The image distance takes up whatever the gaps before it change, whether typed or moved by the optimiser, so the plane stays where it is. Typing a distance in its cell moves the plane and holds it there.
   - *F-number* (a radius): the curvature that gives the working F-number asked for. The system's power is affine in one curvature, so two paraxial traces give it exactly.
   - *Edge thickness* (a thickness): the centre thickness that leaves the edge as thick as asked, $$t = e - \text{sag}_2(h) + \text{sag}_1(h)$$ at the smaller clear radius.
   - *Pickup*: the value follows another surface's, times a scale plus an offset (a radius picked up times −1 makes a lens symmetric).
@@ -357,6 +358,8 @@ each $$\tau$$ the face's amplitude transmission, the same numbers the bench's ra
 #### Image simulation
 
 A picture as the design would form it: a test chart or a picture of your own (which stays in the browser tab, never saved or sent). It is the object, placed so its paraxial image fills the field or makes a patch of 256 × 192 pixels at a chosen pitch about one of the fields. Each colour is formed at the nearest design wavelength (red 640, green 550, blue 460 nm), in linear light: each point is moved by the **distortion** of the real chief ray (sampled backwards, so no gaps), dimmed by the **relative illumination**, and **blurred** by the PSF at a grid of points over the image (4 × 4 over the field, 3 × 3 over a patch), each turned to its azimuth, convolved by FFT and blended between the grid's points. It works on a design round about its axis, and saves as PNG or as CSV in linear light.
+
+A design with only a field on the axis has no field to fill, so its picture is a patch about the axis. In a telescope whose secondary blocks the centre of the pupil, the chief ray is traced through the obstruction as if it were not there, to find where each point lands and how bright it is.
 
 **Checked against.** An even white picture reproducing the relative illumination within 0.01; a point landing in each colour where that colour's chief ray lands, within a tenth of a pixel, red and blue apart by the lateral colour; the perfect lens spreading a point as the Airy pattern; a defocused point at +y and then +x giving the same blur turned 90°, within 3%.
 

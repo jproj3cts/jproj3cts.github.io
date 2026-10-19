@@ -11,8 +11,8 @@ import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
 import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, keepFound, limitKey, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { ELEMENT_KINDS, SURFACE_KINDS, commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, gapMayBeNegative, getV, insertSinglet,
-  insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, stackSurface, surfSag, surfaceParts } from '../engines/lens-design.js';
-import { helpLine, h } from './panel.js';
+  imageHeld, insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, stackSurface, surfSag, surfaceParts, trackOf } from '../engines/lens-design.js';
+import { helpLine, h, stopButton, throttle } from './panel.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
 import { DP_KEYS, DP_N, dpLabel } from '../core/diffractive.js';
 import { GR_N, grLabel } from '../core/gradient.js';
@@ -661,26 +661,26 @@ function valueCell(P, D, q, i) {
     return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
   // the image distance at the paraxial focus can still be typed: a distance typed places the image plane there instead
-  const typable = !!(at.image && sv && sv.kind === 'focus' && !pk);
+  const typable = !!(at.image && sv && (sv.kind === 'focus' || sv.kind === 'hold') && !pk);
   const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q[0] === 'n' ? 'Gradient ' + grLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + (q[0] === 'n' ? ' after surface ' : ' of surface ') + (i + 1);
   const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed && !typable ? '' : null,
-    title: (typable ? 'Solved: the image at the paraxial focus. Type a distance to place the image plane there instead.' : fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
+    title: (typable && sv.kind === 'hold' ? 'The image plane held still. Type a distance to move it, and hold it there.' : typable ? 'Solved: the image at the paraxial focus. Type a distance to place the image plane there instead.' : fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { if (typable) delete designOf(A).solves[key]; PP.image = val; } else { if (val < 0 && !gapMayBeNegative(PP, a.i)) return negGapWhy(PP, a.i); PP.gaps[a.i] = val; } });
+    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { const dd = designOf(A), hs = dd.solves[key]; if (typable && hs && hs.kind === 'hold') { hs.v = val - imageHeld(PP, 0); } else if (typable) delete dd.solves[key]; PP.image = val; } else { if (val < 0 && !gapMayBeNegative(PP, a.i)) return negGapWhy(PP, a.i); PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
     onclick: () => { checkpoint(); D.vars = isVar ? D.vars.filter(k => k !== key) : D.vars.concat([key]); changed(false); renderWs(); } }, 'V');
   const sb = h('button', { type: 'button', class: 'rt-ls' + (fixed ? ' on' : ''), 'aria-label': 'Solve or pickup for ' + label.toLowerCase(), title: 'A solve or a pickup for this value', onclick: e => openPop(e.currentTarget, P, D, key, q, i) },
-    sv ? 'S ' + (sv.kind === 'focus' ? 'focus' : sv.kind === 'fno' ? 'f/' + wsFmt(sv.v, 4) : 'edge') : pk ? 'P' : '…');
+    sv ? 'S ' + (sv.kind === 'focus' ? 'focus' : sv.kind === 'hold' ? 'held' : sv.kind === 'fno' ? 'f/' + wsFmt(sv.v, 4) : 'edge') : pk ? 'P' : '…');
   td.append(h('div', { class: 'rt-lcell' }, inp, vb, sb));
   return td;
 }
-const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
+const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'hold' ? 'the image plane held still, ' + wsFmt(s.v, 6) + ' mm from the first surface' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
 const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ').replace(/^p(\d):/, (m, k) => 'phase ' + dpLabel(+k / 2 - 1) + ' ').replace(/^n(\d):/, (m, k) => 'gradient ' + grLabel(+k / 2 - 1) + ' after ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 /* a freeform's XY terms, a row under its surface: each typed, varied, solved or picked up, and taken off with its ×; another added from the list */
@@ -940,6 +940,7 @@ function meritCard(asm, P) {
 let OPT = null;
 export function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS.asm, P: designPrescription(WS.asm), redraw: renderWs, sync: sync !== false, state: WS.tolState || (WS.tolState = {}) }); return lensTolState(); }
 export const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note, subs: OPT.sub ? OPT.sub.log.map(l => ({ gi: l.gi, from: l.from, to: l.to, merit: l.merit, tried: l.tried.length })) : null };
+const liveRender = throttle(() => renderWs(), 200);
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
 export function optStart(mode, opts) {
   if (!WS) return false;
@@ -980,7 +981,8 @@ function optBatch() {
     if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
     if (O.mode === 'global' && O.trials >= O.maxTrials) { O.running = false; O.note = 'Done: ' + O.trials + ' trials.'; }
-    renderWs();
+    // while it runs, redrawn a few times a second (so its Stop button stays put), and at once when it ends
+    if (O.running) liveRender(); else renderWs();
     if (O.running && !O.sync) setTimeout(optBatch, 0);
   };
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(prob, run));
@@ -1110,7 +1112,7 @@ function optCard(asm, P) {
       helpLine(nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute.' : 'Mark a lens’s glass V in the element data to substitute it.', [nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the element data to substitute it.'], 'rt-lsub')));
   }
   card.append(h('div', { class: 'rt-lbar' }, running
-    ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')
+    ? stopButton('Stop', () => optStop('Stopped.'))
     : proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: (WS.method === 'subst' ? substIndices(prob).length : V.length) ? null : '', onclick: () => optStart(WS.method) }, WS.method === 'subst' ? 'Substitute the glasses' : 'Optimise the design'), WS.method === 'subst' ? 'substitute glasses' : 'optimise a design')));
   const R = O ? null : meritReport(prob);
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
@@ -1149,7 +1151,14 @@ function openPop(btn, P, D, key, q, i) {
   const fill = () => {
     body.replaceChildren();
     const k = sel.value;
-    if (k === 'fno' || k === 'edge') {
+    if (k === 'hold') {
+      // where the image plane stands now, from the first surface: kept there as the gaps before it change
+      const now = D.solves[key] && D.solves[key].kind === 'hold' ? D.solves[key].v : trackOf(P);
+      const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(now, 7), 'aria-label': 'Image plane from the first surface (mm)' });
+      body.append(h('p', null, 'The image plane stays this far from the first surface, along the axis, whatever the optimiser or a typed change does to the gaps before it: the image distance takes up the difference. Now ' + wsFmt(trackOf(P), 7) + ' mm.'),
+        h('label', null, 'From the first surface (mm)', v));
+      ok.onclick = () => { const x = parseNum(v.value); if (x === null) return; apply(dd => { delete dd.pickups[key]; dd.solves[key] = { kind: 'hold', v: x }; dd.vars = dd.vars.filter(z => z !== key); }); };
+    } else if (k === 'fno' || k === 'edge') {
       const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(D.solves[key] && D.solves[key].kind === k ? D.solves[key].v : SOLVE_KINDS[k].v), 'aria-label': SOLVE_KINDS[k].label });
       body.append(h('label', null, k === 'fno' ? 'F-number' : 'Edge thickness (mm)', v));
       ok.onclick = () => { const x = parseNum(v.value); if (x === null) return; apply(dd => { delete dd.pickups[key]; dd.solves[key] = { kind: k, v: x }; dd.vars = dd.vars.filter(z => z !== key); }); };
@@ -1172,13 +1181,15 @@ function openPop(btn, P, D, key, q, i) {
     }
   };
   const apply = fn => { closePop(); edit((PP, asm) => { const dd = designOf(asm); fn(dd); }); };
-  sel.addEventListener('change', fill);
+  // below the button, or above it when there is no room below
+  const place = () => { if (!pop) return; const r = btn.getBoundingClientRect(), ph = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 120)) + 'px';
+    pop.style.top = (r.bottom + 6 + ph > window.innerHeight - 8 && r.top - 6 - ph >= 8 ? r.top - 6 - ph : Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 8 - ph))) + 'px'; };
+  sel.addEventListener('change', () => { fill(); place(); });
   fill();
   pop = h('div', { class: 'rt-lpop', role: 'dialog', 'aria-label': 'Solve or pickup' }, sel, body, h('div', { class: 'rt-lrow' }, ok, h('button', { class: 'rt-btn', type: 'button', onclick: closePop }, 'Cancel')));
   document.getElementById('lensWs').append(pop);
-  const r = btn.getBoundingClientRect();
-  pop.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 120)) + 'px';
-  pop.style.top = (r.bottom + 6) + 'px';
+  place();
   sel.focus();
   setTimeout(() => document.addEventListener('pointerdown', function out(e) { if (pop && !pop.contains(e.target)) { closePop(); } if (!pop) document.removeEventListener('pointerdown', out); }), 0);
 }

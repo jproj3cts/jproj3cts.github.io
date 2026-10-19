@@ -6876,6 +6876,8 @@ const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
   focus: { on: k => k === 't:image', label: 'Paraxial focus' },
+  // the image plane held still: v mm from the first surface along the axis (the total track), whatever the gaps before it do
+  hold: { on: k => k === 't:image', label: 'Image plane held still', v: 100 },
   fno: { on: k => k[0] === 'R', label: 'F-number', v: 4 },
   edge: { on: k => k[0] === 't' && k !== 't:image', label: 'Edge thickness', v: 1 },
 };
@@ -6889,6 +6891,7 @@ function normDesign(d) {
     const s = sv[k], K = s && SOLVE_KINDS[s.kind];
     if (!okKey(k) || !K || !K.on(k)) continue;
     if (s.kind === 'focus') { solves[k] = { kind: 'focus' }; continue; }
+    if (s.kind === 'hold') { solves[k] = { kind: 'hold', v: clamp(num(s.v, K.v), -1e6, 1e6) }; continue; }
     let v = clamp(num(s.v, K.v), -1e3, 1e3);
     if (s.kind === 'fno' && Math.abs(v) < 0.2) v = v < 0 ? -0.2 : 0.2;
     if (s.kind === 'edge') v = Math.max(0, v);
@@ -23061,6 +23064,29 @@ function setFid(v) { return (fid = v); }
 function beginEdit() { if (!editing) { checkpoint(); editing = true; } }
 function endEdit() { editing = false; }
 
+/* A Stop button for a run that redraws as it goes: it acts as the pointer goes down, not on the click that follows
+   (the redraw may have replaced the button by the time the pointer comes up, and a click needs both on the same
+   element); a key press (Enter, Space) still clicks it. The click that follows a press it acted on is ignored, so a
+   button redrawn as Start under the pointer is not pressed too. */
+let pressedAt = 0;
+function stopButton(label, fn, attrs) {
+  const act = () => { pressedAt = performance.now(); fn(); };
+  const b = h('button', Object.assign({ type: 'button', class: 'rt-btn primary' }, attrs || {}), label);
+  b.addEventListener('pointerdown', e => { if (e.button === 0) { e.preventDefault(); act(); } });
+  b.addEventListener('click', () => { if (performance.now() - pressedAt > 600) act(); });
+  return b;
+}
+/* true for a click that comes just after a Stop button's press: the pointer coming up over what replaced it */
+const justStopped = () => performance.now() - pressedAt < 600;
+/* a redraw at most every ms milliseconds while a run goes on (the last one always made) */
+function throttle(fn, ms = 200) {
+  let last = 0, timer = 0;
+  return () => {
+    const now = performance.now();
+    if (now - last >= ms) { last = now; clearTimeout(timer); timer = 0; fn(); }
+    else if (!timer) timer = setTimeout(() => { timer = 0; last = performance.now(); fn(); }, ms - (now - last));
+  };
+}
 function h(tag, attrs, ...kids) {
   const n = document.createElement(tag);
   if (attrs) for (const [k, v] of Object.entries(attrs)) {
@@ -25389,8 +25415,11 @@ function imsimView(body, A, P, st, key, redraw) {
   const c = A.c, chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   if (!imsimTraceable(P)) { body.append(h('p', { class: 'rt-lsub' }, 'Image simulation takes a design round about its axis; this one has tilts, decentres, cylinders or freeforms.')); return; }
   const own = st.imPic === 'own' && !!imOwn;
-  // where the picture goes: the whole field, or a patch about one of the design's fields
-  if (!(st.imAt === 'whole' || (st.imAt >= 0 && st.imAt < c.fields.length))) st.imAt = 'whole';
+  // where the picture goes: the whole field, or a patch about one of the design's fields. A design with only its axis for a
+  // field has no field to fill (the whole of it is a point): a patch about the axis then, its pixels sized to the spot
+  const onAxisOnly = Math.max(...c.fields.map(f => Math.abs(f.deg))) === 0;
+  if (onAxisOnly && st.imAt === 'whole') { st.imAt = 0; st.imPitch = 0; }
+  if (!(st.imAt === 'whole' || (st.imAt >= 0 && st.imAt < c.fields.length))) st.imAt = onAxisOnly ? 0 : 'whole';
   const whole = st.imAt === 'whole', S0 = A.Sp, rmsAt = f => { const sp = spotDiagram(A, f, 11); return isFinite(sp.rms) ? sp.rms : 0; };
   const lamF = S0.lam * A.fw, defPitch = f => Math.max(lamF / 2, rmsAt(f) / 3);
   if (!whole && !(st.imPitch > 0)) st.imPitch = +(1000 * defPitch(c.fields[st.imAt].deg)).toPrecision(2);
@@ -25408,7 +25437,8 @@ function imsimView(body, A, P, st, key, redraw) {
     chip(own, imOwn ? 'Your picture' : 'Your picture…', () => { if (imOwn && !own) { st.imPic = 'own'; redraw(); } else file.click(); }, { title: 'Kept in this tab only: never saved with the bench or sent anywhere' }),
     ...(imOwn ? [h('button', { type: 'button', class: 'rt-link', onclick: () => file.click() }, 'Choose another')] : []), file));
   body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Covers' }, h('span', { class: 'rt-lsub' }, 'Covers'),
-    chip(whole, 'The whole field', () => { st.imAt = 'whole'; redraw(); }),
+    onAxisOnly ? h('span', { class: 'rt-lsub', title: 'The design’s only field is on the axis, so the whole field is a single point. Add a field off the axis in the Design conditions to image the whole field.' }, 'The whole field (needs a field off the axis)')
+      : chip(whole, 'The whole field', () => { st.imAt = 'whole'; redraw(); }),
     ...c.fields.map((f, i) => chip(st.imAt === i, 'A patch at ' + anFmt(f.deg, 4) + FU, () => { st.imAt = i; st.imPitch = +(1000 * defPitch(f.deg)).toPrecision(2); redraw(); })),
     ...(whole ? [] : [h('label', { class: 'rt-lsub rt-limpitch' }, 'Pixel ', h('input', { type: 'number', min: String(+(1000 * lamF / 4).toPrecision(2)), step: 'any', value: String(st.imPitch), 'aria-label': 'Pixel size on the image, micrometres',
       onchange: e => { const v = +e.target.value; if (v > 0) { st.imPitch = Math.max(v, +(1000 * lamF / 4).toPrecision(2)); redraw(); } } }), ' µm')])));
@@ -25801,7 +25831,8 @@ function tolBatch(ctx) {
       M.trials.push(...out.trials);
       if (M.trials.length >= M.target) { O.running = false; O.note = 'Done: ' + M.trials.length + ' builds.'; }
     }
-    ctx.redraw();
+    // while it runs, redrawn a few times a second (so its Stop button stays put), and at once when it ends
+    if (O.running) (O.live || (O.live = throttle(() => { if (TOL === O) ctx.redraw(); }, 200)))(); else ctx.redraw();
     if (O.running && !ctx.sync) setTimeout(() => tolBatch(ctx), 0);
   };
   if (ctx.sync || TEST_MODE || !hooks.fieldWorker()) take(tolRun(prob, run));
@@ -25852,7 +25883,7 @@ function tolCard(ctx) {
   invV.addEventListener('change', invSet); invBy.addEventListener('change', invSet);
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'Inverse sensitivity: the limit of each tolerance alone that worsens the criterion by ', invV, ' ', invBy)));
   card.append(h('div', { class: 'rt-lbar' }, ...(running
-    ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
+    ? [stopButton('Stop', () => { tolStop('Stopped.'); ctx.redraw(); })]
     : [proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'), 'tolerance a design'),
       proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'), 'tolerance a design'),
       proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity'), 'tolerance a design')])));
@@ -26434,7 +26465,7 @@ function reportRecs(asm) {
   rows.push(['IMA', 'Image', 'Flat', '', '', rf(Math.abs(F.imgH), 5), '']);
   if (moved) rows.forEach(r => { while (r.length < cols.length) r.push(''); });
   rpTable(pg, cols, rows, { size: 7.5 });
-  rpPara(pg, 'Lengths in mm. Light from the left; a radius is positive with its centre to the right. The thickness after the last surface is the image distance' + (D.solves['t:image'] ? ', solved for the paraxial focus.' : '.') + (moved ? ' A tilt (degrees, in the plane of the fields) and a decentre (across the axis) are each part’s, about its first vertex; a mirror’s tilt folds the axis.' : ''), { ink: RP_SOFT });
+  rpPara(pg, 'Lengths in mm. Light from the left; a radius is positive with its centre to the right. The thickness after the last surface is the image distance' + (D.solves['t:image'] ? (D.solves['t:image'].kind === 'hold' ? ', solved to hold the image plane ' + D.solves['t:image'].v + ' mm from the first surface.' : ', solved for the paraxial focus.') : '.') + (moved ? ' A tilt (degrees, in the plane of the fields) and a decentre (across the axis) are each part’s, about its first vertex; a mirror’s tilt folds the axis.' : ''), { ink: RP_SOFT });
   const asph = P.surfaces.map((s, i) => [i, s]).filter(([, s]) => s.a2 || (s.A || []).some(a => a) || (s.odd && s.odd.some(a => a)));
   if (asph.length) {
     rpHead(pg, 'Aspheric terms');
@@ -27797,7 +27828,8 @@ function rwOptCard(asm, P) {
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'data'; rwRender(); } }, 'Choose in Element data')));
   card.append(h('p', { class: 'rt-lsub rt-rfmeritline' }, h('b', null, 'Toward: '), o.ops.length ? o.ops.map(q => RF_MERIT_OPS[q.op].label.replace(/ \(.*\)$/, '').toLowerCase() + ' ' + RF_MERIT_SENSES[q.sense] + ' ' + rwFmt(q.target, 4)).join(', ') + '.' : 'the most efficiency at each of five frequencies across the band.', ' ',
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'merit'; rwRender(); } }, 'Edit the merit')));
-  const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
+  const btn = running ? stopButton('Stop', () => rwOptStop('Stopped.'))
+    : h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => { if (!justStopped()) rwOptGo(asm); } }, 'Optimise');
   if (!running) proMark(btn, 'optimise a design');
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
@@ -27806,6 +27838,8 @@ function rwOptCard(asm, P) {
   }
   return card;
 }
+// while a run goes on, the RF designer redrawn a few times a second, so its Stop button stays put
+const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
   if (!designPro('optimise a design')) return;
   const P = designPrescription(asm), o = asm.rfOpt;
@@ -27818,7 +27852,7 @@ function rwOptGo(asm) {
     const t0 = performance.now();
     while (performance.now() - t0 < 60 && !RW_OPT.st.done && RW_OPT.st.iter < 200) RW_OPT.st = rfOptStep(prob, RW_OPT.st);
     if (RW_OPT.st.done || RW_OPT.st.iter >= 200) { rwOptStop(RW_OPT.st.done ? 'Done.' : 'Stopped after 200 steps.'); return; }
-    rwRender(); setTimeout(tick, 0);
+    rwLive(); setTimeout(tick, 0);
   };
   setTimeout(tick, 0);
 }
@@ -27953,7 +27987,8 @@ function rwTolCard(asm, P) {
     rwRow('Errors drawn', rwSelect({ uniform: 'Evenly within their limits', normal: 'Normally, limits at 2σ' }, tol.dist, v => set(t => { t.dist = v; }, 'mc'), 'Errors drawn')),
     rwRow('Specification: at least (' + unit + ')', rwNum(tol.spec, v => set(t => { t.spec = v; }, 'spec'), 'Specification (' + unit + ')'))));
   const mc = RW_MC && RW_MC.asm === asm ? RW_MC : null, running = !!(mc && mc.running);
-  card.append(h('div', { class: 'rt-lchips' }, (b => (running ? b : proMark(b, 'tolerance a design')))(h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo'))));
+  card.append(h('div', { class: 'rt-lchips' }, running ? stopButton('Stop', rwMcStop)
+    : proMark(h('button', { type: 'button', class: 'rt-btn primary', onclick: () => { if (!justStopped()) rwMcGo(asm); } }, 'Run Monte Carlo'), 'tolerance a design')));
   if (mc) {
     const B = mc.plan.builds, n = B.length;
     card.append(h('p', { class: 'rt-lsub', role: 'status' }, (running ? 'Building… ' : '') + n + ' of ' + mc.plan.tol.trials + ' builds.'));
@@ -28003,7 +28038,7 @@ function rwMcGo(asm) {
     const t0 = performance.now();
     while (performance.now() - t0 < 60 && !plan.done) plan.run(4);
     if (plan.done) RW_MC.running = false;
-    rwRender();
+    if (plan.done) rwRender(); else rwLive();
     if (!plan.done) setTimeout(tick, 0);
   };
   rwRender(); setTimeout(tick, 0);
@@ -28828,26 +28863,26 @@ function valueCell(P, D, q, i) {
     return td; }
   const key = keyAt(P, q, i), at = posOf(P, key), v = getV(P, at), sv = D.solves[key], pk = D.pickups[key], fixed = !!(sv || pk);
   // the image distance at the paraxial focus can still be typed: a distance typed places the image plane there instead
-  const typable = !!(at.image && sv && sv.kind === 'focus' && !pk);
+  const typable = !!(at.image && sv && (sv.kind === 'focus' || sv.kind === 'hold') && !pk);
   const label = (q === 'R' ? 'Radius' : q === 't' ? (at.image ? 'Image distance' : 'Thickness') : q[0] === 'a' ? 'A' + q.slice(1) : q[0] === 'f' ? 'Freeform ' + ffLabel(q.slice(1)) : q[0] === 'p' ? 'Phase ' + dpLabel(+q[1] / 2 - 1) : q[0] === 'n' ? 'Gradient ' + grLabel(+q[1] / 2 - 1) : q === 'T' ? 'Tilt' : q === 'D' ? 'Decentre' : q === 'U' ? 'Tilt out of the plane' : q === 'X' ? 'Decentre out of the plane' : 'Conic') + (q[0] === 'n' ? ' after surface ' : ' of surface ') + (i + 1);
   const asp = q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n', expo = x => !x ? '0' : x.toExponential(5).replace(/\.?0+e/, 'e'), MC = mcOf(D), inMc = !!(MC && MC.keys.includes(key));
   const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (asp ? ' wide' : '') + (fixed ? ' fixed' : '') + (inMc ? ' mc' : ''), value: q === 'R' ? fmtR(v) : asp ? expo(v) : wsFmt(v, 7), 'aria-label': label, spellcheck: 'false', readonly: fixed && !typable ? '' : null,
-    title: (typable ? 'Solved: the image at the paraxial focus. Type a distance to place the image plane there instead.' : fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
+    title: (typable && sv.kind === 'hold' ? 'The image plane held still. Type a distance to move it, and hold it there.' : typable ? 'Solved: the image at the paraxial focus. Type a distance to place the image plane there instead.' : fixed ? (sv ? 'Solved: ' + solveText(sv) : 'Picked up: ' + pickText(pk)) + '. Clear it with the button beside.' : '') + (inMc ? (fixed ? ' ' : '') + 'Its own in each configuration: this is ' + MC.configs[MC.active].name + '’s.' : '') });
   inp.addEventListener('change', fromField(inp, () => {
     const t = inp.value.trim().toLowerCase();
     let val = q === 'R' && (t === '' || t === 'flat' || t === 'inf' || t === '∞' || t === 'infinity') ? null : parseNum(t);
     if (val === null && q !== 'R') { inp.value = wsFmt(v, 7); return; }
-    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { if (typable) delete designOf(A).solves[key]; PP.image = val; } else { if (val < 0 && !gapMayBeNegative(PP, a.i)) return negGapWhy(PP, a.i); PP.gaps[a.i] = val; } });
+    edit((PP, A) => { const a = posOf(PP, key); if (q === 'R') PP.surfaces[a.i].R = val === 0 ? null : val; else if (q === 'k') PP.surfaces[a.i].k = val; else if (q[0] === 'a' || q[0] === 'f' || q[0] === 'p' || q[0] === 'n' || q === 'T' || q === 'D' || q === 'U' || q === 'X') setV(PP, a, val); else if (a.image) { const dd = designOf(A), hs = dd.solves[key]; if (typable && hs && hs.kind === 'hold') { hs.v = val - imageHeld(PP, 0); } else if (typable) delete dd.solves[key]; PP.image = val; } else { if (val < 0 && !gapMayBeNegative(PP, a.i)) return negGapWhy(PP, a.i); PP.gaps[a.i] = val; } });
   }));
   const isVar = D.vars.includes(key);
   const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it', disabled: fixed ? '' : null,
     onclick: () => { checkpoint(); D.vars = isVar ? D.vars.filter(k => k !== key) : D.vars.concat([key]); changed(false); renderWs(); } }, 'V');
   const sb = h('button', { type: 'button', class: 'rt-ls' + (fixed ? ' on' : ''), 'aria-label': 'Solve or pickup for ' + label.toLowerCase(), title: 'A solve or a pickup for this value', onclick: e => openPop(e.currentTarget, P, D, key, q, i) },
-    sv ? 'S ' + (sv.kind === 'focus' ? 'focus' : sv.kind === 'fno' ? 'f/' + wsFmt(sv.v, 4) : 'edge') : pk ? 'P' : '…');
+    sv ? 'S ' + (sv.kind === 'focus' ? 'focus' : sv.kind === 'hold' ? 'held' : sv.kind === 'fno' ? 'f/' + wsFmt(sv.v, 4) : 'edge') : pk ? 'P' : '…');
   td.append(h('div', { class: 'rt-lcell' }, inp, vb, sb));
   return td;
 }
-const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
+const solveText = s => s.kind === 'focus' ? 'the image at the paraxial focus' : s.kind === 'hold' ? 'the image plane held still, ' + wsFmt(s.v, 6) + ' mm from the first surface' : s.kind === 'fno' ? 'for an F-number of ' + wsFmt(s.v, 4) : 'for an edge thickness of ' + wsFmt(s.v, 4) + ' mm';
 const pickText = p => p.scale + ' × ' + p.from.replace(/^R:/, 'radius ').replace(/^t:/, 'thickness ').replace(/^T:/, 'tilt ').replace(/^D:/, 'decentre ').replace(/^U:/, 'tilt out of the plane ').replace(/^X:/, 'decentre out of the plane ').replace(/^k:/, 'conic ').replace(/^a(\d+):/, 'A$1 ').replace(/^f(\d\d):/, (m, k) => 'freeform ' + ffLabel(k) + ' ').replace(/^p(\d):/, (m, k) => 'phase ' + dpLabel(+k / 2 - 1) + ' ').replace(/^n(\d):/, (m, k) => 'gradient ' + grLabel(+k / 2 - 1) + ' after ') + (p.off ? ' + ' + p.off : '');
 /* a surface's aspheric terms, a row under it: A4, A6 … each typed, varied, solved or picked up; one more, or the last taken off */
 /* a freeform's XY terms, a row under its surface: each typed, varied, solved or picked up, and taken off with its ×; another added from the list */
@@ -29107,6 +29142,7 @@ function meritCard(asm, P) {
 let OPT = null;
 function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS.asm, P: designPrescription(WS.asm), redraw: renderWs, sync: sync !== false, state: WS.tolState || (WS.tolState = {}) }); return lensTolState(); }
 const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note, subs: OPT.sub ? OPT.sub.log.map(l => ({ gi: l.gi, from: l.from, to: l.to, merit: l.merit, tried: l.tried.length })) : null };
+const liveRender = throttle(() => renderWs(), 200);
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
 function optStart(mode, opts) {
   if (!WS) return false;
@@ -29147,7 +29183,8 @@ function optBatch() {
     if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
     if (O.mode === 'global' && O.trials >= O.maxTrials) { O.running = false; O.note = 'Done: ' + O.trials + ' trials.'; }
-    renderWs();
+    // while it runs, redrawn a few times a second (so its Stop button stays put), and at once when it ends
+    if (O.running) liveRender(); else renderWs();
     if (O.running && !O.sync) setTimeout(optBatch, 0);
   };
   if (O.sync || TEST_MODE || !hooks.fieldWorker()) take(optRun(prob, run));
@@ -29277,7 +29314,7 @@ function optCard(asm, P) {
       helpLine(nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute.' : 'Mark a lens’s glass V in the element data to substitute it.', [nG ? nG + (nG === 1 ? ' glass' : ' glasses') + ' marked V to substitute. Each candidate transmits at every wavelength of the design; with each, the rest of the design is optimised again, and the best is kept if it is better than the glass there.' : 'Mark a lens\u2019s glass V in the element data to substitute it.'], 'rt-lsub')));
   }
   card.append(h('div', { class: 'rt-lbar' }, running
-    ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')
+    ? stopButton('Stop', () => optStop('Stopped.'))
     : proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: (WS.method === 'subst' ? substIndices(prob).length : V.length) ? null : '', onclick: () => optStart(WS.method) }, WS.method === 'subst' ? 'Substitute the glasses' : 'Optimise the design'), WS.method === 'subst' ? 'substitute glasses' : 'optimise a design')));
   const R = O ? null : meritReport(prob);
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
@@ -29316,7 +29353,14 @@ function openPop(btn, P, D, key, q, i) {
   const fill = () => {
     body.replaceChildren();
     const k = sel.value;
-    if (k === 'fno' || k === 'edge') {
+    if (k === 'hold') {
+      // where the image plane stands now, from the first surface: kept there as the gaps before it change
+      const now = D.solves[key] && D.solves[key].kind === 'hold' ? D.solves[key].v : trackOf(P);
+      const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(now, 7), 'aria-label': 'Image plane from the first surface (mm)' });
+      body.append(h('p', null, 'The image plane stays this far from the first surface, along the axis, whatever the optimiser or a typed change does to the gaps before it: the image distance takes up the difference. Now ' + wsFmt(trackOf(P), 7) + ' mm.'),
+        h('label', null, 'From the first surface (mm)', v));
+      ok.onclick = () => { const x = parseNum(v.value); if (x === null) return; apply(dd => { delete dd.pickups[key]; dd.solves[key] = { kind: 'hold', v: x }; dd.vars = dd.vars.filter(z => z !== key); }); };
+    } else if (k === 'fno' || k === 'edge') {
       const v = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum', value: wsFmt(D.solves[key] && D.solves[key].kind === k ? D.solves[key].v : SOLVE_KINDS[k].v), 'aria-label': SOLVE_KINDS[k].label });
       body.append(h('label', null, k === 'fno' ? 'F-number' : 'Edge thickness (mm)', v));
       ok.onclick = () => { const x = parseNum(v.value); if (x === null) return; apply(dd => { delete dd.pickups[key]; dd.solves[key] = { kind: k, v: x }; dd.vars = dd.vars.filter(z => z !== key); }); };
@@ -29339,13 +29383,15 @@ function openPop(btn, P, D, key, q, i) {
     }
   };
   const apply = fn => { closePop(); edit((PP, asm) => { const dd = designOf(asm); fn(dd); }); };
-  sel.addEventListener('change', fill);
+  // below the button, or above it when there is no room below
+  const place = () => { if (!pop) return; const r = btn.getBoundingClientRect(), ph = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 120)) + 'px';
+    pop.style.top = (r.bottom + 6 + ph > window.innerHeight - 8 && r.top - 6 - ph >= 8 ? r.top - 6 - ph : Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 8 - ph))) + 'px'; };
+  sel.addEventListener('change', () => { fill(); place(); });
   fill();
   pop = h('div', { class: 'rt-lpop', role: 'dialog', 'aria-label': 'Solve or pickup' }, sel, body, h('div', { class: 'rt-lrow' }, ok, h('button', { class: 'rt-btn', type: 'button', onclick: closePop }, 'Cancel')));
   document.getElementById('lensWs').append(pop);
-  const r = btn.getBoundingClientRect();
-  pop.style.left = Math.max(8, Math.min(window.innerWidth - 300, r.left - 120)) + 'px';
-  pop.style.top = (r.bottom + 6) + 'px';
+  place();
   sel.focus();
   setTimeout(() => document.addEventListener('pointerdown', function out(e) { if (pop && !pop.contains(e.target)) { closePop(); } if (!pop) document.removeEventListener('pointerdown', out); }), 0);
 }
@@ -36655,6 +36701,14 @@ function rayAt(S, th, px, py, R, noClip) {
   return R;
 }
 
+/* the reference (chief) ray of a field: the real ray through the pupil's centre, or, where that is blocked (a telescope's
+   secondary, a hole's obscuration, a clear radius), the same ray traced past the blocking as a design takes its chief ray:
+   the bundle's centre for distortion, the image point and the reference sphere, though no light goes along it */
+function chiefRay(S, th, R) {
+  const C = rayAt(S, th, 0, 0, R);
+  if (C && C[7] === 0) return C;
+  return rayAt(S, th, 0, 0, R, true);
+}
 /* a ray's path through the system, for drawing: [y, z] where it starts (on the launch plane), at
    each surface and on the image plane, in the global frame (folds and all); lost: the surface it was
    stopped at, or -1 */
@@ -36676,7 +36730,7 @@ function rayPath(S, th, px, py) {
    Its chief ray, and each pupil point's ray: where it lands on the image plane, and its wavefront
    error in waves (positive where its path to the reference sphere is longer than the chief ray's). */
 function traceField(S, fieldDeg, pts, noClip) {
-  const th = fieldDeg * Math.PI / 180, C = rayAt(S, th, 0, 0, null, noClip);
+  const th = fieldDeg * Math.PI / 180, C = noClip ? rayAt(S, th, 0, 0, null, true) : chiefRay(S, th);
   if (!C || C[7] !== 0) return null;
   // the reference sphere: about the chief ray's image point, through where it crosses the exit pupil's plane
   const cx = C[0], cy = C[1], cz = C[2], xpz = S.par.xpz;
@@ -36961,10 +37015,15 @@ function designEpd(c, S0) {
 function designPrescription(asm) {
   const P = asmPrescription(asm), D = designOf(asm);
   P.image = D.image;
-  // the image distance is the design's alone: kept at focus whatever changed the parts on the bench
-  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond), objOpts(asm.cond)).par.back; if (isFinite(b)) P.image = D.image = b; }
+  // the image distance is the design's alone: kept at focus, or the image plane held where it is, whatever changed the parts on the bench
+  const si = D.solves['t:image'];
+  if (si && si.kind === 'hold') P.image = D.image = imageHeld(P, si.v);
+  else if (si) { const b = lensSystem(P, primaryNm(asm.cond), objOpts(asm.cond)).par.back; if (isFinite(b)) P.image = D.image = b; }
   return P;
 }
+/* the image distance that puts the image plane v mm from the first surface along the axis: v less every gap before it */
+const imageHeld = (P, v) => v - P.gaps.reduce((a, b) => a + b, 0);
+const trackOf = P => P.gaps.reduce((a, b) => a + b, 0) + P.image;
 function designSystem(asm, P, nm) {
   const c = asm.cond, S0 = lensSystem(P, primaryNm(c), objOpts(c));
   return lensSystem(P, nm || primaryNm(c), objOpts(c, { epd: designEpd(c, S0), image: P.image }));
@@ -37010,7 +37069,9 @@ function solveDesign(asm, P) {
     }
     pickupAll(D, P);
   }
-  if (D.solves['t:image']) {
+  const si = D.solves['t:image'];
+  if (si && si.kind === 'hold') P.image = imageHeld(P, si.v);
+  else if (si) {
     const b = lensSystem(P, nm, objOpts(c)).par.back;
     if (isFinite(b)) P.image = b; else notes.push('The system is afocal: it has no paraxial focus.');
   }
@@ -38012,7 +38073,7 @@ function anaSystems(asm, P) {
   const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uEp), fw = na > 0 ? 1 / (2 * na) : Infinity;
   return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1, finite: !!Sp.obj };
 }
-const chiefAt = (S, deg) => { const C = rayAt(S, deg * D2R, 0, 0); return C && C[7] === 0 ? [C[0], C[1]] : null; };
+const chiefAt = (S, deg) => { const C = chiefRay(S, deg * D2R); return C && C[7] === 0 ? [C[0], C[1]] : null; };
 /* the paraxial chief ray's height on the image plane at field deg (an object height in mm, for a finite object) */
 const paraxHeight = (S, deg) => S.obj ? deg * (S.par.yChiefF + (S.imageZ - S.z[S.N - 1]) * S.par.uChiefF)
   : Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
@@ -38067,7 +38128,7 @@ function fieldCurves(A, n) {
   const fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))), d = 1e-3, R = new Float64Array(8), Q = new Float64Array(8);
   const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
   const focus = (S, th, px, py, axis) => {
-    const C = rayAt(S, th, 0, 0, R);
+    const C = chiefRay(S, th, R);
     if (!C || C[7] !== 0) return null;
     const ca = C[axis], cs = C[axis + 3] / C[5];
     let sum = 0;
@@ -38106,7 +38167,7 @@ function relIllum(A, n, N) {
   const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
   const xpz = S.par.xpz, tele = !isFinite(xpz);
   const one = g => {
-    const th = g * D2R, G = [], C0 = rayAt(S, th, 0, 0, new Float64Array(8)), ok0 = C0 && C0[7] === 0;
+    const th = g * D2R, G = [], C0 = chiefRay(S, th, new Float64Array(8)), ok0 = C0 && C0[7] === 0;
     let alive = 0, inside = 0;
     for (let j = 0; j <= N; j++) {
       const row = [];
@@ -38131,7 +38192,7 @@ function relIllum(A, n, N) {
       const a = G[j][i], b = G[j][i + 1], c = G[j + 1][i + 1], d = G[j + 1][i];
       area += tri(a, b, c) + tri(a, c, d);
     }
-    const C = rayAt(S, th, 0, 0, R), cz = C && C[7] === 0 ? Math.abs(C[5]) : null;
+    const C = chiefRay(S, th, R), cz = C && C[7] === 0 ? Math.abs(C[5]) : null;
     return { area, vig: inside ? alive / inside : 0, cos4: cz === null ? null : cz ** 4 };
   };
   const pts = degs.map(one), a0 = pts[0].area || 1, v0 = pts[0].vig || 1;
@@ -38344,7 +38405,7 @@ function huygensRow(src, P0, ex, ey, dx, M, kn, sgn, j, re, im) {
 }
 /* one wavelength's sources: the rays of field th through an N × N grid at the stop, on the reference sphere */
 function huygensSources(S, th, N, power) {
-  const C = rayAt(S, th, 0, 0, new Float64Array(8));
+  const C = chiefRay(S, th, new Float64Array(8));
   if (!C || C[7] !== 0) return null;
   const nI = S.n[S.N], xpz = S.par.xpz, cx = C[0], cy = C[1], cz = C[2];
   let Rref;
@@ -38697,6 +38758,9 @@ const imsimTraceable = P => !P.surfaces.some(s => s.tilt || s.dtilt || s.dec || 
    is drawn about where its real chief ray lands), pitch (mm; patch), grid (PSFs a side) } */
 function imsimPlan(A, src, o) {
   o = o || {};
+  // a design whose only field is the axis has no distortion or fall-off to speak of: the picture is laid on the image as it is,
+  // evenly lit, with the axis's own blur everywhere (a patch about the axis)
+  const axial = Math.max(...A.c.fields.map(f => Math.abs(f.deg))) === 0;
   const S0 = A.Sp, W = src.w, H = src.h, fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))) || 1e-9;
   const nmOf = i => A.S[i].nm;
   // each channel's wavelength: the design's nearest its colour
@@ -38710,13 +38774,15 @@ function imsimPlan(A, src, o) {
   const dist = {};
   for (const wi of tabled) {
     const R = new Float64Array(8), d = fs.map(f => {
-      const g = f || fmax * 1e-3, C = rayAt(A.S[wi], g * IM_D2R, 0, 0, R);
+      const g = f || fmax * 1e-3, C = chiefRay(A.S[wi], g * IM_D2R, R);
       return C && C[7] === 0 ? C[1] / par(g) : NaN;
     });
     for (let i = 0; i <= K; i++) if (!isFinite(d[i])) d[i] = i ? d[i - 1] : 1;
     dist[wi] = d;
   }
-  const ri = relIllum(A, 17, 32).ri;
+  // relative illumination; where too few rays reach the image on the axis to measure the exit pupil's area (a design that
+  // passes little light), the share of the rays that reach it instead
+  const RI = axial ? null : relIllum(A, 17, 32), ri = axial ? [1, 1] : RI.ri[0] > 0 && RI.ri.every(isFinite) ? RI.ri : RI.vig.map(v => (isFinite(v) ? v : 0));
   // a table along the field, from the axis to the largest field, read between its points
   const lerpF = (tab, f) => { const n = tab.length - 1, t = Math.min(n, Math.max(0, f / fmax * n)), i = Math.min(n - 1, Math.floor(t)), u = t - i; return tab[i] + (tab[i + 1] - tab[i]) * u; };
   // where an ideal image radius r lands, for wavelength wi; and back (by a table, the map increasing)
@@ -38724,6 +38790,7 @@ function imsimPlan(A, src, o) {
   for (const wi of uniq) {
     const rq = Float64Array.from({ length: T + 1 }, (_, i) => rmax * i / T), g = rq.map(r => lerpF(dist[wi], fOf(r)) * r);
     back[wi] = r => {
+      if (axial) return r;
       if (r > g[T] * (1 + 1e-12)) return null;
       let lo = 0, hi = T;
       while (hi - lo > 1) { const m = (lo + hi) >> 1; if (g[m] <= r) lo = m; else hi = m; }
@@ -38757,8 +38824,8 @@ function imsimPlan(A, src, o) {
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const x = X(i), y = Y(j), r = Math.hypot(x, y), rq = back[wi](r);
       if (rq === null) continue;
-      const s = r > 0 ? rq / r : 1, f = fOf(rq);
-      img[j * W + i] = sample(c, x * s, y * s) * lerpF(ri, f);
+      const s = r > 0 ? rq / r : 1, f = axial ? 0 : fOf(rq);
+      img[j * W + i] = sample(c, x * s, y * s) * (axial ? 1 : lerpF(ri, f));
     }
     D[c] = img;
     const re = new Float64Array(L * L), im = new Float64Array(L * L);
@@ -38768,7 +38835,7 @@ function imsimPlan(A, src, o) {
   };
   // 2. the PSF at a grid point, turned and laid on the image's pixels: a kernel, its middle at [0, 0]
   const kernelAt = (wi, P) => {
-    const r = Math.hypot(P[0], P[1]), rq = back[wi](r), f = Math.min(fmax, fOf(rq === null ? rmax : rq));
+    const r = Math.hypot(P[0], P[1]), rq = back[wi](r), f = axial ? 0 : Math.min(fmax, fOf(rq === null ? rmax : rq));
     const al = r > 0 ? Math.atan2(P[1], P[0]) - Math.atan2(sgn, 0) : 0, ca = Math.cos(al), sa = Math.sin(al);
     const half = 64, n = 2 * half + 1, Kr = new Float64Array(n * n);
     const put = (u, v, w) => {
@@ -38784,7 +38851,7 @@ function imsimPlan(A, src, o) {
       for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) { const v = F.I[y * M + x]; if (v > 0) put((x - hM) * F.dx, (y - hM) * F.dx, v); }
     } else {
       // the spot itself, about this wavelength's own chief ray
-      const C = rayAt(A.S[wi], f * IM_D2R, 0, 0), ref = sp.chief;
+      const C = chiefRay(A.S[wi], f * IM_D2R), ref = sp.chief;
       const ox = C && C[7] === 0 ? C[0] - ref[0] : 0, oy = C && C[7] === 0 ? C[1] - ref[1] : 0;
       for (const [x, y] of w.pts) put(x - ox, y - oy, 1);
     }
@@ -47126,6 +47193,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Stop stops</b>: the <b>Stop</b> button of the optimiser, tolerancing and Monte Carlo in the Optical and RF designers now acts as it is pressed, and the tables update a few times a second while a run goes on. <b>Image plane held still</b>: a solve for the image distance (<b>\u2026</b> beside it) keeps the image plane a set distance from the first surface, so the optimiser and typed gaps move the lenses and not the image. <b>Image simulation</b> works for telescopes whose secondary blocks the centre of the beam, and for a design with only a field on the axis (a patch about the axis).',
     '<b>Short share links</b> (JEKrayPro): <b>Share link</b> makes a short link, <i>jeksys.net/s/</i> and ten letters, that opens the bench as it is now for anyone, with no account needed, and an embed code made from it. Each link is a snapshot of the bench as it was; the same bench gives the same link again. <b>My links</b>, in My benches, lists your links with how often each has been opened, to open, copy or delete (a deleted link stops opening at once), as does the Share dialog. The <b>Try me</b> QR code is the short link too, so any bench fits in it. Links made before, with the bench in them, still open.',
     '<b>The designers\u2019 design work is now part of JEKrayPro</b>: in the Optical and RF designers, the optimiser (with its global search and glass substitution), tolerancing, design reports, lens drawings and exporting a design as a lens file need a plan (your own JEKrayPro, an Academic or team plan, or a university licence), and their buttons are marked <b>Pro</b> until you sign in with one. Opening the designers, building and editing a design and every analysis stay open to everyone, as do an RF lens\u2019s way to a quote and the whole coating designer. Your designs always open. The JEKray Licence (1.1) and JEKrayPro Terms (1.5) say so.',
     '<b>Surfaces with holes, stacked surfaces and mirror coatings</b>: each lens surface now has a <b>clear radius</b>, a <b>hole radius</b> (inside it the surface is not there) and a coating that can be a <b>mirror</b> (ideal, aluminium, silver or gold, with the metal\u2019s reflectance) or a dielectric high reflector. A surface given a thickness of <b>0</b> is <b>stacked</b> on the one before: the two share a vertex and make one face, each where it reaches, so a flat with a hole and a mirror-coated spot stacked in it is a solid telescope\u2019s front, and a lens whose back is mirror coated is a Mangin mirror. The <b>Optical designer</b> works out the path the light takes through such a lens and shows two tables: the <b>Surfaces</b>, each once in the part\u2019s own order with its coating, clear radius and hole to type, and <b>the light\u2019s path</b>, each meeting in order with what is clear and blocked there; <b>Stack a surface</b> puts a surface in the centre of the one selected. Lens drawings show a stacked face as one, with its holes and coatings. The <i>Mirrored</i> setting a face had is gone: a bench saved with it opens as the surfaces it stood for, stacked. A thickness between parts may be negative.',

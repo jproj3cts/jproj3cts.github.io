@@ -31,6 +31,7 @@ export function setParam(el, path, v) {
   let o = el;
   for (const k of keys) { o = o[k]; if (!o) return; }
   if (last === 'R') v = (v === null || v === 0 || !isFinite(v)) ? null : v;
+  else if (last === 'semi' && (v === null || !(v > 0))) v = null;      // a surface's clear radius: blank is the lens's own
   else if (v === null || !isFinite(v)) return;
   switch (last) {
     case 'wavelength':
@@ -41,6 +42,7 @@ export function setParam(el, path, v) {
     case 'width': v = Math.max(0, v); break;
     case 'divergence': v = clamp(v, -179, 179); break;
     case 'length': case 'diameter': v = Math.max(0.1, v); break;
+    case 'hole': v = Math.max(0, v); break;
     case 'n': v = Math.max(1, v); break;
     case 'reflect': v = clamp(v, 0, 100); break;
     case 'aperture': v = Math.max(0, v); break;

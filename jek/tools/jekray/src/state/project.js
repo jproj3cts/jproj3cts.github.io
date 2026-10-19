@@ -62,8 +62,10 @@ export function normMat(m) {
 }
 export function normCoat(c) {
   c = c || {};
-  const mode = ['bare', 'ar', 'custom', 'stack', 'band'].includes(c.mode) ? c.mode : 'bare';
-  const out = { mode, R: clamp(num(c.R, mode === 'ar' ? 0.5 : 4), 0, 100) };
+  const mode = ['bare', 'ar', 'custom', 'stack', 'band', 'mirror'].includes(c.mode) ? c.mode : 'bare';
+  const out = { mode, R: clamp(num(c.R, mode === 'ar' ? 0.5 : mode === 'mirror' ? 100 : 4), 0, 100) };
+  // a mirror coating: the face reflects all it can and passes nothing, an ideal mirror or a metal with its own reflectance by wavelength (core/coatings.js mirrorR)
+  if (mode === 'mirror') out.metal = ['ideal', 'Al', 'Ag', 'Au'].includes(c.metal) ? c.metal : 'ideal';
   if (mode === 'band') {
     out.lo = clamp(num(c.lo, 350), 100, 20000);
     out.hi = clamp(num(c.hi, 700), 100, 20000);

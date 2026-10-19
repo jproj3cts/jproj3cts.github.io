@@ -288,10 +288,14 @@ export function stopMargin(el) {
 
 /* Lens edges (the ground rim) absorb light, returned as local line segments */
 export function lensEdges(el, surfs) {
+  // the rim runs between one face and the next: a face is the stack of the surfaces sharing a vertex (a gap of 0
+  // between them), and its edge is its widest member's
+  const stacks = [];
+  surfs.forEach((s, i) => { if (!i || el.gaps[i - 1] !== 0) stacks.push({ wide: s, last: i }); else { const st = stacks[stacks.length - 1]; st.last = i; if (s.semi > st.wide.semi) st.wide = s; } });
   const segs = [];
-  for (let i = 0; i < surfs.length - 1; i++) {
-    if (el.materials[i].glass === 'AIR') continue;
-    const a = surfs[i], b = surfs[i + 1];
+  for (let i = 0; i < stacks.length - 1; i++) {
+    if (el.materials[stacks[i].last].glass === 'AIR') continue;
+    const a = stacks[i].wide, b = stacks[i + 1].wide;
     for (const sgn of [1, -1]) {
       segs.push([a.z + sagFn(a, sgn*a.semi), sgn*a.semi, b.z + sagFn(b, sgn*b.semi), sgn*b.semi]);
     }

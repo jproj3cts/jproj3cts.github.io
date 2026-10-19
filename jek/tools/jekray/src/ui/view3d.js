@@ -9,7 +9,7 @@ import { RF_METALS, hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, FREE_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
-import { lensSurfaces, polyVerts, rawSag, sagFn } from '../core/geometry.js';
+import { lensSurfaces, polyVerts, rawSag, sagFn, lensStacks } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
@@ -364,10 +364,10 @@ export const V3D = (() => {
     }
     switch (el.type) {
       case 'lens': {
-        const ss = lensSurfaces(el);
-        for (let i = 0; i < ss.length - 1; i++) {
-          if (el.materials[i] && el.materials[i].glass === 'AIR') continue;
-          const a = ss[i], b = ss[i + 1], m = el.mmw ? mat.glass(0xf4f4ee, 0.88) : mat.glass();   // an RF lens: white plastic
+        const ss = lensSurfaces(el), stacks = lensStacks(ss);
+        for (let i = 0; i < stacks.length - 1; i++) {
+          if (el.materials[stacks[i].last] && el.materials[stacks[i].last].glass === 'AIR') continue;
+          const A = stacks[i], B = stacks[i + 1], a = A.members[0], b = B.members[0], m = el.mmw ? mat.glass(0xf4f4ee, 0.88) : mat.glass();   // an RF lens: white plastic
           if (el.cyl === 'plane') {                         // curved in the bench plane, straight up and down
             const out = surfPoints(a, 48).concat(surfPoints(b, 48, true));
             add(mesh(upright(out, 2 * Math.max(a.semi, b.semi)), m));
@@ -378,16 +378,15 @@ export const V3D = (() => {
             const geo = new T.ExtrudeGeometry(s, { depth: d, bevelEnabled: false }); geo.translate(0, 0, -d / 2); geo.rotateX(Math.PI / 2);
             add(mesh(geo, m));
           } else {
-            const pts = [];
-            for (let k = 0; k <= 32; k++) { const r = a.semi * k / 32; pts.push([a.z + sagFn(a, r), r]); }
-            for (let k = 32; k >= 0; k--) { const r = b.semi * k / 32; pts.push([b.z + sagFn(b, r), r]); }
-            add(mesh(lathe(pts), m));
+            // each face is its stack: the member that reaches each radius, with a step where one gives way to the next
+            const prof = (S, rev) => { const rs = []; for (let k = 0; k <= 32; k++) rs.push(S.semi * k / 32); for (const r of S.edges) rs.push(r - 1e-6, r + 1e-6); rs.sort((p, q) => p - q); if (rev) rs.reverse(); return rs.map(r => [S.z + S.sag(r), r]); };
+            add(mesh(lathe(prof(A, false).concat(prof(B, true))), m));
           }
         }
-        // a mirrored face: its mirrored part as a thin silvered shell just outside the glass (a spot, an annulus or the whole face)
+        // a mirror-coated surface: a thin silvered shell just outside the glass, from its hole to its edge
         if (!el.cyl) ss.forEach((s, i) => {
-          const m = s.mirror; if (!m) return;
-          const r0 = m.zone === 'out' ? Math.min(m.r, s.semi) : 0, r1 = m.zone === 'in' ? Math.min(m.r, s.semi) : s.semi, off = (i === 0 ? -1 : i === ss.length - 1 ? 1 : 0) * 0.04;
+          if (!s.silver) return;
+          const r0 = s.hole || 0, r1 = s.semi, off = (s.stack === 0 ? -1 : stacks[stacks.length - 1].first === s.stack ? 1 : 0) * 0.04;
           if (r1 <= r0) return;
           const pts = []; for (let k = 0; k <= 32; k++) { const r = r0 + (r1 - r0) * k / 32; pts.push([s.z + sagFn(s, r) + off, r]); }
           add(mesh(lathe(pts), mat.metal(0xe3e8ec, 0.1)));

@@ -1,8 +1,7 @@
 import { orderRow } from '../../io/order.js';
 import { glassKey } from '../../core/glass.js';
 import { deg } from '../../state/project.js';
-import { lensSurfaces } from '../../core/geometry.js';
-import { normMirror } from '../../state/elements.js';
+import { lensStacks, lensSurfaces, sagFn } from '../../core/geometry.js';
 import { elementSurfaces } from '../../core/stl.js';
 import { frame } from '../../core/mask.js';
 import { ctx, drawMount, getCss, lightLayer, pathLocal, selInk, surfPoints } from '../render.js';
@@ -25,13 +24,21 @@ import { openLensDesign } from '../lens-workspace.js';
 
 /* Lens on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/lens.js */
 
+/* a stack's face across, [x, y] in the part's frame: sampled over its width, with a point either side of each member's edge */
+function stackPoints(st, n, reverse) {
+  const ys = []; for (let i = 0; i <= n; i++) ys.push(st.semi * (2 * i / n - 1));
+  for (const r of st.edges) for (const sg of [1, -1]) ys.push(sg * (r - 1e-6), sg * (r + 1e-6));
+  ys.sort((a, b) => a - b); if (reverse) ys.reverse();
+  return ys.map(y => { const v = st.sag(y); return [st.z + (isFinite(v) ? v : 0), y]; });
+}
 function drawLens(el, sel) {
   const f = frame(el);
-  const ss = lensSurfaces(el);
+  const ss = lensSurfaces(el), stacks = lensStacks(ss);
   const glass = getCss('--rt-glass');
-  for (let i = 0; i < ss.length - 1; i++) {
-    if (el.materials[i].glass === 'AIR') continue;
-    const pts = surfPoints(ss[i], 48, false, f).concat(surfPoints(ss[i + 1], 48, true, f));
+  // the glass between one face and the next (a face is a stack of the surfaces sharing a vertex, each where it reaches)
+  for (let i = 0; i < stacks.length - 1; i++) {
+    if (el.materials[stacks[i].last].glass === 'AIR') continue;
+    const pts = stackPoints(stacks[i], 48, false).concat(stackPoints(stacks[i + 1], 48, true));
     pathLocal(f, pts, true);
     // an RF lens is white plastic (PTFE, HDPE), not glass
     ctx.fillStyle = el.mmw ? 'rgba(242,242,236,0.5)' : 'rgba(115,185,202,0.16)';
@@ -40,14 +47,13 @@ function drawLens(el, sel) {
     ctx.lineWidth = sel ? 2 : 1.4;
     ctx.stroke();
   }
-  // a mirrored face: its mirrored part silvered, a thick bright line along the face there
+  // a mirror-coated surface: silvered, a thick bright line along it between its hole and its edge
   for (const s of ss) {
-    if (!s.mirror) continue;
-    const pts = surfPoints(s, 64, false, f), m = s.mirror, inZone = p => m.zone === 'all' || (m.zone === 'in' ? Math.abs(p[1]) <= m.r : Math.abs(p[1]) >= m.r);
-    let run = [];
-    const flush = () => { if (run.length > 1) { pathLocal(f, run); ctx.save(); ctx.lineWidth = sel ? 4 : 3.2; ctx.strokeStyle = sel ? selInk() : '#dfe5ea'; ctx.lineCap = 'butt'; ctx.stroke(); ctx.restore(); } run = []; };
-    for (const p of pts) { if (inZone(p)) run.push(p); else flush(); }
-    flush();
+    if (!s.silver) continue;
+    for (const sg of [1, -1]) {
+      const pts = []; for (let q = 0; q <= 32; q++) { const y = sg * ((s.hole || 0) + (s.semi - (s.hole || 0)) * q / 32); pts.push([s.z + sagFn(s, y), y]); }
+      pathLocal(f, pts); ctx.save(); ctx.lineWidth = sel ? 4 : 3.2; ctx.strokeStyle = sel ? selInk() : '#dfe5ea'; ctx.lineCap = 'butt'; ctx.stroke(); ctx.restore();
+    }
   }
   // a diffractive face: its zones, as a broken line along it
   for (const s of ss) {
@@ -80,7 +86,9 @@ function lensPanel(el) {
   for (let i = 0; i < N; i++) {
     const s = el.surfaces[i];
     panel.append(h('h3', null, 'Surface ' + (i + 1)));
-    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }));
+    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }),
+      // where the surface is: out to its clear radius (the lens's own unless given), from its hole (none unless given)
+      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }), param('Hole radius (mm)', el, `surfaces.${i}.hole`, { blank: 0 }));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
     if (s.a2 !== 0) rows.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));
@@ -113,31 +121,12 @@ function lensPanel(el) {
     }
     panel.append(rows);
     panel.append(coatingRows(el, s));
-    // the face's centre and its mirroring (state/elements.js normMirror): mirrored whole, as a spot (the centre) or as an
-    // annulus (the rim), and the centre with a shape of its own (a flat ground into the middle), mirrored or not
-    const m = s.mirror, own = !!(m && m.R !== undefined), zoned = !!(m && m.zone !== 'all');
-    const setM = patch => { const mm = Object.assign({}, m || {}, patch); if (mm.zone !== 'all' && !(mm.r > 0)) mm.r = Math.round(el.diameter / 6 * 10) / 10; s.mirror = normMirror(mm); if (!s.mirror) delete s.mirror; };
-    const mrow = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-      selectField('Mirrored', [['none', 'Not mirrored'], ['all', 'Whole face'], ['in', 'The centre (a spot)'], ['out', 'The rim (an annulus round a clear centre)']],
-        () => (m ? m.zone : 'none'),
-        v => { if (v === 'all') { s.mirror = { zone: 'all' }; } else setM({ zone: v }); }, { wide: !zoned }));
-    if (zoned) mrow.append(param('Centre radius (mm)', el, `surfaces.${i}.mirror.r`));
-    panel.append(mrow);
-    if (!m || zoned) {
-      // the centre as a surface of its own over the face's vertex: flat, or its own radius and conic
-      const zrow = h('div', { class: 'rt-rows' },
-        selectField('Centre shape', [['face', 'The face\u2019s'], ['flat', 'Flat'], ['own', 'Its own radius and conic']], () => (!own ? 'face' : m.R === null && !m.k ? 'flat' : 'own'),
-          v => { if (v === 'face') { if (m) { const mm = Object.assign({}, m); delete mm.R; delete mm.k; s.mirror = normMirror(mm); if (!s.mirror) delete s.mirror; } } else setM({ zone: m ? m.zone : 'none', R: v === 'flat' ? null : s.R, k: v === 'flat' ? 0 : s.k }); }, { wide: !own }));
-      if (own && !zoned) zrow.append(param('Centre radius (mm)', el, `surfaces.${i}.mirror.r`));
-      if (own && !(m.R === null && !m.k)) { zrow.append(param('Centre radius of curvature (mm)', el, `surfaces.${i}.mirror.R`, { blank: null, placeholder: 'flat' })); zrow.append(param('Centre conic k', el, `surfaces.${i}.mirror.k`)); }
-      panel.append(zrow);
-    }
-    if (m && m.zone !== 'none') panel.append(h('p', { class: 'note' }, 'Light meeting the mirrored part reflects wholly and stays in the glass it came from; the rest of the face refracts as its coating says. A back face mirrored whole is a Mangin mirror; a front spot and a back annulus make a solid telescope.'));
+    if (s.coat && s.coat.mode === 'mirror') panel.append(h('p', { class: 'note' }, 'A mirror coating: light meeting this surface reflects and stays in the glass it came from (a surface stacked in its hole, or round it, takes the rest).'));
 
     if (i < N - 1) {
       const m = el.materials[i];
       const mrows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
-        param(i === 0 && N === 2 ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`),
+        param(i === 0 && N === 2 ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}),
         selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
           const old = el.materials[i];
           if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
@@ -162,6 +151,7 @@ function lensPanel(el) {
           } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
       }
       panel.append(mrows);
+      if (el.gaps[i] === 0) panel.append(h('p', { class: 'note' }, 'Surface ' + (i + 2) + ' is stacked on this one, at the same vertex: the two make one face, each applying between its hole and its clear radius. Give the thickness a value to part them.'));
     }
   }
   // a made-to-order RF lens: how it is mounted

@@ -13,7 +13,7 @@ import { antennaHeld, antennaLater } from '../engines/antenna-field.js';
 import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
-import { COAT_MATERIALS, coatPreset, qwot, stackAmp } from '../core/coatings.js';
+import { COAT_MATERIALS, MIRROR_METALS, coatPreset, mirrorR, qwot, stackAmp } from '../core/coatings.js';
 import { hooks } from '../core/hooks.js';
 import { benchNms, getEl, normElement } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
@@ -535,21 +535,28 @@ export function coatingRows(el, holder, label) {
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField(label || 'Coating',
       [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
-        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
+        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
         ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])],
-      () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode),
+      () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode),
       v => {
         const keep = holder.coat;
         // the coating design workspace, on this face; a coating kept by name there, written here
         if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
         } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
         if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
+        // a mirror coating (ideal, or a metal's reflectance), or a dielectric high reflector over a band (bare glass outside it)
+        if (v === 'mirror') { holder.coat = normCoat({ mode: 'mirror', metal: keep.metal || 'ideal' }); return; }
+        if (v === 'hr') { const nm = benchNms()[0]; holder.coat = normCoat({ mode: 'band', R: 99.9, lo: Math.round(nm * 0.85), hi: Math.round(nm * 1.15), label: 'Dielectric HR' }); return; }
         holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
           lo: keep.lo, hi: keep.hi, label: keep.label });
         if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
       },
       { wide: holder.coat.mode === 'bare' }));
   if (holder.coat.mode === 'ar' || holder.coat.mode === 'custom') rows.append(param('Reflectance (%)', el, coatPath(el, holder) + '.R'));
+  if (holder.coat.mode === 'mirror') {
+    rows.append(selectField('Metal', Object.entries(MIRROR_METALS), () => holder.coat.metal, v => { holder.coat = normCoat(Object.assign({}, holder.coat, { metal: v })); }));
+    box.append(h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'A mirror: the light reflects and none passes; ' + (holder.coat.metal === 'ideal' ? 'all of it, at every wavelength.' : MIRROR_METALS[holder.coat.metal] + ' reflects ' + (100 * mirrorR(holder.coat, benchNms()[0])).toFixed(1) + '% at ' + benchNms()[0] + ' nm and absorbs the rest.')));
+  }
   if (holder.coat.mode === 'band') {
     const base = coatPath(el, holder);
     rows.append(param('Reflectance in band (%)', el, base + '.R', { wide: true }),

@@ -52,12 +52,22 @@ describe('share links', () => {
     expect((await call(`/v1/links/${id}`, { method: 'DELETE', token: s.token })).status).toBe(200);
   });
 
-  it('a paid seat in a team makes links too', async () => {
+  it('a paid seat in a team makes links too; a team’s free viewer does not', async () => {
     const owner = await signedIn('Owner');
     const team = await json(await send('/v1/teams', 'POST', owner.token, { name: 'Lab' }));
     await withPlan(team.body.id);
     // the owner of a team with a plan has a plan through it
     expect((await make(owner, { name: 'Team link', data: await linkData() })).status).toBe(201);
+    const join = async (name, role, seat) => {
+      const s = await signedIn(name);
+      await env.DB.prepare('INSERT INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, ?, ?, 0)').bind(team.body.id, s.user.id, role, seat).run();
+      return s;
+    };
+    // an editor takes a paid seat
+    expect((await make(await join('Editor', 'editor', 1), { name: 'Editor link', data: await linkData() })).status).toBe(201);
+    // a viewer takes none: belonging to a team with a plan is not a plan
+    const r = await make(await join('Viewer', 'viewer', 0), { name: 'Free ride', data: await linkData() });
+    expect([r.status, r.body.error.code]).toEqual([402, 'no_plan']);
   });
 
   it('refuses what is not a link’s bench, and anything over 1 MB', async () => {

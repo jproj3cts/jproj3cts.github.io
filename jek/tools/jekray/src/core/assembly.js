@@ -113,7 +113,7 @@ export function normAssemblies(list, els) {
    U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
    face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
    that surface (core/gradient.js) */
-export const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+(?:~\d+)?)$/;
+export const DESIGN_KEY = /^([RtkgTDUXch]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+(?:~\d+)?)$/;
 export const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 export const SOLVE_KINDS = {
@@ -234,10 +234,10 @@ export function normTol(o) {
   if (yc !== null || specs.length) out.yield = { crit: yc, specs };
   return out;
 }
-export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];
+export const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA', 'THRU'];
 /* the terms that are measured at one of the design's fields (f, its index), at a point of the pupil (p, -1 to 1),
    and at a spatial frequency (v, cycles/mm) */
-export const MERIT_AT_FIELD = ['IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'], MERIT_AT_PUPIL = ['RAYY'], MERIT_AT_FREQ = ['MTFT', 'MTFS', 'MTFA'];
+export const MERIT_AT_FIELD = ['IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA', 'THRU'], MERIT_AT_PUPIL = ['RAYY'], MERIT_AT_FREQ = ['MTFT', 'MTFS', 'MTFA'];
 export function normMerit(m) {
   m = m && typeof m === 'object' ? m : {};
   const b = m.bounds && typeof m.bounds === 'object' ? m.bounds : {};
@@ -423,6 +423,28 @@ const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
    first crossing it (glink). An odd number of reflections sends the light back the way it came, and the lens folds
    the axis as a mirror does. */
 export const PATH_VISITS_MAX = 10;
+/* a stacked surface's clear radius and hole as the light meets it: its own (s.own, the part's, typed or varied) cut to the ring
+   where it is the surface met among its stack's members (s.stk; stackRing), the same for each meeting of it. Worked out again
+   whenever one of the stack's own values changes, so a spot made larger moves the ring round it out with it */
+export function stackRings(P) {
+  const groups = new Map();
+  for (const s of P.surfaces) if (s.stk) { const k = s.stk.id + '|' + s.stk.m.join(','); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
+  for (const ss of groups.values()) {
+    const own = {}; for (const [k, o] of Object.entries(ss[0].stk.own)) own[k] = { semi: o.semi, hole: o.hole };
+    for (const s of ss) if (s.own && !s.link) own[s.from.i] = { semi: s.own.semi, hole: s.own.hole };
+    const m = ss[0].stk.m, list = m.map(fi => own[fi]);
+    for (const s of ss) {
+      const o = own[s.from.i]; if (!o) continue;
+      const ring = stackRing(list, m.map((_, q) => q), m.indexOf(s.from.i));
+      s.own = Object.assign({}, s.own, { semi: o.semi, hole: o.hole });
+      s.stk = Object.assign({}, s.stk, { own });
+      s.semi = ring ? Math.min(o.semi, ring[1]) : o.semi; s.hole = o.hole;
+      const ob = Math.max(o.hole, ring && ring[0] > 0 ? ring[0] : 0);
+      if (ob > 0) s.obs = ob; else delete s.obs;
+    }
+  }
+  return P;
+}
 /* the ring of a stack where member j is the surface met (stackOrder's pick among the members holding each height, as lensPath, the bench
    and the drawings take it): [inner, outer] radius, or null where it is never met. A window stacked in a primary's hole
    reaches only to the hole, whatever its own clear radius: the primary is the surface beyond it */
@@ -554,10 +576,13 @@ export function asmPrescription(asm, els) {
           const s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: base.semi, hole: base.hole, coat: base.coat, mcoat: base.mcoat, from: { id: base.from.id, i: base.from.i, v }, cum: x.j, fflip: flip !== flipped, vflip: flipped });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (base.hole > 0) s.obs = base.hole;
-          // stacked: only the ring where this member is the surface met (a window in a primary's hole, out to the hole)
-          const stk = V.stacks.find(t => t.m.includes(x.j)), ring = stk && stk.m.length > 1 ? stackRing(S2, stk.m, x.j) : null;
-          // (the part keeps its own clear radius and hole: what is written back unless changed here)
-          if (ring) { const own = { semi: s.semi, obs: s.obs || 0 }; s.semi = Math.min(s.semi, ring[1]); if (ring[0] > 0) s.obs = Math.max(s.obs || 0, ring[0]); s.clip = { semi: s.semi, obs: s.obs || 0, own }; }
+          // stacked: its own clear radius and hole kept (own, what is written back), the stack's members' with them (stk), and
+          // the ring where it is the surface met taken by stackRings (a window in a primary's hole reaches only to the hole)
+          const stk = V.stacks.find(t => t.m.includes(x.j));
+          if (stk && stk.m.length > 1) {
+            s.own = { semi: base.semi, hole: base.hole || 0, max: e.diameter / 2 };
+            s.stk = { id: base.from.id, m: stk.m.map(j => S2[j].from.i), own: Object.fromEntries(stk.m.map(j => [S2[j].from.i, { semi: S2[j].semi, hole: S2[j].hole || 0 }])) };
+          }
           if (x.role === 'mirror') s.mirror = true;
           if (owner[x.j] < 0) { owner[x.j] = S3.length; s.faceOwn = true; } else s.link = { i: owner[x.j], flip: flipped !== S3[owner[x.j]].vflip };
           if (q) {
@@ -569,6 +594,7 @@ export function asmPrescription(asm, els) {
           }
           S3.push(s);
         });
+        stackRings({ surfaces: S3 });
         S2 = S3; G2 = G3; M2 = M3; lensFold = V.folds ? { exitAlong: V.zs[V.exit], inside: V.inside } : null;
       }
     }
@@ -743,7 +769,7 @@ export function asmApply(asm, P, els) {
             const tF = ffTurn(u.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
             const tP = normPh(u.ph); if (tP) t.ph = tP; else delete t.ph;
             // a stacked surface clipped to its ring (lensPath's stackRing) writes back its own clear radius and hole, unless changed
-            const semiW = s.clip && Math.abs(s.semi - s.clip.semi) < 1e-9 ? s.clip.own.semi : s.semi, obsW = s.clip && Math.abs((s.obs || 0) - s.clip.obs) < 1e-9 ? s.clip.own.obs : s.obs;
+            const semiW = s.own ? s.own.semi : s.semi, obsW = s.own ? s.own.hole : s.obs;
             if (Math.abs(semiW - e.diameter / 2) >= 1e-9) t.semi = semiW; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
             if (obsW > 0 || t.hole) t.hole = obsW > 0 ? obsW : 0;
             if (s.coat) t.coat = normCoat(s.coat);

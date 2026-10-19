@@ -587,8 +587,12 @@ function dataCard(asm, P) {
     // clear radius and hole: a lens surface's own (where it applies); the stop's is set by the aperture
     const ctd = h('td'), htd = h('td');
     if (sp.kind === 'lens' && s.from) {
-      ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; if (v <= (s.obs || 0)) return 'The clear radius reaches past the hole: more than ' + wsFmt(s.obs, 4) + ' mm.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; for (const q of PP.surfaces) if (sameSurf(s, q)) q.semi = v; }), { label: 'Clear radius of surface ' + (i + 1), width: '4.2rem' }));
-      htd.append(wsNumInput(s.obs || 0, v => edit(PP => { if (!(v >= 0)) return 'A hole radius is 0 or more.'; if (v >= s.semi) return 'The hole reaches the edge: less than ' + wsFmt(s.semi, 4) + ' mm.'; for (const q of PP.surfaces) if (sameSurf(s, q)) { q.hole = v; if (v > 0) q.obs = v; else delete q.obs; } }), { label: 'Hole radius of surface ' + (i + 1), width: '3.6rem' }));
+      // the part's own clear radius and hole (a stacked surface's: before its stack cuts it to its ring), typed or varied
+      const ownC = getV(P, { q: 'c', i }), ownH = getV(P, { q: 'h', i });
+      ctd.append(ownCell('c', i, ownC, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; if (v <= ownH) return 'The clear radius reaches past the hole: more than ' + wsFmt(ownH, 4) + ' mm.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; const own = PP.surfaces[i].own; if (own) own.max = Math.max(own.max || 0, v); setV(PP, { q: 'c', i }, v); }), 'Clear radius of surface ' + (i + 1), '4.2rem', P, D));
+      htd.append(ownCell('h', i, ownH, v => edit(PP => { if (!(v >= 0)) return 'A hole radius is 0 or more.'; if (v >= ownC) return 'The hole reaches the edge: less than ' + wsFmt(ownC, 4) + ' mm.'; setV(PP, { q: 'h', i }, v); }), 'Hole radius of surface ' + (i + 1), '3.6rem', P, D));
+      // where the stack cuts it to less than its own, the ring it is met over
+      if (s.own && (Math.abs(s.semi - ownC) > 1e-9 || Math.abs((s.obs || 0) - ownH) > 1e-9)) ctd.title = 'Met from ' + wsFmt(s.obs || 0, 4) + ' to ' + wsFmt(s.semi, 4) + ' mm: the rest of it is under another surface stacked on the face';
     } else if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
     else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd, htd);
@@ -657,6 +661,15 @@ function dataCard(asm, P) {
 const POSE_QS = ['T', 'D', 'U', 'X'];
 const POSE_HEADS = [['Tilt (°)', 'In the plane of the fields: turned across the bench, about its first vertex'], ['Decentre (mm)', 'In the plane of the fields: moved across the bench'],
   ['Tilt up (°)', 'Out of the plane of the fields: tipped up, about its first vertex'], ['Decentre up (mm)', 'Out of the plane of the fields: raised']];
+/* a lens surface's own clear radius or hole: typed, and its V (no solves; the optimiser varies it for the light it lets through,
+   the merit's "Light reaching the image" term) */
+function ownCell(q, i, v, set, label, width, P, D) {
+  const key = keyAt(P, q, i), isVar = D.vars.includes(key), lk = P.surfaces[i] && P.surfaces[i].link;
+  const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), disabled: lk ? '' : null,
+    title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it: it changes how much light gets through, so give the merit a "Light reaching the image" term',
+    onclick: () => { checkpoint(); D.vars = isVar ? D.vars.filter(k => k !== key) : D.vars.concat([key]); changed(false); renderWs(); } }, 'V');
+  return h('div', { class: 'rt-lcell' }, wsNumInput(v, set, { label, width }), vb);
+}
 /* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
 function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
@@ -786,10 +799,10 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q[0] === 'n' ? 'Gradient ' + grLabel(+at.q[1] / 2 - 1) + ' after' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', c: 'Clear radius of', h: 'Hole radius of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q[0] === 'n' ? 'Gradient ' + grLabel(+at.q[1] / 2 - 1) + ' after' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
-const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
+const KEY_UNIT = { R: 'mm', t: 'mm', c: 'mm', h: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
 function configsCard(asm, P) {
   const D = designOf(asm), M = mcOf(D), card = h('div', { class: 'rt-lcard rt-lcfg', role: 'tabpanel' });
   const fin = !!(asm.cond.object && asm.cond.object.kind === 'finite');
@@ -876,7 +889,7 @@ const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Tota
   SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
   BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
   IMH: 'Chief ray’s height on the image (mm)', CRA: 'Chief ray’s angle at the image (°)', RAYY: 'A ray’s height on the image (mm)',
-  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two' };
+  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two', THRU: 'Light reaching the image (share of the pupil)' };
 const CRIT = [['spot', 'RMS spot about the centroid'], ['chief', 'RMS spot about the chief ray'], ['wfe', 'RMS wavefront error']];
 function meritEdit(fn) {
   optStop('Stopped: the merit function was changed.');
@@ -928,7 +941,7 @@ function meritCard(asm, P) {
   const add = sel('Term to add', MERIT_OPS.map(k => [k, OP_LABEL[k]]), 'EFL', () => {});
   card.append(h('div', { class: 'rt-lbar' }, add, h('button', { class: 'rt-btn', type: 'button', onclick: () => {
     const F = designFigures(asm, P), now = { EFL: F.efl, FNO: Math.abs(F.fno), TTL: F.track, BFL: F.bfl, IMD: F.imgDist, MAG: F.mag, NA: F.S.n[F.S.N] * F.S.epr * Math.abs(F.S.par.uEp), XPD: F.S.imageZ - F.S.par.xpz }[add.value];
-    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1, ...(MERIT_AT_FIELD.includes(add.value) ? { f: asm.cond.fields.length - 1 } : {}), ...(MERIT_AT_PUPIL.includes(add.value) ? { p: 1 } : {}), ...(MERIT_AT_FREQ.includes(add.value) ? { v: 50, target: 1 } : {}) }); });
+    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1, ...(MERIT_AT_FIELD.includes(add.value) ? { f: asm.cond.fields.length - 1 } : {}), ...(MERIT_AT_PUPIL.includes(add.value) ? { p: 1 } : {}), ...(MERIT_AT_FREQ.includes(add.value) ? { v: 50, target: 1 } : {}), ...(add.value === 'THRU' ? { target: 1 } : {}) }); });
   } }, 'Add a term')));
   if (R.bounds.broken.length) card.append(h('div', { class: 'rt-lnote' }, 'Broken: ' + R.bounds.broken.map(b => b.what).join('; ') + '.'));
   const B = M.bounds, bnum = (label, k, t) => h('label', { class: 'rt-lbnd', title: t || '' }, label, wsNumInput(B[k], v => meritEdit(m => { m.bounds[k] = Math.max(0, v); }), { label }));

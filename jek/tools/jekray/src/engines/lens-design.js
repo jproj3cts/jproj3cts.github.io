@@ -1,4 +1,4 @@
-import { DESIGN_KEY, MC_MAX, asmApply, asmMembers, asmPrescription, normCond, normDesign } from '../core/assembly.js';
+import { DESIGN_KEY, MC_MAX, asmApply, asmMembers, asmPrescription, normCond, normDesign, stackRings } from '../core/assembly.js';
 import { deg, nextName, project, uid } from '../state/project.js';
 import { normElement } from '../state/elements.js';
 import { LENS } from '../parts/lens.js';
@@ -69,6 +69,8 @@ export function editable(P, q, i) {
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
+  // a lens surface's clear radius and hole (what light gets through, not how it is bent)
+  if (q === 'c' || q === 'h') return sp.kind === 'lens';
   return true;
 }
 export function getV(P, at) {
@@ -82,6 +84,8 @@ export function getV(P, at) {
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
   if (at.q === 'X') { const d = P.surfaces[at.i].dec; return d ? d[0] || 0 : 0; }
+  if (at.q === 'c') { const s = P.surfaces[at.i]; return s.own ? s.own.semi : s.semi; }
+  if (at.q === 'h') { const s = P.surfaces[at.i]; return s.own ? s.own.hole : s.obs || s.hole || 0; }
   return at.image ? P.image : P.gaps[at.i];
 }
 /* a part posed about its first vertex (surface i): tilted t degrees in the plane of the fields and moved
@@ -128,6 +132,18 @@ export function setV(P, at, v) {
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
     const u = at.q === 'U' && isFinite(v) ? Math.max(-TILT_LIM, Math.min(TILT_LIM, v)) : u0;
     partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0, u, at.q === 'X' && isFinite(v) ? v : x0);
+  }
+  else if (at.q === 'c' || at.q === 'h') {
+    if (!isFinite(v)) return;
+    // the part's own clear radius or hole, at each meeting of the surface; a stack's rings worked out again (stackRings)
+    const s0 = P.surfaces[at.i], same = q => q.from && s0.from && q.from.id === s0.from.id && q.from.i === s0.from.i;
+    const semi = s0.own ? s0.own.semi : s0.semi, hole = s0.own ? s0.own.hole : s0.obs || s0.hole || 0, max = s0.own && s0.own.max > 0 ? s0.own.max : Infinity;
+    for (const s of P.surfaces) {
+      if (!same(s)) continue;
+      if (at.q === 'c') { const c = Math.min(max, Math.max(hole + 1e-3, v)); if (s.own) s.own = Object.assign({}, s.own, { semi: c }); else s.semi = c; }
+      else { const hh = Math.max(0, Math.min(semi - 1e-3, v)); if (s.own) s.own = Object.assign({}, s.own, { hole: hh }); else { s.hole = hh; if (hh > 0) s.obs = hh; else delete s.obs; } }
+    }
+    stackRings(P);
   }
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = gapMayBeNegative(P, at.i) ? v : Math.max(0, v);

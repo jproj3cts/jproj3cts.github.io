@@ -6877,7 +6877,7 @@ function normAssemblies(list, els) {
    U and X the same out of it; f20 … f06 a freeform's term c_mn x^m y^n (core/freeform.js); p2 … p8 a diffractive
    face's phase term on ρ² … ρ⁸ (core/diffractive.js); n2 … n6 a graded glass's term on r² … r⁶, the glass after
    that surface (core/gradient.js) */
-const DESIGN_KEY = /^([RtkgTDUX]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+(?:~\d+)?)$/;
+const DESIGN_KEY = /^([RtkgTDUXch]|a(?:4|6|8|10|12|14|16)|f(?:20|02|21|03|40|22|04|41|23|05|60|42|24|06)|p[2468]|n[246]):(.{1,120}\.\d+(?:~\d+)?)$/;
 const ASPH_ORDERS = [4, 6, 8, 10, 12, 14, 16];
 const okKey = k => typeof k === 'string' && (k === 't:image' || DESIGN_KEY.test(k));
 const SOLVE_KINDS = {
@@ -6998,10 +6998,10 @@ function normTol(o) {
   if (yc !== null || specs.length) out.yield = { crit: yc, specs };
   return out;
 }
-const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'];
+const MERIT_OPS = ['EFL', 'FNO', 'TTL', 'DIST', 'SI', 'SII', 'SIII', 'SIV', 'SV', 'CL', 'CT', 'BFL', 'IMD', 'MAG', 'NA', 'XPD', 'IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA', 'THRU'];
 /* the terms that are measured at one of the design's fields (f, its index), at a point of the pupil (p, -1 to 1),
    and at a spatial frequency (v, cycles/mm) */
-const MERIT_AT_FIELD = ['IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA'], MERIT_AT_PUPIL = ['RAYY'], MERIT_AT_FREQ = ['MTFT', 'MTFS', 'MTFA'];
+const MERIT_AT_FIELD = ['IMH', 'CRA', 'RAYY', 'MTFT', 'MTFS', 'MTFA', 'THRU'], MERIT_AT_PUPIL = ['RAYY'], MERIT_AT_FREQ = ['MTFT', 'MTFS', 'MTFA'];
 function normMerit(m) {
   m = m && typeof m === 'object' ? m : {};
   const b = m.bounds && typeof m.bounds === 'object' ? m.bounds : {};
@@ -7187,6 +7187,28 @@ const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
    first crossing it (glink). An odd number of reflections sends the light back the way it came, and the lens folds
    the axis as a mirror does. */
 const PATH_VISITS_MAX = 10;
+/* a stacked surface's clear radius and hole as the light meets it: its own (s.own, the part's, typed or varied) cut to the ring
+   where it is the surface met among its stack's members (s.stk; stackRing), the same for each meeting of it. Worked out again
+   whenever one of the stack's own values changes, so a spot made larger moves the ring round it out with it */
+function stackRings(P) {
+  const groups = new Map();
+  for (const s of P.surfaces) if (s.stk) { const k = s.stk.id + '|' + s.stk.m.join(','); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
+  for (const ss of groups.values()) {
+    const own = {}; for (const [k, o] of Object.entries(ss[0].stk.own)) own[k] = { semi: o.semi, hole: o.hole };
+    for (const s of ss) if (s.own && !s.link) own[s.from.i] = { semi: s.own.semi, hole: s.own.hole };
+    const m = ss[0].stk.m, list = m.map(fi => own[fi]);
+    for (const s of ss) {
+      const o = own[s.from.i]; if (!o) continue;
+      const ring = stackRing(list, m.map((_, q) => q), m.indexOf(s.from.i));
+      s.own = Object.assign({}, s.own, { semi: o.semi, hole: o.hole });
+      s.stk = Object.assign({}, s.stk, { own });
+      s.semi = ring ? Math.min(o.semi, ring[1]) : o.semi; s.hole = o.hole;
+      const ob = Math.max(o.hole, ring && ring[0] > 0 ? ring[0] : 0);
+      if (ob > 0) s.obs = ob; else delete s.obs;
+    }
+  }
+  return P;
+}
 /* the ring of a stack where member j is the surface met (stackOrder's pick among the members holding each height, as lensPath, the bench
    and the drawings take it): [inner, outer] radius, or null where it is never met. A window stacked in a primary's hole
    reaches only to the hole, whatever its own clear radius: the primary is the surface beyond it */
@@ -7318,10 +7340,13 @@ function asmPrescription(asm, els) {
           const s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: base.semi, hole: base.hole, coat: base.coat, mcoat: base.mcoat, from: { id: base.from.id, i: base.from.i, v }, cum: x.j, fflip: flip !== flipped, vflip: flipped });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (base.hole > 0) s.obs = base.hole;
-          // stacked: only the ring where this member is the surface met (a window in a primary's hole, out to the hole)
-          const stk = V.stacks.find(t => t.m.includes(x.j)), ring = stk && stk.m.length > 1 ? stackRing(S2, stk.m, x.j) : null;
-          // (the part keeps its own clear radius and hole: what is written back unless changed here)
-          if (ring) { const own = { semi: s.semi, obs: s.obs || 0 }; s.semi = Math.min(s.semi, ring[1]); if (ring[0] > 0) s.obs = Math.max(s.obs || 0, ring[0]); s.clip = { semi: s.semi, obs: s.obs || 0, own }; }
+          // stacked: its own clear radius and hole kept (own, what is written back), the stack's members' with them (stk), and
+          // the ring where it is the surface met taken by stackRings (a window in a primary's hole reaches only to the hole)
+          const stk = V.stacks.find(t => t.m.includes(x.j));
+          if (stk && stk.m.length > 1) {
+            s.own = { semi: base.semi, hole: base.hole || 0, max: e.diameter / 2 };
+            s.stk = { id: base.from.id, m: stk.m.map(j => S2[j].from.i), own: Object.fromEntries(stk.m.map(j => [S2[j].from.i, { semi: S2[j].semi, hole: S2[j].hole || 0 }])) };
+          }
           if (x.role === 'mirror') s.mirror = true;
           if (owner[x.j] < 0) { owner[x.j] = S3.length; s.faceOwn = true; } else s.link = { i: owner[x.j], flip: flipped !== S3[owner[x.j]].vflip };
           if (q) {
@@ -7333,6 +7358,7 @@ function asmPrescription(asm, els) {
           }
           S3.push(s);
         });
+        stackRings({ surfaces: S3 });
         S2 = S3; G2 = G3; M2 = M3; lensFold = V.folds ? { exitAlong: V.zs[V.exit], inside: V.inside } : null;
       }
     }
@@ -7507,7 +7533,7 @@ function asmApply(asm, P, els) {
             const tF = ffTurn(u.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
             const tP = normPh(u.ph); if (tP) t.ph = tP; else delete t.ph;
             // a stacked surface clipped to its ring (lensPath's stackRing) writes back its own clear radius and hole, unless changed
-            const semiW = s.clip && Math.abs(s.semi - s.clip.semi) < 1e-9 ? s.clip.own.semi : s.semi, obsW = s.clip && Math.abs((s.obs || 0) - s.clip.obs) < 1e-9 ? s.clip.own.obs : s.obs;
+            const semiW = s.own ? s.own.semi : s.semi, obsW = s.own ? s.own.hole : s.obs;
             if (Math.abs(semiW - e.diameter / 2) >= 1e-9) t.semi = semiW; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
             if (obsW > 0 || t.hole) t.hole = obsW > 0 ? obsW : 0;
             if (s.coat) t.coat = normCoat(s.coat);
@@ -28913,8 +28939,12 @@ function dataCard(asm, P) {
     // clear radius and hole: a lens surface's own (where it applies); the stop's is set by the aperture
     const ctd = h('td'), htd = h('td');
     if (sp.kind === 'lens' && s.from) {
-      ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; if (v <= (s.obs || 0)) return 'The clear radius reaches past the hole: more than ' + wsFmt(s.obs, 4) + ' mm.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; for (const q of PP.surfaces) if (sameSurf(s, q)) q.semi = v; }), { label: 'Clear radius of surface ' + (i + 1), width: '4.2rem' }));
-      htd.append(wsNumInput(s.obs || 0, v => edit(PP => { if (!(v >= 0)) return 'A hole radius is 0 or more.'; if (v >= s.semi) return 'The hole reaches the edge: less than ' + wsFmt(s.semi, 4) + ' mm.'; for (const q of PP.surfaces) if (sameSurf(s, q)) { q.hole = v; if (v > 0) q.obs = v; else delete q.obs; } }), { label: 'Hole radius of surface ' + (i + 1), width: '3.6rem' }));
+      // the part's own clear radius and hole (a stacked surface's: before its stack cuts it to its ring), typed or varied
+      const ownC = getV(P, { q: 'c', i }), ownH = getV(P, { q: 'h', i });
+      ctd.append(ownCell('c', i, ownC, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; if (v <= ownH) return 'The clear radius reaches past the hole: more than ' + wsFmt(ownH, 4) + ' mm.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; const own = PP.surfaces[i].own; if (own) own.max = Math.max(own.max || 0, v); setV(PP, { q: 'c', i }, v); }), 'Clear radius of surface ' + (i + 1), '4.2rem', P, D));
+      htd.append(ownCell('h', i, ownH, v => edit(PP => { if (!(v >= 0)) return 'A hole radius is 0 or more.'; if (v >= ownC) return 'The hole reaches the edge: less than ' + wsFmt(ownC, 4) + ' mm.'; setV(PP, { q: 'h', i }, v); }), 'Hole radius of surface ' + (i + 1), '3.6rem', P, D));
+      // where the stack cuts it to less than its own, the ring it is met over
+      if (s.own && (Math.abs(s.semi - ownC) > 1e-9 || Math.abs((s.obs || 0) - ownH) > 1e-9)) ctd.title = 'Met from ' + wsFmt(s.obs || 0, 4) + ' to ' + wsFmt(s.semi, 4) + ' mm: the rest of it is under another surface stacked on the face';
     } else if (sp.kind === 'lens') ctd.append(wsNumInput(s.semi, v => edit(PP => { if (!(v > 0)) return 'A clear radius is more than 0.'; const e = getEl(sp.id); if (e && 2 * v > e.diameter) e.diameter = 2 * v; PP.surfaces[i].semi = v; }), { label: 'Clear radius of surface ' + (i + 1) }));
     else ctd.append(h('span', { class: 'mono ro', title: sp.kind === 'stop' ? 'Set by the aperture in the design conditions' : sp.kind === 'mirror' ? 'Half the mirror’s length' : 'The window’s own size' }, wsFmt(s.semi, 5)));
     tr.append(ctd, htd);
@@ -28983,6 +29013,15 @@ function dataCard(asm, P) {
 const POSE_QS = ['T', 'D', 'U', 'X'];
 const POSE_HEADS = [['Tilt (°)', 'In the plane of the fields: turned across the bench, about its first vertex'], ['Decentre (mm)', 'In the plane of the fields: moved across the bench'],
   ['Tilt up (°)', 'Out of the plane of the fields: tipped up, about its first vertex'], ['Decentre up (mm)', 'Out of the plane of the fields: raised']];
+/* a lens surface's own clear radius or hole: typed, and its V (no solves; the optimiser varies it for the light it lets through,
+   the merit's "Light reaching the image" term) */
+function ownCell(q, i, v, set, label, width, P, D) {
+  const key = keyAt(P, q, i), isVar = D.vars.includes(key), lk = P.surfaces[i] && P.surfaces[i].link;
+  const vb = h('button', { type: 'button', class: 'rt-lv', 'aria-pressed': String(isVar), 'aria-label': (isVar ? 'Fix ' : 'Vary ') + label.toLowerCase(), disabled: lk ? '' : null,
+    title: isVar ? 'A variable: the optimiser may change it. Click to fix it.' : 'Click to let the optimiser change it: it changes how much light gets through, so give the merit a "Light reaching the image" term',
+    onclick: () => { checkpoint(); D.vars = isVar ? D.vars.filter(k => k !== key) : D.vars.concat([key]); changed(false); renderWs(); } }, 'V');
+  return h('div', { class: 'rt-lcell' }, wsNumInput(v, set, { label, width }), vb);
+}
 /* a radius, thickness or conic: its value (fixed by a solve or pickup, or typed), its V and its S/P */
 function valueCell(P, D, q, i) {
   const td = h('td', { class: 'rt-lval' });
@@ -29112,10 +29151,10 @@ function keyLabel(P, sps, key) {
   const at = posOf(P, key);
   if (!at) return key;
   if (at.image) return 'Image distance';
-  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q[0] === 'n' ? 'Gradient ' + grLabel(+at.q[1] / 2 - 1) + ' after' : at.q);
+  const what = { R: 'Radius', t: 'Thickness after', k: 'Conic of', c: 'Clear radius of', h: 'Hole radius of', T: 'Tilt of', D: 'Decentre of', U: 'Tilt out of the plane of', X: 'Decentre out of the plane of' }[at.q] || (at.q[0] === 'a' ? 'A' + at.q.slice(1) + ' of' : at.q[0] === 'f' ? 'Freeform ' + ffLabel(at.q.slice(1)) + ' of' : at.q[0] === 'p' ? 'Phase ' + dpLabel(+at.q[1] / 2 - 1) + ' of' : at.q[0] === 'n' ? 'Gradient ' + grLabel(+at.q[1] / 2 - 1) + ' after' : at.q);
   return (at.q === 'R' ? 'Radius of' : what) + ' surface ' + (at.i + 1) + ' (' + surfaceName(P, sps, at.i) + ')';
 }
-const KEY_UNIT = { R: 'mm', t: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
+const KEY_UNIT = { R: 'mm', t: 'mm', c: 'mm', h: 'mm', T: '°', D: 'mm', U: '°', X: 'mm' };
 function configsCard(asm, P) {
   const D = designOf(asm), M = mcOf(D), card = h('div', { class: 'rt-lcard rt-lcfg', role: 'tabpanel' });
   const fin = !!(asm.cond.object && asm.cond.object.kind === 'finite');
@@ -29202,7 +29241,7 @@ const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Tota
   SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
   BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
   IMH: 'Chief ray’s height on the image (mm)', CRA: 'Chief ray’s angle at the image (°)', RAYY: 'A ray’s height on the image (mm)',
-  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two' };
+  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two', THRU: 'Light reaching the image (share of the pupil)' };
 const CRIT = [['spot', 'RMS spot about the centroid'], ['chief', 'RMS spot about the chief ray'], ['wfe', 'RMS wavefront error']];
 function meritEdit(fn) {
   optStop('Stopped: the merit function was changed.');
@@ -29254,7 +29293,7 @@ function meritCard(asm, P) {
   const add = sel('Term to add', MERIT_OPS.map(k => [k, OP_LABEL[k]]), 'EFL', () => {});
   card.append(h('div', { class: 'rt-lbar' }, add, h('button', { class: 'rt-btn', type: 'button', onclick: () => {
     const F = designFigures(asm, P), now = { EFL: F.efl, FNO: Math.abs(F.fno), TTL: F.track, BFL: F.bfl, IMD: F.imgDist, MAG: F.mag, NA: F.S.n[F.S.N] * F.S.epr * Math.abs(F.S.par.uEp), XPD: F.S.imageZ - F.S.par.xpz }[add.value];
-    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1, ...(MERIT_AT_FIELD.includes(add.value) ? { f: asm.cond.fields.length - 1 } : {}), ...(MERIT_AT_PUPIL.includes(add.value) ? { p: 1 } : {}), ...(MERIT_AT_FREQ.includes(add.value) ? { v: 50, target: 1 } : {}) }); });
+    meritEdit(m => { m.ops.push({ op: add.value, target: isFinite(now) ? +now.toPrecision(6) : 0, weight: 1, ...(MERIT_AT_FIELD.includes(add.value) ? { f: asm.cond.fields.length - 1 } : {}), ...(MERIT_AT_PUPIL.includes(add.value) ? { p: 1 } : {}), ...(MERIT_AT_FREQ.includes(add.value) ? { v: 50, target: 1 } : {}), ...(add.value === 'THRU' ? { target: 1 } : {}) }); });
   } }, 'Add a term')));
   if (R.bounds.broken.length) card.append(h('div', { class: 'rt-lnote' }, 'Broken: ' + R.bounds.broken.map(b => b.what).join('; ') + '.'));
   const B = M.bounds, bnum = (label, k, t) => h('label', { class: 'rt-lbnd', title: t || '' }, label, wsNumInput(B[k], v => meritEdit(m => { m.bounds[k] = Math.max(0, v); }), { label }));
@@ -37088,6 +37127,8 @@ function editable(P, q, i) {
   if (q === 'T') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window' || sp.kind === 'mirror');
   if (q === 'D' || q === 'U' || q === 'X') return sp.j === 0 && (sp.kind === 'lens' || sp.kind === 'window');
   if (q === 'g') return sp.kind !== 'stop' && sp.j < sp.n - 1;
+  // a lens surface's clear radius and hole (what light gets through, not how it is bent)
+  if (q === 'c' || q === 'h') return sp.kind === 'lens';
   return true;
 }
 function getV(P, at) {
@@ -37101,6 +37142,8 @@ function getV(P, at) {
   if (at.q === 'D') { const d = P.surfaces[at.i].dec; return d ? d[1] : 0; }
   if (at.q === 'U') { const t = P.surfaces[at.i].tilt; return t ? (t[1] || 0) / deg : 0; }
   if (at.q === 'X') { const d = P.surfaces[at.i].dec; return d ? d[0] || 0 : 0; }
+  if (at.q === 'c') { const s = P.surfaces[at.i]; return s.own ? s.own.semi : s.semi; }
+  if (at.q === 'h') { const s = P.surfaces[at.i]; return s.own ? s.own.hole : s.obs || s.hole || 0; }
   return at.image ? P.image : P.gaps[at.i];
 }
 /* a part posed about its first vertex (surface i): tilted t degrees in the plane of the fields and moved
@@ -37147,6 +37190,18 @@ function setV(P, at, v) {
     const t = at.q === 'T' && isFinite(v) ? (mir ? Math.max(-80, Math.min(80, v)) : Math.max(-TILT_LIM, Math.min(TILT_LIM, v))) : t0;
     const u = at.q === 'U' && isFinite(v) ? Math.max(-TILT_LIM, Math.min(TILT_LIM, v)) : u0;
     partPose(P, at.i, t, at.q === 'D' && isFinite(v) ? v : d0, u, at.q === 'X' && isFinite(v) ? v : x0);
+  }
+  else if (at.q === 'c' || at.q === 'h') {
+    if (!isFinite(v)) return;
+    // the part's own clear radius or hole, at each meeting of the surface; a stack's rings worked out again (stackRings)
+    const s0 = P.surfaces[at.i], same = q => q.from && s0.from && q.from.id === s0.from.id && q.from.i === s0.from.i;
+    const semi = s0.own ? s0.own.semi : s0.semi, hole = s0.own ? s0.own.hole : s0.obs || s0.hole || 0, max = s0.own && s0.own.max > 0 ? s0.own.max : Infinity;
+    for (const s of P.surfaces) {
+      if (!same(s)) continue;
+      if (at.q === 'c') { const c = Math.min(max, Math.max(hole + 1e-3, v)); if (s.own) s.own = Object.assign({}, s.own, { semi: c }); else s.semi = c; }
+      else { const hh = Math.max(0, Math.min(semi - 1e-3, v)); if (s.own) s.own = Object.assign({}, s.own, { hole: hh }); else { s.hole = hh; if (hh > 0) s.obs = hh; else delete s.obs; } }
+    }
+    stackRings(P);
   }
   else if (at.image) P.image = isFinite(v) ? v : P.image;
   else if (isFinite(v)) P.gaps[at.i] = gapMayBeNegative(P, at.i) ? v : Math.max(0, v);
@@ -37760,14 +37815,14 @@ function setX(P, v, x) {
   else if (v.at.q[0] === 'f') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1] + +v.at.q[2]));
   else if (v.at.q[0] === 'p') setV(P, v.at, 2 * Math.PI * x / Math.pow(asphH(P, i), +v.at.q[1]));
   else if (v.at.q[0] === 'n') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1]));
-  else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X') setV(P, v.at, x);
+  else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X' || v.at.q === 'c' || v.at.q === 'h') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, n: 1e-7, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, c: 1e-4, h: 1e-4, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, n: 1e-7, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
 const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q[0] === 'p' ? 'p' : v.at.q[0] === 'n' && v.at.q !== 'nd' ? 'n' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : /^n\d$/.test(q) ? Math.max(Math.abs(x) / 3, 0.002) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : /^n\d$/.test(q) ? Math.max(Math.abs(x) / 3, 0.002) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'c' || q === 'h' ? 0.5 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured. With configurations, each one is solved with its own
    values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
@@ -37813,6 +37868,33 @@ function meritTerms(prob, P, detail) {
   if (!isFinite(out.ss)) out.ss = Infinity;
   out.merit = Math.sqrt(out.ss / out.Wt);
   return out;
+}
+/* The share of a uniformly lit entrance pupil that reaches the image, every clear radius and hole in place (a telescope's
+   secondary in the middle, a rim at the edge). Along each of ARMS radii across the pupil the heights where the light starts
+   and stops getting through are found (coarse steps, then halved to a ten-thousandth of the pupil), and the rings between
+   them added up by area: a smooth function of what bounds them, so the optimiser can follow it as a hole or a clear radius
+   is varied, where a count of rays would only step */
+const THRU_ARMS = 12, THRU_STEPS = 40, THRU_HALVE = 13;
+function throughput(S, th) {
+  const R = new Float64Array(8);
+  let area = 0;
+  for (let a = 0; a < THRU_ARMS; a++) {
+    const ph = (a + 0.5) * 2 * Math.PI / THRU_ARMS, sx = Math.sin(ph), cy = Math.cos(ph);
+    const ok = rho => { const Q = rayAt(S, th, rho * sx, rho * cy, R, false); return !!Q && Q[7] === 0; };
+    let r0 = 0, in0 = ok(0), from = in0 ? 0 : null;
+    for (let k = 1; k <= THRU_STEPS; k++) {
+      const r1 = k / THRU_STEPS, in1 = ok(r1);
+      if (in1 !== in0) {
+        let lo = r0, hi = r1;
+        for (let q = 0; q < THRU_HALVE; q++) { const m = (lo + hi) / 2; if (ok(m) === in0) lo = m; else hi = m; }
+        const edge = (lo + hi) / 2;
+        if (in0) area += edge * edge - from * from; else from = edge;
+      }
+      r0 = r1; in0 = in1;
+    }
+    if (in0) area += 1 - from * from;
+  }
+  return area / THRU_ARMS;
 }
 function meritOne(c, M, mops, P, detail) {
   const nm0 = primaryNm(c);
@@ -37877,6 +37959,11 @@ function meritOne(c, M, mops, P, detail) {
       const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)], th = f.deg * Math.PI / 180;
       const Q = rayAt(Sp, th, 0, o.op === 'RAYY' ? o.p : 0, R, true);
       v = !Q || Q[7] !== 0 ? NaN : o.op === 'CRA' ? Math.atan2(Q[4], Q[5]) * 180 / Math.PI : Q[1];
+    } else if (o.op === 'THRU') {
+      // the share of the entrance pupil whose rays reach the image through every clear radius and hole, at the primary
+      // wavelength and one of the fields
+      const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)];
+      v = throughput(Sp, f.deg * Math.PI / 180);
     } else if (o.op === 'MTFT' || o.op === 'MTFS' || o.op === 'MTFA') {
       // the diffraction MTF at a frequency and field: tangential, sagittal, or their mean
       const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)];
@@ -38023,6 +38110,7 @@ function globalSearch(prob, V, best, trials, seed) {
       else if (q[0] === 'p') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 5);
       else if (/^n\d$/.test(q)) x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.002);
       else if (q === 'T' || q === 'U') x[j] += 0.5 * z;
+      else if (q === 'c' || q === 'h') x[j] = Math.max(0, x[j] + 0.3 * z * Math.max(x[j], 0.5));
       else if (q === 'D' || q === 'X') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
@@ -38173,7 +38261,7 @@ function keepFound(list, item, n) {
    its own side of flat (at least 20: 20 ≤ R, out to flat; at most 20: 0 < R ≤ 20; at least -20: -20 ≤ R < 0;
    at most -20: R ≤ -20, out to flat). */
 const limitKey = v => v.k + (v.part ? '/' + v.part : '');
-const LIMITED = q => q === 'R' || q === 't' || q === 'k' || q === 'T' || q === 'D' || q === 'U' || q === 'X' || q === 'g';
+const LIMITED = q => q === 'R' || q === 't' || q === 'k' || q === 'T' || q === 'D' || q === 'U' || q === 'X' || q === 'g' || q === 'c' || q === 'h';
 /* each variable's limits in the optimiser's own terms (a radius's as curvatures): [lo, hi] arrays */
 function limitsX(prob, V) {
   const L = prob.design.lims || {}, lo = new Float64Array(V.length).fill(-Infinity), hi = new Float64Array(V.length).fill(Infinity);
@@ -47359,6 +47447,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Clear radii and holes for the optimiser</b>: a lens surface\u2019s clear radius and hole radius each have a <b>V</b> in the Optical designer, and the merit a new term, <b>Light reaching the image</b>: the share of the entrance pupil whose rays get through every clear radius and hole, worked out so it changes smoothly. With both, the optimiser sizes a telescope\u2019s spot, the window in its primary and its mirrors together (a stacked surface varied, its stack follows).',
     '<b>Stacked surfaces in the Optical designer as on the bench</b>: each stacked surface is analysed only over the ring where it is the surface met, so a window stacked in a primary\u2019s hole is clipped at the hole (a telescope whose exit cone is wider than its window now shows the light it loses, as the bench always did). The part keeps its own clear radius and hole. Where two stacked surfaces overlap, the one with the smaller clear radius is the surface there (a spot reaches its own rim whatever the hole under it; before, a ring whose hole was smaller than the spot took over part of it), the same in the bench\u2019s rays, the drawings, the field and the designer. The designer\u2019s layout draws rays the light really takes: where the usual five heights across the pupil are stopped (a telescope\u2019s secondary in the middle), five spread over the heights that get through.',
     '<b>The diffracted field through a solid telescope</b>: a face built of stacked surfaces or with a hole is now taken ring by ring, the beam split into a branch for each ring, its field cut to the ring and passed through that ring\u2019s own surface. Before, the field followed the beam\u2019s centre alone, which a telescope\u2019s secondary sends straight back, so in 2D and 3D nothing came out. The bench\u2019s field also keeps a surface\u2019s whole light on its grid when what gets through is much wider than the beam it is fitted to (it had cut a telescope\u2019s converging ring in half at the secondary), the 2D view slices beams that run together at each one\u2019s own steps (a focus close behind a part was missed), and an assembly with mirrors in it gives its focal lengths along the light\u2019s own path on its panel and in the command line.',
     '<b>Stop stops</b>: the <b>Stop</b> button of the optimiser, tolerancing and Monte Carlo in the Optical and RF designers now acts as it is pressed, and the tables update a few times a second while a run goes on. <b>Image plane held still</b>: a solve for the image distance (<b>\u2026</b> beside it) keeps the image plane a set distance from the first surface, so the optimiser and typed gaps move the lenses and not the image. <b>Image simulation</b> works for telescopes whose secondary blocks the centre of the beam, and for a design with only a field on the axis (a patch about the axis), and a design with one wavelength keeps the picture\u2019s colours (it had shown the red channel in grey).',

@@ -14,6 +14,7 @@ const Gm = await import('../../src/core/geometry.js');
 const C = await import('../../src/core/coatings.js');
 const FP = await import('../../src/core/face-pol.js');
 const { normElement } = await import('../../src/state/elements.js');
+const LD = await import('../../src/engines/lens-design.js');
 
 const cond = { aperture: { kind: 'epd', v: 20 }, fields: [{ deg: 0, w: 1 }], waves: [{ nm: 587.56, w: 1 }], primary: 0 };
 const lensOf = o => normElement(Object.assign({ type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, bench: 'b', group: 'asm' }, o));
@@ -139,7 +140,7 @@ test('the solid telescope in the designer: in through the annulus, off the back,
   assert.ok(Math.abs(e2.x - e.x) < 1e-9 && Math.abs(e2.y - e.y) < 1e-9, 'the part stays where it was: ' + e2.x);
   assert.deepEqual(e2.surfaces.map(s => [s.R, s.hole, s.semi, s.coat.mode, s.coat.metal]), [[null, 16.5, null, 'bare', undefined], [-600, 0, 16.5, 'mirror', 'ideal'], [-200, 6.5, null, 'mirror', 'Al'], [null, 0, 6.5, 'bare', undefined]]);
   // the spot's row edited (as met, R 600 → 500) and the back's hole widened: the bench's surfaces
-  P.surfaces[2].R = 500; P.surfaces[1].obs = 8;
+  P.surfaces[2].R = 500; LD.setV(P, { q: 'h', i: 1 }, 8);
   const e3 = JSON.parse(JSON.stringify(e)); A.asmApply(asmOf(), P, [e3]);
   assert.equal(e3.surfaces[1].R, -500); assert.equal(e3.surfaces[2].hole, 8);
 });
@@ -239,4 +240,29 @@ test('a spot stacked on a face reaches its own rim whatever the hole under it; a
   assert.deepEqual(A.stackRing([{ semi: 25, hole: 10 }, { semi: 16.5, hole: 0 }], [0, 1], 0), [16.5, 25]);
   const P = A.asmPrescription(asmOf(), [e]), ring = P.surfaces.find(s => s.from.i === 0);
   assert.ok(ring && Math.abs(ring.obs - 16.5) < 1e-9, ring && ring.obs);
+});
+
+test('a clear radius and a hole as variables, and the light reaching the image as a merit term', async () => {
+  const O = await import('../../src/engines/lens-opt.js');
+  // a singlet whose front is cut to a clear radius of 7 on a 20 mm pupil: (7/10)^2 of the pupil gets through
+  const e = lensOf({ diameter: 40, surfaces: [{ R: 100, semi: 7 }, { R: -100 }], gaps: [4], materials: [{ glass: 'N-BK7' }] });
+  const P = A.asmPrescription(asmOf(), [e]), thru = () => O.throughput(E.lensSystem(P, 587.56, { epd: 20 }), 0);
+  assert.ok(Math.abs(thru() - 0.49) < 2e-3, thru());
+  assert.equal(LD.getV(P, { q: 'c', i: 0 }), 7);
+  LD.setV(P, { q: 'c', i: 0 }, 8); assert.ok(Math.abs(thru() - 0.64) < 2e-3, thru());
+  // a hole of 3 in it: 0.64 - 0.09 of the pupil; smooth in the hole (a small change, a small change in the light)
+  LD.setV(P, { q: 'h', i: 0 }, 3); assert.ok(Math.abs(thru() - 0.55) < 3e-3, thru());
+  const t0 = thru(); LD.setV(P, { q: 'h', i: 0 }, 3.01); const t1 = thru();
+  assert.ok(t1 < t0 && t0 - t1 < 1e-3, [t0, t1]);
+  // a stacked spot made larger takes the ring round it out with it (stackRings), and the part keeps its own figures
+  const tel = lensOf({ diameter: 50, surfaces: [{ R: null, hole: 2 }, { R: -600, semi: 16.5, coat: MIRROR }, { R: -200, hole: 6.5, coat: { mode: 'mirror', metal: 'Al' } }, { R: null }],
+    gaps: [0, 40, 0], materials: [{ glass: 'N-BK7' }, { glass: 'N-BK7' }, { glass: 'N-BK7' }] });
+  const Q = A.asmPrescription(asmOf(), [tel]), spot = Q.surfaces.findIndex(s => s.from.i === 1), ring = Q.surfaces.find(s => s.from.i === 0);
+  assert.ok(Math.abs(ring.obs - 16.5) < 1e-9);
+  LD.setV(Q, { q: 'c', i: spot }, 18);
+  assert.ok(Math.abs(ring.obs - 18) < 1e-9 && ring.own.hole === 2, [ring.obs, ring.own.hole]);
+  const t2 = JSON.parse(JSON.stringify(tel)); A.asmApply(asmOf(), Q, [t2]);
+  assert.ok(t2.surfaces[1].semi === 18 && t2.surfaces[0].hole === 2, JSON.stringify(t2.surfaces.map(s => [s.semi, s.hole])));
+  // the keys are design keys the optimiser takes
+  assert.ok(A.DESIGN_KEY.test('c:L.1') && A.DESIGN_KEY.test('h:L.2') && A.MERIT_OPS.includes('THRU'));
 });

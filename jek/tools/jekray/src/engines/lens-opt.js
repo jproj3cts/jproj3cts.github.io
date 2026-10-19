@@ -84,14 +84,14 @@ function setX(P, v, x) {
   else if (v.at.q[0] === 'f') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1] + +v.at.q[2]));
   else if (v.at.q[0] === 'p') setV(P, v.at, 2 * Math.PI * x / Math.pow(asphH(P, i), +v.at.q[1]));
   else if (v.at.q[0] === 'n') setV(P, v.at, x / Math.pow(asphH(P, i), +v.at.q[1]));
-  else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X') setV(P, v.at, x);
+  else if (v.at.q === 'T' || v.at.q === 'D' || v.at.q === 'U' || v.at.q === 'X' || v.at.q === 'c' || v.at.q === 'h') setV(P, v.at, x);
   else if (v.at.q === 'g') P.materials[i] = Object.assign({}, P.materials[i], { [v.part]: v.part === 'nd' ? Math.min(ND[1], Math.max(ND[0], x)) : Math.min(VD[1], Math.max(VD[0], x)) });
   else if (v.at.image) P.image = x;
   else P.gaps[i] = Math.max(0, x);
 }
-const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, n: 1e-7, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
+const STEP = { R: 1e-7, t: 1e-5, k: 1e-5, c: 1e-4, h: 1e-4, nd: 1e-6, vd: 1e-4, a: 1e-6, p: 2e-3, n: 1e-7, T: 1e-4, D: 1e-5, U: 1e-4, X: 1e-5 };
 const stepOf = v => STEP[v.part || (v.at.q[0] === 'a' || v.at.q[0] === 'f' ? 'a' : v.at.q[0] === 'p' ? 'p' : v.at.q[0] === 'n' && v.at.q !== 'nd' ? 'n' : v.at.q)];
-const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : /^n\d$/.test(q) ? Math.max(Math.abs(x) / 3, 0.002) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'nd' ? 0.02 : 3; };
+const reach = (v, x) => { const q = v.part || v.at.q; return q === 'R' ? Math.max(Math.abs(x) / 6, 2e-3) : q === 't' ? Math.max(0.3 * Math.abs(x), 0.2) : q === 'k' ? 0.5 : q[0] === 'a' || q[0] === 'f' ? Math.max(Math.abs(x) / 3, 0.01) : q[0] === 'p' ? Math.max(Math.abs(x) / 3, 5) : /^n\d$/.test(q) ? Math.max(Math.abs(x) / 3, 0.002) : q === 'T' || q === 'U' ? 1 : q === 'D' || q === 'X' ? 0.2 : q === 'c' || q === 'h' ? 0.5 : q === 'nd' ? 0.02 : 3; };
 
 /* the design with values x: solved, then measured. With configurations, each one is solved with its own
    values and object; the active one is returned, the others with it (P.cfgs, every one in order) */
@@ -137,6 +137,33 @@ export function meritTerms(prob, P, detail) {
   if (!isFinite(out.ss)) out.ss = Infinity;
   out.merit = Math.sqrt(out.ss / out.Wt);
   return out;
+}
+/* The share of a uniformly lit entrance pupil that reaches the image, every clear radius and hole in place (a telescope's
+   secondary in the middle, a rim at the edge). Along each of ARMS radii across the pupil the heights where the light starts
+   and stops getting through are found (coarse steps, then halved to a ten-thousandth of the pupil), and the rings between
+   them added up by area: a smooth function of what bounds them, so the optimiser can follow it as a hole or a clear radius
+   is varied, where a count of rays would only step */
+const THRU_ARMS = 12, THRU_STEPS = 40, THRU_HALVE = 13;
+export function throughput(S, th) {
+  const R = new Float64Array(8);
+  let area = 0;
+  for (let a = 0; a < THRU_ARMS; a++) {
+    const ph = (a + 0.5) * 2 * Math.PI / THRU_ARMS, sx = Math.sin(ph), cy = Math.cos(ph);
+    const ok = rho => { const Q = rayAt(S, th, rho * sx, rho * cy, R, false); return !!Q && Q[7] === 0; };
+    let r0 = 0, in0 = ok(0), from = in0 ? 0 : null;
+    for (let k = 1; k <= THRU_STEPS; k++) {
+      const r1 = k / THRU_STEPS, in1 = ok(r1);
+      if (in1 !== in0) {
+        let lo = r0, hi = r1;
+        for (let q = 0; q < THRU_HALVE; q++) { const m = (lo + hi) / 2; if (ok(m) === in0) lo = m; else hi = m; }
+        const edge = (lo + hi) / 2;
+        if (in0) area += edge * edge - from * from; else from = edge;
+      }
+      r0 = r1; in0 = in1;
+    }
+    if (in0) area += 1 - from * from;
+  }
+  return area / THRU_ARMS;
 }
 function meritOne(c, M, mops, P, detail) {
   const nm0 = primaryNm(c);
@@ -201,6 +228,11 @@ function meritOne(c, M, mops, P, detail) {
       const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)], th = f.deg * Math.PI / 180;
       const Q = rayAt(Sp, th, 0, o.op === 'RAYY' ? o.p : 0, R, true);
       v = !Q || Q[7] !== 0 ? NaN : o.op === 'CRA' ? Math.atan2(Q[4], Q[5]) * 180 / Math.PI : Q[1];
+    } else if (o.op === 'THRU') {
+      // the share of the entrance pupil whose rays reach the image through every clear radius and hole, at the primary
+      // wavelength and one of the fields
+      const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)];
+      v = throughput(Sp, f.deg * Math.PI / 180);
     } else if (o.op === 'MTFT' || o.op === 'MTFS' || o.op === 'MTFA') {
       // the diffraction MTF at a frequency and field: tangential, sagittal, or their mean
       const f = c.fields[Math.min(o.f === undefined ? c.fields.length - 1 : o.f, c.fields.length - 1)];
@@ -347,6 +379,7 @@ export function globalSearch(prob, V, best, trials, seed) {
       else if (q[0] === 'p') x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 5);
       else if (/^n\d$/.test(q)) x[j] += 0.3 * z * Math.max(Math.abs(x[j]), 0.002);
       else if (q === 'T' || q === 'U') x[j] += 0.5 * z;
+      else if (q === 'c' || q === 'h') x[j] = Math.max(0, x[j] + 0.3 * z * Math.max(x[j], 0.5));
       else if (q === 'D' || q === 'X') x[j] += 0.1 * z;
       else if (q === 'nd') x[j] = Math.min(ND[1], Math.max(ND[0], x[j] + 0.04 * z));
       else if (q === 'vd') x[j] = Math.min(VD[1], Math.max(VD[0], x[j] + 6 * z));
@@ -497,7 +530,7 @@ export function keepFound(list, item, n) {
    its own side of flat (at least 20: 20 ≤ R, out to flat; at most 20: 0 < R ≤ 20; at least -20: -20 ≤ R < 0;
    at most -20: R ≤ -20, out to flat). */
 export const limitKey = v => v.k + (v.part ? '/' + v.part : '');
-export const LIMITED = q => q === 'R' || q === 't' || q === 'k' || q === 'T' || q === 'D' || q === 'U' || q === 'X' || q === 'g';
+export const LIMITED = q => q === 'R' || q === 't' || q === 'k' || q === 'T' || q === 'D' || q === 'U' || q === 'X' || q === 'g' || q === 'c' || q === 'h';
 /* each variable's limits in the optimiser's own terms (a radius's as curvatures): [lo, hi] arrays */
 export function limitsX(prob, V) {
   const L = prob.design.lims || {}, lo = new Float64Array(V.length).fill(-Infinity), hi = new Float64Array(V.length).fill(Infinity);

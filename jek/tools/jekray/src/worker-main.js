@@ -180,6 +180,7 @@ import './ui/myparts.js';
 import './io/packs.js';
 import './io/merge.js';
 import './io/account.js';
+import './io/usage.js';
 import './io/cloud.js';
 import './io/autosave.js';
 import './ui/news.js';

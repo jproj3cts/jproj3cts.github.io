@@ -99,6 +99,7 @@ import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from 
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
+import { usageStart, wireUsage } from '../io/usage.js';
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
@@ -111,7 +112,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -130,6 +131,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
   if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  usageStart(shared || short ? 'share' : /[#?&]demo=/.test(location.hash + '&' + location.search) ? 'example' : restored ? 'restored' : 'fresh');
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();

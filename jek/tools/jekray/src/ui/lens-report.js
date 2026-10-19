@@ -11,6 +11,7 @@ import { WAVE_COLOURS } from './lens-analyses.js';
 import { drawSheet, lensDrawings } from './lens-drawing.js';
 import { layoutData } from './lens-workspace.js';
 import { compLabel, tolResultsFor } from './lens-tolerance.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    The design report: the design as a PDF to hand on
@@ -259,7 +260,7 @@ export function reportRecs(asm) {
 export const reportPdfBlob = (asm, opts) => pdfDoc(reportRecs(asm), asm.name + ' lens design report', opts);
 export async function saveReport(asm) {
   const name = safeFileName(asm.name + ' - design report') + '.pdf';
-  try { downloadFile(name, await reportPdfBlob(asm)); toast('Saved ' + name); }
+  try { downloadFile(name, await reportPdfBlob(asm)); toast('Saved ' + name); track('report', 'optical'); }
   catch (e) { toast('The report could not be made: ' + e.message, true); }
   return name;
 }

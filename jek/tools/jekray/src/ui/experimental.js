@@ -15,6 +15,7 @@ import { checkpoint } from './tabs.js';
 import { layoutPalette, railRecent } from './rail.js';
 import { accountShown } from '../io/account.js';
 import { modsSync } from '../io/mods.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    Wiring
@@ -46,6 +47,7 @@ export const expWhy = () => (TEST_MODE ? '' : expGate() || '');
 export function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); }
 export const exp = key => expOn && !expWhy() && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 export function setExperimental(on, picks) {
+  if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
@@ -156,7 +158,7 @@ export function importStl(file, at, el) {
   fr.readAsArrayBuffer(file);
 }
 export function addPart(key, at) {
-  addElement(key);
+  addElement(key); track('part', key);
   const el = selected();
   if (el && at) {
     const r = canvas.getBoundingClientRect(), q = V3D.active() ? V3D.tablePoint(at[0], at[1]) : [wx(at[0] - r.left), wy(at[1] - r.top)];

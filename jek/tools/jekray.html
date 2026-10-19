@@ -14817,6 +14817,7 @@ function startLoop() {
 function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
   if (!sw) return;
+  track('sweep', el.type);
   if (sweepJob) { sweepJob.cancel(); return; }
   // the sweeps that will move together: the ones already playing and this one
   const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
@@ -25730,7 +25731,7 @@ const cwPrintedN = (M, fill) => Math.sqrt(mixEps(M, fill / 100).eps);
 
 /* open the workspace: from a face ({ el, holder (the surface or part whose .coat it is), label, onUse(coat) }) or alone */
 function openCoatDesign(from) {
-  from = from || null;
+  from = from || null; track('designer', 'coating');
   const el = from && from.el, holder = from && from.holder, coat = holder && holder.coat;
   const rf = !!(el && el.mmw), nm0 = benchNms()[0] || 550;
   // the substrate: the face's own glass (a lens face's, on the glass side; a window's or cube's material), the RF plastic, or BK7
@@ -25953,6 +25954,7 @@ function tolResultsFor(asm, P) {
 /* a run: ctx { asm, P, redraw, sync } */
 function tolStart(mode, ctx) {
   if (!designPro('tolerance a design')) return false;
+  track('tolerance', 'optical.' + mode);
   const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);
   if (!ops.length) return false;
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
@@ -26438,7 +26440,7 @@ function drawingsPdfBlob(asm, i) { return pdfDoc(sheetRecs(asm, i).map(s => s.re
 async function saveDrawingsPdf(asm, i) {
   if (!designPro('save drawings')) return null;
   const all = lensDrawings(asm), name = safeFileName(asm.name + (i === undefined ? ' - drawings' : ' - ' + all[i].name)) + '.pdf';
-  downloadFile(name, await drawingsPdfBlob(asm, i));
+  downloadFile(name, await drawingsPdfBlob(asm, i)); track('export', 'drawing.pdf');
   toast('Saved ' + name);
   return name;
 }
@@ -26712,7 +26714,7 @@ function reportRecs(asm) {
 const reportPdfBlob = (asm, opts) => pdfDoc(reportRecs(asm), asm.name + ' lens design report', opts);
 async function saveReport(asm) {
   const name = safeFileName(asm.name + ' - design report') + '.pdf';
-  try { downloadFile(name, await reportPdfBlob(asm)); toast('Saved ' + name); }
+  try { downloadFile(name, await reportPdfBlob(asm)); toast('Saved ' + name); track('report', 'optical'); }
   catch (e) { toast('The report could not be made: ' + e.message, true); }
   return name;
 }
@@ -27008,7 +27010,7 @@ function rwToBench(asm, P) {
 function openRfDesign(asm, opts) {
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
-  designOf(asm);
+  designOf(asm); track('designer', 'rf');
   const P = designPrescription(asm);
   if (asm.kind !== 'rf' || !asm.rf) {
     const T = rfFromBench(asm, P);
@@ -27374,7 +27376,7 @@ function rwFigures(asm, T) {
   return h('div', { class: 'rt-lfig' }, ...items);
 }
 function rwTabs() {
-  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
+  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; track('analysis', 'rf.' + id); rwRender(); } }, label);
   return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
@@ -27993,6 +27995,7 @@ function rwOptCard(asm, P) {
 const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
   if (!designPro('optimise a design')) return;
+  track('optimise', 'rf');
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
@@ -28377,7 +28380,7 @@ function rfReportRecs(asm, opts) {
 const rfReportPdfBlob = (asm, opts) => pdfDoc(rfReportRecs(asm, opts), asm.name + ' RF design report', opts);
 async function saveRfReport(asm, opts) {
   const name = safeFileName(asm.name + ' - RF design report') + '.pdf';
-  try { downloadFile(name, await rfReportPdfBlob(asm, opts)); toast('Saved ' + name); }
+  try { downloadFile(name, await rfReportPdfBlob(asm, opts)); toast('Saved ' + name); track('report', 'rf'); }
   catch (e) { toast('The report could not be made: ' + e.message, true); }
   return name;
 }
@@ -28410,7 +28413,7 @@ function openLensDesign(asm, opts) {
   if (asmMembers(asm).some(e => asmKind(e) === 'grin')) { toast(isRfAsm(asm) ? 'A graded-index RF disc is designed in the RF designer only.' : 'A graded-index RF disc can be designed only with RF parts, in the RF designer.', true); return false; }
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
-  designOf(asm);
+  designOf(asm); track('designer', 'optical');
   WS = { asm, tab: 'data', sel: -1, draft: !!(opts && opts.draft), took: null };
   const sec = shell();
   sec.hidden = false;
@@ -28798,7 +28801,7 @@ function figuresStrip(F) {
     row('Total track', wsFmt(F.track, 6) + ' mm', 'First surface to the image'));
 }
 function tabsRow() {
-  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
+  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; track('analysis', 'optical.' + id); renderWs(); } }, label);
   return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
@@ -29320,6 +29323,7 @@ function optStart(mode, opts) {
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
   if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
   if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
+  track('optimise', 'optical.' + mode);
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
@@ -43244,7 +43248,7 @@ async function qrLink() {
   if (accountsOn()) {
     const why = designWhy('make a QR code of the bench');
     if (why) throw new Error(why);
-    const id = await shortLink(), host = location.origin.toUpperCase();
+    const id = await shortLink(), host = location.origin.toUpperCase(); track('share', 'qr');
     return /^[0-9A-Z $%*+\-.\/:]+$/.test(host) ? [host + '/S/' + id, true] : [shortUrl(id), false];
   }
   const json = new TextEncoder().encode(JSON.stringify(shareDataCompact()));
@@ -43438,6 +43442,7 @@ function wireCart() {
 async function requestQuote(el, qty, opts) {
   const S = orderSpec(el, opts);
   if (!S) { toast('This lens cannot be made as it is: see its panel.', true); return false; }
+  track('quote', el.type);
   const url = await orderLink(el), part = 'RFL-' + hash(S.spec.join('|')), n = Math.max(1, Math.round(+qty || 1));
   let items = [];
   try { items = JSON.parse(localStorage.getItem(CART) || '[]'); if (!Array.isArray(items)) items = []; } catch (err) { items = []; }
@@ -44688,7 +44693,7 @@ function exportCad(asm, kind) {
   try {
     const out = kind === 'stl' ? cadSTL(asm) : cadSTEP(asm), fname = safeFileName(asm.name || 'design') + (kind === 'stl' ? '.stl' : '.step');
     if (!out.solids) { toast('There is nothing round to export in ' + asm.name + '.', true); return null; }
-    downloadFile(fname, new Blob([out.text], { type: kind === 'stl' ? 'model/stl' : 'model/step' }));
+    downloadFile(fname, new Blob([out.text], { type: kind === 'stl' ? 'model/stl' : 'model/step' })); track('export', kind);
     const w = [...out.warnings];
     toast('Exported ' + fname + ', ' + out.solids + ' solid' + (out.solids === 1 ? '' : 's') + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
     return out;
@@ -44724,6 +44729,7 @@ const expWhy = () => (TEST_MODE ? '' : expGate() || '');
 function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); }
 const exp = key => expOn && !expWhy() && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 function setExperimental(on, picks) {
+  if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
@@ -44834,7 +44840,7 @@ function importStl(file, at, el) {
   fr.readAsArrayBuffer(file);
 }
 function addPart(key, at) {
-  addElement(key);
+  addElement(key); track('part', key);
   const el = selected();
   if (el && at) {
     const r = canvas.getBoundingClientRect(), q = V3D.active() ? V3D.tablePoint(at[0], at[1]) : [wx(at[0] - r.left), wy(at[1] - r.top)];
@@ -45407,7 +45413,7 @@ function packConfirm(pack, notes, from) {
   });
 }
 async function packInstallText(txt, from) {
-  try { const { pack, notes } = await packFromText(txt, from); return await packConfirm(pack, notes, from); }
+  try { const { pack, notes } = await packFromText(txt, from); track('mod', 'install'); return await packConfirm(pack, notes, from); }
   catch (err) { toast('Could not use that pack: ' + err.message + '.', true); return false; }
 }
 async function packInstallUrl(url) {
@@ -45733,6 +45739,7 @@ const AUTH_OUTCOMES = {
   consent_failed: ['JEKray was not approved for your organisation. Nothing has changed.', true],
 };
 function signIn(provider, link) {
+  track('signin', provider); usageFlush();
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
   if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
@@ -45770,6 +45777,7 @@ const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency'
 let subInterval = 'month';
 const acCheck = { email: '', sent: false };   // a university address being confirmed by a code
 async function showSubscribe() {
+  track('subscribe', '');
   const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
   if (!dlg.open) dlg.showModal();
   box.replaceChildren(h('p', null, 'Loading prices…'));
@@ -45899,10 +45907,14 @@ function fillAccount() {
   const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
   const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: fn }, label);
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
+  // usage counts: on unless turned off here (or by the browser's Do Not Track or Global Privacy Control)
+  const dnt = usageBrowserSaysNo(), usage = h('button', { type: 'button', role: 'menuitemcheckbox', 'aria-checked': String(!dnt && !usageOff()), 'data-icon': 'check', disabled: dnt ? '' : null,
+    title: dnt ? 'Your browser asks sites not to track it, so none are sent' : 'Counts of what is used in JEKray, with nothing that says who: see the privacy policy',
+    onclick: () => { const off = !usageOff(); setUsageOff(off); fillAccount(); toast(off ? 'Usage counts off in this browser' : 'Usage counts on. Thank you!'); } }, 'Share anonymous usage counts');
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
     menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with email and a password', () => showEmailSignIn(false)),
-      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
+      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), h('div', { class: 'sep' }), usage, legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
     btn.classList.add('in'); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
@@ -45936,7 +45948,7 @@ function fillAccount() {
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
       catch (err) { toast(err.message, true); }
-    }), item('trash', 'Delete account…', showDeleteAccount), h('div', { class: 'sep' }), legal);
+    }), item('trash', 'Delete account…', showDeleteAccount), h('div', { class: 'sep' }), usage, legal);
     menu.replaceChildren(...rows);
   }
   menuIcons(menu);
@@ -46399,6 +46411,89 @@ function wireAccount() {
     });
   }
 
+}
+/* ---------- Usage counts ----------
+   How the tool is used, so it can be made better: which parts are added, which designers and analyses are
+   opened, what is exported, and the tool's own errors. Only counts leave the page: an event from a fixed list
+   (jek-api src/usage.js EVENTS), a short token about it (a part's type, an export's format), and whether the
+   person is signed out, on the free plan or has JEKrayPro. Never a bench, a name, a file name or anything typed,
+   and no id of any kind: no cookie goes with them, so a count cannot be tied to a person or to their other
+   counts. They are gathered on the page and sent together every half minute, and when the page is left.
+   None are sent from an embed, in test mode, when the browser asks sites not to track it (Do Not Track,
+   Global Privacy Control), or when the person turns them off (the account menu, or the account page on the site). */
+const USAGE_OFF = 'jek-usage-off';          // '1': none sent from this browser (the site's account page sets it too)
+const usageQ = new Map(), usageErrs = [], usageSeen = new Set(), USAGE_T0 = Date.now();
+let usageTimer = 0, usageLeft = false, usageSent = false;
+const usageBrowserSaysNo = () => typeof navigator !== 'undefined' && (navigator.globalPrivacyControl === true || navigator.doNotTrack === '1' || window.doNotTrack === '1');
+function usageOff() { try { return localStorage.getItem(USAGE_OFF) === '1'; } catch (err) { return false; } }
+function setUsageOff(off) {
+  try { if (off) localStorage.setItem(USAGE_OFF, '1'); else localStorage.removeItem(USAGE_OFF); } catch (err) { /* not kept: none sent this visit */ }
+  if (off) { usageQ.clear(); usageErrs.length = 0; }
+  else usageSent = true;                   // not a visit's start: nothing about how it began
+}
+const usageOn = () => !TEST_MODE && !EMBED && !usageBrowserSaysNo() && !usageOff();
+// a short plain token, as the API takes it
+const usageToken = v => String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9_.+-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 40);
+function track(event, prop) {
+  if (!usageOn()) return;
+  const k = event + '\n' + usageToken(prop);
+  usageQ.set(k, (usageQ.get(k) || 0) + 1);
+  if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
+}
+const usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
+function usageFlush() {
+  clearTimeout(usageTimer); usageTimer = 0;
+  if (!usageOn() || (!usageQ.size && !usageErrs.length)) return;
+  const ev = [...usageQ].map(([k, n]) => { const [e, p] = k.split('\n'); return [e, p, n]; });
+  const body = JSON.stringify({ tier: usageTier(), ev: ev.slice(0, 200), err: usageErrs.splice(0, 20) });
+  usageQ.clear();
+  // text/plain, without credentials: a simple request, with nothing that says who
+  try { fetch(API_BASE + '/v1/events', { method: 'POST', body, credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {}); } catch (err) { /* not sent: fine */ }
+}
+// the tool's own errors: the message with anything quoted and every number taken out, and where in the tool
+function usageError(msg, file, line) {
+  if (!usageOn() || usageErrs.length >= 5) return;
+  const m = String(msg || '').replace(/(["'`‘“]).*?(["'`’”])/g, '…').replace(/\d+(\.\d+)?/g, 'N').replace(/https?:\S+/g, 'URL').slice(0, 160);
+  const src = String(file || '').split(/[?#]/)[0].split('/').pop() + ':' + (line || 0);
+  if (!/jekray/.test(src) || usageSeen.has(m + src)) return;       // only the tool's own scripts: not extensions, not mods
+  usageSeen.add(m + src); usageErrs.push([m, src]);
+  if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
+}
+const usageMinutes = ms => (ms < 60e3 ? 'under-1m' : ms < 300e3 ? '1-5m' : ms < 900e3 ? '5-15m' : ms < 3600e3 ? '15-60m' : 'over-1h');
+const usageScreen = () => { const w = Math.min(screen.width || innerWidth, innerWidth || 1e9); return w < 600 ? 'phone' : w < 1024 ? 'tablet' : w < 1700 ? 'desktop' : 'wide'; };
+function usageBrowser() {
+  const u = navigator.userAgent;
+  return /Edg\//.test(u) ? 'edge' : /OPR\//.test(u) ? 'opera' : /SamsungBrowser/.test(u) ? 'samsung' : /Firefox\//.test(u) ? 'firefox' : /Chrome\//.test(u) ? 'chrome' : /Safari\//.test(u) ? 'safari' : 'other';
+}
+// buttons counted wherever they are pressed: [event, token]
+const USAGE_CLICKS = {
+  btnView3d: ['view', '3d'], btnMeasure: ['view', 'measure'], btnPlayAll: ['sweep', 'all'], btnOptimise: ['optimise', 'bench'], btnTol: ['tolerance', 'bench'],
+  btnShare: ['share', 'link'], btnSave: ['save', 'file'], btnSnaps: ['save', 'versions'], btnOpen: ['import', 'jekray'], btnImport: ['import', 'zmx'], btnImportStl: ['import', 'stl'],
+  btnExportZmx: ['export', 'zmx'], btnHelp: ['help', 'shortcuts'], btnNews: ['news', ''], btnCite: ['help', 'cite'], btnBug: ['help', 'bug'], btnExamples: ['help', 'examples'],
+  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
+  btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
+};
+/* a visit's start: how it began (fresh, restored, a shared bench, an example), on what */
+function usageStart(how) {
+  if (usageSent) return;
+  usageSent = true;
+  track('open', how); track('screen', usageScreen()); track('browser', usageBrowser());
+}
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+function wireUsage() {
+  if (TEST_MODE || EMBED) return;
+  addEventListener('error', e => usageError(e.message, e.filename, e.lineno));
+  addEventListener('unhandledrejection', e => {
+    const r = e.reason, at = r && r.stack ? /([\w.-]+\.(?:html|js)):(\d+)/.exec(r.stack) : null;
+    usageError(r && r.message || r, at && at[1], at && at[2]);
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('button[id],a[id]'), c = b && USAGE_CLICKS[b.id];
+    if (c && !b.disabled) track(c[0], c[1]);
+  }, true);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') usageFlush(); });
+  addEventListener('pagehide', () => { if (!usageLeft) { usageLeft = true; track('leave', usageMinutes(Date.now() - USAGE_T0)); } usageFlush(); });
 }
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
@@ -47447,6 +47542,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Anonymous usage counts</b>: JEKray now counts which of its features are used (parts added by type, designers, analyses and examples opened, exports by format) and its own errors, so we can see what to improve. The counts carry nothing that says who you are, are not linked to your account and never include your benches, their names or anything you type. None are sent from an embedded bench or when your browser asks sites not to track it, and you can turn them off in the account menu (<b>Share anonymous usage counts</b>) or on the Your account page. See the Privacy Policy.',
     '<b>Clear radii and holes for the optimiser</b>: a lens surface\u2019s clear radius and hole radius each have a <b>V</b> in the Optical designer, and the merit a new term, <b>Light reaching the image</b>: the share of the entrance pupil whose rays get through every clear radius and hole, worked out so it changes smoothly. With both, the optimiser sizes a telescope\u2019s spot, the window in its primary and its mirrors together (a stacked surface varied, its stack follows).',
     '<b>Stacked surfaces in the Optical designer as on the bench</b>: each stacked surface is analysed only over the ring where it is the surface met, so a window stacked in a primary\u2019s hole is clipped at the hole (a telescope whose exit cone is wider than its window now shows the light it loses, as the bench always did). The part keeps its own clear radius and hole. Where two stacked surfaces overlap, the one with the smaller clear radius is the surface there (a spot reaches its own rim whatever the hole under it; before, a ring whose hole was smaller than the spot took over part of it), the same in the bench\u2019s rays, the drawings, the field and the designer. The designer\u2019s layout draws rays the light really takes: where the usual five heights across the pupil are stopped (a telescope\u2019s secondary in the middle), five spread over the heights that get through.',
     '<b>The diffracted field through a solid telescope</b>: a face built of stacked surfaces or with a hole is now taken ring by ring, the beam split into a branch for each ring, its field cut to the ring and passed through that ring\u2019s own surface. Before, the field followed the beam\u2019s centre alone, which a telescope\u2019s secondary sends straight back, so in 2D and 3D nothing came out. The bench\u2019s field also keeps a surface\u2019s whole light on its grid when what gets through is much wider than the beam it is fitted to (it had cut a telescope\u2019s converging ring in half at the secondary), the 2D view slices beams that run together at each one\u2019s own steps (a focus close behind a part was missed), and an assembly with mirrors in it gives its focal lengths along the light\u2019s own path on its panel and in the command line.',
@@ -48137,6 +48233,7 @@ function tourPlace(type, dx, dy) {
 function startTour(name) {
   const T = TOURS[name];
   if (!T) return;
+  track('tour', name);
   endTour();
   hideWelcome();
   for (const d of document.querySelectorAll('dialog[open]')) d.close();
@@ -48234,7 +48331,7 @@ async function openDemo(name, undoable) {
       if (!res.ok) throw new Error('that example could not be fetched');
       data = await res.json();
     }
-    openProjectData(data, data.name || name);
+    openProjectData(data, data.name || name); track('example', name);
     if (!undoable) { setHistory([]); setFuture([]); updateUndoButtons(); }
     if (!data.keepView) fitView();          // an example set up on a detail opens on it
   } catch (err) {
@@ -49262,7 +49359,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -49281,6 +49378,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
   if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  usageStart(shared || short ? 'share' : /[#?&]demo=/.test(location.hash + '&' + location.search) ? 'example' : restored ? 'restored' : 'fresh');
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();

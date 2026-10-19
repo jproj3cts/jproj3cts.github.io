@@ -9,6 +9,7 @@ import { helpLine, h, stopButton, throttle } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
 import { fmtSig } from '../core/format.js';
 import { designPro, proMark } from './pro.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
@@ -42,6 +43,7 @@ export function tolResultsFor(asm, P) {
 /* a run: ctx { asm, P, redraw, sync } */
 export function tolStart(mode, ctx) {
   if (!designPro('tolerance a design')) return false;
+  track('tolerance', 'optical.' + mode);
   const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);
   if (!ops.length) return false;
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,

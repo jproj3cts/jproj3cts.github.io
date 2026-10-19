@@ -180,6 +180,7 @@
   "io/packs.js",
   "io/merge.js",
   "io/account.js",
+  "io/usage.js",
   "io/cloud.js",
   "io/autosave.js",
   "ui/news.js",

@@ -11,6 +11,7 @@ import { undo } from '../ui/tabs.js';
 import { openProjectData } from './open.js';
 import { accountsOn, api } from './account.js';
 import { designPro, designWhy } from '../ui/pro.js';
+import { track } from './usage.js';
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed. A share link is JEKrayPro's: the
@@ -177,7 +178,7 @@ export async function qrLink() {
   if (accountsOn()) {
     const why = designWhy('make a QR code of the bench');
     if (why) throw new Error(why);
-    const id = await shortLink(), host = location.origin.toUpperCase();
+    const id = await shortLink(), host = location.origin.toUpperCase(); track('share', 'qr');
     return /^[0-9A-Z $%*+\-.\/:]+$/.test(host) ? [host + '/S/' + id, true] : [shortUrl(id), false];
   }
   const json = new TextEncoder().encode(JSON.stringify(shareDataCompact()));

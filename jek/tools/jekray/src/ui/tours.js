@@ -31,6 +31,7 @@ import { packInstallText } from '../io/packs.js';
 import { cloudLink } from '../io/cloud.js';
 import { keepSnapshot, scheduleSave } from '../io/autosave.js';
 import { hideWelcome } from './news.js';
+import { track } from '../io/usage.js';
 
 /* ---------- Guided tours ----------
    A tour builds a small bench step by step on a tab of its own, so the user's own work is
@@ -92,6 +93,7 @@ function tourPlace(type, dx, dy) {
 export function startTour(name) {
   const T = TOURS[name];
   if (!T) return;
+  track('tour', name);
   endTour();
   hideWelcome();
   for (const d of document.querySelectorAll('dialog[open]')) d.close();
@@ -189,7 +191,7 @@ export async function openDemo(name, undoable) {
       if (!res.ok) throw new Error('that example could not be fetched');
       data = await res.json();
     }
-    openProjectData(data, data.name || name);
+    openProjectData(data, data.name || name); track('example', name);
     if (!undoable) { setHistory([]); setFuture([]); updateUndoButtons(); }
     if (!data.keepView) fitView();          // an example set up on a detail opens on it
   } catch (err) {

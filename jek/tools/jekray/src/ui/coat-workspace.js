@@ -10,6 +10,7 @@ import { C_NM_GHZ, RF_MAT, mixEps } from '../core/rf.js';
 import { benchNms } from '../state/elements.js';
 import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    The coating design workspace
@@ -49,7 +50,7 @@ const cwPrintedN = (M, fill) => Math.sqrt(mixEps(M, fill / 100).eps);
 
 /* open the workspace: from a face ({ el, holder (the surface or part whose .coat it is), label, onUse(coat) }) or alone */
 export function openCoatDesign(from) {
-  from = from || null;
+  from = from || null; track('designer', 'coating');
   const el = from && from.el, holder = from && from.holder, coat = holder && holder.coat;
   const rf = !!(el && el.mmw), nm0 = benchNms()[0] || 550;
   // the substrate: the face's own glass (a lens face's, on the glass side; a window's or cube's material), the RF plastic, or BK7

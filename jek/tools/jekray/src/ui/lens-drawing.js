@@ -8,6 +8,7 @@ import { VecCtx, layoutSvg, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { h } from './panel.js';
 import { designPro, proMark } from './pro.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    Lens drawings: each lens of a design on an A4 sheet, landscape, to be made from
@@ -247,7 +248,7 @@ export function drawingsPdfBlob(asm, i) { return pdfDoc(sheetRecs(asm, i).map(s 
 export async function saveDrawingsPdf(asm, i) {
   if (!designPro('save drawings')) return null;
   const all = lensDrawings(asm), name = safeFileName(asm.name + (i === undefined ? ' - drawings' : ' - ' + all[i].name)) + '.pdf';
-  downloadFile(name, await drawingsPdfBlob(asm, i));
+  downloadFile(name, await drawingsPdfBlob(asm, i)); track('export', 'drawing.pdf');
   toast('Saved ' + name);
   return name;
 }

@@ -25,6 +25,7 @@ import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
 import { saveRfReport } from './rf-report.js';
 import { designPro, proMark } from './pro.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    The RF designer
@@ -101,7 +102,7 @@ function rwToBench(asm, P) {
 export function openRfDesign(asm, opts) {
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
-  designOf(asm);
+  designOf(asm); track('designer', 'rf');
   const P = designPrescription(asm);
   if (asm.kind !== 'rf' || !asm.rf) {
     const T = rfFromBench(asm, P);
@@ -467,7 +468,7 @@ function rwFigures(asm, T) {
   return h('div', { class: 'rt-lfig' }, ...items);
 }
 function rwTabs() {
-  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; rwRender(); } }, label);
+  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(RW.tab === id), onclick: () => { RW.tab = id; track('analysis', 'rf.' + id); rwRender(); } }, label);
   return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'The whole system' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise'), tab('ana', 'Analyses'), tab('tol', 'Tolerance'), tab('make', 'Make it'));
 }
 
@@ -1086,6 +1087,7 @@ function rwOptCard(asm, P) {
 const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
   if (!designPro('optimise a design')) return;
+  track('optimise', 'rf');
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);

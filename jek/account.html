@@ -105,6 +105,14 @@
         </details>
       </section>
     </div>
+
+    <!-- signed in or not: usage counts, kept in this browser (the same switch as JEKray's account menu) -->
+    <section class="acct-card" aria-labelledby="hUsage">
+      <h2 id="hUsage">Usage counts</h2>
+      <p>JEKray counts what is used in it, such as which parts are added and which designers are opened, so we can see what to improve. The counts say nothing about who you are and are not linked to your account. See our <a href="/jek/privacy.html#usage">Privacy Policy</a>.</p>
+      <label class="acct-row" style="align-items: center"><input type="checkbox" id="usageOn"> Share anonymous usage counts from this browser</label>
+      <p id="usageMsg" class="acct-sub" role="status"></p>
+    </section>
   </div>
 </main>
 
@@ -122,6 +130,20 @@
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>
 <script src="/jek/assets/js/account.js?v=20261017"></script>
+<script>
+(function () {
+  // usage counts: the switch JEKray reads ("jek-usage-off" in this browser); the browser's own Do Not Track or Global Privacy Control turns them off as well
+  var box = document.getElementById("usageOn"), msg = document.getElementById("usageMsg");
+  var dnt = navigator.globalPrivacyControl === true || navigator.doNotTrack === "1" || window.doNotTrack === "1", off = false;
+  try { off = localStorage.getItem("jek-usage-off") === "1"; } catch (e) { /* none kept: on */ }
+  box.checked = !dnt && !off; box.disabled = dnt;
+  if (dnt) msg.textContent = "Your browser asks sites not to track it, so JEKray sends none.";
+  box.addEventListener("change", function () {
+    try { if (box.checked) localStorage.removeItem("jek-usage-off"); else localStorage.setItem("jek-usage-off", "1"); msg.textContent = box.checked ? "On. Thank you!" : "Off in this browser."; }
+    catch (e) { msg.textContent = "This browser keeps no settings for this site, so the switch cannot be kept."; }
+  });
+})();
+</script>
 <script>
 (function () {
   var A = window.JEKAccount, $ = function (id) { return document.getElementById(id); };

@@ -27,11 +27,15 @@ const idOf = (v) => {
 };
 const meta = (r) => ({ id: r.id, name: r.name, size_bytes: r.size_bytes, created_at: r.created_at, opens: r.opens, opened_at: r.opened_at });
 
-// Whether any workspace the person belongs to has an active plan.
+// Whether the person has a plan of their own: their personal workspace counts
+// as active for their own subscription, a university's licence or a paid seat
+// in a team (benches.js activeFor). A team's free viewers take no seat, so
+// belonging to a team with a plan is not enough.
 export async function hasPlan(env, user) {
-  const { results } = await env.DB.prepare('SELECT workspace_id FROM members WHERE user_id = ?').bind(user.id).all();
-  for (const m of results) if ((await workspaceAccess(env, user, m.workspace_id)).active) return true;
-  return false;
+  const ws = await env.DB.prepare(
+    "SELECT w.id FROM workspaces w JOIN members m ON m.workspace_id = w.id AND m.user_id = ? WHERE w.kind = 'personal'",
+  ).bind(user.id).first();
+  return !!ws && (await workspaceAccess(env, user, ws.id)).active;
 }
 
 // POST /v1/links  {name, data}: a new link to the bench given

@@ -8191,6 +8191,9 @@ const LENS = {
       }
       surfaces = S; gaps = G; materials = M;
     }
+    // a hole as wide as the surface's own face would leave no surface at all: no hole, then (the Optical designer refuses one)
+    const half = Math.max(0.1, num(e.diameter, 25.4)) / 2;
+    for (const s of surfaces) if (s.hole >= (s.semi || half) - 1e-9) s.hole = 0;
     return Object.assign(base, {
       diameter: Math.max(0.1, num(e.diameter, 25.4)),
       surfaces, gaps, materials,
@@ -9544,7 +9547,7 @@ function lensSurfaces(el) {
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
         // a hole about the axis: no surface inside it; a mirror coating: silvered, for the drawing
-        hole: sd.hole || 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
+        hole: sd.hole > 0 && sd.hole < (sd.semi || el.diameter / 2) - 1e-9 ? sd.hole : 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: first[i] === 0 ? { glass: 'AIR' } : el.materials[first[i] - 1],
@@ -11077,7 +11080,7 @@ function traceSceneOnce() {
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           // a ring's branch (stackZones): of the face it was split at, it meets only its ring's surface, over the whole face
           const zb = !!(zoneS && s.el === zoneS.el && s.stack === zoneS.stack);
-          if (zb && !(zoneS.base.layers ? zoneS.base.layers.includes(s) : s === zoneS.base)) continue;
+          if (zb && !(zoneS.base && zoneS.base.layers ? zoneS.base.layers.includes(s) : s === zoneS.base)) continue;   // (a hole's ring: none)
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
             const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));
@@ -21221,8 +21224,10 @@ function lensPanel(el) {
     const s = el.surfaces[i];
     panel.append(h('h3', null, 'Surface ' + (i + 1)));
     const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }),
-      // where the surface is: out to its clear radius (the lens's own unless given), from its hole (none unless given)
-      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }), param('Hole radius (mm)', el, `surfaces.${i}.hole`, { blank: 0 }));
+      // where the surface is: out to its clear radius (the lens's own unless given). A hole is the Optical designer's to make
+      // (with what it means for the light's path), shown here when there is one
+      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
+    if (s.hole > 0) rows.append(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly\u2026).'));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
     if (s.a2 !== 0) rows.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));
@@ -47666,6 +47671,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A lens surface\u2019s <b>hole radius</b> is set in the Optical designer only; the bench panel shows it when there is one. A hole as wide as the surface or wider (which left the face drawn but not there for the light) is no hole. And a lens with a plain hole through a face, nothing stacked in it, no longer stops the bench from tracing.',
     'In the Optical designer, <b>Insert a surface</b> and <b>Remove</b> now work on a lens with stacked faces or mirror coats: the new surface goes on the part itself, after the one selected the way the light goes on from it (back into the glass off a mirror), and the part\u2019s later surfaces keep their variables and solves. Before, the change was lost. The <b>Insert a surface</b> and <b>Insert an element</b> menus also stay open when clicked: the pointer had opened them and the click shut them again.',
     '<b>Layers on a face</b>: stacked surfaces of the same clear radius and hole are now layers, met one after the other in the order the light comes to them, on the bench, in the diffracted field and in the Optical designer. Before, only the first was there and the rest were ignored, coatings and all: a partly reflecting coating on a second layer now reflects, a bare face over a mirror coat reflects its share of light from behind, and a layer with the same glass either side is on the light\u2019s path and changes nothing.',
     '<b>Anonymous usage counts</b>: JEKray now counts which of its features are used (parts added by type, designers, analyses and examples opened, exports by format) and its own errors, so we can see what to improve. The counts carry nothing that says who you are, are not linked to your account and never include your benches, their names or anything you type. None are sent from an embedded bench or when your browser asks sites not to track it, and you can turn them off in the account menu (<b>Share anonymous usage counts</b>) or on the Your account page. See the Privacy Policy.',

@@ -87,8 +87,10 @@ function lensPanel(el) {
     const s = el.surfaces[i];
     panel.append(h('h3', null, 'Surface ' + (i + 1)));
     const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }),
-      // where the surface is: out to its clear radius (the lens's own unless given), from its hole (none unless given)
-      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }), param('Hole radius (mm)', el, `surfaces.${i}.hole`, { blank: 0 }));
+      // where the surface is: out to its clear radius (the lens's own unless given). A hole is the Optical designer's to make
+      // (with what it means for the light's path), shown here when there is one
+      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
+    if (s.hole > 0) rows.append(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly\u2026).'));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
     if (s.a2 !== 0) rows.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));

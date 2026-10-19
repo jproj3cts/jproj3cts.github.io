@@ -87,6 +87,9 @@ export const LENS = {
       }
       surfaces = S; gaps = G; materials = M;
     }
+    // a hole as wide as the surface's own face would leave no surface at all: no hole, then (the Optical designer refuses one)
+    const half = Math.max(0.1, num(e.diameter, 25.4)) / 2;
+    for (const s of surfaces) if (s.hole >= (s.semi || half) - 1e-9) s.hole = 0;
     return Object.assign(base, {
       diameter: Math.max(0.1, num(e.diameter, 25.4)),
       surfaces, gaps, materials,

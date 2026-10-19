@@ -368,3 +368,22 @@ test('a lens the light is followed through takes a new surface after any row, an
   assert.deepEqual(o.e.gaps, [20, 20, 0]);
   assert.equal(LD.designPrescription(o.asm).surfaces.map(s => s.from.i).join(','), '0,1,2,1,0');
 });
+
+test('a plain hole through a face (nothing stacked in it): light through it goes on unbent; a hole as wide as the face is none', async () => {
+  const { openBench, engine } = await import('../../headless.mjs');
+  const run = async hole => {
+    await openBench({ format: 'jekray', version: 1, elements: [
+      { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: 27.28, hole }, { R: null }], gaps: [4], materials: [{ glass: 'N-BK7' }] },
+      { type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, rays: 15, width: 20 }] });
+    const Eg = await engine(); Eg.TRACE.traceScene();
+    return { e: Eg.ST.project.elements[0], rays: Eg.TRACE.lastTrace.rays };
+  };
+  const dirAfter = r => { const p = r.pts, n = p.length; return Math.atan2(p[n - 1] - p[n - 3], p[n - 2] - p[n - 4]); };
+  const holed = await run(4);
+  assert.equal(holed.e.surfaces[0].hole, 4);
+  const mid = holed.rays.filter(r => Math.abs(r.pts[1]) < 3.9);
+  assert.ok(mid.length && mid.every(r => Math.abs(dirAfter(r)) < 1e-9), 'through the hole, unbent');
+  const none = await run(100);
+  assert.equal(none.e.surfaces[0].hole, 0);
+  assert.ok(none.rays.some(r => Math.abs(dirAfter(r)) > 1e-3), 'the face focuses');
+});

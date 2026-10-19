@@ -166,7 +166,7 @@ export function lensSurfaces(el) {
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
         // a hole about the axis: no surface inside it; a mirror coating: silvered, for the drawing
-        hole: sd.hole || 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
+        hole: sd.hole > 0 && sd.hole < (sd.semi || el.diameter / 2) - 1e-9 ? sd.hole : 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
         front: first[i] === 0 ? { glass: 'AIR' } : el.materials[first[i] - 1],

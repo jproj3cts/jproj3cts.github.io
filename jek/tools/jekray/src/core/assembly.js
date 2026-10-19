@@ -3,6 +3,7 @@ import { clamp } from './constants.js';
 import { ffTurn } from './freeform.js';
 import { normOrder, normPh } from './diffractive.js';
 import { grH } from './gradient.js';
+import { stackOrder } from './sag.js';
 import { applyGrin, grinSlab } from './grin.js';
 import { deg, normCoat, num, project } from '../state/project.js';
 
@@ -422,7 +423,7 @@ const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
    first crossing it (glink). An odd number of reflections sends the light back the way it came, and the lens folds
    the axis as a mirror does. */
 export const PATH_VISITS_MAX = 10;
-/* the ring of a stack where member j is the surface met (the narrowest member holding each height, as lensPath, the bench
+/* the ring of a stack where member j is the surface met (stackOrder's pick among the members holding each height, as lensPath, the bench
    and the drawings take it): [inner, outer] radius, or null where it is never met. A window stacked in a primary's hole
    reaches only to the hole, whatever its own clear radius: the primary is the surface beyond it */
 export function stackRing(S2, members, j) {
@@ -431,7 +432,7 @@ export function stackRing(S2, members, j) {
   let lo = null, hi = null;
   for (let q = 0; q + 1 < edges.length; q++) {
     const mid = (edges[q] + edges[q + 1]) / 2;
-    const m = members.filter(i => mid >= (S2[i].hole || 0) && mid <= S2[i].semi).sort((a, b) => (S2[a].semi - (S2[a].hole || 0)) - (S2[b].semi - (S2[b].hole || 0)))[0];
+    const m = members.filter(i => mid >= (S2[i].hole || 0) && mid <= S2[i].semi).sort((a, b) => stackOrder(S2[a], S2[b]))[0];
     if (m === j) { if (lo === null) lo = edges[q]; hi = edges[q + 1]; }
   }
   return lo === null ? null : [lo, hi];
@@ -445,7 +446,7 @@ export function lensPath(S2, G2, N2, h0) {
     const out = []; let k = 0, dir = 1, y = h, u = 0, nn = 1;
     for (let guard = 0; guard < PATH_VISITS_MAX && k >= 0 && k < stacks.length; guard++) {
       const st = stacks[k], r = Math.abs(y);
-      const j = st.m.filter(i => r >= (S2[i].hole || 0) - 1e-9 && r <= S2[i].semi + 1e-9).sort((a, b) => (S2[a].semi - (S2[a].hole || 0)) - (S2[b].semi - (S2[b].hole || 0)))[0];   // the narrowest member holding the height
+      const j = st.m.filter(i => r >= (S2[i].hole || 0) - 1e-9 && r <= S2[i].semi + 1e-9).sort((a, b) => stackOrder(S2[a], S2[b]))[0];   // the member holding the height, as stackOrder picks
       if (j === undefined) { if (!st.m.every(i => r < (S2[i].hole || 0))) break; }     // beyond every member: lost; through every hole: on
       else {
         const s = S2[j], c = s.c * dir;                                                   // the curvature as the light meets it

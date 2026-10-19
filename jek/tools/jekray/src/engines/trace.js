@@ -20,6 +20,7 @@ import { faceAmps } from '../core/face-pol.js';
 import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
+import { stackOrder } from '../core/sag.js';
 import { ffGrad, ffSag } from '../core/freeform.js';
 import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
 import { GR_REACH, grDelta, grH, grSlopeOverR, grStep } from '../core/gradient.js';
@@ -37,8 +38,15 @@ import { statsCache } from './pd-cavity.js';
 import { binCache } from './screen-stats.js';
 import { cmul } from '../core/numeric.js';
 
-/* a hole through a face (s.hole): inside it there is no surface, so the light goes on to the next */
-const inHole = (s, y, h) => s.hole > 0 && (h === undefined ? Math.abs(y) : Math.hypot(y, h)) < s.hole - 1e-9;
+/* a hole through a face (s.hole): inside it there is no surface, so the light goes on to the next. Nor is a stacked
+   surface there where another of its stack is the surface met (stackOrder: a spot set into a face, a primary round a window) */
+const inHole = (s, y, h) => {
+  const r = h === undefined ? Math.abs(y) : Math.hypot(y, h);
+  if (s.hole > 0 && r < s.hole - 1e-9) return true;
+  if (!s.peers) return false;
+  const own = s.peers.filter(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9).sort(stackOrder)[0];
+  return !!own && own.si !== s.si;
+};
 
 /* ==========================================================================
    Ray tracing
@@ -118,8 +126,8 @@ function stackZones(surfs, s) {
     for (let i = 0; i + 1 < edges.length; i++) {
       const a = edges[i], b = edges[i + 1], mid = (a + b) / 2;
       if (b - a < 1e-9) continue;
-      // the surface there: the one whose annulus holds it, the narrowest where two do (as the drawings and the tracer take it)
-      const m = members.filter(q => mid >= (q.hole || 0) && mid <= q.semi).sort((x, y) => (x.semi - (x.hole || 0)) - (y.semi - (y.hole || 0)))[0] || null;
+      // the surface there: the one whose annulus holds it, stackOrder's pick where two do (as the drawings and the tracer take it)
+      const m = members.filter(q => mid >= (q.hole || 0) && mid <= q.semi).sort(stackOrder)[0] || null;
       const L = zs[zs.length - 1];
       if (L && L.m === m) L.rout = b; else zs.push({ m, rin: a, rout: b });
     }
@@ -129,9 +137,9 @@ function stackZones(surfs, s) {
       // reference ray), its field cut to the ring
       let wrap = null, ext = null;
       if (z.m) {
-        const open = Object.create(z.m); open.hole = 0;
+        const open = Object.create(z.m); open.hole = 0; open.peers = null;
         ext = extendedSurf(open);
-        wrap = Object.create(z.m); wrap.semi = z.rout; wrap.hole = 0; wrap.ringIn = z.rin; wrap.maskMargin = margin;
+        wrap = Object.create(z.m); wrap.semi = z.rout; wrap.hole = 0; wrap.ringIn = z.rin; wrap.maskMargin = margin; wrap.peers = null;
       }
       return Object.assign(z, { k, margin, wrap, ext });
     });
@@ -142,7 +150,7 @@ function stackZones(surfs, s) {
 /* a surface with its hole closed, to find where a ray through the hole crosses the face */
 function holeClosed(s) {
   if (Object.prototype.hasOwnProperty.call(s, '_closed')) return s._closed;
-  const e = Object.create(s); e.hole = 0;
+  const e = Object.create(s); e.hole = 0; e.peers = null;
   Object.defineProperty(s, '_closed', { value: e, enumerable: false });
   return e;
 }
@@ -150,7 +158,7 @@ function holeClosed(s) {
 function ringEvent(s, z, base) {
   const surf = Object.create(s);
   surf.flat = true; surf.cyl = null; surf.maskFn = null; surf.odd = null; surf.ph = null; surf.coatAt = null;
-  surf.semi = z.rout; surf.hole = 0; surf.ringIn = z.rin; surf.maskMargin = z.margin;
+  surf.semi = z.rout; surf.hole = 0; surf.ringIn = z.rin; surf.maskMargin = z.margin; surf.peers = null;
   return Object.defineProperty(Object.assign(base, { semi: z.rout }), 'surf', { value: surf, enumerable: false, configurable: true });
 }
 // set by intersectSurf: the hit it last found was a zoned face's step wall, where the light is lost (see zoneHit)

@@ -37,6 +37,9 @@ import { statsCache } from './pd-cavity.js';
 import { binCache } from './screen-stats.js';
 import { cmul } from '../core/numeric.js';
 
+/* a hole through a face (s.hole): inside it there is no surface, so the light goes on to the next */
+const inHole = (s, y, h) => s.hole > 0 && (h === undefined ? Math.abs(y) : Math.hypot(y, h)) < s.hole - 1e-9;
+
 /* ==========================================================================
    Ray tracing
    ========================================================================== */
@@ -124,7 +127,7 @@ function intersectSurf(s, px, py, dx, dy, tmin) {
     const t = -px / dx;
     if (t < tmin) return null;
     const y = py + t * dy;
-    return Math.abs(y) <= s.semi ? t : null;
+    return Math.abs(y) <= s.semi && !inHole(s, y) ? t : null;
   }
   if (s.conicOnly) {
     // closed form: c(y² + (1+k)x²) − 2x = 0, keeping the branch through the vertex
@@ -145,7 +148,7 @@ function intersectSurf(s, px, py, dx, dy, tmin) {
     for (const t of [r1, r2]) {
       if (t < tmin || t < t0 - 1e-9 || t > t1 + 1e-9) continue;
       const y = py + t*dy;
-      if (Math.abs(y) > s.semi) continue;
+      if (Math.abs(y) > s.semi || inHole(s, y)) continue;
       if (Math.abs(px + t*dx - sagFn(s, y)) < 1e-6 * (1 + Math.abs(px))) return t;
     }
     return null;
@@ -173,7 +176,7 @@ function intersectSurf(s, px, py, dx, dy, tmin) {
         if ((ft < 0) === (flo < 0)) { lo = t; flo = ft; if (side === -1) fhi *= 0.5; side = -1; }
         else { hi = t; fhi = ft; if (side === 1) flo *= 0.5; side = 1; }
       }
-      return Math.abs(py + t*dy) <= s.semi + 1e-9 ? t : null;
+      return Math.abs(py + t*dy) <= s.semi + 1e-9 && !inHole(s, py + t*dy) ? t : null;
     }
     ta = tb; fa = fb;
   }
@@ -424,7 +427,7 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
     for (const t of [r1, r2]) {
       if (t < tmin || t < t0 - 1e-9 || t > t1 + 1e-9) continue;
       const y = py + t * dy;
-      if (Math.abs(y) > s.semi) continue;
+      if (Math.abs(y) > s.semi || inHole(s, y, h0 + t * u)) continue;
       if (Math.abs(px + t * dx - sag3(s, y, h0 + t * u)) < 1e-6 * (1 + Math.abs(px))) return t;
     }
     return null;
@@ -452,7 +455,7 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
         if ((ft < 0) === (flo < 0)) { lo = t; flo = ft; if (side === -1) fhi *= 0.5; side = -1; }
         else { hi = t; fhi = ft; if (side === 1) flo *= 0.5; side = 1; }
       }
-      return Math.abs(py + t * dy) <= s.semi + 1e-9 ? t : null;
+      return Math.abs(py + t * dy) <= s.semi + 1e-9 && !inHole(s, py + t * dy, h0 + t * u) ? t : null;
     }
     ta = tb; fa = fb;
   }
@@ -484,6 +487,7 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
   const y = fy + gy * t, z = qz + ez * t;
+  if (inHole(s, y, z)) return null;
   if (s.el && zSquare(s.el)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
   return y * y + z * z <= s.semi * s.semi * (1 + 1e-12) + 1e-12 ? t : null;
 }
@@ -1506,7 +1510,7 @@ function traceSceneOnce() {
           // on the way in, that of the light refracted (found by going round twice)
           const thFrom = tc && mFrom.bire && tag === mFrom.ePol ? angTo(mFrom, [ldx, ldy, ldz]) : undefined;
           // a face of a graded glass: its index where the ray meets the face
-          const grF = s.el && (s.el.graded || s.el.grin) && (mFrom.grad || mInto.grad), grR2 = grF || s.coatAt ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
+          const grF = s.el && (s.el.graded || s.el.grin) && (mFrom.grad || mInto.grad), grR2 = grF ? (L => L[0] * L[0] + L[1] * L[1])(grLocal(s, [px, py, anyZ ? zh : zOf(s.el)])) : 0;
           const n1 = nOf(mFrom, tag, thFrom) + (grF && mFrom.grad ? grDelta(mFrom.grad, grR2) : 0);
           let thInto;
           if (tc && mInto.bire && tag === mInto.ePol) for (let it = 0, nn = nOf(mInto, tag, Math.PI / 2); it < 3; it++) {
@@ -1519,7 +1523,7 @@ function traceSceneOnce() {
           const k = 1 - eta * eta * (1 - ci * ci);
           // the face's own amplitudes, reflected and passed (core/face-pol.js: the same numbers the field, the lens
           // designer and the RF designer take)
-          const F = faceAmps(s.coatAt ? { coat: s.coatAt(Math.sqrt(grR2)) } : s, n1, n2, ci, nm), total = F.tir;
+          const F = faceAmps(s, n1, n2, ci, nm), total = F.tir;
           const rsr = F.rs[0], rsi = F.rs[1], rpr = F.rp[0], rpi = F.rp[1];
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm

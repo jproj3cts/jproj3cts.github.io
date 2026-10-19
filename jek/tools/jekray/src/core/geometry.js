@@ -4,7 +4,7 @@ import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
 import { sagR2 } from './sag.js';
 import { lensZones } from './rf.js';
-import { mirrorAt, mirrorShape, mirrorZ } from '../state/elements.js';
+
 
 /* ==========================================================================
    Geometry
@@ -22,10 +22,7 @@ export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGr
 
 /* the sag; a zoned RF lens's cut face (s.zone, from lensSurfaces) is the smooth face stepped back by the whole layers
    taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
-export const rawSag = (s, y) => s.zs && inShape(s.zs, y) ? sagR2(s.zs.c, s.zs.k, 0, null, null, y * y, true)
-  : sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
-/* a face's centre with its own shape (s.zs, from lensSurfaces): is height y on it? */
-const inShape = (zs, y) => Math.abs(y) <= zs.r;
+export const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
 /* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
    (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
    runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
@@ -69,7 +66,6 @@ export function zoneHit(s, px, py, pz, dx, dy, dz, t0, t1) {
 export function rawDsag(s, y) {
   const y2 = y * y;
   let v = 0;
-  if (s.zs && inShape(s.zs, y)) return s.zs.c ? s.zs.c * y / Math.sqrt(Math.max(1e-12, 1 - (1 + s.zs.k) * s.zs.c * s.zs.c * y2)) : 0;
   if (s.c !== 0) {
     const arg = 1 - (1 + s.k) * s.c * s.c * y2;
     v = s.c * y / Math.sqrt(Math.max(1e-12, arg));
@@ -124,7 +120,7 @@ export function makeSurf(el, z, c, k, a2, A, semi, extra) {
   }
   s.semi = semi;
   s.sag0 = s.y0 ? rawSag(s, s.y0) : 0;
-  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL && !s.zone && !s.zs;
+  const plain = A.every(v => v === 0) && !(s.odd && s.odd.some(v => v !== 0)) && !s.FL && !s.zone;
   s.flat = (c === 0 && a2 === 0 && plain && !s.y0);
   s.conicOnly = !s.flat && a2 === 0 && plain && !s.y0;
   let lo = 0, hi = 0;
@@ -148,11 +144,14 @@ export function makeSurf(el, z, c, k, a2, A, semi, extra) {
   return s;
 }
 
-const MIRROR_COAT = { mode: 'custom', R: 100 };
 export function lensSurfaces(el) {
   const T = el.gaps.reduce((a, b) => a + b, 0);
   let z = -T / 2;
   const out = [];
+  // surfaces a gap of 0 apart share a vertex (a stack): the glass before the stack is before each of them, the glass after it after
+  const first = new Array(el.surfaces.length), last = new Array(el.surfaces.length);
+  for (let i = 0; i < el.surfaces.length; i++) first[i] = i > 0 && el.gaps[i - 1] === 0 ? first[i - 1] : i;
+  for (let i = el.surfaces.length - 1; i >= 0; i--) last[i] = i < el.surfaces.length - 1 && el.gaps[i] === 0 ? last[i + 1] : i;
   // a zoned RF lens (core/rf.js lensZones): its curved face cut back where whole layers come out, as it is made
   const Z = !el.cyl && el.zoned ? lensZones(el) : null, zone = Z && Z.steps.length ? { k: Z.k, dz: Z.dz, steps: Z.steps, sg: Z.face === 0 ? 1 : -1 } : null;
   for (let i = 0; i < el.surfaces.length; i++) {
@@ -166,14 +165,12 @@ export function lensSurfaces(el) {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
         kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
-        // a mirrored zone: wholly reflecting where it lies (the coating given by the radius met), the face's own coating elsewhere
-        mirror: mirrorZ(sd.mirror), coatAt: mirrorZ(sd.mirror) ? (r => (mirrorAt(sd.mirror, r) ? MIRROR_COAT : sd.coat)) : undefined,
-        // the centre's own shape, where it has one: a surface of its own over the face's vertex
-        zs: out2 ? undefined : mirrorShape(sd.mirror),
+        // a hole about the axis: no surface inside it; a mirror coating: silvered, for the drawing
+        hole: sd.hole || 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
         ph: el.diffractive && !el.cyl && dpOn(sd.ph) ? sd.ph : null, dm: normOrder(el.diffOrder),
-        front: i === 0 ? { glass: 'AIR' } : el.materials[i - 1],
-        back: i === el.surfaces.length - 1 ? { glass: 'AIR' } : el.materials[i],
+        front: first[i] === 0 ? { glass: 'AIR' } : el.materials[first[i] - 1],
+        back: last[i] === el.surfaces.length - 1 ? { glass: 'AIR' } : el.materials[last[i]],
       });
     out.push(s);
     z += el.gaps[i] || 0;
@@ -181,6 +178,25 @@ export function lensSurfaces(el) {
   return out;
 }
 
+/* a lens's surfaces (lensSurfaces) in their stacks: those sharing a vertex. Each: its members, their vertex z, the widest clear
+   radius, the index of its first and last member, and its sag across: the member whose annulus (hole to clear radius) holds the
+   height, else the widest. The drawings take a face from this; the tracer meets each member on its own. */
+export function lensStacks(ss) {
+  const out = [];
+  ss.forEach((s, i) => {
+    let st = out[out.length - 1];
+    if (!st || st.first !== s.stack) { st = { z: s.z, members: [], semi: 0, first: s.stack, last: i }; out.push(st); }
+    st.members.push(s); st.last = i; st.semi = Math.max(st.semi, s.semi);
+  });
+  for (const st of out) {
+    const wide = st.members.reduce((a, b) => (b.semi > a.semi ? b : a));
+    st.at = y => { const r = Math.abs(y); return st.members.find(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9) || wide; };
+    st.sag = y => sagFn(st.at(y), y);
+    // the heights the drawing samples: across the stack, with a point either side of each member's edge and hole
+    st.edges = [...new Set(st.members.flatMap(q => [q.semi, q.hole || 0].filter(r => r > 0 && r < st.semi)))];
+  }
+  return out;
+}
 /* Outline of a glass block in the element's local frame, counter-clockwise */
 export function polyVerts(el) {
   const a = el.size / 2;

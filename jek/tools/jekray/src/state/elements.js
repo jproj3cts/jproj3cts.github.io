@@ -18,7 +18,8 @@ import { modsCarried, normCarried } from '../engines/mods.js';
 import { normF } from '../core/freeform.js';
 import { normPh } from '../core/diffractive.js';
 
-/* a lens face's centre and its mirroring. The face is split at radius r into its centre and its rim. Mirrored:
+/* (Before the surface model had holes and stacks, a face carried a "mirror" zone; parts/lens.js converts one on load.)
+   A lens face's centre and its mirroring. The face is split at radius r into its centre and its rim. Mirrored:
    "all" (the whole face), "in" (the centre, a spot: a solid telescope's secondary), "out" (the rim, an annulus:
    its primary, the centre a clear hole) or "none". Light meeting a mirrored part reflects wholly, staying in the
    glass it came from; the rest refracts as the coating says. The centre may have a shape of its own (R, k: a
@@ -48,8 +49,8 @@ export function normSurface(s) {
     F: normF(s.F),                     // freeform terms (an asphere's): core/freeform.js
     ph: normPh(s.ph),                  // diffractive phase terms (a diffractive lens's): core/diffractive.js
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
+    hole: isFinite(s.hole) && s.hole > 0 ? +s.hole : 0,     // a hole about the axis, this radius: no surface there, so the light meets the next surface of the stack, or goes on
     coat: normCoat(s.coat),
-    mirror: normMirror(s.mirror),
   };
 }
 export function normElement(e) {

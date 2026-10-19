@@ -445,7 +445,7 @@ const coatChoice = c => {
   if (c.mode === 'stack' && c.layers && c.layers.length === 2 && Math.abs(c.layers[0].n - 1.38) < 1e-9 && Math.abs(c.layers[1].n - 1.70) < 1e-9) return 'vcoat';
   return 'other';
 };
-const coatName = c => !c || c.mode === 'bare' ? 'Bare' : c.mode === 'stack' ? 'Thin-film stack, ' + (c.layers || []).length + ' layer' + ((c.layers || []).length === 1 ? '' : 's') : c.mode === 'band' ? 'Coated ' + c.lo + '–' + c.hi + ' nm, ' + c.R + '%' : 'Reflects ' + (c.R || 0) + '%';
+const coatName = c => !c || c.mode === 'bare' ? 'Bare' : c.mode === 'mirror' ? (c.metal === 'ideal' || !c.metal ? 'Mirror' : 'Mirror, ' + ({ Al: 'aluminium', Ag: 'silver', Au: 'gold' }[c.metal] || c.metal)) : c.mode === 'stack' ? 'Thin-film stack, ' + (c.layers || []).length + ' layer' + ((c.layers || []).length === 1 ? '' : 's') : c.mode === 'band' ? 'Coated ' + c.lo + '–' + c.hi + ' nm, ' + c.R + '%' : 'Reflects ' + (c.R || 0) + '%';
 function setCoat(P, i, kind, nm, redraw) {
   const s = P.surfaces[i], e = s.from && getEl(s.from.id);
   if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;

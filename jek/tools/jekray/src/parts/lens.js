@@ -1,5 +1,5 @@
-import { deg, nextName, normMat, num } from '../state/project.js';
-import { normSurface } from '../state/elements.js';
+import { deg, nextName, normCoat, normMat, num } from '../state/project.js';
+import { normMirror, normSurface } from '../state/elements.js';
 import { normMount, normZoned } from '../core/rf.js';
 import { normOrder } from '../core/diffractive.js';
 
@@ -35,9 +35,31 @@ export const LENS = {
     }
   },
   norm(e, base) {
-    const surfaces = (Array.isArray(e.surfaces) && e.surfaces.length >= 2 ? e.surfaces : [{}, {}]).map(normSurface);
-    const gaps = surfaces.slice(1).map((_, i) => Math.max(0, num(e.gaps && e.gaps[i], 3)));
-    const materials = surfaces.slice(1).map((_, i) => normMat(e.materials && e.materials[i]));
+    let surfaces = (Array.isArray(e.surfaces) && e.surfaces.length >= 2 ? e.surfaces : [{}, {}]).map(normSurface);
+    let gaps = surfaces.slice(1).map((_, i) => Math.max(0, num(e.gaps && e.gaps[i], 3)));
+    let materials = surfaces.slice(1).map((_, i) => normMat(e.materials && e.materials[i]));
+    // a lens saved before surfaces had holes and stacks: a face's "mirror" zone becomes the surfaces it stood for, stacked
+    // on the face (a gap of 0): a spot is a small mirror-coated surface on a face with a hole; an annulus a mirror-coated face
+    // with a hole and a plain surface in its middle; a shaped centre a surface of its own in a hole; a whole face its coating
+    if (Array.isArray(e.surfaces) && e.surfaces.some(s => s && s.mirror)) {
+      const S = [], G = [], M = [], MIRROR = { mode: 'mirror', metal: 'ideal' };
+      surfaces.forEach((f, i) => {
+        const m = normMirror(e.surfaces[i] && e.surfaces[i].mirror), after = i < materials.length ? materials[i] : materials[materials.length - 1];
+        S.push(f);
+        if (m && m.zone === 'all') f.coat = normCoat(MIRROR);
+        else if (m && m.r > 0 && (m.zone !== 'none' || m.R !== undefined)) {
+          const r = Math.min(m.r, f.semi || base.diameter / 2 || m.r);
+          const centre = Object.assign({}, f, { semi: r, hole: 0, A: f.A.slice(), coat: normCoat(f.coat) });
+          if (m.R !== undefined) Object.assign(centre, { R: m.R, k: m.k || 0, a2: 0, A: [], odd: undefined, F: undefined, ph: undefined });
+          if (m.zone === 'in') centre.coat = normCoat(MIRROR);
+          if (m.zone === 'out') f.coat = normCoat(MIRROR);
+          f.hole = r;
+          G.push(0); M.push(normMat(after)); S.push(centre);
+        }
+        if (i < gaps.length) { G.push(gaps[i]); M.push(materials[i]); }
+      });
+      surfaces = S; gaps = G; materials = M;
+    }
     return Object.assign(base, {
       diameter: Math.max(0.1, num(e.diameter, 25.4)),
       surfaces, gaps, materials,
@@ -59,8 +81,8 @@ export const LENS = {
   guide: {
     what: 'A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass.',
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
-    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating, "mirror": optional {"zone": "all" | "in" | "out" | "none", "r": mm, "R": mm or null, "k": conic}: the face split at r into its centre and rim; mirrored whole, at the centre (a spot) or at the rim (an annulus round a clear centre), or none; light meeting a mirrored part reflects wholly and stays in the glass; with R and k the centre is a surface of its own over the face\u2019s vertex (null R: a flat ground into the middle), without them it follows the face}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
-    gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
+    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating ({"mode": "bare" | "ar" | "custom" | "band" | "stack" | "mirror"}; a mirror coating reflects all it can and passes nothing, "metal": "ideal" | "Al" | "Ag" | "Au" for its reflectance), "semi": optional clear radius, mm (the lens\u2019s own unless given), "hole": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face\u2019s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
+    gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces); 0 stacks the next surface on this one (the two share a vertex, each applying between its hole and its clear radius).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
     diffractive: 'true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π.',
     graded: 'true for a graded-index lens (a GRIN rod lens): each of its glasses may grade from its axis, "grad": [g2, g4, g6] in its material, the index n(r) = n + g2 r² + g4 r⁴ + g6 r⁶ with r in mm (n the glass\u2019s own); rays in it curve. A rod whose index falls as n0 (1 - A r²/2) has g2 = -n0 A / 2 and a pitch 2π/√A.',

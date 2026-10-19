@@ -1,4 +1,4 @@
-import { stackAmp } from './coatings.js';
+import { stackAmp, mirrorR } from './coatings.js';
 import { cabs2 } from './numeric.js';
 
 /* ==========================================================================
@@ -59,6 +59,8 @@ export function faceAmps(face, n1, n2, ci, nm) {
     rs: [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0], rp: [(n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0],
     ts: [2 * n1 * ci / (n1 * ci + n2 * ct) * norm, 0], tp: [2 * n1 * ci / (n2 * ci + n1 * ct) * norm, 0], tir: false });
   if (!coat || coat.mode === 'bare') return bare();
+  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), a quarter wave on reflection as byR has it
+  if (coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = Math.sqrt(R); return { rs: [0, a], rp: [0, a], ts: [0, 0], tp: [0, 0], tir: true }; }
   if (coat.mode === 'band') { if (!(nm >= coat.lo && nm <= coat.hi)) return bare(); const R = coat.R / 100; return byR(R, R); }
   if (coat.mode === 'stack') {
     if (!coat.layers || !coat.layers.length) return bare();

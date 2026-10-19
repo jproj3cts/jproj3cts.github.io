@@ -2,7 +2,7 @@ import { DOVE_RATIO, deg } from '../state/project.js';
 import { rollFrame } from '../engines/trace.js';
 import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
-import { sagR2 } from './sag.js';
+import { sagR2, stackOrder } from './sag.js';
 import { lensZones } from './rf.js';
 
 
@@ -172,9 +172,12 @@ export function lensSurfaces(el) {
         front: first[i] === 0 ? { glass: 'AIR' } : el.materials[first[i] - 1],
         back: last[i] === el.surfaces.length - 1 ? { glass: 'AIR' } : el.materials[last[i]],
       });
+    s.si = i;
     out.push(s);
     z += el.gaps[i] || 0;
   }
+  // a stack's members know each other: a ray meets a member only where it is the surface there (stackOrder)
+  for (const s of out) { const g = out.filter(q => q.stack === s.stack); if (g.length > 1) s.peers = g; }
   return out;
 }
 
@@ -190,8 +193,8 @@ export function lensStacks(ss) {
   });
   for (const st of out) {
     const wide = st.members.reduce((a, b) => (b.semi > a.semi ? b : a));
-    // the member whose annulus (hole to clear radius) holds the height, the narrowest where two do; else the widest
-    st.at = y => { const r = Math.abs(y); return st.members.filter(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9).sort((a, b) => (a.semi - (a.hole || 0)) - (b.semi - (b.hole || 0)))[0] || wide; };
+    // the member whose annulus (hole to clear radius) holds the height, as stackOrder picks between two that do; else the widest
+    st.at = y => { const r = Math.abs(y); return st.members.filter(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9).sort(stackOrder)[0] || wide; };
     st.sag = y => sagFn(st.at(y), y);
     // the heights the drawing samples: across the stack, with a point either side of each member's edge and hole
     st.edges = [...new Set(st.members.flatMap(q => [q.semi, q.hole || 0].filter(r => r > 0 && r < st.semi)))];

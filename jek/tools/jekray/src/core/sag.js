@@ -29,3 +29,9 @@ export function sagInPlane(s, h) {
   if (s.F) for (const k in s.F) if (k[0] === '0') v += s.F[k] * Math.pow(h, +k[1]);
   return v;
 }
+
+/* Stacked surfaces (a gap of 0) that both reach a height: which is the surface there. The one with the smaller clear radius,
+   the piece set into the other (a mirror spot on a face, a window in a primary's hole whose own radius is set to the hole);
+   where both reach as far, the one with the narrower ring (a primary round a window that has no radius of its own). As a
+   sort comparator over the members holding the height: the first is the surface met. */
+export const stackOrder = (a, b) => Math.abs(a.semi - b.semi) > 1e-9 ? a.semi - b.semi : (a.semi - (a.hole || 0)) - (b.semi - (b.hole || 0));

@@ -48,7 +48,8 @@ test('on the bench a face is the stack of the surfaces at one vertex, each where
   assert.deepEqual(st.map(s => s.members.length), [2, 2]);
   assert.ok(Math.abs(st[1].z - st[0].z - 40) < 1e-9);
   const F = st[0], B = st[1];
-  assert.equal(F.at(20), ss[0]); assert.equal(F.at(10), ss[1]); assert.equal(F.at(16.5), ss[0]);
+  // (at the spot's rim, where the flat's hole meets it, the spot: the piece set into the face holds its own edge)
+  assert.equal(F.at(20), ss[0]); assert.equal(F.at(10), ss[1]); assert.equal(F.at(16.5), ss[1]);
   assert.equal(F.sag(20), 0);
   assert.ok(Math.abs(F.sag(10) - (-600 + Math.sqrt(600 * 600 - 100))) < 1e-9, 'the spot’s sag ' + F.sag(10));
   assert.equal(B.at(5), ss[3]); assert.equal(B.at(10), ss[2]);
@@ -224,4 +225,18 @@ test('a stacked surface reaches only as far as it is the surface met: a window i
   assert.deepEqual(A.stackRing([{ semi: 25, hole: 6.5 }, { semi: 25, hole: 0 }], [0, 1], 1), [0, 6.5]);
   const e2 = JSON.parse(JSON.stringify(e)); A.asmApply(asmOf(), P, [e2]);
   assert.ok(!e2.surfaces[3].semi && e2.surfaces[1].hole === 2, JSON.stringify(e2.surfaces.map(s => [s.semi, s.hole])));
+});
+
+test('a spot stacked on a face reaches its own rim whatever the hole under it; a window in a primary\'s hole reaches only the hole', () => {
+  // the front flat's hole (10) is smaller than the spot (16.5), its ring narrower than the spot: the spot is the surface out to 16.5 all the same, on the
+  // bench (its stacks and the tracer), in the Optical designer and in the field's rings; the window behind, with no radius of
+  // its own, gives way to the primary round its hole
+  const e = lensOf({ diameter: 50, surfaces: [{ R: null, hole: 10 }, { R: -600, semi: 16.5, coat: MIRROR }, { R: -200, hole: 6.5, coat: { mode: 'mirror', metal: 'Al' } }, { R: null }],
+    gaps: [0, 40, 0], materials: [{ glass: 'N-BK7' }, { glass: 'N-BK7' }, { glass: 'N-BK7' }] });
+  const ss = Gm.lensSurfaces(e), st = Gm.lensStacks(ss);
+  assert.equal(st[0].at(12), ss[1]); assert.equal(st[0].at(16), ss[1]); assert.equal(st[0].at(17), ss[0]);
+  assert.equal(st[1].at(5), ss[3]); assert.equal(st[1].at(10), ss[2]);
+  assert.deepEqual(A.stackRing([{ semi: 25, hole: 10 }, { semi: 16.5, hole: 0 }], [0, 1], 0), [16.5, 25]);
+  const P = A.asmPrescription(asmOf(), [e]), ring = P.surfaces.find(s => s.from.i === 0);
+  assert.ok(ring && Math.abs(ring.obs - 16.5) < 1e-9, ring && ring.obs);
 });

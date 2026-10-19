@@ -878,7 +878,7 @@ function traceSceneOnce() {
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           // a ring's branch (stackZones): of the face it was split at, it meets only its ring's surface, over the whole face
           const zb = !!(zoneS && s.el === zoneS.el && s.stack === zoneS.stack);
-          if (zb && !(zoneS.base.layers ? zoneS.base.layers.includes(s) : s === zoneS.base)) continue;
+          if (zb && !(zoneS.base && zoneS.base.layers ? zoneS.base.layers.includes(s) : s === zoneS.base)) continue;   // (a hole's ring: none)
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
             const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));

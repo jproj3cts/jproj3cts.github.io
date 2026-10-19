@@ -28639,7 +28639,7 @@ function layoutData(asm, P, F) {
       const semi = Math.max(...st.m.map(k => semiOf(P.surfaces[k]))), edges = [...new Set(st.m.flatMap(k => [P.surfaces[k].semi, P.surfaces[k].obs || 0].filter(r => r > 0 && r < semi)))];
       const ys = []; for (let q = 0; q <= 24; q++) ys.push(-semi + 2 * semi * q / 24); for (const r of edges) for (const sg of [1, -1]) ys.push(sg * (r - 1e-6), sg * (r + 1e-6)); ys.sort((p, q) => p - q);
       const wide = st.m.reduce((p, q) => (semiOf(P.surfaces[q]) > semiOf(P.surfaces[p]) ? q : p));
-      return ys.map(y => { const r = Math.abs(y), k = st.m.filter(q => r >= (P.surfaces[q].obs || 0) - 1e-9 && r <= P.surfaces[q].semi + 1e-9).sort((a, b) => (P.surfaces[a].semi - (P.surfaces[a].obs || 0)) - (P.surfaces[b].semi - (P.surfaces[b].obs || 0)))[0] ?? wide, zz = wsSag(P.surfaces[k], y); return [y, isFinite(zz) ? zz : 0, k]; });
+      return ys.map(y => { const r = Math.abs(y), k = st.m.filter(q => r >= (P.surfaces[q].obs || 0) - 1e-9 && r <= P.surfaces[q].semi + 1e-9).sort((a, b) => stackOrder({ semi: P.surfaces[a].semi, hole: P.surfaces[a].obs }, { semi: P.surfaces[b].semi, hole: P.surfaces[b].obs }))[0] ?? wide, zz = wsSag(P.surfaces[k], y); return [y, isFinite(zz) ? zz : 0, k]; });
     };
     const ps = stacks.map(stProf);
     for (let j = 0; j < sp.n; j++) {
@@ -28679,10 +28679,16 @@ function layoutData(asm, P, F) {
   }
   out.lead = lead;
   c.fields.forEach((f, fi) => {
-    for (const py of [-1, -0.5, 0, 0.5, 1]) {
-      const r = rayPath(S, f.deg * deg, 0, py);
-      if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
+    // the edges, the middle and halfway of the pupil; but where some of those are stopped (a telescope's secondary in the
+    // middle, a rim at the edge), five spread over the heights the light gets through, so its way through is what is drawn
+    const STD = [-1, -0.5, 0, 0.5, 1], at = py => rayPath(S, f.deg * deg, 0, py);
+    let rs = STD.map(at);
+    if (rs.some(r => !r || r.lost !== -1)) {
+      const ok = [];
+      for (let q = 0; q <= 80; q++) { const py = -1 + q / 40, r = at(py); if (r && r.lost === -1) ok.push(r); }
+      if (ok.length) rs = ok.length <= 5 ? ok : [0, 1, 2, 3, 4].map(q => ok[Math.round(q * (ok.length - 1) / 4)]);
     }
+    for (const r of rs) if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
   });
   // the ghost chosen in the Analyses, its rays from the field shown there
   const an = WS && WS.tab === 'analyses' && WS.ana;
@@ -47353,7 +47359,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Stacked surfaces in the Optical designer as on the bench</b>: each stacked surface is analysed only over the ring where it is the surface met, so a window stacked in a primary\u2019s hole is clipped at the hole (a telescope whose exit cone is wider than its window now shows the light it loses, as the bench always did). The part keeps its own clear radius and hole. Where two stacked surfaces overlap, the one with the smaller clear radius is the surface there (a spot reaches its own rim whatever the hole under it; before, a ring whose hole was smaller than the spot took over part of it), the same in the bench\u2019s rays, the drawings, the field and the designer.',
+    '<b>Stacked surfaces in the Optical designer as on the bench</b>: each stacked surface is analysed only over the ring where it is the surface met, so a window stacked in a primary\u2019s hole is clipped at the hole (a telescope whose exit cone is wider than its window now shows the light it loses, as the bench always did). The part keeps its own clear radius and hole. Where two stacked surfaces overlap, the one with the smaller clear radius is the surface there (a spot reaches its own rim whatever the hole under it; before, a ring whose hole was smaller than the spot took over part of it), the same in the bench\u2019s rays, the drawings, the field and the designer. The designer\u2019s layout draws rays the light really takes: where the usual five heights across the pupil are stopped (a telescope\u2019s secondary in the middle), five spread over the heights that get through.',
     '<b>The diffracted field through a solid telescope</b>: a face built of stacked surfaces or with a hole is now taken ring by ring, the beam split into a branch for each ring, its field cut to the ring and passed through that ring\u2019s own surface. Before, the field followed the beam\u2019s centre alone, which a telescope\u2019s secondary sends straight back, so in 2D and 3D nothing came out. The bench\u2019s field also keeps a surface\u2019s whole light on its grid when what gets through is much wider than the beam it is fitted to (it had cut a telescope\u2019s converging ring in half at the secondary), the 2D view slices beams that run together at each one\u2019s own steps (a focus close behind a part was missed), and an assembly with mirrors in it gives its focal lengths along the light\u2019s own path on its panel and in the command line.',
     '<b>Stop stops</b>: the <b>Stop</b> button of the optimiser, tolerancing and Monte Carlo in the Optical and RF designers now acts as it is pressed, and the tables update a few times a second while a run goes on. <b>Image plane held still</b>: a solve for the image distance (<b>\u2026</b> beside it) keeps the image plane a set distance from the first surface, so the optimiser and typed gaps move the lenses and not the image. <b>Image simulation</b> works for telescopes whose secondary blocks the centre of the beam, and for a design with only a field on the axis (a patch about the axis), and a design with one wavelength keeps the picture\u2019s colours (it had shown the red channel in grey).',
     '<b>Short share links</b> (JEKrayPro): <b>Share link</b> makes a short link, <i>jeksys.net/s/</i> and ten letters, that opens the bench as it is now for anyone, with no account needed, and an embed code made from it. Each link is a snapshot of the bench as it was; the same bench gives the same link again. <b>My links</b>, in My benches, lists your links with how often each has been opened, to open, copy or delete (a deleted link stops opening at once), as does the Share dialog. The <b>Try me</b> QR code is the short link too, so any bench fits in it. Links made before, with the bench in them, still open.',

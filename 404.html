@@ -70,6 +70,16 @@
     target = "/jek" + path;
   }
 
+  /* A JEKray share link: /s/ then its ten-character id (/S/ in a QR code's capitals). The tool
+     fetches the bench it names, as #s= followed by the id. */
+  var short = /^\/[sS]\/([A-Za-z2-7]{10})\/?$/.exec(path);
+  if (!target && short) {
+    document.getElementById("missing").hidden = true;
+    document.getElementById("forwarding").hidden = false;
+    window.location.replace("/jek/tools/jekray.html#s=" + short[1].toUpperCase());
+    return;
+  }
+
   /* A JEKray bench in a QR code: /R/ then the bench, deflated, in base 32 capitals (the QR
      code's compact alphanumeric mode). The tool reads it as #p=q followed by the same. */
   var bench = /^\/R\/([A-Za-z2-7]+)\/?$/.exec(path);

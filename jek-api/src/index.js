@@ -12,6 +12,7 @@ import * as B from './benches.js';
 import { exportAll } from './export.js';
 import * as I from './institutions.js';
 import * as P from './parts.js';
+import * as L from './links.js';
 import * as T from './teams.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { cancelAtPeriodEnd, checkout, portal, priceList, switchInterval, webhook } from './billing.js';
@@ -114,6 +115,14 @@ const router = new Router()
     await P.remove(env, await requireUser(req, env, ctx), p);
     return json({ ok: true });
   })
+  // share links: made with a plan, opened by anyone (src/links.js)
+  .on('POST', '/v1/links', async (req, env, ctx) => json(await L.create(req, env, await requireUser(req, env, ctx)), 201))
+  .on('GET', '/v1/links/:id', async (req, env, ctx, { id }) => json(await L.open(env, id)))
+  .on('DELETE', '/v1/links/:id', async (req, env, ctx, { id }) => {
+    await L.remove(env, await requireUser(req, env, ctx), id);
+    return json({ ok: true });
+  })
+  .on('GET', '/v1/me/links', async (req, env, ctx) => json(await L.list(env, await requireUser(req, env, ctx))))
   // folders
   .on('GET', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) => json(await B.folders(env, await requireUser(req, env, ctx), w)))
   .on('POST', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) =>

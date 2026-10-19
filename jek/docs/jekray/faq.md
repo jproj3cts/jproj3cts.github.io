@@ -12,11 +12,11 @@ description: Common questions about JEKray, its models and its limits.
 
 ### Is JEKray free?
 
-The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html), and so is the coating designer. The Optical and RF designers are free to open, build and analyse designs in, and an RF lens can be taken to a quote. JEKrayPro is a subscription that adds the designers' design work (the optimiser, tolerancing, design reports, lens drawings and exporting a design) and a cloud account: benches saved online with version history, forks, team workspaces, your own parts library, and the experimental features under the Help menu. Universities can cover everyone with one licence.
+The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html), and so is the coating designer. The Optical and RF designers are free to open, build and analyse designs in, and an RF lens can be taken to a quote. JEKrayPro is a subscription that adds the designers' design work (the optimiser, tolerancing, design reports, lens drawings and exporting a design), short share links with embeds and QR codes, and a cloud account: benches saved online with version history, forks, team workspaces, your own parts library, and the experimental features under the Help menu. Universities can cover everyone with one licence.
 
 ### Does my bench leave my computer?
 
-Not unless you choose to send it. Your bench is autosaved in this browser, and nothing is sent anywhere until you save it to the cloud, share it or export it. A share link carries the bench in the part of the address after #, which browsers never send to a server. Only benches you save to a JEKrayPro account are stored online.
+Not unless you choose to send it. Your bench is autosaved in this browser, and nothing is sent anywhere until you save it to the cloud, share it or export it. A share link, which JEKrayPro makes, keeps a copy of the bench with your account until you delete the link; anyone with the link can open it. Only benches you save to a JEKrayPro account, and the share links you make, are stored online.
 
 ### Which browsers does it run in?
 

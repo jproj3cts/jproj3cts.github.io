@@ -24,6 +24,13 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   R2 (on create, on Save, every 10 minutes of editing, before a restore;
   the last 50 kept, then one a day for 90 days); folders; `GET /v1/me/export`
   as a zip. Saving needs an active plan; reading and export never do.
+- Share links (`src/links.js`, migration 0013): `POST /v1/links` {name, data}
+  keeps a compressed bench in R2 and returns a ten-character id for
+  `jeksys.net/s/<id>`; only someone with an active plan (their own, a team
+  seat or a university's licence) can make one. `GET /v1/links/:id` opens it
+  for anyone, signed in or not, limited per address. `GET /v1/me/links` and
+  `DELETE /v1/links/:id` list and delete the caller's own. Links go with the
+  account and come with its export.
 - Stripe: Checkout for the individual, academic and team plans, the
   customer portal, switching monthly/yearly, and the webhook at
   `/stripe/webhook` that mirrors each subscription (7 days' grace after a

@@ -31,3 +31,20 @@ test('each piece of the designers’ work asks for JEKrayPro before it is done, 
   for (const fn of ['rwSynthCard', 'rwMakeCard', 'rwApplySynth']) { const i = rw.indexOf('function ' + fn + '('), j = rw.indexOf('\nfunction ', i + 10); assert.ok(i >= 0 && !/designPro\(/.test(rw.slice(i, j)), fn + ' is not gated'); }
   assert.ok(!/pro\.js/.test(read('ui/coat-workspace.js')), 'the coating designer is not gated');
 });
+
+test('share links are JEKrayPro’s: made through the API with a plan, the QR code a short link, old links still opened, /s/ forwarded', () => {
+  const read = p => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
+  const sh = read('src/io/share.js'), boot = read('src/ui/boot.js'), nf = read('../../../404.html');
+  assert.match(sh, /async function shareLink\(\) \{\n  const short = accountsOn\(\);\n  if \(short && !designPro\('share a link'\)\) return;/);
+  assert.match(sh, /api\('\/v1\/links', \{ method: 'POST'/);
+  assert.match(sh, /export async function qrLink\(\) \{\n  if \(accountsOn\(\)\) \{\n    const why = designWhy\('make a QR code of the bench'\);\n    if \(why\) throw new Error\(why\);/);
+  // links opened: the short ones fetched, the long ones and the QR codes' /R/ read as before
+  assert.match(boot, /#s=\(\[A-Za-z2-7\]\{10\}\)\$/);
+  assert.match(boot, /#p=\(\[zjq\]\[A-Za-z0-9_-\]\+\)/);
+  const m = /var short = (\/.*\/)\.exec\(path\);/.exec(nf);
+  assert.ok(m, 'the 404 page forwards /s/');
+  const re = eval(m[1]);
+  assert.ok(re.test('/s/ABCDEFGHJK') && re.test('/S/abcdefghjk/') && !re.test('/s/ABC') && !re.test('/s/ABCDEFGHJ1'));
+  assert.match(nf, /\/jek\/tools\/jekray\.html#s=" \+ short\[1\]\.toUpperCase\(\)/);
+  assert.match(nf, /var bench = \/\^\\\/R\\\//);
+});

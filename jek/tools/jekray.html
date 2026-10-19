@@ -1421,6 +1421,10 @@
   .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
   .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
   /* work that is JEKrayPro's, marked while it is not open (ui/pro.js) */
+  /* a share link's card in My links: its address where a bench's picture would be */
+  .rt-hcard.rt-hlink .rt-hopen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; min-height: 5.5rem; color: var(--jek-ink-soft); }
+  .rt-hcard.rt-hlink .rt-hopen svg { width: 1.6rem; height: 1.6rem; }
+  .rt-hcard.rt-hlink .rt-hopen .mono { font-family: var(--jek-mono); font-size: 0.8rem; letter-spacing: 0.04em; }
   .rt-sharelinks { list-style: none; margin: 0.3rem 0 0; padding: 0; max-height: 12rem; overflow: auto; font-size: 0.82rem; }
   .rt-sharelinks li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 0.15rem 0.6rem; align-items: baseline; padding: 0.25rem 0; border-bottom: 1px solid var(--jek-line); }
   .rt-sharelinks li.cur .nm { font-weight: 700; }
@@ -46432,7 +46436,7 @@ const HOME_ICONS = {
   list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
   bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
   history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
-  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6', star: MENU_ICONS.star,
+  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6', star: MENU_ICONS.star, link: MENU_ICONS.link,
 };
 const homeIcon = name => {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -46609,6 +46613,7 @@ async function fillHome() {
     [{ folders }, data] = await Promise.all([api('/v1/workspaces/' + ws + '/folders'),
       P.view === 'history' ? api('/v1/benches/' + P.history.id + '/versions')
         : P.view === 'parts' ? api('/v1/workspaces/' + ws + '/parts')
+        : P.view === 'links' ? api('/v1/me/links')
         : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(P.view === 'bin' ? { bin: '1' } : P.q ? { q: P.q } : P.view === 'recent' ? {} : { folder: P.folder || '' }))]);
   } catch (err) {
     if (seq !== homeSeq) return;
@@ -46622,6 +46627,8 @@ async function fillHome() {
   box.removeAttribute('aria-busy');
   const byId = new Map(folders.map(f => [f.id, f]));
   if (P.folder && !byId.has(P.folder)) P.folder = null;
+  // share links are the person's own, not a workspace's: shown with their personal workspace
+  if (P.view === 'links' && wsInfo && wsInfo.kind !== 'personal') { P.view = 'folder'; fillHome(); return; }
   const go = (view, folder = null) => () => { closeHomeMenu(); Object.assign(P, { view, folder, q: '', history: null }); document.getElementById('homeSearch').value = ''; fillHome(); document.getElementById('homeMain').scrollTop = 0; };
   const pathOf = id => { const out = []; for (let f = byId.get(id); f; f = byId.get(f.parent_id)) out.unshift(f); return out; };
   // the rail: workspaces, then this one's places and folders
@@ -46641,6 +46648,7 @@ async function fillHome() {
     railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
     railBtn('Recent', 'recent', here('recent'), go('recent')),
     railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', go('parts')),
+    wsInfo && wsInfo.kind === 'personal' ? railBtn('My links', 'link', P.view === 'links', go('links')) : null,
     ...tree,
     railBtn('Bin', 'trash', here('bin'), go('bin')),
     h('div', { class: 'rt-hfoot' },
@@ -46791,6 +46799,44 @@ async function fillHome() {
       ev.length ? graph : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'))));
     if (homeRO) homeRO.disconnect();
     if (ev.length) { draw(); homeRO = new ResizeObserver(draw); homeRO.observe(list); }
+    return;
+  }
+  // My links: the share links made, each a snapshot of a bench as it was: open it, copy its link, or delete it
+  if (P.view === 'links') {
+    const by = { changed: (a, b) => b.created_at - a.created_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => b.created_at - a.created_at);
+    const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const list = data.links.filter(l => words.every(w => (l.name + ' ' + l.id).toLowerCase().includes(w))).sort(by);
+    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? 'My links: “' + P.q + '”' : 'My links');
+    const linkNote = !!(hooks.proWhy && hooks.proWhy());
+    note.hidden = !linkNote;
+    note.replaceChildren('Making share links needs JEKrayPro. The links you made still open for everyone, and you can delete them here. ', link('Subscribe', () => { closeHome(); showSubscribe(); }));
+    const copyLink = (l, btn) => navigator.clipboard.writeText(shortUrl(l.id)).then(() => { toast('Copied ' + shortUrl(l.id)); if (btn) btn.textContent = 'Copied'; }, () => toast(shortUrl(l.id)));
+    const open = l => { closeHome(); openShortLink(l.id); };
+    const del = l => () => {
+      if (!confirm('Delete the link to “' + l.name + '”? Anyone who has ' + shortUrl(l.id) + ' will no longer be able to open it. Your benches are not changed.')) return;
+      homeSay(() => api('/v1/links/' + l.id, { method: 'DELETE' }), 'Deleted: ' + shortUrl(l.id) + ' no longer opens')();
+    };
+    const cards = list.map(l => {
+      const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + l.name, title: 'More' }, '⋯');
+      more.addEventListener('click', () => openHomeMenu(more, [
+        ['Open on the bench', 'open', () => open(l)],
+        ['Copy the link', 'copy', () => copyLink(l)],
+        'sep',
+        ['Delete…', 'trash', del(l), 'danger']]));
+      const copyBtn = h('button', { type: 'button', class: 'rt-link', onclick: e => copyLink(l, e.target) }, 'Copy link');
+      return h('div', { class: 'rt-hcard rt-hlink', 'data-link': l.id },
+        h('button', { type: 'button', class: 'rt-hopen', title: 'Open “' + l.name + '” as it was shared', onclick: () => open(l) }, homeIcon('link'), h('span', { class: 'mono' }, '/s/' + l.id)),
+        h('div', { class: 'rt-hinfo' },
+          h('b', { title: l.name }, l.name),
+          h('small', null, 'Made ' + whenAgo(l.created_at) + ' · ' + kb(l.size_bytes)),
+          h('small', null, l.opens ? 'Opened ' + l.opens + (l.opens === 1 ? ' time' : ' times') + (l.opened_at ? ', last ' + whenAgo(l.opened_at) : '') : 'Not opened yet'),
+          h('small', null, copyBtn)),
+        more);
+    });
+    box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
+      : [h('p', { class: 'rt-hempty' }, P.q ? 'No link matches “' + P.q + '”.'
+        : 'No share links yet. On the bench, Share link makes a short link to the bench as it is then: anyone who opens it sees that snapshot, and it is listed here.')]),
+      helpLine('Each link opens the bench as it was when the link was made.', ['A share link is a snapshot: changing the bench afterwards does not change what the link opens. Share again for a new link to the bench as it is now. Delete a link here and it stops opening at once, for everyone; the benches themselves are not touched. Anyone with a link can open it without an account.'], 'rt-subsmall'));
     return;
   }
   // My parts: the parts kept, as cards with their pictures, to add to the bench, rename or delete
@@ -47080,7 +47126,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Short share links</b> (JEKrayPro): <b>Share link</b> makes a short link, <i>jeksys.net/s/</i> and ten letters, that opens the bench as it is now for anyone, with no account needed, and an embed code made from it. The same bench gives the same link again; the dialog lists your links with how often each has been opened, to copy or delete (a deleted link stops opening at once). The <b>Try me</b> QR code is the short link too, so any bench fits in it. Links made before, with the bench in them, still open.',
+    '<b>Short share links</b> (JEKrayPro): <b>Share link</b> makes a short link, <i>jeksys.net/s/</i> and ten letters, that opens the bench as it is now for anyone, with no account needed, and an embed code made from it. Each link is a snapshot of the bench as it was; the same bench gives the same link again. <b>My links</b>, in My benches, lists your links with how often each has been opened, to open, copy or delete (a deleted link stops opening at once), as does the Share dialog. The <b>Try me</b> QR code is the short link too, so any bench fits in it. Links made before, with the bench in them, still open.',
     '<b>The designers\u2019 design work is now part of JEKrayPro</b>: in the Optical and RF designers, the optimiser (with its global search and glass substitution), tolerancing, design reports, lens drawings and exporting a design as a lens file need a plan (your own JEKrayPro, an Academic or team plan, or a university licence), and their buttons are marked <b>Pro</b> until you sign in with one. Opening the designers, building and editing a design and every analysis stay open to everyone, as do an RF lens\u2019s way to a quote and the whole coating designer. Your designs always open. The JEKray Licence (1.1) and JEKrayPro Terms (1.5) say so.',
     '<b>Surfaces with holes, stacked surfaces and mirror coatings</b>: each lens surface now has a <b>clear radius</b>, a <b>hole radius</b> (inside it the surface is not there) and a coating that can be a <b>mirror</b> (ideal, aluminium, silver or gold, with the metal\u2019s reflectance) or a dielectric high reflector. A surface given a thickness of <b>0</b> is <b>stacked</b> on the one before: the two share a vertex and make one face, each where it reaches, so a flat with a hole and a mirror-coated spot stacked in it is a solid telescope\u2019s front, and a lens whose back is mirror coated is a Mangin mirror. The <b>Optical designer</b> works out the path the light takes through such a lens and shows two tables: the <b>Surfaces</b>, each once in the part\u2019s own order with its coating, clear radius and hole to type, and <b>the light\u2019s path</b>, each meeting in order with what is clear and blocked there; <b>Stack a surface</b> puts a surface in the centre of the one selected. Lens drawings show a stacked face as one, with its holes and coatings. The <i>Mirrored</i> setting a face had is gone: a bench saved with it opens as the surfaces it stood for, stacked. A thickness between parts may be negative.',
     '<b>Fibre tips</b> have a source\u2019s two ticks for the light they send out: <b>Trace the ray fan</b> and <b>Propagate a Gaussian beam</b>, each with its settings under it, so a tip can show rays alone or a beam alone.',

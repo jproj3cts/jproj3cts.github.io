@@ -2307,6 +2307,17 @@ function sagInPlane(s, h) {
    where both reach as far, the one with the narrower ring (a primary round a window that has no radius of its own). As a
    sort comparator over the members holding the height: the first is the surface met. */
 const stackOrder = (a, b) => Math.abs(a.semi - b.semi) > 1e-9 ? a.semi - b.semi : (a.semi - (a.hole || 0)) - (b.semi - (b.hole || 0));
+/* two stacked surfaces over the same ring (the same clear radius and hole): layers, both met where they apply, one straight after
+   the other in the order the light comes to them (a coating's face over a mirror, a cemented interface on a face) */
+const sameRing = (a, b) => Math.abs(a.semi - b.semi) <= 1e-9 && Math.abs((a.hole || 0) - (b.hole || 0)) <= 1e-9;
+/* the members of a stack met at radius r, of those given (in their order along the axis): the one stackOrder picks, with the
+   layers over its same ring; none where every member's hole or edge leaves the height out. at(q): q's semi and hole, as given */
+function stackMet(list, r, at = q => q) {
+  const hold = list.filter(q => { const o = at(q); return r >= (o.hole || 0) - 1e-9 && r <= o.semi + 1e-9; });
+  if (!hold.length) return hold;
+  const best = hold.slice().sort((a, b) => stackOrder(at(a), at(b)))[0];
+  return hold.filter(q => sameRing(at(q), at(best)));
+}
 
 
 const fmtGHz = nm => { const f = C_NM_GHZ / nm; return f >= 1000 ? +(f / 1000).toPrecision(4) + ' THz' : +f.toPrecision(4) + ' GHz'; };
@@ -7218,8 +7229,8 @@ function stackRing(S2, members, j) {
   let lo = null, hi = null;
   for (let q = 0; q + 1 < edges.length; q++) {
     const mid = (edges[q] + edges[q + 1]) / 2;
-    const m = members.filter(i => mid >= (S2[i].hole || 0) && mid <= S2[i].semi).sort((a, b) => stackOrder(S2[a], S2[b]))[0];
-    if (m === j) { if (lo === null) lo = edges[q]; hi = edges[q + 1]; }
+    // (layers over one ring are all met there: each has the ring)
+    if (stackMet(members, mid, i => S2[i]).includes(j)) { if (lo === null) lo = edges[q]; hi = edges[q + 1]; }
   }
   return lo === null ? null : [lo, hi];
 }
@@ -7232,12 +7243,21 @@ function lensPath(S2, G2, N2, h0) {
     const out = []; let k = 0, dir = 1, y = h, u = 0, nn = 1;
     for (let guard = 0; guard < PATH_VISITS_MAX && k >= 0 && k < stacks.length; guard++) {
       const st = stacks[k], r = Math.abs(y);
-      const j = st.m.filter(i => r >= (S2[i].hole || 0) - 1e-9 && r <= S2[i].semi + 1e-9).sort((a, b) => stackOrder(S2[a], S2[b]))[0];   // the member holding the height, as stackOrder picks
-      if (j === undefined) { if (!st.m.every(i => r < (S2[i].hole || 0))) break; }     // beyond every member: lost; through every hole: on
+      // the member holding the height, as stackOrder picks, with the layers over its ring (stackMet): met one after another the
+      // way the light goes, each refracting into the glass between it and the next (the stack's own glass past the last) or
+      // reflecting, when the light turns back through those it came through
+      const L = stackMet(st.m, r, i => S2[i]);
+      if (!L.length) { if (!st.m.every(i => r < (S2[i].hole || 0))) break; }     // beyond every member: lost; through every hole: on
       else {
-        const s = S2[j], c = s.c * dir;                                                   // the curvature as the light meets it
-        if (s.mirror) { out.push({ j, dir, role: 'mirror' }); u += 2 * c * y; dir = -dir; }
-        else { const n2 = dir > 0 ? nAfter(k) : nBefore(k); out.push({ j, dir, role: 'refract' }); u = (nn * u - (n2 - nn) * c * y) / n2; nn = n2; }
+        for (let p = dir > 0 ? 0 : L.length - 1, g2 = 0; p >= 0 && p < L.length && g2 < PATH_VISITS_MAX; g2++) {
+          const j = L[p], s = S2[j], c = s.c * dir;                                     // the curvature as the light meets it
+          if (s.mirror) { out.push({ j, dir, role: 'mirror' }); u += 2 * c * y; dir = -dir; }
+          else {
+            const n2 = dir > 0 ? (p < L.length - 1 ? N2[j] : nAfter(k)) : (p > 0 ? N2[L[p - 1]] : nBefore(k));
+            out.push({ j, dir, role: 'refract' }); u = (nn * u - (n2 - nn) * c * y) / n2; nn = n2;
+          }
+          p += dir;
+        }
       }
       const k2 = k + dir; if (k2 < 0 || k2 >= stacks.length) break;
       y += u * Math.abs(stacks[k2].z - st.z); k = k2;
@@ -9536,6 +9556,18 @@ function lensSurfaces(el) {
   }
   // a stack's members know each other: a ray meets a member only where it is the surface there (stackOrder)
   for (const s of out) { const g = out.filter(q => q.stack === s.stack); if (g.length > 1) s.peers = g; }
+  // members over the same ring are layers (sameRing), met one after another: each has the glass between it and the next layer
+  // on its own sides (the stack's before the first, and after the last)
+  for (const s of out) {
+    if (!s.peers || s.layers) continue;
+    const L = s.peers.filter(q => sameRing(q, s));
+    if (L.length < 2) continue;
+    L.forEach((q, k) => {
+      q.layers = L;
+      if (k > 0) q.front = el.materials[L[k - 1].si];
+      if (k < L.length - 1) q.back = el.materials[q.si];
+    });
+  }
   return out;
 }
 
@@ -10206,14 +10238,27 @@ const toWorld = (f, x, y) => [f.ox + x*f.c - y*f.s, f.oy + x*f.s + y*f.c];
 const toWorldDir = (f, x, y) => [x*f.c - y*f.s, x*f.s + y*f.c];
 
 /* a hole through a face (s.hole): inside it there is no surface, so the light goes on to the next. Nor is a stacked
-   surface there where another of its stack is the surface met (stackOrder: a spot set into a face, a primary round a window) */
+   surface there where another of its stack is the surface met (stackOrder: a spot set into a face, a primary round a window).
+   Layers over the same ring are all there (stackMet): which of them a ray meets first is the way it comes (layerIn) */
 const inHole = (s, y, h) => {
   const r = h === undefined ? Math.abs(y) : Math.hypot(y, h);
   if (s.hole > 0 && r < s.hole - 1e-9) return true;
   if (!s.peers) return false;
-  const own = s.peers.filter(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9).sort(stackOrder)[0];
-  return !!own && own.si !== s.si;
+  const own = stackMet(s.peers, r);
+  return own.length > 0 && !own.some(q => q.si === s.si);
 };
+/* the layer a ray coming this way along the lens's axis (ldx, in its frame) meets first: the first along it, or the last */
+const layerIn = (L, ldx) => (ldx > 0 ? L[0] : L[L.length - 1]);
+/* a ray still at the layer it just met (on its face): the layer after it, the way the ray now goes, met where it is; null when it
+   was the last that way (s may be a ring's wrap of a layer: its own index says which) */
+function layerNext(s, px, py, zh, dx, dy, anyZ) {
+  if (!s || !s.layers || s.tilt) return null;
+  const [lx, ly] = toLocal(s.f, px, py), r = anyZ ? Math.hypot(ly, zh - zOf(s.el)) : Math.abs(ly);
+  const sg = sagFn(s, r);
+  if (!isFinite(sg) || Math.abs(lx - (s.z + sg)) > 1e-6) return null;
+  const [ldx] = toLocalDir(s.f, dx, dy), L = s.layers, k = L.findIndex(q => q.si === s.si);
+  return L[k + (ldx > 0 ? 1 : -1)] || false;
+}
 
 /* ==========================================================================
    Ray tracing
@@ -10302,13 +10347,16 @@ function stackZones(surfs, s) {
       const margin = (u, v) => { const r = Math.hypot(u, v); return Math.min(z.rout - r, z.rin > 0 ? r - z.rin : Infinity); };
       // the ring's surface as its branch meets it: carried on over the whole face (its hole closed, its rim past the
       // reference ray), its field cut to the ring
-      let wrap = null, ext = null;
+      let wrap = null, ext = null, wraps = null;
+      const wrapOf = m => { const w = Object.create(m); w.semi = z.rout; w.hole = 0; w.ringIn = z.rin; w.maskMargin = margin; w.peers = null; return w; };
       if (z.m) {
         const open = Object.create(z.m); open.hole = 0; open.peers = null;
         ext = extendedSurf(open);
-        wrap = Object.create(z.m); wrap.semi = z.rout; wrap.hole = 0; wrap.ringIn = z.rin; wrap.maskMargin = margin; wrap.peers = null;
+        wrap = wrapOf(z.m);
+        // layers over the ring: the branch meets the first the way it comes, as itself
+        if (z.m.layers) wraps = new Map(z.m.layers.map(q => [q, q === z.m ? wrap : wrapOf(q)]));
       }
-      return Object.assign(z, { k, margin, wrap, ext });
+      return Object.assign(z, { k, margin, wrap, ext, wraps });
     });
   }
   Object.defineProperty(s, '_zones', { value: out, enumerable: false });
@@ -11016,7 +11064,12 @@ function traceSceneOnce() {
         // and, a ray fan's as well as a beam's, the rings of a face it meets (stackZones)
         const zsplits = isQ && !pls;
         let near = null, nearT = Infinity, holeS = null, holeT = Infinity;
-        for (const s of surfs) {
+        // at a layer just met: the next layer the way the ray now goes is met at once, where it is; past the last, the ray
+        // leaves the layers (none of them met again from where it is)
+        const atLayer = layerNext(last, px, py, zh, dx, dy, anyZ);
+        if (atLayer) { best = 0; hit = atLayer; }
+        else for (const s of surfs) {
+          if (atLayer === false && s.el === last.el && s.stack === last.stack) continue;
           // in a graded glass the ray can meet nothing but its own lens's faces (and steps there many times)
           if (gr && s.el !== gr.s.el) continue;
           if (s.kind === 'iris' && !isQ) continue;
@@ -11024,7 +11077,7 @@ function traceSceneOnce() {
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           // a ring's branch (stackZones): of the face it was split at, it meets only its ring's surface, over the whole face
           const zb = !!(zoneS && s.el === zoneS.el && s.stack === zoneS.stack);
-          if (zb && s !== zoneS.base) continue;
+          if (zb && !(zoneS.base.layers ? zoneS.base.layers.includes(s) : s === zoneS.base)) continue;
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
             const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));
@@ -11033,6 +11086,7 @@ function traceSceneOnce() {
           }
           const [lx, ly] = toLocal(s.f, px, py);
           const [ldx, ldy] = toLocalDir(s.f, dx, dy);
+          if (s.layers && s !== layerIn(s.layers, ldx)) continue;        // layers: the first the way it comes
           const forced = !zb && forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
           const h3 = anyZ && !forced && !zb && zCurved(s) ? zh - zOf(s.el) : 0;
@@ -11043,7 +11097,7 @@ function traceSceneOnce() {
             : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
           if (anyZ && tt !== null && !forced && !zb && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
-          if (tt !== null && tt < best) { best = tt; hit = zb ? zoneS.wrap : s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
+          if (tt !== null && tt < best) { best = tt; hit = zb ? (zoneS.wraps ? zoneS.wraps.get(s) : zoneS.wrap) : s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
           // a beam's reference ray through a hole in a face: the face's rings still take the beam (stackZones)
           if (zsplits && tt === null && !zb && s.hole > 0 && !s.tilt && s.stack !== undefined) {
             const th = intersectSurf(holeClosed(s), lx, ly, ldx, ldy, tMin(s));
@@ -11056,7 +11110,7 @@ function traceSceneOnce() {
             if (te !== null && te < nearT) { nearT = te; near = s; }
           }
         }
-        for (const g of segs) {
+        if (!atLayer) for (const g of segs) {
           if (g.el && (g.el === skipEl || g.el === forceEl)) continue;       // its rim is no rim to these
           if (gr && g.el !== gr.s.el.id) continue;
           const [lx, ly] = toLocal(g.f, px, py);
@@ -11179,7 +11233,7 @@ function traceSceneOnce() {
           const mF = (ldxF - ldyF * dsagFn(hit, lyF)) > 0 ? hit.front : hit.back;
           return !!mF && mF.glass !== 'AIR';
         };
-        const zones = zsplits && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
+        const zones = zsplits && !atLayer && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
         if (splits && !hitSeg && !zoneHere && !hit.tilt && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
@@ -11205,7 +11259,7 @@ function traceSceneOnce() {
             // each ring's share of what lands on the face
             const sh = z.share / tot;
             if (sh * qShare <= SPLIT_MIN) continue;
-            const zs = { el: hit.el, stack: hit.stack, base: z.m, ext: z.ext, wrap: z.wrap };
+            const zs = { el: hit.el, stack: hit.stack, base: z.m, ext: z.ext, wrap: z.wrap, wraps: z.wraps };
             if (z.m) push(splitState(sh, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, zoneS: zs, path: path + 'z' + z.k + '.' + bounce }));
             else push(splitState(sh, { zoneS: zs, path: path + 'z' + z.k + '.' + bounce,
               evt: g3ring(ringEvent(hit, z, { el: hit.el.id, kind: 'split', ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] })) }));
@@ -31248,8 +31302,9 @@ const surfId = s => {
   // an element and where along it: the same across reloads, so a cavity keeps its name and settings
   // faces of a block sit in frames of their own, all at z = 0: their frame tells them apart, or
   // a window's two faces met the same way read as one surface repeating (a cavity of one)
+  // (layers on a face share its z: each is its own surface, or two met in turn read as one repeating)
   if (s.el && s.el.id && s.z !== undefined) return s.el.id + '@' + (+s.z).toFixed(6) + (s.kind === 'split' ? 's' : '')
-    + (s.lf ? '/' + s.lf.x.toFixed(4) + ',' + s.lf.y.toFixed(4) : '');
+    + (s.lf ? '/' + s.lf.x.toFixed(4) + ',' + s.lf.y.toFixed(4) : '') + (s.layers ? '#' + s.si : '');
   if (!surfIds.has(s)) surfIds.set(s, surfNext++); return surfIds.get(s);
 };
 function cavKey(ev) {
@@ -47542,6 +47597,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Layers on a face</b>: stacked surfaces of the same clear radius and hole are now layers, met one after the other in the order the light comes to them, on the bench, in the diffracted field and in the Optical designer. Before, only the first was there and the rest were ignored, coatings and all: a partly reflecting coating on a second layer now reflects, a bare face over a mirror coat reflects its share of light from behind, and a layer with the same glass either side is on the light\u2019s path and changes nothing.',
     '<b>Anonymous usage counts</b>: JEKray now counts which of its features are used (parts added by type, designers, analyses and examples opened, exports by format) and its own errors, so we can see what to improve. The counts carry nothing that says who you are, are not linked to your account and never include your benches, their names or anything you type. None are sent from an embedded bench or when your browser asks sites not to track it, and you can turn them off in the account menu (<b>Share anonymous usage counts</b>) or on the Your account page. See the Privacy Policy.',
     '<b>Clear radii and holes for the optimiser</b>: a lens surface\u2019s clear radius and hole radius each have a <b>V</b> in the Optical designer, and the merit a new term, <b>Light reaching the image</b>: the share of the entrance pupil whose rays get through every clear radius and hole, worked out so it changes smoothly. With both, the optimiser sizes a telescope\u2019s spot, the window in its primary and its mirrors together (a stacked surface varied, its stack follows).',
     '<b>Stacked surfaces in the Optical designer as on the bench</b>: each stacked surface is analysed only over the ring where it is the surface met, so a window stacked in a primary\u2019s hole is clipped at the hole (a telescope whose exit cone is wider than its window now shows the light it loses, as the bench always did). The part keeps its own clear radius and hole. Where two stacked surfaces overlap, the one with the smaller clear radius is the surface there (a spot reaches its own rim whatever the hole under it; before, a ring whose hole was smaller than the spot took over part of it), the same in the bench\u2019s rays, the drawings, the field and the designer. The designer\u2019s layout draws rays the light really takes: where the usual five heights across the pupil are stopped (a telescope\u2019s secondary in the middle), five spread over the heights that get through.',

@@ -28,8 +28,9 @@ const surfId = s => {
   // an element and where along it: the same across reloads, so a cavity keeps its name and settings
   // faces of a block sit in frames of their own, all at z = 0: their frame tells them apart, or
   // a window's two faces met the same way read as one surface repeating (a cavity of one)
+  // (layers on a face share its z: each is its own surface, or two met in turn read as one repeating)
   if (s.el && s.el.id && s.z !== undefined) return s.el.id + '@' + (+s.z).toFixed(6) + (s.kind === 'split' ? 's' : '')
-    + (s.lf ? '/' + s.lf.x.toFixed(4) + ',' + s.lf.y.toFixed(4) : '');
+    + (s.lf ? '/' + s.lf.x.toFixed(4) + ',' + s.lf.y.toFixed(4) : '') + (s.layers ? '#' + s.si : '');
   if (!surfIds.has(s)) surfIds.set(s, surfNext++); return surfIds.get(s);
 };
 function cavKey(ev) {

@@ -20,7 +20,7 @@ import { faceAmps } from '../core/face-pol.js';
 import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
-import { stackOrder } from '../core/sag.js';
+import { stackMet, stackOrder } from '../core/sag.js';
 import { ffGrad, ffSag } from '../core/freeform.js';
 import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
 import { GR_REACH, grDelta, grH, grSlopeOverR, grStep } from '../core/gradient.js';
@@ -39,14 +39,27 @@ import { binCache } from './screen-stats.js';
 import { cmul } from '../core/numeric.js';
 
 /* a hole through a face (s.hole): inside it there is no surface, so the light goes on to the next. Nor is a stacked
-   surface there where another of its stack is the surface met (stackOrder: a spot set into a face, a primary round a window) */
+   surface there where another of its stack is the surface met (stackOrder: a spot set into a face, a primary round a window).
+   Layers over the same ring are all there (stackMet): which of them a ray meets first is the way it comes (layerIn) */
 const inHole = (s, y, h) => {
   const r = h === undefined ? Math.abs(y) : Math.hypot(y, h);
   if (s.hole > 0 && r < s.hole - 1e-9) return true;
   if (!s.peers) return false;
-  const own = s.peers.filter(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9).sort(stackOrder)[0];
-  return !!own && own.si !== s.si;
+  const own = stackMet(s.peers, r);
+  return own.length > 0 && !own.some(q => q.si === s.si);
 };
+/* the layer a ray coming this way along the lens's axis (ldx, in its frame) meets first: the first along it, or the last */
+const layerIn = (L, ldx) => (ldx > 0 ? L[0] : L[L.length - 1]);
+/* a ray still at the layer it just met (on its face): the layer after it, the way the ray now goes, met where it is; null when it
+   was the last that way (s may be a ring's wrap of a layer: its own index says which) */
+function layerNext(s, px, py, zh, dx, dy, anyZ) {
+  if (!s || !s.layers || s.tilt) return null;
+  const [lx, ly] = toLocal(s.f, px, py), r = anyZ ? Math.hypot(ly, zh - zOf(s.el)) : Math.abs(ly);
+  const sg = sagFn(s, r);
+  if (!isFinite(sg) || Math.abs(lx - (s.z + sg)) > 1e-6) return null;
+  const [ldx] = toLocalDir(s.f, dx, dy), L = s.layers, k = L.findIndex(q => q.si === s.si);
+  return L[k + (ldx > 0 ? 1 : -1)] || false;
+}
 
 /* ==========================================================================
    Ray tracing
@@ -135,13 +148,16 @@ function stackZones(surfs, s) {
       const margin = (u, v) => { const r = Math.hypot(u, v); return Math.min(z.rout - r, z.rin > 0 ? r - z.rin : Infinity); };
       // the ring's surface as its branch meets it: carried on over the whole face (its hole closed, its rim past the
       // reference ray), its field cut to the ring
-      let wrap = null, ext = null;
+      let wrap = null, ext = null, wraps = null;
+      const wrapOf = m => { const w = Object.create(m); w.semi = z.rout; w.hole = 0; w.ringIn = z.rin; w.maskMargin = margin; w.peers = null; return w; };
       if (z.m) {
         const open = Object.create(z.m); open.hole = 0; open.peers = null;
         ext = extendedSurf(open);
-        wrap = Object.create(z.m); wrap.semi = z.rout; wrap.hole = 0; wrap.ringIn = z.rin; wrap.maskMargin = margin; wrap.peers = null;
+        wrap = wrapOf(z.m);
+        // layers over the ring: the branch meets the first the way it comes, as itself
+        if (z.m.layers) wraps = new Map(z.m.layers.map(q => [q, q === z.m ? wrap : wrapOf(q)]));
       }
-      return Object.assign(z, { k, margin, wrap, ext });
+      return Object.assign(z, { k, margin, wrap, ext, wraps });
     });
   }
   Object.defineProperty(s, '_zones', { value: out, enumerable: false });
@@ -849,7 +865,12 @@ function traceSceneOnce() {
         // and, a ray fan's as well as a beam's, the rings of a face it meets (stackZones)
         const zsplits = isQ && !pls;
         let near = null, nearT = Infinity, holeS = null, holeT = Infinity;
-        for (const s of surfs) {
+        // at a layer just met: the next layer the way the ray now goes is met at once, where it is; past the last, the ray
+        // leaves the layers (none of them met again from where it is)
+        const atLayer = layerNext(last, px, py, zh, dx, dy, anyZ);
+        if (atLayer) { best = 0; hit = atLayer; }
+        else for (const s of surfs) {
+          if (atLayer === false && s.el === last.el && s.stack === last.stack) continue;
           // in a graded glass the ray can meet nothing but its own lens's faces (and steps there many times)
           if (gr && s.el !== gr.s.el) continue;
           if (s.kind === 'iris' && !isQ) continue;
@@ -857,7 +878,7 @@ function traceSceneOnce() {
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
           // a ring's branch (stackZones): of the face it was split at, it meets only its ring's surface, over the whole face
           const zb = !!(zoneS && s.el === zoneS.el && s.stack === zoneS.stack);
-          if (zb && s !== zoneS.base) continue;
+          if (zb && !(zoneS.base.layers ? zoneS.base.layers.includes(s) : s === zoneS.base)) continue;
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
             const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));
@@ -866,6 +887,7 @@ function traceSceneOnce() {
           }
           const [lx, ly] = toLocal(s.f, px, py);
           const [ldx, ldy] = toLocalDir(s.f, dx, dy);
+          if (s.layers && s !== layerIn(s.layers, ldx)) continue;        // layers: the first the way it comes
           const forced = !zb && forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
           const h3 = anyZ && !forced && !zb && zCurved(s) ? zh - zOf(s.el) : 0;
@@ -876,7 +898,7 @@ function traceSceneOnce() {
             : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
           if (anyZ && tt !== null && !forced && !zb && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
-          if (tt !== null && tt < best) { best = tt; hit = zb ? zoneS.wrap : s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
+          if (tt !== null && tt < best) { best = tt; hit = zb ? (zoneS.wraps ? zoneS.wraps.get(s) : zoneS.wrap) : s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
           // a beam's reference ray through a hole in a face: the face's rings still take the beam (stackZones)
           if (zsplits && tt === null && !zb && s.hole > 0 && !s.tilt && s.stack !== undefined) {
             const th = intersectSurf(holeClosed(s), lx, ly, ldx, ldy, tMin(s));
@@ -889,7 +911,7 @@ function traceSceneOnce() {
             if (te !== null && te < nearT) { nearT = te; near = s; }
           }
         }
-        for (const g of segs) {
+        if (!atLayer) for (const g of segs) {
           if (g.el && (g.el === skipEl || g.el === forceEl)) continue;       // its rim is no rim to these
           if (gr && g.el !== gr.s.el.id) continue;
           const [lx, ly] = toLocal(g.f, px, py);
@@ -1012,7 +1034,7 @@ function traceSceneOnce() {
           const mF = (ldxF - ldyF * dsagFn(hit, lyF)) > 0 ? hit.front : hit.back;
           return !!mF && mF.glass !== 'AIR';
         };
-        const zones = zsplits && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
+        const zones = zsplits && !atLayer && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
         if (splits && !hitSeg && !zoneHere && !hit.tilt && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
@@ -1038,7 +1060,7 @@ function traceSceneOnce() {
             // each ring's share of what lands on the face
             const sh = z.share / tot;
             if (sh * qShare <= SPLIT_MIN) continue;
-            const zs = { el: hit.el, stack: hit.stack, base: z.m, ext: z.ext, wrap: z.wrap };
+            const zs = { el: hit.el, stack: hit.stack, base: z.m, ext: z.ext, wrap: z.wrap, wraps: z.wraps };
             if (z.m) push(splitState(sh, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, zoneS: zs, path: path + 'z' + z.k + '.' + bounce }));
             else push(splitState(sh, { zoneS: zs, path: path + 'z' + z.k + '.' + bounce,
               evt: g3ring(ringEvent(hit, z, { el: hit.el.id, kind: 'split', ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] })) }));

@@ -266,3 +266,73 @@ test('a clear radius and a hole as variables, and the light reaching the image a
   // the keys are design keys the optimiser takes
   assert.ok(A.DESIGN_KEY.test('c:L.1') && A.DESIGN_KEY.test('h:L.2') && A.MERIT_OPS.includes('THRU'));
 });
+
+// stacked surfaces over the same ring are layers: met one after the other, the way the light goes (core/sag.js sameRing)
+async function layerTrace(surfaces, gaps, materials, from, extra = {}) {
+  const { openBench, engine } = await import('../../headless.mjs');
+  const B = await openBench({ format: 'jekray', version: 1, minPower: 0.01, ghosts: true, ...extra, elements: [
+    { type: 'lens', id: 'L', name: 'L', x: 100, y: 0, angle: 0, diameter: 20, surfaces, gaps, materials },
+    { type: 'source', id: 'S', name: 'S', x: from > 0 ? 150 : 50, y: 0, angle: from > 0 ? 180 : 0, wavelength: 633, rays: 1, width: 0, power: 1, ...(extra.src || {}) }] });
+  B.trace();
+  const T = (await engine()).TRACE.lastTrace, rays = T.rays.filter(r => !r.pol || r.pol === 's' || true);
+  const end = r => r.pts[r.pts.length - 2];
+  // power leaving each way, of one polarisation's rays (each ray is traced for s and p)
+  const half = rays.slice(0, rays.length / 2);
+  return { left: half.filter(r => end(r) < 60).reduce((a, r) => a + r.w, 0) * 2, right: half.filter(r => end(r) > 140).reduce((a, r) => a + r.w, 0) * 2, T };
+}
+const LAH = { glass: 'S-LAH64' }, rLAH = ((1.7849 - 1) / (2.7849)) ** 2;
+
+test('layers on a face: a coating on the second layer works; an index-matched bare layer is as no layer at all', async () => {
+  const half = await layerTrace([{ R: null, coat: { mode: 'ar', R: 0 } }, { R: null, coat: { mode: 'custom', R: 50 } }, { R: null, coat: { mode: 'ar', R: 0 } }], [0, 10], [LAH, LAH], -1);
+  assert.ok(Math.abs(half.left - 0.5) < 1e-3 && Math.abs(half.right - 0.5) < 1e-3, JSON.stringify([half.left, half.right]));
+  const matched = await layerTrace([{ R: null }, { R: null }, { R: null }], [0, 10], [LAH, LAH], -1), none = await layerTrace([{ R: null }, { R: null }], [10], [LAH], -1);
+  assert.ok(Math.abs(matched.left - none.left) < 1e-9 && Math.abs(matched.right - none.right) < 1e-9, JSON.stringify([matched.left, none.left]));
+});
+
+test('a mirror with a bare layer over it: from the front the layer is never met; from behind it reflects its Fresnel share first', async () => {
+  const S = [{ R: null, coat: { mode: 'ar', R: 0 } }, { R: null, coat: { mode: 'mirror', metal: 'ideal' } }, { R: null }];
+  const front = await layerTrace(S, [10, 0], [LAH, LAH], -1);
+  assert.ok(Math.abs(front.left - 1) < 1e-3 && front.right < 1e-9, JSON.stringify([front.left, front.right]));
+  const back = await layerTrace(S, [10, 0], [LAH, LAH], 1);
+  // all of it comes back (an ideal mirror), the bare face's first reflection among it, the rest after the mirror
+  assert.ok(Math.abs(back.right - 1) < 2e-3 && back.left < 1e-9, JSON.stringify([back.left, back.right]));
+  const first = back.T.rays.find(r => r.pts.length === 4 && r.pts[0] === 105 && r.pts[2] > 140);
+  assert.ok(first, 'the bare face reflects straight back');
+  const R0 = back.T.rays.filter(r => r.pts[0] === 105 && r.pts.length === 4 && r.pts[2] > 140).map(r => r.w).sort((a, b) => a - b);
+  assert.ok(R0.some(w => Math.abs(w - rLAH / 2) < 0.004), JSON.stringify(R0) + ' ' + rLAH);
+});
+
+test('the designer meets layers in turn: an index-matched layer on the light\'s path, a bare face behind a mirror not', () => {
+  const pathOf = e => A.lensPath(e.surfaces.map(s => ({ semi: s.semi || e.diameter / 2, hole: s.hole || 0, mirror: !!(s.coat && s.coat.mode === 'mirror'), c: s.R ? 1 / s.R : 0 })), e.gaps, e.materials.map(() => 1.7849), 0).visits.map(v => v.j + v.role[0] + (v.dir > 0 ? '' : '-')).join(' ');
+  const t3 = lensOf({ diameter: 300, surfaces: [{ R: null }, { R: null }, { R: null }], gaps: [0, 300], materials: [LAH, LAH] });
+  assert.equal(pathOf(t3), '0r 1r 2r');
+  const t2 = lensOf({ diameter: 300, surfaces: [{ R: null, coat: { mode: 'ar' } }, { R: null, coat: MIRROR }, { R: null }], gaps: [150, 0], materials: [LAH, LAH] });
+  assert.equal(pathOf(t2), '0r 1m 0r-');
+  // a mirror between two layers, met from the glass between them: the light turns back through the first
+  const sand = lensOf({ diameter: 30, surfaces: [{ R: null }, { R: null }, { R: null, coat: MIRROR }, { R: null }], gaps: [5, 0, 0], materials: [LAH, LAH, LAH] });
+  assert.equal(pathOf(sand), '0r 1r 2m 1r- 0r-');
+  // a window in a primary's hole is still a ring of its own, not a layer
+  const P = A.asmPrescription(asmOf(), [telescope()]);
+  assert.deepEqual(P.surfaces.map(s => s.from.i), [0, 2, 1, 3]);
+});
+
+test('the diffracted field through layers: on past a part-reflecting layer as past no layer, and back off it, with no cavity between layers', async () => {
+  const { openBench, engine } = await import('../../headless.mjs');
+  const BT = await import('../../src/engines/beam-tree.js'), F = await import('../../src/engines/field.js'), CV = await import('../../src/engines/cavity.js');
+  const run = async (surfaces, gaps) => {
+    const B = await openBench({ format: 'jekray', version: 1, minPower: 0.1, light: { rays: false, envelope: true, field: true, scale: 'lin' }, elements: [
+      { type: 'lens', id: 'L', name: 'L', x: 100, y: 0, angle: 0, diameter: 25, surfaces, gaps, materials: gaps.map(() => ({ glass: 'N-BK7' })) },
+      { type: 'source', id: 'S', name: 'S', x: 50, y: 0, angle: 0, wavelength: 633, gauss: true, w0: 2, z0: 0, popN: 128, traceRays: false, rays: 1, width: 4 }] });
+    B.trace();
+    const Eg = await engine(), beams = Eg.TRACE.lastTrace.beams;
+    const R = BT.popRun(beams, Eg.ST.project.elements.filter(e => e.type === 'source'), {});
+    const out = R.segs.find(sg => sg.b.x0 > 101 && sg.b.dx > 0), back = R.segs.find(sg => sg.b.dx < 0 && sg.b.len > 10);
+    return { loops: CV.cavLoops(beams).length, out: out && F.popStats(out.leg.at(100)).w, back: !!back };
+  };
+  const AR = { mode: 'ar', R: 0 };
+  const layer = await run([{ R: null, coat: AR }, { R: null, coat: { mode: 'custom', R: 50 } }, { R: 60, coat: AR }], [0, 5]);
+  const none = await run([{ R: null, coat: AR }, { R: 60, coat: AR }], [5]);
+  assert.equal(layer.loops, 0);
+  assert.ok(layer.back && !none.back, 'the layer sends light back');
+  assert.ok(layer.out && Math.abs(layer.out - none.out) < 1e-6, [layer.out, none.out].join(' '));
+});

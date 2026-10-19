@@ -398,10 +398,11 @@ export const SURFACE_KINDS = [
 ];
 const LINKED_MSG = 'That row is the light meeting a face again: the face is edited at its first row.';
 export function insertSurface(asm, P, i, kind = 'flat') {
-  if (P.surfaces[i] && (P.surfaces[i].link || P.surfaces[i].glink !== undefined)) return P.surfaces[i].link ? LINKED_MSG : 'A surface cannot be added inside a lens with a mirrored face.';
+  if (P.surfaces[i] && P.surfaces[i].link) return LINKED_MSG;
   const sps = surfaceParts(P), sp = sps[i];
   if (!sp || sp.kind !== 'lens') return 'Pick a surface of a lens: a stop or a window takes no more surfaces. Insert an element instead.';
   if (!SURFACE_KINDS.some(k => k[0] === kind)) return 'No such kind of surface.';
+  if (pathedRow(P, sps, i)) return insertPathed(asm, P, i, kind);
   return reKey(asm, P, () => {
     const z = zsOf(P), last = sp.j === sp.n - 1, glass = last ? Object.assign({}, P.materials[i - 1] || { glass: 'N-BK7' }) : null;
     const s = { R: null, k: 0, a2: 0, A: [], odd: null, semi: P.surfaces[i].semi, from: { id: sp.id, i: -1 } };
@@ -433,6 +434,40 @@ export function insertSurface(asm, P, i, kind = 'flat') {
     return j => j <= i ? j : j + 1;
   }) || 'Nothing was inserted.';
 }
+/* a surface of the kind chosen after row i of a lens the light is followed through: added to the part itself, after the
+   surface the row meets the way the light goes on from it (before it along the part when the light then goes backwards, as off a
+   mirror), splitting
+   the glass that follows it in two, or at the part's end a new glass 2 mm thick beyond it (the part's other surfaces staying
+   where they are). A gap of 0 split is two of 0: the new surface stacked with them, a layer where it reaches as far */
+function insertPathed(asm, P, i, kind) {
+  const s0 = P.surfaces[i], sp = surfaceParts(P)[i], el = project.elements.find(e => e.id === sp.id);
+  if (!el || !el.surfaces || s0.from.i === undefined || s0.from.i < 0) return 'That part cannot take another surface.';
+  // the way the light goes on from the row: back the way it came off a mirror
+  const fi = s0.from.i, n = el.surfaces.length, along = !s0.fflip !== !!s0.mirror, sg = along ? 1 : -1, t0 = el.surfaces[fi];
+  const s = { R: null, k: 0, a2: 0, A: [], semi: t0.semi || null, hole: 0, coat: { mode: 'bare' } };
+  if (kind === 'sphere') s.R = 100 * sg;
+  else if (kind === 'conic') { s.R = 100 * sg; s.k = -1; el.asphere = true; }
+  else if (kind === 'freeform') { s.F = { 20: 0, '02': 0 }; el.asphere = true; }
+  else if (kind === 'diffractive') { s.ph = [0]; el.diffractive = true; }
+  else if (kind === 'same') {
+    s.R = t0.R; s.k = t0.k || 0;
+    if (t0.A && t0.A.some(a => a)) s.A = t0.A.map(() => 0);
+    if (t0.F) { s.F = {}; for (const key of Object.keys(t0.F)) s.F[key] = 0; }
+    if (t0.ph) s.ph = t0.ph.map(() => 0);
+  }
+  if (kind === 'graded') el.graded = true;
+  const cp = m => Object.assign({}, m || { glass: 'N-BK7' });
+  let pos;
+  if (along && fi < n - 1) { pos = fi + 1; const g = el.gaps[fi]; el.gaps.splice(fi, 1, g / 2, g / 2); el.materials.splice(fi, 0, cp(el.materials[fi])); }
+  else if (along) { pos = n; el.gaps.push(2); el.materials.push(cp(el.materials[n - 2])); nudgeAlong(el, 1); }
+  else if (fi > 0) { pos = fi; const g = el.gaps[fi - 1]; el.gaps.splice(fi - 1, 1, g / 2, g / 2); el.materials.splice(fi - 1, 0, cp(el.materials[fi - 1])); }
+  else { pos = 0; el.gaps.unshift(2); el.materials.unshift(cp(el.materials[0])); nudgeAlong(el, -1); }
+  // a graded glass: the glass the light goes on into from the new surface
+  if (kind === 'graded') { const gi = along ? Math.min(pos, el.materials.length - 1) : Math.max(pos - 1, 0); el.materials[gi] = Object.assign({}, el.materials[gi], { grad: [0, 0, 0] }); }
+  el.surfaces.splice(pos, 0, s);
+  partRenumber(asm, P, el, k => (k >= pos ? k + 1 : k));
+  return true;
+}
 /* a surface stacked on surface i's: a new surface on the part at the same vertex (a gap of 0 after surface i's), taking
    the centre of the face (its clear radius half way out across the face's annulus), surface i holed to where the new one
    reaches: the two make one face, each applying between its hole and its clear radius. Flat and bare to start; a surface met
@@ -455,17 +490,30 @@ export function stackSurface(asm, P, i) {
   el.surfaces.splice(j + 1, 0, n);
   el.gaps.splice(j, 0, 0);
   el.materials.splice(j, 0, Object.assign({}, el.materials[Math.min(j, el.materials.length - 1)] || { glass: 'N-BK7' }));
+  partRenumber(asm, P, el, k => (k > j ? k + 1 : k));
+  return true;
+}
+/* after a part's own surfaces changed in number: the design's keys on them (q:id.k, ~v for a later meeting) renumbered by
+   to(k) (-1: the key goes, its surface gone), and the design read again from the bench */
+function partRenumber(asm, P, el, to) {
   const D = designOf(asm), id = el.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const rx = new RegExp('^([A-Za-z]+\\d*):' + id + '\\.(\\d+)(~\\d+)?$');
-  const re = key => key.replace(rx, (m, q, k, v) => +k > j ? q + ':' + el.id + '.' + (+k + 1) + (v || '') : m);
-  const nd = { image: D.image, vars: D.vars.map(re), solves: Object.fromEntries(Object.entries(D.solves).map(([k, v]) => [re(k), v])),
-    pickups: Object.fromEntries(Object.entries(D.pickups).map(([k, v]) => [re(k), Object.assign({}, v, { from: re(v.from) })])), merit: D.merit, tol: D.tol };
-  if (mcOf(D)) nd.mc = { active: D.mc.active, keys: D.mc.keys.map(re), configs: D.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(Object.entries(c.v).map(([k, v]) => [re(k), v])) })) };
+  const re = key => key.replace(rx, (m, q, k, v) => { const k2 = to(+k); return k2 < 0 ? '' : q + ':' + el.id + '.' + k2 + (v || ''); });
+  const ok = key => !!re(key);
+  const nd = { image: D.image, vars: D.vars.filter(ok).map(re), solves: Object.fromEntries(Object.entries(D.solves).filter(([k]) => ok(k)).map(([k, v]) => [re(k), v])),
+    pickups: Object.fromEntries(Object.entries(D.pickups).filter(([k, v]) => ok(k) && ok(v.from)).map(([k, v]) => [re(k), Object.assign({}, v, { from: re(v.from) })])), merit: D.merit, tol: D.tol };
+  if (mcOf(D)) {
+    const keys = D.mc.keys.filter(ok);
+    nd.mc = { active: D.mc.active, keys: keys.map(re), configs: D.mc.configs.map(c => Object.assign({}, c, { v: Object.fromEntries(Object.entries(c.v).filter(([k]) => ok(k)).map(([k, v]) => [re(k), v])) })) };
+  }
   asm.design = normDesign(nd);
   const P2 = asmPrescription(asm); P2.image = P.image;
   commitDesign(asm, P2);
-  return true;
 }
+/* a lens the light is followed through (stacked faces, mirror coats: its rows are meetings, not its surfaces in turn): whether row i is one */
+const pathedRow = (P, sps, i) => !!sps[i] && P.surfaces.some((x, q) => sps[q] && sps[q].id === sps[i].id && x.faceOwn);
+/* the part's centre moved along its own axis by d mm (so its other surfaces stay where they are when one is added or taken off an end) */
+function nudgeAlong(el, d) { const a = el.angle * deg; el.x += d * Math.cos(a); el.y += d * Math.sin(a); }
 /* the kinds of element the element data can insert: a flat singlet, or one of the bench's lens presets (parts/lens.js) */
 export const ELEMENT_KINDS = [
   ['singlet', 'Singlet', 'A flat N-BK7 singlet, 2 mm thick, as wide as the design'],
@@ -536,6 +584,20 @@ export function removeSurface(asm, P, i) {
   const sps = surfaceParts(P), sp = sps[i];
   if (!sp || sp.kind === 'stop') return 'The stop stays: it sets the aperture. Split the assembly to take it out.';
   if (sp.kind === 'mirror') return 'The mirror stays: it folds the axis. Split the assembly to take it out.';
+  const elP = pathedRow(P, sps, i) && project.elements.find(e => e.id === sp.id);
+  if (elP && elP.surfaces.length > 2) {
+    // a lens the light is followed through: the surface taken off the part itself, the glass either side of it one
+    // (the glass before it kept), or at an end the glass beyond it gone with it, the rest where it was
+    const j = P.surfaces[i].from.i, n = elP.surfaces.length;
+    (() => {
+      elP.surfaces.splice(j, 1);
+      if (j === 0) { const g = elP.gaps.shift(); elP.materials.shift(); nudgeAlong(elP, g / 2); }
+      else if (j === n - 1) { const g = elP.gaps.pop(); elP.materials.pop(); nudgeAlong(elP, -g / 2); }
+      else { elP.gaps.splice(j - 1, 2, elP.gaps[j - 1] + elP.gaps[j]); elP.materials.splice(j, 1); }
+    })();
+    partRenumber(asm, P, elP, k => (k === j ? -1 : k > j ? k - 1 : k));
+    return true;
+  }
   if (sp.kind === 'window' || sp.n <= 2) {
     const lenses = P.parts.filter(p => p.kind === 'lens' || p.kind === 'window').length;
     if (lenses < 2) return 'An assembly keeps at least one lens.';

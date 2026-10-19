@@ -6,6 +6,7 @@
 //   node scripts/usage.mjs --days 90                any number of days up to 760
 //   node scripts/usage.mjs --html report.html       the same as a page, with a chart of visits a day
 //   node scripts/usage.mjs --json                   the counts as they come
+//   scripts\usage-report.cmd                         on Windows: double-click, or a desktop shortcut to it, and the page opens
 //
 // Counts, not people: a visit is one opening of the app, so one person opening it
 // on three days is three visits. JEK_API overrides https://api.jeksys.net.

@@ -153,10 +153,15 @@ export function designEpd(c, S0) {
 export function designPrescription(asm) {
   const P = asmPrescription(asm), D = designOf(asm);
   P.image = D.image;
-  // the image distance is the design's alone: kept at focus whatever changed the parts on the bench
-  if (D.solves['t:image']) { const b = lensSystem(P, primaryNm(asm.cond), objOpts(asm.cond)).par.back; if (isFinite(b)) P.image = D.image = b; }
+  // the image distance is the design's alone: kept at focus, or the image plane held where it is, whatever changed the parts on the bench
+  const si = D.solves['t:image'];
+  if (si && si.kind === 'hold') P.image = D.image = imageHeld(P, si.v);
+  else if (si) { const b = lensSystem(P, primaryNm(asm.cond), objOpts(asm.cond)).par.back; if (isFinite(b)) P.image = D.image = b; }
   return P;
 }
+/* the image distance that puts the image plane v mm from the first surface along the axis: v less every gap before it */
+export const imageHeld = (P, v) => v - P.gaps.reduce((a, b) => a + b, 0);
+export const trackOf = P => P.gaps.reduce((a, b) => a + b, 0) + P.image;
 export function designSystem(asm, P, nm) {
   const c = asm.cond, S0 = lensSystem(P, primaryNm(c), objOpts(c));
   return lensSystem(P, nm || primaryNm(c), objOpts(c, { epd: designEpd(c, S0), image: P.image }));
@@ -202,7 +207,9 @@ export function solveDesign(asm, P) {
     }
     pickupAll(D, P);
   }
-  if (D.solves['t:image']) {
+  const si = D.solves['t:image'];
+  if (si && si.kind === 'hold') P.image = imageHeld(P, si.v);
+  else if (si) {
     const b = lensSystem(P, nm, objOpts(c)).par.back;
     if (isFinite(b)) P.image = b; else notes.push('The system is afocal: it has no paraxial focus.');
   }

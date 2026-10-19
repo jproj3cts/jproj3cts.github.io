@@ -1,4 +1,4 @@
-import { aimRay, lensLaunch, lensSystem, pupilGrid, rayAt, traceField, traceRay } from './lens-engine.js';
+import { aimRay, chiefRay, lensLaunch, lensSystem, pupilGrid, rayAt, traceField, traceRay } from './lens-engine.js';
 import { designEpd, objOpts, primaryNm } from './lens-design.js';
 import { solveLinear } from '../core/numeric.js';
 import { fft } from './field2d.js';
@@ -36,7 +36,7 @@ export function anaSystems(asm, P) {
   const na = Math.abs(Sp.n[Sp.N] * Sp.epr * Sp.par.uEp), fw = na > 0 ? 1 / (2 * na) : Infinity;
   return { c, S, Sp, P, epd, na, fw, nm0, W: c.waves.reduce((a, w) => a + w.w, 0) || 1, finite: !!Sp.obj };
 }
-const chiefAt = (S, deg) => { const C = rayAt(S, deg * D2R, 0, 0); return C && C[7] === 0 ? [C[0], C[1]] : null; };
+const chiefAt = (S, deg) => { const C = chiefRay(S, deg * D2R); return C && C[7] === 0 ? [C[0], C[1]] : null; };
 /* the paraxial chief ray's height on the image plane at field deg (an object height in mm, for a finite object) */
 export const paraxHeight = (S, deg) => S.obj ? deg * (S.par.yChiefF + (S.imageZ - S.z[S.N - 1]) * S.par.uChiefF)
   : Math.tan(deg * D2R) * (S.par.yChief + (S.imageZ - S.z[S.N - 1]) * S.par.uChief);
@@ -91,7 +91,7 @@ export function fieldCurves(A, n) {
   const fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))), d = 1e-3, R = new Float64Array(8), Q = new Float64Array(8);
   const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
   const focus = (S, th, px, py, axis) => {
-    const C = rayAt(S, th, 0, 0, R);
+    const C = chiefRay(S, th, R);
     if (!C || C[7] !== 0) return null;
     const ca = C[axis], cs = C[axis + 3] / C[5];
     let sum = 0;
@@ -130,7 +130,7 @@ export function relIllum(A, n, N) {
   const degs = Array.from({ length: n }, (_, i) => fmax * i / (n - 1));
   const xpz = S.par.xpz, tele = !isFinite(xpz);
   const one = g => {
-    const th = g * D2R, G = [], C0 = rayAt(S, th, 0, 0, new Float64Array(8)), ok0 = C0 && C0[7] === 0;
+    const th = g * D2R, G = [], C0 = chiefRay(S, th, new Float64Array(8)), ok0 = C0 && C0[7] === 0;
     let alive = 0, inside = 0;
     for (let j = 0; j <= N; j++) {
       const row = [];
@@ -155,7 +155,7 @@ export function relIllum(A, n, N) {
       const a = G[j][i], b = G[j][i + 1], c = G[j + 1][i + 1], d = G[j + 1][i];
       area += tri(a, b, c) + tri(a, c, d);
     }
-    const C = rayAt(S, th, 0, 0, R), cz = C && C[7] === 0 ? Math.abs(C[5]) : null;
+    const C = chiefRay(S, th, R), cz = C && C[7] === 0 ? Math.abs(C[5]) : null;
     return { area, vig: inside ? alive / inside : 0, cos4: cz === null ? null : cz ** 4 };
   };
   const pts = degs.map(one), a0 = pts[0].area || 1, v0 = pts[0].vig || 1;
@@ -368,7 +368,7 @@ export function huygensRow(src, P0, ex, ey, dx, M, kn, sgn, j, re, im) {
 }
 /* one wavelength's sources: the rays of field th through an N × N grid at the stop, on the reference sphere */
 function huygensSources(S, th, N, power) {
-  const C = rayAt(S, th, 0, 0, new Float64Array(8));
+  const C = chiefRay(S, th, new Float64Array(8));
   if (!C || C[7] !== 0) return null;
   const nI = S.n[S.N], xpz = S.par.xpz, cx = C[0], cy = C[1], cz = C[2];
   let Rref;

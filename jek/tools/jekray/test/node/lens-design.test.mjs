@@ -162,3 +162,36 @@ test('the bench’s light: its fields, wavelengths and beam; outside the design,
   assert.ok(M2.some(s => /beyond its fields/.test(s)) && M2.some(s => /400 nm/.test(s)) && M2.some(s => /wider than its entrance pupil/.test(s)), M2.join(' | '));
   assert.equal(D.condFromRays(asm, P, [], () => []), null);
 });
+
+test('the image plane held still: the image distance takes up what the gaps before it change, through a typed change and the optimiser', async () => {
+  const O = await import('../../src/engines/lens-opt.js');
+  const asm = published();
+  let P = D.designPrescription(asm);
+  D.commitDesign(asm, P);
+  P = D.designPrescription(asm);
+  const track = D.trackOf(P);
+  asm.design.solves['t:image'] = { kind: 'hold', v: track };
+  assert.deepEqual(A.normDesign(asm.design).solves['t:image'], { kind: 'hold', v: track });
+  // the air between the first two lenses made 2 mm longer: the image plane does not move
+  P = D.designPrescription(asm);
+  const img0 = P.image;
+  P.gaps[1] += 2;
+  D.commitDesign(asm, P);
+  P = D.designPrescription(asm);
+  assert.ok(Math.abs(D.trackOf(P) - track) < 1e-9 && Math.abs(P.image - (img0 - 2)) < 1e-9, 'track ' + D.trackOf(P) + ', image ' + P.image);
+  // with the focus solve, the same change moves the image plane
+  asm.design.solves['t:image'] = { kind: 'focus' };
+  D.commitDesign(asm, P);
+  assert.ok(Math.abs(D.trackOf(D.designPrescription(asm)) - track) > 1e-3);
+  // optimised with two radii and an air gap free: the image plane stays where it was held
+  asm.design.solves['t:image'] = { kind: 'hold', v: track };
+  asm.design.vars = ['R:L1.0', 'R:L3.1', 't:L2.1'];
+  D.commitDesign(asm, D.designPrescription(asm));
+  P = D.designPrescription(asm);
+  const prob = O.optProblem(asm, P), out = O.optRun(prob, { mode: 'dls', iters: 6 });
+  O.optApply(P, prob, out, asm.design);
+  D.commitDesign(asm, P);
+  P = D.designPrescription(asm);
+  assert.ok(Math.abs(D.trackOf(P) - track) < 1e-9, 'held through the optimiser: ' + D.trackOf(P) + ' against ' + track);
+  assert.ok(out.merit <= out.start + 1e-12);
+});

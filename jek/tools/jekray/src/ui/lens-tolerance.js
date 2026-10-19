@@ -5,7 +5,7 @@ import { designOf } from '../engines/lens-design.js';
 import { cloneP, optProblem } from '../engines/lens-opt.js';
 import { compensated, compsFor, mcStats, opValues, rssEstimate, tolOps, tolRun, yieldOf } from '../engines/lens-tol.js';
 import { surfaceParts } from '../engines/lens-design.js';
-import { helpLine, h } from './panel.js';
+import { helpLine, h, stopButton, throttle } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
 import { fmtSig } from '../core/format.js';
 import { designPro, proMark } from './pro.js';
@@ -71,7 +71,8 @@ function tolBatch(ctx) {
       M.trials.push(...out.trials);
       if (M.trials.length >= M.target) { O.running = false; O.note = 'Done: ' + M.trials.length + ' builds.'; }
     }
-    ctx.redraw();
+    // while it runs, redrawn a few times a second (so its Stop button stays put), and at once when it ends
+    if (O.running) (O.live || (O.live = throttle(() => { if (TOL === O) ctx.redraw(); }, 200)))(); else ctx.redraw();
     if (O.running && !ctx.sync) setTimeout(() => tolBatch(ctx), 0);
   };
   if (ctx.sync || TEST_MODE || !hooks.fieldWorker()) take(tolRun(prob, run));
@@ -122,7 +123,7 @@ export function tolCard(ctx) {
   invV.addEventListener('change', invSet); invBy.addEventListener('change', invSet);
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'Inverse sensitivity: the limit of each tolerance alone that worsens the criterion by ', invV, ' ', invBy)));
   card.append(h('div', { class: 'rt-lbar' }, ...(running
-    ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
+    ? [stopButton('Stop', () => { tolStop('Stopped.'); ctx.redraw(); })]
     : [proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'), 'tolerance a design'),
       proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'), 'tolerance a design'),
       proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity'), 'tolerance a design')])));

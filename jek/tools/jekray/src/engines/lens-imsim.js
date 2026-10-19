@@ -1,5 +1,5 @@
 import { fft2, paraxHeight, psfAnalysis, relIllum, spotDiagram } from './lens-analysis.js';
-import { rayAt } from './lens-engine.js';
+import { chiefRay } from './lens-engine.js';
 
 /* ==========================================================================
    Image simulation: a picture as the design would form it
@@ -26,6 +26,9 @@ export const imsimTraceable = P => !P.surfaces.some(s => s.tilt || s.dtilt || s.
    is drawn about where its real chief ray lands), pitch (mm; patch), grid (PSFs a side) } */
 export function imsimPlan(A, src, o) {
   o = o || {};
+  // a design whose only field is the axis has no distortion or fall-off to speak of: the picture is laid on the image as it is,
+  // evenly lit, with the axis's own blur everywhere (a patch about the axis)
+  const axial = Math.max(...A.c.fields.map(f => Math.abs(f.deg))) === 0;
   const S0 = A.Sp, W = src.w, H = src.h, fmax = Math.max(...A.c.fields.map(f => Math.abs(f.deg))) || 1e-9;
   const nmOf = i => A.S[i].nm;
   // each channel's wavelength: the design's nearest its colour
@@ -39,13 +42,15 @@ export function imsimPlan(A, src, o) {
   const dist = {};
   for (const wi of tabled) {
     const R = new Float64Array(8), d = fs.map(f => {
-      const g = f || fmax * 1e-3, C = rayAt(A.S[wi], g * IM_D2R, 0, 0, R);
+      const g = f || fmax * 1e-3, C = chiefRay(A.S[wi], g * IM_D2R, R);
       return C && C[7] === 0 ? C[1] / par(g) : NaN;
     });
     for (let i = 0; i <= K; i++) if (!isFinite(d[i])) d[i] = i ? d[i - 1] : 1;
     dist[wi] = d;
   }
-  const ri = relIllum(A, 17, 32).ri;
+  // relative illumination; where too few rays reach the image on the axis to measure the exit pupil's area (a design that
+  // passes little light), the share of the rays that reach it instead
+  const RI = axial ? null : relIllum(A, 17, 32), ri = axial ? [1, 1] : RI.ri[0] > 0 && RI.ri.every(isFinite) ? RI.ri : RI.vig.map(v => (isFinite(v) ? v : 0));
   // a table along the field, from the axis to the largest field, read between its points
   const lerpF = (tab, f) => { const n = tab.length - 1, t = Math.min(n, Math.max(0, f / fmax * n)), i = Math.min(n - 1, Math.floor(t)), u = t - i; return tab[i] + (tab[i + 1] - tab[i]) * u; };
   // where an ideal image radius r lands, for wavelength wi; and back (by a table, the map increasing)
@@ -53,6 +58,7 @@ export function imsimPlan(A, src, o) {
   for (const wi of uniq) {
     const rq = Float64Array.from({ length: T + 1 }, (_, i) => rmax * i / T), g = rq.map(r => lerpF(dist[wi], fOf(r)) * r);
     back[wi] = r => {
+      if (axial) return r;
       if (r > g[T] * (1 + 1e-12)) return null;
       let lo = 0, hi = T;
       while (hi - lo > 1) { const m = (lo + hi) >> 1; if (g[m] <= r) lo = m; else hi = m; }
@@ -86,8 +92,8 @@ export function imsimPlan(A, src, o) {
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const x = X(i), y = Y(j), r = Math.hypot(x, y), rq = back[wi](r);
       if (rq === null) continue;
-      const s = r > 0 ? rq / r : 1, f = fOf(rq);
-      img[j * W + i] = sample(c, x * s, y * s) * lerpF(ri, f);
+      const s = r > 0 ? rq / r : 1, f = axial ? 0 : fOf(rq);
+      img[j * W + i] = sample(c, x * s, y * s) * (axial ? 1 : lerpF(ri, f));
     }
     D[c] = img;
     const re = new Float64Array(L * L), im = new Float64Array(L * L);
@@ -97,7 +103,7 @@ export function imsimPlan(A, src, o) {
   };
   // 2. the PSF at a grid point, turned and laid on the image's pixels: a kernel, its middle at [0, 0]
   const kernelAt = (wi, P) => {
-    const r = Math.hypot(P[0], P[1]), rq = back[wi](r), f = Math.min(fmax, fOf(rq === null ? rmax : rq));
+    const r = Math.hypot(P[0], P[1]), rq = back[wi](r), f = axial ? 0 : Math.min(fmax, fOf(rq === null ? rmax : rq));
     const al = r > 0 ? Math.atan2(P[1], P[0]) - Math.atan2(sgn, 0) : 0, ca = Math.cos(al), sa = Math.sin(al);
     const half = 64, n = 2 * half + 1, Kr = new Float64Array(n * n);
     const put = (u, v, w) => {
@@ -113,7 +119,7 @@ export function imsimPlan(A, src, o) {
       for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) { const v = F.I[y * M + x]; if (v > 0) put((x - hM) * F.dx, (y - hM) * F.dx, v); }
     } else {
       // the spot itself, about this wavelength's own chief ray
-      const C = rayAt(A.S[wi], f * IM_D2R, 0, 0), ref = sp.chief;
+      const C = chiefRay(A.S[wi], f * IM_D2R), ref = sp.chief;
       const ox = C && C[7] === 0 ? C[0] - ref[0] : 0, oy = C && C[7] === 0 ? C[1] - ref[1] : 0;
       for (const [x, y] of w.pts) put(x - ox, y - oy, 1);
     }

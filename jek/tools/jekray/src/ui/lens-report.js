@@ -163,7 +163,7 @@ export function reportRecs(asm) {
   rows.push(['IMA', 'Image', 'Flat', '', '', rf(Math.abs(F.imgH), 5), '']);
   if (moved) rows.forEach(r => { while (r.length < cols.length) r.push(''); });
   rpTable(pg, cols, rows, { size: 7.5 });
-  rpPara(pg, 'Lengths in mm. Light from the left; a radius is positive with its centre to the right. The thickness after the last surface is the image distance' + (D.solves['t:image'] ? ', solved for the paraxial focus.' : '.') + (moved ? ' A tilt (degrees, in the plane of the fields) and a decentre (across the axis) are each part’s, about its first vertex; a mirror’s tilt folds the axis.' : ''), { ink: RP_SOFT });
+  rpPara(pg, 'Lengths in mm. Light from the left; a radius is positive with its centre to the right. The thickness after the last surface is the image distance' + (D.solves['t:image'] ? (D.solves['t:image'].kind === 'hold' ? ', solved to hold the image plane ' + D.solves['t:image'].v + ' mm from the first surface.' : ', solved for the paraxial focus.') : '.') + (moved ? ' A tilt (degrees, in the plane of the fields) and a decentre (across the axis) are each part’s, about its first vertex; a mirror’s tilt folds the axis.' : ''), { ink: RP_SOFT });
   const asph = P.surfaces.map((s, i) => [i, s]).filter(([, s]) => s.a2 || (s.A || []).some(a => a) || (s.odd && s.odd.some(a => a)));
   if (asph.length) {
     rpHead(pg, 'Aspheric terms');

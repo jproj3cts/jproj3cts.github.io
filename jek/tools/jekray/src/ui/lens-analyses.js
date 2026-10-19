@@ -595,8 +595,11 @@ function imsimView(body, A, P, st, key, redraw) {
   const c = A.c, chip = (on, label, fn, attrs) => h('button', Object.assign({ type: 'button', class: 'rt-lchip', 'aria-pressed': String(on), onclick: fn }, attrs || {}), label);
   if (!imsimTraceable(P)) { body.append(h('p', { class: 'rt-lsub' }, 'Image simulation takes a design round about its axis; this one has tilts, decentres, cylinders or freeforms.')); return; }
   const own = st.imPic === 'own' && !!imOwn;
-  // where the picture goes: the whole field, or a patch about one of the design's fields
-  if (!(st.imAt === 'whole' || (st.imAt >= 0 && st.imAt < c.fields.length))) st.imAt = 'whole';
+  // where the picture goes: the whole field, or a patch about one of the design's fields. A design with only its axis for a
+  // field has no field to fill (the whole of it is a point): a patch about the axis then, its pixels sized to the spot
+  const onAxisOnly = Math.max(...c.fields.map(f => Math.abs(f.deg))) === 0;
+  if (onAxisOnly && st.imAt === 'whole') { st.imAt = 0; st.imPitch = 0; }
+  if (!(st.imAt === 'whole' || (st.imAt >= 0 && st.imAt < c.fields.length))) st.imAt = onAxisOnly ? 0 : 'whole';
   const whole = st.imAt === 'whole', S0 = A.Sp, rmsAt = f => { const sp = spotDiagram(A, f, 11); return isFinite(sp.rms) ? sp.rms : 0; };
   const lamF = S0.lam * A.fw, defPitch = f => Math.max(lamF / 2, rmsAt(f) / 3);
   if (!whole && !(st.imPitch > 0)) st.imPitch = +(1000 * defPitch(c.fields[st.imAt].deg)).toPrecision(2);
@@ -614,7 +617,8 @@ function imsimView(body, A, P, st, key, redraw) {
     chip(own, imOwn ? 'Your picture' : 'Your picture…', () => { if (imOwn && !own) { st.imPic = 'own'; redraw(); } else file.click(); }, { title: 'Kept in this tab only: never saved with the bench or sent anywhere' }),
     ...(imOwn ? [h('button', { type: 'button', class: 'rt-link', onclick: () => file.click() }, 'Choose another')] : []), file));
   body.append(h('div', { class: 'rt-lchips', role: 'group', 'aria-label': 'Covers' }, h('span', { class: 'rt-lsub' }, 'Covers'),
-    chip(whole, 'The whole field', () => { st.imAt = 'whole'; redraw(); }),
+    onAxisOnly ? h('span', { class: 'rt-lsub', title: 'The design’s only field is on the axis, so the whole field is a single point. Add a field off the axis in the Design conditions to image the whole field.' }, 'The whole field (needs a field off the axis)')
+      : chip(whole, 'The whole field', () => { st.imAt = 'whole'; redraw(); }),
     ...c.fields.map((f, i) => chip(st.imAt === i, 'A patch at ' + anFmt(f.deg, 4) + FU, () => { st.imAt = i; st.imPitch = +(1000 * defPitch(f.deg)).toPrecision(2); redraw(); })),
     ...(whole ? [] : [h('label', { class: 'rt-lsub rt-limpitch' }, 'Pixel ', h('input', { type: 'number', min: String(+(1000 * lamF / 4).toPrecision(2)), step: 'any', value: String(st.imPitch), 'aria-label': 'Pixel size on the image, micrometres',
       onchange: e => { const v = +e.target.value; if (v > 0) { st.imPitch = Math.max(v, +(1000 * lamF / 4).toPrecision(2)); redraw(); } } }), ' µm')])));

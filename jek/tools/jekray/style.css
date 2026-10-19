@@ -1405,6 +1405,8 @@
   .rt-lcyl { margin-left: 0.4rem; font-size: 0.72rem; font-weight: 600; color: #8a4fd1; white-space: nowrap; }
   .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
   .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
+  /* work that is JEKrayPro's, marked while it is not open (ui/pro.js) */
+  .rt-btn.rt-proneed::after { content: 'Pro'; margin-left: 0.4em; padding: 0 0.35em; border-radius: 0.6em; font-size: 0.68em; font-weight: 700; letter-spacing: 0.04em; vertical-align: 0.1em; background: var(--jek-orange, #e8590c); color: #fff; }
   .rt-ltable tr.unmet td { color: var(--jek-ink-soft); font-style: italic; }
   .rt-ltable tr.unmet td.nm { font-weight: 400; cursor: default; }
   .rt-lpathhead { margin-top: 1rem; }

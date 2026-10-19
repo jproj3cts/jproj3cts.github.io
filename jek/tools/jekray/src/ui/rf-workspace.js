@@ -24,6 +24,7 @@ import { openLensDesign } from './lens-workspace.js';
 import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
 import { saveRfReport } from './rf-report.js';
+import { designPro, proMark } from './pro.js';
 
 /* ==========================================================================
    The RF designer
@@ -188,7 +189,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optical designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
     hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
-    h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }) }, 'Report (PDF)'),
+    proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
@@ -1072,6 +1073,7 @@ function rwOptCard(asm, P) {
   card.append(h('p', { class: 'rt-lsub rt-rfmeritline' }, h('b', null, 'Toward: '), o.ops.length ? o.ops.map(q => RF_MERIT_OPS[q.op].label.replace(/ \(.*\)$/, '').toLowerCase() + ' ' + RF_MERIT_SENSES[q.sense] + ' ' + rwFmt(q.target, 4)).join(', ') + '.' : 'the most efficiency at each of five frequencies across the band.', ' ',
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'merit'; rwRender(); } }, 'Edit the merit')));
   const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
+  if (!running) proMark(btn, 'optimise a design');
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
     const S = RW_OPT.st;
@@ -1080,6 +1082,7 @@ function rwOptCard(asm, P) {
   return card;
 }
 function rwOptGo(asm) {
+  if (!designPro('optimise a design')) return;
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
@@ -1148,8 +1151,8 @@ function rwMakeCard(asm, P, T) {
     // its drawing, for the customer's own records and mechanical design: not a file to make it from
     const di = rfDrawableParts(P).indexOf(pi);
     box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Its design drawing:'),
-      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'),
-      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)')));
+      proMark(h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'), 'save drawings'),
+      proMark(h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)'), 'save drawings')));
     if (ok) {
       const row = orderRow(el, { ghz: R.ghz, extra: ['Designed in the RF designer for ' + rwFmt(R.lo, 4) + ' to ' + rwFmt(R.hi, 4) + ' GHz: ' + perf + ' at ' + rwFmt(R.ghz, 4) + ' GHz, the feed ' + rwFmt(R.feed.d, 4) + ' mm before it'] });
       if (row) box.append(row);
@@ -1209,7 +1212,7 @@ function rwTolCard(asm, P) {
   card.append(h('label', { class: 'rt-check', style: 'margin:0.4rem 0 0.2rem', title: 'As it would be on the bench: each built system’s feed distance refocused (within 15 % of the design’s) for the most of its figure before it is read' },
     h('input', { type: 'checkbox', checked: tol.comp ? '' : null, 'aria-label': 'Refocus the feed for each build', onchange: e => set(t => { t.comp = e.target.checked; }) }), ' Refocus the feed for each build (the compensator)'));
   // sensitivity
-  card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => { st.sens = rfSensitivity(asm, designPrescription(asm), asm.rfTol); rwRender(); } }, 'Sensitivity')));
+  card.append(h('div', { class: 'rt-lchips' }, proMark(h('button', { type: 'button', class: 'rt-btn', onclick: () => { if (!designPro('tolerance a design')) return; st.sens = rfSensitivity(asm, designPrescription(asm), asm.rfTol); rwRender(); } }, 'Sensitivity'), 'tolerance a design')));
   if (st.sens) {
     const S = st.sens, t2 = h('table', { class: 'rt-ltable' });
     const moves = S.rows.some(r => r.moves > 1e-3);
@@ -1225,7 +1228,7 @@ function rwTolCard(asm, P) {
     rwRow('Errors drawn', rwSelect({ uniform: 'Evenly within their limits', normal: 'Normally, limits at 2σ' }, tol.dist, v => set(t => { t.dist = v; }, 'mc'), 'Errors drawn')),
     rwRow('Specification: at least (' + unit + ')', rwNum(tol.spec, v => set(t => { t.spec = v; }, 'spec'), 'Specification (' + unit + ')'))));
   const mc = RW_MC && RW_MC.asm === asm ? RW_MC : null, running = !!(mc && mc.running);
-  card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo')));
+  card.append(h('div', { class: 'rt-lchips' }, (b => (running ? b : proMark(b, 'tolerance a design')))(h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo'))));
   if (mc) {
     const B = mc.plan.builds, n = B.length;
     card.append(h('p', { class: 'rt-lsub', role: 'status' }, (running ? 'Building… ' : '') + n + ' of ' + mc.plan.tol.trials + ' builds.'));
@@ -1267,6 +1270,7 @@ function rwHist(parent, xs, spec, unit) {
   });
 }
 function rwMcGo(asm) {
+  if (!designPro('tolerance a design')) return;
   const plan = rfMcPlan(asm, designPrescription(asm), asm.rfTol);
   RW_MC = { asm, plan, running: true };
   const tick = () => {

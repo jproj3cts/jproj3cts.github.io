@@ -7,6 +7,8 @@ description: Assemblies and the Optical designer in JEKray. Lenses, mirrors and 
 
 <p class="dx-lead">An assembly is a set of lenses, mirrors and stops on one axis that are designed together: a doublet, a triplet, an objective, a folded telescope. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
 
+<p><strong>What needs JEKrayPro.</strong> Anyone can open the Optical designer, build and edit a design, and look at it through every analysis. The design work needs <a href="/jek/tools/jekray.html#pro">JEKrayPro</a> (a personal, Academic or team plan, or a university licence): the optimiser with its global search and glass substitution, tolerancing, the PDF report, lens drawings, and exporting the design as a lens file. Those buttons carry a <strong>Pro</strong> mark until you sign in with a plan. See the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>, section 3.</p>
+
 ## Making an assembly
 
 **One part.** A lens, mirror or window on its own has **Design as an assembly…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the design workspace, where surfaces and singlets can be added to it.

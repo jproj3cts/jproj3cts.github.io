@@ -121,6 +121,7 @@
   "ui/optimise.js",
   "ui/panel.js",
   "ui/panels.js",
+  "ui/pro.js",
   "ui/assembly.js",
   "ui/lens-analyses.js",
   "ui/coat-workspace.js",

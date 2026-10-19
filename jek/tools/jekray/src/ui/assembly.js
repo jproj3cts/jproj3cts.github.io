@@ -12,6 +12,7 @@ import { exportCad } from '../io/cad-export.js';
 import { exportZmx } from '../io/zmx-export.js';
 import { condMismatch } from '../engines/lens-design.js';
 import { asmBenchLight, openLensDesign } from './lens-workspace.js';
+import { proMark } from './pro.js';
 
 /* ---------- Assemblies on the bench ----------
    Made from lenses and stops picked on the bench, split back into them, or started afresh from the
@@ -131,7 +132,7 @@ export function assemblyPanel(asm) {
   const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
     h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the Optical designer: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
-    B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
+    proMark(B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'), 'export a design'),
     B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
     B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));

@@ -336,3 +336,35 @@ test('the diffracted field through layers: on past a part-reflecting layer as pa
   assert.ok(layer.back && !none.back, 'the layer sends light back');
   assert.ok(layer.out && Math.abs(layer.out - none.out) < 1e-6, [layer.out, none.out].join(' '));
 });
+
+test('a lens the light is followed through takes a new surface after any row, and gives one up, on the part itself', async () => {
+  const { openBench, engine } = await import('../../headless.mjs');
+  const bench = (surfaces, gaps, design) => ({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, diameter: 40, group: 'g', surfaces, gaps, materials: gaps.map(() => ({ glass: 'S-LAH64' })) }],
+    assemblies: [{ id: 'g', name: 'A', bench: 'b1', ref: 'L', rev: false, cond, ...(design ? { design } : {}) }] });
+  const open = async b => { await openBench(b); const Eg = await engine(); const asm = Eg.ST.project.assemblies[0]; return { Eg, asm, e: Eg.ST.project.elements[0], P: LD.designPrescription(asm) }; };
+  const flat3 = () => bench([{ R: null }, { R: null }, { R: 80 }], [0, 30]);
+  // after the stacked front: a third layer; inside the glass: the glass split; after the back: 2 mm more, the faces staying put
+  let o = await open(flat3());
+  assert.equal(LD.insertSurface(o.asm, o.P, 0, 'flat'), true);
+  assert.deepEqual([o.e.surfaces.length, o.e.gaps], [4, [0, 0, 30]]);
+  o = await open(flat3());
+  assert.equal(LD.insertSurface(o.asm, o.P, 1, 'flat'), true);
+  assert.deepEqual(o.e.gaps, [0, 15, 15]);
+  assert.equal(LD.designPrescription(o.asm).surfaces.length, 4, 'the new surface is on the light\'s path');
+  o = await open(flat3());
+  assert.equal(LD.insertSurface(o.asm, o.P, 2, 'flat'), true);
+  assert.deepEqual([o.e.gaps, o.e.x], [[0, 30, 2], 1]);
+  // a variable on the back's radius follows it when a surface goes in before it, and goes when it does
+  o = await open(bench([{ R: null }, { R: null }, { R: 80 }], [0, 30], { vars: ['R:L.2'] }));
+  assert.equal(LD.insertSurface(o.asm, o.P, 1, 'flat'), true);
+  assert.deepEqual(o.asm.design.vars, ['R:L.3']);
+  assert.equal(o.e.surfaces[3].R, 80);
+  o = await open(bench([{ R: null }, { R: null }, { R: 80 }], [0, 30], { vars: ['R:L.2'] }));
+  assert.equal(LD.removeSurface(o.asm, o.P, 2), true);
+  assert.deepEqual([o.e.surfaces.length, o.e.gaps, o.asm.design.vars], [2, [0], []]);
+  // off a mirror, "after" is the way the light goes on: back into the glass, between the front and the mirror
+  o = await open(bench([{ R: null }, { R: null, coat: MIRROR }, { R: null }], [40, 0]));
+  assert.equal(LD.insertSurface(o.asm, o.P, 1, 'flat'), true);
+  assert.deepEqual(o.e.gaps, [20, 20, 0]);
+  assert.equal(LD.designPrescription(o.asm).surfaces.map(s => s.from.i).join(','), '0,1,2,1,0');
+});

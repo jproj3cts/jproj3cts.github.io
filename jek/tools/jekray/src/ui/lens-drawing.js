@@ -7,6 +7,7 @@ import { drawableParts, drawingData, drawSag, rfDrawableParts, rfDrawingData } f
 import { VecCtx, layoutSvg, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { h } from './panel.js';
+import { designPro, proMark } from './pro.js';
 
 /* ==========================================================================
    Lens drawings: each lens of a design on an A4 sheet, landscape, to be made from
@@ -236,6 +237,7 @@ function sheetRecs(asm, which) {
   return pick.map((i, q) => { const rec = new VecCtx(SHEET_W, SHEET_H, { plain: true }); drawSheet(rec, all[i], { assembly: asm.name, sheet: q + 1, of: pick.length }); return { rec, D: all[i] }; });
 }
 export function saveDrawingSvg(asm, i) {
+  if (!designPro('save drawings')) return null;
   const [{ rec, D }] = sheetRecs(asm, i), name = safeFileName(asm.name + ' - ' + D.name) + '.svg';
   downloadFile(name, new Blob([layoutSvg(rec, D.name)], { type: 'image/svg+xml' }));
   toast('Saved ' + name);
@@ -243,6 +245,7 @@ export function saveDrawingSvg(asm, i) {
 }
 export function drawingsPdfBlob(asm, i) { return pdfDoc(sheetRecs(asm, i).map(s => s.rec), asm.name + ' drawings'); }
 export async function saveDrawingsPdf(asm, i) {
+  if (!designPro('save drawings')) return null;
   const all = lensDrawings(asm), name = safeFileName(asm.name + (i === undefined ? ' - drawings' : ' - ' + all[i].name)) + '.pdf';
   downloadFile(name, await drawingsPdfBlob(asm, i));
   toast('Saved ' + name);
@@ -258,9 +261,9 @@ export function drawingsCard(asm, state) {
   const i = Math.min(state.drawing || 0, all.length - 1);
   const sel = h('select', { 'aria-label': 'Lens to draw', onchange: e => { state.drawing = +e.target.value; state.redraw(); } }, ...all.map((D, q) => h('option', { value: String(q), selected: q === i ? '' : null }, D.name)));
   card.append(h('div', { class: 'rt-lbar' }, h('label', null, 'Drawing of ', sel),
-    h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingSvg(asm, i) }, 'Save as SVG'),
-    h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingsPdf(asm, i) }, 'Save as PDF'),
-    all.length > 1 ? h('button', { class: 'rt-btn', type: 'button', title: 'Every lens of the assembly, a sheet each', onclick: () => saveDrawingsPdf(asm) }, 'All ' + all.length + ' as one PDF') : ''));
+    proMark(h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingSvg(asm, i) }, 'Save as SVG'), 'save drawings'),
+    proMark(h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingsPdf(asm, i) }, 'Save as PDF'), 'save drawings'),
+    all.length > 1 ? proMark(h('button', { class: 'rt-btn', type: 'button', title: 'Every lens of the assembly, a sheet each', onclick: () => saveDrawingsPdf(asm) }, 'All ' + all.length + ' as one PDF'), 'save drawings') : ''));
   const cv = h('canvas', { class: 'rt-lsheet', role: 'img', 'aria-label': 'Drawing of ' + all[i].name + ': its section dimensioned, its surfaces and glass tabled with their tolerances' });
   card.append(h('div', { class: 'rt-lsheetwrap' }, cv));
   requestAnimationFrame(() => {

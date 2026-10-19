@@ -8,6 +8,7 @@ import { surfaceParts } from '../engines/lens-design.js';
 import { helpLine, h } from './panel.js';
 import { plotCsv, plotSaveRow } from './plots.js';
 import { fmtSig } from '../core/format.js';
+import { designPro, proMark } from './pro.js';
 
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
@@ -40,6 +41,7 @@ export function tolResultsFor(asm, P) {
 }
 /* a run: ctx { asm, P, redraw, sync } */
 export function tolStart(mode, ctx) {
+  if (!designPro('tolerance a design')) return false;
   const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);
   if (!ops.length) return false;
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
@@ -121,9 +123,9 @@ export function tolCard(ctx) {
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'Inverse sensitivity: the limit of each tolerance alone that worsens the criterion by ', invV, ' ', invBy)));
   card.append(h('div', { class: 'rt-lbar' }, ...(running
     ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
-    : [h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'),
-      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'),
-      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity')])));
+    : [proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'), 'tolerance a design'),
+      proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'), 'tolerance a design'),
+      proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity'), 'tolerance a design')])));
   if (mine && (mine.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (mine.mode === 'sens' ? 'Sensitivity: ' + mine.sens.rows.length + ' of ' + mine.sens.count + '…' : mine.mode === 'inv' ? 'Inverse sensitivity: ' + mine.inv.rows.length + ' of ' + mine.inv.count + '…' : 'Monte Carlo: ' + mine.mc.trials.length + ' of ' + mine.mc.target + ' builds…') : mine.note));
   if (mine && !current && !running) card.append(h('div', { class: 'rt-lnote' }, 'These results are for the design as it was when they ran; run them again for it as it is now.'));
   // sensitivity

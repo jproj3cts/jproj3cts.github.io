@@ -12,7 +12,7 @@ description: Common questions about JEKray, its models and its limits.
 
 ### Is JEKray free?
 
-Yes. The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html). JEKrayPro is an optional subscription that adds a cloud account: benches saved online with version history, forks, team workspaces, your own parts library, and the experimental features under the Help menu.
+The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html), and so is the coating designer. The Optical and RF designers are free to open, build and analyse designs in, and an RF lens can be taken to a quote. JEKrayPro is a subscription that adds the designers' design work (the optimiser, tolerancing, design reports, lens drawings and exporting a design) and a cloud account: benches saved online with version history, forks, team workspaces, your own parts library, and the experimental features under the Help menu. Universities can cover everyone with one licence.
 
 ### Does my bench leave my computer?
 

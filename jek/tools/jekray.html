@@ -1420,6 +1420,8 @@
   .rt-lcyl { margin-left: 0.4rem; font-size: 0.72rem; font-weight: 600; color: #8a4fd1; white-space: nowrap; }
   .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
   .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
+  /* work that is JEKrayPro's, marked while it is not open (ui/pro.js) */
+  .rt-btn.rt-proneed::after { content: 'Pro'; margin-left: 0.4em; padding: 0 0.35em; border-radius: 0.6em; font-size: 0.68em; font-weight: 700; letter-spacing: 0.04em; vertical-align: 0.1em; background: var(--jek-orange, #e8590c); color: #fff; }
   .rt-ltable tr.unmet td { color: var(--jek-ink-soft); font-style: italic; }
   .rt-ltable tr.unmet td.nm { font-weight: 400; cursor: default; }
   .rt-lpathhead { margin-top: 1rem; }
@@ -1967,7 +1969,7 @@
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The simulator itself stays free.</p>
+    <p>Do the full design work in the Optical and RF designers: the optimiser, global search and glass substitution, tolerancing, design reports, lens drawings and exporting a design. Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The rest of the simulator stays free.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
@@ -24619,6 +24621,35 @@ function drawCellSpectrum(cv, el, span) {
   drawAxes(g, A, [lo / 1e9, hi / 1e9], yr, { kind: 'plain', title: 'GHz from the ' + ATOMS[el.atom].iso.slice().sort((a, b) => b[1] - a[1])[0][0].replace(/(\d+)/, '-$1') + ' ' + el.line + ' centre' }, { kind: 'plain', title: 'transmission' });
 }
 
+/* ==========================================================================
+   The designers' work as JEKrayPro's
+   Anyone may open the Optical and RF designers, build and edit a design and look at it from every side. Doing the
+   work with it is JEKrayPro's: the optimiser (and the global search and glass substitution), tolerancing, design
+   reports, drawings and exporting a design. The RF designer's way from a specification to a lens that can be made
+   and quoted stays open to all, as does the coating designer. The tests, and a build without accounts, are not gated.
+   ========================================================================== */
+/* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */
+function designWhyOf(why, what) {
+  if (!why) return '';
+  return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
+}
+const designWhy = what => (!accountsOn() || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
+/* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
+function designPro(what) {
+  const why = designWhy(what);
+  if (!why) return true;
+  toast(why, true);
+  if (hooks.proFix) hooks.proFix();
+  return false;
+}
+/* a button for such work, marked Pro (and saying why in its title) while it is not open */
+function proMark(btn, what) {
+  const why = designWhy(what);
+  if (!btn || !why) return btn;
+  btn.classList.add('rt-proneed');
+  btn.title = why + (btn.title ? '. ' + btn.title : '');
+  return btn;
+}
 /* ---------- Assemblies on the bench ----------
    Made from lenses and stops picked on the bench, split back into them, or started afresh from the
    File menu. The parts stay the bench's own parts (core/assembly.js); this is how they are made one,
@@ -24737,7 +24768,7 @@ function assemblyPanel(asm) {
   const B = (label, fn, title2) => h('button', { class: 'rt-btn', type: 'button', title: title2 || '', onclick: fn }, label);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
     h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the Optical designer: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
-    B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'),
+    proMark(B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'), 'export a design'),
     B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
     B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
@@ -25730,6 +25761,7 @@ function tolResultsFor(asm, P) {
 }
 /* a run: ctx { asm, P, redraw, sync } */
 function tolStart(mode, ctx) {
+  if (!designPro('tolerance a design')) return false;
   const prob = optProblem(ctx.asm, ctx.P), T = prob.design.tol, ops = tolOps(prob.P, T);
   if (!ops.length) return false;
   TOL = { id: ctx.asm.id, key: keyOf(prob), mode, running: true, note: '', prob, count: ops.length,
@@ -25811,9 +25843,9 @@ function tolCard(ctx) {
   card.append(h('div', { class: 'rt-lrow rt-ltolopts' }, h('label', null, 'Inverse sensitivity: the limit of each tolerance alone that worsens the criterion by ', invV, ' ', invBy)));
   card.append(h('div', { class: 'rt-lbar' }, ...(running
     ? [h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { tolStop('Stopped.'); ctx.redraw(); } }, 'Stop')]
-    : [h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'),
-      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'),
-      h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity')])));
+    : [proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('sens', ctx) }, 'Sensitivity'), 'tolerance a design'),
+      proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('mc', ctx) }, 'Monte Carlo'), 'tolerance a design'),
+      proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: ops.length ? null : '', onclick: () => tolStart('inv', ctx) }, 'Inverse sensitivity'), 'tolerance a design')])));
   if (mine && (mine.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (mine.mode === 'sens' ? 'Sensitivity: ' + mine.sens.rows.length + ' of ' + mine.sens.count + '…' : mine.mode === 'inv' ? 'Inverse sensitivity: ' + mine.inv.rows.length + ' of ' + mine.inv.count + '…' : 'Monte Carlo: ' + mine.mc.trials.length + ' of ' + mine.mc.target + ' builds…') : mine.note));
   if (mine && !current && !running) card.append(h('div', { class: 'rt-lnote' }, 'These results are for the design as it was when they ran; run them again for it as it is now.'));
   // sensitivity
@@ -26204,6 +26236,7 @@ function sheetRecs(asm, which) {
   return pick.map((i, q) => { const rec = new VecCtx(SHEET_W, SHEET_H, { plain: true }); drawSheet(rec, all[i], { assembly: asm.name, sheet: q + 1, of: pick.length }); return { rec, D: all[i] }; });
 }
 function saveDrawingSvg(asm, i) {
+  if (!designPro('save drawings')) return null;
   const [{ rec, D }] = sheetRecs(asm, i), name = safeFileName(asm.name + ' - ' + D.name) + '.svg';
   downloadFile(name, new Blob([layoutSvg(rec, D.name)], { type: 'image/svg+xml' }));
   toast('Saved ' + name);
@@ -26211,6 +26244,7 @@ function saveDrawingSvg(asm, i) {
 }
 function drawingsPdfBlob(asm, i) { return pdfDoc(sheetRecs(asm, i).map(s => s.rec), asm.name + ' drawings'); }
 async function saveDrawingsPdf(asm, i) {
+  if (!designPro('save drawings')) return null;
   const all = lensDrawings(asm), name = safeFileName(asm.name + (i === undefined ? ' - drawings' : ' - ' + all[i].name)) + '.pdf';
   downloadFile(name, await drawingsPdfBlob(asm, i));
   toast('Saved ' + name);
@@ -26226,9 +26260,9 @@ function drawingsCard(asm, state) {
   const i = Math.min(state.drawing || 0, all.length - 1);
   const sel = h('select', { 'aria-label': 'Lens to draw', onchange: e => { state.drawing = +e.target.value; state.redraw(); } }, ...all.map((D, q) => h('option', { value: String(q), selected: q === i ? '' : null }, D.name)));
   card.append(h('div', { class: 'rt-lbar' }, h('label', null, 'Drawing of ', sel),
-    h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingSvg(asm, i) }, 'Save as SVG'),
-    h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingsPdf(asm, i) }, 'Save as PDF'),
-    all.length > 1 ? h('button', { class: 'rt-btn', type: 'button', title: 'Every lens of the assembly, a sheet each', onclick: () => saveDrawingsPdf(asm) }, 'All ' + all.length + ' as one PDF') : ''));
+    proMark(h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingSvg(asm, i) }, 'Save as SVG'), 'save drawings'),
+    proMark(h('button', { class: 'rt-btn', type: 'button', onclick: () => saveDrawingsPdf(asm, i) }, 'Save as PDF'), 'save drawings'),
+    all.length > 1 ? proMark(h('button', { class: 'rt-btn', type: 'button', title: 'Every lens of the assembly, a sheet each', onclick: () => saveDrawingsPdf(asm) }, 'All ' + all.length + ' as one PDF'), 'save drawings') : ''));
   const cv = h('canvas', { class: 'rt-lsheet', role: 'img', 'aria-label': 'Drawing of ' + all[i].name + ': its section dimensioned, its surfaces and glass tabled with their tolerances' });
   card.append(h('div', { class: 'rt-lsheetwrap' }, cv));
   requestAnimationFrame(() => {
@@ -26870,7 +26904,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optical designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
     hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
-    h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }) }, 'Report (PDF)'),
+    proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
@@ -27754,6 +27788,7 @@ function rwOptCard(asm, P) {
   card.append(h('p', { class: 'rt-lsub rt-rfmeritline' }, h('b', null, 'Toward: '), o.ops.length ? o.ops.map(q => RF_MERIT_OPS[q.op].label.replace(/ \(.*\)$/, '').toLowerCase() + ' ' + RF_MERIT_SENSES[q.sense] + ' ' + rwFmt(q.target, 4)).join(', ') + '.' : 'the most efficiency at each of five frequencies across the band.', ' ',
     h('button', { class: 'rt-link', type: 'button', disabled: running ? '' : null, onclick: () => { RW.tab = 'merit'; rwRender(); } }, 'Edit the merit')));
   const btn = h('button', { class: 'rt-btn primary', type: 'button', disabled: !o.keys.length ? '' : null, onclick: () => running ? rwOptStop('Stopped.') : rwOptGo(asm) }, running ? 'Stop' : 'Optimise');
+  if (!running) proMark(btn, 'optimise a design');
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
     const S = RW_OPT.st;
@@ -27762,6 +27797,7 @@ function rwOptCard(asm, P) {
   return card;
 }
 function rwOptGo(asm) {
+  if (!designPro('optimise a design')) return;
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
@@ -27830,8 +27866,8 @@ function rwMakeCard(asm, P, T) {
     // its drawing, for the customer's own records and mechanical design: not a file to make it from
     const di = rfDrawableParts(P).indexOf(pi);
     box.append(h('div', { class: 'rt-lchips rt-rffiles' }, h('span', { class: 'rt-lsub' }, 'Its design drawing:'),
-      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'),
-      h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)')));
+      proMark(h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, title: 'Its drawing on an A4 sheet: the lens in section with its dimensions, each face\u2019s radius, conic and tolerance, its plastic and thickness', onclick: () => saveDrawingsPdf(asm, di) }, 'Drawing (PDF)'), 'save drawings'),
+      proMark(h('button', { type: 'button', class: 'rt-btn', disabled: di < 0 ? '' : null, onclick: () => saveDrawingSvg(asm, di) }, 'Drawing (SVG)'), 'save drawings')));
     if (ok) {
       const row = orderRow(el, { ghz: R.ghz, extra: ['Designed in the RF designer for ' + rwFmt(R.lo, 4) + ' to ' + rwFmt(R.hi, 4) + ' GHz: ' + perf + ' at ' + rwFmt(R.ghz, 4) + ' GHz, the feed ' + rwFmt(R.feed.d, 4) + ' mm before it'] });
       if (row) box.append(row);
@@ -27891,7 +27927,7 @@ function rwTolCard(asm, P) {
   card.append(h('label', { class: 'rt-check', style: 'margin:0.4rem 0 0.2rem', title: 'As it would be on the bench: each built system’s feed distance refocused (within 15 % of the design’s) for the most of its figure before it is read' },
     h('input', { type: 'checkbox', checked: tol.comp ? '' : null, 'aria-label': 'Refocus the feed for each build', onchange: e => set(t => { t.comp = e.target.checked; }) }), ' Refocus the feed for each build (the compensator)'));
   // sensitivity
-  card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => { st.sens = rfSensitivity(asm, designPrescription(asm), asm.rfTol); rwRender(); } }, 'Sensitivity')));
+  card.append(h('div', { class: 'rt-lchips' }, proMark(h('button', { type: 'button', class: 'rt-btn', onclick: () => { if (!designPro('tolerance a design')) return; st.sens = rfSensitivity(asm, designPrescription(asm), asm.rfTol); rwRender(); } }, 'Sensitivity'), 'tolerance a design')));
   if (st.sens) {
     const S = st.sens, t2 = h('table', { class: 'rt-ltable' });
     const moves = S.rows.some(r => r.moves > 1e-3);
@@ -27907,7 +27943,7 @@ function rwTolCard(asm, P) {
     rwRow('Errors drawn', rwSelect({ uniform: 'Evenly within their limits', normal: 'Normally, limits at 2σ' }, tol.dist, v => set(t => { t.dist = v; }, 'mc'), 'Errors drawn')),
     rwRow('Specification: at least (' + unit + ')', rwNum(tol.spec, v => set(t => { t.spec = v; }, 'spec'), 'Specification (' + unit + ')'))));
   const mc = RW_MC && RW_MC.asm === asm ? RW_MC : null, running = !!(mc && mc.running);
-  card.append(h('div', { class: 'rt-lchips' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo')));
+  card.append(h('div', { class: 'rt-lchips' }, (b => (running ? b : proMark(b, 'tolerance a design')))(h('button', { type: 'button', class: 'rt-btn primary', onclick: () => running ? rwMcStop() : rwMcGo(asm) }, running ? 'Stop' : 'Run Monte Carlo'))));
   if (mc) {
     const B = mc.plan.builds, n = B.length;
     card.append(h('p', { class: 'rt-lsub', role: 'status' }, (running ? 'Building… ' : '') + n + ' of ' + mc.plan.tol.trials + ' builds.'));
@@ -27949,6 +27985,7 @@ function rwHist(parent, xs, spec, unit) {
   });
 }
 function rwMcGo(asm) {
+  if (!designPro('tolerance a design')) return;
   const plan = rfMcPlan(asm, designPrescription(asm), asm.rfTol);
   RW_MC = { asm, plan, running: true };
   const tick = () => {
@@ -28271,7 +28308,7 @@ function drawWs() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
     ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
     hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
-    h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => saveReport(asm) }, 'Report (PDF)'),
+    proMark(h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveReport(asm); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
@@ -29063,6 +29100,7 @@ const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start:
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
 function optStart(mode, opts) {
   if (!WS) return false;
+  if (!designPro(mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design')) return false;
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
   if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
   if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
@@ -29230,7 +29268,7 @@ function optCard(asm, P) {
   }
   card.append(h('div', { class: 'rt-lbar' }, running
     ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => optStop('Stopped.') }, 'Stop')
-    : h('button', { class: 'rt-btn primary', type: 'button', disabled: (WS.method === 'subst' ? substIndices(prob).length : V.length) ? null : '', onclick: () => optStart(WS.method) }, WS.method === 'subst' ? 'Substitute the glasses' : 'Optimise the design')));
+    : proMark(h('button', { class: 'rt-btn primary', type: 'button', disabled: (WS.method === 'subst' ? substIndices(prob).length : V.length) ? null : '', onclick: () => optStart(WS.method) }, WS.method === 'subst' ? 'Substitute the glasses' : 'Optimise the design'), WS.method === 'subst' ? 'substitute glasses' : 'optimise a design')));
   const R = O ? null : meritReport(prob);
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
     O.mode === 'subst' ? ['Glasses tried', String(O.sub.log.reduce((a, l) => a + l.tried.length, 0) + (O.sub.cands ? O.sub.tried.length : 0))] : [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
@@ -43898,6 +43936,8 @@ function zmxBroken(S, L, n, nm, diam) {
   return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings, efl: Sy.par.efl, bfl: Sy.par.bfl };
 }
 function exportZmx() {
+  // a design (an assembly's parts) is JEKrayPro's to export; a lens or a mirror of the bench's own is anyone's
+  if (asmOfSelection(selection()) && !designPro('export a design')) return;
   try {
     const out = zmxExport(selection(), benchNms());
     const fname = safeFileName(out.name) + '.zmx';
@@ -46981,6 +47021,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>The designers\u2019 design work is now part of JEKrayPro</b>: in the Optical and RF designers, the optimiser (with its global search and glass substitution), tolerancing, design reports, lens drawings and exporting a design as a lens file need a plan (your own JEKrayPro, an Academic or team plan, or a university licence), and their buttons are marked <b>Pro</b> until you sign in with one. Opening the designers, building and editing a design and every analysis stay open to everyone, as do an RF lens\u2019s way to a quote and the whole coating designer. Your designs always open. The JEKray Licence (1.1) and JEKrayPro Terms (1.5) say so.',
     '<b>Surfaces with holes, stacked surfaces and mirror coatings</b>: each lens surface now has a <b>clear radius</b>, a <b>hole radius</b> (inside it the surface is not there) and a coating that can be a <b>mirror</b> (ideal, aluminium, silver or gold, with the metal\u2019s reflectance) or a dielectric high reflector. A surface given a thickness of <b>0</b> is <b>stacked</b> on the one before: the two share a vertex and make one face, each where it reaches, so a flat with a hole and a mirror-coated spot stacked in it is a solid telescope\u2019s front, and a lens whose back is mirror coated is a Mangin mirror. The <b>Optical designer</b> works out the path the light takes through such a lens and shows two tables: the <b>Surfaces</b>, each once in the part\u2019s own order with its coating, clear radius and hole to type, and <b>the light\u2019s path</b>, each meeting in order with what is clear and blocked there; <b>Stack a surface</b> puts a surface in the centre of the one selected. Lens drawings show a stacked face as one, with its holes and coatings. The <i>Mirrored</i> setting a face had is gone: a bench saved with it opens as the surfaces it stood for, stacked. A thickness between parts may be negative.',
     '<b>Fibre tips</b> have a source\u2019s two ticks for the light they send out: <b>Trace the ray fan</b> and <b>Propagate a Gaussian beam</b>, each with its settings under it, so a tip can show rays alone or a beam alone.',
     '<b>Scripts on the bench</b> (JEKrayPro): <b>File \u203a Scripts\u2026</b> opens an editor where JavaScript runs against the bench with the documented calls: read a screen or a detector, move a part and read again, sweep a parameter to a table saved as CSV, or check a figure. Scripts are kept in this browser by name, or as .js files; Undo puts the bench back after a run.',
@@ -47139,7 +47180,7 @@ const NEWS = [
     'A <b>3D view</b> of every bench, a switch away: every free-space part placed, tipped and rolled in all six degrees of freedom, with rays, Gaussian beams and the diffracted field followed exactly through it, misaligned cavities included.',
     '<b>STL objects</b> from CAD on the bench (mounts, housings, baffles), saved with it and kept in My parts.',
     '<b>Electronics</b> as a standard part of the tool, with <b>feedthroughs</b> carrying signals between tabs, and photonic chips wired to them.',
-    '<b>JEKrayPro</b> in open beta: benches in the cloud with their history, My benches and My parts; and the <b>documentation</b>, with the equations behind every model.',
+    '<b>JEKrayPro</b> in open beta: benches in the cloud with their history, My benches and My parts, and the designers\u2019 design work (the optimiser, tolerancing, reports, drawings and export); and the <b>documentation</b>, with the equations behind every model.',
     '<b>Draw</b> on the bench for figures, and export just the view you have framed.',
     'Smoother all round: sweeps that render the field play every step, parts drag smoothly in 3D, and long sums run in the background.']],
   ['1.0', '28 September 2026', [

@@ -61,8 +61,8 @@ export const AREAS = {
   },
   'lens-design': {
     what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
-    src: ['src/engines/lens-', 'src/core/assembly.js', 'src/ui/lens-', 'src/ui/assembly.js'],
-    node: ['lens-', 'assembly.test.mjs', 'cad-export.test.mjs', 'zmx-cb.test.mjs'],
+    src: ['src/engines/lens-', 'src/core/assembly.js', 'src/ui/lens-', 'src/ui/assembly.js', 'src/ui/pro.js'],
+    node: ['lens-', 'assembly.test.mjs', 'cad-export.test.mjs', 'zmx-cb.test.mjs', 'pro-gate.test.mjs'],
     browser: ['Surfaces: holes, stacks and mirror coatings', 'Import, files and tools', 'The Optical designer', 'The Optical designer and the workspaces'],
   },
   rf: {

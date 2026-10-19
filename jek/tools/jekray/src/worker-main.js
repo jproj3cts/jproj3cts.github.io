@@ -121,6 +121,7 @@ import './ui/readouts.js';
 import './ui/optimise.js';
 import './ui/panel.js';
 import './ui/panels.js';
+import './ui/pro.js';
 import './ui/assembly.js';
 import './ui/lens-analyses.js';
 import './ui/coat-workspace.js';

@@ -77,6 +77,8 @@ A surface given a thickness of **0** is **stacked** on the one before it: the tw
 
 A Gaussian beam meeting such a face is split into its **rings**, one branch for each: the beam's field cut to the ring (an opening outside, an obscuring disc inside) and the ring's own surface met wherever the beam's centre crosses the face, so the field goes through each ring as the light there does. In a solid telescope the spot on the front sends the middle of the beam back, the ring round it goes in, off the primary and the spot, and out through the window to its focus; the diffracted field in 2D and 3D shows each, and a ring with no surface (a hole) passes its share on unbent.
 
+Where two stacked surfaces both reach a height, the one with the narrower ring (clear radius less hole) is the surface there. So a window stacked in a primary mirror's hole is a window only out to the hole, whatever its own clear radius, and a spot reaches its own edge only where the ring round it has a hole at least as large (give the ring a hole the size of the spot). The bench, the drawings, the diffracted field and the Optical designer all take a stacked surface this way.
+
 ## Settings
 
 {% include jekray_params.html group="free" key="lens" %}

@@ -211,3 +211,17 @@ test('the diffracted field through a solid telescope: each ring of a face takes 
   const wAt = t => F.popStats(out.leg.at(t)).w;
   assert.ok(wAt(5) < 0.25 * wAt(0.01) && wAt(5) < 0.25 * wAt(20), [wAt(0.01), wAt(5), wAt(20)].join(' '));
 });
+
+test('a stacked surface reaches only as far as it is the surface met: a window in a primary\'s hole, a ring round a spot', () => {
+  // the window (no clear radius of its own, so the lens's 25) is met only inside the primary's 6.5 hole; the front ring
+  // (hole 2) only outside the 16.5 spot stacked on it; the part keeps its own figures when the design is written back
+  const e = lensOf({ diameter: 50, surfaces: [{ R: -600, semi: 16.5, coat: MIRROR }, { R: null, hole: 2 }, { R: -200, hole: 6.5, coat: { mode: 'mirror', metal: 'Al' } }, { R: null }],
+    gaps: [0, 40, 0], materials: [{ glass: 'N-BK7' }, { glass: 'N-BK7' }, { glass: 'N-BK7' }] });
+  const P = A.asmPrescription(asmOf(), [e]);
+  const win = P.surfaces.find(s => s.from.i === 3), ring = P.surfaces.find(s => s.from.i === 1);
+  assert.ok(win && Math.abs(win.semi - 6.5) < 1e-9, win && win.semi);
+  assert.ok(ring && Math.abs(ring.obs - 16.5) < 1e-9 && Math.abs(ring.semi - 25) < 1e-9, ring && [ring.obs, ring.semi]);
+  assert.deepEqual(A.stackRing([{ semi: 25, hole: 6.5 }, { semi: 25, hole: 0 }], [0, 1], 1), [0, 6.5]);
+  const e2 = JSON.parse(JSON.stringify(e)); A.asmApply(asmOf(), P, [e2]);
+  assert.ok(!e2.surfaces[3].semi && e2.surfaces[1].hole === 2, JSON.stringify(e2.surfaces.map(s => [s.semi, s.hole])));
+});

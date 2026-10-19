@@ -2,7 +2,7 @@ import { DOVE_RATIO, deg } from '../state/project.js';
 import { rollFrame } from '../engines/trace.js';
 import { ffGrad, ffList, ffSag } from './freeform.js';
 import { dpOn, normOrder } from './diffractive.js';
-import { sagR2, stackOrder } from './sag.js';
+import { sagR2, sameRing, stackOrder } from './sag.js';
 import { lensZones } from './rf.js';
 
 
@@ -178,6 +178,18 @@ export function lensSurfaces(el) {
   }
   // a stack's members know each other: a ray meets a member only where it is the surface there (stackOrder)
   for (const s of out) { const g = out.filter(q => q.stack === s.stack); if (g.length > 1) s.peers = g; }
+  // members over the same ring are layers (sameRing), met one after another: each has the glass between it and the next layer
+  // on its own sides (the stack's before the first, and after the last)
+  for (const s of out) {
+    if (!s.peers || s.layers) continue;
+    const L = s.peers.filter(q => sameRing(q, s));
+    if (L.length < 2) continue;
+    L.forEach((q, k) => {
+      q.layers = L;
+      if (k > 0) q.front = el.materials[L[k - 1].si];
+      if (k < L.length - 1) q.back = el.materials[q.si];
+    });
+  }
   return out;
 }
 

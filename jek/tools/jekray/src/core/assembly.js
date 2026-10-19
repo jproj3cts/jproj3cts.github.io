@@ -3,7 +3,7 @@ import { clamp } from './constants.js';
 import { ffTurn } from './freeform.js';
 import { normOrder, normPh } from './diffractive.js';
 import { grH } from './gradient.js';
-import { stackOrder } from './sag.js';
+import { stackMet } from './sag.js';
 import { applyGrin, grinSlab } from './grin.js';
 import { deg, normCoat, num, project } from '../state/project.js';
 
@@ -454,8 +454,8 @@ export function stackRing(S2, members, j) {
   let lo = null, hi = null;
   for (let q = 0; q + 1 < edges.length; q++) {
     const mid = (edges[q] + edges[q + 1]) / 2;
-    const m = members.filter(i => mid >= (S2[i].hole || 0) && mid <= S2[i].semi).sort((a, b) => stackOrder(S2[a], S2[b]))[0];
-    if (m === j) { if (lo === null) lo = edges[q]; hi = edges[q + 1]; }
+    // (layers over one ring are all met there: each has the ring)
+    if (stackMet(members, mid, i => S2[i]).includes(j)) { if (lo === null) lo = edges[q]; hi = edges[q + 1]; }
   }
   return lo === null ? null : [lo, hi];
 }
@@ -468,12 +468,21 @@ export function lensPath(S2, G2, N2, h0) {
     const out = []; let k = 0, dir = 1, y = h, u = 0, nn = 1;
     for (let guard = 0; guard < PATH_VISITS_MAX && k >= 0 && k < stacks.length; guard++) {
       const st = stacks[k], r = Math.abs(y);
-      const j = st.m.filter(i => r >= (S2[i].hole || 0) - 1e-9 && r <= S2[i].semi + 1e-9).sort((a, b) => stackOrder(S2[a], S2[b]))[0];   // the member holding the height, as stackOrder picks
-      if (j === undefined) { if (!st.m.every(i => r < (S2[i].hole || 0))) break; }     // beyond every member: lost; through every hole: on
+      // the member holding the height, as stackOrder picks, with the layers over its ring (stackMet): met one after another the
+      // way the light goes, each refracting into the glass between it and the next (the stack's own glass past the last) or
+      // reflecting, when the light turns back through those it came through
+      const L = stackMet(st.m, r, i => S2[i]);
+      if (!L.length) { if (!st.m.every(i => r < (S2[i].hole || 0))) break; }     // beyond every member: lost; through every hole: on
       else {
-        const s = S2[j], c = s.c * dir;                                                   // the curvature as the light meets it
-        if (s.mirror) { out.push({ j, dir, role: 'mirror' }); u += 2 * c * y; dir = -dir; }
-        else { const n2 = dir > 0 ? nAfter(k) : nBefore(k); out.push({ j, dir, role: 'refract' }); u = (nn * u - (n2 - nn) * c * y) / n2; nn = n2; }
+        for (let p = dir > 0 ? 0 : L.length - 1, g2 = 0; p >= 0 && p < L.length && g2 < PATH_VISITS_MAX; g2++) {
+          const j = L[p], s = S2[j], c = s.c * dir;                                     // the curvature as the light meets it
+          if (s.mirror) { out.push({ j, dir, role: 'mirror' }); u += 2 * c * y; dir = -dir; }
+          else {
+            const n2 = dir > 0 ? (p < L.length - 1 ? N2[j] : nAfter(k)) : (p > 0 ? N2[L[p - 1]] : nBefore(k));
+            out.push({ j, dir, role: 'refract' }); u = (nn * u - (n2 - nn) * c * y) / n2; nn = n2;
+          }
+          p += dir;
+        }
       }
       const k2 = k + dir; if (k2 < 0 || k2 >= stacks.length) break;
       y += u * Math.abs(stacks[k2].z - st.z); k = k2;

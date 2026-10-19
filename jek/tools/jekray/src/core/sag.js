@@ -35,3 +35,14 @@ export function sagInPlane(s, h) {
    where both reach as far, the one with the narrower ring (a primary round a window that has no radius of its own). As a
    sort comparator over the members holding the height: the first is the surface met. */
 export const stackOrder = (a, b) => Math.abs(a.semi - b.semi) > 1e-9 ? a.semi - b.semi : (a.semi - (a.hole || 0)) - (b.semi - (b.hole || 0));
+/* two stacked surfaces over the same ring (the same clear radius and hole): layers, both met where they apply, one straight after
+   the other in the order the light comes to them (a coating's face over a mirror, a cemented interface on a face) */
+export const sameRing = (a, b) => Math.abs(a.semi - b.semi) <= 1e-9 && Math.abs((a.hole || 0) - (b.hole || 0)) <= 1e-9;
+/* the members of a stack met at radius r, of those given (in their order along the axis): the one stackOrder picks, with the
+   layers over its same ring; none where every member's hole or edge leaves the height out. at(q): q's semi and hole, as given */
+export function stackMet(list, r, at = q => q) {
+  const hold = list.filter(q => { const o = at(q); return r >= (o.hole || 0) - 1e-9 && r <= o.semi + 1e-9; });
+  if (!hold.length) return hold;
+  const best = hold.slice().sort((a, b) => stackOrder(at(a), at(b)))[0];
+  return hold.filter(q => sameRing(at(q), at(best)));
+}

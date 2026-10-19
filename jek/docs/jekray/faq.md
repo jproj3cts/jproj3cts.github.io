@@ -18,6 +18,10 @@ The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html)
 
 Not unless you choose to send it. Your bench is autosaved in this browser, and nothing is sent anywhere until you save it to the cloud, share it or export it. A share link, which JEKrayPro makes, keeps a copy of the bench with your account until you delete the link; anyone with the link can open it. Only benches you save to a JEKrayPro account, and the share links you make, are stored online.
 
+### Does JEKray collect anything about how I use it?
+
+Only anonymous counts: which parts are added (by type), which designers, analyses, examples and tours are opened, what is exported (by format), how long a visit lasts, the screen size class and browser family, and JEKray's own errors. They carry nothing that says who you are, are not linked to your account, and never include your benches, their names, file names or anything you type. None are sent from an embedded bench or when your browser sends Do Not Track or Global Privacy Control. Turn them off with **Share anonymous usage counts** in the account menu (top right) or on the [Your account](/jek/account.html) page. The [Privacy Policy](/jek/privacy.html#usage) has the details.
+
 ### Which browsers does it run in?
 
 Current Chrome, Edge, Firefox and Safari. A recent computer helps with large benches and the diffracted field.

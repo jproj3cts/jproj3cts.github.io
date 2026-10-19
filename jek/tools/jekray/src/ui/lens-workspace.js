@@ -28,6 +28,7 @@ import { checkpoint, redo, undo } from './tabs.js';
 import { isRfAsm, openRfDesign } from './rf-workspace.js';
 import { fmtWs } from '../core/format.js';
 import { designPro, proMark } from './pro.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    The Optical designer (the lens design workspace)
@@ -58,7 +59,7 @@ export function openLensDesign(asm, opts) {
   if (asmMembers(asm).some(e => asmKind(e) === 'grin')) { toast(isRfAsm(asm) ? 'A graded-index RF disc is designed in the RF designer only.' : 'A graded-index RF disc can be designed only with RF parts, in the RF designer.', true); return false; }
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
-  designOf(asm);
+  designOf(asm); track('designer', 'optical');
   WS = { asm, tab: 'data', sel: -1, draft: !!(opts && opts.draft), took: null };
   const sec = shell();
   sec.hidden = false;
@@ -446,7 +447,7 @@ function figuresStrip(F) {
     row('Total track', wsFmt(F.track, 6) + ' mm', 'First surface to the image'));
 }
 function tabsRow() {
-  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; renderWs(); } }, label);
+  const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'rt-ltab', 'aria-selected': String(WS.tab === id), onclick: () => { WS.tab = id; track('analysis', 'optical.' + id); renderWs(); } }, label);
   return h('div', { class: 'rt-ltabs', role: 'tablist', 'aria-label': 'Design' }, tab('data', 'Element data'), tab('cfg', 'Configurations'), tab('merit', 'Merit'), tab('opt', 'Optimise the design'), tab('analyses', 'Analyses'), tab('tol', 'Tolerance the design'), tab('stock', 'Stock lenses'), tab('draw', 'Drawings'));
 }
 
@@ -968,6 +969,7 @@ export function optStart(mode, opts) {
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
   if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
   if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
+  track('optimise', 'optical.' + mode);
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',

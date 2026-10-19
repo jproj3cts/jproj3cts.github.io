@@ -5,6 +5,7 @@ import { toast } from '../ui/actions.js';
 import { menuIcons } from './packs.js';
 import { cloudLink, cloudMenuShown, cloudPush } from './cloud.js';
 import { saveTimer } from './autosave.js';
+import { setUsageOff, track, usageBrowserSaysNo, usageFlush, usageOff } from './usage.js';
 
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
@@ -35,6 +36,7 @@ export const AUTH_OUTCOMES = {
   consent_failed: ['JEKray was not approved for your organisation. Nothing has changed.', true],
 };
 function signIn(provider, link) {
+  track('signin', provider); usageFlush();
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
   if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
@@ -72,6 +74,7 @@ const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency'
 let subInterval = 'month';
 const acCheck = { email: '', sent: false };   // a university address being confirmed by a code
 export async function showSubscribe() {
+  track('subscribe', '');
   const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
   if (!dlg.open) dlg.showModal();
   box.replaceChildren(h('p', null, 'Loading prices…'));
@@ -201,10 +204,14 @@ export function fillAccount() {
   const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
   const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: fn }, label);
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
+  // usage counts: on unless turned off here (or by the browser's Do Not Track or Global Privacy Control)
+  const dnt = usageBrowserSaysNo(), usage = h('button', { type: 'button', role: 'menuitemcheckbox', 'aria-checked': String(!dnt && !usageOff()), 'data-icon': 'check', disabled: dnt ? '' : null,
+    title: dnt ? 'Your browser asks sites not to track it, so none are sent' : 'Counts of what is used in JEKray, with nothing that says who: see the privacy policy',
+    onclick: () => { const off = !usageOff(); setUsageOff(off); fillAccount(); toast(off ? 'Usage counts off in this browser' : 'Usage counts on. Thank you!'); } }, 'Share anonymous usage counts');
   if (!account) {
     btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
     menu.replaceChildren(item('signin', 'Sign in with Google', () => signIn('google')), item('signin', 'Sign in with Microsoft (university or work)', () => signIn('microsoft')), item('signin', 'Sign in with email and a password', () => showEmailSignIn(false)),
-      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), legal);
+      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), h('div', { class: 'sep' }), usage, legal);
   } else {
     const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
     btn.classList.add('in'); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
@@ -238,7 +245,7 @@ export function fillAccount() {
     rows.push(item('signout', 'Sign out', async () => {
       try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
       catch (err) { toast(err.message, true); }
-    }), item('trash', 'Delete account…', showDeleteAccount), h('div', { class: 'sep' }), legal);
+    }), item('trash', 'Delete account…', showDeleteAccount), h('div', { class: 'sep' }), usage, legal);
     menu.replaceChildren(...rows);
   }
   menuIcons(menu);

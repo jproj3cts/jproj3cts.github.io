@@ -3,6 +3,7 @@ import { designPrescription } from '../engines/lens-design.js';
 import { lensSystem } from '../engines/lens-engine.js';
 import { downloadFile, safeFileName, toast } from '../ui/actions.js';
 import { sagR2 } from '../core/sag.js';
+import { track } from './usage.js';
 
 /* ==========================================================================
    CAD export: a design's parts as solids, placed as the design has them
@@ -242,7 +243,7 @@ export function exportCad(asm, kind) {
   try {
     const out = kind === 'stl' ? cadSTL(asm) : cadSTEP(asm), fname = safeFileName(asm.name || 'design') + (kind === 'stl' ? '.stl' : '.step');
     if (!out.solids) { toast('There is nothing round to export in ' + asm.name + '.', true); return null; }
-    downloadFile(fname, new Blob([out.text], { type: kind === 'stl' ? 'model/stl' : 'model/step' }));
+    downloadFile(fname, new Blob([out.text], { type: kind === 'stl' ? 'model/stl' : 'model/step' })); track('export', kind);
     const w = [...out.warnings];
     toast('Exported ' + fname + ', ' + out.solids + ' solid' + (out.solids === 1 ? '' : 's') + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
     return out;

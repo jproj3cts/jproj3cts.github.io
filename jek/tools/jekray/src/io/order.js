@@ -6,6 +6,7 @@ import { lensThickness, lensVolume } from '../ui/readouts.js';
 import { shareBase, shareData, shareHash } from './share.js';
 import { toast } from '../ui/actions.js';
 import { helpLine, h } from '../ui/panel.js';
+import { track } from './usage.js';
 
 /* ---------- A custom RF lens, asked for by quote ----------
    An RF lens in one of the made-to-order plastics, or a graded-index lens, that can be made:
@@ -102,6 +103,7 @@ export function wireCart() {
 export async function requestQuote(el, qty, opts) {
   const S = orderSpec(el, opts);
   if (!S) { toast('This lens cannot be made as it is: see its panel.', true); return false; }
+  track('quote', el.type);
   const url = await orderLink(el), part = 'RFL-' + hash(S.spec.join('|')), n = Math.max(1, Math.round(+qty || 1));
   let items = [];
   try { items = JSON.parse(localStorage.getItem(CART) || '[]'); if (!Array.isArray(items)) items = []; } catch (err) { items = []; }

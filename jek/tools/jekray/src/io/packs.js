@@ -14,6 +14,7 @@ import { fillPicker, picker } from '../ui/picker.js';
 import { clipIcon, palOf } from '../ui/myparts.js';
 import { startTour } from '../ui/tours.js';
 import { modConfirmText, modPrepare, modsSync } from './mods.js';
+import { track } from './usage.js';
 
 /* ==========================================================================
    Part packs: sets of parts and glasses made by others (a maker's catalogue, a course's kit),
@@ -188,7 +189,7 @@ export function packConfirm(pack, notes, from) {
   });
 }
 export async function packInstallText(txt, from) {
-  try { const { pack, notes } = await packFromText(txt, from); return await packConfirm(pack, notes, from); }
+  try { const { pack, notes } = await packFromText(txt, from); track('mod', 'install'); return await packConfirm(pack, notes, from); }
   catch (err) { toast('Could not use that pack: ' + err.message + '.', true); return false; }
 }
 async function packInstallUrl(url) {

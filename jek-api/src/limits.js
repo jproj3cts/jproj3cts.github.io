@@ -5,7 +5,7 @@
 //   RL_OPS    JEK Systems' /ops, per address     30 a minute
 //   RL_SLOW   slow or costly actions, per person 10 a minute
 //   RL_WRITE  other changes, per person         120 a minute;
-//             and opening a share link, per address
+//             and opening a share link, and usage counts, per address
 //
 // A person is their session (its hash), or their address when signed out. A
 // university's people may share one address, hence the generous sign-in
@@ -40,6 +40,8 @@ async function bucket(req, env, path) {
   if (path.startsWith('/stripe/')) return null; // Stripe's own retries; the signature is the guard
   // a share link opened by anyone, signed in or not: held back per address, so its ids cannot be run through
   if (req.method === 'GET' && /^\/v1\/links\/[^/]+$/.test(path)) return [env.RL_WRITE, `link:${ip}`];
+  // usage counts come with no cookie: held back per address, which is used for nothing else
+  if (path === '/v1/events') return [env.RL_WRITE, `ev:${ip}`];
   const token = cookie(req, COOKIE);
   const who = token && /^[0-9a-f]{64}$/.test(token) ? `s:${(await sha256(token)).slice(0, 32)}` : `ip:${ip}`;
   if (SLOW.some(([m, re]) => m === req.method && re.test(path))) return [env.RL_SLOW, who];

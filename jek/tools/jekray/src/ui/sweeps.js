@@ -19,6 +19,7 @@ import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { scheduleSave } from '../io/autosave.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwProject, fwRequest, fwUnpackRun, newAppWorker } from '../page/workers.js';
+import { track } from '../io/usage.js';
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
    value = From + (To − From) · shape(f·T + phase/360), so phases are relative
@@ -104,6 +105,7 @@ function startLoop() {
 export function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
   if (!sw) return;
+  track('sweep', el.type);
   if (sweepJob) { sweepJob.cancel(); return; }
   // the sweeps that will move together: the ones already playing and this one
   const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);

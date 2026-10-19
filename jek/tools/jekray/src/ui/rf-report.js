@@ -11,6 +11,7 @@ import { diverge } from './lens-analyses.js';
 import { magma } from './plots.js';
 import { drawSheet, lensDrawings } from './lens-drawing.js';
 import { RW_LIGHT, rwMakeGrin, rwMakeLens, rwPaintLayout } from './rf-workspace.js';
+import { track } from '../io/usage.js';
 
 /* ==========================================================================
    The RF design report: the design as a PDF to hand on
@@ -194,7 +195,7 @@ export function rfReportRecs(asm, opts) {
 export const rfReportPdfBlob = (asm, opts) => pdfDoc(rfReportRecs(asm, opts), asm.name + ' RF design report', opts);
 export async function saveRfReport(asm, opts) {
   const name = safeFileName(asm.name + ' - RF design report') + '.pdf';
-  try { downloadFile(name, await rfReportPdfBlob(asm, opts)); toast('Saved ' + name); }
+  try { downloadFile(name, await rfReportPdfBlob(asm, opts)); toast('Saved ' + name); track('report', 'rf'); }
   catch (e) { toast('The report could not be made: ' + e.message, true); }
   return name;
 }

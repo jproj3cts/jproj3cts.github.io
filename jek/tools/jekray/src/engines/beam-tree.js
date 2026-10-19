@@ -291,7 +291,7 @@ export function* popRunGen(beams, srcs, opts = {}) {
       if (!out) {
         if (eng === '2d') out = cb.ev ? popSurface2(Fend, cb.ev, gain, opts.paraxial, cb.len, { Jin: b.J, Jout: cb.J, parIn: b.par, parOut: cb.par }) : { field: Fend, clipped: false };
         else out = popSurface(Fend, [Fend.z, Fend.zR], { A: ev.A, C: ev.C, D: ev.D, n2: ev.n2, a: popClear(cb.ev), gain, raw: cb.ev, paraxial: opts.paraxial, tNext: cb.len,
-          disc: cb.ev && cb.ev.mask && cb.ev.mask.shape === 'disc' ? cb.ev.mask.a : null });
+          disc: cb.ev && cb.ev.mask && cb.ev.mask.shape === 'disc' ? cb.ev.mask.a : cb.ev && cb.ev.surf && cb.ev.surf.ringIn > 0 ? cb.ev.surf.ringIn : null });
         if (outKey) stepSet(outKey, out, out.field);
       }
       if (out.clipped && ev.el) notes.clipped.add(ev.el);

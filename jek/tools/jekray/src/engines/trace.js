@@ -78,7 +78,7 @@ function apertureShare(s, ly, cth, w, wv) {
 }
 /* a surface carried on past its rim, for a reference ray that must meet it off the element */
 function extendedSurf(s) {
-  if (s._ext) return s._ext;
+  if (Object.prototype.hasOwnProperty.call(s, '_ext')) return s._ext;      // (its own: a copy made from it keeps its own)
   let semi = s.semi * 3 + 10;
   if (!s.flat && s.c) semi = Math.min(semi, 0.98 / Math.abs(s.c) / Math.sqrt(Math.max(1, 1 + (s.k || 0))));
   const e = Object.create(s);
@@ -99,6 +99,59 @@ function bypassEvent(s, base) {
   surf.maskMargin = (u, v) => -edge(u, v);
   const ev = Object.assign(base, { bypass: true, mask: { shape: 'disc', a: s.semi, o: 0, ext: s.semi } });
   return Object.defineProperty(ev, 'surf', { value: surf, enumerable: false, configurable: true });
+}
+/* ---------- A beam across a face's rings ----------
+   A lens face can be several surfaces stacked on one vertex, or have a hole in it (a solid telescope's front: a mirror
+   spot in the middle, glass round it; its back: the primary round a window). A beam meeting such a face is split into a
+   branch for each ring, its field cut to that ring (an obscuring disc inside, an opening outside), and the ring's own
+   surface met by the branch's reference ray wherever that ray crosses the face: the reference ray is not light, and
+   the light of a ring the ray's own height is not in still meets that ring's surface. A ring with no surface (a hole)
+   lets its branch on through unbent. Each ring: its surface (null for none), its inner and outer radius. */
+function stackZones(surfs, s) {
+  if (Object.prototype.hasOwnProperty.call(s, '_zones')) return s._zones;
+  const members = surfs.filter(q => q.el === s.el && q.stack === s.stack && q.stack !== undefined);
+  let out = null;
+  if (members.length > 1 || members.some(q => q.hole > 0)) {
+    const outer = Math.max(...members.map(q => q.semi));
+    const edges = [...new Set([0, outer, ...members.flatMap(q => [q.semi, q.hole || 0])])].filter(r => r >= 0 && r <= outer).sort((a, b) => a - b);
+    const zs = [];
+    for (let i = 0; i + 1 < edges.length; i++) {
+      const a = edges[i], b = edges[i + 1], mid = (a + b) / 2;
+      if (b - a < 1e-9) continue;
+      // the surface there: the one whose annulus holds it, the narrowest where two do (as the drawings and the tracer take it)
+      const m = members.filter(q => mid >= (q.hole || 0) && mid <= q.semi).sort((x, y) => (x.semi - (x.hole || 0)) - (y.semi - (y.hole || 0)))[0] || null;
+      const L = zs[zs.length - 1];
+      if (L && L.m === m) L.rout = b; else zs.push({ m, rin: a, rout: b });
+    }
+    if (zs.length > 1) out = zs.map((z, k) => {
+      const margin = (u, v) => { const r = Math.hypot(u, v); return Math.min(z.rout - r, z.rin > 0 ? r - z.rin : Infinity); };
+      // the ring's surface as its branch meets it: carried on over the whole face (its hole closed, its rim past the
+      // reference ray), its field cut to the ring
+      let wrap = null, ext = null;
+      if (z.m) {
+        const open = Object.create(z.m); open.hole = 0;
+        ext = extendedSurf(open);
+        wrap = Object.create(z.m); wrap.semi = z.rout; wrap.hole = 0; wrap.ringIn = z.rin; wrap.maskMargin = margin;
+      }
+      return Object.assign(z, { k, margin, wrap, ext });
+    });
+  }
+  Object.defineProperty(s, '_zones', { value: out, enumerable: false });
+  return out;
+}
+/* a surface with its hole closed, to find where a ray through the hole crosses the face */
+function holeClosed(s) {
+  if (Object.prototype.hasOwnProperty.call(s, '_closed')) return s._closed;
+  const e = Object.create(s); e.hole = 0;
+  Object.defineProperty(s, '_closed', { value: e, enumerable: false });
+  return e;
+}
+/* the event where a ring with no surface starts its branch: nothing but a cut to the ring */
+function ringEvent(s, z, base) {
+  const surf = Object.create(s);
+  surf.flat = true; surf.cyl = null; surf.maskFn = null; surf.odd = null; surf.ph = null; surf.coatAt = null;
+  surf.semi = z.rout; surf.hole = 0; surf.ringIn = z.rin; surf.maskMargin = z.margin;
+  return Object.defineProperty(Object.assign(base, { semi: z.rout }), 'surf', { value: surf, enumerable: false, configurable: true });
 }
 // set by intersectSurf: the hit it last found was a zoned face's step wall, where the light is lost (see zoneHit)
 let wallHit = false;
@@ -720,7 +773,7 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, gr } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, gr, zoneS } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
       gr = gr || null;                  // inside a graded glass: its part, terms and own index (see grIn)
       let nlcPend = null;               // out of the plane: a doubling crystal's reference ray, until it leaves the crystal (see nlcSources)
@@ -785,13 +838,18 @@ function traceSceneOnce() {
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
         const splits = isQ && src.gauss && !pls;
-        let near = null, nearT = Infinity;
+        // and, a ray fan's as well as a beam's, the rings of a face it meets (stackZones)
+        const zsplits = isQ && !pls;
+        let near = null, nearT = Infinity, holeS = null, holeT = Infinity;
         for (const s of surfs) {
           // in a graded glass the ray can meet nothing but its own lens's faces (and steps there many times)
           if (gr && s.el !== gr.s.el) continue;
           if (s.kind === 'iris' && !isQ) continue;
           if (isQ && s.kind === 'absorb' && s.el.type === 'stop') continue;   // the iris stands in for them
           if (skipEl && s.el.id === skipEl) continue;                          // the part of a beam past an element
+          // a ring's branch (stackZones): of the face it was split at, it meets only its ring's surface, over the whole face
+          const zb = !!(zoneS && s.el === zoneS.el && s.stack === zoneS.stack);
+          if (zb && s !== zoneS.base) continue;
           if (s.mesh) {
             // an STL object: met against its triangles, in 3D
             const tm = meshRay(s.el, [px, py, zh], [dx, dy, uz || 0], tMin(s));
@@ -800,16 +858,22 @@ function traceSceneOnce() {
           }
           const [lx, ly] = toLocal(s.f, px, py);
           const [ldx, ldy] = toLocalDir(s.f, dx, dy);
-          const forced = forceEl && s.el.id === forceEl && splittable(s);
+          const forced = !zb && forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
-          const h3 = anyZ && !forced && zCurved(s) ? zh - zOf(s.el) : 0;
+          const h3 = anyZ && !forced && !zb && zCurved(s) ? zh - zOf(s.el) : 0;
           wallHit = false;
-          let tt = s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+          let tt = zb ? intersectSurf(zoneS.ext, lx, ly, ldx, ldy, tMin(s))
+            : s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
             : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, tMin(s))
             : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
-          if (anyZ && tt !== null && !forced && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
-          if (tt !== null && tt < best) { best = tt; hit = s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
+          if (anyZ && tt !== null && !forced && !zb && s.kind !== 'iris' && !s.tilt) { const hz = zh + uz * tt - zOf(s.el); if (hz !== 0 && !zInside(s, ly + ldy * tt, hz)) tt = null; }
+          if (tt !== null && tt < best) { best = tt; hit = zb ? zoneS.wrap : s; hitSeg = wallHit; }      // at a step's wall the ray ends, as at a rim
+          // a beam's reference ray through a hole in a face: the face's rings still take the beam (stackZones)
+          if (zsplits && tt === null && !zb && s.hole > 0 && !s.tilt && s.stack !== undefined) {
+            const th = intersectSurf(holeClosed(s), lx, ly, ldx, ldy, tMin(s));
+            if (th !== null && th < holeT) { holeT = th; holeS = s; }
+          }
           if (splits && tt === null && !forced && !s.tilt && splittable(s)) {
             let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
             // a beam passing above or below a part does not reach round its edge either
@@ -828,6 +892,7 @@ function traceSceneOnce() {
         // the beam overlaps an element its reference ray misses: if enough of it lands on the
         // element, it splits there (the ray itself carries on past, a new one goes through)
         let nearShare = null;
+        if (holeS && holeT < best - 1e-9 && stackZones(surfs, holeS)) { best = holeT; hit = holeS; hitSeg = false; }
         if (near && nearT < best - 1e-9) {
           const [lx, ly] = toLocal(near.f, px + dx * nearT, py + dy * nearT), [ldx, ldy] = toLocalDir(near.f, dx, dy);
           const bw = beamAt(qr + nearT, qi, nCur, nm, m2Env(src)).w, cth = Math.abs(ldx);     // the rim is seen along the element's axis
@@ -897,6 +962,9 @@ function traceSceneOnce() {
         // leaving the element it was split at, a branch is an ordinary ray again
         if (skipEl && hit.el.id !== skipEl) skipEl = null;
         if (forceEl && hit.el.id !== forceEl) forceEl = null;
+        // a ring's branch, at its ring: met as that ring's surface; past it, an ordinary ray again
+        const zoneHere = !!(zoneS && hit.el === zoneS.el && hit.stack === zoneS.stack);
+        zoneS = null;
         // light that went round an element has a hole in its middle: an element that fits inside
         // the hole (a smaller lens than the one it went round) is missed by all of it, and it
         // passes by unchanged, hole and all, rather than being bent as if through the middle
@@ -936,18 +1004,38 @@ function traceSceneOnce() {
           const mF = (ldxF - ldyF * dsagFn(hit, lyF)) > 0 ? hit.front : hit.back;
           return !!mF && mF.glass !== 'AIR';
         };
-        if (splits && !hitSeg && !hit.tilt && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
+        const zones = zsplits && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
+        if (splits && !hitSeg && !zoneHere && !hit.tilt && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
-          const fin = apertureShare(hit, lyH, cth, bw, bw);
+          // (a face of rings takes the beam over all of them: its outermost ring's rim is its edge)
+          const fin = apertureShare(zones ? { maskMargin: (u, v) => zones[zones.length - 1].rout - Math.hypot(u, v) } : hit, lyH, cth, bw, bw);
           const rOut = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
           const past = fromGlass() ? 0 : rOut > hit.semi ? 1 - apertureShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), lyH, cth, bw, bw) : 1 - fin;
           if (past * qShare > SPLIT_MIN && fin * qShare > SPLIT_MIN && splitsLeft > 0) {
             splitsLeft--;
             push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(0, rOut - Math.abs(lyH)),
-              evt: bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }) }));
+              evt: bypassEvent(zones ? Object.assign(Object.create(hit), { semi: zones[zones.length - 1].rout, maskMargin: null }) : hit, { el: hit.el.id, kind: 'split', semi: zones ? zones[zones.length - 1].rout : hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }) }));
             qShare *= fin;
           } else if (fin * qShare > SPLIT_MIN && (1 - past) - fin > SPLIT_MIN) qShare *= fin / (1 - past);   // only the edge took some
+        }
+        // the face is rings (stackZones): a branch for each ring the beam lands on, and this ray ends here
+        if (zones && splitsLeft > 0) {
+          splitsLeft--;
+          const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
+          const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;
+          const g3ring = ev => anyZ ? Object.assign(ev, { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh }) : ev;
+          const tot = zones.reduce((a, z) => a + (z.share = apertureShare({ maskMargin: z.margin }, lyH, cth, bw, bw)), 0) || 1;
+          for (const z of zones) {
+            // each ring's share of what lands on the face
+            const sh = z.share / tot;
+            if (sh * qShare <= SPLIT_MIN) continue;
+            const zs = { el: hit.el, stack: hit.stack, base: z.m, ext: z.ext, wrap: z.wrap };
+            if (z.m) push(splitState(sh, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, zoneS: zs, path: path + 'z' + z.k + '.' + bounce }));
+            else push(splitState(sh, { zoneS: zs, path: path + 'z' + z.k + '.' + bounce,
+              evt: g3ring(ringEvent(hit, z, { el: hit.el.id, kind: 'split', ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] })) }));
+          }
+          break;
         }
 
         const s = hit;

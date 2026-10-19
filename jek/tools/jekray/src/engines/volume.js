@@ -490,7 +490,19 @@ export function popSlices(items, perIn) {
   for (const item of items) {
     const sg = item.lead, grouped = item.members.length > 1;
     const Fp = sg.eng === '2d' ? { z: sg.F0.ax.z, zR: sg.F0.ax.zR } : sg.F0;
-    const ts = popTimes(Fp, sg.b.len, sg.eng === '2d' ? per2 : per);
+    let ts = popTimes(Fp, sg.b.len, sg.eng === '2d' ? per2 : per);
+    // a group is sliced where each of its members would be, not only where its lead would: a short leg that runs
+    // inside a long one (a telescope's light inside its glass, beside what went round the rim) has its focus and its
+    // turns between the long one's few slices
+    if (grouped) {
+      const L = sg.b, more = [];
+      for (const m of item.members) {
+        if (m === sg) continue;
+        const b = m.b, along = (b.x0 - L.x0) * L.dx + (b.y0 - L.y0) * L.dy, Fm = m.eng === '2d' ? { z: m.F0.ax.z, zR: m.F0.ax.zR } : m.F0;
+        for (const t of popTimes(Fm, b.len, m.eng === '2d' ? per2 : per)) { const u = along + t * (b.dx * L.dx + b.dy * L.dy); if (u >= 0 && u <= L.len) more.push(u); }
+      }
+      if (more.length) ts = ts.concat(more).sort((a, b) => a - b).filter((t, i, A) => i === 0 || t - A[i - 1] > 1e-9 * Math.max(1, L.len));
+    }
     probe.fillStyle = sg.b.colour;
     const hex = probe.fillStyle;                    // the browser hands back #rrggbb
     const cr = parseInt(hex.slice(1, 3), 16), cg = parseInt(hex.slice(3, 5), 16), cb = parseInt(hex.slice(5, 7), 16);

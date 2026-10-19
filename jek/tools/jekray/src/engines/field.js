@@ -453,8 +453,11 @@ export function popSurface(F, q, ev) {
   let clipped = false, wFitIn = 0, m2In = 1, qr = q[0], qi = q[1];
   const aIn = isFinite(ev.a) ? ev.a : Infinity;
   // a round opening passes inside its edge; an obscuring disc passes outside it
-  const maskOf = rr => ev.disc !== null && ev.disc !== undefined ? popMask(rr, ev.disc).map(v => 1 - v)
-    : isFinite(aIn) ? popMask(rr, aIn) : null;
+  // (a ring, a face's ring between a mirror spot and its rim: both)
+  const maskOf = rr => {
+    const d = ev.disc !== null && ev.disc !== undefined ? popMask(rr, ev.disc).map(v => 1 - v) : null, o = isFinite(aIn) ? popMask(rr, aIn) : null;
+    return d && o ? d.map((v, i) => v * o[i]) : d || o;
+  };
   if (aIn < r[N - 1] || (ev.disc && ev.disc < r[N - 1])) {
     // what gets through, measured on a grid that resolves the edge
     const R1 = G * Math.min(popW(qr, qi, lamIn), aIn), r1 = popRadii(Q, R1);
@@ -513,7 +516,18 @@ export function popSurface(F, q, ev) {
     - popPhiExact(k2, iRo, iRo, Math.abs(r[1]), 0) + popPhiPar(k2, iRo, iRo, aA * xx, 0);
   let steep = 0;
   const wOut = popW(qr, qi, lam2);
-  let Rn = G * wOut;
+  // the light itself, which can reach well past the pilot (a ring cut from a wide beam, whose pilot is fitted as its
+  // embedded Gaussian, M times narrower): the radius holding all but 1/200 of what gets through, which the new grid
+  // must hold whatever else it is sized by
+  let rLight = 0;
+  {
+    const mIn = maskOf(r);
+    let tot = 0; const cum = new Float64Array(N);
+    for (let i = 0; i < N; i++) { tot += (F.re[i] ** 2 + F.im[i] ** 2) * Q.inv[i] * (mIn ? mIn[i] * mIn[i] : 1); cum[i] = tot; }
+    if (tot > 0) { let i = 0; while (i < N - 1 && cum[i] < 0.995 * tot) i++; rLight = 1.25 * aA * r[i]; }
+  }
+  const wFloor = Math.max(3 * wOut, rLight);
+  let Rn = Math.max(G * wOut, rLight);
   if (tr) {
     let g = 0, prev = null;
     const wIn0 = popW(q[0], q[1], lamIn);
@@ -526,7 +540,7 @@ export function popSurface(F, q, ev) {
     }
     g /= aA;
     if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
-    if (Rn < 3 * wOut) { steep = 1; Rn = 3 * wOut; }
+    if (Rn < wFloor) { steep = 1; Rn = wFloor; }
     // a surface that turns the wavefront faster than the grid can follow (a high-NA objective):
     // the field on twice the points, up to 1024, and the surface taken again on them
     if (steep && N < POP_N_MAX && !ev.fixed && !ev.holeRn) {
@@ -552,7 +566,7 @@ export function popSurface(F, q, ev) {
       gIn = Math.max(gIn, Math.abs(dph) / (rIn[i + 1] - rIn[i]));
     }
     gIn /= aA;
-    if (gIn > 0 && Q.N * Math.PI / (2 * gIn) < Rn) { Rn = Math.max(3 * wOut, Q.N * Math.PI / (2 * gIn)); if (Rn === 3 * wOut) steep = 1; }
+    if (gIn > 0 && Q.N * Math.PI / (2 * gIn) < Rn) { Rn = Math.max(wFloor, Q.N * Math.PI / (2 * gIn)); if (Rn === wFloor) steep = 1; }
   }
   // a round edge that cuts the beam: sample for its fringes at the next surface (see the 2D step)
   const maskEdge = raw && raw.surf && raw.surf.maskFn && maskJumps(raw.surf.maskFn, raw.ly, 0, 3 * wOut, 0, lam0);
@@ -560,7 +574,7 @@ export function popSurface(F, q, ev) {
     const C = 3.5 * wOut, t = ev.tNext;
     const dHold = (C + Math.sqrt(C * C + N * lam2 * t)) / (2 * N);
     const d = Math.max(Math.sqrt(lam2 * t) / 8, dHold);
-    Rn = Math.min(Rn, Math.max(N * d, 1.2 * aA * (isFinite(aIn) ? aIn : 0)));
+    Rn = Math.min(Rn, Math.max(N * d, 1.2 * aA * (isFinite(aIn) ? aIn : 0), rLight));
   }
   if (ev.holeRn) Rn = ev.holeRn;
   if (ev.fixed) Rn = ev.fixed.Rn;

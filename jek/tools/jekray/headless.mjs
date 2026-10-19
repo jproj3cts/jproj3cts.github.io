@@ -14,12 +14,12 @@ export async function engine() {
   globalThis.self = globalThis;
   if (!globalThis.location) globalThis.location = { hostname: '', hash: '', search: '', href: '' };
   workerShim();
-  const [ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO] = await Promise.all([
+  const [ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE] = await Promise.all([
     import('./src/state/project.js'), import('./src/state/elements.js'), import('./src/engines/trace.js'), import('./src/engines/screen-stats.js'),
     import('./src/engines/fibre-face.js'), import('./src/engines/antenna-field.js'), import('./src/engines/detector.js'), import('./src/engines/cavity.js'),
     import('./src/state/params.js'), import('./src/engines/lens-design.js'), import('./src/engines/rf-design.js'), import('./src/engines/rf-sweep.js'), import('./src/core/horns.js'),
-    import('./src/engines/lens-analysis.js'), import('./src/core/assembly.js'), import('./src/io/zmx-export.js'), import('./src/engines/lens-opt.js')]);
-  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO };
+    import('./src/engines/lens-analysis.js'), import('./src/core/assembly.js'), import('./src/io/zmx-export.js'), import('./src/engines/lens-opt.js'), import('./src/engines/lens-engine.js')]);
+  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE };
   return ENGINE;
 }
 const round = (v, p = 6) => (typeof v === 'number' && isFinite(v) ? +v.toPrecision(p) : v);
@@ -65,7 +65,8 @@ export async function openBench(data) {
     /* first order: focal lengths, the entrance pupil, the working F-number and NA, at the primary wavelength (or nm) */
     lens(asmName, nm) {
       const asm = asmByName(asmName), P = E.LD.designPrescription(asm), A = E.LA.anaSystems(asm, P), w = nm || A.nm0;
-      const px = E.ASM.asmParaxial(P, w, E.TRACE.paraxial);
+      // (a design with mirrors in it, a telescope's, is followed along the light's own path: the bench's probe rays down its middle meet its secondary)
+      const px = P.folded ? E.LE.lensSystem(P, w, {}).par : E.ASM.asmParaxial(P, w, E.TRACE.paraxial);
       return plain({ nm: w, efl: px.efl, bfl: px.bfl, epd: A.epd, fNumber: A.fw, na: A.na, finite: A.finite, fields: A.c.fields.map(f => f.deg), waves: A.c.waves.map(x => x.nm) });
     },
     /* the spot at a field angle (degrees; an object height for a finite object): rms and largest radius, the Airy radius */

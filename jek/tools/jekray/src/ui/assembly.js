@@ -4,6 +4,7 @@ import { V, deg, project, typeLabel, uid } from '../state/project.js';
 import { benchNms, normElement } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { paraxial } from '../engines/trace.js';
+import { lensSystem } from '../engines/lens-engine.js';
 import { helpLine, h, numInput, panel, textField } from './panel.js';
 import { setSelection } from './render.js';
 import { changed, toast } from './actions.js';
@@ -112,7 +113,8 @@ export function assemblyPanel(asm) {
   for (const e of order) ul.append(h('li', null, h('button', { type: 'button', onclick: () => setSelection([e]) }, e.name, h('span', { class: 't' }, typeLabel(e)))));
   panel.append(ul);
   if (P) {
-    const c = asm.cond, nm = c.waves[c.primary].nm, p = asmParaxial(P, nm, paraxial);
+    // (with mirrors in it, a telescope's, along the light's own path: the bench's probe rays down its middle meet its secondary)
+    const c = asm.cond, nm = c.waves[c.primary].nm, p = P.folded ? lensSystem(P, nm, {}).par : asmParaxial(P, nm, paraxial);
     const len = P.gaps.reduce((a, b) => a + b, 0);
     const rows = [['EFL at ' + (+nm.toPrecision(5)) + ' nm', isFinite(p.efl) ? fmtLen(p.efl) : 'afocal'], ['BFL', isFinite(p.bfl) ? fmtLen(p.bfl) : '—'],
       ['Surfaces', P.surfaces.length + (P.stopIndex >= 0 ? ', the stop the ' + ordinal(P.stopIndex + 1) : ', no stop of its own')], ['First to last surface', fmtLen(len)],

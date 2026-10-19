@@ -184,3 +184,30 @@ test('the image simulation of a solid telescope: its chief ray blocked by the se
   assert.ok(run([{ deg: 0, w: 1 }, { deg: 0.5, w: 1 }]) > 0.3);
   assert.ok(run([{ deg: 0, w: 1 }], { mode: 'patch', at: [0, 0], pitch: 0.05 }) > 0.3);
 });
+
+test('the diffracted field through a solid telescope: each ring of a face takes its share, and the light comes to a focus behind it', async () => {
+  // the user's design: a 5 mm Gaussian on a spot mirror stacked in a refracting ring (front), a primary round a window (back)
+  const { openBench, engine } = await import('../../headless.mjs');
+  const B = await openBench({ format: 'jekray', version: 1, minPower: 0.1, light: { rays: false, envelope: true, field: true, scale: 'lin' }, elements: [
+    { type: 'lens', id: 'T', name: 'T', x: 136.5, y: -16, angle: 0, diameter: 12.7, asphere: true,
+      surfaces: [{ R: -67.89, k: -0.9, semi: 3, coat: { mode: 'mirror', metal: 'ideal' } }, { R: -154.38, hole: 2 }, { R: -53.93, hole: 2, coat: { mode: 'mirror', metal: 'Al' } }, { R: null }],
+      gaps: [0, 15, 0], materials: [{ glass: 'S-LAH64' }, { glass: 'S-LAH64' }, { glass: 'S-LAH64' }] },
+    { type: 'source', id: 'S', name: 'S', x: 77, y: -16, angle: 0, wavelength: 633, gauss: true, w0: 5, z0: 0, popN: 256, traceRays: false, rays: 30, width: 10 }] });
+  B.trace();
+  const Eg = await engine(), BT = await import('../../src/engines/beam-tree.js'), F = await import('../../src/engines/field.js');
+  const R = BT.popRun(Eg.TRACE.lastTrace.beams, Eg.ST.project.elements.filter(e => e.type === 'source'), {});
+  const P = sg => F.popStats(sg.leg.at(Math.min(1, sg.b.len))).power;
+  const ev = sg => sg.b.ev || {};
+  // the spot sends back what lands inside its 3 mm, 1 - exp(-2 a^2 / w^2), the light that went round the rim what lands outside 6.35
+  const back = R.segs.find(sg => sg.b.dx < 0 && ev(sg).mode === 'R' && ev(sg).semi === 3 && sg.b.x0 < 130);
+  assert.ok(back && Math.abs(P(back) - (1 - Math.exp(-2 * 9 / 25))) < 0.005, back && P(back));
+  const rim = R.segs.find(sg => ev(sg).kind === 'split');
+  assert.ok(rim && Math.abs(P(rim) - Math.exp(-2 * 6.35 ** 2 / 25)) < 0.005, rim && P(rim));
+  // the ring between goes in, off the primary and the spot, and out through the window: all of it (bar a little at the spot's edge)
+  const out = R.segs.filter(sg => sg.b.dx > 0 && sg.b.x0 > 140 && ev(sg).mode === 'T').sort((a, b) => P(b) - P(a))[0];
+  const ring = Math.exp(-2 * 9 / 25) - Math.exp(-2 * 6.35 ** 2 / 25);
+  assert.ok(out && P(out) > 0.97 * ring && P(out) < ring + 1e-3, out && [P(out), ring]);
+  // and it comes to a focus a few millimetres past the window
+  const wAt = t => F.popStats(out.leg.at(t)).w;
+  assert.ok(wAt(5) < 0.25 * wAt(0.01) && wAt(5) < 0.25 * wAt(20), [wAt(0.01), wAt(5), wAt(20)].join(' '));
+});

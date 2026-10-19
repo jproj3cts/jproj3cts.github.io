@@ -75,6 +75,8 @@ Each surface has a **clear radius** (how far out from the axis it reaches: the l
 
 A surface given a thickness of **0** is **stacked** on the one before it: the two share a vertex and make one face, each applying between its hole and its clear radius, with a step where they meet. So a face can be a flat with a hole and a mirror-coated spot stacked in the hole, or a concave mirror coat with a hole and a plain flat stacked in the middle: a Mangin mirror is a lens whose back is mirror coated; a solid telescope is a block with the first face in front and the second behind, 40 mm of glass between. A flat ground into the middle of an ordinary lens is a flat surface stacked in a hole in its curved face. The [Optical designer](/jek/docs/jekray/lens-design/#folds-tilts-and-decentres) follows the light through such a lens surface by surface, and can stack a surface on any face. A bench saved before surfaces had holes and stacks (a face *Mirrored* whole, as a spot or as an annulus, or with a *Centre shape*) opens as the surfaces that stood for, stacked.
 
+A Gaussian beam meeting such a face is split into its **rings**, one branch for each: the beam's field cut to the ring (an opening outside, an obscuring disc inside) and the ring's own surface met wherever the beam's centre crosses the face, so the field goes through each ring as the light there does. In a solid telescope the spot on the front sends the middle of the beam back, the ring round it goes in, off the primary and the spot, and out through the window to its focus; the diffracted field in 2D and 3D shows each, and a ring with no surface (a hole) passes its share on unbent.
+
 ## Settings
 
 {% include jekray_params.html group="free" key="lens" %}

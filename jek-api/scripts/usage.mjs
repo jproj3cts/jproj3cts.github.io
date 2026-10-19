@@ -63,7 +63,7 @@ const top = (props, n = 8) => Object.entries(props).sort((a, b) => b[1] - a[1]).
 function text(r) {
   const { ev, days, visits } = summarise(r);
   const v = ev.open || { total: 0, tiers: {} };
-  console.log(`JEKray usage, ${r.from} to ${r.to} (${r.days} days)\n`);
+  console.log(`JEKray usage, ${r.from} to ${r.to} (${r.days} ${r.days === 1 ? "day" : "days"})\n`);
   console.log(`Visits  ${v.total}   ${TIERS.map((t) => `${TIER_NAMES[t]} ${v.tiers[t] || 0} (${pct(v.tiers[t] || 0, v.total)})`).join(', ')}`);
   const max = Math.max(1, ...days.map((d) => TIERS.reduce((a, t) => a + visits[d][t], 0)));
   for (const d of days.slice(-14)) {
@@ -125,7 +125,7 @@ h1{font-size:22px;margin:0 0 4px}h3{font-size:15px;margin:0 0 2px}h3 span{color:
 .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}.cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px;margin-top:24px}
 table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowrap;text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:500}
 .bar{display:inline-block;height:8px;background:var(--free);border-radius:2px;vertical-align:middle}code{font-size:12px;word-break:break-word;white-space:normal}td:last-child{white-space:normal}td:nth-child(3){white-space:nowrap}</style></head><body><main>
-<h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} days. Counts, not people: a visit is one opening of the app.</p>
+<h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} ${r.days === 1 ? "day" : "days"}. Counts, not people: a visit is one opening of the app.</p>
 <div class="hero"><div><b>${v.total}</b>visits</div>${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
 <h3>Visits a day</h3><div class="key">${TIERS.map((t) => `<span><i class="t-${t}" style="background:var(--${t})"></i>${TIER_NAMES[t]}</span>`).join('')}</div>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visits a day">${grid}${bars}${labels}</svg>

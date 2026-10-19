@@ -190,7 +190,8 @@ export function lensStacks(ss) {
   });
   for (const st of out) {
     const wide = st.members.reduce((a, b) => (b.semi > a.semi ? b : a));
-    st.at = y => { const r = Math.abs(y); return st.members.find(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9) || wide; };
+    // the member whose annulus (hole to clear radius) holds the height, the narrowest where two do; else the widest
+    st.at = y => { const r = Math.abs(y); return st.members.filter(q => r >= (q.hole || 0) - 1e-9 && r <= q.semi + 1e-9).sort((a, b) => (a.semi - (a.hole || 0)) - (b.semi - (b.hole || 0)))[0] || wide; };
     st.sag = y => sagFn(st.at(y), y);
     // the heights the drawing samples: across the stack, with a point either side of each member's edge and hole
     st.edges = [...new Set(st.members.flatMap(q => [q.semi, q.hole || 0].filter(r => r > 0 && r < st.semi)))];

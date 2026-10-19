@@ -233,12 +233,12 @@
     {
      "k": "surfaces",
      "def": "two flat surfaces",
-     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating, \"mirror\": optional {\"zone\": \"all\" | \"in\" | \"out\" | \"none\", \"r\": mm, \"R\": mm or null, \"k\": conic}: the face split at r into its centre and rim; mirrored whole, at the centre (a spot) or at the rim (an annulus round a clear centre), or none; light meeting a mirrored part reflects wholly and stays in the glass; with R and k the centre is a surface of its own over the face’s vertex (null R: a flat ground into the middle), without them it follows the face}. Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
+     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating ({\"mode\": \"bare\" | \"ar\" | \"custom\" | \"band\" | \"stack\" | \"mirror\"}; a mirror coating reflects all it can and passes nothing, \"metal\": \"ideal\" | \"Al\" | \"Ag\" | \"Au\" for its reflectance), \"semi\": optional clear radius, mm (the lens’s own unless given), \"hole\": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face’s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
     },
     {
      "k": "gaps",
      "def": "[3]",
-     "meaning": "mm: centre thicknesses between successive surfaces (one fewer than surfaces)."
+     "meaning": "mm: centre thicknesses between successive surfaces (one fewer than surfaces); 0 stacks the next surface on this one (the two share a vertex, each applying between its hole and its clear radius)."
     },
     {
      "k": "materials",

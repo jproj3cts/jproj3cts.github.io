@@ -1405,6 +1405,11 @@
   .rt-lcyl { margin-left: 0.4rem; font-size: 0.72rem; font-weight: 600; color: #8a4fd1; white-space: nowrap; }
   .rt-ltable tr.asp td { background: rgba(0,0,0,0.02); }
   .rt-ltable td.nm.asp { font-weight: 400; font-style: italic; color: var(--jek-ink-soft); }
+  .rt-ltable tr.unmet td { color: var(--jek-ink-soft); font-style: italic; }
+  .rt-ltable tr.unmet td.nm { font-weight: 400; cursor: default; }
+  .rt-lpathhead { margin-top: 1rem; }
+  .rt-lpath { min-width: 32rem; }
+  .rt-lpath td.nm { cursor: pointer; }
   .rt-laspc { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; align-items: center; }
   .rt-lasp1 { display: flex; align-items: center; gap: 0.3rem; }
   .rt-lnum.wide { width: 7.6rem; }

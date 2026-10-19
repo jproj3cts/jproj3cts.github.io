@@ -20,7 +20,7 @@ export const AREAS = {
     demos: true,
     browser: ['Materials and dispersion', 'Paraxial optics', 'Geometric tracing', 'Fresnel, coatings and polarisation', 'Thin-film coatings', 'Optical path and interference', 'Gaussian beams',
       'Stops and masks on the field', 'Measurements and the ray fan', 'Off-axis apertures, near and far', 'Tolerancing', 'System, absorption and screens', 'A beam across an element’s edge',
-      'Working with several elements', 'Tracing', 'Aberrations', 'Masks as ideal lenses', 'Optimising several parameters', 'Heights', 'Mirrored faces'],
+      'Working with several elements', 'Tracing', 'Aberrations', 'Masks as ideal lenses', 'Optimising several parameters', 'Heights', 'Surfaces: holes, stacks and mirror coatings'],
   },
   field: {
     what: 'the diffracted field: propagation, the close-up, vector focusing, coherence and the 3D field volume',
@@ -63,7 +63,7 @@ export const AREAS = {
     what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
     src: ['src/engines/lens-', 'src/core/assembly.js', 'src/ui/lens-', 'src/ui/assembly.js'],
     node: ['lens-', 'assembly.test.mjs', 'cad-export.test.mjs', 'zmx-cb.test.mjs'],
-    browser: ['Mirrored faces', 'Import, files and tools', 'The Optical designer', 'The Optical designer and the workspaces'],
+    browser: ['Surfaces: holes, stacks and mirror coatings', 'Import, files and tools', 'The Optical designer', 'The Optical designer and the workspaces'],
   },
   rf: {
     what: 'RF: horns, antennas, metal and dielectric parts, graded and zoned lenses, the RF designer',

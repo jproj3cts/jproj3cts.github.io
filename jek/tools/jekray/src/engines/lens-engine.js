@@ -80,8 +80,6 @@ export function lensSystem(P, nm, opts) {
   const S = { N, z, c, k, a2, A, odd, FL, cyl: Uint8Array.from(cy), PH, DM, GR: GR.some(g => g) ? GR : null, semi, n, nm, lam: nm * 1e-6, stop: P.stopIndex >= 0 ? P.stopIndex : 0,
     obj: opts.object > 0 && isFinite(opts.object) ? opts.object : 0 };
   S.mir = Uint8Array.from(P.surfaces, s => s.mirror ? 1 : 0);
-  // a face's centre with a shape of its own (a flat ground into it): inside its radius the sag is the centre's
-  S.cz = P.surfaces.some(s => s.cz) ? P.surfaces.map(s => s.cz ? { r: s.cz.r, c: s.cz.R ? 1 / s.cz.R : 0, k: s.cz.k || 0 } : null) : null;
   // a central obscuration at a meeting of a mirrored face (the spot the light goes round, the hole it later passes through)
   S.obs = P.surfaces.some(s => s.obs > 0) ? Float64Array.from(P.surfaces, s => s.obs > 0 ? s.obs : 0) : null;
   // a surface's first-order power given apart from its vertex (an offset reflector's, about the beam's centre on the section)
@@ -187,8 +185,7 @@ const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
 /* the sag; a zoned RF lens's cut face (S.zone[i], as the RF designer sets it: core/rf.js lensZones) is the smooth face stepped
    back by the whole layers taken out at that radius, each step a sheer wall, as the bench traces it (core/geometry.js) */
-const sag = (S, i, r2) => S.cz && S.cz[i] && r2 <= S.cz[i].r * S.cz[i].r ? sagR2(S.cz[i].c, S.cz[i].k, 0, null, null, r2, true)
-  : sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true) + (S.zone && S.zone[i] ? S.zone[i].sg * S.zone[i].k(Math.sqrt(r2)) * S.zone[i].dz : 0);
+const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true) + (S.zone && S.zone[i] ? S.zone[i].sg * S.zone[i].k(Math.sqrt(r2)) * S.zone[i].dz : 0);
 /* a ray at a zoned face: where it meets the face along its line (the bench's own search, its steps splitting it), or null
    where it runs into a step's wall and is lost; t from (x, y, z) along (L, M, N), the face's vertex at zi */
 function zoneMeet(S, i, x, y, z, L, M, Nn, zi) {
@@ -199,7 +196,6 @@ function zoneMeet(S, i, x, y, z, L, M, Nn, zi) {
 }
 /* d sag / d rho, divided by rho (finite on the axis) */
 function dsagOverR(S, i, r2) {
-  if (S.cz && S.cz[i] && r2 <= S.cz[i].r * S.cz[i].r) { const z = S.cz[i]; return z.c ? z.c / Math.sqrt(Math.max(1e-15, 1 - (1 + z.k) * z.c * z.c * r2)) : 0; }
   const c = S.c[i];
   let v = 0;
   if (c !== 0) v = c / Math.sqrt(Math.max(1e-15, 1 - (1 + S.k[i]) * c * c * r2));

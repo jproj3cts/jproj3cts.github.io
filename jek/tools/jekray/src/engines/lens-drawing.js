@@ -42,7 +42,8 @@ export function drawingData(P, pi, opts) {
   const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irr = on('irr');
   const surfaces = S.map((s, j) => {
     const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R;
-    const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h,
+    const c = s.coat || s.mcoat, coat = c && c.mode === 'mirror' ? (c.metal && c.metal !== 'ideal' ? 'Mirror (' + c.metal + ')' : 'Mirror') : '';
+    const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h, hole: 2 * (s.hole || s.obs || 0), coat,
       sagClear: drawSag(s, h), sagRim: drawSag(s, rim) };
     // convex or concave as the glass sees it: a front face (glass after it) convex with its centre behind it
     const glassAfter = j < n - 1 && M[j].glass !== 'AIR', glassBefore = j > 0 && M[j - 1].glass !== 'AIR';
@@ -62,12 +63,22 @@ export function drawingData(P, pi, opts) {
   const elements = [];
   for (let j = 0; j < n - 1; j++) {
     const m = M[j], ct = G[j], et = ct + surfaces[j + 1].sagRim - surfaces[j].sagRim;
+    // a gap of 0: the next surface stacked on this one, the two one face at one vertex (no glass between)
+    if (ct === 0) { elements.push({ stack: true, ct: 0, et: 0, from: j }); continue; }
     if (m.glass === 'AIR') { elements.push({ air: true, ct, et, from: j }); continue; }
     const nd = refIndex(m, 587.56), vd = vdOf(m);
     elements.push({ from: j, glass: m.glass === 'Model' ? 'Model glass' : matLabel(m), model: m.glass === 'Model', nd, vd, ct, et,
       ctTol: thk, ndTol: dn, vdTol: dv !== null && isFinite(vd) ? vd * dv / 100 : null });
   }
+  // the faces: each a stack of the surfaces sharing a vertex (one surface, mostly), by index into surfaces
+  const stacks = [[0]]; for (let j = 1; j < n; j++) { if (G[j - 1] === 0) stacks[stacks.length - 1].push(j); else stacks.push([j]); }
   const notes = [];
+  for (const st of stacks) {
+    if (st.length < 2) continue;
+    const dia2 = v => (+v.toFixed(3)).toString();
+    notes.push(st.map(j => 'S' + surfaces[j].n).join(', ') + ' are one face, at one vertex: ' + st.map(j => 'S' + surfaces[j].n + ' from Ø' + dia2(surfaces[j].hole) + ' to Ø' + dia2(surfaces[j].clear)).join('; ') +
+      (st.some(j => surfaces[j].hole) ? '. Within a surface’s hole it is not there: the surface stacked with it is.' : '.'));
+  }
   if (S.some(s => s.cyl)) notes.push('A cylindrical lens: its radii are of its curve ' + (S.find(s => s.cyl).cyl === 'y' ? 'in the section drawn; it is flat at right angles to it.' : 'at right angles to the section drawn, which is flat.'));
   S.forEach((s, j) => { if (s.F && Object.values(s.F).some(v => v)) notes.push('Surface ' + (k0 + j + 1) + ' is a freeform: the section drawn is in the plane of the fields; its terms are given in the element data.'); });
   // a diffractive face: its phase, and what its zones come to over the clear radius (each a wrap of 2π in φ, m waves deep)
@@ -85,8 +96,8 @@ export function drawingData(P, pi, opts) {
     notes.push('The glass between surfaces ' + (k0 + j + 1) + ' and ' + (k0 + j + 2) + ' is graded: n(r) = n + ' + terms + ' (r in mm from the axis, n its index on the axis).');
   });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
-  elements.forEach(e => { if (!e.air && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
+  elements.forEach(e => { if (!e.air && !e.stack && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
+  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
 }
 
 /* An RF lens's drawing: the same sheet, with what an RF lens is made to in place of an optical shop's terms.

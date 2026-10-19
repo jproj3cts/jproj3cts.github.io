@@ -7,6 +7,7 @@ import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { lastTrace, sourceLines, traceScene } from '../engines/trace.js';
 import { rayPath } from '../engines/lens-engine.js';
+import { stackOrder } from '../core/sag.js';
 import { ghostPath, ghostsTraceable } from '../engines/lens-ghost.js';
 import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, keepFound, limitKey, meritReport, modelOf, nearestGlass, optApply, optProblem, optRun, optValues, optVars, sameDesign, substIndices, withGlass } from '../engines/lens-opt.js';
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
@@ -312,7 +313,7 @@ export function layoutData(asm, P, F) {
       const semi = Math.max(...st.m.map(k => semiOf(P.surfaces[k]))), edges = [...new Set(st.m.flatMap(k => [P.surfaces[k].semi, P.surfaces[k].obs || 0].filter(r => r > 0 && r < semi)))];
       const ys = []; for (let q = 0; q <= 24; q++) ys.push(-semi + 2 * semi * q / 24); for (const r of edges) for (const sg of [1, -1]) ys.push(sg * (r - 1e-6), sg * (r + 1e-6)); ys.sort((p, q) => p - q);
       const wide = st.m.reduce((p, q) => (semiOf(P.surfaces[q]) > semiOf(P.surfaces[p]) ? q : p));
-      return ys.map(y => { const r = Math.abs(y), k = st.m.filter(q => r >= (P.surfaces[q].obs || 0) - 1e-9 && r <= P.surfaces[q].semi + 1e-9).sort((a, b) => (P.surfaces[a].semi - (P.surfaces[a].obs || 0)) - (P.surfaces[b].semi - (P.surfaces[b].obs || 0)))[0] ?? wide, zz = wsSag(P.surfaces[k], y); return [y, isFinite(zz) ? zz : 0, k]; });
+      return ys.map(y => { const r = Math.abs(y), k = st.m.filter(q => r >= (P.surfaces[q].obs || 0) - 1e-9 && r <= P.surfaces[q].semi + 1e-9).sort((a, b) => stackOrder({ semi: P.surfaces[a].semi, hole: P.surfaces[a].obs }, { semi: P.surfaces[b].semi, hole: P.surfaces[b].obs }))[0] ?? wide, zz = wsSag(P.surfaces[k], y); return [y, isFinite(zz) ? zz : 0, k]; });
     };
     const ps = stacks.map(stProf);
     for (let j = 0; j < sp.n; j++) {
@@ -352,10 +353,16 @@ export function layoutData(asm, P, F) {
   }
   out.lead = lead;
   c.fields.forEach((f, fi) => {
-    for (const py of [-1, -0.5, 0, 0.5, 1]) {
-      const r = rayPath(S, f.deg * deg, 0, py);
-      if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
+    // the edges, the middle and halfway of the pupil; but where some of those are stopped (a telescope's secondary in the
+    // middle, a rim at the edge), five spread over the heights the light gets through, so its way through is what is drawn
+    const STD = [-1, -0.5, 0, 0.5, 1], at = py => rayPath(S, f.deg * deg, 0, py);
+    let rs = STD.map(at);
+    if (rs.some(r => !r || r.lost !== -1)) {
+      const ok = [];
+      for (let q = 0; q <= 80; q++) { const py = -1 + q / 40, r = at(py); if (r && r.lost === -1) ok.push(r); }
+      if (ok.length) rs = ok.length <= 5 ? ok : [0, 1, 2, 3, 4].map(q => ok[Math.round(q * (ok.length - 1) / 4)]);
     }
+    for (const r of rs) if (r) out.rays.push({ field: fi, pts: r.pts, lost: r.lost });
   });
   // the ghost chosen in the Analyses, its rays from the field shown there
   const an = WS && WS.tab === 'analyses' && WS.ana;

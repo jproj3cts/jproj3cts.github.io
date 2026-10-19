@@ -422,6 +422,20 @@ const FF_SY_LENS = 1, FF_SY_MIRROR = -1;
    first crossing it (glink). An odd number of reflections sends the light back the way it came, and the lens folds
    the axis as a mirror does. */
 export const PATH_VISITS_MAX = 10;
+/* the ring of a stack where member j is the surface met (the narrowest member holding each height, as lensPath, the bench
+   and the drawings take it): [inner, outer] radius, or null where it is never met. A window stacked in a primary's hole
+   reaches only to the hole, whatever its own clear radius: the primary is the surface beyond it */
+export function stackRing(S2, members, j) {
+  const outer = Math.max(...members.map(i => S2[i].semi));
+  const edges = [...new Set([0, outer, ...members.flatMap(i => [S2[i].semi, S2[i].hole || 0])])].filter(r => r >= 0 && r <= outer).sort((a, b) => a - b);
+  let lo = null, hi = null;
+  for (let q = 0; q + 1 < edges.length; q++) {
+    const mid = (edges[q] + edges[q + 1]) / 2;
+    const m = members.filter(i => mid >= (S2[i].hole || 0) && mid <= S2[i].semi).sort((a, b) => (S2[a].semi - (S2[a].hole || 0)) - (S2[b].semi - (S2[b].hole || 0)))[0];
+    if (m === j) { if (lo === null) lo = edges[q]; hi = edges[q + 1]; }
+  }
+  return lo === null ? null : [lo, hi];
+}
 export function lensPath(S2, G2, N2, h0) {
   const n = S2.length, zs = [0]; for (const g of G2) zs.push(zs[zs.length - 1] + g);
   const stacks = []; S2.forEach((s, i) => { if (!i || G2[i - 1] !== 0) stacks.push({ z: zs[i], m: [i] }); else stacks[stacks.length - 1].m.push(i); });
@@ -539,6 +553,10 @@ export function asmPrescription(asm, els) {
           const s = Object.assign(flipped ? flipSurf(base) : Object.assign({}, base), { semi: base.semi, hole: base.hole, coat: base.coat, mcoat: base.mcoat, from: { id: base.from.id, i: base.from.i, v }, cum: x.j, fflip: flip !== flipped, vflip: flipped });
           if (!s.A) s.A = []; if (s.odd === undefined) s.odd = null;
           if (base.hole > 0) s.obs = base.hole;
+          // stacked: only the ring where this member is the surface met (a window in a primary's hole, out to the hole)
+          const stk = V.stacks.find(t => t.m.includes(x.j)), ring = stk && stk.m.length > 1 ? stackRing(S2, stk.m, x.j) : null;
+          // (the part keeps its own clear radius and hole: what is written back unless changed here)
+          if (ring) { const own = { semi: s.semi, obs: s.obs || 0 }; s.semi = Math.min(s.semi, ring[1]); if (ring[0] > 0) s.obs = Math.max(s.obs || 0, ring[0]); s.clip = { semi: s.semi, obs: s.obs || 0, own }; }
           if (x.role === 'mirror') s.mirror = true;
           if (owner[x.j] < 0) { owner[x.j] = S3.length; s.faceOwn = true; } else s.link = { i: owner[x.j], flip: flipped !== S3[owner[x.j]].vflip };
           if (q) {
@@ -723,8 +741,10 @@ export function asmApply(asm, P, els) {
             t.R = u.R === 0 || !isFinite(u.R) ? null : u.R; t.k = u.k; t.a2 = u.a2 || 0; t.A = (u.A || []).slice(); if (u.odd) t.odd = u.odd.slice(); else delete t.odd;
             const tF = ffTurn(u.F, FF_SY_LENS, 1); if (tF && Object.keys(tF).length) t.F = tF; else delete t.F;
             const tP = normPh(u.ph); if (tP) t.ph = tP; else delete t.ph;
-            if (Math.abs(s.semi - e.diameter / 2) >= 1e-9) t.semi = s.semi; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
-            if (s.obs > 0 || t.hole) t.hole = s.obs > 0 ? s.obs : 0;
+            // a stacked surface clipped to its ring (lensPath's stackRing) writes back its own clear radius and hole, unless changed
+            const semiW = s.clip && Math.abs(s.semi - s.clip.semi) < 1e-9 ? s.clip.own.semi : s.semi, obsW = s.clip && Math.abs((s.obs || 0) - s.clip.obs) < 1e-9 ? s.clip.own.obs : s.obs;
+            if (Math.abs(semiW - e.diameter / 2) >= 1e-9) t.semi = semiW; else if (t.semi && Math.abs(t.semi - e.diameter / 2) >= 1e-9) t.semi = null;
+            if (obsW > 0 || t.hole) t.hole = obsW > 0 ? obsW : 0;
             if (s.coat) t.coat = normCoat(s.coat);
           }
           if (s.gidx !== undefined && q < G.length) { e.gaps[s.gidx] = G[q]; const c = Object.assign({}, M[q]); delete c.gh; if (c.grad) c.grad = c.grad.slice(); e.materials[s.gidx] = c; }

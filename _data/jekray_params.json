@@ -659,6 +659,11 @@
      "meaning": "true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA."
     },
     {
+     "k": "coll",
+     "def": "0",
+     "meaning": "mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam's mode."
+    },
+    {
      "k": "popN",
      "def": "256",
      "meaning": "grid points for the field of the beam it sends out: 128, 256, 512 or 1024."

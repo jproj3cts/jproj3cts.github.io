@@ -25,6 +25,10 @@ export function fibreMode(coreUm, na, nm) {
   const a = coreUm / 2, V = 2 * Math.PI * a * na / (nm / 1000);
   return { w: 1e-3 * a * (0.65 + 1.619 * Math.pow(V, -1.5) + 2.879 * Math.pow(V, -6)), V };
 }
+/* the mode a single-mode tip sends out and takes in by, its 1/e^2 radius at the face, mm: the fibre's own, or with a collimating
+   lens of focal length f, the collimated beam it makes, lambda f / (pi w), its waist taken on the lens (its Rayleigh range is
+   metres against the lens's millimetres) */
+export const tipModeW = (tip, nm) => { const w = fibreMode(tip.core, tip.na, nm).w; return tip.coll > 0 ? nm * 1e-6 * tip.coll / (Math.PI * w) : w; };
 /* a source launched from a fibre: its beam is the fibre's mode, waist on the tip */
 export function applyFibre(src) {
   if (!src.fibre) return;
@@ -240,7 +244,7 @@ export function fibreCoupling(el) {
     let inMw = 0, coupledMw = 0, arrivingShare = 0, coupledShare = 0, mode = null;
     for (const G of groupsOf(arr)) {
       const src = G[0].src, nm = G[0].nm;
-      mode = fibreMode(el.core, el.na, nm);
+      mode = fibreMode(el.core, el.na, nm); if (el.coll > 0) mode = Object.assign({}, mode, { w: tipModeW(el, nm) });
       const wf = mode.w, L = 3.5 * wf, d = 2 * L / N;
       let cs = [0, 0], cp = [0, 0], pin = 0;
       for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;

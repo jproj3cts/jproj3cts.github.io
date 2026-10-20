@@ -355,6 +355,7 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | na | `0.12` | numerical aperture. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
 | mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
+| coll | `0` | mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam's mode. |
 | popN | `256` | grid points for the field of the beam it sends out: 128, 256, 512 or 1024. |
 | popModel | `"auto"` | "auto" (round when it can be) or "2d" (always 2D, with polarisation). |
 

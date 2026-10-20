@@ -2468,6 +2468,21 @@ const TESTS = [
     run: () => TESTS_EXPECT.tiltD.visibility,
   },
   {
+    name: 'Fringes finer than the map still read their full visibility',
+    why: 'two beams split from one 1550 nm laser crossing at 2\u00b0 (fringes 44 \u00b5m apart) and at 0.5\u00b0: visibility from the cross terms, not the pixels\u2019 extremes, is 1 for both and for the beams laid on one another; two separate lasers give none (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const pair = (deg, split) => bench('xfr', [
+        src({ id: 'xfA', name: 'A', x: -60, y: 0, wavelength: 1550, width: 4, rays: 11, gauss: true, w0: 2 }),
+        src({ id: 'xfB', name: 'B', x: -60, y: 0.1, angle: deg, wavelength: 1550, width: 4, rays: 11, gauss: true, w0: 2, splitFrom: split ? 'xfA' : null }),
+        screen({ name: 'Out', x: 0, angle: 180, length: 25.4 }),
+      ]);
+      const vis = (deg, split) => { J.load(pair(deg, split)); return J.diffraction('Out').visibility; };
+      const v2 = vis(2, true), v05 = vis(0.5, true), v0 = vis(0, true), sep = vis(2, false);
+      return v2 > 0.98 && v05 > 0.98 && v0 > 0.98 && sep === null ? 1 : 0;
+    },
+  },
+  {
     name: 'Crossed polarisations do not interfere',
     why: 'a quarter-wave plate at 45\u00b0 passed twice turns one arm from s to p; the output takes half at any path difference',
     want: 1, tol: 1e-3, unit: ' (coherent / incoherent)',

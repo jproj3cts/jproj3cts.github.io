@@ -40,7 +40,8 @@ function binnedFieldRaw(el) {
   const interp = el.binInterp !== false;
 
   const coh = new Float64Array(n), inc = new Float64Array(n);
-  let cross = 0;                  // the largest cross term between two paths of one launch: none, and nothing interferes
+  // the size of the cross terms between the paths of one launch in each bin, so how deep its fringes run there
+  const cross = new Float64Array(n);
   const byNm = new Map();
   for (const t of all) { if (!byNm.has(t.nm)) byNm.set(t.nm, []); byNm.get(t.nm).push(t); }
 
@@ -91,13 +92,15 @@ function binnedFieldRaw(el) {
     for (const F of own) { if (!launches.has(F.fam)) launches.set(F.fam, []); launches.get(F.fam).push(F); }
     for (const Fs of launches.values()) for (let b = 0; b < n; b++) {
       const on = Fs.filter(F => F.Lw[b * 2 + 1] > 0), o = b * 4;
+      let xr = 0, xi = 0;
       for (let i = 0; i < on.length; i++) for (let j = i; j < on.length; j++) {
         const A = on[i], B = on[j];
         const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
         const g = i === j || !A.g ? 1 : A.g(A.Lw[b * 2] / A.Lw[b * 2 + 1] + A.lag - B.Lw[b * 2] / B.Lw[b * 2 + 1] - B.lag);
         coh[b] += (i === j ? 1 : 2 * g) * d;
-        if (i !== j) cross = Math.max(cross, Math.abs(2 * g * d));
+        if (i !== j) { xr += g * d; xi += g * (A.acc[o + 1] * B.acc[o] - A.acc[o] * B.acc[o + 1] + A.acc[o + 3] * B.acc[o + 2] - A.acc[o + 2] * B.acc[o + 3]); }
       }
+      cross[b] += 2 * Math.hypot(xr, xi);
     }
   }
 
@@ -107,17 +110,13 @@ function binnedFieldRaw(el) {
     if (coh[b] > cMax) cMax = coh[b];
     if (inc[b] > iMax) iMax = inc[b];
   }
+  // fringe visibility, 2|cross terms| over the powers' sum at its deepest where the light is (5% of the peak and up): it needs
+  // light that meets itself by two paths, so separate lasers overlapping, or one beam's own profile, show none
   let vis = null;
-  // fringes need light that interferes: separate lasers overlapping, or one beam's own profile, vary in brightness but make none
-  if (cMax > 0.05 * iMax && cross > 1e-6 * iMax) {
-    let vlo = Infinity, vhi = 0, lit = 0;
-    for (let b = 0; b < n; b++) {
-      if (inc[b] < 0.05 * iMax) continue;
-      lit++;
-      if (coh[b] < vlo) vlo = coh[b];
-      if (coh[b] > vhi) vhi = coh[b];
-    }
-    if (lit > 2 && vhi > 0) vis = (vhi - vlo) / (vhi + vlo);
+  if (cMax > 0.05 * iMax) {
+    let vMax = 0;
+    for (let b = 0; b < n; b++) if (inc[b] >= 0.05 * iMax) vMax = Math.max(vMax, Math.min(1, cross[b] / inc[b]));
+    if (vMax > 1e-6) vis = vMax;
   }
   return { lo, hi, width, n, interp, coh, inc, max: cMax, incMax: iMax,
     visibility: vis, interference: sumI > 0 ? sumC / sumI : null,

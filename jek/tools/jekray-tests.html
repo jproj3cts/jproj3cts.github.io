@@ -2496,7 +2496,7 @@ const TESTS = [
         let s1 = 0, s2 = 0, k = 0; for (const [i, j, I] of pts) if (Math.hypot(i - ci, j - cj) < 0.5 * R) { s1 += I; s2 += I * I; k++; }
         const m = s1 / k; return Math.sqrt(s2 / k - m * m) / m;
       };
-      const hard = ripple({ edgeAuto: false, edge: 0 }), auto = ripple({}), set = ripple({ edgeAuto: false, edge: 0.3 });
+      const hard = ripple({ softAuto: false, soft: 0 }), auto = ripple({}), set = ripple({ softAuto: false, soft: 0.3 });
       return hard > 0.005 && auto < 0.001 && set < hard && set > auto ? 1 : 0;
     },
   },

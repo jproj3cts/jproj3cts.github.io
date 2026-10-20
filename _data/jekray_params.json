@@ -17,12 +17,12 @@
      "meaning": "mm: the full width of the ray fan (follows the beam when gauss is true)."
     },
     {
-     "k": "edgeAuto",
+     "k": "softAuto",
      "def": "true",
-     "meaning": "true (the default) sets edge for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps edge as given."
+     "meaning": "true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given."
     },
     {
-     "k": "edge",
+     "k": "soft",
      "def": "0",
      "meaning": "mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge."
     },

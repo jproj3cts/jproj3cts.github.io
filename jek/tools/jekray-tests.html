@@ -4732,11 +4732,11 @@ const TESTS = [
   },
   {
     name: 'and its light beats with itself on a photodetector',
-    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2B\u222bS\u00b2d\u03bd = R\u00b2P\u00b2B/(2\u03c3\u221a\u03c0) for its Gaussian spectrum (\u03c3 its width in Hz over 2.355), over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B/(2\u03c3\u221a\u03c0), and 1 if it stays for a single frequency',
+    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2B\u2099\u222bS\u00b2d\u03bd = R\u00b2P\u00b2B\u2099/(2\u03c3\u221a\u03c0) for its Gaussian spectrum (\u03c3 its width in Hz over 2.355; B\u2099 = \u03c0B/2 the noise bandwidth of the detector\u2019s single pole), over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B\u2099/(2\u03c3\u221a\u03c0), and 1 if it stays for a single frequency',
     want: 1, tol: 1e-6, unit: '',
     run: J => {
       const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1, bw: 40 }, o)), fc('pd', 'P', { material: 'custom', resp: 1 })], [['L', 0, 'P', 0]])); return J.pdSignal('P'); };
-      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.B, sg = 299792458 * 40e-9 / (1550e-9) ** 2 / 2.3548;
+      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.Bn, sg = 299792458 * 40e-9 / (1550e-9) ** 2 / 2.3548;
       return S.noise.parts.aseAse / ((1e-3) ** 2 * B / (2 * sg * Math.sqrt(Math.PI))) + (C.noise.parts.aseAse > 0 ? 1 : 0);
     },
   },
@@ -7459,12 +7459,12 @@ const TESTS = [
   },
   {
     name: 'A receiver’s frequency sweep reads, at the bench’s frequency, what the receiver reads, and its link budget adds up to it',
-    why: 'two horns 300 mm apart with a band-pass mesh between: the sweep’s S21 at the centre against 10 log10 of the power the receiver takes in over the power launched, and the link budget’s total against the same (largest difference, dB)',
+    why: 'two horns 300 mm apart with a band-pass mesh between: the sweep’s S21 at the centre against 10 log10 of the power the receiver takes in over the power the feed horn is set to (its dBm: the share g its modes carry is a loss of the link), and the link budget’s total against the same (largest difference, dB)',
     want: 0, tol: 1e-6, unit: 'dB',
     run: J => {
       J.load(rfBench(300, [{ type: 'filter', name: 'Me', x: 150, y: 0, angle: 0, length: 100, ftype: 'mesh', mesh: 'bandpass', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0.3, reflect: true, mmw: {} }], { ghz: 150 }));
       const el = J.byName('Rx'); el.mmw.span = 20; el.mmw.points = 11;
-      const S = J.rfSweep('Rx'), L = J.linkBudget('Rx'), r = J.detector('Rx').rf, want = 10 * Math.log10(r.mw / J.byName('Horn').power);
+      const S = J.rfSweep('Rx'), L = J.linkBudget('Rx'), r = J.detector('Rx').rf, want = 10 * Math.log10(r.mw / Math.pow(10, J.byName('Horn').mmw.dbm / 10));
       const at = S.ghz.findIndex(f => Math.abs(f - 150) < 1e-6);
       return Math.max(Math.abs(S.s21[at] - want), Math.abs(L.total - want));
     },
@@ -7522,7 +7522,7 @@ const TESTS = [
   },
   {
     name: 'A video detector puts out its responsivity times the power, over its NEP',
-    why: 'a receiving horn with a square-law detector of 1000 V/W and 5 pW/√Hz over a 1 MHz video bandwidth: its output is 1000 V/W times the power its mode takes in, and the noise 5 µV rms; the volts read against the power, per watt',
+    why: 'a receiving horn with a square-law detector of 1000 V/W and 5 pW/√Hz through a 1 MHz video bandwidth (a single pole: a noise bandwidth of π/2 MHz): its output is 1000 V/W times the power its mode takes in, and the noise 5 pW/√Hz · √(π/2 MHz) · 1000 V/W = 6.27 µV rms; the volts read against the power, per watt',
     want: 1000, tol: 1e-6, unit: 'V/W',
     run: J => { const B = rfBench(120, []); Object.assign(B.elements[1].mmw, { rx: 'video', rv: 1000, nep: 5, vbw: 1 }); J.load(B); const r = J.detector('Rx'); return r.V / (r.mw * 1e-3); },
   },
@@ -7544,14 +7544,14 @@ const TESTS = [
   },
   {
     name: 'An upconverting horn sends its IF up and a mixer brings it down: the link is linear in the IF voltage',
-    why: 'a 1 GHz, 1 V generator into a 150 GHz upconverter (6 dB conversion loss) sends two sidebands, 149 and 151 GHz, across to a mixer with a 149 GHz local oscillator (6 dB, a 5 GHz IF band): the IF out has the upper sideband at 2 GHz, half the drive times √(G · 10^-1.2), G the link’s power transfer from the horn’s nominal power to what the receiver takes in, through the IF band’s pole; and a video detector in its place reads the mean carrier power, (1 V)² / 2 / 50 Ω less 6 dB, through the link, times its 1000 V/W (1 when both hold to 1%)',
+    why: 'a 1 GHz, 1 V generator into a 150 GHz smooth-wall upconverter (6 dB conversion loss; its modes carry g = 94% of its power) sends two sidebands, 149 and 151 GHz, across to a mixer with a 149 GHz local oscillator (6 dB, a 5 GHz IF band): the IF out has the upper sideband at 2 GHz, half the drive times √(G · 10^-1.2), G the link’s power transfer from the horn’s nominal power to what the receiver takes in, through the IF band’s pole; and a video detector in its place reads the mean carrier power, (1 V)² / 2 / 50 Ω less 6 dB, times g, through the link, times its 1000 V/W (1 when both hold to 1%)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.experimental(true);
       try {
-        const mk = rxo => { const B = rfBench(120, [elecPart('sig', 'G', { f: 1e9, amp: 1, x: -60, y: 40 })], { ghz: 150 }); B.elements[0].id = 'H'; B.elements[0].mmw.tx = 'up'; B.elements[0].mmw.cl = 6; Object.assign(B.elements[2].mmw, rxo); B.elements[2].id = 'R'; B.fibres = [{ a: ['G', 0], b: ['H', 0], wire: true }]; return B; };
+        const mk = rxo => { const B = rfBench(120, [elecPart('sig', 'G', { f: 1e9, amp: 1, x: -60, y: 40 })], { ghz: 150 }); B.elements[0].id = 'H'; B.elements[0].mmw.kind = 'smooth'; B.elements[0].mmw.tx = 'up'; B.elements[0].mmw.cl = 6; Object.assign(B.elements[2].mmw, rxo); B.elements[2].id = 'R'; B.fibres = [{ a: ['G', 0], b: ['H', 0], wire: true }]; return B; };
         J.load(mk({ rx: 'mixer', lo: 149, cl: 6, ifbw: 5000 }));
-        const G = J.detector('Rx').mw / 1;                                    // from the nominal 0 dBm
+        const G = J.detector('Rx').mw / 1;                                    // from the nominal 0 dBm (g in it)
         const S = J.elec.signal('Rx', 0), t = S.tones.find(q => Math.abs(q.f - 2e9) < 1);
         const ok1 = t && Math.abs(t.amp / (0.5 * Math.sqrt(G * Math.pow(10, -1.2)) / Math.sqrt(1 + (2e9 / 5e9) ** 2)) - 1) < 1e-6;
         J.load(mk({ rx: 'video', rv: 1000, nep: 5, vbw: 5000 }));

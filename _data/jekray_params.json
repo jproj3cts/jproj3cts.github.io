@@ -335,7 +335,7 @@
     {
      "k": "trap",
      "def": "\"none\"",
-     "meaning": "\"none\", an atom (\"Rb87\", \"Rb85\", \"Cs133\", \"K39\", \"Na23\") or \"sphere\" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region."
+     "meaning": "\"none\", an atom (\"Rb87\", \"Rb85\", \"Cs133\", \"K39\", \"K41\", \"Na23\") or \"sphere\" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region."
     },
     {
      "k": "trapF",
@@ -703,7 +703,7 @@
     {
      "k": "bandwidth",
      "def": "1000000",
-     "meaning": "Hz."
+     "meaning": "Hz: the amplifier’s 3 dB bandwidth, a single pole; its noise counts over π/2 times it."
     },
     {
      "k": "dark",
@@ -1019,7 +1019,7 @@
     {
      "k": "atom",
      "def": "\"Rb\"",
-     "meaning": "\"Rb\" (natural), \"Rb85\", \"Rb87\", \"Cs\" or \"K\"."
+     "meaning": "\"Rb\" (natural), \"Rb85\", \"Rb87\", \"Cs\", \"K\" (natural: 39K and 41K), \"K39\" or \"K41\"."
     },
     {
      "k": "line",

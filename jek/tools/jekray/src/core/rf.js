@@ -209,7 +209,8 @@ export function normRf(r, type) {
     o.rx = RF_RX[r.rx] ? r.rx : 'video';
     o.tant = clamp(num(r.tant, 295), 0, 1e5);                                                // what it looks into, K
     if (o.rx === 'video') { o.rv = clamp(num(r.rv, 1000), 1e-3, 1e7); o.nep = clamp(num(r.nep, 5), 1e-4, 1e6); o.vbw = clamp(num(r.vbw, 1), 1e-6, 1e5); }   // V/W, pW/rtHz, MHz
-    else { o.lo = clamp(num(r.lo, 100), 1, 3000); o.cl = clamp(num(r.cl, 6), 0, 60); o.trx = clamp(num(r.trx, 1000), 0, 1e6); o.ifbw = clamp(num(r.ifbw, 1000), 1e-3, 1e5); }   // GHz, dB, K, MHz
+    else { o.lo = clamp(num(r.lo, 100), 1, 3000); o.cl = clamp(num(r.cl, 6), 0, 60); o.trx = clamp(num(r.trx, 1000), 0, 1e6); o.ifbw = clamp(num(r.ifbw, 1000), 1e-3, 1e5);   // GHz, dB, K, MHz
+      o.sideband = r.sideband === 'dsb' ? 'dsb' : 'ssb'; }   // 'ssb': trx an SSB temperature, the image terminated cold (as files before it read); 'dsb': trx DSB, the antenna's noise in both sidebands
   }
   return o;
 }

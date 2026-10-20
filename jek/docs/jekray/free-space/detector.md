@@ -43,10 +43,10 @@ with $$\mathbf E$$ the fields summed over the diode, and each pair of paths weig
 
 ### Noise
 
-The noise is shot noise on the photocurrent and dark current, the gain resistor's Johnson noise, and the amplifier's input current noise, over the bandwidth:
+The noise is shot noise on the photocurrent and dark current, the gain resistor's Johnson noise, and the amplifier's input current noise, over the noise bandwidth. The bandwidth $$B$$ is a single pole's 3 dB corner, so white noise through it counts over $$B_n = \tfrac{\pi}{2}B$$:
 
 $$
-\overline{i_n^2} = 2q\left(I + I_\text{dark}\right)B + \frac{4kTB}{G} + i_a^2 B, \qquad T = 295\ \text{K},
+\overline{i_n^2} = 2q\left(I + I_\text{dark}\right)B_n + \frac{4kTB_n}{G} + i_a^2 B_n, \qquad T = 295\ \text{K},
 $$
 
 and the signal-to-noise ratio is $$20\log_{10}(I / i_n)$$.

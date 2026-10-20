@@ -6,12 +6,12 @@ import { requestRender } from '../ui/render.js';
 import { allSweeps, pauseAll, playAll, playing } from '../ui/sweeps.js';
 import { V3D } from '../ui/view3d.js';
 import { h, holdScroll, mainPanel, pinBoxes, pinOk, pins, renderPanel, setPins, viewState, vs } from '../ui/panel.js';
-import { toast } from '../ui/actions.js';
+import { saveFile, toast } from '../ui/actions.js';
 import { undo } from '../ui/tabs.js';
 import { openProjectData } from './open.js';
-import { accountsOn, api } from './account.js';
+import { account, accountsOn, api, shareSignIn } from './account.js';
 import { designPro, designWhy } from '../ui/pro.js';
-import { track } from './usage.js';
+import { goal, track } from './usage.js';
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed. A share link is JEKrayPro's: the
@@ -190,6 +190,7 @@ export async function qrLink() {
 }
 async function shareLink() {
   const short = accountsOn();
+  if (short && account === null) { shareSignIn(saveFile); return; }
   if (short && !designPro('share a link')) return;
   const id = short ? await shortLink() : null, hash = short ? '#s=' + id : '#p=' + await shareHash(), url = short ? shortUrl(id) : shareBase() + hash;
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
@@ -202,6 +203,7 @@ async function shareLink() {
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
     : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
   dlg.showModal(); box.focus(); box.select();
+  goal('share');
   try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; }
   catch (err) { document.getElementById('shareCopy').textContent = 'Copy'; }
 }

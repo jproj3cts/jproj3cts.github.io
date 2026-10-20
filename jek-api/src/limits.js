@@ -29,6 +29,7 @@ const SLOW = [
   ['DELETE', /^\/v1\/teams\/[^/]+$/],
   ['POST', /^\/v1\/invitations\/accept$/],
   ['POST', /^\/v1\/quotes$/],
+  ['POST', /^\/v1\/remind$/],
   ['POST', /^\/v1\/links$/],
 ];
 

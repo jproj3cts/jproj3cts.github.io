@@ -15,6 +15,7 @@ import { ApiError } from './util.js';
 
 export const EVENTS = new Set([
   'open', 'leave', 'screen', 'browser',                 // a visit: how it began, how long, on what
+  'from', 'goal', 'prompt', 'remind',                   // where a visit came from (a post's tag), what it led to, sign-in prompts, links emailed
   'part', 'example', 'import', 'export', 'save', 'share', 'view', 'beam', 'sweep', 'field',
   'designer', 'optimise', 'analysis', 'tolerance', 'report', 'search',
   'tour', 'help', 'news', 'signin', 'subscribe', 'quote', 'mod', 'experimental', 'cloud',

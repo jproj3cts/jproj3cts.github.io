@@ -15,6 +15,7 @@ import * as P from './parts.js';
 import * as L from './links.js';
 import * as T from './teams.js';
 import * as U from './usage.js';
+import { remind } from './remind.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { cancelAtPeriodEnd, checkout, portal, priceList, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
@@ -155,6 +156,8 @@ const router = new Router()
   .on('POST', '/v1/invitations/accept', async (req, env, ctx) => json(await T.accept(req, env, await requireUser(req, env, ctx))))
   // usage counts from the app, signed in or not, saying nothing of who (src/usage.js)
   .on('POST', '/v1/events', async (req, env) => json(await U.record(req, env)))
+  // a link to the app emailed from a phone, for a computer: no sign-in (src/remind.js)
+  .on('POST', '/v1/remind', async (req, env) => json(await remind(req, env)))
   // a quote request from the site's quote cart: no sign-in (src/quotes.js)
   .on('POST', '/v1/quotes', async (req, env) => json(await requestQuote(req, env)))
   // billing

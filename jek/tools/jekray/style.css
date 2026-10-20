@@ -1574,3 +1574,14 @@
   .rt-panel input, .rt-panel select { min-height: 2.25rem; font-size: 16px; }
   .rt-pin { width: 2.2rem; height: 2.2rem; }
 }
+
+/* the phone's welcome: the link emailed for a computer (news.js remindForm) */
+.rt-welcome .rt-remind { margin: 0 0 0.6rem; }
+.rt-welcome .rt-remind label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+.rt-welcome .rt-remind > div { display: flex; gap: 0.4rem; }
+.rt-welcome .rt-remind input { flex: 1; min-width: 0; font: inherit; padding: 0.3rem 0.45rem; border: 1px solid var(--jek-line, #ccc); border-radius: 2px; }
+.rt-welcome .rt-wsay { margin: 0.35rem 0 0; color: var(--jek-ink-soft); }
+/* the note after a file save, signed out, and the share dialog's sign-in row (account.js) */
+.rt-welcome.rt-nudge p { margin: 0 0 0.6rem; color: var(--jek-ink-soft); }
+.rt-welcome.rt-nudge .rt-actions { flex-wrap: wrap; }
+dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; margin: 0.6rem 0; }

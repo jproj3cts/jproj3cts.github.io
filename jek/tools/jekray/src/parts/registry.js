@@ -12,6 +12,7 @@ import { LENS } from './lens.js';
 import { GRATING } from './grating.js';
 import { FIBRE } from './fibre.js';
 import { DETECTOR } from './detector.js';
+import { SPECTROMETER } from './spectrometer.js';
 import { FARADAY } from './faraday.js';
 import { ISOLATOR } from './isolator.js';
 import { CRYSTAL } from './crystal.js';
@@ -37,14 +38,14 @@ import { GAIN } from './gain.js';
    by type in engines/trace.js and ui/view3d.js.
    ========================================================================== */
 export const PARTS = {
-  stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN
+  stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, spectrometer: SPECTROMETER, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN
 };
 /* the order the guide and the labels list them in */
-export const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism', 'waveplate', 'polariser', 'mask', 'grating', 'fibre', 'detector', 'faraday', 'isolator', 'stl', 'crystal', 'filter', 'gain', 'cell', 'nlc', 'link', 'aom', 'eom', 'chopper', 'draw'];
+export const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism', 'waveplate', 'polariser', 'mask', 'grating', 'fibre', 'detector', 'spectrometer', 'faraday', 'isolator', 'stl', 'crystal', 'filter', 'gain', 'cell', 'nlc', 'link', 'aom', 'eom', 'chopper', 'draw'];
 export const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
-export const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, CHOPPER, AOM, EOM, LINK];
-export const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']],
+export const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
+export const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'spectrometer', 'screen', 'fibre', 'collimator']],
   ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],

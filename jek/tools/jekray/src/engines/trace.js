@@ -692,7 +692,7 @@ function traceSceneOnce() {
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
-  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
+  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'spectrometer' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [], nlcHits = [];
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
   // which bounds them too; a pile of elements on one spot would otherwise split every branch again)

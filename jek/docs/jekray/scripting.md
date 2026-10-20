@@ -43,6 +43,7 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.select(name)` | Selects a part, so its panel is open. |
 | `JEKray.stats(name)` | A screen's spot: count, centroid, rms, full width, power. |
 | `JEKray.detector(name)` | A photodetector's or receiving horn's reading: mW, volts, SNR. |
+| `JEKray.spectrometer(name)` | A spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance, counts, saturation, SNR and the lines that get in. |
 | `JEKray.lensAntenna(name)` | An RF lens, disc or mirror on its axis as an antenna: gain, beamwidth, sidelobe, efficiencies. |
 | `JEKray.rfSweep(name)`, `JEKray.linkBudget(name)` | A receiving horn against frequency, and its link budget. |
 | `JEKray.arrivals(name)` | The Gaussian beams arriving at a part's face: each beam's q, direction, polarisation and path. |
@@ -66,6 +67,7 @@ const B = await openFile('my-bench.jekray');
 B.trace();                                   // { rays, rayPower, beams, dropped, absorbed }
 B.screen('Sensor');                          // the spot on a screen
 B.detector('PD');                            // a photodetector's reading
+B.spectrometer('Spectrometer');              // a spectrometer's peak, width, counts and SNR
 B.antenna('GRIN lens');                      // an RF lens as an antenna
 B.paraxial('Lens', 633);                     // { efl, bfl }
 B.set('Lens', 'x', 120).screen('Sensor');    // move a part, read again
@@ -100,7 +102,7 @@ node jek/tools/jekray/cli.mjs rf bench.jekray "RF" --ghz 24
 node jek/tools/jekray/cli.mjs sweep bench.jekray "Horn" mmw.ghz 20:28:9 --read "antenna:GRIN lens" --csv
 ```
 
-The commands: `trace`, `elements`, `screen`, `detector`, `antenna`, `paraxial` (`--nm`), `cavities`, `arrivals`; for an assembly, `assemblies`, `prescription`, `lens`, `spot` and `wavefront` (`--deg`), `mtf` (`--deg`, `--freq` once per frequency), `fieldcurves`, `relillum`, `merit` and `zmx` (parts' names, `--nm`; the lens file on standard output); for RF, `rf` (`--ghz`), `rfband`, `rfsweep`, `linkbudget`; and `sweep`. A sweep takes a part, a parameter path and values (`a:b:n` for n values from a to b, or `a,b,c`), and one or more `--read kind:Name` (screen, detector, antenna, paraxial, rf, lens, spot, wavefront, mtf, merit, or `trace`) for what to record at each value.
+The commands: `trace`, `elements`, `screen`, `detector`, `spectrometer`, `antenna`, `paraxial` (`--nm`), `cavities`, `arrivals`; for an assembly, `assemblies`, `prescription`, `lens`, `spot` and `wavefront` (`--deg`), `mtf` (`--deg`, `--freq` once per frequency), `fieldcurves`, `relillum`, `merit` and `zmx` (parts' names, `--nm`; the lens file on standard output); for RF, `rf` (`--ghz`), `rfband`, `rfsweep`, `linkbudget`; and `sweep`. A sweep takes a part, a parameter path and values (`a:b:n` for n values from a to b, or `a,b,c`), and one or more `--read kind:Name` (screen, detector, spectrometer, antenna, paraxial, rf, lens, spot, wavefront, mtf, merit, or `trace`) for what to record at each value.
 
 ```sh
 node jek/tools/jekray/cli.mjs sweep bench.jekray "L2" x 24:26:21 --read "spot:Cooke triplet" --deg 14 --csv

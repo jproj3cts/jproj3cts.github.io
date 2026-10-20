@@ -14,12 +14,12 @@ export async function engine() {
   globalThis.self = globalThis;
   if (!globalThis.location) globalThis.location = { hostname: '', hash: '', search: '', href: '' };
   workerShim();
-  const [ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE] = await Promise.all([
+  const [ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE, SPEC] = await Promise.all([
     import('./src/state/project.js'), import('./src/state/elements.js'), import('./src/engines/trace.js'), import('./src/engines/screen-stats.js'),
     import('./src/engines/fibre-face.js'), import('./src/engines/antenna-field.js'), import('./src/engines/detector.js'), import('./src/engines/cavity.js'),
     import('./src/state/params.js'), import('./src/engines/lens-design.js'), import('./src/engines/rf-design.js'), import('./src/engines/rf-sweep.js'), import('./src/core/horns.js'),
-    import('./src/engines/lens-analysis.js'), import('./src/core/assembly.js'), import('./src/io/zmx-export.js'), import('./src/engines/lens-opt.js'), import('./src/engines/lens-engine.js')]);
-  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE };
+    import('./src/engines/lens-analysis.js'), import('./src/core/assembly.js'), import('./src/io/zmx-export.js'), import('./src/engines/lens-opt.js'), import('./src/engines/lens-engine.js'), import('./src/engines/spectrometer.js')]);
+  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE, SPEC };
   return ENGINE;
 }
 const round = (v, p = 6) => (typeof v === 'number' && isFinite(v) ? +v.toPrecision(p) : v);
@@ -50,6 +50,8 @@ export async function openBench(data) {
     screen(name) { ensure(); return plain(E.SS.screenStats(byName(name))); },
     /* a photodetector's or receiving horn's reading */
     detector(name) { ensure(); const el = byName(name), r = E.FF.detectorReading(el); return plain({ mw: r.mw, V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, field: r.field }); },
+    /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */
+    spectrometer(name) { ensure(); const r = E.SPEC.specReading(byName(name)); return plain({ peak: r.peak, fwhm: r.fwhm, resolution: r.R, mw: r.mw, share: r.share, counts: r.counts, saturated: r.sat, snr: r.snr, lines: r.lines.map(L => ({ nm: L.nm, mw: L.mw })) }); },
     /* an RF lens, disc or mirror on its axis as an antenna, from the bench's diffracted field */
     antenna(name) { ensure(); const A = E.ANT.antennaNow(byName(name), 'ant'); return A && plain({ Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed }); },
     /* a lens's paraxial focal lengths at a wavelength (nm; the bench's first source's when left out) */

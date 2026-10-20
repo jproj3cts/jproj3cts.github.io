@@ -1,3 +1,4 @@
+import { fanEdge } from '../core/fan-edge.js';
 import { clamp } from '../core/constants.js';
 import { C_MM, JONES_TYPES, MODS } from '../core/modulators.js';
 import { cohGamma, cohModes, lagOf, splitRoot } from '../core/coherence.js';
@@ -33,7 +34,7 @@ const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 export function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0]));
+  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
   if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
   const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
     [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh, evElementKey(b.ev), b.z0, b.uz, b.len3, b.d3])) + ']';

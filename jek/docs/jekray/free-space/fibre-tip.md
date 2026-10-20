@@ -41,6 +41,16 @@ A tip needs a Gaussian source to couple from: a ray fan has no field to overlap.
 
 Light the network sends to the tip leaves into free space as the fibre's mode, its waist on the face. As a source has, the tip has two ticks for that light under **Light from the fibre network**: **Trace the ray fan** (with the number of rays and their pattern across the beam) and **Propagate a Gaussian beam along the axis** (with the field model and grid points); each can be off, for a picture of rays alone or a beam alone. It is a source *split from* the laser it came from, so it interferes with the rest of that laser's light. There is one such source for each launch, or for a laser with a line of its own, one for each group of delays within a fiftieth of its coherence length, up to six. The beam is drawn as its outline or as its diffracted field, with a fan of up to 51 rays.
 
+### Collimator
+
+A collimator is a single-mode tip with a lens on it, of focal length $$f$$ (**Collimating lens f**; 0 is a bare tip). It sends the network's light out collimated, as a Gaussian beam of $$1/e^2$$ radius
+
+$$
+w_c = \frac{\lambda f}{\pi w},
+$$
+
+$$w$$ the fibre's mode: about 0.6 mm at 1550 nm for $$f$$ = 11 mm and a 4.4 µm, NA 0.12 core. It takes light in by that same beam's mode, so a collimated beam of the right size couples fully, and a smaller or larger one, or one off centre or tilted, costs the overlap. Its face is then the lens's **clear aperture**. Add one from either palette as **Collimator**; it is a fibre tip with its lens already set.
+
 ### Multimode fibre
 
 A multimode tip (cores of 50 or 62.5 µm, NA 0.22 or 0.275 are usual) takes in whatever lands on its core inside its acceptance cone. That is the share of each beam's power on the core, times the share of its angular spectrum inside $$\pm\mathrm{NA}$$ in each plane. It sends light out filling its core and NA, a beam of
@@ -59,6 +69,7 @@ capped at 30. Its polarisation and phase are scrambled, and the speckle a real o
 
 <div class="dx-warn" markdown="1">
 - The single-mode mode is a Gaussian of Marcuse's radius: close for a step-index fibre near its cut-off, rougher far from it.
+- A collimator's lens is ideal and thin, with its beam's waist on the face; its beam's Rayleigh range (metres) is long against the lens, so a real collimator's waist a focal length on makes no difference. A multimode tip ignores the lens.
 - The face is flat and square to the fibre, with no reflection of its own: set an angled or flat end on the fibre itself.
 - Light leaving a tip is not taken back into the fibres a second time: a loop of fibre, free space and fibre is followed one way round.
 </div>

@@ -1,3 +1,4 @@
+import { fanEdge } from '../core/fan-edge.js';
 import { clamp } from '../core/constants.js';
 import { AMU, C_SI } from '../core/cells.js';
 import { EPS0, TRAP_ATOMS, airIndex, sphereAlpha, trapAlpha } from '../core/traps.js';
@@ -29,7 +30,8 @@ import { besselJ01 } from '../core/special.js';
 export const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
 
 /* ---------- A ray fan as a field ----------
-   A fan with a width is a uniform top-hat of that diameter, curved to its divergence;
+   A fan with a width is a uniform top-hat of that diameter, curved to its divergence, its edge
+   softened over the source's edge (a Gaussian blur, so the whole of it lies on the grid);
    a point source is a uniform cone of spatial frequencies, which at its waist is the
    jinc 2 J1(x)/x. Both are built from their exact spectra, cut at the grid's bandwidth:
    a hard edge sampled directly puts power the grid cannot hold into frequencies it
@@ -37,15 +39,16 @@ export const diffCache = new Map();          // kept for the trace to clear; the
    remembered (repr, the fraction held), so enclosed energy is against the true total. */
 export function fanShape(src, nm) {
   const a = src.width / 2, th = src.divergence / 2 * deg;
-  if (a > 0) return { a, iR: Math.tan(th) / a };
+  // a soft edge: the top-hat blurred by a Gaussian whose 10-90% rise is the edge (sigma = edge / 2.563)
+  if (a > 0) return { a, iR: Math.tan(th) / a, sig: fanEdge(src) / 2.563 };
   return { a: 0, nu: Math.sin(Math.abs(th)) / (nm * 1e-6) };
 }
 /* Spectrum at spatial frequency v (cycles/mm): of the disc, or of the cone, cell-weighted
    at its edge so it need not fall on a sample */
 function fanSpectrum(shape, v, dv) {
   if (shape.a > 0) {
-    const x = 2 * Math.PI * shape.a * v;
-    return x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v;
+    const x = 2 * Math.PI * shape.a * v, soft = shape.sig > 0 ? Math.exp(-2 * Math.PI * Math.PI * shape.sig * shape.sig * v * v) : 1;
+    return soft * (x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v);
   }
   return Math.min(1, Math.max(0, 0.5 + (shape.nu - v) / dv));
 }
@@ -63,7 +66,7 @@ export function popFanRound(N, q, n, lam0, power, shape) {
   const sphere = popResidual(re, im, r, q[0], q[1], k);
   const F = { R, re, im, z: q[0], zR: q[1], n, lam0, sphere };
   // scale to the true power: the disc's own for a top-hat (its amplitude is fixed), all of it for the cone
-  const held = popPower(F), full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popPower(F), full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -91,7 +94,7 @@ export function popFan2(N, q, n, lam0, power, shape) {
   }
   const st = { d, z: q[0], zR: q[1] };
   const F = { N, re, im, ax: st, ay: Object.assign({}, st), n, lam0 };
-  const held = popStats2(F).power, full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popStats2(F).power, full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N * N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -680,7 +683,14 @@ export function popDiffraction(el, R) {
     if (!cm) { vLaunches.set(key, L2); continue; }
     cm.forEach((c, k) => { const a = L2.slice(); a.cs = c; vLaunches.set(key + '~' + k, a); });
   }
-  const MN = coherent ? 256 : MAP_N;
+  // the finest fringes: the steepest angle between two beams of one launch. Where anything interferes the map takes three
+  // pixels to its finest fringe, from 256 across up to 1024 (past that the fringes alias, and the panel says so)
+  let pFine = Infinity;
+  for (const L2 of launches.values()) for (let i = 0; i < L2.length; i++) for (let j = i + 1; j < L2.length; j++) {
+    const a = L2[i].sg.b, b = L2[j].sg.b, ang = Math.acos(Math.min(1, a.dx * b.dx + a.dy * b.dy));
+    if (ang > 0) pFine = Math.min(pFine, (a.nm * 1e-6 / L2[i].G.n) / ang);
+  }
+  const MN = coherent ? Math.max(256, Math.min(1024, Math.ceil(3 * 2 * H / pFine))) : MAP_N;
   const map = new Float32Array(MN * MN), inc = new Float32Array(MN * MN), pm = polMaps(MN);
   // each arrival's complex field at a point on the screen
   const fieldAt = h2 => segFieldAt(h2, sYx, sYy);
@@ -689,41 +699,49 @@ export function popDiffraction(el, R) {
   // circular part, positive right-handed as the tracer counts it. Launches add as Stokes.
   const stokes = [0, 0, 0, 0];
   const domL = [...vLaunches.values()].find(L2 => L2.includes(dom));
-  for (const L2 of vLaunches.values()) {
+  // the cross terms between the arrivals of one launch at each point, Σ_{i<j} E_j·E_i*, summed over its incoherent parts, so how
+  // deep its fringes run there (2|X| over the powers' sum) whatever phase the map's pixels happen to fall on
+  const xr = new Float32Array(MN * MN), xi = new Float32Array(MN * MN), cross = new Float32Array(MN * MN);
+  let xKey = null;
+  const flush = () => { for (let i = 0; i < MN * MN; i++) { if (xr[i] || xi[i]) cross[i] += Math.hypot(xr[i], xi[i]); xr[i] = 0; xi[i] = 0; } };
+  for (const [vk, L2] of vLaunches) {
+    const base = String(vk).split('~')[0];
+    if (xKey !== null && base !== xKey) flush();
+    xKey = base;
     const parts = L2.map((h2, i) => ({ f: fieldAt(h2), c: (L2.cs ? L2.cs[i] : 1) * h2.lw }));
     for (let jv = 0; jv < MN; jv++) {
       const v = cV + ((jv + 0.5) / MN * 2 - 1) * H;
       for (let iu = 0; iu < MN; iu++) {
         const u = cU + ((iu + 0.5) / MN * 2 - 1) * H;
-        let sr = 0, si = 0, pr = 0, pi = 0, ii = 0;
+        let sr = 0, si = 0, pr = 0, pi = 0, ii = 0, Xr = 0, Xi = 0;
         for (const P of parts) {
           const e = P.f(u, v);
           if (!e) continue;
           const c = P.c, e0 = c * e[0], e1 = c * e[1], e2 = c * e[2], e3 = c * e[3];
+          Xr += e0 * sr + e1 * si + e2 * pr + e3 * pi; Xi += e1 * sr - e0 * si + e3 * pr - e2 * pi;
           sr += e0; si += e1; pr += e2; pi += e3;
           ii += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
         }
         const Is = sr * sr + si * si, Ip = pr * pr + pi * pi;
         map[jv * MN + iu] += Is + Ip;
         inc[jv * MN + iu] += ii;
+        xr[jv * MN + iu] += Xr; xi[jv * MN + iu] += Xi;
         stokes[0] += Is + Ip; stokes[1] += Ip - Is; stokes[2] += 2 * (pr * sr + pi * si); stokes[3] += -2 * (pi * sr - pr * si);
         pm.add(jv * MN + iu, sr, si, pr, pi, L2 === domL);
       }
     }
   }
+  flush();
   // how much the fields added up to, and how deep the fringes run where the beams are
   let sC = 0, sI = 0, iMax = 0;
   for (let i = 0; i < MN * MN; i++) { sC += map[i]; sI += inc[i]; iMax = Math.max(iMax, inc[i]); }
-  let vHi = 0, vLo = Infinity;
-  for (let i = 0; i < MN * MN; i++) if (inc[i] >= 0.5 * iMax) { vHi = Math.max(vHi, map[i]); vLo = Math.min(vLo, map[i]); }
+  // fringe contrast point by point, from the cross terms over the powers' sum: the beams' own profile is not a fringe
+  let vMax = 0;
+  for (let i = 0; i < MN * MN; i++) if (inc[i] >= 0.05 * iMax) vMax = Math.max(vMax, Math.min(1, 2 * cross[i] / inc[i]));
   const interference = coherent && sI > 0 ? sC / sI : null;
-  const visibility = coherent && vHi + vLo > 0 ? (vHi - vLo) / (vHi + vLo) : null;
-  // fringes finer than the map: the steepest angle between two beams of one launch
-  let fine = false;
-  for (const L2 of launches.values()) for (let i = 0; i < L2.length; i++) for (let j = i + 1; j < L2.length; j++) {
-    const a = L2[i].sg.b, b = L2[j].sg.b, ang = Math.acos(Math.min(1, a.dx * b.dx + a.dy * b.dy));
-    if (ang > 0 && (a.nm * 1e-6 / L2[i].G.n) / ang < 3 * 2 * H / MN) fine = true;
-  }
+  const visibility = coherent && iMax > 0 ? vMax : null;
+  // fringes finer than the map
+  const fine = pFine < 3 * 2 * H / MN;
 
   const tilt = Math.acos(Math.min(1, Math.abs(dom.p))) / deg;
   // power arriving: each arrival's field power times its Jones power; where they

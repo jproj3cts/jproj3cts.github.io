@@ -143,6 +143,8 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 |---|---|---|
 | wavelength | `633` | nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw). |
 | width | `4` | mm: the full width of the ray fan (follows the beam when gauss is true). |
+| softAuto | `true` | true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given. |
+| soft | `0` | mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge. |
 | divergence | `0` | degrees, full angle of the fan; negative converges. |
 | gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
 | w0 | `0.35` | mm: the 1/e² waist radius. |
@@ -353,6 +355,7 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | na | `0.12` | numerical aperture. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
 | mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
+| coll | `0` | mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam's mode. |
 | popN | `256` | grid points for the field of the beam it sends out: 128, 256, 512 or 1024. |
 | popModel | `"auto"` | "auto" (round when it can be) or "2d" (always 2D, with polarisation). |
 
@@ -374,6 +377,31 @@ A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscillos
 | vmax | `10` | V output limit. |
 | demodF | `0` | MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal. |
 | demodPhase | `0` | degrees: the mixer’s phase. |
+
+### "spectrometer": Spectrometer
+
+A free-space spectrometer: the light through its entrance (a slit, or a fibre core) is spread by wavelength over a detector array. Its Spectrum tab plots counts against wavelength, with the peak, its width, the resolution, the throughput and the signal-to-noise. "preset" picks a kind of instrument and sets the rest; any field given as well overrides it (and makes it "custom", except the integration time, which is how it is run, not what it is).
+
+**angle:** the direction its entrance faces: towards the light arriving (180 for light travelling +x).
+
+| field | default | meaning |
+|---|---|---|
+| length | `24` | mm: its face across the bench, fixed. |
+| entrance | `"slit"` | "slit" or "fibre". |
+| slit | `25` | µm: the slit’s width, across the bench; it sets the resolution with the array. |
+| slitH | `1` | mm: the slit’s height. |
+| core | `400` | µm: a fibre entrance’s core diameter. |
+| na | `0.13` | the largest NA of light it takes in. |
+| wmin | `200` | nm: the shortest wavelength on the array. |
+| wmax | `1100` | nm: the longest. |
+| pixels | `2048` | the array’s pixels. |
+| pitch | `14` | µm: the pixel pitch. |
+| sensor | `"si"` | "si", "ingaas" or "ingaasx". |
+| tint | `10` | ms: integration time. |
+| well | `60000` | electrons: full well. |
+| read | `30` | electrons rms: read noise. |
+| dark | `50` | electrons per second per pixel. |
+| preset | `"compact"` | "compact" (200 to 1100 nm, silicon CCD), "hires" (550 to 650 nm), "fibrevis" (350 to 1000 nm, fibre entrance), "nir" (900 to 1700 nm, InGaAs), "swir" (1000 to 2500 nm, extended InGaAs) or "custom". |
 
 ### "faraday": Faraday rotator
 

@@ -1,0 +1,172 @@
+{
+  "format": "jekray",
+  "version": 1,
+  "name": "Czerny–Turner spectrometer",
+  "view": {
+    "cx": 50,
+    "cy": 37,
+    "scale": 5.5
+  },
+  "snap": 1,
+  "maxBounces": 40,
+  "minPower": 0.01,
+  "ghosts": false,
+  "library": [],
+  "cavityLock": {},
+  "benches": [
+    {
+      "id": "b1",
+      "name": "Built from parts",
+      "view": {
+        "cx": 50,
+        "cy": 37,
+        "scale": 5.5
+      }
+    },
+    {
+      "id": "b2",
+      "name": "Spectrometer part",
+      "view": {
+        "cx": 30,
+        "cy": 0,
+        "scale": 5
+      }
+    }
+  ],
+  "tab": "b1",
+  "fibres": [],
+  "measures": [],
+  "notes": "Two ways to the same mercury spectrum (435.8, 546.1, 577.0 and 579.1 nm). ‘Built from parts’ is a Czerny–Turner spectrometer: light from a 50 µm slit is collimated by a concave mirror (f 100 mm), spread by a 1200 l/mm reflection grating, and focused by a second concave mirror onto the detector plane. The mirrors work off axis, so their sharpest focus sits a little short of f: the detector plane is at 94 mm. Each line lands about 0.1 mm wide and the yellow doublet, 2.1 nm apart, lands 0.34 mm apart, so the two are resolved. Open the detector plane’s Rays tab and pick the spot diagram: each line is a spot along the detector, the doublet the pair furthest across; move the detector out to 100 mm from the focusing mirror to see the lines blur. ‘Spectrometer part’ focuses the same lamp into the Spectrometer, which gives the spectrum in counts, its resolution and its signal-to-noise directly; change its Kind to compare instruments, or its slit width to trade light for resolution.",
+  "elements": [
+    {
+      "type": "source",
+      "id": "S",
+      "name": "Mercury lamp through a 50 µm slit",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "wavelength": 546.1,
+      "lines": [
+        435.8,
+        577,
+        579.1
+      ],
+      "colourAuto": true,
+      "width": 0.05,
+      "divergence": 10,
+      "rays": 15,
+      "power": 1,
+      "bench": "b1",
+      "sweeps": {}
+    },
+    {
+      "type": "mirror",
+      "id": "M1",
+      "name": "Collimating mirror, f 100 mm",
+      "x": 100,
+      "y": 0,
+      "angle": 170,
+      "length": 25.4,
+      "R": 200,
+      "bench": "b1",
+      "sweeps": {}
+    },
+    {
+      "type": "grating",
+      "id": "G",
+      "name": "Grating, 1200 l/mm",
+      "x": 12,
+      "y": 32,
+      "angle": -20,
+      "length": 25,
+      "lpmm": 1200,
+      "blaze": 500,
+      "mode": "reflect",
+      "bench": "b1",
+      "sweeps": {}
+    },
+    {
+      "type": "mirror",
+      "id": "M2",
+      "name": "Focusing mirror, f 100 mm",
+      "x": 100.7,
+      "y": 66,
+      "angle": -172,
+      "length": 50.8,
+      "R": 200,
+      "bench": "b1",
+      "sweeps": {}
+    },
+    {
+      "type": "screen",
+      "id": "D",
+      "name": "Detector plane",
+      "x": 7,
+      "y": 74.2,
+      "angle": -5,
+      "length": 40,
+      "absorb": true,
+      "bench": "b1",
+      "sweeps": {}
+    },
+    {
+      "type": "source",
+      "id": "S2",
+      "name": "Mercury lamp, collimated",
+      "x": -60,
+      "y": 0,
+      "angle": 0,
+      "bench": "b2",
+      "wavelength": 546.1,
+      "lines": [
+        435.8,
+        577,
+        579.1
+      ],
+      "colourAuto": true,
+      "width": 2,
+      "divergence": 0,
+      "rays": 15,
+      "power": 2e-08,
+      "sweeps": {}
+    },
+    {
+      "type": "lens",
+      "id": "L2",
+      "name": "Lens, f 100 mm",
+      "x": 0,
+      "y": 0,
+      "angle": 0,
+      "bench": "b2",
+      "diameter": 25.4,
+      "surfaces": [
+        {
+          "R": 51.5
+        },
+        {
+          "R": null
+        }
+      ],
+      "gaps": [
+        3.6
+      ],
+      "materials": [
+        {
+          "glass": "N-BK7"
+        }
+      ],
+      "sweeps": {}
+    },
+    {
+      "type": "spectrometer",
+      "id": "SP",
+      "name": "Spectrometer",
+      "x": 99.9,
+      "y": 0,
+      "angle": 180,
+      "bench": "b2",
+      "preset": "compact",
+      "sweeps": {}
+    }
+  ]
+}

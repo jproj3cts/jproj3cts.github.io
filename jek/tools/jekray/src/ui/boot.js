@@ -40,6 +40,7 @@ import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engin
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '../engines/detector.js';
 import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { antennaNow } from '../engines/antenna-field.js';
+import { specReading } from '../engines/spectrometer.js';
 import { V3D, wireView3d } from './view3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
@@ -196,6 +197,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     rfSweep(name) { return rfSweep(this.byName(name)); },
     linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
+    /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */
+    spectrometer(name) { const r = specReading(this.byName(name)); return { peak: r.peak, fwhm: r.fwhm, resolution: r.R, mw: r.mw, share: r.share, counts: r.counts, saturated: r.sat, snr: r.snr, lines: r.lines.map(L => ({ nm: L.nm, mw: L.mw })) }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
     // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
     lensAntenna(name) {

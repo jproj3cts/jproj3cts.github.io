@@ -66,7 +66,7 @@ export function fillPicker(q) {
     PACKS.list.length ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab packs' + (pickTab === 'packs' ? ' on' : ''), 'aria-selected': pickTab === 'packs' ? 'true' : 'false',
       onclick: e => { e.stopPropagation(); pickTab = 'packs'; search.value = ''; fillPicker(''); } }, 'Packs') : null);
   picker.replaceChildren(h('div', { class: 'rt-phead' }, search, h('button', { type: 'button', class: 'rt-pclose', 'aria-label': 'Close', onclick: () => pickerShown(false) }, '×')), tabs, body,
-    h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
+    h('p', { class: 'rt-pfoot' }, typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 'Tap to add in the middle of the view, or drag onto the bench to put it there.' : 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
   show();
   search.focus();
 }

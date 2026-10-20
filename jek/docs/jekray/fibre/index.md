@@ -177,6 +177,7 @@ Light the network sends to a tip leaves it into free space as a source *split fr
 ### Ends and links
 
 <ul class="dx-cards">
+  <li><a class="fibre" href="/jek/docs/jekray/free-space/fibre-tip/#collimator"><b>Collimator</b><small>Out of the fibre as a collimated beam, and back in.</small></a></li>
   <li><a class="fibre" href="/jek/docs/jekray/fibre/mirror/"><b>Fibre mirror</b><small>A partly reflecting mirror in the fibre.</small></a></li>
   <li><a class="fibre" href="/jek/docs/jekray/fibre/faraday-mirror/"><b>Faraday mirror</b><small>Back orthogonal, whatever the fibre did.</small></a></li>
   <li><a class="fibre" href="/jek/docs/jekray/fibre/terminator/"><b>Terminator</b><small>Absorbs, sending back its return loss.</small></a></li>

@@ -2483,6 +2483,24 @@ const TESTS = [
     },
   },
   {
+    name: 'A ray fan\u2019s field has a soft edge: no ringing across a wide top-hat, unless it is set hard',
+    why: 'a 10 mm fan, its field on a screen 35 mm on: the ripple (rms over the middle) about 1% with a hard edge, under 0.1% with the automatic edge, and setting it changes the field (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const ripple = o => {
+        J.load(bench('edge', [src(Object.assign({ name: 'Lamp', x: -60, width: 10, rays: 15 }, o)), screen({ name: 'Out', x: -25, angle: 180, length: 25.4 })]));
+        const M = J.diffraction('Out').map, n = M.n;
+        let mx = 0; for (const v of M.v) mx = Math.max(mx, v);
+        const pts = []; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (M.v[j * n + i] > 0.3 * mx) pts.push([i, j, M.v[j * n + i]]);
+        const ci = pts.reduce((a, q) => a + q[0], 0) / pts.length, cj = pts.reduce((a, q) => a + q[1], 0) / pts.length, R = Math.sqrt(pts.length / Math.PI);
+        let s1 = 0, s2 = 0, k = 0; for (const [i, j, I] of pts) if (Math.hypot(i - ci, j - cj) < 0.5 * R) { s1 += I; s2 += I * I; k++; }
+        const m = s1 / k; return Math.sqrt(s2 / k - m * m) / m;
+      };
+      const hard = ripple({ edgeAuto: false, edge: 0 }), auto = ripple({}), set = ripple({ edgeAuto: false, edge: 0.3 });
+      return hard > 0.005 && auto < 0.001 && set < hard && set > auto ? 1 : 0;
+    },
+  },
+  {
     name: 'Crossed polarisations do not interfere',
     why: 'a quarter-wave plate at 45\u00b0 passed twice turns one arm from s to p; the output takes half at any path difference',
     want: 1, tol: 1e-3, unit: ' (coherent / incoherent)',

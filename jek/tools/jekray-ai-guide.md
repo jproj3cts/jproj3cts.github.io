@@ -143,6 +143,8 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 |---|---|---|
 | wavelength | `633` | nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw). |
 | width | `4` | mm: the full width of the ray fan (follows the beam when gauss is true). |
+| edgeAuto | `true` | true (the default) sets edge for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps edge as given. |
+| edge | `0` | mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge. |
 | divergence | `0` | degrees, full angle of the fan; negative converges. |
 | gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
 | w0 | `0.35` | mm: the 1/e² waist radius. |

@@ -7759,6 +7759,12 @@ function wavelengthColour(nm) {
   return '#' + h(r) + h(g) + h(b);
 }
 
+/* A ray fan's field is a uniform top-hat of its width; its edge rises over a distance (10% to 90%). Automatically just
+   enough for the field grid to hold it without ringing: 8% of the width on 256 points, less on a finer grid. Or as set,
+   0 for a hard edge (which rings on the grid, about 1% across the middle). */
+const fanEdgeAuto = (width, popN = 256) => +(0.08 * width * 256 / (popN || 256)).toPrecision(3);
+// a sweep of the edge sets it, whether or not it was automatic
+const fanEdge = src => src.edgeAuto !== false && !(src.sweeps && src.sweeps.edge) ? fanEdgeAuto(src.width || 0, src.popN) : Math.max(0, src.edge || 0);
 /* ==========================================================================
    Drawings: the shapes of the Draw palette as elements, normalised. How they are drawn and
    edited is ui/drawings.js; this is what a drawing is.
@@ -7855,6 +7861,9 @@ const SOURCE = {
       colourAuto: e.colourAuto !== false,
       colour: /^#[0-9a-f]{6}$/i.test(e.colour) ? e.colour : wavelengthColour(wl),
       width: Math.max(0, num(e.width, 4)),
+      // the soft edge of the fan's field, mm: the 10-90% rise of its uniform top-hat; automatic (core/fan-edge.js) unless set
+      edgeAuto: e.edgeAuto !== false,
+      edge: Math.max(0, num(e.edge, 0)),                        // used only when not automatic; the panel shows the automatic one
       divergence: clamp(num(e.divergence, 0), -179, 179),
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
       gauss: e.gauss === true,
@@ -7891,7 +7900,7 @@ const SOURCE = {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
     angle: 'the direction the light leaves in (0 = travelling +x).',
     fields: {
-    wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).',
+    wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', edgeAuto: 'true (the default) sets edge for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps edge as given.', edge: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
     divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
@@ -21119,6 +21128,18 @@ function drawSource(el, sel) {
   ctx.stroke();
 }
 
+/* the fan's soft edge: automatic (enough for the field grid) until a value is typed, 0 included */
+function edgeRows(el) {
+  const row = param('Edge softness (mm)', el, 'edge');
+  const inp = row.querySelector('input');
+  if (inp) inp.addEventListener('change', () => { el.edgeAuto = false; auto.checked = false; });
+  const auto = h('input', { type: 'checkbox' });
+  auto.checked = el.edgeAuto !== false;
+  auto.addEventListener('change', () => { checkpoint(); el.edgeAuto = auto.checked; if (el.edgeAuto) el.edge = fanEdgeAuto(el.width, el.popN); changed(true); });
+  bindSync(auto, () => { const a = fanEdgeAuto(el.width, el.popN); if (el.edgeAuto !== false && el.edge !== a) el.edge = a; });
+  return [row, h('label', { class: 'rt-check' }, auto, 'Automatic: just enough for the field grid')];
+}
+
 function sourcePanel(el) {
   panel.append(h('h3', null, 'Beam'));
   const rows = h('div', { class: 'rt-rows' });
@@ -21154,6 +21175,7 @@ function sourcePanel(el) {
   if (el.traceRays) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
+      ...(el.gauss ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
       param('Rays', el, 'rays')));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
@@ -21166,6 +21188,7 @@ function sourcePanel(el) {
     // without a Gaussian beam the fan's width and divergence still shape the diffracted field
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
+      ...edgeRows(el),
       param('Divergence, full (°)', el, 'divergence')));
     panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
   } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
@@ -34206,7 +34229,7 @@ const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0]));
+  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
   if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
   const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
     [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh, evElementKey(b.ev), b.z0, b.uz, b.len3, b.d3])) + ']';
@@ -35793,7 +35816,8 @@ function closeupCompute(vkey, srcs, step) {
 const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
 
 /* ---------- A ray fan as a field ----------
-   A fan with a width is a uniform top-hat of that diameter, curved to its divergence;
+   A fan with a width is a uniform top-hat of that diameter, curved to its divergence, its edge
+   softened over the source's edge (a Gaussian blur, so the whole of it lies on the grid);
    a point source is a uniform cone of spatial frequencies, which at its waist is the
    jinc 2 J1(x)/x. Both are built from their exact spectra, cut at the grid's bandwidth:
    a hard edge sampled directly puts power the grid cannot hold into frequencies it
@@ -35801,15 +35825,16 @@ const diffCache = new Map();          // kept for the trace to clear; the field 
    remembered (repr, the fraction held), so enclosed energy is against the true total. */
 function fanShape(src, nm) {
   const a = src.width / 2, th = src.divergence / 2 * deg;
-  if (a > 0) return { a, iR: Math.tan(th) / a };
+  // a soft edge: the top-hat blurred by a Gaussian whose 10-90% rise is the edge (sigma = edge / 2.563)
+  if (a > 0) return { a, iR: Math.tan(th) / a, sig: fanEdge(src) / 2.563 };
   return { a: 0, nu: Math.sin(Math.abs(th)) / (nm * 1e-6) };
 }
 /* Spectrum at spatial frequency v (cycles/mm): of the disc, or of the cone, cell-weighted
    at its edge so it need not fall on a sample */
 function fanSpectrum(shape, v, dv) {
   if (shape.a > 0) {
-    const x = 2 * Math.PI * shape.a * v;
-    return x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v;
+    const x = 2 * Math.PI * shape.a * v, soft = shape.sig > 0 ? Math.exp(-2 * Math.PI * Math.PI * shape.sig * shape.sig * v * v) : 1;
+    return soft * (x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v);
   }
   return Math.min(1, Math.max(0, 0.5 + (shape.nu - v) / dv));
 }
@@ -35827,7 +35852,7 @@ function popFanRound(N, q, n, lam0, power, shape) {
   const sphere = popResidual(re, im, r, q[0], q[1], k);
   const F = { R, re, im, z: q[0], zR: q[1], n, lam0, sphere };
   // scale to the true power: the disc's own for a top-hat (its amplitude is fixed), all of it for the cone
-  const held = popPower(F), full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popPower(F), full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -35855,7 +35880,7 @@ function popFan2(N, q, n, lam0, power, shape) {
   }
   const st = { d, z: q[0], zR: q[1] };
   const F = { N, re, im, ax: st, ay: Object.assign({}, st), n, lam0 };
-  const held = popStats2(F).power, full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popStats2(F).power, full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N * N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -48039,6 +48064,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A source\u2019s <b>Edge softness</b>: without a Gaussian beam, the diffracted field of its ray fan is a uniform top-hat, and its edge now rises over a set distance (10% to 90%). <b>Automatic</b>, the default, is just enough for the field grid: before, the hard edge rang on the grid, showing rings across a wide beam (about 1%) that were not in the light. Set 0 for a hard edge, or more for a lamp behind a soft aperture. A changed edge also redraws the field, which it had not.',
     '<b>Fringe visibility</b> on a screen, from its rays and from the diffracted field, is now the textbook one: twice the cross terms between the paths of one laser over the sum of their powers, 2\u221a(I\u2081I\u2082)/(I\u2081 + I\u2082) for two beams, where they overlap. Before, it was read from the brightest and dimmest points, so two separate lasers overlapping (brighter where one lies on another) read as fringes, a single beam\u2019s own profile read as a third, and fringes finer than the map read low or at random as the pixels fell on them. The diffracted map is also drawn finer where fringes are fine, up to 1024 points across.',
     '<b>Spectrometer</b>, in Sources and detectors: a slit or fibre entrance and a detector array, showing the light through it as counts against wavelength, with the peak, its width, the resolution, the light that gets in, saturation and the signal-to-noise. <b>Kind</b> picks a typical instrument (compact UV to near-infrared, high-resolution visible, fibre-coupled visible, near-infrared or short-wave infrared) and any setting can then be changed. A narrower slit sharpens the lines and lets less light in, as on the real thing. The new example <b>Czerny\u2013Turner spectrometer</b> builds one from a slit, two concave mirrors and a grating, beside the part reading the same lamp.',
     '<b>On a phone or tablet</b>: the bench fills the screen, and a part\u2019s settings open in a sheet over its lower half (\u2191 makes it taller, \u00d7 or a tap on the empty bench closes it), the part moved clear of the sheet if it would be under it. A phone on its side has the one-row bar too. The welcome note, the parts picker and the menus say tap rather than click, and that JEKray is best used on a desktop or laptop, where the designers, plots and shortcuts have the room they need.',

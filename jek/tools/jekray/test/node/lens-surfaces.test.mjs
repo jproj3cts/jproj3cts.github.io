@@ -35,7 +35,8 @@ test('a surface keeps its hole, clear radius and coating; a mirror coating refle
   assert.ok(C.mirrorR({ mode: 'mirror', metal: 'Au' }, 1550) > 0.98 && C.mirrorR({ mode: 'mirror', metal: 'Au' }, 450) < 0.5);
   assert.equal(C.coatR({ mode: 'mirror', metal: 'Ag' }, 1, 1.5, 633), C.mirrorR({ mode: 'mirror', metal: 'Ag' }, 633));
   const amp = FP.faceAmps({ coat: { mode: 'mirror', metal: 'Al' } }, 1, 1.5168, 1, 633), R = C.mirrorR({ mode: 'mirror', metal: 'Al' }, 633);
-  assert.ok(Math.abs(amp.rs[1] * amp.rs[1] - R) < 1e-12 && Math.abs(amp.rp[1] * amp.rp[1] - R) < 1e-12, JSON.stringify(amp));
+  // -√R for s and p, as a mirror is
+  assert.ok(Math.abs(amp.rs[0] + Math.sqrt(R)) < 1e-12 && amp.rs[1] === 0 && amp.rp[0] === amp.rs[0] && amp.rp[1] === 0, JSON.stringify(amp));
   assert.ok(amp.ts[0] === 0 && amp.ts[1] === 0 && amp.tp[0] === 0 && amp.tp[1] === 0 && amp.tir, 'nothing passes a mirror');
 });
 

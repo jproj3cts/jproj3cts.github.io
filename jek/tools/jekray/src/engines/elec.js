@@ -760,7 +760,7 @@ function detOutput(el, P, note) {
    mode takes in, with its NEP as noise, through its video bandwidth. A mixer puts out the IF:
    each feed horn's carrier comes down to |f - f_LO|, at the power it delivers less the
    conversion loss, as a tone of sqrt(2 R P) volts across 50 ohm, with the phase of the field at
-   the horn (so two paths to one horn beat as they should). The receiver's noise temperature
+   the horn (so two paths to one horn beat as they should), conjugated for a carrier below the LO. The receiver's noise temperature
    and what it looks into set the noise, k (T_ant + T_rx) R, referred to its input. A feed horn
    that is an upconverter sends its IF input up and this mixer brings it down: the IF out is the
    drive, scaled by the link, mixed with the difference of the two local oscillators. A carrier
@@ -778,14 +778,15 @@ function rfMixerOutput(el, P, note) {
   let out = zero('V');
   const tone = (f, ph) => { const T = zero('V'); if (f > 0) addTone(T.tones, f, Math.cos(ph), Math.sin(ph)); else T.dc = Math.cos(ph); return T; };
   if (C) for (const ln of C.lines) {
-    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9;
+    // a carrier below the LO comes down conjugated: cos((ω_LO − ω)t − φ), its phase turned round
+    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9, ph = ln.ghz < rf.lo ? -ln.ph : ln.ph;
     if (fif > 1e10) { note('The IF from ' + (src ? src.name : 'a horn') + ' would be ' + fmtHz(fif) + ', past the electronics\u2019 10 GHz: left out'); continue; }
     if (src && src.mmw && src.mmw.tx === 'up') {
       const d = curDrives.find(q => q.el.id === ln.id && q.port === 'if');
       if (!d || !d.S) { note((src.name) + ' is an upconverter with nothing on its IF input: no carrier'); continue; }
       // from the IF in to the IF out: the bench, traced at the horn's nominal power, gives the link's power gain
       const G = ln.mw / Math.pow(10, src.mmw.dbm / 10) * Math.pow(10, -src.mmw.cl / 10) * gcl;
-      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ln.ph), 1), 1, 1);
+      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ph), 1), 1, 1);
       continue;
     }
     const Vp = Math.sqrt(2 * R_IF * ln.mw * 1e-3 * gcl), A = zero('V');
@@ -796,7 +797,7 @@ function rfMixerOutput(el, P, note) {
       const sw = P.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
       if (sw > 0.3 * P.dc) note('The carrier\u2019s power swings by more than 30%: the IF follows its square root, taken as a straight line about the mean');
     }
-    out = sum(out, mixer(A, tone(fif, ln.ph), 1), 1, 1);
+    out = sum(out, mixer(A, tone(fif, ph), 1), 1, 1);
   }
   const n2 = KT / 295 * (rf.tant + rf.trx) * R_IF * gcl;
   return through(out, pole(1, rf.ifbw * 1e6), 'V', () => n2);

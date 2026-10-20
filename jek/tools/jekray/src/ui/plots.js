@@ -149,10 +149,12 @@ export function plotFrame(cv, getKey, getZ, redraw) {
   // a plot is drawn to the width it had then; when a panel is pinned, unpinned or resized
   // that width changes, and a canvas left at the old one is stretched to fit
   let drawnW = -1;
-  new ResizeObserver(() => {
+  // (redrawn on the next frame, not inside the observer: a redraw that changes the box's size
+  // there would loop the observer, which the browser reports as an error)
+  new ResizeObserver(() => requestAnimationFrame(() => {
     const w = cv.clientWidth;
     if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; redraw(); }
-  }).observe(box);
+  })).observe(box);
   return box;
 }
 const plotCanvases = () => [...document.querySelectorAll('.rt-panel canvas')].filter(c => c._sync && c.offsetParent !== null);

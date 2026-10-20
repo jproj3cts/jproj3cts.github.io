@@ -155,8 +155,9 @@ export function paraxialOf(S) {
   // the marginal ray of an object at infinity, height 1 at the first surface
   const [yL, uL] = paraStep(S, 1, 0, 0, L);
   const efl = Math.abs(uL) < 1e-14 ? Infinity : -1 / uL, bfl = Math.abs(uL) < 1e-14 ? Infinity : -yL / uL;
-  // heights at the stop of the two rays (1, 0) and (0, 1) at the first surface
-  const hs = (y, u) => (st === 0 ? y : paraStep(S, y, u, 0, st - 1)[0] + (S.z[st] - S.z[st - 1]) * paraStep(S, y, u, 0, st - 1)[1]);
+  // heights at the stop of the two rays (1, 0) and (0, 1) at the first surface (through the stop's face, whose height
+  // it does not change: a graded gap before it as paraStep takes one)
+  const hs = (y, u) => paraStep(S, y, u, 0, st)[0];
   const ya = hs(1, 0), yb = hs(0, 1);
   // the chief ray: angle 1, height -yb/ya at the first surface, so none at the stop; the entrance pupil where it points from
   const hc = Math.abs(ya) < 1e-14 ? 0 : -yb / ya, epz = -hc;          // the entrance pupil's place, from the first vertex

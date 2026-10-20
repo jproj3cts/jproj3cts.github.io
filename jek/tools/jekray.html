@@ -4915,7 +4915,7 @@ function agfIndex(f, c, um) {
     case 1: n2 = a(0) + a(1) * L2 + a(2) / L2 + a(3) / L2 ** 2 + a(4) / L2 ** 3 + a(5) / L2 ** 4; break;
     case 2: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)); break;
     case 3: { const L = 1 / (L2 - 0.028); return a(0) + a(1) * L + a(2) * L * L + a(3) * L2 + a(4) * L2 * L2 + a(5) * L2 ** 3; }
-    case 4: n2 = a(0) + a(1) * L2 / (L2 - a(2)) + a(3) / (L2 - a(4)); break;
+    case 4: n2 = 1 + a(0) + a(1) * L2 / (L2 - a(2) ** 2) + a(3) / (L2 - a(4) ** 2); break;      // n² - 1 = A + B1 λ²/(λ² - λ1²) + B2/(λ² - λ2²)
     case 5: return a(0) + a(1) / um + a(2) / Math.pow(um, 3.5);
     case 6: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)) + a(6) * L2 / (L2 - a(7)); break;
     case 7: n2 = a(0) + a(1) / (L2 - a(2)) - a(3) * L2; break;
@@ -5807,10 +5807,10 @@ function metalR(key, ghz) {
 }
 /* ---------- A wire grid: wires of radius a (mm) at pitch g (mm), E along the wires reflected ----------
    The grid is a sheet reactance across a transmission line: for the field along the wires an
-   inductance X = (g/λ) Xn, Xn the quasi-static inductance of the grid as a function of its filling
-   2a/g (Chuss et al., Appl. Opt. 51, 197 (2012), an interpolation of full-wave simulations that
-   agrees with Marcuvitz's ln(g/2πa) for sparse grids and holds to 2a/g = 1), which reflects
-   R = 1/(1 + 4X²); across the wires a capacitance B = 4 (g/λ) ln sec(πw/2g), w = 4a the wires'
+   inductance X = (g/2λ) Xn, Xn = (λ/g) 2X the grid's doubled normalised inductance as a function
+   of its filling 2a/g (Chuss et al., Appl. Opt. 51, 197 (2012), Fig. 6, an interpolation of
+   full-wave simulations that agrees with Marcuvitz's X = (g/λ) ln(g/2πa) for sparse grids and holds
+   to 2a/g = 1), which reflects R = 1/(1 + 4X²) (their eq. 14, 1/(1 + (2X)²)); across the wires a capacitance B = 4 (g/λ) ln sec(πw/2g), w = 4a the wires'
    width as strips (Marcuvitz, capacitive strips, by Babinet), which leaks R = B²/(4 + B²). Met at
    an angle θ, a sheet's reactance seen by the wave scales with the wave impedance: by cos θ for
    wires across the plane of incidence, 1/cos θ for wires in it. Valid while g < λ (no diffraction):
@@ -5819,7 +5819,7 @@ function metalR(key, ghz) {
 function gridCoef(grid, nm, cth, inPlane) {
   const lam = nm * 1e-6, g = grid.g, a = grid.a, c = Math.max(0.05, Math.abs(cth) || 1);
   const u = Math.log(2 * Math.PI * a / g), Xn = Math.max(0.02, 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u);
-  const X = (g / lam) * Xn * (inPlane ? 1 / c : c);
+  const X = 0.5 * (g / lam) * Xn * (inPlane ? 1 / c : c);
   const Rpar = 1 / (1 + 4 * X * X);
   const w = Math.min(4 * a, 0.9 * g), B = 4 * (g / lam) * Math.log(1 / Math.cos(Math.PI * w / (2 * g))) * (inPlane ? 1 / c : c);
   const Rperp = B * B / (4 + B * B);
@@ -9192,6 +9192,15 @@ function stackT(layers, n0, ns, c0, nm, pol) {
    passes nothing). Each case as the tracer has always traced it, and a coating's stack now passes its own phase. */
 function faceAmps(face, n1, n2, ci, nm) {
   const coat = face && face.coat, k = 1 - (n1 / n2) * (n1 / n2) * (1 - ci * ci);
+  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), -√R as a mirror is,
+  // beyond the critical angle too (the metal reflects, not the glass)
+  if (coat && coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = -Math.sqrt(R); return { rs: [a, 0], rp: [a, 0], ts: [0, 0], tp: [0, 0], tir: true }; }
+  // a stack: its own amplitudes, met in reverse from the glass (its layers listed from the outside in), conjugated
+  // from the matrix's e^{-ikz} to the tracer's e^{+ikL}; beyond the critical angle all of it comes back, a stack of
+  // nothing as bare TIR does
+  const stack = coat && coat.mode === 'stack' && coat.layers && coat.layers.length ? (n1 > n2 ? coat.layers.slice().reverse() : coat.layers) : null;
+  const cj = a => [a[0], -a[1]], sr = L => [cj(stackAmp(L, n1, n2, ci, nm, 's')), cj(stackAmp(L, n1, n2, ci, nm, 'p'))];
+  if (k < 0 && stack) { const [rs, rp] = sr(stack); return { rs, rp, ts: [0, 0], tp: [0, 0], tir: true }; }
   if (k < 0) {
     // total internal reflection: everything comes back, each component with its own phase
     const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
@@ -9206,15 +9215,10 @@ function faceAmps(face, n1, n2, ci, nm) {
     rs: [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0], rp: [(n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0],
     ts: [2 * n1 * ci / (n1 * ci + n2 * ct) * norm, 0], tp: [2 * n1 * ci / (n2 * ci + n1 * ct) * norm, 0], tir: false });
   if (!coat || coat.mode === 'bare') return bare();
-  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), a quarter wave on reflection as byR has it
-  if (coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = Math.sqrt(R); return { rs: [0, a], rp: [0, a], ts: [0, 0], tp: [0, 0], tir: true }; }
   if (coat.mode === 'band') { if (!(nm >= coat.lo && nm <= coat.hi)) return bare(); const R = coat.R / 100; return byR(R, R); }
   if (coat.mode === 'stack') {
-    if (!coat.layers || !coat.layers.length) return bare();
-    // the layers are listed from the outside in, so light through the substrate meets them in reverse
-    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
-    const rs = stackAmp(L, n1, n2, ci, nm, 's'), rp = stackAmp(L, n1, n2, ci, nm, 'p');
-    const ts = stackT(L, n1, n2, ci, nm, 's'), tp = stackT(L, n1, n2, ci, nm, 'p');
+    if (!stack) return bare();
+    const [rs, rp] = sr(stack), ts = cj(stackT(stack, n1, n2, ci, nm, 's')), tp = cj(stackT(stack, n1, n2, ci, nm, 'p'));
     // stackAmp's p is already the parity convention's: r_p = r_s square on, and a layer of nothing is a bare face
     return { rs, rp, ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], tir: false };
   }
@@ -17740,7 +17744,7 @@ function detOutput(el, P, note) {
    mode takes in, with its NEP as noise, through its video bandwidth. A mixer puts out the IF:
    each feed horn's carrier comes down to |f - f_LO|, at the power it delivers less the
    conversion loss, as a tone of sqrt(2 R P) volts across 50 ohm, with the phase of the field at
-   the horn (so two paths to one horn beat as they should). The receiver's noise temperature
+   the horn (so two paths to one horn beat as they should), conjugated for a carrier below the LO. The receiver's noise temperature
    and what it looks into set the noise, k (T_ant + T_rx) R, referred to its input. A feed horn
    that is an upconverter sends its IF input up and this mixer brings it down: the IF out is the
    drive, scaled by the link, mixed with the difference of the two local oscillators. A carrier
@@ -17758,14 +17762,15 @@ function rfMixerOutput(el, P, note) {
   let out = zero('V');
   const tone = (f, ph) => { const T = zero('V'); if (f > 0) addTone(T.tones, f, Math.cos(ph), Math.sin(ph)); else T.dc = Math.cos(ph); return T; };
   if (C) for (const ln of C.lines) {
-    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9;
+    // a carrier below the LO comes down conjugated: cos((ω_LO − ω)t − φ), its phase turned round
+    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9, ph = ln.ghz < rf.lo ? -ln.ph : ln.ph;
     if (fif > 1e10) { note('The IF from ' + (src ? src.name : 'a horn') + ' would be ' + fmtHz(fif) + ', past the electronics\u2019 10 GHz: left out'); continue; }
     if (src && src.mmw && src.mmw.tx === 'up') {
       const d = curDrives.find(q => q.el.id === ln.id && q.port === 'if');
       if (!d || !d.S) { note((src.name) + ' is an upconverter with nothing on its IF input: no carrier'); continue; }
       // from the IF in to the IF out: the bench, traced at the horn's nominal power, gives the link's power gain
       const G = ln.mw / Math.pow(10, src.mmw.dbm / 10) * Math.pow(10, -src.mmw.cl / 10) * gcl;
-      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ln.ph), 1), 1, 1);
+      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ph), 1), 1, 1);
       continue;
     }
     const Vp = Math.sqrt(2 * R_IF * ln.mw * 1e-3 * gcl), A = zero('V');
@@ -17776,7 +17781,7 @@ function rfMixerOutput(el, P, note) {
       const sw = P.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
       if (sw > 0.3 * P.dc) note('The carrier\u2019s power swings by more than 30%: the IF follows its square root, taken as a straight line about the mean');
     }
-    out = sum(out, mixer(A, tone(fif, ln.ph), 1), 1, 1);
+    out = sum(out, mixer(A, tone(fif, ph), 1), 1, 1);
   }
   const n2 = KT / 295 * (rf.tant + rf.trx) * R_IF * gcl;
   return through(out, pole(1, rf.ifbw * 1e6), 'V', () => n2);
@@ -21906,7 +21911,7 @@ function gridPanel(el) {
       h('tr', null, h('td', null, 'Across the wires: passed'), h('td', null, pc(1 - G.Rperp) + ' (' + (10 * Math.log10(Math.max(1e-12, G.Rperp))).toFixed(1) + ' dB reflected)')),
       h('tr', null, h('td', null, 'Filling 2a/g'), h('td', null, (2 * el.grid.a / el.grid.g).toPrecision(3)))))));
   if (G.grating) panel.append(h('p', { class: 'rt-assumed' }, 'Its pitch is more than the wavelength: the grid diffracts as a grating, which the model does not follow; the figures above hold for g < \u03bb.'));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A grid of round wires: the field along the wires sees them as a shunt inductance across the line, (g/\u03bb) X\u2099(2a/g), and is reflected 1/(1 + 4X\u00b2); the field across them sees a small capacitance and passes, leaking B\u00b2/(4 + B\u00b2). Met at an angle, the wires\u2019 reactance scales with the wave impedance (cos \u03b8 for upright wires, 1/cos \u03b8 for wires in the plane). Lossless; valid while g < \u03bb. Chuss et al. 2012, after Marcuvitz.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A grid of round wires: the field along the wires sees them as a shunt inductance across the line, X = (g/2\u03bb) X\u2099(2a/g), and is reflected 1/(1 + 4X\u00b2); the field across them sees a small capacitance and passes, leaking B\u00b2/(4 + B\u00b2). Met at an angle, the wires\u2019 reactance scales with the wave impedance (cos \u03b8 for upright wires, 1/cos \u03b8 for wires in the plane). Lossless; valid while g < \u03bb. Chuss et al. 2012, after Marcuvitz.'));
 }
 /* Polariser on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/polariser.js */
 
@@ -30257,10 +30262,12 @@ function plotFrame(cv, getKey, getZ, redraw) {
   // a plot is drawn to the width it had then; when a panel is pinned, unpinned or resized
   // that width changes, and a canvas left at the old one is stretched to fit
   let drawnW = -1;
-  new ResizeObserver(() => {
+  // (redrawn on the next frame, not inside the observer: a redraw that changes the box's size
+  // there would loop the observer, which the browser reports as an error)
+  new ResizeObserver(() => requestAnimationFrame(() => {
     const w = cv.clientWidth;
     if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; redraw(); }
-  }).observe(box);
+  })).observe(box);
   return box;
 }
 const plotCanvases = () => [...document.querySelectorAll('.rt-panel canvas')].filter(c => c._sync && c.offsetParent !== null);
@@ -37206,8 +37213,9 @@ function paraxialOf(S) {
   // the marginal ray of an object at infinity, height 1 at the first surface
   const [yL, uL] = paraStep(S, 1, 0, 0, L);
   const efl = Math.abs(uL) < 1e-14 ? Infinity : -1 / uL, bfl = Math.abs(uL) < 1e-14 ? Infinity : -yL / uL;
-  // heights at the stop of the two rays (1, 0) and (0, 1) at the first surface
-  const hs = (y, u) => (st === 0 ? y : paraStep(S, y, u, 0, st - 1)[0] + (S.z[st] - S.z[st - 1]) * paraStep(S, y, u, 0, st - 1)[1]);
+  // heights at the stop of the two rays (1, 0) and (0, 1) at the first surface (through the stop's face, whose height
+  // it does not change: a graded gap before it as paraStep takes one)
+  const hs = (y, u) => paraStep(S, y, u, 0, st)[0];
   const ya = hs(1, 0), yb = hs(0, 1);
   // the chief ray: angle 1, height -yb/ya at the first surface, so none at the stop; the entrance pupil where it points from
   const hc = Math.abs(ya) < 1e-14 ? 0 : -yb / ya, epz = -hc;          // the entrance pupil's place, from the first vertex
@@ -47078,7 +47086,10 @@ function usageError(msg, file, line) {
   if (!usageOn() || usageErrs.length >= 5) return;
   const m = String(msg || '').replace(/(["'`‘“]).*?(["'`’”])/g, '…').replace(/\d+(\.\d+)?/g, 'N').replace(/https?:\S+/g, 'URL').slice(0, 160);
   const src = String(file || '').split(/[?#]/)[0].split('/').pop() + ':' + (line || 0);
-  if (!/jekray/.test(src) || usageSeen.has(m + src)) return;       // only the tool's own scripts: not extensions, not mods
+  // only the tool's own scripts: not extensions, not mods, and not what a browser runs in the page itself, which
+  // reports the page's line 1 (an in-app browser's injected autofill script) or no line at all (a ResizeObserver
+  // loop notice); the tool's own code starts well below the head
+  if (!/jekray/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
   usageSeen.add(m + src); usageErrs.push([m, src]);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }
@@ -47837,7 +47848,7 @@ async function fillHome() {
       h('h3', null, 'Versions and forks'),
       ev.length ? graph : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'))));
     if (homeRO) homeRO.disconnect();
-    if (ev.length) { draw(); homeRO = new ResizeObserver(draw); homeRO.observe(list); }
+    if (ev.length) { draw(); homeRO = new ResizeObserver(() => requestAnimationFrame(draw)); homeRO.observe(list); }
     return;
   }
   // My links: the share links made, each a snapshot of a bench as it was: open it, copy its link, or delete it

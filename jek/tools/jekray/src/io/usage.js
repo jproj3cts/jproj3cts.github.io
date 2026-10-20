@@ -44,7 +44,10 @@ function usageError(msg, file, line) {
   if (!usageOn() || usageErrs.length >= 5) return;
   const m = String(msg || '').replace(/(["'`‘“]).*?(["'`’”])/g, '…').replace(/\d+(\.\d+)?/g, 'N').replace(/https?:\S+/g, 'URL').slice(0, 160);
   const src = String(file || '').split(/[?#]/)[0].split('/').pop() + ':' + (line || 0);
-  if (!/jekray/.test(src) || usageSeen.has(m + src)) return;       // only the tool's own scripts: not extensions, not mods
+  // only the tool's own scripts: not extensions, not mods, and not what a browser runs in the page itself, which
+  // reports the page's line 1 (an in-app browser's injected autofill script) or no line at all (a ResizeObserver
+  // loop notice); the tool's own code starts well below the head
+  if (!/jekray/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
   usageSeen.add(m + src); usageErrs.push([m, src]);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }

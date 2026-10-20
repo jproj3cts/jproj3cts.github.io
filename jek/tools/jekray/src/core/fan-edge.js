@@ -3,4 +3,4 @@
    0 for a hard edge (which rings on the grid, about 1% across the middle). */
 export const fanEdgeAuto = (width, popN = 256) => +(0.08 * width * 256 / (popN || 256)).toPrecision(3);
 // a sweep of the edge sets it, whether or not it was automatic
-export const fanEdge = src => src.edgeAuto !== false && !(src.sweeps && src.sweeps.edge) ? fanEdgeAuto(src.width || 0, src.popN) : Math.max(0, src.edge || 0);
+export const fanEdge = src => src.softAuto !== false && !(src.sweeps && src.sweeps.soft) ? fanEdgeAuto(src.width || 0, src.popN) : Math.max(0, src.soft || 0);

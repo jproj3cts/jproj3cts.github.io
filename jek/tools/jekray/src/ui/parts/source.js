@@ -43,13 +43,14 @@ function drawSource(el, sel) {
 
 /* the fan's soft edge: automatic (enough for the field grid) until a value is typed, 0 included */
 function edgeRows(el) {
-  const row = param('Edge softness (mm)', el, 'edge');
-  const inp = row.querySelector('input');
-  if (inp) inp.addEventListener('change', () => { el.edgeAuto = false; auto.checked = false; });
+  if (el.softAuto !== false) el.soft = fanEdgeAuto(el.width, el.popN);
+  const row = param('Edge softness (mm)', el, 'soft');
+  // typing a value, 0 included, ends the automatic one: caught on the way down, before the field takes the value
+  row.addEventListener('input', ev => { if (ev.target.tagName === 'INPUT' && ev.target.type === 'text') { el.softAuto = false; auto.checked = false; } }, true);
   const auto = h('input', { type: 'checkbox' });
-  auto.checked = el.edgeAuto !== false;
-  auto.addEventListener('change', () => { checkpoint(); el.edgeAuto = auto.checked; if (el.edgeAuto) el.edge = fanEdgeAuto(el.width, el.popN); changed(true); });
-  bindSync(auto, () => { const a = fanEdgeAuto(el.width, el.popN); if (el.edgeAuto !== false && el.edge !== a) el.edge = a; });
+  auto.checked = el.softAuto !== false;
+  auto.addEventListener('change', () => { checkpoint(); el.softAuto = auto.checked; if (el.softAuto) el.soft = fanEdgeAuto(el.width, el.popN); changed(true); });
+  bindSync(auto, () => { const a = fanEdgeAuto(el.width, el.popN); if (el.softAuto !== false && el.soft !== a) el.soft = a; });
   return [row, h('label', { class: 'rt-check' }, auto, 'Automatic: just enough for the field grid')];
 }
 

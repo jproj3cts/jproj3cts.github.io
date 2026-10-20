@@ -101,10 +101,10 @@ export function metalR(key, ghz) {
 }
 /* ---------- A wire grid: wires of radius a (mm) at pitch g (mm), E along the wires reflected ----------
    The grid is a sheet reactance across a transmission line: for the field along the wires an
-   inductance X = (g/λ) Xn, Xn the quasi-static inductance of the grid as a function of its filling
-   2a/g (Chuss et al., Appl. Opt. 51, 197 (2012), an interpolation of full-wave simulations that
-   agrees with Marcuvitz's ln(g/2πa) for sparse grids and holds to 2a/g = 1), which reflects
-   R = 1/(1 + 4X²); across the wires a capacitance B = 4 (g/λ) ln sec(πw/2g), w = 4a the wires'
+   inductance X = (g/2λ) Xn, Xn = (λ/g) 2X the grid's doubled normalised inductance as a function
+   of its filling 2a/g (Chuss et al., Appl. Opt. 51, 197 (2012), Fig. 6, an interpolation of
+   full-wave simulations that agrees with Marcuvitz's X = (g/λ) ln(g/2πa) for sparse grids and holds
+   to 2a/g = 1), which reflects R = 1/(1 + 4X²) (their eq. 14, 1/(1 + (2X)²)); across the wires a capacitance B = 4 (g/λ) ln sec(πw/2g), w = 4a the wires'
    width as strips (Marcuvitz, capacitive strips, by Babinet), which leaks R = B²/(4 + B²). Met at
    an angle θ, a sheet's reactance seen by the wave scales with the wave impedance: by cos θ for
    wires across the plane of incidence, 1/cos θ for wires in it. Valid while g < λ (no diffraction):
@@ -113,7 +113,7 @@ export function metalR(key, ghz) {
 export function gridCoef(grid, nm, cth, inPlane) {
   const lam = nm * 1e-6, g = grid.g, a = grid.a, c = Math.max(0.05, Math.abs(cth) || 1);
   const u = Math.log(2 * Math.PI * a / g), Xn = Math.max(0.02, 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u);
-  const X = (g / lam) * Xn * (inPlane ? 1 / c : c);
+  const X = 0.5 * (g / lam) * Xn * (inPlane ? 1 / c : c);
   const Rpar = 1 / (1 + 4 * X * X);
   const w = Math.min(4 * a, 0.9 * g), B = 4 * (g / lam) * Math.log(1 / Math.cos(Math.PI * w / (2 * g))) * (inPlane ? 1 / c : c);
   const Rperp = B * B / (4 + B * B);

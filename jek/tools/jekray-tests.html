@@ -7394,15 +7394,15 @@ const TESTS = [
     run: J => { J.load(rfBench(600, [{ type: 'lens', name: 'L1', x: 150, y: 0, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'HDPE' }], mmw: {} }], { rays: 11 })); return J.system().efl; },
   },
   {
-    name: 'A wire grid reflects the field along its wires by its inductance: 1 / (1 + 4X²), X = (g/λ) Xn(2a/g)',
-    why: 'a grid of 25 µm pitch and 10 µm wires (2a/g = 0.4) at 150 GHz (λ = 2 mm), square on, s light along its upright wires: Xn = 0.51 − 1.19 u + 0.53 u² + 0.11 u³ with u = ln(2πa/g) (Chuss et al. 2012), and the share that leaks through is 1 − 1/(1 + 4X²): the leak in the beam past the grid over the beam before it (relative error)',
+    name: 'A wire grid reflects the field along its wires by its inductance: 1 / (1 + 4X²), X = (g/2λ) Xn(2a/g)',
+    why: 'a grid of 25 µm pitch and 10 µm wires (2a/g = 0.4) at 150 GHz (λ = 2 mm), square on, s light along its upright wires: Xn = 0.51 − 1.19 u + 0.53 u² + 0.11 u³ with u = ln(2πa/g) (Chuss et al. 2012, Fig. 6: Xn = (λ/g) 2X), and the share that leaks through is 1 − 1/(1 + 4X²): the leak in the beam past the grid over the beam before it (relative error)',
     want: 0, tol: 1e-6, unit: '',
     run: J => {
       J.load(bench('grid', [{ type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: 3, pol: 's', mmw: { kind: 'corrugated', ghz: 150, dbm: 0, a: 7.5, L: 60 } },
         { type: 'polariser', name: 'G', x: 100, y: 0, angle: 180, axis: 0, length: 100, grid: { g: 0.025, a: 0.005 }, mmw: {} }, { type: 'screen', name: 'Sc', x: 200, y: 0, angle: 180, length: 100 }], { minPower: 1e-9 }));
       const T = J.lastTrace(), t = T.beams.find(b => b.ev && b.ev.kind === 'grid' && b.ev.mode === 'T'), p = t && T.beams[t.parent];
       if (!t || !p) return NaN;
-      const lam = 299792458 / 150 * 1e-6, g = 0.025, a = 0.005, u = Math.log(2 * Math.PI * a / g), Xn = 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u, X = (g / lam) * Xn;
+      const lam = 299792458 / 150 * 1e-6, g = 0.025, a = 0.005, u = Math.log(2 * Math.PI * a / g), Xn = 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u, X = 0.5 * (g / lam) * Xn;
       return Math.abs((t.w / p.w) / (1 - 1 / (1 + 4 * X * X)) - 1);
     },
   },
@@ -9836,7 +9836,7 @@ const TESTS = [
   },
   {
     name: 'One face, one set of amplitudes: a coated window passes s and p with their own phase, and a coated face reflects s and p alike square on',
-    why: 'a Gaussian beam linear at 45° through an N-BK7 window turned 45°, its front a three-layer splitter stack: the bench passes 10.44% as s and 26.88% as p, p retarded 4.44° against s (the stack’s own transmitted phase, as core/face-pol.js gives the lens designer too; bare, none); a six-layer mirror stack turned 5° reflects s and p with the same sign, as at normal incidence they must be (1 when all hold)',
+    why: 'a Gaussian beam linear at 45° through an N-BK7 window turned 45°, its front a three-layer splitter stack: the bench passes 10.44% as s and 26.88% as p, p 4.44° ahead of s (the stack’s own transmitted phase, in the tracer’s e^{+ikL}, as core/face-pol.js gives the lens designer too; bare, none); a six-layer mirror stack turned 5° reflects s and p with the same sign, as at normal incidence they must be (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const shot = (layers, ang) => { J.load({ format: 'jekray', version: 1, elements: [
@@ -9849,7 +9849,7 @@ const TESTS = [
       const fig = A => { const [sr, si, pr, pi] = A.J; return { s: sr * sr + si * si, p: pr * pr + pi * pi, ret: (Math.atan2(pi, pr) - Math.atan2(si, sr)) * 180 / Math.PI }; };
       const bs = fig(shot([{ n: 2.35, d: 67.3 }, { n: 1.46, d: 108.4 }, { n: 2.35, d: 67.3 }], 45).T), bare = fig(shot(null, 45).T);
       const hr = shot(Array.from({ length: 6 }, (_, i) => ({ n: i % 2 ? 1.46 : 2.35, d: i % 2 ? 108.4 : 67.3 })), 5).R;
-      const through = Math.abs(bs.s - 0.104425) < 1e-5 && Math.abs(bs.p - 0.268811) < 1e-5 && Math.abs(bs.ret - 4.4355) < 1e-3 && Math.abs(bare.ret) < 1e-9;
+      const through = Math.abs(bs.s - 0.104425) < 1e-5 && Math.abs(bs.p - 0.268811) < 1e-5 && Math.abs(bs.ret + 4.4355) < 1e-3 && Math.abs(bare.ret) < 1e-9;
       const alike = !!hr && Math.sign(hr.J[0]) === Math.sign(hr.J[2]) && Math.abs(hr.J[0] - hr.J[2]) < 0.01;
       if (!(through && alike)) console.log('face amplitudes', { bs, bare, hr: hr && hr.J });
       return through && alike ? 1 : 0;

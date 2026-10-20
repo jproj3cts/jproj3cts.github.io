@@ -226,9 +226,9 @@ A **radome** is a sheet of dielectric the beam passes through: a lens of two fla
 
 A grid of round wires of radius $$a$$ at pitch $$g$$ is, to a wave with $$g < \lambda$$, a sheet across the line. The field **along the wires** sees them as a shunt inductance, normalised to free space,
 
-$$X = \frac{g}{\lambda}\,X_n\!\left(\frac{2a}{g}\right), \qquad X_n \simeq 0.51 - 1.19\,u + 0.53\,u^2 + 0.11\,u^3, \quad u = \ln\frac{2\pi a}{g},$$
+$$X = \frac{g}{2\lambda}\,X_n\!\left(\frac{2a}{g}\right), \qquad X_n \simeq 0.51 - 1.19\,u + 0.53\,u^2 + 0.11\,u^3, \quad u = \ln\frac{2\pi a}{g},$$
 
-and is reflected with $$R_\parallel = 1/(1 + 4X^2)$$, the rest leaking through. $$X_n$$ is the quasi-static inductance of the grid as a function of its filling $$2a/g$$, an interpolation of full-wave simulations (Chuss et al., *Appl. Opt.* 51, 197, 2012) that agrees with Marcuvitz's $$\ln(g/2\pi a)$$ for sparse grids and holds up to $$2a/g = 1$$, where Marcuvitz's form fails. For a 25 µm pitch and 10 µm wires at 150 GHz the leak is −44 dB.
+and is reflected with $$R_\parallel = 1/(1 + 4X^2)$$, the rest leaking through. $$X_n = (\lambda/g)\,2X$$ is the grid's doubled quasi-static inductance as a function of its filling $$2a/g$$, an interpolation of full-wave simulations (Chuss et al., *Appl. Opt.* 51, 197, 2012, their Fig. 6 and eq. 14, $$R = 1/(1 + (2X)^2)$$) that agrees with Marcuvitz's $$X = (g/\lambda)\ln(g/2\pi a)$$ for sparse grids and holds up to $$2a/g = 1$$, where Marcuvitz's form fails. For a 25 µm pitch and 10 µm wires at 150 GHz the leak is −50 dB.
 
 The field **across the wires** sees a small shunt capacitance, $$B = 4 (g/\lambda) \ln\sec(\pi w / 2g)$$ with $$w = 4a$$ the wires' width as strips (Marcuvitz's capacitive strips, by Babinet), and is reflected $$R_\perp = B^2/(4 + B^2)$$: −31 dB for the same grid. Met at an angle $$\theta$$, a sheet's reactance seen by the wave scales with the wave impedance: by $$\cos\theta$$ for wires across the plane of incidence (upright wires on the bench), $$1/\cos\theta$$ for wires lying in it. The grid is lossless; its wires' ohmic loss, a few parts in a thousand at most, is left out. Past $$g = \lambda$$ it diffracts as a grating, which the model does not follow, and the panel says so.
 

@@ -33,6 +33,15 @@ export function stackT(layers, n0, ns, c0, nm, pol) {
    passes nothing). Each case as the tracer has always traced it, and a coating's stack now passes its own phase. */
 export function faceAmps(face, n1, n2, ci, nm) {
   const coat = face && face.coat, k = 1 - (n1 / n2) * (n1 / n2) * (1 - ci * ci);
+  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), -√R as a mirror is,
+  // beyond the critical angle too (the metal reflects, not the glass)
+  if (coat && coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = -Math.sqrt(R); return { rs: [a, 0], rp: [a, 0], ts: [0, 0], tp: [0, 0], tir: true }; }
+  // a stack: its own amplitudes, met in reverse from the glass (its layers listed from the outside in), conjugated
+  // from the matrix's e^{-ikz} to the tracer's e^{+ikL}; beyond the critical angle all of it comes back, a stack of
+  // nothing as bare TIR does
+  const stack = coat && coat.mode === 'stack' && coat.layers && coat.layers.length ? (n1 > n2 ? coat.layers.slice().reverse() : coat.layers) : null;
+  const cj = a => [a[0], -a[1]], sr = L => [cj(stackAmp(L, n1, n2, ci, nm, 's')), cj(stackAmp(L, n1, n2, ci, nm, 'p'))];
+  if (k < 0 && stack) { const [rs, rp] = sr(stack); return { rs, rp, ts: [0, 0], tp: [0, 0], tir: true }; }
   if (k < 0) {
     // total internal reflection: everything comes back, each component with its own phase
     const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
@@ -47,15 +56,10 @@ export function faceAmps(face, n1, n2, ci, nm) {
     rs: [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0], rp: [(n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0],
     ts: [2 * n1 * ci / (n1 * ci + n2 * ct) * norm, 0], tp: [2 * n1 * ci / (n2 * ci + n1 * ct) * norm, 0], tir: false });
   if (!coat || coat.mode === 'bare') return bare();
-  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), a quarter wave on reflection as byR has it
-  if (coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = Math.sqrt(R); return { rs: [0, a], rp: [0, a], ts: [0, 0], tp: [0, 0], tir: true }; }
   if (coat.mode === 'band') { if (!(nm >= coat.lo && nm <= coat.hi)) return bare(); const R = coat.R / 100; return byR(R, R); }
   if (coat.mode === 'stack') {
-    if (!coat.layers || !coat.layers.length) return bare();
-    // the layers are listed from the outside in, so light through the substrate meets them in reverse
-    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
-    const rs = stackAmp(L, n1, n2, ci, nm, 's'), rp = stackAmp(L, n1, n2, ci, nm, 'p');
-    const ts = stackT(L, n1, n2, ci, nm, 's'), tp = stackT(L, n1, n2, ci, nm, 'p');
+    if (!stack) return bare();
+    const [rs, rp] = sr(stack), ts = cj(stackT(stack, n1, n2, ci, nm, 's')), tp = cj(stackT(stack, n1, n2, ci, nm, 'p'));
     // stackAmp's p is already the parity convention's: r_p = r_s square on, and a layer of nothing is a bare face
     return { rs, rp, ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], tir: false };
   }

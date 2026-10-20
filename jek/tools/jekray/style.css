@@ -1103,7 +1103,7 @@
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
     .rt-menu button.rt-narrow { display: flex; }
     /* submenus open in place, under their item */
@@ -1115,7 +1115,7 @@
      Share, the cart, the account and Help in the ⋯ menu, whose View, Sweeps, account and Help open their own
      menus under the bar's right end */
   .rt-moremenu { display: none; }
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     .rt-app .rt-toolbar { position: relative; padding: 0.4rem 0.5rem; }
     .rt-bar { flex-wrap: nowrap; gap: 0.25rem; }
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
@@ -1548,3 +1548,29 @@
   .rt-plotleg { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; margin: 0.25rem 0 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-plotleg span { display: inline-flex; align-items: center; gap: 0.35rem; }
   .rt-plotleg i { display: inline-block; width: 1.4rem; }
+
+/* A phone (or a phone on its side): the bench is the whole window under the bar, and the panel of what is selected a sheet
+   over the bench's lower half, made taller or shorter with its arrow, closed with its ×; pinning is for wide screens */
+.rt-sheetbtn, .rt-narrownote { display: none !important; }
+.rt-welcome .rt-wdesk { margin: 0 0 0.5rem; padding: 0.4rem 0.55rem; background: #fdf1e6; color: #7a3c13; border-radius: 2px; }
+@media (max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse) {
+  html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
+  html.rt-noscroll body > footer { display: none; }
+  .rt-app .rt-wrap { height: 100vh; height: 100dvh; min-height: 0; }
+  .rt-app .rt-grid { display: block; position: relative; flex: 1; min-height: 0; }
+  .rt-app .rt-stage { position: absolute; inset: 0; height: auto; min-height: 0; }
+  .rt-app .rt-panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; max-height: 50%; padding: 0.55rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-width: 1px 0 0; border-radius: 12px 12px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,0.28); overscroll-behavior: contain; }
+  .rt-app .rt-panel.rt-tall { max-height: calc(100% - 0.75rem); }
+  .rt-app .rt-panel::before { content: ""; display: block; width: 2.5rem; height: 4px; margin: 0 auto 0.55rem; border-radius: 2px; background: var(--jek-line-2); }
+  .rt-app .rt-panel h2 { position: sticky; top: -0.55rem; z-index: 2; margin: -0.2rem -1rem 0.6rem; padding: 0.3rem 1rem 0.45rem; background: var(--jek-panel); }
+  .rt-sheetbtn { display: inline-grid !important; font-size: 1rem; }
+  .rt-narrownote { display: block !important; }
+  .rt-minimap { display: none !important; }
+  .rt-bar .rt-menu, .rt-picker { max-height: calc(100vh - 4rem); max-height: calc(100dvh - 4rem); overflow-y: auto; }
+  .rt-app .rt-welcome { left: calc(52px + 0.5rem); right: 0.5rem; bottom: 0.6rem; max-width: none; max-height: calc(100% - 1.2rem); overflow-y: auto; }
+  .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
+  /* touch: buttons and fields big enough for a finger */
+  .rt-panel input, .rt-panel select { min-height: 2.25rem; font-size: 16px; }
+  .rt-pin { width: 2.2rem; height: 2.2rem; }
+}

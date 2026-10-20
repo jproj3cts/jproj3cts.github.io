@@ -1,6 +1,6 @@
 import { EMBED } from '../core/constants.js';
 import { project } from '../state/project.js';
-import { h } from './panel.js';
+import { h, phoneSheet } from './panel.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
@@ -15,6 +15,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>On a phone or tablet</b>: the bench fills the screen, and a part\u2019s settings open in a sheet over its lower half (\u2191 makes it taller, \u00d7 or a tap on the empty bench closes it), the part moved clear of the sheet if it would be under it. A phone on its side has the one-row bar too. The welcome note, the parts picker and the menus say tap rather than click, and that JEKray is best used on a desktop or laptop, where the designers, plots and shortcuts have the room they need.',
     'A lens surface\u2019s <b>hole radius</b> is set in the Optical designer only; the bench panel shows it when there is one. A hole as wide as the surface or wider (which left the face drawn but not there for the light) is no hole. And a lens with a plain hole through a face, nothing stacked in it, no longer stops the bench from tracing.',
     'In the Optical designer, <b>Insert a surface</b> and <b>Remove</b> now work on a lens with stacked faces or mirror coats: the new surface goes on the part itself, after the one selected the way the light goes on from it (back into the glass off a mirror), and the part\u2019s later surfaces keep their variables and solves. Before, the change was lost. The <b>Insert a surface</b> and <b>Insert an element</b> menus also stay open when clicked: the pointer had opened them and the click shut them again.',
     '<b>Layers on a face</b>: stacked surfaces of the same clear radius and hole are now layers, met one after the other in the order the light comes to them, on the bench, in the diffracted field and in the Optical designer. Before, only the first was there and the rest were ignored, coatings and all: a partly reflecting coating on a second layer now reflects, a bare face over a mirror coat reflects its share of light from behind, and a layer with the same glass either side is on the light\u2019s path and changes nothing.',
@@ -295,9 +296,16 @@ export function hideWelcome() {
 export function showWelcome() {
   try { if (localStorage.getItem('jek-raytracer-welcomed')) return; } catch (err) { return; }
   const pick = h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples');
+  // on a touch screen, the touch ways; a phone is told the designers and plots want a desktop
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches, phone = phoneSheet();
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray'),
-    h('ul', null,
+    phone ? h('p', { class: 'rt-wdesk' }, 'JEKray is best used on a desktop or laptop: the bench works here, but the designers, plots and shortcuts need a larger screen and a mouse.') : null,
+    touch ? h('ul', null,
+      h('li', null, 'Tap + to add parts, or drag one from the rail at the bench\u2019s left.'),
+      h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
+      h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
+    : h('ul', null,
       h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
       h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more.'),

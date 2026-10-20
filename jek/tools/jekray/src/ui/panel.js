@@ -3,10 +3,10 @@ import { asmOf, asmOfSelection } from '../core/assembly.js';
 import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
-import { extraSel, project, selectOne, typeLabel } from '../state/project.js';
+import { V, extraSel, project, selectOne, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
 import { tippable } from '../engines/trace.js';
-import { requestRender, selFibre, selection, setSelFibreId } from './render.js';
+import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './render.js';
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
@@ -340,7 +340,11 @@ export function pinTitle(title, id, onSelect) {
       if (!main) { togglePinId(id); return; }
       selectOne(null); setSelFibreId(null); panelClosed = true; renderPanel(); requestRender();
     } }, '\u00d7');
-  title.append(pinBtn, closeBtn);
+  // on a phone the main panel is a sheet over the bench's lower part: this makes it taller, or shorter again
+  const sheetBtn = main ? h('button', { class: 'rt-pin rt-sheetbtn', type: 'button', 'aria-pressed': sheetTall ? 'true' : 'false',
+    'aria-label': sheetTall ? 'Make the panel shorter' : 'Make the panel taller', title: sheetTall ? 'Shorter: more of the bench' : 'Taller: more of the panel',
+    onclick: () => { sheetTall = !sheetTall; mainPanel.classList.toggle('rt-tall', sheetTall); renderPanel(); } }, sheetTall ? '\u2193' : '\u2191') : null;
+  title.append(...[pinBtn, sheetBtn, closeBtn].filter(Boolean));
   if (panel !== mainPanel) {
     const box = panel;                          // the panel being built now (panel is reassigned after)
     title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });   // (the close button is an .rt-pin too)
@@ -405,6 +409,15 @@ function dragPinned(e, title, box, id) {
 // the main panel closed with its ×; the tool opens with it closed, the bench across the page
 // (the tests open it, as their checks read it)
 export let panelClosed = !TEST_MODE;
+/* a phone: the panel is a sheet over the bottom of the bench (style.css), short unless made tall */
+let sheetTall = false, sheetFor = null;
+export const phoneSheet = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse)').matches;
+/* something just selected on a phone: if the sheet would cover it, the view moves it up into the bench left showing */
+function sheetReveal(el) {
+  if (!el || !phoneSheet() || el.x === undefined) return;
+  const top = H * (sheetTall ? 0.08 : 0.5), y = sy(el.y);
+  if (y > top - 24) V().cy -= (y - top * 0.5) / V().scale;      // (the bench's y is up the screen)
+}
 export function setPanelClosed(v) { return (panelClosed = v); }
 export function renderPanel() {
   pins = pins.filter(pinOk);
@@ -426,6 +439,10 @@ export function renderPanel() {
   mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
   mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
   if (mainShows) renderInto(mainPanel, sel);
+  mainPanel.classList.toggle('rt-tall', sheetTall);
+  // newly selected on a phone: kept clear of the sheet
+  if (sel && sel.id !== sheetFor && mainShows) { sheetReveal(sel); requestRender(); }
+  sheetFor = sel ? sel.id : null;
   let after = mainPanel;
   for (const id of pins) {
     let box = pinBoxes.get(id);

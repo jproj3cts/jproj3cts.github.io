@@ -4483,6 +4483,7 @@ const TESTS = [
         J.load(fnet([], []));
         const el = J.byName(J.add(k));
         if (k === 'fibre') return el.type !== 'fibre';
+        if (k === 'collimator') return !(el.type === 'fibre' && el.coll > 0);
         if (k === 'led') return !(el.kind === 'laser' && el.led);
         if (k === 'bpd') return !(el.kind === 'pd' && el.balanced);
         if (k === 'soa') return !(el.kind === 'amp' && el.soa);

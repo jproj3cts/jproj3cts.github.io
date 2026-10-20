@@ -129,7 +129,8 @@ function volCuts(sg, bb, two, coh) {
   const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (coh ? 5 : two ? 20 : 10)), 1, 12);
   for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
   for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
-  return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y)) };
+  // (the cuts are rounded to a nanometre, so one placed at an end can round past it: kept, at the end)
+  return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-6 && t <= tb + 1e-6).map(t => clamp(t, ta, tb)).sort((x, y) => x - y)) };
 }
 /* Each segment's volume, of those on the tab (only: the segments, by index, to work out, or a
    Map of them to the ranges of their cuts, [[j0, j1], ...], a share of a pooled job: the rest of
@@ -176,7 +177,7 @@ export function volData(segs, tab, bb, only) {
         const X = b.x0 + b.dx * t, Y = b.y0 + b.dy * t;
         // each member's field cut exactly where this cut crosses its axis; across the cut, the
         // fast phase of the small way along it a point is from there (a mate at an angle's tilt fringes)
-        const here = members.map(mb => { const m = mb.m, pzc = clamp((X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, 0, m.b.len); return Object.assign({ pzc, G: m.leg.at(pzc) }, mb); });
+        const here = members.map(mb => { const m = mb.m, pr = (X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, pzc = clamp(pr, 0, m.b.len); return Object.assign({ pr, pzc, G: m.leg.at(pzc) }, mb); });
         // Fringes the grid can show: between beams running the same way, no finer than a few of its cells
         // across. Beams crossing at an angle, or running against each other, make fringes of a fraction
         // of a micron (across the beam, or along it, between the cuts): no grid resolves them, sampled
@@ -194,12 +195,14 @@ export function volData(segs, tab, bb, only) {
           const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
           for (const A of accs) A.fill(0);
           for (let hi = 0; hi < here.length; hi++) {
-            const { m, L, a, G, pzc, J } = here[hi], acc = accs[grp[hi]];
+            const { m, L, a, G, pr, pzc, J } = here[hi], acc = accs[grp[hi]];
             const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
             // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
             // or starts where this one ends, the light has passed from one to the other (and would be counted
             // twice). A segment's own, all of it
-            if (m !== sg && (pz0 < -1e-3 || pz0 > m.b.len + 1e-3 || (pz0 > m.b.len - 1e-3 && t < b.len - 1e-3) || (pz0 < 1e-3 && t > 1e-3))) continue;
+            // (whether a mate has ended or not begun is judged where this cut crosses its axis, not point by point:
+            // across a cut a mate at a slight angle is a few microns further along at one side than the other)
+            if (m !== sg && (pr < -1e-3 || pr > m.b.len + 1e-3 || (pr > m.b.len - 1e-3 && t < b.len - 1e-3) || (pr < 1e-3 && t > 1e-3))) continue;
             const f = volCutAt(L, G, -rx * m.b.dy + ry * m.b.dx, v, J), ph = -L.k * (clamp(pz0, 0, m.b.len) - pzc), c = Math.cos(ph), sn = Math.sin(ph);
             acc[0] += a * (f[0] * c - f[1] * sn); acc[1] += a * (f[0] * sn + f[1] * c);
             acc[2] += a * (f[2] * c - f[3] * sn); acc[3] += a * (f[2] * sn + f[3] * c);

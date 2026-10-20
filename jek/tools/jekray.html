@@ -1589,6 +1589,17 @@
   .rt-panel input, .rt-panel select { min-height: 2.25rem; font-size: 16px; }
   .rt-pin { width: 2.2rem; height: 2.2rem; }
 }
+
+/* the phone's welcome: the link emailed for a computer (news.js remindForm) */
+.rt-welcome .rt-remind { margin: 0 0 0.6rem; }
+.rt-welcome .rt-remind label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+.rt-welcome .rt-remind > div { display: flex; gap: 0.4rem; }
+.rt-welcome .rt-remind input { flex: 1; min-width: 0; font: inherit; padding: 0.3rem 0.45rem; border: 1px solid var(--jek-line, #ccc); border-radius: 2px; }
+.rt-welcome .rt-wsay { margin: 0.35rem 0 0; color: var(--jek-ink-soft); }
+/* the note after a file save, signed out, and the share dialog's sign-in row (account.js) */
+.rt-welcome.rt-nudge p { margin: 0 0 0.6rem; color: var(--jek-ink-soft); }
+.rt-welcome.rt-nudge .rt-actions { flex-wrap: wrap; }
+dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; margin: 0.6rem 0; }
 </style>
 </head>
 <body>
@@ -7765,6 +7776,19 @@ function wavelengthColour(nm) {
 const fanEdgeAuto = (width, popN = 256) => +(0.08 * width * 256 / (popN || 256)).toPrecision(3);
 // a sweep of the edge sets it, whether or not it was automatic
 const fanEdge = src => src.softAuto !== false && !(src.sweeps && src.sweeps.soft) ? fanEdgeAuto(src.width || 0, src.popN) : Math.max(0, src.soft || 0);
+/* Where a visit came from, as a short plain token for the usage counts (io/usage.js): the tag on the link
+   that brought it (?src=ig-spectrometer, from a post), or else the social site it came through by its
+   referrer; '' for neither. A tag names a post, never a person. */
+function srcTag(search, referrer) {
+  const m = /[?&]src=([^&#]*)/.exec(search || '');
+  const tag = m ? decodeURIComponent(m[1]).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) : '';
+  if (tag) return tag;
+  let host = '';
+  try { host = referrer ? new URL(referrer).hostname.replace(/^(www|l|lm|m)\./, '') : ''; } catch (err) { /* none */ }
+  return /(^|\.)instagram\.com$/.test(host) ? 'instagram' : /(^|\.)(facebook\.com|fb\.me)$/.test(host) ? 'facebook'
+    : /(^|\.)linkedin\.com$|^lnkd\.in$/.test(host) ? 'linkedin' : /(^|\.)(t\.co|x\.com|twitter\.com)$/.test(host) ? 'x'
+    : /(^|\.)(youtube\.com|youtu\.be)$/.test(host) ? 'youtube' : /(^|\.)reddit\.com$/.test(host) ? 'reddit' : /(^|\.)tiktok\.com$/.test(host) ? 'tiktok' : '';
+}
 /* ==========================================================================
    Drawings: the shapes of the Draw palette as elements, normalised. How they are drawn and
    edited is ui/drawings.js; this is what a drawing is.
@@ -42850,6 +42874,8 @@ function saveFile() {
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);
   markUnsaved(false);
+  goal('save');
+  setTimeout(saveNudge, 1200);
 }
 
 /* The bench as it stands, as a picture */
@@ -43807,6 +43833,7 @@ async function qrLink() {
 }
 async function shareLink() {
   const short = accountsOn();
+  if (short && account === null) { shareSignIn(saveFile); return; }
   if (short && !designPro('share a link')) return;
   const id = short ? await shortLink() : null, hash = short ? '#s=' + id : '#p=' + await shareHash(), url = short ? shortUrl(id) : shareBase() + hash;
   const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
@@ -43819,6 +43846,7 @@ async function shareLink() {
     ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekray file (Save .jekray) instead.'
     : 'Anyone with the link opens this bench as it is now, with the same panels open and pinned, on the same tabs and scrolled to the same place, and its sweeps ready to play; nothing is uploaded, the bench travels in the link itself.');
   dlg.showModal(); box.focus(); box.select();
+  goal('share');
   try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; }
   catch (err) { document.getElementById('shareCopy').textContent = 'Copy'; }
 }
@@ -46286,7 +46314,7 @@ const AUTH_OUTCOMES = {
   consent_failed: ['JEKray was not approved for your organisation. Nothing has changed.', true],
 };
 function signIn(provider, link) {
-  track('signin', provider); usageFlush();
+  track('signin', provider); goal('signin'); usageFlush();
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
   if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
@@ -46324,7 +46352,7 @@ const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency'
 let subInterval = 'month';
 const acCheck = { email: '', sent: false };   // a university address being confirmed by a code
 async function showSubscribe() {
-  track('subscribe', '');
+  track('subscribe', ''); goal('subscribe');
   const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
   if (!dlg.open) dlg.showModal();
   box.replaceChildren(h('p', null, 'Loading prices…'));
@@ -46445,6 +46473,7 @@ async function awaitPlan(tries = 12) {
         toast(own && own.plan && own.plan.billing && own.active && !own.plan.cancel_at ? 'Your team plan is active. Thank you! Your own subscription is no longer needed: stop it from the team panel.' : 'Your team plan is active. Thank you!');
         showTeam(mine.id);
       } else toast('Welcome to JEKrayPro. Thank you!');
+      goal('pro');
       if (cloud && cloud.dirty) cloudPush({ quiet: true }); return;
     }
   }
@@ -46506,6 +46535,7 @@ function fillAccount() {
    also how a forgotten password is replaced: sign in by code, choose a new one). The session arrives as the cookie on
    the reply (the API and the app are one site), so no page leaves. link: the signed-in account adds the address. */
 function showEmailSignIn(link) {
+  if (!link) { track('signin', 'email'); goal('signin'); }
   let dlg = document.getElementById('emailDialog');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'emailDialog', 'aria-labelledby': 'emailTitle' }); document.body.append(dlg); }
   let mode = link ? 'code' : 'password';                    // 'password' | 'code'
@@ -46909,9 +46939,52 @@ async function loadAccount() {
     orcidWarned = true;
     setTimeout(() => toast('Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + ': link Google or Microsoft from the account menu, top right, to keep your account.', true), 1200);
   }
+  // an account made in the last half hour: counted once, against where the visit came from
+  try {
+    if (account && Date.now() - account.user.created_at < 30 * 60e3 && !localStorage.getItem('jek-goal-account')) { localStorage.setItem('jek-goal-account', '1'); goal('account'); }
+  } catch (err) { /* not counted */ }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
   handleInvite();
+}
+/* ---------- Sign-in, offered where it helps ----------
+   Signed out, at the two moments an account would have helped. Share asks in a dialog, as a short link is
+   JEKrayPro's and it cannot go on without one. Save has already saved the file, so it only offers, in a note,
+   and then not again for a week. */
+const NUDGE_KEY = 'jek-nudge-save', NUDGE_DAYS = 7;
+function signInRow(where, close) {
+  const go = (p, fn) => () => { track('prompt', where + '.' + p); close(); fn(); };
+  return [h('button', { class: 'rt-btn primary', type: 'button', onclick: go('google', () => signIn('google')) }, 'Sign in with Google'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: go('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: go('email', () => showEmailSignIn(false)) }, 'Email')];
+}
+function shareSignIn(saveInstead) {
+  track('prompt', 'share.shown');
+  try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch (err) { /* the save note may follow: fine */ }
+  let dlg = document.getElementById('shareSignIn');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'shareSignIn', 'aria-labelledby': 'shareSignInTitle' }); document.body.append(dlg); }
+  const close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'shareSignInTitle' }, 'Share this bench as a link'),
+    h('p', null, 'A short link opens this bench as it is now, for anyone, with your panels open and its sweeps ready to play. Short links come with JEKrayPro, along with saving to the cloud as you work: sign in, then subscribe. Your bench stays here while you do.'),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('share', close)),
+    h('p', { class: 'note' }, 'Or send it as a file: ', h('button', { class: 'rt-link', type: 'button', onclick: () => { track('prompt', 'share.file'); close(); saveInstead(); } }, 'save it as a .jekray file'), ' and attach that.'),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+function saveNudge() {
+  if (!accountsOn() || account !== null || document.getElementById('saveNudge')) return;     // signed out, once that is known
+  try {
+    if (Date.now() - Number(localStorage.getItem(NUDGE_KEY) || 0) < NUDGE_DAYS * 864e5) return;
+    localStorage.setItem(NUDGE_KEY, String(Date.now()));
+  } catch (err) { return; }
+  track('prompt', 'save.shown');
+  const card = h('div', { class: 'rt-welcome rt-nudge', id: 'saveNudge', role: 'status' });
+  const close = () => card.remove();
+  card.append(h('h3', null, 'Saved to your downloads'),
+    h('p', null, 'That file keeps the bench on this computer. With JEKrayPro your benches save to the cloud as you work, with their history, and open on any computer. Sign in to start.'),
+    h('div', { class: 'rt-actions' }, ...signInRow('save', close),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'save.no'); close(); } }, 'Not now')));
+  document.getElementById('stage').append(card);
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 const accountsOn = () => !TEST_MODE && !EMBED;
@@ -47020,11 +47093,36 @@ const USAGE_CLICKS = {
   btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
   btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
 };
-/* a visit's start: how it began (fresh, restored, a shared bench, an example), on what */
+/* Where a visit came from: the tag on the link that brought it (?src=ig-spectrometer, from a post), or the
+   social site it came through, and what it went on to do ('goal'). The tag names a post, never a person: it
+   is kept in this browser for 30 days, so a visit that signs in, goes off to the sign-in page and comes back
+   still counts for the post. Taken off the address bar once read, so a copied link does not carry it. */
+const SRC_KEY = 'jek-src', SRC_DAYS = 30;
+let usageSrc = '';
+function readSrc() {
+  const tag = typeof location === 'undefined' ? '' : srcTag(location.search, document.referrer);
+  if (/[?&]src=/.test(location.search)) {
+    const u = new URL(location.href); u.searchParams.delete('src');
+    try { window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); } catch (err) { /* left as it is */ }
+  }
+  try {
+    if (tag && usageOn()) localStorage.setItem(SRC_KEY, JSON.stringify({ s: tag, t: Date.now() }));
+    const k = JSON.parse(localStorage.getItem(SRC_KEY) || 'null');
+    if (k && Date.now() - k.t < SRC_DAYS * 864e5) return { tag: k.s, now: !!tag };
+    localStorage.removeItem(SRC_KEY);
+  } catch (err) { /* not kept: this visit only */ }
+  return { tag, now: !!tag };
+}
+/* something a visit led to (save, share, signin, account, subscribe, pro, remind), counted against where it came from */
+function goal(step) { track('goal', (usageSrc || 'none') + '.' + step); }
+/* a visit's start: how it began (fresh, restored, a shared bench, an example), on what, and from where */
 function usageStart(how) {
   if (usageSent) return;
   usageSent = true;
+  const src = readSrc();
+  usageSrc = src.tag;
   track('open', how); track('screen', usageScreen()); track('browser', usageBrowser());
+  track('from', src.now ? src.tag : src.tag ? src.tag + '.again' : 'none');
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
@@ -48089,6 +48187,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
     'In 3D, <b>the diffracted field of interfering beams runs to its end</b>: a beam\u2019s last stretch, up to where it meets a screen, could be left without its fringes when its length happened to round up by a millionth of a millimetre, so an interferometer\u2019s pattern stopped short of its screen and only the beam\u2019s own glow went on.',
     '<b>Collimator</b>, in the fibre palette (Ends and links) and beside the fibre tip in free space: a fibre tip with its lens, so a fibre network\u2019s light leaves as a collimated beam (0.6 mm in radius at 1550 nm for the usual f = 11 mm) with no lens to place and focus, and a beam coming back couples in by that beam\u2019s mode. Any fibre tip takes a <b>Collimating lens f</b>; 0 keeps it bare.',
     'A source\u2019s <b>Edge softness</b>: without a Gaussian beam, the diffracted field of its ray fan is a uniform top-hat, and its edge now rises over a set distance (10% to 90%). <b>Automatic</b>, the default, is just enough for the field grid: before, the hard edge rang on the grid, showing rings across a wide beam (about 1%) that were not in the light. Set 0 for a hard edge, or more for a lamp behind a soft aperture. A changed edge also redraws the field, which it had not.',
@@ -48367,6 +48466,28 @@ const EXAMPLES = [
    (a levitated sphere's gas damping, against Gieseler et al.'s measurements) */
 const BETA_EXAMPLES = new Set(['polarisation-spectroscopy', 'optical-lattice', 'levitated-nanoparticle']);
 const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
+/* on a phone: the link emailed, to open on a computer later. The address goes to the API, which sends one fixed
+   email and keeps no copy of it (jek-api src/remind.js) */
+function remindForm() {
+  const input = h('input', { type: 'email', id: 'remindAddr', autocomplete: 'email', placeholder: 'you@example.com', spellcheck: 'false', 'aria-label': 'Your email address' });
+  const btn = h('button', { class: 'rt-btn primary', type: 'submit' }, 'Send');
+  const say = h('p', { class: 'rt-wsay', hidden: '', role: 'status' });
+  const form = h('form', { class: 'rt-remind' }, h('label', { for: 'remindAddr' }, 'Email me a link for my computer'), h('div', null, input, btn), say);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = input.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { say.textContent = 'That does not look like an email address.'; say.hidden = false; input.focus(); return; }
+    btn.disabled = true; say.hidden = true;
+    try {
+      const res = await fetch(API_BASE + '/v1/remind', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: v }) });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body && body.error && body.error.message || 'It could not be sent just now.');
+      goal('remind');
+      form.replaceChildren(h('p', { class: 'rt-wsay', role: 'status' }, 'Sent: open it on your computer. We keep no copy of your address.'));
+    } catch (err) { say.textContent = err.message; say.hidden = false; btn.disabled = false; }
+  });
+  return form;
+}
 /* the first visit: what to do first, and where the examples are */
 function hideWelcome() {
   const w = document.getElementById('welcome');
@@ -48381,6 +48502,7 @@ function showWelcome() {
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray'),
     phone ? h('p', { class: 'rt-wdesk' }, 'JEKray is best used on a desktop or laptop: the bench works here, but the designers, plots and shortcuts need a larger screen and a mouse.') : null,
+    phone ? remindForm() : null,
     touch ? h('ul', null,
       h('li', null, 'Tap + to add parts, or drag one from the rail at the bench\u2019s left.'),
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),

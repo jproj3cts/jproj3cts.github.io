@@ -26,3 +26,17 @@ test('one laser split and recombined does show fringes', async () => {
   const s = B.screen('Screen');
   assert.ok(s.visibility > 0.5, JSON.stringify({ vis: s.visibility, n: s.count }));
 });
+
+test('two beams split from one laser, crossing at a small angle, show full fringes on the rays; unbalanced, less', async () => {
+  const pair = (deg, p2 = 1) => openBench({ format: 'jekray', version: 1, elements: [
+    { type: 'source', id: 'A', name: 'A', x: -60, y: 0, angle: 0, wavelength: 1550, width: 4, rays: 11, power: 1, gauss: true, w0: 2 },
+    { type: 'source', id: 'B', name: 'B', x: -60, y: 0.1, angle: deg, wavelength: 1550, width: 4, rays: 11, power: p2, gauss: true, w0: 2, splitFrom: 'A' },
+    { type: 'screen', id: 'scr', name: 'Screen', x: 0, y: 0, angle: 180, length: 25.4 }] });
+  for (const deg of [0.5, 2]) {
+    const v = (await pair(deg)).screen('Screen').visibility;
+    assert.ok(v > 0.95, deg + '°: ' + v);
+  }
+  // a quarter of the power in one beam: 2√(I₁I₂)/(I₁ + I₂) = 0.8
+  const u = (await pair(0.5, 0.25)).screen('Screen').visibility;
+  assert.ok(Math.abs(u - 0.8) < 0.05, 'unbalanced ' + u);
+});

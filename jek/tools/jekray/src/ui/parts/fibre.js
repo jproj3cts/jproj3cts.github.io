@@ -3,18 +3,24 @@ import { FIBRE_COLOUR } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS } from '../../engines/trace.js';
 import { bodyFill, ctx, drawPorts, pathLocal, selInk } from '../render.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { bindSync, h, panel, param, selectField } from '../panel.js';
 import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
+import { fibreMode } from '../../engines/fibre-face.js';
 import { anyPulse, pulseSection, pulseSectionEmpty, readoutBox } from '../panels.js';
 
 /* Fibre on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fibre.js */
 
 function drawFibre(el, sel) {
-  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = Math.max(8, 30 * k);
+  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = el.coll > 0 ? Math.max(el.coll * 1.4, 8) : Math.max(8, 30 * k);
   pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
   ctx.fillStyle = bodyFill('#39454c'); ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  // a collimator's lens, at its face
+  if (el.coll > 0) {
+    const pts = []; for (let i = 0; i <= 16; i++) { const v = L * 0.85 * (2 * i / 16 - 1); pts.push([-0.3 * L * (1 - (v / L) ** 2), v]); }
+    pathLocal(f, pts); ctx.strokeStyle = '#8fd3e8'; ctx.lineWidth = 1.6; ctx.stroke();
+  }
   // the jacketed fibre leaving the back of the ferrule
   pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
@@ -33,7 +39,14 @@ function fibrePanel(el) {
       if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
     }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    param('Ferrule face (mm)', el, 'length', { wide: true })));
+    param(el.coll > 0 ? 'Clear aperture (mm)' : 'Ferrule face (mm)', el, 'length', { wide: true }),
+    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })])));
+  if (el.coll > 0 && !el.mm) {
+    // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
+    const note = h('p', { class: 'note', style: 'margin-top:0.3rem' });
+    bindSync(note, () => { note.textContent = 'Collimated beam out: 1/e\u00b2 radius ' + (+(1550e-6 * el.coll / (Math.PI * fibreMode(el.core, el.na, 1550).w)).toPrecision(3)) + ' mm at 1550 nm.'; });
+    panel.append(note);
+  }
   // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
   panel.append(h('h3', null, 'Light from the fibre network'));
   const tick = (key, label) => {

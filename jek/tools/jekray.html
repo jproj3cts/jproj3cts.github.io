@@ -7805,6 +7805,12 @@ function wavelengthColour(nm) {
   return '#' + h(r) + h(g) + h(b);
 }
 
+/* A ray fan's field is a uniform top-hat of its width; its edge rises over a distance (10% to 90%). Automatically just
+   enough for the field grid to hold it without ringing: 8% of the width on 256 points, less on a finer grid. Or as set,
+   0 for a hard edge (which rings on the grid, about 1% across the middle). */
+const fanEdgeAuto = (width, popN = 256) => +(0.08 * width * 256 / (popN || 256)).toPrecision(3);
+// a sweep of the edge sets it, whether or not it was automatic
+const fanEdge = src => src.softAuto !== false && !(src.sweeps && src.sweeps.soft) ? fanEdgeAuto(src.width || 0, src.popN) : Math.max(0, src.soft || 0);
 /* ==========================================================================
    Drawings: the shapes of the Draw palette as elements, normalised. How they are drawn and
    edited is ui/drawings.js; this is what a drawing is.
@@ -7901,6 +7907,9 @@ const SOURCE = {
       colourAuto: e.colourAuto !== false,
       colour: /^#[0-9a-f]{6}$/i.test(e.colour) ? e.colour : wavelengthColour(wl),
       width: Math.max(0, num(e.width, 4)),
+      // the soft edge of the fan's field, mm: the 10-90% rise of its uniform top-hat; automatic (core/fan-edge.js) unless set
+      softAuto: e.softAuto !== false,
+      soft: Math.max(0, num(e.soft, 0)),                        // used only when not automatic; the panel shows the automatic one
       divergence: clamp(num(e.divergence, 0), -179, 179),
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
       gauss: e.gauss === true,
@@ -7937,7 +7946,7 @@ const SOURCE = {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
     angle: 'the direction the light leaves in (0 = travelling +x).',
     fields: {
-    wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).',
+    wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
     divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
@@ -8325,9 +8334,10 @@ const GRATING = {
 /* Fibre: A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out. */
 const FIBRE = {
   type: 'fibre', label: 'Fibre',
-  picker: [{ key: 'fibre', short: 'Fibre tip' }],
-  keys: ['fibre'],
-  make: (x, y) => ({ type: 'fibre', name: nextName('Fibre'), x, y, angle: 180 }),
+  picker: [{ key: 'fibre', short: 'Fibre tip' }, { key: 'collimator', short: 'Collimator', long: 'Fibre collimator (to free space)' }],
+  keys: ['fibre', 'collimator'],
+  // a collimator: a fibre tip with its lens, sending out (and taking in) a collimated beam a couple of millimetres across
+  make: (x, y, kind) => kind === 'collimator' ? { type: 'fibre', name: nextName('Collimator'), x, y, angle: 180, coll: 11, length: 6 } : { type: 'fibre', name: nextName('Fibre'), x, y, angle: 180 },
   norm(e, base) {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 2.5)),       // the ferrule's face
@@ -8339,6 +8349,7 @@ const FIBRE = {
       ...(e.emitGauss === false ? { emitGauss: false } : {}),
       ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
       mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
+      coll: Math.max(0, num(e.coll, 0)),               // a collimator's focal length, mm; 0 for a bare tip
       // how the field of the beam it sends out is worked out, as a source's
       popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
       popModel: e.popModel === '2d' ? '2d' : 'auto',
@@ -8351,6 +8362,7 @@ const FIBRE = {
     fields: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
     emitRays: 'rays in the fan it sends out, 0 to 51.', emitTraceRays: 'false: no ray fan is traced from it (the Gaussian beam still is).', emitGauss: 'false: no Gaussian beam or field is propagated from it, rays only (nothing downstream can then couple or interfere with its light).', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
     popN: 'grid points for the field of the beam it sends out: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d" (always 2D, with polarisation).',
+    coll: 'mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam\'s mode.',
     mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
   },
 };
@@ -8799,7 +8811,7 @@ const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism
 const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
-const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'spectrometer', 'screen', 'fibre']],
+const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'spectrometer', 'screen', 'fibre', 'collimator']],
   ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
@@ -15491,6 +15503,10 @@ function fibreMode(coreUm, na, nm) {
   const a = coreUm / 2, V = 2 * Math.PI * a * na / (nm / 1000);
   return { w: 1e-3 * a * (0.65 + 1.619 * Math.pow(V, -1.5) + 2.879 * Math.pow(V, -6)), V };
 }
+/* the mode a single-mode tip sends out and takes in by, its 1/e^2 radius at the face, mm: the fibre's own, or with a collimating
+   lens of focal length f, the collimated beam it makes, lambda f / (pi w), its waist taken on the lens (its Rayleigh range is
+   metres against the lens's millimetres) */
+const tipModeW = (tip, nm) => { const w = fibreMode(tip.core, tip.na, nm).w; return tip.coll > 0 ? nm * 1e-6 * tip.coll / (Math.PI * w) : w; };
 /* a source launched from a fibre: its beam is the fibre's mode, waist on the tip */
 function applyFibre(src) {
   if (!src.fibre) return;
@@ -15706,7 +15722,7 @@ function fibreCoupling(el) {
     let inMw = 0, coupledMw = 0, arrivingShare = 0, coupledShare = 0, mode = null;
     for (const G of groupsOf(arr)) {
       const src = G[0].src, nm = G[0].nm;
-      mode = fibreMode(el.core, el.na, nm);
+      mode = fibreMode(el.core, el.na, nm); if (el.coll > 0) mode = Object.assign({}, mode, { w: tipModeW(el, nm) });
       const wf = mode.w, L = 3.5 * wf, d = 2 * L / N;
       let cs = [0, 0], cp = [0, 0], pin = 0;
       for (const A of G) pin += A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2;
@@ -16163,7 +16179,7 @@ function tipInputs(el) {
     return out;
   }
   for (const A of faceArrivals(el)) {
-    const mode = fibreMode(el.core, el.na, A.nm), wf = mode.w, L = 3.5 * wf, N = 64, d = 2 * L / N;
+    const wf = tipModeW(el, A.nm), L = 3.5 * wf, N = 64, d = 2 * L / N;
     const mAmp = Math.sqrt(2 / (Math.PI * wf * wf));
     let s0 = 0, s1 = 0, p0 = 0, p1 = 0;
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
@@ -16435,7 +16451,7 @@ function tipSources(net) {
           x: tip.x, y: tip.y, ...(tip.z !== undefined ? { z: tip.z } : {}), ...(tip.tip ? { tip: tip.tip } : {}), ...(tip.roll ? { roll: tip.roll } : {}), angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
           // single mode: the fibre's mode; multimode: a filled core, waist the core's radius
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
-          gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
+          gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : tipModeW(tip, nm), z0: 0,
           m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitTraceRays !== false && tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
           popN: tip.popN || 256, popModel: tip.popModel || 'auto', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
@@ -18977,9 +18993,11 @@ const V3D = (() => {
         return g;
       }
       case 'fibre': {
-        const r = Math.max(L, 1.25);
-        add(mesh(disc(10, r, -5), mat.metal(0xcfd8dc, 0.3)));
-        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-30, 0, 0);
+        // a bare tip's ferrule, or a collimator's barrel with its lens glinting at the face
+        const r = Math.max(L, 1.25), len = el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10;
+        add(mesh(disc(len, r, -len / 2), mat.metal(0xcfd8dc, 0.3)));
+        if (el.coll > 0) add(mesh(disc(0.6, r * 0.85, 0.05), mat.glass(0x8fd3e8, 0.4)));
+        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-len - 20, 0, 0);
         add(mesh(j, mat.matte(FIBRE_COLOUR)), mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
         return g;
       }
@@ -21180,6 +21198,19 @@ function drawSource(el, sel) {
   ctx.stroke();
 }
 
+/* the fan's soft edge: automatic (enough for the field grid) until a value is typed, 0 included */
+function edgeRows(el) {
+  if (el.softAuto !== false) el.soft = fanEdgeAuto(el.width, el.popN);
+  const row = param('Edge softness (mm)', el, 'soft');
+  // typing a value, 0 included, ends the automatic one: caught on the way down, before the field takes the value
+  row.addEventListener('input', ev => { if (ev.target.tagName === 'INPUT' && ev.target.type === 'text') { el.softAuto = false; auto.checked = false; } }, true);
+  const auto = h('input', { type: 'checkbox' });
+  auto.checked = el.softAuto !== false;
+  auto.addEventListener('change', () => { checkpoint(); el.softAuto = auto.checked; if (el.softAuto) el.soft = fanEdgeAuto(el.width, el.popN); changed(true); });
+  bindSync(auto, () => { const a = fanEdgeAuto(el.width, el.popN); if (el.softAuto !== false && el.soft !== a) el.soft = a; });
+  return [row, h('label', { class: 'rt-check' }, auto, 'Automatic: just enough for the field grid')];
+}
+
 function sourcePanel(el) {
   panel.append(h('h3', null, 'Beam'));
   const rows = h('div', { class: 'rt-rows' });
@@ -21215,6 +21246,7 @@ function sourcePanel(el) {
   if (el.traceRays) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
+      ...(el.gauss ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
       param('Rays', el, 'rays')));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
@@ -21227,6 +21259,7 @@ function sourcePanel(el) {
     // without a Gaussian beam the fan's width and divergence still shape the diffracted field
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
+      ...edgeRows(el),
       param('Divergence, full (°)', el, 'divergence')));
     panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
   } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
@@ -22010,10 +22043,15 @@ const GRATING_UI = {
 /* Fibre on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fibre.js */
 
 function drawFibre(el, sel) {
-  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = Math.max(8, 30 * k);
+  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = el.coll > 0 ? Math.max(el.coll * 1.4, 8) : Math.max(8, 30 * k);
   pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
   ctx.fillStyle = bodyFill('#39454c'); ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  // a collimator's lens, at its face
+  if (el.coll > 0) {
+    const pts = []; for (let i = 0; i <= 16; i++) { const v = L * 0.85 * (2 * i / 16 - 1); pts.push([-0.3 * L * (1 - (v / L) ** 2), v]); }
+    pathLocal(f, pts); ctx.strokeStyle = '#8fd3e8'; ctx.lineWidth = 1.6; ctx.stroke();
+  }
   // the jacketed fibre leaving the back of the ferrule
   pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
@@ -22032,7 +22070,14 @@ function fibrePanel(el) {
       if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
     }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    param('Ferrule face (mm)', el, 'length', { wide: true })));
+    param(el.coll > 0 ? 'Clear aperture (mm)' : 'Ferrule face (mm)', el, 'length', { wide: true }),
+    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })])));
+  if (el.coll > 0 && !el.mm) {
+    // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
+    const note = h('p', { class: 'note', style: 'margin-top:0.3rem' });
+    bindSync(note, () => { note.textContent = 'Collimated beam out: 1/e\u00b2 radius ' + (+(1550e-6 * el.coll / (Math.PI * fibreMode(el.core, el.na, 1550).w)).toPrecision(3)) + ' mm at 1550 nm.'; });
+    panel.append(note);
+  }
   // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
   panel.append(h('h3', null, 'Light from the fibre network'));
   const tick = (key, label) => {
@@ -34271,7 +34316,7 @@ const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0]));
+  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
   if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
   const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
     [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh, evElementKey(b.ev), b.z0, b.uz, b.len3, b.d3])) + ']';
@@ -35030,7 +35075,8 @@ function volCuts(sg, bb, two, coh) {
   const nw = clamp(Math.ceil(3 * (ub - ua)) + 1, 2, (two ? VOL_CUTS2 : VOL_CUTS) - 12), nu = clamp(Math.ceil((tb - ta) / (coh ? 5 : two ? 20 : 10)), 1, 12);
   for (let k = 0; k < nw; k++) set.add(+(tw + zR * Math.sinh(ua + (ub - ua) * k / (nw - 1))).toFixed(6));
   for (let k = 0; k <= nu; k++) set.add(+(ta + (tb - ta) * k / nu).toFixed(6));
-  return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-9 && t <= tb + 1e-9).sort((x, y) => x - y)) };
+  // (the cuts are rounded to a nanometre, so one placed at an end can round past it: kept, at the end)
+  return { e, z0, ts: Float32Array.from([...set].filter(t => t >= ta - 1e-6 && t <= tb + 1e-6).map(t => clamp(t, ta, tb)).sort((x, y) => x - y)) };
 }
 /* Each segment's volume, of those on the tab (only: the segments, by index, to work out, or a
    Map of them to the ranges of their cuts, [[j0, j1], ...], a share of a pooled job: the rest of
@@ -35077,7 +35123,7 @@ function volData(segs, tab, bb, only) {
         const X = b.x0 + b.dx * t, Y = b.y0 + b.dy * t;
         // each member's field cut exactly where this cut crosses its axis; across the cut, the
         // fast phase of the small way along it a point is from there (a mate at an angle's tilt fringes)
-        const here = members.map(mb => { const m = mb.m, pzc = clamp((X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, 0, m.b.len); return Object.assign({ pzc, G: m.leg.at(pzc) }, mb); });
+        const here = members.map(mb => { const m = mb.m, pr = (X - m.b.x0) * m.b.dx + (Y - m.b.y0) * m.b.dy, pzc = clamp(pr, 0, m.b.len); return Object.assign({ pr, pzc, G: m.leg.at(pzc) }, mb); });
         // Fringes the grid can show: between beams running the same way, no finer than a few of its cells
         // across. Beams crossing at an angle, or running against each other, make fringes of a fraction
         // of a micron (across the beam, or along it, between the cuts): no grid resolves them, sampled
@@ -35095,12 +35141,14 @@ function volData(segs, tab, bb, only) {
           const u = -R + 2 * R * p2 / (M - 1), v = -R + 2 * R * q / (M - 1), wx = X + nX * u, wy = Y + nY * u;
           for (const A of accs) A.fill(0);
           for (let hi = 0; hi < here.length; hi++) {
-            const { m, L, a, G, pzc, J } = here[hi], acc = accs[grp[hi]];
+            const { m, L, a, G, pr, pzc, J } = here[hi], acc = accs[grp[hi]];
             const rx = wx - m.b.x0, ry = wy - m.b.y0, pz0 = rx * m.b.dx + ry * m.b.dy;
             // a mate from its start (a micron back, for rounding) to its end; but where it ends and this one runs on,
             // or starts where this one ends, the light has passed from one to the other (and would be counted
             // twice). A segment's own, all of it
-            if (m !== sg && (pz0 < -1e-3 || pz0 > m.b.len + 1e-3 || (pz0 > m.b.len - 1e-3 && t < b.len - 1e-3) || (pz0 < 1e-3 && t > 1e-3))) continue;
+            // (whether a mate has ended or not begun is judged where this cut crosses its axis, not point by point:
+            // across a cut a mate at a slight angle is a few microns further along at one side than the other)
+            if (m !== sg && (pr < -1e-3 || pr > m.b.len + 1e-3 || (pr > m.b.len - 1e-3 && t < b.len - 1e-3) || (pr < 1e-3 && t > 1e-3))) continue;
             const f = volCutAt(L, G, -rx * m.b.dy + ry * m.b.dx, v, J), ph = -L.k * (clamp(pz0, 0, m.b.len) - pzc), c = Math.cos(ph), sn = Math.sin(ph);
             acc[0] += a * (f[0] * c - f[1] * sn); acc[1] += a * (f[0] * sn + f[1] * c);
             acc[2] += a * (f[2] * c - f[3] * sn); acc[3] += a * (f[2] * sn + f[3] * c);
@@ -35860,7 +35908,8 @@ function closeupCompute(vkey, srcs, step) {
 const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
 
 /* ---------- A ray fan as a field ----------
-   A fan with a width is a uniform top-hat of that diameter, curved to its divergence;
+   A fan with a width is a uniform top-hat of that diameter, curved to its divergence, its edge
+   softened over the source's edge (a Gaussian blur, so the whole of it lies on the grid);
    a point source is a uniform cone of spatial frequencies, which at its waist is the
    jinc 2 J1(x)/x. Both are built from their exact spectra, cut at the grid's bandwidth:
    a hard edge sampled directly puts power the grid cannot hold into frequencies it
@@ -35868,15 +35917,16 @@ const diffCache = new Map();          // kept for the trace to clear; the field 
    remembered (repr, the fraction held), so enclosed energy is against the true total. */
 function fanShape(src, nm) {
   const a = src.width / 2, th = src.divergence / 2 * deg;
-  if (a > 0) return { a, iR: Math.tan(th) / a };
+  // a soft edge: the top-hat blurred by a Gaussian whose 10-90% rise is the edge (sigma = edge / 2.563)
+  if (a > 0) return { a, iR: Math.tan(th) / a, sig: fanEdge(src) / 2.563 };
   return { a: 0, nu: Math.sin(Math.abs(th)) / (nm * 1e-6) };
 }
 /* Spectrum at spatial frequency v (cycles/mm): of the disc, or of the cone, cell-weighted
    at its edge so it need not fall on a sample */
 function fanSpectrum(shape, v, dv) {
   if (shape.a > 0) {
-    const x = 2 * Math.PI * shape.a * v;
-    return x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v;
+    const x = 2 * Math.PI * shape.a * v, soft = shape.sig > 0 ? Math.exp(-2 * Math.PI * Math.PI * shape.sig * shape.sig * v * v) : 1;
+    return soft * (x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v);
   }
   return Math.min(1, Math.max(0, 0.5 + (shape.nu - v) / dv));
 }
@@ -35894,7 +35944,7 @@ function popFanRound(N, q, n, lam0, power, shape) {
   const sphere = popResidual(re, im, r, q[0], q[1], k);
   const F = { R, re, im, z: q[0], zR: q[1], n, lam0, sphere };
   // scale to the true power: the disc's own for a top-hat (its amplitude is fixed), all of it for the cone
-  const held = popPower(F), full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popPower(F), full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -35922,7 +35972,7 @@ function popFan2(N, q, n, lam0, power, shape) {
   }
   const st = { d, z: q[0], zR: q[1] };
   const F = { N, re, im, ax: st, ay: Object.assign({}, st), n, lam0 };
-  const held = popStats2(F).power, full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popStats2(F).power, full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N * N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -45316,7 +45366,7 @@ function setExperimental(on, picks) {
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
 const PALETTES = {
   get free() { return pickerRows(FREE_PARTS); },                                           // from the parts (read when asked: the registry loads after this on the dev page)
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
+  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['collimator', 'Collimator', 'Fibre collimator (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
     ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
     ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
     ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['tbf', 'Tunable filter', 'Tunable band-pass filter'], ['switch', 'Switch', 'Optical switch (2\u00d72)'],
@@ -45339,7 +45389,7 @@ const PART_GROUPS = {
   fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
     ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
     ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
-    ['Ends and links', ['fibre', 'fmir', 'fm', 'term', 'thru']]],
+    ['Ends and links', ['fibre', 'collimator', 'fmir', 'fm', 'term', 'thru']]],
   get rf() { return RF.groups; },
   pic: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
   elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
@@ -48115,6 +48165,9 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'In 3D, <b>the diffracted field of interfering beams runs to its end</b>: a beam\u2019s last stretch, up to where it meets a screen, could be left without its fringes when its length happened to round up by a millionth of a millimetre, so an interferometer\u2019s pattern stopped short of its screen and only the beam\u2019s own glow went on.',
+    '<b>Collimator</b>, in the fibre palette (Ends and links) and beside the fibre tip in free space: a fibre tip with its lens, so a fibre network\u2019s light leaves as a collimated beam (0.6 mm in radius at 1550 nm for the usual f = 11 mm) with no lens to place and focus, and a beam coming back couples in by that beam\u2019s mode. Any fibre tip takes a <b>Collimating lens f</b>; 0 keeps it bare.',
+    'A source\u2019s <b>Edge softness</b>: without a Gaussian beam, the diffracted field of its ray fan is a uniform top-hat, and its edge now rises over a set distance (10% to 90%). <b>Automatic</b>, the default, is just enough for the field grid: before, the hard edge rang on the grid, showing rings across a wide beam (about 1%) that were not in the light. Set 0 for a hard edge, or more for a lamp behind a soft aperture. A changed edge also redraws the field, which it had not.',
     '<b>Fringe visibility</b> on a screen, from its rays and from the diffracted field, is now the textbook one: twice the cross terms between the paths of one laser over the sum of their powers, 2\u221a(I\u2081I\u2082)/(I\u2081 + I\u2082) for two beams, where they overlap. Before, it was read from the brightest and dimmest points, so two separate lasers overlapping (brighter where one lies on another) read as fringes, a single beam\u2019s own profile read as a third, and fringes finer than the map read low or at random as the pixels fell on them. The diffracted map is also drawn finer where fringes are fine, up to 1024 points across.',
     '<b>Spectrometer</b>, in Sources and detectors: a slit or fibre entrance and a detector array, showing the light through it as counts against wavelength, with the peak, its width, the resolution, the light that gets in, saturation and the signal-to-noise. <b>Kind</b> picks a typical instrument (compact UV to near-infrared, high-resolution visible, fibre-coupled visible, near-infrared or short-wave infrared) and any setting can then be changed. A narrower slit sharpens the lines and lets less light in, as on the real thing. The new example <b>Czerny\u2013Turner spectrometer</b> builds one from a slit, two concave mirrors and a grating, beside the part reading the same lamp.',
     '<b>On a phone or tablet</b>: the bench fills the screen, and a part\u2019s settings open in a sheet over its lower half (\u2191 makes it taller, \u00d7 or a tap on the empty bench closes it), the part moved clear of the sheet if it would be under it. A phone on its side has the one-row bar too. The welcome note, the parts picker and the menus say tap rather than click, and that JEKray is best used on a desktop or laptop, where the designers, plots and shortcuts have the room they need.',

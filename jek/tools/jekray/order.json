@@ -27,6 +27,7 @@
   "core/assembly.js",
   "core/beams-hom.js",
   "core/colour.js",
+  "core/fan-edge.js",
   "state/drawings.js",
   "parts/stl.js",
   "parts/source.js",

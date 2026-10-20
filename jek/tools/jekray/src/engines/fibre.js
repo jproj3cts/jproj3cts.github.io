@@ -8,7 +8,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { V, deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { frame, toWorld, toWorldDir } from '../core/mask.js';
-import { arrivalField, faceArrivals, fanFromFibre, fibreMode, mmShare } from './fibre-face.js';
+import { arrivalField, faceArrivals, fanFromFibre, mmShare, tipModeW } from './fibre-face.js';
 import { PIC } from './pic.js';
 import { ELEC } from './elec.js';
 import { modS } from './mods.js';
@@ -332,7 +332,7 @@ function tipInputs(el) {
     return out;
   }
   for (const A of faceArrivals(el)) {
-    const mode = fibreMode(el.core, el.na, A.nm), wf = mode.w, L = 3.5 * wf, N = 64, d = 2 * L / N;
+    const wf = tipModeW(el, A.nm), L = 3.5 * wf, N = 64, d = 2 * L / N;
     const mAmp = Math.sqrt(2 / (Math.PI * wf * wf));
     let s0 = 0, s1 = 0, p0 = 0, p1 = 0;
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
@@ -604,7 +604,7 @@ export function tipSources(net) {
           x: tip.x, y: tip.y, ...(tip.z !== undefined ? { z: tip.z } : {}), ...(tip.tip ? { tip: tip.tip } : {}), ...(tip.roll ? { roll: tip.roll } : {}), angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
           // single mode: the fibre's mode; multimode: a filled core, waist the core's radius
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
-          gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : fibreMode(tip.core, tip.na, nm).w, z0: 0,
+          gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : tipModeW(tip, nm), z0: 0,
           m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitTraceRays !== false && tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
           popN: tip.popN || 256, popModel: tip.popModel || 'auto', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),

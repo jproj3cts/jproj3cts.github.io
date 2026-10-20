@@ -27,6 +27,7 @@ import './core/gradient.js';
 import './core/assembly.js';
 import './core/beams-hom.js';
 import './core/colour.js';
+import './core/fan-edge.js';
 import './state/drawings.js';
 import './parts/stl.js';
 import './parts/source.js';

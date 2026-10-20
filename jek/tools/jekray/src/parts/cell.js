@@ -21,7 +21,7 @@ export const CELL = {
   guide: {
     what: 'An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light\u2019s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source\u2019s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35).',
     angle: 'its axis: 0 for a beam travelling ±x (the cell lies along x).',
-    fields: { length: 'mm: the window diameter.', cellLen: 'mm along the beam (75 is usual).', atom: '"Rb" (natural), "Rb85", "Rb87", "Cs" or "K".', line: '"D2" or "D1".',
+    fields: { length: 'mm: the window diameter.', cellLen: 'mm along the beam (75 is usual).', atom: '"Rb" (natural), "Rb85", "Rb87", "Cs", "K" (natural: 39K and 41K), "K39" or "K41".', line: '"D2" or "D1".',
     temp: '°C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60).', bField: 'gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none.' },
   },
 };

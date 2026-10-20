@@ -1,5 +1,6 @@
 import { EMBED, TEST_MODE } from '../core/constants.js';
 import { API_BASE, account } from './account.js';
+import { srcTag } from '../core/src-tag.js';
 
 /* ---------- Usage counts ----------
    How the tool is used, so it can be made better: which parts are added, which designers and analyses are
@@ -44,7 +45,10 @@ function usageError(msg, file, line) {
   if (!usageOn() || usageErrs.length >= 5) return;
   const m = String(msg || '').replace(/(["'`‘“]).*?(["'`’”])/g, '…').replace(/\d+(\.\d+)?/g, 'N').replace(/https?:\S+/g, 'URL').slice(0, 160);
   const src = String(file || '').split(/[?#]/)[0].split('/').pop() + ':' + (line || 0);
-  if (!/jekray/.test(src) || usageSeen.has(m + src)) return;       // only the tool's own scripts: not extensions, not mods
+  // only the tool's own scripts: not extensions, not mods, and not what a browser runs in the page itself, which
+  // reports the page's line 1 (an in-app browser's injected autofill script) or no line at all (a ResizeObserver
+  // loop notice); the tool's own code starts well below the head
+  if (!/jekray/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
   usageSeen.add(m + src); usageErrs.push([m, src]);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }
@@ -62,11 +66,36 @@ const USAGE_CLICKS = {
   btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
   btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
 };
-/* a visit's start: how it began (fresh, restored, a shared bench, an example), on what */
+/* Where a visit came from: the tag on the link that brought it (?src=ig-spectrometer, from a post), or the
+   social site it came through, and what it went on to do ('goal'). The tag names a post, never a person: it
+   is kept in this browser for 30 days, so a visit that signs in, goes off to the sign-in page and comes back
+   still counts for the post. Taken off the address bar once read, so a copied link does not carry it. */
+const SRC_KEY = 'jek-src', SRC_DAYS = 30;
+let usageSrc = '';
+function readSrc() {
+  const tag = typeof location === 'undefined' ? '' : srcTag(location.search, document.referrer);
+  if (/[?&]src=/.test(location.search)) {
+    const u = new URL(location.href); u.searchParams.delete('src');
+    try { window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); } catch (err) { /* left as it is */ }
+  }
+  try {
+    if (tag && usageOn()) localStorage.setItem(SRC_KEY, JSON.stringify({ s: tag, t: Date.now() }));
+    const k = JSON.parse(localStorage.getItem(SRC_KEY) || 'null');
+    if (k && Date.now() - k.t < SRC_DAYS * 864e5) return { tag: k.s, now: !!tag };
+    localStorage.removeItem(SRC_KEY);
+  } catch (err) { /* not kept: this visit only */ }
+  return { tag, now: !!tag };
+}
+/* something a visit led to (save, share, signin, account, subscribe, pro, remind), counted against where it came from */
+export function goal(step) { track('goal', (usageSrc || 'none') + '.' + step); }
+/* a visit's start: how it began (fresh, restored, a shared bench, an example), on what, and from where */
 export function usageStart(how) {
   if (usageSent) return;
   usageSent = true;
+  const src = readSrc();
+  usageSrc = src.tag;
   track('open', how); track('screen', usageScreen()); track('browser', usageBrowser());
+  track('from', src.now ? src.tag : src.tag ? src.tag + '.again' : 'none');
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

@@ -28,6 +28,7 @@
   "core/beams-hom.js",
   "core/colour.js",
   "core/fan-edge.js",
+  "core/src-tag.js",
   "state/drawings.js",
   "parts/stl.js",
   "parts/source.js",

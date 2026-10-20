@@ -143,7 +143,7 @@ jek.readout('peak', {
 
 `compute(d, p)` is given what the part reads:
 - **For a screen**, its diffracted intensity map: `d.map.I`, an n × n array (row by row), over `d.map.u0` to `u1` across and `v0` to `v1` up, in mm. Also its wavelength `d.nm`, power `d.power`, widths `d.wx` and `d.wy`, `d.fwhm`, `d.strehl`, and its Stokes parameters.
-- **For a detector**, `d.mw`, `d.mA`, `d.V` and `d.noiseV`.
+- **For a detector**, `d.mw`, `d.mA`, `d.V` and `d.noiseV` (the noise, volts rms; for a receiving horn's mixer `d.V` is the IF tone's peak).
 
 It returns:
 - `rows`, a list of `[label, value]`;

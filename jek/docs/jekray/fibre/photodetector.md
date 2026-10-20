@@ -41,17 +41,17 @@ Light of one laser at two frequency offsets, from an AOM or an EOM, beats at the
 
 ### Noise
 
-The noise current, in the detector's bandwidth $$B$$, is the sum of
+The noise current is counted over the detector's noise bandwidth: its bandwidth $$B$$ is a single pole's 3 dB corner, so white noise through it counts over $$B_n = \tfrac{\pi}{2}B$$ (beat notes still roll off by $$B$$ itself). It is the sum of
 
 $$
-\overline{i_n^2} = 2q\left(I + I_\text{dark}\right)B + \frac{4kTB}{G} + i_a^2 B + \sigma^2_{s\text{-}\mathrm{ASE}} + \sigma^2_{\mathrm{ASE}\text{-}\mathrm{ASE}},
+\overline{i_n^2} = 2q\left(I + I_\text{dark}\right)B_n + \frac{4kTB_n}{G} + i_a^2 B_n + \sigma^2_{s\text{-}\mathrm{ASE}} + \sigma^2_{\mathrm{ASE}\text{-}\mathrm{ASE}},
 $$
 
 shot noise on all the light and the dark current, the gain resistor's Johnson noise at 295 K, and the amplifier's input current noise $$i_a$$ (pA/√Hz). A bare photodiode has only the shot noise. Where broadband light arrives (an amplifier's ASE, an LED, a source set incoherent), it beats with the signal and with itself:
 
 $$
-\sigma^2_{s\text{-}\mathrm{ASE}} = 2\mathcal R^2 P_s\,S(\lambda_s)\,B, \qquad
-\sigma^2_{\mathrm{ASE}\text{-}\mathrm{ASE}} = \mathcal R^2 B \sum_j \frac{P_j^2}{B_j},
+\sigma^2_{s\text{-}\mathrm{ASE}} = 2\mathcal R^2 P_s\,S(\lambda_s)\,B_n, \qquad
+\sigma^2_{\mathrm{ASE}\text{-}\mathrm{ASE}} = \mathcal R^2 B_n \sum_j \frac{P_j^2}{B_j},
 $$
 
 with $$P_s$$ the signal's power, $$S(\lambda_s)$$ the broadband light's power per hertz at the signal's wavelength, and $$P_j$$ the power in each slice of it, $$B_j$$ wide in frequency. The panel gives the noise in volts (or amps, for a bare photodiode), which part of it is largest, and the electrical signal-to-noise ratio of the DC signal.

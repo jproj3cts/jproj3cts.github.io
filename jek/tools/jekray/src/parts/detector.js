@@ -26,7 +26,7 @@ export const DETECTOR = {
     what: 'A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscilloscope trace and a mixer output.',
     angle: 'the direction its face points: towards the light.',
     fields: { length: 'mm: the active area’s diameter.', material: 'one of the detector materials below.', resp: 'A/W, used when material is "custom".', gain: 'V/A transimpedance.',
-    bandwidth: 'Hz.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
+    bandwidth: 'Hz: the amplifier’s 3 dB bandwidth, a single pole; its noise counts over π/2 times it.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
     demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
   },
 };

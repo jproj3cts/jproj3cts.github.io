@@ -20,7 +20,8 @@ import { h, renderPanel, syncPanel } from './panel.js';
 import { checkpoint, switchTab } from './tabs.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
-import { accountsOn } from '../io/account.js';
+import { accountsOn, saveNudge } from '../io/account.js';
+import { goal } from '../io/usage.js';
 import { hooks } from '../core/hooks.js';
 import { scheduleSave } from '../io/autosave.js';
 
@@ -473,6 +474,8 @@ export function saveFile() {
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);
   markUnsaved(false);
+  goal('save');
+  setTimeout(saveNudge, 1200);
 }
 
 /* The bench as it stands, as a picture */

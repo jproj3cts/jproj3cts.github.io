@@ -79,10 +79,10 @@ $$
 It saturates on the total power reaching it. At the band centre,
 
 $$
-G = \frac{G_0}{1 + G\,P_\text{in}/P_\text{sat}},
+G = G_0 \exp\!\left(-\frac{(G - 1)\,P_\text{in}}{P_s}\right), \qquad P_s = \frac{P_\text{sat}}{\ln G_0},
 $$
 
-solved for $$G$$, with $$P_\text{sat}$$ its saturated output power. The ratio $$\ln G / \ln G_0$$ then scales the gain across the whole band. The network is solved, each amplifier's gain set from what reached it, and solved again, until the gains settle. The amplifier adds spontaneous emission in each polarisation, each way:
+solved for $$G$$, with $$P_\text{sat}$$ its saturated output power: the power it adds never exceeds $$P_\text{sat}$$. The ratio $$\ln G / \ln G_0$$ then scales the gain across the whole band. The network is solved, each amplifier's gain set from what reached it, and solved again, until the gains settle. The amplifier adds spontaneous emission in each polarisation, each way:
 
 $$
 P_\text{ASE} = n_\text{sp}\, h\nu\, (G - 1)\, B, \qquad n_\text{sp} = \mathrm{NF}/2,

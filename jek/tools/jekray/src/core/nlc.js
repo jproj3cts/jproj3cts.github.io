@@ -73,8 +73,8 @@ export function nlcConvert(el, P, nm, q, nq, cth) {
   const g = nq > 1.01 ? 1 : n1;
   const b = 2 * g * q[1] * 1e-3, xi = L / b, mu = -2 * g * q[0] * 1e-3 / L;
   let period = el.period, sigma, h;
-  if (!(period > 0)) { const B = bkBest(xi, mu); sigma = B.sigma; h = B.h; period = 2 * Math.PI * cth / (k2 - 2 * k1 - 2 * sigma / b) * 1e6; }
-  else { sigma = b * (k2 - 2 * k1 - 2 * Math.PI * cth / (period * 1e-6)) / 2; h = bkH(sigma, xi, mu); }
+  if (!(period > 0)) { const B = bkBest(xi, mu); sigma = B.sigma; h = B.h; period = 2 * Math.PI * cth / (k2 - 2 * k1 + 2 * sigma / b) * 1e6; }
+  else { sigma = b * (2 * k1 + 2 * Math.PI * cth / (period * 1e-6) - k2) / 2; h = bkH(sigma, xi, mu); }   // sigma = b dk / 2, dk = 2 k1 + K - k2
   const eta = 16 * Math.PI ** 2 * M.d ** 2 * L * h / (EPS0 * C_SI * (nm * 1e-9) ** 3 * n1 * n2);      // 1/W
   const P2 = P > 0 ? P * Math.tanh(Math.sqrt(eta * P)) ** 2 : 0;
   return { P2, conv: P > 0 ? P2 / P : 0, eta, h, xi, sigma, mu, period, periodPW: nlcPeriod(el.material, nm, T), n1, n2, b };

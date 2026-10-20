@@ -176,7 +176,7 @@ export function agfIndex(f, c, um) {
     case 1: n2 = a(0) + a(1) * L2 + a(2) / L2 + a(3) / L2 ** 2 + a(4) / L2 ** 3 + a(5) / L2 ** 4; break;
     case 2: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)); break;
     case 3: { const L = 1 / (L2 - 0.028); return a(0) + a(1) * L + a(2) * L * L + a(3) * L2 + a(4) * L2 * L2 + a(5) * L2 ** 3; }
-    case 4: n2 = a(0) + a(1) * L2 / (L2 - a(2)) + a(3) / (L2 - a(4)); break;
+    case 4: n2 = 1 + a(0) + a(1) * L2 / (L2 - a(2) ** 2) + a(3) / (L2 - a(4) ** 2); break;      // n² - 1 = A + B1 λ²/(λ² - λ1²) + B2/(λ² - λ2²)
     case 5: return a(0) + a(1) / um + a(2) / Math.pow(um, 3.5);
     case 6: n2 = 1 + a(0) * L2 / (L2 - a(1)) + a(2) * L2 / (L2 - a(3)) + a(4) * L2 / (L2 - a(5)) + a(6) * L2 / (L2 - a(7)); break;
     case 7: n2 = a(0) + a(1) / (L2 - a(2)) - a(3) * L2; break;

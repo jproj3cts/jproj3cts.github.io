@@ -5,7 +5,7 @@ import { faceRNormal } from '../core/face-pol.js';
 import { RF_MC_MAX, mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
-import { lensSystem, lensToImage, traceRay } from './lens-engine.js';
+import { lensSystem, lensToImage, paraC, traceRay } from './lens-engine.js';
 import { commitDesign, designPrescription, surfSag, surfaceParts } from './lens-design.js';
 import { grMatrix } from '../core/gradient.js';
 import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
@@ -202,7 +202,7 @@ export function rfTrace(asm, P, ghz, opts) {
     // a face moved off the axis (tolerancing; a section's centre, not its parent's vertex) and tilted (a mirror's beyond its fold)
     const dcy = s.sec ? s.sec.c[1] || 0 : s.dec ? s.dec[1] || 0 : 0, tl = (s.tilt ? s.tilt[0] || 0 : 0) - (s.mirror ? s.fold || 0 : 0);
     surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, yc, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? 1 - gaussPass(a, w, yc - dcy) : 0, kind: sps[i].kind, pi: sps[i].pi });
-    const pc = s.pc !== undefined ? s.pc : S.c[i] + 2 * S.a2[i];
+    const pc = s.pc !== undefined ? s.pc : paraC(S, i);
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     // 1/q' = 1/q - phi, in reduced form; the centre refracted about the face's own centre, and bent by a tilted face as a prism
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
@@ -346,7 +346,7 @@ export function rfQBefore(asm, P, ghz, idx, feedD) {
   const R = normRfCond(asm.rf), nm = rfNm(ghz), S = lensSystem(P, nm), B = rfBeam(R.feed, ghz);
   let q = [(feedD === undefined ? R.feed.d : feedD) + B.dz, B.zR];
   for (let i = 0; i < idx; i++) {
-    const pc = P.surfaces[i].pc !== undefined ? P.surfaces[i].pc : S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
+    const pc = P.surfaces[i].pc !== undefined ? P.surfaces[i].pc : paraC(S, i), phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     q = rfGap(q, P.gaps[i], S.n[i + 1], rfGR(S, i));
   }

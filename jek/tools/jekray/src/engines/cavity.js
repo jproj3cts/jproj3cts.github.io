@@ -254,7 +254,8 @@ export const qThrough = (m, q) => { const nr = m[0] * q[0] + m[1], ni = m[0] * q
    with s = l + 1/l they solve s^2 - tr(M) s + (b - 2) = 0, b = (tr(M)^2 - tr(M^2)) / 2. The loop is
    stable when both s are real and inside (-2, 2): l = e^{+-i theta}, theta each axis's round-trip
    Gouy phase. Its mode is Q = X Y^-1 from one eigenvector of each pair, [X; Y] (heights over
-   reduced slopes), taken so that Im Q is positive: the beam confined */
+   reduced slopes), taken so that Im Q is positive: the beam confined. That pair's l is e^{-i theta},
+   theta signed as a plane's sign(B) acos(h) (there, l = Cq + D with Im q > 0) */
 const ev4 = m => {
   const A = m.m4 ? m.m4.A : [[m.x[0], 0], [0, m.y[0]]], C = m.m4 ? m.m4.C : [[m.x[2], 0], [0, m.y[2]]];
   const d = A[0][0] * A[1][1] - A[0][1] * A[1][0], D = [[A[1][1] / d, -A[1][0] / d], [-A[0][1] / d, A[0][0] / d]];
@@ -284,22 +285,23 @@ function cav4Eigen(M) {
     return free.map(fc => { const v = [[0, 0], [0, 0], [0, 0], [0, 0]]; v[fc] = [1, 0]; piv.forEach((pc, r) => { v[pc] = cz.r(cz.d(N[r][fc], N[r][pc]), -1); }); return v; });
   };
   const lam = si => { const c = si / 2, sn = Math.sqrt(Math.max(0, 1 - c * c)); return [[c, sn], [c, -sn]]; };
-  const tryQ = (v1, v2) => {
+  const tryQ = (v1, v2, l1, l2) => {
     const X = [v1[0], v2[0], v1[1], v2[1]], Y = [v1[2], v2[2], v1[3], v2[3]], dY = ccDet(Y);
     if (!(Math.hypot(dY[0], dY[1]) > 1e-300)) return null;
     const Q = ccMul(X, ccInv(Y)), im = [Q[0][1], 0.5 * (Q[1][1] + Q[2][1]), Q[3][1]];
     if (!(im[0] > 0 && im[0] * im[2] - im[1] * im[1] > 0)) return null;
     const sym = cz.r(cz.a(Q[1], Q[2]), 0.5);
-    return { stable: true, s, Q: [Q[0], sym, sym, Q[3]], theta: [Math.acos(s[0] / 2), Math.acos(s[1] / 2)] };
+    return { stable: true, s, Q: [Q[0], sym, sym, Q[3]], theta: [-Math.atan2(l1[1], l1[0]), -Math.atan2(l2[1], l2[0])] };
   };
   if (Math.abs(s[0] - s[1]) < 1e-7) {
     // both axes alike: one l with a plane of eigenvectors
-    for (const l of lam(s[0])) { const V = nullOf(l); if (V.length >= 2) { const r = tryQ(V[0], V[1]); if (r) return r; } }
+    for (const l of lam(s[0])) { const V = nullOf(l); if (V.length >= 2) { const r = tryQ(V[0], V[1], l, l); if (r) return r; } }
   }
   for (const a of lam(s[0])) for (const bq of lam(s[1])) {
     const V1 = nullOf(a), V2 = nullOf(bq);
-    if (!V1.length || !V2.length) continue;
-    const r = tryQ(V1[0], V2[0]); if (r) return r;
+    // (axes nearly alike, as in a round loop barely tipped: each null space can hold both
+    // axes' vectors, so each pairing is tried)
+    for (const v1 of V1) for (const v2 of V2) { const r = tryQ(v1, v2, a, bq); if (r) return r; }
   }
   return { stable: false, s };
 }
@@ -445,7 +447,9 @@ function cavAnalyse(path, s, p, beams) {
     for (let j = 0; j < p; j++) { M = mul4(free4((B[j].len3 || B[j].len) / B[j].n), M); M = mul4(ev4(mats[(j + 1) % p]), M); }
     E4 = Object.assign(cav4Eigen(M), { M });
   }
-  const Lopt = B.reduce((a, b) => a + b.n * (b.len3 || b.len), 0), fsr = c0 / (Lopt * 1e-3);
+  // the round trip's optical path (phase index) and group path (group index), which sets the
+  // free spectral range: modes c / Lg apart, a dispersive crystal's closer than c / Lopt
+  const Lopt = B.reduce((a, b) => a + b.n * (b.len3 || b.len), 0), Lg = B.reduce((a, b) => a + (b.ng || b.n) * (b.len3 || b.len), 0), fsr = c0 / (Lg * 1e-3);
   // the surfaces, in order, and whether it is a standing (linear) or travelling (ring) loop
   const retro = evs.filter(ev => ev && ev.dOut && ev.dIn[0] * ev.dOut[0] + ev.dIn[1] * ev.dOut[1] < -0.999).length;
   const kind = retro >= 2 ? 'linear' : 'ring';
@@ -573,7 +577,7 @@ function cavAnalyse(path, s, p, beams) {
     kind, names, surfaces: evs.map(ev => ev && ev.el), p, Mx, My, M4: E4 ? E4.M : null,
     stability: E4 ? (E4.s ? { x: Math.abs(E4.s[0]) < 2 ? 'stable' : 'unstable', y: Math.abs(E4.s[1]) < 2 ? 'stable' : 'unstable', hx: E4.s[0] / 2, hy: E4.s[1] / 2, turned: true }
       : { x: 'unstable', y: 'unstable', hx: NaN, hy: NaN, turned: true }) : { x: stab(Mx), y: stab(My), hx: 0.5 * (Mx[0] + Mx[3]), hy: 0.5 * (My[0] + My[3]) },
-    Lopt, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin, sens,
+    Lopt, Lg, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin, sens,
     gouy: { x: gx, y: gy }, tms: { x: tms(gx), y: tms(gy) }, mode: { qx: E4 && E4.stable ? along[0] && along[0].qx : qx, qy: E4 && E4.stable ? along[0] && along[0].qy : qy, Q: E4 && E4.stable ? E4.Q : null, along, waists }, axis, match, lam0, segs: B,
   };
 }

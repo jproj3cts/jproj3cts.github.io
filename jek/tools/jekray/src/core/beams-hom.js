@@ -51,12 +51,13 @@ export function srcModes(src) {
   return gsmModes(m2Of(src)).map(([m, n, w]) => ({ w, c: [[m, n, 1, 0]] }));
 }
 /* A cavity driven by a laser with a line of its own: the circulating power averaged over
-   the line. The line is Lc wide in path, 2 pi Lopt / Lc in round-trip phase; the solve's
+   the line. The line is Lc wide in path, 2 pi Lg / Lc in round-trip phase, Lg the round
+   trip's group path (the phase's change with frequency; a cavity's c.Lg); the solve's
    power against detuning is sampled over one free spectral range, more finely round each
    resonance, and the line (repeated every free spectral range) weights it. */
-export function cavLine(res, Lopt, src) {
+export function cavLine(res, Lg, src) {
   if (!res || !(src && src.coh > 0)) return null;
-  const G = 2 * Math.PI * Lopt / src.coh;
+  const G = 2 * Math.PI * Lg / src.coh;
   if (!(G > 1e-7)) return null;
   const key = G + '|' + src.lineshape;
   if (res._line && res._line.key === key) return res._line;

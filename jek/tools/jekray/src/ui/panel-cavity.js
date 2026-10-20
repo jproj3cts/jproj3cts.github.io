@@ -120,7 +120,7 @@ function cavityCard(c) {
       const scale = S.eng === '2d' ? 1 : (() => { const J = c.segs[0].J; return J.reduce((a, v) => a + v * v, 0); })();
       const off = -P.dLock * c.fsr / (2 * Math.PI), src = getEl(c.segs[0].src);
       // every mode of a beam of M^2 above 1, and over the laser's line when it has one
-      const all = [S, ...(S.others || [])], line = r => cavLine(r.res, c.Lopt, src);
+      const all = [S, ...(S.others || [])], line = r => cavLine(r.res, c.Lg || c.Lopt, src);
       const circ0 = all.reduce((a, r) => a + r.res.at(r.delta).P, 0) * scale;
       const circ = all.reduce((a, r) => { const l = line(r); return a + (l ? l.avg(r.delta) : r.res.at(r.delta).P); }, 0) * scale;
       rows.push(['Circulating (\u00d7 the source)', String(+circ.toPrecision(4)) + (S.mode === 'lock' ? ', locked' : ', as built') + (circ !== circ0 ? ', over the laser\u2019s line' : '')]);
@@ -193,7 +193,7 @@ function drawCavityScan(cv, c, pseudo) {
   // every mode of a beam of M^2 above 1 adds its power; a laser with a line of its own
   // builds up the average over it (solid), the line's centre alone shown faint
   const all = [S, ...(S.others || [])], src = getEl(c.segs[0].src);
-  const lines = all.map(r => cavLine(r.res, c.Lopt, src));
+  const lines = all.map(r => cavLine(r.res, c.Lg || c.Lopt, src));
   const pk = all.reduce((a, r) => a + r.res.Plock, 0);
   const curve = (fn, style, lw) => {
     g.strokeStyle = style; g.lineWidth = lw; g.beginPath();

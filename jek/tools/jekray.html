@@ -42127,6 +42127,7 @@ function binnedFieldRaw(el) {
   const interp = el.binInterp !== false;
 
   const coh = new Float64Array(n), inc = new Float64Array(n);
+  let cross = 0;                  // the largest cross term between two paths of one launch: none, and nothing interferes
   const byNm = new Map();
   for (const t of all) { if (!byNm.has(t.nm)) byNm.set(t.nm, []); byNm.get(t.nm).push(t); }
 
@@ -42182,6 +42183,7 @@ function binnedFieldRaw(el) {
         const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
         const g = i === j || !A.g ? 1 : A.g(A.Lw[b * 2] / A.Lw[b * 2 + 1] + A.lag - B.Lw[b * 2] / B.Lw[b * 2 + 1] - B.lag);
         coh[b] += (i === j ? 1 : 2 * g) * d;
+        if (i !== j) cross = Math.max(cross, Math.abs(2 * g * d));
       }
     }
   }
@@ -42193,7 +42195,8 @@ function binnedFieldRaw(el) {
     if (inc[b] > iMax) iMax = inc[b];
   }
   let vis = null;
-  if (cMax > 0.05 * iMax) {
+  // fringes need light that interferes: separate lasers overlapping, or one beam's own profile, vary in brightness but make none
+  if (cMax > 0.05 * iMax && cross > 1e-6 * iMax) {
     let vlo = Infinity, vhi = 0, lit = 0;
     for (let b = 0; b < n; b++) {
       if (inc[b] < 0.05 * iMax) continue;
@@ -48022,6 +48025,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A screen\u2019s <b>Fringe visibility</b> (its rays) is given only where light meets itself by two paths. Before, two separate lasers overlapping on a screen, brighter where they overlap, read as fringes (33% where one beam lies on another), though light from separate sources never interferes.',
     '<b>Spectrometer</b>, in Sources and detectors: a slit or fibre entrance and a detector array, showing the light through it as counts against wavelength, with the peak, its width, the resolution, the light that gets in, saturation and the signal-to-noise. <b>Kind</b> picks a typical instrument (compact UV to near-infrared, high-resolution visible, fibre-coupled visible, near-infrared or short-wave infrared) and any setting can then be changed. A narrower slit sharpens the lines and lets less light in, as on the real thing. The new example <b>Czerny\u2013Turner spectrometer</b> builds one from a slit, two concave mirrors and a grating, beside the part reading the same lamp.',
     '<b>On a phone or tablet</b>: the bench fills the screen, and a part\u2019s settings open in a sheet over its lower half (\u2191 makes it taller, \u00d7 or a tap on the empty bench closes it), the part moved clear of the sheet if it would be under it. A phone on its side has the one-row bar too. The welcome note, the parts picker and the menus say tap rather than click, and that JEKray is best used on a desktop or laptop, where the designers, plots and shortcuts have the room they need.',
     'A lens surface\u2019s <b>hole radius</b> is set in the Optical designer only; the bench panel shows it when there is one. A hole as wide as the surface or wider (which left the face drawn but not there for the light) is no hole. And a lens with a plain hole through a face, nothing stacked in it, no longer stops the bench from tracing.',

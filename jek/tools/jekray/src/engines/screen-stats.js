@@ -40,6 +40,7 @@ function binnedFieldRaw(el) {
   const interp = el.binInterp !== false;
 
   const coh = new Float64Array(n), inc = new Float64Array(n);
+  let cross = 0;                  // the largest cross term between two paths of one launch: none, and nothing interferes
   const byNm = new Map();
   for (const t of all) { if (!byNm.has(t.nm)) byNm.set(t.nm, []); byNm.get(t.nm).push(t); }
 
@@ -95,6 +96,7 @@ function binnedFieldRaw(el) {
         const d = A.acc[o] * B.acc[o] + A.acc[o + 1] * B.acc[o + 1] + A.acc[o + 2] * B.acc[o + 2] + A.acc[o + 3] * B.acc[o + 3];
         const g = i === j || !A.g ? 1 : A.g(A.Lw[b * 2] / A.Lw[b * 2 + 1] + A.lag - B.Lw[b * 2] / B.Lw[b * 2 + 1] - B.lag);
         coh[b] += (i === j ? 1 : 2 * g) * d;
+        if (i !== j) cross = Math.max(cross, Math.abs(2 * g * d));
       }
     }
   }
@@ -106,7 +108,8 @@ function binnedFieldRaw(el) {
     if (inc[b] > iMax) iMax = inc[b];
   }
   let vis = null;
-  if (cMax > 0.05 * iMax) {
+  // fringes need light that interferes: separate lasers overlapping, or one beam's own profile, vary in brightness but make none
+  if (cMax > 0.05 * iMax && cross > 1e-6 * iMax) {
     let vlo = Infinity, vhi = 0, lit = 0;
     for (let b = 0; b < n; b++) {
       if (inc[b] < 0.05 * iMax) continue;

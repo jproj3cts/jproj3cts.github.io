@@ -1225,8 +1225,9 @@ const windowBlock = (angle, coat) => ({
    disc: a top-hat launched far upstream grows Fresnel ripples before it gets there. 512
    points: the focal grid must reach ten Airy radii, which on 256 leaves the pupil only
    thirteen samples across, good to about 1%. */
+/* the ideal uniform pupil of the textbook Airy pattern and MTF: a hard edge, not the fan's automatic soft one */
 const diffBench = (width, rays) => bench('diff', [
-  src({ name: 'Beam', x: -5, width, rays, wavelength: NM, pol: 's', popN: 512 }),
+  src({ name: 'Beam', x: -5, width, rays, wavelength: NM, pol: 's', popN: 512, softAuto: false, soft: 0 }),
   bk7Lens({ name: 'Lens', surfaces: [{ R: 51.5, coat: { mode: 'custom', R: 0 } }, { R: -51.5, coat: { mode: 'custom', R: 0 } }] }),
   screen({ name: 'Focus', x: 51.19, angle: 180, length: 6 }),
 ], { minPower: 1e-4 });

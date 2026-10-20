@@ -42,7 +42,7 @@ $$
 E(r) = \left(\text{disc}_{W/2} * g_\sigma\right)(r), \qquad \sigma = \frac{\text{edge}}{2.563}.
 $$
 
-**Automatic** (the default) sets it to just what the field grid needs to hold the edge without ringing: 8% of the width on 256 grid points, in proportion less on a finer grid (4% on 512). A hard edge, 0, rings on the grid, about 1% across the middle of a wide beam. Set a value for an LED or lamp behind an aperture with a soft edge of its own. For a laser, use the Gaussian beam instead.
+**Automatic** (the default) sets it to just what the field grid needs to hold the edge without ringing: 8% of the width on 256 grid points, in proportion less on a finer grid (4% on 512). A hard edge, 0, rings on the grid, about 1% across the middle of a wide beam. Set a value for an LED or lamp behind an aperture with a soft edge of its own. For a laser, use the Gaussian beam instead. To compare a lens's spot with the textbook Airy pattern or diffraction-limited MTF, which assume a uniform pupil with a hard edge, set the edge softness to 0; the automatic edge puts a few percent more of the light inside the first dark ring.
 
 ### The Gaussian beam
 

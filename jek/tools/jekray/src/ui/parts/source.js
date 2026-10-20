@@ -3,6 +3,7 @@ import { FIBRE_NG, cohGamma, lagOf, splitChain, splitRoot } from '../../core/coh
 import { applyPulse, gsmModes, m2Of } from '../../core/pulses.js';
 import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../../core/beams-hom.js';
 import { wavelengthColour } from '../../core/colour.js';
+import { fanEdgeAuto } from '../../core/fan-edge.js';
 import { V, project } from '../../state/project.js';
 import { getEl, lightOf, srcBody } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
@@ -40,6 +41,18 @@ function drawSource(el, sel) {
   ctx.stroke();
 }
 
+/* the fan's soft edge: automatic (enough for the field grid) until a value is typed, 0 included */
+function edgeRows(el) {
+  const row = param('Edge softness (mm)', el, 'edge');
+  const inp = row.querySelector('input');
+  if (inp) inp.addEventListener('change', () => { el.edgeAuto = false; auto.checked = false; });
+  const auto = h('input', { type: 'checkbox' });
+  auto.checked = el.edgeAuto !== false;
+  auto.addEventListener('change', () => { checkpoint(); el.edgeAuto = auto.checked; if (el.edgeAuto) el.edge = fanEdgeAuto(el.width, el.popN); changed(true); });
+  bindSync(auto, () => { const a = fanEdgeAuto(el.width, el.popN); if (el.edgeAuto !== false && el.edge !== a) el.edge = a; });
+  return [row, h('label', { class: 'rt-check' }, auto, 'Automatic: just enough for the field grid')];
+}
+
 function sourcePanel(el) {
   panel.append(h('h3', null, 'Beam'));
   const rows = h('div', { class: 'rt-rows' });
@@ -75,6 +88,7 @@ function sourcePanel(el) {
   if (el.traceRays) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
+      ...(el.gauss ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
       param('Rays', el, 'rays')));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
@@ -87,6 +101,7 @@ function sourcePanel(el) {
     // without a Gaussian beam the fan's width and divergence still shape the diffracted field
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
+      ...edgeRows(el),
       param('Divergence, full (°)', el, 'divergence')));
     panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
   } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));

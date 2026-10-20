@@ -34,6 +34,16 @@ The fan is a line across the source, in the bench plane. A source can lay its ra
 
 A ray $$s$$ of the width up starts that far above the source's height, rising at the angle $$s\,\Theta$$. A source with a **Tip** $$\tau$$ sends all of its light up at $$\tau$$ more (down, for a negative tip). Every ray is traced exactly in 3D (see [heights](/jek/docs/jekray/free-space/#heights)). A screen's **Rays** tab then has a spot diagram, across against up, with the aberrations as they are.
 
+### The fan's diffracted field
+
+Without a Gaussian beam, the diffracted field starts from the fan as a uniform top-hat of its width, curved to its divergence. Its **edge softness** is the distance over which the edge rises from 10% to 90%, a Gaussian blur of the top-hat:
+
+$$
+E(r) = \left(\text{disc}_{W/2} * g_\sigma\right)(r), \qquad \sigma = \frac{\text{edge}}{2.563}.
+$$
+
+**Automatic** (the default) sets it to just what the field grid needs to hold the edge without ringing: 8% of the width on 256 grid points, in proportion less on a finer grid (4% on 512). A hard edge, 0, rings on the grid, about 1% across the middle of a wide beam. Set a value for an LED or lamp behind an aperture with a soft edge of its own. For a laser, use the Gaussian beam instead.
+
 ### The Gaussian beam
 
 With **Propagate a Gaussian beam** on, one more ray, not drawn, goes down the axis carrying the beam parameter

@@ -1,3 +1,4 @@
+import { fanEdge } from '../core/fan-edge.js';
 import { clamp } from '../core/constants.js';
 import { AMU, C_SI } from '../core/cells.js';
 import { EPS0, TRAP_ATOMS, airIndex, sphereAlpha, trapAlpha } from '../core/traps.js';
@@ -29,7 +30,8 @@ import { besselJ01 } from '../core/special.js';
 export const diffCache = new Map();          // kept for the trace to clear; the field answer is cached by key
 
 /* ---------- A ray fan as a field ----------
-   A fan with a width is a uniform top-hat of that diameter, curved to its divergence;
+   A fan with a width is a uniform top-hat of that diameter, curved to its divergence, its edge
+   softened over the source's edge (a Gaussian blur, so the whole of it lies on the grid);
    a point source is a uniform cone of spatial frequencies, which at its waist is the
    jinc 2 J1(x)/x. Both are built from their exact spectra, cut at the grid's bandwidth:
    a hard edge sampled directly puts power the grid cannot hold into frequencies it
@@ -37,15 +39,16 @@ export const diffCache = new Map();          // kept for the trace to clear; the
    remembered (repr, the fraction held), so enclosed energy is against the true total. */
 export function fanShape(src, nm) {
   const a = src.width / 2, th = src.divergence / 2 * deg;
-  if (a > 0) return { a, iR: Math.tan(th) / a };
+  // a soft edge: the top-hat blurred by a Gaussian whose 10-90% rise is the edge (sigma = edge / 2.563)
+  if (a > 0) return { a, iR: Math.tan(th) / a, sig: fanEdge(src) / 2.563 };
   return { a: 0, nu: Math.sin(Math.abs(th)) / (nm * 1e-6) };
 }
 /* Spectrum at spatial frequency v (cycles/mm): of the disc, or of the cone, cell-weighted
    at its edge so it need not fall on a sample */
 function fanSpectrum(shape, v, dv) {
   if (shape.a > 0) {
-    const x = 2 * Math.PI * shape.a * v;
-    return x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v;
+    const x = 2 * Math.PI * shape.a * v, soft = shape.sig > 0 ? Math.exp(-2 * Math.PI * Math.PI * shape.sig * shape.sig * v * v) : 1;
+    return soft * (x < 1e-8 ? Math.PI * shape.a * shape.a : shape.a * besselJ01(x)[1] / v);
   }
   return Math.min(1, Math.max(0, 0.5 + (shape.nu - v) / dv));
 }
@@ -63,7 +66,7 @@ export function popFanRound(N, q, n, lam0, power, shape) {
   const sphere = popResidual(re, im, r, q[0], q[1], k);
   const F = { R, re, im, z: q[0], zR: q[1], n, lam0, sphere };
   // scale to the true power: the disc's own for a top-hat (its amplitude is fixed), all of it for the cone
-  const held = popPower(F), full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popPower(F), full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);
@@ -91,7 +94,7 @@ export function popFan2(N, q, n, lam0, power, shape) {
   }
   const st = { d, z: q[0], zR: q[1] };
   const F = { N, re, im, ax: st, ay: Object.assign({}, st), n, lam0 };
-  const held = popStats2(F).power, full = shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
+  const held = popStats2(F).power, full = shape.sig > 0 ? held : shape.a > 0 ? Math.PI * shape.a * shape.a : Math.PI * shape.nu * shape.nu;
   const s = Math.sqrt(power / full);
   for (let i = 0; i < N * N; i++) { re[i] *= s; im[i] *= s; }
   F.repr = Math.min(1, held / full);

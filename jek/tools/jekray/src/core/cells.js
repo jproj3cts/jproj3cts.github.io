@@ -11,6 +11,8 @@ export const ATOM_ISO = {
   Rb87: { I: 1.5, m: 86.909180527, Ag: 3417.341305452, D2: { nu: 384.2304844685e12, Ae: 84.7185, Be: 12.4965, tau: 26.2348 }, D1: { nu: 377.107463380e12, Ae: 408.328, Be: 0, tau: 27.679 } },
   Cs133: { I: 3.5, m: 132.905451931, Ag: 2298.1579425, D2: { nu: 351.72571850e12, Ae: 50.28827, Be: -0.4934, tau: 30.473 }, D1: { nu: 335.116048807e12, Ae: 291.9201, Be: 0, tau: 34.894 } },
   K39: { I: 1.5, m: 38.9637064864, Ag: 230.8598601, D2: { nu: 391.01617003e12, Ae: 6.093, Be: 2.786, tau: 26.37 }, D1: { nu: 389.286058716e12, Ae: 27.775, Be: 0, tau: 26.72 } },
+  // the lines 236.18 (D2) and 235.49 MHz (D1) above 39K's (Falke et al., PRA 74, 032503 (2006), as Tiecke tabulates)
+  K41: { I: 1.5, m: 40.96182576, Ag: 127.0069352, D2: { nu: 391.01640621e12, Ae: 3.363, Be: 3.351, tau: 26.37 }, D1: { nu: 389.286294205e12, Ae: 15.245, Be: 0, tau: 26.72 } },
 };
 // log10 of the vapour pressure in torr, from C. B. Alcock, V. P. Itkin and M. K. Horrigan,
 // Can. Metall. Q. 23, 309 (1984): the solid below the melting point, the liquid above
@@ -27,6 +29,9 @@ export const ATOMS = {
   Rb85: { name: 'Rubidium 85, enriched', el: 'Rb', iso: [['Rb85', 1]] },
   Rb87: { name: 'Rubidium 87, enriched', el: 'Rb', iso: [['Rb87', 1]] },
   Cs: { name: 'Caesium', el: 'Cs', iso: [['Cs133', 1]] },
-  K: { name: 'Potassium, natural (³⁹K)', el: 'K', iso: [['K39', 0.932581]] },
+  // natural potassium: 40K (0.0117%) is left out
+  K: { name: 'Potassium, natural', el: 'K', iso: [['K39', 0.932581], ['K41', 0.067302]] },
+  K39: { name: 'Potassium 39, enriched', el: 'K', iso: [['K39', 1]] },
+  K41: { name: 'Potassium 41, enriched', el: 'K', iso: [['K41', 1]] },
 };
 export const KB = 1.380649e-23, AMU = 1.66053906660e-27, HPL = 6.62607015e-34, C_SI = 299792458;

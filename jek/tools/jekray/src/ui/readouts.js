@@ -163,10 +163,10 @@ function updateReadoutsIn(container, el) {
     } else {
       const r = detectorReading(el);
       const front = r.mixer ? [...r.lines.map(ln => { const src = getEl(ln.id); return ['IF from ' + (src ? src.name : '?'), fmtHz(ln.fif) + ', ' + fmtDbm(ln.mw * Math.pow(10, -rf.cl / 10))]; }),
-        ['System temperature', (+r.tsys.toPrecision(4)) + ' K (' + rf.tant + ' K looked into, ' + rf.trx + ' K receiver)'],
-        ['Noise floor', r.floor.toFixed(1) + ' dBm/Hz at the input; ' + fmtDbm(r.mds) + ' in the ' + (+rf.ifbw.toPrecision(4)) + ' MHz IF band'],
+        ['System temperature', (+r.tsys.toPrecision(4)) + ' K (' + rf.tant + ' K looked into, ' + rf.trx + ' K receiver, ' + (rf.sideband === 'dsb' ? 'DSB: both sidebands\u2019 noise' : 'SSB') + ')'],
+        ['Noise floor', r.floor.toFixed(1) + ' dBm/Hz at the input; ' + fmtDbm(r.mds) + ' in the ' + (+rf.ifbw.toPrecision(4)) + ' MHz IF band (noise bandwidth ' + (+(r.bn / 1e6).toPrecision(4)) + ' MHz)'],
         ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB in the IF band']]
-        : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')], ['Noise', f(r.noiseV * 1e3) + ' mV rms (' + fmtDbm(r.mds) + ' equivalent)'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']];
+        : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')], ['Noise', f(r.noiseV * 1e3) + ' mV rms (' + fmtDbm(r.mds) + ' equivalent, over a noise bandwidth of ' + (+(r.bn / 1e6).toPrecision(4)) + ' MHz)'], ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']];
       parts = [[['Arriving', C ? fmtDbm(C.inMw) : 'nothing'], ['Taken in', C ? fmtDbm(C.mw) + ', ' + (100 * C.eff).toPrecision(4) + '% of what arrives' : '\u2014'], ...front, ...beamRows],
         C ? 'Its mode at the frequency arriving' + (rf.pol === 'both' ? ', either polarisation.' : ', the ' + rf.pol + ' polarisation (the cross-polar field across it).') : 'Nothing arrives on its aperture. The beam figures show once something does.'];
     }
@@ -178,7 +178,7 @@ function updateReadoutsIn(container, el) {
       ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ...(el.diode ? [['Noise', f(r.noiseI * 1e9) + ' nA rms']] : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms']]), ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
-      'Sources count at the power set on each. Noise is over the bandwidth given.'];
+      'Sources count at the power set on each. Noise is over the noise bandwidth, \u03c0/2 times the bandwidth given (its single pole\u2019s 3 dB corner).'];
   } else if (el.type === 'aom') {
     const nm = benchNms()[0], lam = nm * 1e-6, Lam = el.v * 1e3 / (el.rf * 1e6);
     parts = [[['Acoustic period', fmtLen(Lam)], ['Deflection at ' + nm + ' nm', (Math.asin(clamp(lam / Lam, -1, 1)) / deg * 1000).toPrecision(4) + ' mdeg (' + (lam / Lam * 1000).toPrecision(4) + ' mrad)'],

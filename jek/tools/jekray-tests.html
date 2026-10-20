@@ -4732,11 +4732,11 @@ const TESTS = [
   },
   {
     name: 'and its light beats with itself on a photodetector',
-    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2B\u222bS\u00b2d\u03bd = R\u00b2P\u00b2B/(2\u03c3\u221a\u03c0) for its Gaussian spectrum (\u03c3 its width in Hz over 2.355), over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B/(2\u03c3\u221a\u03c0), and 1 if it stays for a single frequency',
+    why: 'the LED alone on a fibre photodetector: excess intensity noise from its spontaneous emission beating with itself, R\u00b2B\u2099\u222bS\u00b2d\u03bd = R\u00b2P\u00b2B\u2099/(2\u03c3\u221a\u03c0) for its Gaussian spectrum (\u03c3 its width in Hz over 2.355; B\u2099 = \u03c0B/2 the noise bandwidth of the detector\u2019s single pole), over the shot noise; and with the line set to a single frequency it is gone: the ratio of that noise to R\u00b2P\u00b2B\u2099/(2\u03c3\u221a\u03c0), and 1 if it stays for a single frequency',
     want: 1, tol: 1e-6, unit: '',
     run: J => {
       const one = o => { J.load(fnet([fc('laser', 'L', Object.assign({ power: 1, bw: 40 }, o)), fc('pd', 'P', { material: 'custom', resp: 1 })], [['L', 0, 'P', 0]])); return J.pdSignal('P'); };
-      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.B, sg = 299792458 * 40e-9 / (1550e-9) ** 2 / 2.3548;
+      const S = one({ led: true }), C = one({ cmode: 'single' }), B = S.Bn, sg = 299792458 * 40e-9 / (1550e-9) ** 2 / 2.3548;
       return S.noise.parts.aseAse / ((1e-3) ** 2 * B / (2 * sg * Math.sqrt(Math.PI))) + (C.noise.parts.aseAse > 0 ? 1 : 0);
     },
   },
@@ -6004,8 +6004,8 @@ const TESTS = [
   },
   {
     name: 'A fibre amplifier saturates as it should',
-    why: '20 dB small-signal gain, 17 dBm saturated output, 1 mW in: G = (−1 + √(1 + 4 G₀ x)) / 2x, x = Pin / Psat',
-    wantFrom: () => { const G0 = 100, x = 1 / Math.pow(10, 1.7); return 10 * Math.log10((-1 + Math.sqrt(1 + 4 * G0 * x)) / (2 * x)); },
+    why: '20 dB small-signal gain, 17 dBm saturated output, 1 mW in: G = G₀ exp(−(G − 1) x), x = Pin ln G₀ / Psat',
+    wantFrom: () => { const G0 = 100, x = Math.log(G0) / Math.pow(10, 1.7); let G = G0; for (let i = 0; i < 200; i++) G = G0 * Math.exp(-(G - 1) * x) * 0.5 + G * 0.5; return 10 * Math.log10(G); },
     tol: 0.02, unit: ' dB',
     run: J => { J.load(ampBench(1, true)); J.trace(); return 10 * Math.log10(J.fibrePd('D') / 1); },
   },
@@ -7394,15 +7394,15 @@ const TESTS = [
     run: J => { J.load(rfBench(600, [{ type: 'lens', name: 'L1', x: 150, y: 0, diameter: 100, surfaces: [{ R: 78.9 }, { R: null }], gaps: [22], materials: [{ glass: 'HDPE' }], mmw: {} }], { rays: 11 })); return J.system().efl; },
   },
   {
-    name: 'A wire grid reflects the field along its wires by its inductance: 1 / (1 + 4X²), X = (g/λ) Xn(2a/g)',
-    why: 'a grid of 25 µm pitch and 10 µm wires (2a/g = 0.4) at 150 GHz (λ = 2 mm), square on, s light along its upright wires: Xn = 0.51 − 1.19 u + 0.53 u² + 0.11 u³ with u = ln(2πa/g) (Chuss et al. 2012), and the share that leaks through is 1 − 1/(1 + 4X²): the leak in the beam past the grid over the beam before it (relative error)',
+    name: 'A wire grid reflects the field along its wires by its inductance: 1 / (1 + 4X²), X = (g/2λ) Xn(2a/g)',
+    why: 'a grid of 25 µm pitch and 10 µm wires (2a/g = 0.4) at 150 GHz (λ = 2 mm), square on, s light along its upright wires: Xn = 0.51 − 1.19 u + 0.53 u² + 0.11 u³ with u = ln(2πa/g) (Chuss et al. 2012, Fig. 6: Xn = (λ/g) 2X), and the share that leaks through is 1 − 1/(1 + 4X²): the leak in the beam past the grid over the beam before it (relative error)',
     want: 0, tol: 1e-6, unit: '',
     run: J => {
       J.load(bench('grid', [{ type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, rays: 3, pol: 's', mmw: { kind: 'corrugated', ghz: 150, dbm: 0, a: 7.5, L: 60 } },
         { type: 'polariser', name: 'G', x: 100, y: 0, angle: 180, axis: 0, length: 100, grid: { g: 0.025, a: 0.005 }, mmw: {} }, { type: 'screen', name: 'Sc', x: 200, y: 0, angle: 180, length: 100 }], { minPower: 1e-9 }));
       const T = J.lastTrace(), t = T.beams.find(b => b.ev && b.ev.kind === 'grid' && b.ev.mode === 'T'), p = t && T.beams[t.parent];
       if (!t || !p) return NaN;
-      const lam = 299792458 / 150 * 1e-6, g = 0.025, a = 0.005, u = Math.log(2 * Math.PI * a / g), Xn = 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u, X = (g / lam) * Xn;
+      const lam = 299792458 / 150 * 1e-6, g = 0.025, a = 0.005, u = Math.log(2 * Math.PI * a / g), Xn = 0.51 - 1.19 * u + 0.53 * u * u + 0.11 * u * u * u, X = 0.5 * (g / lam) * Xn;
       return Math.abs((t.w / p.w) / (1 - 1 / (1 + 4 * X * X)) - 1);
     },
   },
@@ -7459,12 +7459,12 @@ const TESTS = [
   },
   {
     name: 'A receiver’s frequency sweep reads, at the bench’s frequency, what the receiver reads, and its link budget adds up to it',
-    why: 'two horns 300 mm apart with a band-pass mesh between: the sweep’s S21 at the centre against 10 log10 of the power the receiver takes in over the power launched, and the link budget’s total against the same (largest difference, dB)',
+    why: 'two horns 300 mm apart with a band-pass mesh between: the sweep’s S21 at the centre against 10 log10 of the power the receiver takes in over the power the feed horn is set to (its dBm: the share g its modes carry is a loss of the link), and the link budget’s total against the same (largest difference, dB)',
     want: 0, tol: 1e-6, unit: 'dB',
     run: J => {
       J.load(rfBench(300, [{ type: 'filter', name: 'Me', x: 150, y: 0, angle: 0, length: 100, ftype: 'mesh', mesh: 'bandpass', meshG: 0.5, meshA: 0.05, meshF0: 150, meshQ: 5, meshLoss: 0.3, reflect: true, mmw: {} }], { ghz: 150 }));
       const el = J.byName('Rx'); el.mmw.span = 20; el.mmw.points = 11;
-      const S = J.rfSweep('Rx'), L = J.linkBudget('Rx'), r = J.detector('Rx').rf, want = 10 * Math.log10(r.mw / J.byName('Horn').power);
+      const S = J.rfSweep('Rx'), L = J.linkBudget('Rx'), r = J.detector('Rx').rf, want = 10 * Math.log10(r.mw / Math.pow(10, J.byName('Horn').mmw.dbm / 10));
       const at = S.ghz.findIndex(f => Math.abs(f - 150) < 1e-6);
       return Math.max(Math.abs(S.s21[at] - want), Math.abs(L.total - want));
     },
@@ -7522,7 +7522,7 @@ const TESTS = [
   },
   {
     name: 'A video detector puts out its responsivity times the power, over its NEP',
-    why: 'a receiving horn with a square-law detector of 1000 V/W and 5 pW/√Hz over a 1 MHz video bandwidth: its output is 1000 V/W times the power its mode takes in, and the noise 5 µV rms; the volts read against the power, per watt',
+    why: 'a receiving horn with a square-law detector of 1000 V/W and 5 pW/√Hz through a 1 MHz video bandwidth (a single pole: a noise bandwidth of π/2 MHz): its output is 1000 V/W times the power its mode takes in, and the noise 5 pW/√Hz · √(π/2 MHz) · 1000 V/W = 6.27 µV rms; the volts read against the power, per watt',
     want: 1000, tol: 1e-6, unit: 'V/W',
     run: J => { const B = rfBench(120, []); Object.assign(B.elements[1].mmw, { rx: 'video', rv: 1000, nep: 5, vbw: 1 }); J.load(B); const r = J.detector('Rx'); return r.V / (r.mw * 1e-3); },
   },
@@ -7544,14 +7544,14 @@ const TESTS = [
   },
   {
     name: 'An upconverting horn sends its IF up and a mixer brings it down: the link is linear in the IF voltage',
-    why: 'a 1 GHz, 1 V generator into a 150 GHz upconverter (6 dB conversion loss) sends two sidebands, 149 and 151 GHz, across to a mixer with a 149 GHz local oscillator (6 dB, a 5 GHz IF band): the IF out has the upper sideband at 2 GHz, half the drive times √(G · 10^-1.2), G the link’s power transfer from the horn’s nominal power to what the receiver takes in, through the IF band’s pole; and a video detector in its place reads the mean carrier power, (1 V)² / 2 / 50 Ω less 6 dB, through the link, times its 1000 V/W (1 when both hold to 1%)',
+    why: 'a 1 GHz, 1 V generator into a 150 GHz smooth-wall upconverter (6 dB conversion loss; its modes carry g = 94% of its power) sends two sidebands, 149 and 151 GHz, across to a mixer with a 149 GHz local oscillator (6 dB, a 5 GHz IF band): the IF out has the upper sideband at 2 GHz, half the drive times √(G · 10^-1.2), G the link’s power transfer from the horn’s nominal power to what the receiver takes in, through the IF band’s pole; and a video detector in its place reads the mean carrier power, (1 V)² / 2 / 50 Ω less 6 dB, times g, through the link, times its 1000 V/W (1 when both hold to 1%)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.experimental(true);
       try {
-        const mk = rxo => { const B = rfBench(120, [elecPart('sig', 'G', { f: 1e9, amp: 1, x: -60, y: 40 })], { ghz: 150 }); B.elements[0].id = 'H'; B.elements[0].mmw.tx = 'up'; B.elements[0].mmw.cl = 6; Object.assign(B.elements[2].mmw, rxo); B.elements[2].id = 'R'; B.fibres = [{ a: ['G', 0], b: ['H', 0], wire: true }]; return B; };
+        const mk = rxo => { const B = rfBench(120, [elecPart('sig', 'G', { f: 1e9, amp: 1, x: -60, y: 40 })], { ghz: 150 }); B.elements[0].id = 'H'; B.elements[0].mmw.kind = 'smooth'; B.elements[0].mmw.tx = 'up'; B.elements[0].mmw.cl = 6; Object.assign(B.elements[2].mmw, rxo); B.elements[2].id = 'R'; B.fibres = [{ a: ['G', 0], b: ['H', 0], wire: true }]; return B; };
         J.load(mk({ rx: 'mixer', lo: 149, cl: 6, ifbw: 5000 }));
-        const G = J.detector('Rx').mw / 1;                                    // from the nominal 0 dBm
+        const G = J.detector('Rx').mw / 1;                                    // from the nominal 0 dBm (g in it)
         const S = J.elec.signal('Rx', 0), t = S.tones.find(q => Math.abs(q.f - 2e9) < 1);
         const ok1 = t && Math.abs(t.amp / (0.5 * Math.sqrt(G * Math.pow(10, -1.2)) / Math.sqrt(1 + (2e9 / 5e9) ** 2)) - 1) < 1e-6;
         J.load(mk({ rx: 'video', rv: 1000, nep: 5, vbw: 5000 }));
@@ -9836,7 +9836,7 @@ const TESTS = [
   },
   {
     name: 'One face, one set of amplitudes: a coated window passes s and p with their own phase, and a coated face reflects s and p alike square on',
-    why: 'a Gaussian beam linear at 45° through an N-BK7 window turned 45°, its front a three-layer splitter stack: the bench passes 10.44% as s and 26.88% as p, p retarded 4.44° against s (the stack’s own transmitted phase, as core/face-pol.js gives the lens designer too; bare, none); a six-layer mirror stack turned 5° reflects s and p with the same sign, as at normal incidence they must be (1 when all hold)',
+    why: 'a Gaussian beam linear at 45° through an N-BK7 window turned 45°, its front a three-layer splitter stack: the bench passes 10.44% as s and 26.88% as p, p’s phase −4.44° from s’s (the stack’s own transmitted phase, in the tracer’s e^{+ikL}, as core/face-pol.js gives the lens designer too; bare, none); a six-layer mirror stack turned 5° reflects s and p with the same sign, as at normal incidence they must be (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const shot = (layers, ang) => { J.load({ format: 'jekray', version: 1, elements: [
@@ -9849,7 +9849,7 @@ const TESTS = [
       const fig = A => { const [sr, si, pr, pi] = A.J; return { s: sr * sr + si * si, p: pr * pr + pi * pi, ret: (Math.atan2(pi, pr) - Math.atan2(si, sr)) * 180 / Math.PI }; };
       const bs = fig(shot([{ n: 2.35, d: 67.3 }, { n: 1.46, d: 108.4 }, { n: 2.35, d: 67.3 }], 45).T), bare = fig(shot(null, 45).T);
       const hr = shot(Array.from({ length: 6 }, (_, i) => ({ n: i % 2 ? 1.46 : 2.35, d: i % 2 ? 108.4 : 67.3 })), 5).R;
-      const through = Math.abs(bs.s - 0.104425) < 1e-5 && Math.abs(bs.p - 0.268811) < 1e-5 && Math.abs(bs.ret - 4.4355) < 1e-3 && Math.abs(bare.ret) < 1e-9;
+      const through = Math.abs(bs.s - 0.104425) < 1e-5 && Math.abs(bs.p - 0.268811) < 1e-5 && Math.abs(bs.ret + 4.4355) < 1e-3 && Math.abs(bare.ret) < 1e-9;
       const alike = !!hr && Math.sign(hr.J[0]) === Math.sign(hr.J[2]) && Math.abs(hr.J[0] - hr.J[2]) < 0.01;
       if (!(through && alike)) console.log('face amplitudes', { bs, bare, hr: hr && hr.J });
       return through && alike ? 1 : 0;

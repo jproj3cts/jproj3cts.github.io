@@ -199,10 +199,11 @@ export function tolSensitivity(prob, T, from, to) {
   return Object.assign({ nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows }, nom.cv ? { nominalCv: nom.cv } : {});
 }
 /* the criterion expected over the builds from the sensitivities, each tolerance's effect on the
-   criterion's square added (a uniform tolerance's mean square is a third of its limit's, a normal
-   one cut at two deviations about a quarter) */
+   criterion's square added (a uniform tolerance's mean square is a third of its limit's; a normal one
+   cut at two deviations, the limit, has a variance of 1 - 4 φ(2) / (2 Φ(2) - 1) = 0.7737 of its
+   deviation's square, so 0.1934 of the limit's) */
 export function rssEstimate(nominal, rows, dist) {
-  const f = dist === 'normal' ? 0.25 : 1 / 3;
+  const f = dist === 'normal' ? 0.19344 : 1 / 3;
   let add = 0;
   for (const r of rows) add += f * (((nominal + r.minus) ** 2 - nominal ** 2) + ((nominal + r.plus) ** 2 - nominal ** 2)) / 2;
   return Math.sqrt(Math.max(0, nominal * nominal + add));

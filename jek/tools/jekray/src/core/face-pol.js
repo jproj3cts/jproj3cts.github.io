@@ -1,4 +1,4 @@
-import { stackAmp, mirrorR } from './coatings.js';
+import { filmBC, stackAmp, mirrorR } from './coatings.js';
 import { cabs2 } from './numeric.js';
 
 /* ==========================================================================
@@ -16,27 +16,15 @@ import { cabs2 } from './numeric.js';
 /* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
    n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
 export function stackT(layers, n0, ns, c0, nm, pol) {
-  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
-  let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
-  for (const L of layers) {
-    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    // times the layer's [[c, i sn/e], [i e sn, c]]
-    const n11r = m11r * c - m12i * e * sn, n11i = m11i * c + m12r * e * sn;
-    const n12r = -m11i * sn / e + m12r * c, n12i = m11r * sn / e + m12i * c;
-    const n21r = m21r * c - m22i * e * sn, n21i = m21i * c + m22r * e * sn;
-    const n22r = -m21i * sn / e + m22r * c, n22i = m21r * sn / e + m22i * c;
-    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i; m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
-  }
-  const es = eta(ns), e0 = eta(n0), Br = m11r + m12r * es, Bi = m11i + m12i * es, Cr = m21r + m22r * es, Ci = m21i + m22i * es;
+  const { Br, Bi, Cr, Ci, e0, es } = filmBC(layers, n0, ns, c0, nm, pol);
   const dr = e0 * Br + Cr, di = e0 * Bi + Ci, dd = dr * dr + di * di;
   if (!dd) return [0, 0];
   const t = [2 * e0 * dr / dd, -2 * e0 * di / dd];
-  // p: the field's ratio, not the tangential component's
+  // p: the field's ratio, not the tangential component's (c0 over the cosine beyond, imaginary where the wave there is evanescent)
   if (pol === 's') return t;
-  const k = c0 / cosIn(ns);
-  return [t[0] * k, t[1] * k];
+  if (!es[3]) { const k = c0 / es[2]; return [t[0] * k, t[1] * k]; }
+  const k = -c0 / es[3];
+  return [-t[1] * k, t[0] * k];
 }
 
 /* A refracting face (bare, coated, a film splitter): light from index n1 into n2 meeting it at cosine ci (> 0) at
@@ -45,6 +33,15 @@ export function stackT(layers, n0, ns, c0, nm, pol) {
    passes nothing). Each case as the tracer has always traced it, and a coating's stack now passes its own phase. */
 export function faceAmps(face, n1, n2, ci, nm) {
   const coat = face && face.coat, k = 1 - (n1 / n2) * (n1 / n2) * (1 - ci * ci);
+  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), -√R as a mirror is,
+  // beyond the critical angle too (the metal reflects, not the glass)
+  if (coat && coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = -Math.sqrt(R); return { rs: [a, 0], rp: [a, 0], ts: [0, 0], tp: [0, 0], tir: true }; }
+  // a stack: its own amplitudes, met in reverse from the glass (its layers listed from the outside in), conjugated
+  // from the matrix's e^{-ikz} to the tracer's e^{+ikL}; beyond the critical angle all of it comes back, a stack of
+  // nothing as bare TIR does
+  const stack = coat && coat.mode === 'stack' && coat.layers && coat.layers.length ? (n1 > n2 ? coat.layers.slice().reverse() : coat.layers) : null;
+  const cj = a => [a[0], -a[1]], sr = L => [cj(stackAmp(L, n1, n2, ci, nm, 's')), cj(stackAmp(L, n1, n2, ci, nm, 'p'))];
+  if (k < 0 && stack) { const [rs, rp] = sr(stack); return { rs, rp, ts: [0, 0], tp: [0, 0], tir: true }; }
   if (k < 0) {
     // total internal reflection: everything comes back, each component with its own phase
     const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
@@ -59,15 +56,10 @@ export function faceAmps(face, n1, n2, ci, nm) {
     rs: [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0], rp: [(n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0],
     ts: [2 * n1 * ci / (n1 * ci + n2 * ct) * norm, 0], tp: [2 * n1 * ci / (n2 * ci + n1 * ct) * norm, 0], tir: false });
   if (!coat || coat.mode === 'bare') return bare();
-  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), a quarter wave on reflection as byR has it
-  if (coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = Math.sqrt(R); return { rs: [0, a], rp: [0, a], ts: [0, 0], tp: [0, 0], tir: true }; }
   if (coat.mode === 'band') { if (!(nm >= coat.lo && nm <= coat.hi)) return bare(); const R = coat.R / 100; return byR(R, R); }
   if (coat.mode === 'stack') {
-    if (!coat.layers || !coat.layers.length) return bare();
-    // the layers are listed from the outside in, so light through the substrate meets them in reverse
-    const L = n1 > n2 ? coat.layers.slice().reverse() : coat.layers;
-    const rs = stackAmp(L, n1, n2, ci, nm, 's'), rp = stackAmp(L, n1, n2, ci, nm, 'p');
-    const ts = stackT(L, n1, n2, ci, nm, 's'), tp = stackT(L, n1, n2, ci, nm, 'p');
+    if (!stack) return bare();
+    const [rs, rp] = sr(stack), ts = cj(stackT(stack, n1, n2, ci, nm, 's')), tp = cj(stackT(stack, n1, n2, ci, nm, 'p'));
     // stackAmp's p is already the parity convention's: r_p = r_s square on, and a layer of nothing is a bare face
     return { rs, rp, ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], tir: false };
   }

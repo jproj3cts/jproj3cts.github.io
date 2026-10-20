@@ -276,11 +276,12 @@ export function rfCoupling(el) {
   return deviceMemo(el, () => {
     const arr = faceArrivals(el);
     if (!arr.length) return null;
-    const N = 96, rf = el.mmw, H = HORN_FIELDS[rf.kind] || HORN_FIELDS.corrugated, a = rf.a;
+    // the grid over the whole aperture (a diagonal horn's reaches sqrt2 a out), at about the same spacing
+    const rf = el.mmw, H = HORN_FIELDS[rf.kind] || HORN_FIELDS.corrugated, a = rf.a, ext = H.field ? H.ext || 1 : 1, N = Math.ceil(96 * ext);
     let inMw = 0, coupledMw = 0, inS = 0, gotS = 0, beam = null;
     const lines = new Map();
     for (const G of groupsOf(arr)) {
-      const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * a : 3.5 * wa, d = 2 * L / N;
+      const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * ext * a : 3.5 * wa, d = 2 * L / N;
       beam = B;
       // the mode on the grid, [co, cross] at each point, of unit power
       const mc = new Float64Array(N * N), mx = new Float64Array(N * N), rr = new Float64Array(N * N);
@@ -333,13 +334,16 @@ export function detectorReading(el) {
       // a receiving horn: what its mode takes in, read by its front end (see elec.js for the two)
       const C = rfCoupling(el), P = C ? C.mw : 0, rf = el.mmw, kB = 1.380649e-23;
       if (rf.rx === 'mixer') {
-        const g = Math.pow(10, -rf.cl / 10), Tsys = rf.tant + rf.trx, B = rf.ifbw * 1e6, Pn = kB * Tsys * B * 1e3;   // the noise in the IF band, referred to the input, mW
-        const V = Math.sqrt(2 * 50 * P * 1e-3 * g);
-        return { mw: P, ifMw: P * g, V, sat: false, noiseV: Math.sqrt(2 * 50 * Pn * 1e-3 * g), pending: false, field: true, rf: C, mixer: true, tsys: Tsys, mds: Pn,
-          floor: 10 * Math.log10(kB * Tsys * 1e3), snr: P > 0 ? 10 * Math.log10(P / Pn) : null, lines: C ? C.lines.map(ln => Object.assign({ fif: Math.abs(ln.ghz - rf.lo) * 1e9 }, ln)) : [] };
+        // the noise in the IF band, referred to the input, mW: k Tsys over the IF filter's noise bandwidth, its single
+        // pole's (pi/2) ifbw (as elec.js filters it); a DSB mixer (T_rx quoted DSB) takes it in from both sidebands, twice
+        const g = Math.pow(10, -rf.cl / 10), Tsys = rf.tant + rf.trx, ns = rf.sideband === 'dsb' ? 2 : 1, Bn = Math.PI / 2 * rf.ifbw * 1e6, Pn = ns * kB * Tsys * Bn * 1e3;
+        const V = Math.sqrt(2 * 50 * P * 1e-3 * g);                                       // the IF tone's peak volts
+        return { mw: P, ifMw: P * g, V, sat: false, noiseV: Math.sqrt(50 * Pn * 1e-3 * g), pending: false, field: true, rf: C, mixer: true, tsys: Tsys, mds: Pn, bn: Bn,   // noiseV rms
+          floor: 10 * Math.log10(ns * kB * Tsys * 1e3), snr: P > 0 ? 10 * Math.log10(P / Pn) : null, lines: C ? C.lines.map(ln => Object.assign({ fif: Math.abs(ln.ghz - rf.lo) * 1e9 }, ln)) : [] };
       }
-      const V = P * 1e-3 * rf.rv, noiseV = rf.rv * rf.nep * 1e-12 * Math.sqrt(rf.vbw * 1e6);
-      return { mw: P, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV, pending: false, field: true, rf: C, mds: rf.nep * 1e-12 * Math.sqrt(rf.vbw * 1e6) * 1e3,
+      // the NEP over the video bandwidth's noise bandwidth: a single pole at vbw (as elec.js filters it), (pi/2) vbw
+      const V = P * 1e-3 * rf.rv, Bn = Math.PI / 2 * rf.vbw * 1e6, noiseV = rf.rv * rf.nep * 1e-12 * Math.sqrt(Bn);
+      return { mw: P, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV, pending: false, field: true, rf: C, mds: rf.nep * 1e-12 * Math.sqrt(Bn) * 1e3, bn: Bn,
         snr: V > 0 ? 20 * Math.log10(V / noiseV) : null };
     }
     const a = el.length / 2;
@@ -373,8 +377,9 @@ export function detectorReading(el) {
       P += mw; I += mw * responsivity(el, t.nm);
     }
     // noise: shot noise on the photocurrent and dark current, the feedback resistor's
-    // Johnson noise, and the amplifier's own input current noise, all over the bandwidth
-    const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = el.bandwidth, Ia = I * 1e-3;
+    // Johnson noise, and the amplifier's own input current noise, all over the noise bandwidth: the
+    // bandwidth is a single pole's 3 dB corner (as elec.js filters it), so white noise through it counts (pi/2) B
+    const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = Math.PI / 2 * el.bandwidth, Ia = I * 1e-3;
     const i2 = 2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B;
     const noiseI = Math.sqrt(i2), V = Ia * el.gain;
     return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F,

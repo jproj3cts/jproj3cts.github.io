@@ -176,10 +176,12 @@ export function pdSignal(el) {
   const tones = fibre ? (el.balanced ? balancedTones(beatTones(fibrePdParts(el)), beatTones(fibrePdParts(el, true))) : beatTones(fibrePdParts(el))) : Ff ? Ff.tones.map(t => Object.assign({}, t)) : deviceMemo(Object.assign({}, el, { id: el.id + (!fibre && viaCavity(el) ? '#tones~' : '#tones') }), () => freePdTones(el, !fibre && viaCavity(el)));
   // a free-space diode's responsivity is that of the light arriving (each wavelength at its own)
   const rd = fibre ? null : detectorReading(el);
-  const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]), G = el.diode ? 1 : el.gain, B = el.bandwidth;
+  // B, the amplifier's 3 dB corner, a single pole (as elec.js filters it): tones roll off by it; white
+  // noise through it integrates to its equivalent noise bandwidth, Bn = (pi/2) B
+  const R = fibre ? pdResp(el) : rd.mw > 0 ? rd.mA / rd.mw : responsivity(el, benchNms()[0]), G = el.diode ? 1 : el.gain, B = el.bandwidth, Bn = Math.PI / 2 * B;
   const V = mw => mw * 1e-3 * R * G;
   for (const t of tones) { const Hm = 1 / Math.sqrt(1 + (t.f / B) ** 2); t.V = V(t.amp) * Hm; t.phV = t.ph - Math.atan(t.f / B); }
-  const out = { dc, Vdc: V(dc), tones, vmax: el.vmax, B };
+  const out = { dc, Vdc: V(dc), tones, vmax: el.vmax, B, Bn };
   if (fibre && lastTrace.net) {
     // noise: shot noise on all the light, the gain resistor's Johnson noise, and where an
     // amplifier's ASE arrives, the signal beating with the ASE of its own polarisation and
@@ -201,15 +203,15 @@ export function pdSignal(el) {
       let dens = 0;
       if (sigNm !== null && sl.size) { let best = null; for (const s of sl.values()) if (!best || Math.abs(s.nm - sigNm) < Math.abs(best.nm - sigNm)) best = s; dens = best.mw * 1e-3 / best.B; }
       let aa = 0; for (const s of sl.values()) aa += (s.mw * 1e-3) ** 2 / s.B;
-      return { ase, Ps, Pa, sigAse: 2 * R * R * Ps * dens * B, aseAse: R * R * aa * B };
+      return { ase, Ps, Pa, sigAse: 2 * R * R * Ps * dens * Bn, aseAse: R * R * aa * Bn };
     };
     const sides = [side(lastTrace.net.pd.get(el.id))];
     if (el.balanced) sides.push(side(lastTrace.net.pd.get(el.id + '~')));
     // shot noise on all the light either side; the excess (beat) noise, a balanced detector cancels to its common-mode rejection
     const cm = el.balanced ? Math.pow(10, -(el.cmrr || 0) / 10) : 1, sum = k => sides.reduce((a, x) => a + x[k], 0);
     const q = 1.602176634e-19, kT = 1.380649e-23 * 295, amp = !el.diode && el.type === 'fcomp';
-    const parts = { shot: 2 * q * (R * (sum('Ps') + sum('Pa')) + (el.dark || 0) * 1e-9) * B, thermal: !el.diode && G > 0 ? 4 * kT * B / G : 0,
-      sigAse: cm * sum('sigAse'), aseAse: cm * sum('aseAse'), amp: amp ? ((el.ampNoise || 0) * 1e-12) ** 2 * B : 0 };
+    const parts = { shot: 2 * q * (R * (sum('Ps') + sum('Pa')) + (el.dark || 0) * 1e-9) * Bn, thermal: !el.diode && G > 0 ? 4 * kT * Bn / G : 0,
+      sigAse: cm * sum('sigAse'), aseAse: cm * sum('aseAse'), amp: amp ? ((el.ampNoise || 0) * 1e-12) ** 2 * Bn : 0 };
     const i2 = parts.shot + parts.thermal + parts.sigAse + parts.aseAse + parts.amp, ase = sum('ase');
     const Is = R * Math.abs(sides[0].Ps - (sides[1] ? sides[1].Ps : 0));
     out.noise = { ase, parts, i2, V: Math.sqrt(i2) * G, snr: Is > 0 && i2 > 0 ? 10 * Math.log10(Is * Is / i2) : null };

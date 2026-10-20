@@ -106,7 +106,11 @@ export function vfPupil(sg, R, opts) {
       // normal, to first order in what aberration there is (a thin mask bends the light but
       // not the traced ray, so the trace's own direction is not always the light's)
       const rho0 = Math.sqrt(r[1] * r[1] + r[2] * r[2] + Rf * Rf);
-      push(r[1], r[2], S, Pv, [-r[1] / rho0, -r[2] / rho0, Rf / rho0], jac * dA);
+      // the tube's power is per area of the exit plane; |E|^2 is per area square to the ray,
+      // which the plane meets at the ray's angle: 1 / sqrt(cos) (not after a thin mask, which
+      // holds the field in its plane)
+      const ob = ev.mode === 'M' ? 1 : Math.sqrt(rho0 / Rf);
+      push(r[1], r[2], [S[0] * ob, S[1] * ob], [Pv[0] * ob, Pv[1] * ob], [-r[1] / rho0, -r[2] / rho0, Rf / rho0], jac * dA);
     }
     out.M = M;
   } else {

@@ -329,7 +329,7 @@ export function signalSection(el) {
     if (S.noise) {
       const N = S.noise, big = Object.entries(N.parts).sort((a, b) => b[1] - a[1])[0];
       if (N.ase > 0) r.push(['Broadband light (ASE, LEDs) reaching it', fmtMw(N.ase) + ' (in the DC)']);
-      r.push(['Noise', f(N.V) + ' V rms over ' + fmtHz(S.B) + ', mostly ' + { shot: 'shot noise', thermal: 'the gain resistor\u2019s', sigAse: 'signal\u2013ASE beat', aseAse: 'ASE\u2013ASE beat', amp: 'the amplifier\u2019s' }[big[0]]]);
+      r.push(['Noise', f(N.V) + ' V rms over a noise bandwidth of ' + fmtHz(S.Bn) + ' (\u03c0/2 \u00d7 ' + fmtHz(S.B) + '), mostly ' + { shot: 'shot noise', thermal: 'the gain resistor\u2019s', sigAse: 'signal\u2013ASE beat', aseAse: 'ASE\u2013ASE beat', amp: 'the amplifier\u2019s' }[big[0]]]);
       if (N.snr !== null) r.push(['Signal to noise', N.snr.toFixed(1) + ' dB (electrical, DC signal)']);
     }
     const s2 = JSON.stringify(r);

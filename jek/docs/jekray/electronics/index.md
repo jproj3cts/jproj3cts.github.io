@@ -103,10 +103,10 @@ $$
 P(t) \ni 2\operatorname{Re}\!\left(\mathbf E_a\cdot\mathbf E_b^*\, e^{i2\pi(f_b - f_a)t}\right),
 $$
 
-with $$\mathbf E$$ the fields summed over the diode, and each pair of paths weighted by the laser's coherence at their delay. Two different lasers beat at the difference of their frequencies, but with a wandering phase and a line as wide as both of theirs, so those beats are listed as such. The photocurrent is $$I = \mathcal R P$$, and its noise is shot noise on the photocurrent and dark current, the gain resistor's Johnson noise and the amplifier's input current noise:
+with $$\mathbf E$$ the fields summed over the diode, and each pair of paths weighted by the laser's coherence at their delay. Two different lasers beat at the difference of their frequencies, but with a wandering phase and a line as wide as both of theirs, so those beats are listed as such. The photocurrent is $$I = \mathcal R P$$, and its noise is shot noise on the photocurrent and dark current, the gain resistor's Johnson noise and the amplifier's input current noise, densities the amplifier's single pole $$B$$ then filters. The panel's figure is their total, over the pole's equivalent noise bandwidth $$B_n = \tfrac{\pi}{2}B$$:
 
 $$
-\overline{i_n^2} = 2q\left(I + I_\text{dark}\right)B + \frac{4kTB}{R} + i_a^2 B.
+\overline{i_n^2} = 2q\left(I + I_\text{dark}\right)B_n + \frac{4kTB_n}{R} + i_a^2 B_n.
 $$
 
 ### Drives

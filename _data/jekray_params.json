@@ -717,6 +717,93 @@
     }
    ]
   },
+  "spectrometer": {
+   "label": "Spectrometer",
+   "what": "A free-space spectrometer: the light through its entrance (a slit, or a fibre core) is spread by wavelength over a detector array. Its Spectrum tab plots counts against wavelength, with the peak, its width, the resolution, the throughput and the signal-to-noise. \"preset\" picks a kind of instrument and sets the rest; any field given as well overrides it (and makes it \"custom\", except the integration time, which is how it is run, not what it is).",
+   "angle": "the direction its entrance faces: towards the light arriving (180 for light travelling +x).",
+   "fields": [
+    {
+     "k": "length",
+     "def": "24",
+     "meaning": "mm: its face across the bench, fixed."
+    },
+    {
+     "k": "entrance",
+     "def": "\"slit\"",
+     "meaning": "\"slit\" or \"fibre\"."
+    },
+    {
+     "k": "slit",
+     "def": "25",
+     "meaning": "µm: the slit’s width, across the bench; it sets the resolution with the array."
+    },
+    {
+     "k": "slitH",
+     "def": "1",
+     "meaning": "mm: the slit’s height."
+    },
+    {
+     "k": "core",
+     "def": "400",
+     "meaning": "µm: a fibre entrance’s core diameter."
+    },
+    {
+     "k": "na",
+     "def": "0.13",
+     "meaning": "the largest NA of light it takes in."
+    },
+    {
+     "k": "wmin",
+     "def": "200",
+     "meaning": "nm: the shortest wavelength on the array."
+    },
+    {
+     "k": "wmax",
+     "def": "1100",
+     "meaning": "nm: the longest."
+    },
+    {
+     "k": "pixels",
+     "def": "2048",
+     "meaning": "the array’s pixels."
+    },
+    {
+     "k": "pitch",
+     "def": "14",
+     "meaning": "µm: the pixel pitch."
+    },
+    {
+     "k": "sensor",
+     "def": "\"si\"",
+     "meaning": "\"si\", \"ingaas\" or \"ingaasx\"."
+    },
+    {
+     "k": "tint",
+     "def": "10",
+     "meaning": "ms: integration time."
+    },
+    {
+     "k": "well",
+     "def": "60000",
+     "meaning": "electrons: full well."
+    },
+    {
+     "k": "read",
+     "def": "30",
+     "meaning": "electrons rms: read noise."
+    },
+    {
+     "k": "dark",
+     "def": "50",
+     "meaning": "electrons per second per pixel."
+    },
+    {
+     "k": "preset",
+     "def": "\"compact\"",
+     "meaning": "\"compact\" (200 to 1100 nm, silicon CCD), \"hires\" (550 to 650 nm), \"fibrevis\" (350 to 1000 nm, fibre entrance), \"nir\" (900 to 1700 nm, InGaAs), \"swir\" (1000 to 2500 nm, extended InGaAs) or \"custom\"."
+    }
+   ]
+  },
   "faraday": {
    "label": "Faraday rotator",
    "what": "A Faraday rotator (non-reciprocal).",

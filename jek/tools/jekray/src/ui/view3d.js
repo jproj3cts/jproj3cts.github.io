@@ -1,3 +1,4 @@
+import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
 import { BEAM_Z, clamp } from '../core/constants.js';
@@ -426,6 +427,13 @@ export const V3D = (() => {
       case 'source': {
         const { L: len, hw } = srcBody(el);
         add(mesh(boxG(-len, 0, -hw, hw, -hw, hw), mat.body(0x2b2622)), mesh(disc(0.6, Math.max(0.6, el.width / 2), 0.3), mat.glow(el.colour || '#ff3030')));
+        return g;
+      }
+      case 'spectrometer': {
+        // its body behind the face, and the entrance on it: a slit (drawn at least half a millimetre wide) or a fibre's core
+        const hw = SPEC_W / 2, e = Math.max(0.25, (el.entrance === 'fibre' ? el.core : el.slit) / 2000);
+        add(mesh(boxG(-SPEC_L, 0, -hw, hw, -hw, hw), mat.body(0x2b3338)));
+        add(mesh(el.entrance === 'fibre' ? disc(0.3, e, 0.15) : boxG(0, 0.3, -e, e, -el.slitH / 2, el.slitH / 2), mat.glow('#3f9a63')));
         return g;
       }
       case 'detector': {

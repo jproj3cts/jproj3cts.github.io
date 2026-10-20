@@ -6896,6 +6896,21 @@ const TESTS = [
         return s.rays > 0 && s.box.min[0] >= s.board.min[0] - e && s.box.min[1] >= s.board.min[1] - e && s.box.max[0] <= s.board.max[0] + e && s.box.max[1] <= s.board.max[1] + e ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
+  },
+  {
+    name: 'The spectrometer reads the mercury lines in the Czerny\u2013Turner example, and its panel draws them',
+    why: 'the Spectrometer part on the example\u2019s second tab: four lines through the slit, the strongest peak on the yellow doublet, unsaturated, its resolution 1.18 nm (compact kind); its panel opens on the Spectrum tab with a plot and the Peak row (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(JSON.parse(getDemo('czerny-turner'))); J.trace();
+      const r = J.spectrometer('Spectrometer');
+      J.select('Spectrometer');
+      const p = document.getElementById('rig').contentDocument.getElementById('panel'), txt = p ? p.textContent : '';
+      const ok = r.lines.length === 4 && Math.abs(r.peak - 579.1) < 0.6 && !r.saturated && r.snr > 50 && Math.abs(r.resolution - 1.178) < 0.002
+        && !!p && !!p.querySelector('canvas') && /Peak/.test(txt) && /Resolution/.test(txt);
+      J.select(null);
+      return ok ? 1 : 0;
+    },
   },  {
     name: 'In 3D a part is dragged across the table, snapped to the grid, and undone',
     why: 'the Michelson from above, snapping to 5 mm: the fixed mirror dragged 80 px to the right moves along +x by a whole number of 5 mm steps and not at all in y; Ctrl+Z puts it back (1 when all hold)',

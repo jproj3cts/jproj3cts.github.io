@@ -375,6 +375,31 @@ A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscillos
 | demodF | `0` | MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal. |
 | demodPhase | `0` | degrees: the mixer’s phase. |
 
+### "spectrometer": Spectrometer
+
+A free-space spectrometer: the light through its entrance (a slit, or a fibre core) is spread by wavelength over a detector array. Its Spectrum tab plots counts against wavelength, with the peak, its width, the resolution, the throughput and the signal-to-noise. "preset" picks a kind of instrument and sets the rest; any field given as well overrides it (and makes it "custom", except the integration time, which is how it is run, not what it is).
+
+**angle:** the direction its entrance faces: towards the light arriving (180 for light travelling +x).
+
+| field | default | meaning |
+|---|---|---|
+| length | `24` | mm: its face across the bench, fixed. |
+| entrance | `"slit"` | "slit" or "fibre". |
+| slit | `25` | µm: the slit’s width, across the bench; it sets the resolution with the array. |
+| slitH | `1` | mm: the slit’s height. |
+| core | `400` | µm: a fibre entrance’s core diameter. |
+| na | `0.13` | the largest NA of light it takes in. |
+| wmin | `200` | nm: the shortest wavelength on the array. |
+| wmax | `1100` | nm: the longest. |
+| pixels | `2048` | the array’s pixels. |
+| pitch | `14` | µm: the pixel pitch. |
+| sensor | `"si"` | "si", "ingaas" or "ingaasx". |
+| tint | `10` | ms: integration time. |
+| well | `60000` | electrons: full well. |
+| read | `30` | electrons rms: read noise. |
+| dark | `50` | electrons per second per pixel. |
+| preset | `"compact"` | "compact" (200 to 1100 nm, silicon CCD), "hires" (550 to 650 nm), "fibrevis" (350 to 1000 nm, fibre entrance), "nir" (900 to 1700 nm, InGaAs), "swir" (1000 to 2500 nm, extended InGaAs) or "custom". |
+
 ### "faraday": Faraday rotator
 
 A Faraday rotator (non-reciprocal).

@@ -8,6 +8,7 @@ import { FIBRE_COLOUR, getEl, lightOf, selected, srcBody } from '../state/elemen
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
 import { polyVerts, sagFn } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshHull } from '../core/stl.js';
+import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { frame, toLocal, toWorld } from '../core/mask.js';
 import { asmCheck, asmMembers, assemblies } from '../core/assembly.js';
 import { exporting, lastTrace } from '../engines/trace.js';
@@ -560,6 +561,7 @@ export function bodyOutline(el) {
   if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
   if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
   if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  if (el.type === 'spectrometer') return rect(-SPEC_L, 0, SPEC_W / 2);
   return [[0, -r], [0, r]];
 }
 /* that outline's bounding box on the bench (world mm) */
@@ -585,6 +587,7 @@ export function halfSize(el) {
   if (el.type === 'prism') return el.shape === 'window' ? Math.hypot(el.size, el.thickness) / 2 : el.shape === 'dove' ? el.size * DOVE_RATIO / 2 : el.size * 0.72;
   if (el.type === 'crystal') { const o = crystalGeom(el).outline; return Math.max(...o.map(v => Math.hypot(v[0], v[1]))); }
   if (el.type === 'detector') return Math.max(el.length / 2 + 1.5, 4);
+  if (el.type === 'spectrometer') return SPEC_L;
   if (el.type === 'fibre') return Math.max(el.length / 2, 3);
   if (el.type === 'cell') return el.length / 2 + 3;          // its label goes under the tube
   if (el.type === 'nlc') return Math.max(el.length / 2, 1) + 2;

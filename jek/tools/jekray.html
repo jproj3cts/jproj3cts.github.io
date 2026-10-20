@@ -8337,6 +8337,68 @@ const DETECTOR = {
     demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
   },
 };
+/* Spectrometer: a free-space spectrometer: light through its entrance (a slit, or a fibre's core) is spread by wavelength across a
+   detector array and read pixel by pixel. Its resolution follows from its range, its array and its entrance width; its counts from
+   the light through the entrance, the sensor's quantum efficiency and the integration time. The presets are kinds of instrument. */
+const SPEC_SENSORS = {
+  si: { name: 'Silicon CCD (back-thinned)', wl: [200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1150], qe: [0.3, 0.42, 0.5, 0.62, 0.85, 0.9, 0.86, 0.66, 0.4, 0.14, 0.02, 0] },
+  ingaas: { name: 'InGaAs array', wl: [850, 900, 1000, 1100, 1300, 1500, 1600, 1650, 1700, 1750], qe: [0.04, 0.6, 0.75, 0.8, 0.82, 0.85, 0.85, 0.75, 0.4, 0.02] },
+  ingaasx: { name: 'Extended InGaAs array', wl: [1000, 1100, 1300, 1600, 1900, 2200, 2400, 2500, 2550], qe: [0.35, 0.55, 0.7, 0.75, 0.75, 0.7, 0.55, 0.15, 0.02] },
+};
+// the kinds of instrument: each sets every field but the entrance's place on the bench
+const SPEC_PRESETS = {
+  compact: { name: 'Compact, UV to near-infrared', wmin: 200, wmax: 1100, pixels: 2048, pitch: 14, entrance: 'slit', slit: 25, slitH: 1, core: 400, na: 0.13, sensor: 'si', tint: 10, well: 60000, read: 30, dark: 50 },
+  hires: { name: 'High resolution, visible', wmin: 550, wmax: 650, pixels: 3648, pitch: 8, entrance: 'slit', slit: 10, slitH: 1, core: 200, na: 0.1, sensor: 'si', tint: 50, well: 100000, read: 20, dark: 30 },
+  fibrevis: { name: 'Fibre-coupled, visible', wmin: 350, wmax: 1000, pixels: 2048, pitch: 14, entrance: 'fibre', slit: 50, slitH: 1, core: 50, na: 0.22, sensor: 'si', tint: 10, well: 60000, read: 30, dark: 50 },
+  nir: { name: 'Near-infrared', wmin: 900, wmax: 1700, pixels: 512, pitch: 25, entrance: 'slit', slit: 25, slitH: 1, core: 400, na: 0.22, sensor: 'ingaas', tint: 5, well: 5e6, read: 500, dark: 2e5 },
+  swir: { name: 'Short-wave infrared, extended', wmin: 1000, wmax: 2500, pixels: 256, pitch: 50, entrance: 'slit', slit: 50, slitH: 1, core: 400, na: 0.22, sensor: 'ingaasx', tint: 2, well: 1e7, read: 800, dark: 5e6 },
+};
+const ENTRANCES = ['slit', 'fibre'];
+// what makes the kind: the integration time is how it is run, not what it is, so it is left out
+const PRESET_KEYS = Object.keys(SPEC_PRESETS.compact).filter(k => k !== 'name' && k !== 'tint');
+/* the preset an instrument's values are, or 'custom' once any differs */
+const specPresetOf = el => Object.keys(SPEC_PRESETS).find(k => PRESET_KEYS.every(f => SPEC_PRESETS[k][f] === el[f])) || 'custom';
+const SPEC_W = 24, SPEC_L = 60;          // mm: its face across the bench, and its body behind the face
+
+const SPECTROMETER = {
+  type: 'spectrometer', label: 'Spectrometer',
+  picker: [{ key: 'spectrometer', short: 'Spectrometer' }],
+  keys: ['spectrometer'],
+  make: (x, y) => Object.assign({ type: 'spectrometer', name: nextName('Spectrometer'), x, y, angle: 180, preset: 'compact' }, SPEC_PRESETS.compact),
+  norm(e, base) {
+    const P = SPEC_PRESETS[e.preset] || null, d = P || SPEC_PRESETS.compact;
+    const wmin = Math.max(100, num(e.wmin, d.wmin)), wmax = Math.max(wmin + 1, num(e.wmax, d.wmax));
+    const o = Object.assign(base, {
+      length: SPEC_W,                                                                 // its face across the bench, mm
+      entrance: ENTRANCES.includes(e.entrance) ? e.entrance : d.entrance,              // a slit, or a fibre's core
+      slit: Math.max(1, num(e.slit, d.slit)),                                          // slit width, µm
+      slitH: Math.max(0.01, num(e.slitH, d.slitH)),                                    // slit height, mm
+      core: Math.max(1, num(e.core, d.core)),                                          // a fibre entrance's core diameter, µm
+      na: Math.min(0.9, Math.max(0.01, num(e.na, d.na))),                              // the light it takes in: NA
+      wmin, wmax,                                                                      // nm, its range across the array
+      pixels: Math.round(Math.min(16384, Math.max(16, num(e.pixels, d.pixels)))),
+      pitch: Math.max(1, num(e.pitch, d.pitch)),                                       // µm
+      sensor: SPEC_SENSORS[e.sensor] ? e.sensor : d.sensor,
+      tint: Math.max(0.001, num(e.tint, d.tint)),                                      // integration time, ms
+      well: Math.max(100, num(e.well, d.well)),                                        // full well, electrons
+      read: Math.max(0, num(e.read, d.read)),                                          // read noise, electrons rms
+      dark: Math.max(0, num(e.dark, d.dark)),                                          // dark current, electrons per second per pixel
+      absorb: true,
+    });
+    o.preset = specPresetOf(o);
+    return o;
+  },
+  zHalf: () => SPEC_W / 2,
+  zSquare: true,
+  guide: {
+    what: 'A free-space spectrometer: the light through its entrance (a slit, or a fibre core) is spread by wavelength over a detector array. Its Spectrum tab plots counts against wavelength, with the peak, its width, the resolution, the throughput and the signal-to-noise. "preset" picks a kind of instrument and sets the rest; any field given as well overrides it (and makes it "custom", except the integration time, which is how it is run, not what it is).',
+    angle: 'the direction its entrance faces: towards the light arriving (180 for light travelling +x).',
+    fields: { length: 'mm: its face across the bench, fixed.', preset: '"compact" (200 to 1100 nm, silicon CCD), "hires" (550 to 650 nm), "fibrevis" (350 to 1000 nm, fibre entrance), "nir" (900 to 1700 nm, InGaAs), "swir" (1000 to 2500 nm, extended InGaAs) or "custom".',
+      entrance: '"slit" or "fibre".', slit: 'µm: the slit’s width, across the bench; it sets the resolution with the array.', slitH: 'mm: the slit’s height.', core: 'µm: a fibre entrance’s core diameter.',
+      na: 'the largest NA of light it takes in.', wmin: 'nm: the shortest wavelength on the array.', wmax: 'nm: the longest.', pixels: 'the array’s pixels.', pitch: 'µm: the pixel pitch.',
+      sensor: '"si", "ingaas" or "ingaasx".', tint: 'ms: integration time.', well: 'electrons: full well.', read: 'electrons rms: read noise.', dark: 'electrons per second per pixel.' },
+  },
+};
 /* Faraday rotator: A Faraday rotator (non-reciprocal). */
 const FARADAY = {
   type: 'faraday', label: 'Faraday rotator',
@@ -8684,14 +8746,14 @@ const RF = {
    by type in engines/trace.js and ui/view3d.js.
    ========================================================================== */
 const PARTS = {
-  stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN
+  stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, spectrometer: SPECTROMETER, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN
 };
 /* the order the guide and the labels list them in */
-const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism', 'waveplate', 'polariser', 'mask', 'grating', 'fibre', 'detector', 'faraday', 'isolator', 'stl', 'crystal', 'filter', 'gain', 'cell', 'nlc', 'link', 'aom', 'eom', 'chopper', 'draw'];
+const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism', 'waveplate', 'polariser', 'mask', 'grating', 'fibre', 'detector', 'spectrometer', 'faraday', 'isolator', 'stl', 'crystal', 'filter', 'gain', 'cell', 'nlc', 'link', 'aom', 'eom', 'chopper', 'draw'];
 const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
-const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, CHOPPER, AOM, EOM, LINK];
-const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'screen', 'fibre']],
+const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
+const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'spectrometer', 'screen', 'fibre']],
   ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
@@ -9331,7 +9393,7 @@ function lensKind(el) {
 }
 
 /* the parts the 3D view can show: a bench with others on it cannot go to 3D */
-const FREE_3D = new Set(['source', 'detector', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
+const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
   'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
 function loadProject(data) {
@@ -9907,7 +9969,7 @@ function elementSurfaces(el) {
   if (el.type === 'crystal') return crystalSurfaces(el);
   if (el.type === 'grating' || el.type === 'aom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];
   if (el.type === 'eom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'eom' })];
-  if (el.type === 'fibre' || el.type === 'detector') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'screen' })];
+  if (el.type === 'fibre' || el.type === 'detector' || el.type === 'spectrometer') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'screen' })];
   if (el.type === 'faraday' || el.type === 'isolator') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
   if (el.type === 'filter') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'filter' })];
   if (el.type === 'gain') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'gain' })];
@@ -10921,7 +10983,7 @@ function traceSceneOnce() {
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
-  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
+  for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'spectrometer' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
   const cellHits = [], nlcHits = [];
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
   // which bounds them too; a pile of elements on one spot would otherwise split every branch again)
@@ -12604,6 +12666,7 @@ function bodyOutline(el) {
   if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
   if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
   if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  if (el.type === 'spectrometer') return rect(-SPEC_L, 0, SPEC_W / 2);
   return [[0, -r], [0, r]];
 }
 /* that outline's bounding box on the bench (world mm) */
@@ -12629,6 +12692,7 @@ function halfSize(el) {
   if (el.type === 'prism') return el.shape === 'window' ? Math.hypot(el.size, el.thickness) / 2 : el.shape === 'dove' ? el.size * DOVE_RATIO / 2 : el.size * 0.72;
   if (el.type === 'crystal') { const o = crystalGeom(el).outline; return Math.max(...o.map(v => Math.hypot(v[0], v[1]))); }
   if (el.type === 'detector') return Math.max(el.length / 2 + 1.5, 4);
+  if (el.type === 'spectrometer') return SPEC_L;
   if (el.type === 'fibre') return Math.max(el.length / 2, 3);
   if (el.type === 'cell') return el.length / 2 + 3;          // its label goes under the tube
   if (el.type === 'nlc') return Math.max(el.length / 2, 1) + 2;
@@ -18261,6 +18325,137 @@ function pdInstSignal(el) {
   const S = ELEC.detSignalFull(el), inc = pdSignal(el).tones.filter(t => t.incoh);
   return inc.length ? Object.assign({}, S, { tones: S.tones.concat(inc.map(t => ({ f: t.f, re: t.V, im: 0, incoh: true }))) }) : S;
 }
+/* ==========================================================================
+   A spectrometer's reading. The light through its entrance (the part of each beam or ray on the slit, or a fibre entrance's core,
+   and within its NA) arrives as lines: one for each source and wavelength, as wide as the source's own line (its coherence length's,
+   or a pulse's bandwidth at its transform limit). On the array each line is spread by the instrument's resolution, a Gaussian
+   whose width is the entrance's image and two pixels added in quadrature, times the dispersion (the range over the array's
+   length), and each pixel takes what falls on it. Counts are its photoelectrons over the integration time (the sensor's quantum
+   efficiency at the pixel's wavelength), with shot, dark and read noise, and the full well where it saturates.
+   ========================================================================== */
+const H_C = 6.62607015e-34 * 2.99792458e8;          // J m
+const C_NMS = 2.99792458e17;                         // nm/s
+
+/* the sensor's quantum efficiency at a wavelength, nm */
+function specQE(el, nm) {
+  const S = SPEC_SENSORS[el.sensor], wl = S.wl, q = S.qe;
+  if (nm <= wl[0]) return nm < wl[0] - 1 ? 0 : q[0];
+  for (let i = 1; i < wl.length; i++) if (nm <= wl[i]) return q[i - 1] + (q[i] - q[i - 1]) * (nm - wl[i - 1]) / (wl[i] - wl[i - 1]);
+  return 0;
+}
+/* the dispersion, nm per µm along the array, and the resolution (FWHM, nm) */
+const specDispersion = el => (el.wmax - el.wmin) / (el.pixels * el.pitch);
+const specEntranceW = el => (el.entrance === 'fibre' ? el.core : el.slit);
+const specResolution = el => specDispersion(el) * Math.hypot(specEntranceW(el), 2 * el.pitch);
+
+/* a source's own linewidth, nm (FWHM): its coherence length's, or a pulse's at its transform limit */
+function lineWidth(src, nm) {
+  if (src.coh > 0) return nm * nm * 1e-6 / src.coh;
+  if (src.tau > 0) return nm * nm * 0.441 / (src.tau * 1e-15) / C_NMS;
+  return 0;
+}
+/* is a point of the face (u across the bench, v up, mm) in the entrance? */
+const inEntrance = (el, u, v) => el.entrance === 'fibre' ? Math.hypot(u, v) <= el.core / 2000 : Math.abs(u) <= el.slit / 2000 && Math.abs(v) <= el.slitH / 2;
+
+/* the light through the entrance as lines: [{nm, mw, w, name}], with the power arriving on the face and through the entrance */
+function specLines(el) {
+  return deviceMemo(el, () => {
+    const lines = [], add = (src, nm, mw) => {
+      if (!(mw > 0)) return;
+      const w = lineWidth(src, nm), k = nm.toFixed(5) + '|' + w.toPrecision(4) + '|' + src.id, q = lines.find(x => x.k === k);
+      if (q) q.mw += mw; else lines.push({ k, nm, mw, w, name: src.name || '' });
+    };
+    let face = 0, thru = 0;
+    const sinNA = el.na;
+    // Gaussian launches: |E|^2 over the entrance, the beam's fields added within each launch, if it comes within the NA
+    for (const G of groupsOf(faceArrivals(el))) {
+      const root = splitRoot(G[0].src), P0 = root.power || 0;
+      const W = arrivalWindow(G, Infinity), sinA = Math.sqrt(Math.max(0, 1 - G[0].ldx * G[0].ldx));
+      const integrate = (u0, u1, v0, v1, keep) => {
+        if (!(u1 > u0) || !(v1 > v0)) return 0;
+        const N = 96, du = (u1 - u0) / N, dv = (v1 - v0) / N;
+        let pw = 0;
+        for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+          const u = u0 + (i + 0.5) * du, v = v0 + (j + 0.5) * dv;
+          if (keep && !keep(u, v)) continue;
+          let e0 = 0, e1 = 0, e2 = 0, e3 = 0;
+          for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
+          pw += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+        }
+        return pw * du * dv * P0;
+      };
+      const half = el.length / 2;
+      face += integrate(Math.max(W[0], -half), Math.min(W[1], half), Math.max(W[2], -half), Math.min(W[3], half));
+      const hu = el.entrance === 'fibre' ? el.core / 2000 : el.slit / 2000, hv = el.entrance === 'fibre' ? el.core / 2000 : el.slitH / 2;
+      const p = sinA <= sinNA + 1e-9 ? integrate(Math.max(W[0], -hu), Math.min(W[1], hu), Math.max(W[2], -hv), Math.min(W[3], hv), (u, v) => inEntrance(el, u, v)) : 0;
+      thru += p; add(root, G[0].nm, p);
+    }
+    // ray fans, ray by ray: each launched ray carries its share of its source's power
+    for (const t of (lastTrace.screens[el.id] || [])) {
+      if (t.chief) continue;
+      const src = getEl(t.id.split(':')[0]);
+      if (!src || src.gauss) continue;
+      const root = splitRoot(src), mw = t.w * (root.power || 0) / (Math.max(1, src.rays) * sourceLines(src).length);
+      face += mw;
+      const sz = t.dz ? t.dz / Math.hypot(1, t.dz) : 0, sinA = Math.hypot(t.dly || 0, sz);
+      if (!inEntrance(el, t.y, t.z || 0) || sinA > sinNA + 1e-9) continue;
+      thru += mw; add(root, t.nm, mw);
+    }
+    return { lines: lines.sort((a, b) => a.nm - b.nm), face, thru };
+  }, 'spec');
+}
+
+/* the array's reading: each pixel's wavelength, power (mW), electrons, and its noise; with what it saturates at */
+function specTrace(el, L = specLines(el)) {
+  return deviceMemo(el, () => {
+    const n = el.pixels, d = (el.wmax - el.wmin) / n, R = specResolution(el), t = el.tint * 1e-3;
+    const nm = new Float64Array(n), mw = new Float64Array(n), e = new Float64Array(n), raw = new Float64Array(n), sd = new Float64Array(n);
+    for (let i = 0; i < n; i++) nm[i] = el.wmin + (i + 0.5) * d;
+    for (const ln of L.lines) {
+      const W = Math.hypot(ln.w, R), s = W / (2 * Math.sqrt(2 * Math.LN2));
+      const i0 = Math.max(0, Math.floor((ln.nm - 6 * s - el.wmin) / d)), i1 = Math.min(n - 1, Math.ceil((ln.nm + 6 * s - el.wmin) / d));
+      for (let i = i0; i <= i1; i++) {
+        const a = (el.wmin + i * d - ln.nm) / (s * Math.SQRT2), b = (el.wmin + (i + 1) * d - ln.nm) / (s * Math.SQRT2);
+        mw[i] += ln.mw * 0.5 * (erfA(b) - erfA(a));
+      }
+    }
+    let sat = false;
+    for (let i = 0; i < n; i++) {
+      const photons = mw[i] * 1e-3 * t / (H_C / (nm[i] * 1e-9));
+      const el0 = photons * specQE(el, nm[i]), dk = el.dark * t;
+      raw[i] = el0; e[i] = Math.min(el.well, el0);
+      if (el0 + dk > el.well) sat = true;
+      sd[i] = Math.sqrt(el0 + dk + el.read * el.read);
+    }
+    return { nm, mw, e, raw, sd, sat, R, d };
+  }, 'spect');
+}
+
+/* what the panel and the scripts read: the strongest peak's wavelength and width (FWHM, from the trace), the
+   resolution, the power through the entrance and its share of what reaches the face, and the signal-to-noise at the peak */
+function specReading(el) {
+  const L = specLines(el), T = specTrace(el, L), n = T.nm.length;
+  // the peak and its width from the light itself, saturated or not (a saturated array's flat top would widen it); the counts as read
+  const E = T.raw;
+  let k = -1, best = 0;
+  for (let i = 0; i < n; i++) if (E[i] > best) { best = E[i]; k = i; }
+  const out = { R: T.R, mw: L.thru, face: L.face, share: L.face > 0 ? L.thru / L.face : null, sat: T.sat, lines: L.lines, peak: null, fwhm: null, snr: null, counts: Math.min(el.well, best) };
+  if (k < 0 || !(best > 0)) return out;
+  const half = best / 2;
+  let a = k, b = k;
+  while (a > 0 && E[a] > half) a--;
+  while (b < n - 1 && E[b] > half) b++;
+  const xa = E[a] > half ? T.nm[a] : T.nm[a] + (half - E[a]) / (E[a + 1] - E[a]) * T.d;
+  const xb = E[b] > half ? T.nm[b] : T.nm[b] - (half - E[b]) / (E[b - 1] - E[b]) * T.d;
+  // the peak: a Gaussian through the highest pixel and its two neighbours (a parabola in the log), else the highest pixel
+  let peak = T.nm[k];
+  if (k > 0 && k < n - 1 && E[k - 1] > 0 && E[k + 1] > 0) {
+    const l0 = Math.log(E[k - 1]), l1 = Math.log(E[k]), l2 = Math.log(E[k + 1]), dn = l0 - 2 * l1 + l2;
+    if (dn < 0) peak += 0.5 * (l0 - l2) / dn * T.d;
+  }
+  // (saturated, the signal-to-noise is not a reading: the counts are the full well's)
+  return Object.assign(out, { peak, fwhm: xb - xa, snr: T.sat ? null : best / T.sd[k] });
+}
 /* ---------- A receiving horn against frequency, and its link budget ----------
    The sweep: every feed horn on the bench taken through a band about its frequency (each in
    proportion to its own, when there are several), the bench traced again at each step, and what
@@ -18706,6 +18901,13 @@ const V3D = (() => {
       case 'source': {
         const { L: len, hw } = srcBody(el);
         add(mesh(boxG(-len, 0, -hw, hw, -hw, hw), mat.body(0x2b2622)), mesh(disc(0.6, Math.max(0.6, el.width / 2), 0.3), mat.glow(el.colour || '#ff3030')));
+        return g;
+      }
+      case 'spectrometer': {
+        // its body behind the face, and the entrance on it: a slit (drawn at least half a millimetre wide) or a fibre's core
+        const hw = SPEC_W / 2, e = Math.max(0.25, (el.entrance === 'fibre' ? el.core : el.slit) / 2000);
+        add(mesh(boxG(-SPEC_L, 0, -hw, hw, -hw, hw), mat.body(0x2b3338)));
+        add(mesh(el.entrance === 'fibre' ? disc(0.3, e, 0.15) : boxG(0, 0.3, -e, e, -el.slitH / 2, el.slitH / 2), mat.glow('#3f9a63')));
         return g;
       }
       case 'detector': {
@@ -21847,6 +22049,111 @@ const hitDetector = (el, lx, ly, tol) => lx <= tol && Math.hypot(lx, ly) <= detR
 const DETECTOR_UI = {
   draw: drawDetector, hit: hitDetector, panel: detectorPanel, rank: 1,
 };
+/* Spectrometer on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/spectrometer.js; its
+   reading: engines/spectrometer.js */
+
+function drawSpectrometer(el, sel) {
+  const f = frame(el), w = SPEC_W / 2;
+  // the body behind its face, and a grating's lines inside it to say what it is
+  pathLocal(f, [[0, -w], [-SPEC_L, -w], [-SPEC_L, w], [0, w]], true);
+  ctx.fillStyle = bodyFill('#2b3338'); ctx.fill();
+  ctx.strokeStyle = sel ? selInk() : '#9aa4ab'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
+  for (let i = -3; i <= 3; i++) { pathLocal(f, [[-SPEC_L * 0.72 + i * 1.6, -w * 0.45], [-SPEC_L * 0.72 + i * 1.6 + 3, -w * 0.15]]); ctx.strokeStyle = 'rgba(180,200,220,0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
+  // its face, and the entrance: a slit or a fibre's core, drawn at least a millimetre long so it shows
+  pathLocal(f, [[0, -w], [0, w]]);
+  ctx.strokeStyle = '#6b7a83'; ctx.lineWidth = 2.5; ctx.stroke();
+  const e = Math.max(0.6, (el.entrance === 'fibre' ? el.core / 2000 : el.slit / 2000));
+  pathLocal(f, [[0, -e], [0, e]]);
+  ctx.strokeStyle = '#7ee0a1'; ctx.lineWidth = 3.5; ctx.stroke();
+  const hits = lastTrace.screens[el.id] || [];
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const t of hits) { if (t.chief) continue; const [x1, y1] = toWorld(f, 0, t.y); ctx.fillRect(sx(x1) - 1.5, sy(y1) - 1.5, 3, 3); }
+}
+const hitSpectrometer = (el, lx, ly, tol) => lx <= tol && lx >= -SPEC_L - tol && Math.abs(ly) <= SPEC_W / 2 + tol;
+
+const specFmtNm = v => (v >= 100 ? v.toFixed(2) : v.toPrecision(4)) + ' nm';
+// power through the entrance, mW down to fW, three figures
+const specFmtMw = v => { if (!(v > 0)) return '0 mW'; for (const [k, u] of [[1, 'mW'], [1e-3, '\u00b5W'], [1e-6, 'nW'], [1e-9, 'pW']]) if (v >= k) return +(v / k).toPrecision(3) + ' ' + u; return +(v * 1e12).toPrecision(3) + ' fW'; };
+const specFmtE = v => v >= 1e4 ? v.toExponential(2) : String(Math.round(v));
+
+/* the Spectrum tab: counts against wavelength, the readings beside it */
+function specSpectrumSection(el) {
+  const st = vs(el), cv = h('canvas', { height: '210', style: 'width:100%;display:block' });
+  if (!st.specView) st.specView = { log: false, lo: 0, hi: 0 };
+  const V = st.specView;
+  const log = h('input', { type: 'checkbox' }); log.checked = V.log;
+  log.addEventListener('change', () => { V.log = log.checked; draw(); });
+  const rows = h('div', { class: 'rt-readout' });
+  panel.append(cv, plotSaveRow(cv), h('label', { class: 'rt-check' }, log, ' Log scale (counts)'), rows);
+  const draw = () => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 210, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+    const T = specTrace(el), n = T.nm.length, top = el.well;
+    const yv = v => V.log ? Math.log10(Math.max(1, v)) : v, yr = V.log ? [0, Math.log10(top)] : [0, Math.max(1, Math.min(top, Math.max(...T.e) * 1.1))];
+    const sY = { kind: 'plain', title: V.log ? 'log₁₀ counts' : 'counts (e⁻)' }, sX = { kind: 'plain', title: 'wavelength, nm' };
+    const A = plotArea(c, w, hgt, yr, sY), xr = [el.wmin, el.wmax];
+    const X = x => A.l + (x - xr[0]) / (xr[1] - xr[0]) * A.w, Y = v => A.t + A.h - (Math.min(yr[1], Math.max(yr[0], yv(v))) - yr[0]) / (yr[1] - yr[0]) * A.h;
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    c.strokeStyle = '#db3550'; c.lineWidth = 1.3; c.beginPath();
+    // at most one point a screen pixel: each the most of the pixels it stands for, so a narrow line still shows
+    const step = Math.max(1, Math.floor(n / (A.w * 2)));
+    for (let i = 0, j = 0; i < n; i += step, j++) { let m = 0; for (let k = i; k < Math.min(n, i + step); k++) m = Math.max(m, T.e[k]); const px = X(T.nm[i]), py = Y(m); j ? c.lineTo(px, py) : c.moveTo(px, py); }
+    c.stroke();
+    if (T.sat) { c.strokeStyle = 'rgba(219,53,80,0.5)'; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(A.l, Y(top)); c.lineTo(A.l + A.w, Y(top)); c.stroke(); c.setLineDash([]); }
+    c.restore();
+    drawAxes(c, A, xr, yr, sX, sY);
+    plotCsv(cv, el.name + ' spectrum', ['wavelength_nm', 'counts_e', 'noise_e', 'power_mW'], () => Array.from(T.nm, (x, i) => [x, T.e[i], T.sd[i], T.mw[i]]));
+  };
+  let sig = '';
+  bindSync(cv, () => {
+    const R = specReading(el);
+    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm (' + (+specDispersion(el).toPrecision(3)) + ' nm per µm of array)']];
+    if (!(R.face > 0)) r.push(['Light', 'None reaches its face']);
+    else {
+      r.push(['Through the entrance', specFmtMw(R.mw) + (R.share !== null ? ', ' + (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '% of what reaches its face' : '')]);
+      if (R.peak !== null) {
+        r.push(['Peak', specFmtNm(R.peak) + ', ' + specFmtE(R.counts) + ' counts' + (R.sat ? ' (saturated: shorten the integration time)' : '')]);
+        r.push(['Width (FWHM)', specFmtNm(R.fwhm) + (R.fwhm < 1.5 * R.R ? ', set by the resolution' : '')]);
+        r.push(['Signal-to-noise at the peak', R.snr === null ? 'none while saturated' : String(+R.snr.toPrecision(3))]);
+      } else if (R.mw > 0) r.push(['Peak', 'Outside its range, ' + el.wmin + ' to ' + el.wmax + ' nm']);
+      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '…' : '')]);
+    }
+    const s2 = JSON.stringify(r);
+    if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
+    draw();
+  });
+}
+
+function spectrometerPanel(el) {
+  const st = vs(el);
+  const tabs = h('div', { class: 'rt-tabs' });
+  for (const [k, label] of [['params', 'Spectrometer'], ['spectrum', 'Spectrum']]) {
+    tabs.append(h('button', { class: 'rt-tab' + ((st.specTab || 'spectrum') === k ? ' on' : ''), type: 'button', onclick: () => { st.specTab = k; renderPanel(); } }, label));
+  }
+  panel.append(tabs);
+  if ((st.specTab || 'spectrum') === 'spectrum') { specSpectrumSection(el); return; }
+  el.preset = specPresetOf(el);
+  panel.append(h('div', { class: 'rt-rows' }, selectField('Kind', [...Object.entries(SPEC_PRESETS).map(([k, P]) => [k, P.name]), ['custom', 'Custom']], () => el.preset, v => {
+    if (SPEC_PRESETS[v]) { const P = Object.assign({}, SPEC_PRESETS[v]); delete P.name; Object.assign(el, P); }
+    el.preset = v;
+  }, { wide: true })));
+  panel.append(h('h3', null, 'Entrance'));
+  const ent = h('div', { class: 'rt-rows' }, selectField('Entrance', [['slit', 'Slit'], ['fibre', 'Fibre']], () => el.entrance, v => { el.entrance = v; }));
+  if (el.entrance === 'fibre') ent.append(param('Core (µm)', el, 'core'));
+  else ent.append(param('Slit width (µm)', el, 'slit'), param('Slit height (mm)', el, 'slitH'));
+  ent.append(param('NA it takes in', el, 'na'));
+  panel.append(ent);
+  panel.append(h('h3', null, 'Array'));
+  panel.append(h('div', { class: 'rt-rows' }, param('From (nm)', el, 'wmin'), param('To (nm)', el, 'wmax'), param('Pixels', el, 'pixels'), param('Pitch (µm)', el, 'pitch'),
+    selectField('Sensor', Object.entries(SPEC_SENSORS).map(([k, S]) => [k, S.name]), () => el.sensor, v => { el.sensor = v; }, { wide: true }),
+    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark')));
+  panel.append(helpLine('What it reads, and how.', ['Only the light through its entrance counts: the part of each beam or ray on the slit (or a fibre entrance’s core), arriving within its NA; the rest of its face blocks the light. The array spans its range evenly, so the dispersion is the range over the array’s length, and the resolution is the entrance’s width and two pixels together, times the dispersion: a narrower slit sharpens the lines and lets less light in. Each source arrives as a line as wide as its own (its coherence length’s, or a pulse’s bandwidth). Counts are the photoelectrons in the integration time, by the sensor’s quantum efficiency at each wavelength, up to the full well; the noise is shot, dark and read noise. The kinds set every value to a typical instrument of that kind.'], 'note', 'margin-top:0.6rem'));
+}
+
+const SPECTROMETER_UI = {
+  draw: drawSpectrometer, hit: hitSpectrometer, panel: spectrometerPanel, rank: 1,
+};
 /* Faraday rotator on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/faraday.js */
 
 function faradayPanel(el) {
@@ -22348,7 +22655,7 @@ const ELEC_PART_UI = {
    ui/view3d.js. What each part is: parts/<type>.js.
    ========================================================================== */
 const PART_UI = {
-  source: SOURCE_UI, mirror: MIRROR_UI, lens: LENS_UI, screen: SCREEN_UI, stop: STOP_UI, cube: CUBE_UI, prism: PRISM_UI, waveplate: WAVEPLATE_UI, polariser: POLARISER_UI, mask: MASK_UI, grating: GRATING_UI, fibre: FIBRE_UI, detector: DETECTOR_UI, faraday: FARADAY_UI, isolator: ISOLATOR_UI, stl: STL_UI, crystal: CRYSTAL_UI, filter: FILTER_UI, gain: GAIN_UI, cell: CELL_UI, nlc: NLC_UI, link: LINK_UI, aom: AOM_UI, eom: EOM_UI, chopper: CHOPPER_UI, draw: DRAW_UI, fcomp: FCOMP_UI, pic: PIC_PART_UI, elec: ELEC_PART_UI,
+  source: SOURCE_UI, mirror: MIRROR_UI, lens: LENS_UI, screen: SCREEN_UI, stop: STOP_UI, cube: CUBE_UI, prism: PRISM_UI, waveplate: WAVEPLATE_UI, polariser: POLARISER_UI, mask: MASK_UI, grating: GRATING_UI, fibre: FIBRE_UI, detector: DETECTOR_UI, spectrometer: SPECTROMETER_UI, faraday: FARADAY_UI, isolator: ISOLATOR_UI, stl: STL_UI, crystal: CRYSTAL_UI, filter: FILTER_UI, gain: GAIN_UI, cell: CELL_UI, nlc: NLC_UI, link: LINK_UI, aom: AOM_UI, eom: EOM_UI, chopper: CHOPPER_UI, draw: DRAW_UI, fcomp: FCOMP_UI, pic: PIC_PART_UI, elec: ELEC_PART_UI,
 };
 /* ==========================================================================
    Readouts: the live numbers in a part's panel, refreshed as the bench plays.
@@ -43117,7 +43424,7 @@ function aiFieldsOf(type) {
   if (type === 'source' && !keys.includes('fibre')) keys.push('fibre');
   if (type === 'lens' && !keys.includes('cyl')) keys.push('cyl');
   if (type === 'draw') keys.push('rx', 'ry', 'nodes', 'closed', 'text', 'size', 'font', 'bold', 'italic', 'align', 'm');
-  if (type === 'detector' || type === 'fibre') { const i = keys.indexOf('absorb'); if (i >= 0) keys.splice(i, 1); }
+  if (type === 'detector' || type === 'spectrometer' || type === 'fibre') { const i = keys.indexOf('absorb'); if (i >= 0) keys.splice(i, 1); }
   return keys;
 }
 const mdCell = v => String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -47715,6 +48022,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Spectrometer</b>, in Sources and detectors: a slit or fibre entrance and a detector array, showing the light through it as counts against wavelength, with the peak, its width, the resolution, the light that gets in, saturation and the signal-to-noise. <b>Kind</b> picks a typical instrument (compact UV to near-infrared, high-resolution visible, fibre-coupled visible, near-infrared or short-wave infrared) and any setting can then be changed. A narrower slit sharpens the lines and lets less light in, as on the real thing. The new example <b>Czerny\u2013Turner spectrometer</b> builds one from a slit, two concave mirrors and a grating, beside the part reading the same lamp.',
     '<b>On a phone or tablet</b>: the bench fills the screen, and a part\u2019s settings open in a sheet over its lower half (\u2191 makes it taller, \u00d7 or a tap on the empty bench closes it), the part moved clear of the sheet if it would be under it. A phone on its side has the one-row bar too. The welcome note, the parts picker and the menus say tap rather than click, and that JEKray is best used on a desktop or laptop, where the designers, plots and shortcuts have the room they need.',
     'A lens surface\u2019s <b>hole radius</b> is set in the Optical designer only; the bench panel shows it when there is one. A hole as wide as the surface or wider (which left the face drawn but not there for the light) is no hole. And a lens with a plain hole through a face, nothing stacked in it, no longer stops the bench from tracing.',
     'In the Optical designer, <b>Insert a surface</b> and <b>Remove</b> now work on a lens with stacked faces or mirror coats: the new surface goes on the part itself, after the one selected the way the light goes on from it (back into the glass off a mirror), and the part\u2019s later surfaces keep their variables and solves. Before, the change was lost. The <b>Insert a surface</b> and <b>Insert an element</b> menus also stay open when clicked: the pointer had opened them and the click shut them again.',
@@ -47941,6 +48249,7 @@ const EXAMPLES = [
     ['wollaston-polarimeter', 'Wollaston polarimeter', 'A half-wave plate and a calcite Wollaston split s from p.'],
     ['optical-isolator', 'Optical isolator', 'A Faraday rotator stops light getting back into the laser.'],
     ['grating-spectrometer', 'Grating spectrometer', 'Mercury lines spread out by a transmission grating.'],
+    ['czerny-turner', 'Czerny–Turner spectrometer', 'A slit, two concave mirrors and a grating, beside the Spectrometer part.'],
     ['dispersing-prism', 'Dispersing prism', 'White light split into colours by an N-SF11 prism.'],
     ['dichroic-combiner', 'Dichroic combiner, two tables', 'Two lasers combined, carried between tabs by link planes.']]],
   ['Fibre', false, [
@@ -49627,6 +49936,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     rfSweep(name) { return rfSweep(this.byName(name)); },
     linkBudget(name) { return linkBudget(this.byName(name)); },
     detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
+    /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */
+    spectrometer(name) { const r = specReading(this.byName(name)); return { peak: r.peak, fwhm: r.fwhm, resolution: r.R, mw: r.mw, share: r.share, counts: r.counts, saturated: r.sat, snr: r.snr, lines: r.lines.map(L => ({ nm: L.nm, mw: L.mw })) }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
     // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
     lensAntenna(name) {

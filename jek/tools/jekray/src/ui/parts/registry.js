@@ -11,6 +11,7 @@ import { MASK_UI } from './mask.js';
 import { GRATING_UI } from './grating.js';
 import { FIBRE_UI } from './fibre.js';
 import { DETECTOR_UI } from './detector.js';
+import { SPECTROMETER_UI } from './spectrometer.js';
 import { FARADAY_UI } from './faraday.js';
 import { ISOLATOR_UI } from './isolator.js';
 import { STL_UI } from './stl.js';
@@ -36,5 +37,5 @@ import { ELEC_PART_UI } from './elec.js';
    ui/view3d.js. What each part is: parts/<type>.js.
    ========================================================================== */
 export const PART_UI = {
-  source: SOURCE_UI, mirror: MIRROR_UI, lens: LENS_UI, screen: SCREEN_UI, stop: STOP_UI, cube: CUBE_UI, prism: PRISM_UI, waveplate: WAVEPLATE_UI, polariser: POLARISER_UI, mask: MASK_UI, grating: GRATING_UI, fibre: FIBRE_UI, detector: DETECTOR_UI, faraday: FARADAY_UI, isolator: ISOLATOR_UI, stl: STL_UI, crystal: CRYSTAL_UI, filter: FILTER_UI, gain: GAIN_UI, cell: CELL_UI, nlc: NLC_UI, link: LINK_UI, aom: AOM_UI, eom: EOM_UI, chopper: CHOPPER_UI, draw: DRAW_UI, fcomp: FCOMP_UI, pic: PIC_PART_UI, elec: ELEC_PART_UI,
+  source: SOURCE_UI, mirror: MIRROR_UI, lens: LENS_UI, screen: SCREEN_UI, stop: STOP_UI, cube: CUBE_UI, prism: PRISM_UI, waveplate: WAVEPLATE_UI, polariser: POLARISER_UI, mask: MASK_UI, grating: GRATING_UI, fibre: FIBRE_UI, detector: DETECTOR_UI, spectrometer: SPECTROMETER_UI, faraday: FARADAY_UI, isolator: ISOLATOR_UI, stl: STL_UI, crystal: CRYSTAL_UI, filter: FILTER_UI, gain: GAIN_UI, cell: CELL_UI, nlc: NLC_UI, link: LINK_UI, aom: AOM_UI, eom: EOM_UI, chopper: CHOPPER_UI, draw: DRAW_UI, fcomp: FCOMP_UI, pic: PIC_PART_UI, elec: ELEC_PART_UI,
 };

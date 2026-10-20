@@ -243,7 +243,7 @@ export function lensKind(el) {
 }
 
 /* the parts the 3D view can show: a bench with others on it cannot go to 3D */
-export const FREE_3D = new Set(['source', 'detector', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
+export const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
   'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
 export function loadProject(data) {

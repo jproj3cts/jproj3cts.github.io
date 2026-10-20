@@ -245,7 +245,7 @@ export function elementSurfaces(el) {
   if (el.type === 'crystal') return crystalSurfaces(el);
   if (el.type === 'grating' || el.type === 'aom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'grating' })];
   if (el.type === 'eom') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'eom' })];
-  if (el.type === 'fibre' || el.type === 'detector') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'screen' })];
+  if (el.type === 'fibre' || el.type === 'detector' || el.type === 'spectrometer') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'screen' })];
   if (el.type === 'faraday' || el.type === 'isolator') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'jones' })];
   if (el.type === 'filter') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'filter' })];
   if (el.type === 'gain') return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'gain' })];

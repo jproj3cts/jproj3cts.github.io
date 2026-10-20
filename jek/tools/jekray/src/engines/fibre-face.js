@@ -176,7 +176,7 @@ export function arrivalField(A, u, v0) {
   // the tracer's Jones vector, conjugated into this convention
   return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
 }
-function groupsOf(arr) {
+export function groupsOf(arr) {
   const g = new Map(), out = [];
   for (const A of arr) { if (!g.has(A.coh)) g.set(A.coh, []); g.get(A.coh).push(A); }
   // a laser with a line of its own: each launch as its incoherent parts, the weights on J
@@ -197,7 +197,7 @@ export function deviceMemo(el, fn, tag = '') {
 }
 /* What a fibre takes in: per launch, |<E, mode>|^2 for each polarisation */
 /* The error function (Abramowitz and Stegun 7.1.26, to 1.5e-7) */
-function erfA(x) {
+export function erfA(x) {
   const s = Math.sign(x), a = Math.abs(x), t = 1 / (1 + 0.3275911 * a);
   return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a));
 }

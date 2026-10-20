@@ -22,7 +22,7 @@ for (let i = 0; i < args.length; i++) {
 }
 const [cmd, file, ...rest] = pos;
 if (!cmd || opts.help || (cmd !== 'help' && !file)) {
-  console.log('JEKray headless. Commands: trace, elements, screen, detector, antenna, paraxial, cavities, arrivals, assemblies, prescription, lens, spot, wavefront, mtf, fieldcurves, relillum, merit, zmx, rf, rfband, rfsweep, linkbudget, sweep.\n' +
+  console.log('JEKray headless. Commands: trace, elements, screen, detector, spectrometer, antenna, paraxial, cavities, arrivals, assemblies, prescription, lens, spot, wavefront, mtf, fieldcurves, relillum, merit, zmx, rf, rfband, rfsweep, linkbudget, sweep.\n' +
     'node cli.mjs <command> bench.jekray [names…] [--ghz G] [--nm N] [--deg D] [--freq F …] [--read kind:Name …] [--csv]\nSee /jek/docs/jekray/scripting/');
   process.exit(opts.help || cmd === 'help' ? 0 : 1);
 }
@@ -35,6 +35,7 @@ function reader(spec) {
   switch (kind) {
     case 'screen': return b => pick(b.screen(name));
     case 'detector': return b => pick(b.detector(name));
+    case 'spectrometer': return b => pick(b.spectrometer(name));
     case 'antenna': return b => pick(b.antenna(name));
     case 'paraxial': return b => pick(b.paraxial(name, opts.nm ? +opts.nm : undefined));
     case 'rf': return b => pick(b.rf(name, opts.ghz ? +opts.ghz : undefined));
@@ -44,7 +45,7 @@ function reader(spec) {
     case 'mtf': return b => { const m = b.mtf(name, opts.deg ? +opts.deg : 0, opts.freq ? [].concat(opts.freq).map(Number) : undefined), o = {}; for (const a of m.at) { o[(name || 'mtf') + '.tan' + a.nu] = a.tan; o[(name || 'mtf') + '.sag' + a.nu] = a.sag; } return o; };
     case 'merit': return b => ({ [(name || 'merit') + '.merit']: b.merit(name) });
     case 'trace': return b => pick(b.trace());
-    default: throw new Error('--read takes screen:, detector:, antenna:, paraxial:, rf:, lens:, spot:, wavefront:, mtf:, merit: or trace, not ' + spec);
+    default: throw new Error('--read takes screen:, detector:, spectrometer:, antenna:, paraxial:, rf:, lens:, spot:, wavefront:, mtf:, merit: or trace, not ' + spec);
   }
 }
 let out;
@@ -53,6 +54,7 @@ switch (cmd) {
   case 'elements': out = B.elements(); break;
   case 'screen': out = B.screen(rest[0]); break;
   case 'detector': out = B.detector(rest[0]); break;
+  case 'spectrometer': out = B.spectrometer(rest[0]); break;
   case 'antenna': out = B.antenna(rest[0]); break;
   case 'paraxial': out = B.paraxial(rest[0], opts.nm ? +opts.nm : undefined); break;
   case 'cavities': out = B.cavities(); break;

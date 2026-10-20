@@ -18,6 +18,14 @@
   .rf-bands th { font-weight: 700; }
   .rf-bands td:first-child { white-space: nowrap; font-weight: 600; }
   .rf-bands .note { font-size: 0.88rem; opacity: 0.8; }
+  /* phones: each band a row of its own, band and wavelength over the lens notes */
+  @media (max-width: 520px) {
+    .rf-bands thead { display: none; }
+    .rf-bands tr { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.8rem; padding: 0.6rem 0; border-bottom: 1px solid rgba(0,0,0,0.12); }
+    .rf-bands td { padding: 0; border: 0; }
+    .rf-bands td:nth-child(2) { color: var(--jek-ink-soft); }
+    .rf-bands td:nth-child(3) { grid-column: 1 / -1; }
+  }
 </style>
 </head>
 

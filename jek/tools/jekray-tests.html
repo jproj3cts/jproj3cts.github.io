@@ -9836,7 +9836,7 @@ const TESTS = [
   },
   {
     name: 'One face, one set of amplitudes: a coated window passes s and p with their own phase, and a coated face reflects s and p alike square on',
-    why: 'a Gaussian beam linear at 45° through an N-BK7 window turned 45°, its front a three-layer splitter stack: the bench passes 10.44% as s and 26.88% as p, p 4.44° ahead of s (the stack’s own transmitted phase, in the tracer’s e^{+ikL}, as core/face-pol.js gives the lens designer too; bare, none); a six-layer mirror stack turned 5° reflects s and p with the same sign, as at normal incidence they must be (1 when all hold)',
+    why: 'a Gaussian beam linear at 45° through an N-BK7 window turned 45°, its front a three-layer splitter stack: the bench passes 10.44% as s and 26.88% as p, p’s phase −4.44° from s’s (the stack’s own transmitted phase, in the tracer’s e^{+ikL}, as core/face-pol.js gives the lens designer too; bare, none); a six-layer mirror stack turned 5° reflects s and p with the same sign, as at normal incidence they must be (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const shot = (layers, ang) => { J.load({ format: 'jekray', version: 1, elements: [

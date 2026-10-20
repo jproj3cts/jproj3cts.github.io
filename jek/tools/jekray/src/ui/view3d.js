@@ -442,9 +442,11 @@ export const V3D = (() => {
         return g;
       }
       case 'fibre': {
-        const r = Math.max(L, 1.25);
-        add(mesh(disc(10, r, -5), mat.metal(0xcfd8dc, 0.3)));
-        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-30, 0, 0);
+        // a bare tip's ferrule, or a collimator's barrel with its lens glinting at the face
+        const r = Math.max(L, 1.25), len = el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10;
+        add(mesh(disc(len, r, -len / 2), mat.metal(0xcfd8dc, 0.3)));
+        if (el.coll > 0) add(mesh(disc(0.6, r * 0.85, 0.05), mat.glass(0x8fd3e8, 0.4)));
+        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-len - 20, 0, 0);
         add(mesh(j, mat.matte(FIBRE_COLOUR)), mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
         return g;
       }

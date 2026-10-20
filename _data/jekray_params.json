@@ -17,6 +17,16 @@
      "meaning": "mm: the full width of the ray fan (follows the beam when gauss is true)."
     },
     {
+     "k": "softAuto",
+     "def": "true",
+     "meaning": "true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given."
+    },
+    {
+     "k": "soft",
+     "def": "0",
+     "meaning": "mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge."
+    },
+    {
      "k": "divergence",
      "def": "0",
      "meaning": "degrees, full angle of the fan; negative converges."
@@ -647,6 +657,11 @@
      "k": "mm",
      "def": "false",
      "meaning": "true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA."
+    },
+    {
+     "k": "coll",
+     "def": "0",
+     "meaning": "mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam's mode."
     },
     {
      "k": "popN",

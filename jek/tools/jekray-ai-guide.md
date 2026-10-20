@@ -143,6 +143,8 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 |---|---|---|
 | wavelength | `633` | nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw). |
 | width | `4` | mm: the full width of the ray fan (follows the beam when gauss is true). |
+| softAuto | `true` | true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given. |
+| soft | `0` | mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge. |
 | divergence | `0` | degrees, full angle of the fan; negative converges. |
 | gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
 | w0 | `0.35` | mm: the 1/e² waist radius. |
@@ -353,6 +355,7 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | na | `0.12` | numerical aperture. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
 | mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
+| coll | `0` | mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam's mode. |
 | popN | `256` | grid points for the field of the beam it sends out: 128, 256, 512 or 1024. |
 | popModel | `"auto"` | "auto" (round when it can be) or "2d" (always 2D, with polarisation). |
 

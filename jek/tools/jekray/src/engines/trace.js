@@ -177,9 +177,65 @@ function ringEvent(s, z, base) {
   surf.semi = z.rout; surf.hole = 0; surf.ringIn = z.rin; surf.maskMargin = z.margin; surf.peers = null;
   return Object.defineProperty(Object.assign(base, { semi: z.rout }), 'surf', { value: surf, enumerable: false, configurable: true });
 }
+/* The first root of f along a ray, t in [t0, t1]: bracketed at 24 samples, then Illinois. Two
+   roots within one step (a grazing ray over a bump, a strongly wavy face) show no sign change at
+   its ends, so a step whose ends f could still get from and back to, |fa| + |fb| < its length
+   times L (a bound on |f'|), is halved, to a bounded depth, for a sign change between; where f
+   runs well clear of zero, as it mostly does, nothing more is spent. Null when there is none */
+const ROOT_SAMPLES = 24, ROOT_DEPTH = 7;
+export function firstRoot(f, t0, t1, L) {
+  const step = (t1 - t0) / ROOT_SAMPLES;
+  let ta = t0, fa = f(ta);
+  for (let i = 1; i <= ROOT_SAMPLES; i++) {
+    const tb = t0 + i * step, fb = f(tb);
+    if (fa === 0) return ta;
+    const br = fa * fb <= 0 ? [ta, fa, tb, fb] : Math.abs(fa) + Math.abs(fb) < step * L ? rootSplit(f, ta, fa, tb, fb, L, ROOT_DEPTH) : null;
+    if (br) {
+      let [lo, flo, hi, fhi] = br, side = 0, t = hi;
+      for (let it = 0; it < 60; it++) {
+        t = (lo * fhi - hi * flo) / (fhi - flo);
+        const ft = f(t);
+        if (Math.abs(ft) < 1e-13 || hi - lo < 1e-13) break;
+        if ((ft < 0) === (flo < 0)) { lo = t; flo = ft; if (side === -1) fhi *= 0.5; side = -1; }
+        else { hi = t; fhi = ft; if (side === 1) flo *= 0.5; side = 1; }
+      }
+      return t;
+    }
+    ta = tb; fa = fb;
+  }
+  return null;
+}
+/* the first bracket of a sign change in [a, b], f the same sign (not zero) at both ends: halved,
+   each half searched only while f could reach zero in it */
+function rootSplit(f, a, fa, b, fb, L, depth) {
+  const m = 0.5 * (a + b), fm = f(m), h = 0.5 * (b - a);
+  if (fa * fm <= 0) return [a, fa, m, fm];
+  if (depth > 1 && Math.abs(fa) + Math.abs(fm) < h * L) { const r = rootSplit(f, a, fa, m, fm, L, depth - 1); if (r) return r; }
+  if (fm * fb <= 0) return [m, fm, b, fb];
+  return depth > 1 && Math.abs(fm) + Math.abs(fb) < h * L ? rootSplit(f, m, fm, b, fb, L, depth - 1) : null;
+}
+/* a bound on a face's slope |sag'| (in 3D its gradient's size) over its aperture, for firstRoot:
+   the largest of a fine sampling, with a margin for what falls between samples */
+function slopeMax(s, three) {
+  const key = three ? '_g3' : '_g2';
+  if (!Object.prototype.hasOwnProperty.call(s, key)) {
+    let g = 0;
+    const take = v => { if (v > g && Number.isFinite(v)) g = v; };
+    if (three) {
+      const M = 16;
+      for (let i = -M; i <= M; i++) for (let j = -M; j <= M; j++) {
+        if (i * i + j * j > M * M) continue;
+        const n = normal3(s, s.semi * i / M, s.semi * j / M);
+        take(Math.hypot(n[1], n[2]) / n[0]);
+      }
+    } else for (let i = -256; i <= 256; i++) take(Math.abs(dsagFn(s, s.semi * i / 256)));
+    Object.defineProperty(s, key, { value: 1.5 * g + 1e-6, enumerable: false });
+  }
+  return s[key];
+}
 // set by intersectSurf: the hit it last found was a zoned face's step wall, where the light is lost (see zoneHit)
 let wallHit = false;
-function intersectSurf(s, px, py, dx, dy, tmin) {
+export function intersectSurf(s, px, py, dx, dy, tmin) {
   wallHit = false;
   px -= s.z;
   const xmin = s.xmin - s.z, xmax = s.xmax - s.z;
@@ -237,27 +293,9 @@ function intersectSurf(s, px, py, dx, dy, tmin) {
     wallHit = Z.wall;
     return Z.t;
   }
-  // general asphere: bracket the first root of f(t) = x(t) − sag(y(t)), then Illinois
-  const f = t => px + t*dx - sagFn(s, py + t*dy);
-  const N = 24, step = (t1 - t0) / N;
-  let ta = t0, fa = f(ta);
-  for (let i = 1; i <= N; i++) {
-    const tb = t0 + i * step, fb = f(tb);
-    if (fa === 0) return ta;
-    if (fa * fb <= 0) {
-      let lo = ta, hi = tb, flo = fa, fhi = fb, side = 0, t = tb;
-      for (let it = 0; it < 60; it++) {
-        t = (lo * fhi - hi * flo) / (fhi - flo);
-        const ft = f(t);
-        if (Math.abs(ft) < 1e-13 || hi - lo < 1e-13) break;
-        if ((ft < 0) === (flo < 0)) { lo = t; flo = ft; if (side === -1) fhi *= 0.5; side = -1; }
-        else { hi = t; fhi = ft; if (side === 1) flo *= 0.5; side = 1; }
-      }
-      return Math.abs(py + t*dy) <= s.semi + 1e-9 && !inHole(s, py + t*dy) ? t : null;
-    }
-    ta = tb; fa = fb;
-  }
-  return null;
+  // general asphere: the first root of f(t) = x(t) − sag(y(t)); f' is at most |dx| + |dy| max|sag'|
+  const t = firstRoot(t => px + t*dx - sagFn(s, py + t*dy), t0, t1, Math.abs(dx) + Math.abs(dy) * slopeMax(s, false));
+  return t !== null && Math.abs(py + t*dy) <= s.semi + 1e-9 && !inHole(s, py + t*dy) ? t : null;
 }
 
 function intersectSeg(sg, px, py, dx, dy, tmin) {
@@ -466,7 +504,7 @@ function normal3(s, y, h) {
 }
 // where a ray from (px, py) at h0 up, along (dx, dy) in the plane rising u per unit, first meets
 // a curved surface: t along the plane, as intersectSurf gives it
-function intersect3(s, px, py, h0, dx, dy, u, tmin) {
+export function intersect3(s, px, py, h0, dx, dy, u, tmin) {
   px -= s.z;
   let xmin = s.xmin - s.z, xmax = s.xmax - s.z;
   if (s.cylS) {
@@ -516,27 +554,9 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
     wallHit = Z.wall;
     return Z.t;
   }
-  // otherwise bracket the first root of x(t) − sag(y(t), h(t)), then Illinois
-  const f = t => px + t * dx - sag3(s, py + t * dy, h0 + t * u);
-  const N = 24, step = (t1 - t0) / N;
-  let ta = t0, fa = f(ta);
-  for (let i = 1; i <= N; i++) {
-    const tb = t0 + i * step, fb = f(tb);
-    if (fa === 0) return ta;
-    if (fa * fb <= 0) {
-      let lo = ta, hi = tb, flo = fa, fhi = fb, side = 0, t = tb;
-      for (let it = 0; it < 60; it++) {
-        t = (lo * fhi - hi * flo) / (fhi - flo);
-        const ft = f(t);
-        if (Math.abs(ft) < 1e-13 || hi - lo < 1e-13) break;
-        if ((ft < 0) === (flo < 0)) { lo = t; flo = ft; if (side === -1) fhi *= 0.5; side = -1; }
-        else { hi = t; fhi = ft; if (side === 1) flo *= 0.5; side = 1; }
-      }
-      return Math.abs(py + t * dy) <= s.semi + 1e-9 && !inHole(s, py + t * dy, h0 + t * u) ? t : null;
-    }
-    ta = tb; fa = fb;
-  }
-  return null;
+  // otherwise the first root of x(t) − sag(y(t), h(t)); f' is at most |dx| + |(dy, u)| max|grad sag|
+  const t = firstRoot(t => px + t * dx - sag3(s, py + t * dy, h0 + t * u), t0, t1, Math.abs(dx) + Math.hypot(dy, u) * slopeMax(s, true));
+  return t !== null && Math.abs(py + t * dy) <= s.semi + 1e-9 && !inHole(s, py + t * dy, h0 + t * u) ? t : null;
 }
 /* A part tipped out of the plane by s.tip (radians, about its own across axis, up positive):
    the ray, in the part's frame, is taken into the tipped frame, where the part is as it was,

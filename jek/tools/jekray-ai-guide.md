@@ -105,7 +105,7 @@ Signs:
 - **Frequency doubling:** a Gaussian laser focused into an "nlc" (a periodically poled crystal: "material" "ppln" or "ppktp", "nlLen" mm, "temp" °C, "axis" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave "period" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass "filter". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.
 - **Self-phase modulation and solitons:** a pulsed fibre laser ("tau", "rep", "power") into fibre long and strong enough for a nonlinear phase (standard fibre has "gamma" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.
 - **Fibre amplifier:** an fcomp "amp" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.
-- **Millimetre waves (RF):** a feed horn is a source with "mmw": {"kind": "corrugated" (or "smooth", "diagonal", "gauss"), "ghz": frequency, 1 to 3000, "dbm": power, "a": aperture radius mm, "L": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with "mmw": {"kind", "a", "L"}, "material": "custom" and "resp" in A/W; it reads the power its mode takes in. An RF lens is a lens with "mmw": {}, drawn white, and takes the RF dielectrics as its glass: "HDPE", "PTFE", "Rexolite", "TPX", "HR silicon", "Fused quartz (RF)", "Alumina", "Nylon". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them "mmw": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).
+- **Millimetre waves (RF):** a feed horn is a source with "mmw": {"kind": "corrugated" (or "smooth", "diagonal", "gauss"), "ghz": frequency, 1 to 3000, "dbm": power, "a": aperture radius mm, "L": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with "mmw": {"kind", "a", "L"}, "material": "custom" and "resp" in A/W; it reads the power its mode takes in. Its front end, "rx": "video" (a square-law detector: "rv" V/W, "nep" pW/√Hz, "vbw" MHz, a single pole) or "mixer" ("lo" GHz, "cl" dB of conversion loss, "trx" K, "ifbw" MHz, a single pole, "tant" K looked into, and "sideband": "ssb", the default, with "trx" an SSB temperature and the image terminated cold, or "dsb", with "trx" a DSB temperature and the noise of both sidebands). An RF lens is a lens with "mmw": {}, drawn white, and takes the RF dielectrics as its glass: "HDPE", "PTFE", "Rexolite", "TPX", "HR silicon", "Fused quartz (RF)", "Alumina", "Nylon". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them "mmw": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).
 - **Several tabs:** give "benches" and each element's "bench". Join tabs with two "link" elements sharing a "pair" name (free space), or two fibre feedthroughs (fcomp "thru") sharing a "pair" (fibre).
 
 ## Checklist
@@ -229,7 +229,7 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | binInterp | `true` | true interpolates the rays into the bins. |
 | mapScale | `"lin"` | "lin" or "log" irradiance map. |
 | vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams. |
-| trap | `"none"` | "none", an atom ("Rb87", "Rb85", "Cs133", "K39", "Na23") or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. |
+| trap | `"none"` | "none", an atom ("Rb87", "Rb85", "Cs133", "K39", "K41", "Na23") or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. |
 | trapF | `"avg"` | for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I ∓ 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres). |
 | trapMat | `"Fused silica"` | the sphere’s glass ("Fused silica", "Polystyrene" and so on). |
 | trapR | `100` | the sphere’s radius, nm. |
@@ -371,7 +371,7 @@ A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscillos
 | material | `"si"` | one of the detector materials below. |
 | resp | `0.5` | A/W, used when material is "custom". |
 | gain | `10000` | V/A transimpedance. |
-| bandwidth | `1000000` | Hz. |
+| bandwidth | `1000000` | Hz: the amplifier’s 3 dB bandwidth, a single pole; its noise counts over π/2 times it. |
 | dark | `1` | nA dark current. |
 | ampNoise | `2` | pA/√Hz input noise. |
 | vmax | `10` | V output limit. |
@@ -495,7 +495,7 @@ An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absor
 |---|---|---|
 | length | `25` | mm: the window diameter. |
 | cellLen | `75` | mm along the beam (75 is usual). |
-| atom | `"Rb"` | "Rb" (natural), "Rb85", "Rb87", "Cs" or "K". |
+| atom | `"Rb"` | "Rb" (natural), "Rb85", "Rb87", "Cs", "K" (natural: 39K and 41K), "K39" or "K41". |
 | line | `"D2"` | "D2" or "D1". |
 | temp | `25` | °C: sets the vapour density (25 for room temperature; heat a potassium cell to about 60). |
 | bField | `0` | gauss, a magnetic field along the cell (+ along its angle): Zeeman-split sigma+ and sigma- lines, so circular dichroism (DAVLL) and Faraday rotation (Faraday filters). 0 for none. |

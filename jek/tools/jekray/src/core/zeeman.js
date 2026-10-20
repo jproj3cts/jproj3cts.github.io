@@ -11,7 +11,7 @@ import { cellPumps } from '../engines/trace.js';
    strength is 3 (2J+1) |sum c_g c_e <J' m_J'|d_q|J m_J>|^2, so the strengths of either
    hand from each ground state average one, as the field-free lines' do. */
 export const MU_B = 1.39962449361;                         // Bohr magneton / h, MHz per gauss
-const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489 } };
+const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489, K41: -0.00007790600 } };
 const zeeGJ = (L, J) => { const gL = 0.99999369, S = 0.5, Lq = L; return gL * (J * (J + 1) - S * (S + 1) + Lq * (Lq + 1)) / (2 * J * (J + 1)) + ZEE_G.gS * (J * (J + 1) + S * (S + 1) - Lq * (Lq + 1)) / (2 * J * (J + 1)); };
 /* the Wigner 3j symbol, by Racah's formula (half-integer arguments allowed) */
 function threej(j1, j2, j3, m1, m2, m3) {

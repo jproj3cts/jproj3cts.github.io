@@ -85,7 +85,9 @@ test('SHG: best period shorter than the plane-wave one, and the same h when give
 test('cell lines: field-free saturation is the Zeeman model at B -> 0, line by line', () => {
   for (const atom of ['Rb', 'Cs', 'K']) for (const line of ['D1', 'D2']) {
     const z = zeemanLines(atom, line, 1e-4).filter(l => l.q === 1);
-    for (const l of atomLines(atom, line)) {
+    const all = atomLines(atom, line);
+    // 41K's D2 F' = 0 and 1, 0.01 MHz apart, are held against their components together in physics-k41-asph
+    for (const l of all.filter(l => !all.some(o => o !== l && o.iso === l.iso && Math.abs(o.nu - l.nu) < 0.5e6))) {
       const c = z.filter(m => m.iso === l.iso && Math.abs(m.nu - l.nu) < 2e6);
       const kz = c.reduce((s, m) => s + m.S * m.S / m.Isat, 0) / c.reduce((s, m) => s + m.S, 0);
       near(l.S / l.Isat / kz, 1, 2e-3, atom + ' ' + line + ' ' + l.iso + ' ' + l.Fg + '->' + l.Fe);

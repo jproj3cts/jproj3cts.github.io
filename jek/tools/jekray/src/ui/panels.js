@@ -678,7 +678,7 @@ function rfReceiverSections(el) {
     drawAxes(c, A, [lo, hi], [bot, top], sx, sy);
     plotCsv(cv, el.name + ' sweep', ['frequency_GHz', 'S21_dB', 'coupling'], () => S.ghz.map((x, i) => [x, S.s21[i], S.eff[i]]));
     const at = S.ghz.reduce((m, x, i) => (Math.abs(x - S.f0) < Math.abs(S.ghz[m] - S.f0) ? i : m), 0);
-    info.textContent = 'The power into this horn\u2019s mode over the power launched, every feed horn swept together; ' + S.ghz.length + ' points, the bench traced at each (' + Math.round(S.ms) + ' ms). At ' + (+S.f0.toPrecision(4)) + ' GHz: ' + S.s21[at].toFixed(2) + ' dB.';
+    info.textContent = 'The power into this horn\u2019s mode over the power the feed horns are set to (the share their modes carry counted), every feed horn swept together; ' + S.ghz.length + ' points, the bench traced at each (' + Math.round(S.ms) + ' ms). At ' + (+S.f0.toPrecision(4)) + ' GHz: ' + S.s21[at].toFixed(2) + ' dB.';
   });
   panel.append(h('h3', null, 'Link budget'));
   const box = h('div', { class: 'rt-readout' });
@@ -690,7 +690,7 @@ function rfReceiverSections(el) {
     box.replaceChildren(h('table', null, h('tbody', null,
       ...L.rows.map(r => h('tr', null, h('td', null, r.what + (r.note ? ', ' + r.note : '')), h('td', null, r.note === 'launched' ? fmtDbm(L.inMw) : f(r.db)))),
       h('tr', null, h('td', null, h('b', null, 'Received')), h('td', null, h('b', null, f(L.total) + ', ' + fmtDbm(L.mw)))))),
-      helpLine('What each part did to the power, down the strongest beam.', ['Down the strongest beam that reaches it: what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the horn\u2019s mode.'], 'note'));
+      helpLine('What each part did to the power, down the strongest beam.', ['Down the strongest beam that reaches it, from the power its horn is set to: the share the horn\u2019s modes carry into the beam, what each part did to the power (a dielectric\u2019s absorption is in the step after it), then the overlap with the receiving horn\u2019s mode.'], 'note'));
   });
 }
 /* a dielectric face matched at the bench's frequency: a quarter wave of index \u221an */
@@ -859,7 +859,9 @@ export function rfHornPanel(el) {
     fe.append(selectField('Takes in', [['both', 'Both polarisations'], ['s', 's: the field out of the bench plane'], ['p', 'p: the field in the bench plane']], () => rf.pol, v => { rf.pol = v; reset(); }, { wide: true }),
       selectField('Front end', Object.entries(RF_RX), () => rf.rx, v => { rf.rx = v; reset(); }, { wide: true }));
     if (rf.rx === 'video') fe.append(param('Responsivity (V/W)', el, 'mmw.rv'), param('NEP (pW/\u221aHz)', el, 'mmw.nep'), param('Video bandwidth (MHz)', el, 'mmw.vbw'), param('Output limit (V)', el, 'vmax'));
-    else fe.append(param('Local oscillator (GHz)', el, 'mmw.lo'), param('Conversion loss (dB)', el, 'mmw.cl'), param('Noise temperature (K)', el, 'mmw.trx'), param('IF bandwidth (MHz)', el, 'mmw.ifbw'), param('Looks into (K)', el, 'mmw.tant'));
+    else fe.append(param('Local oscillator (GHz)', el, 'mmw.lo'), param('Conversion loss (dB)', el, 'mmw.cl'),
+      selectField('Sidebands', [['ssb', 'SSB: image terminated cold'], ['dsb', 'DSB: both sidebands looked into']], () => rf.sideband, v => { rf.sideband = v; reset(); }, { wide: true }),
+      param(rf.sideband === 'dsb' ? 'Noise temperature, DSB (K)' : 'Noise temperature, SSB (K)', el, 'mmw.trx'), param('IF bandwidth (MHz)', el, 'mmw.ifbw'), param('Looks into (K)', el, 'mmw.tant'));
   }
   panel.append(fe);
   panel.append(readoutBox('rfhorn'));
@@ -870,7 +872,7 @@ export function rfHornPanel(el) {
     ? 'Launches the field across its aperture (the waveguide mode its type leaves there, on a phase front from its apex), carried as Hermite\u2013Gauss modes of the Gaussian that fits it best: the Gaussian itself, and the modes that give its sidelobes. The cross-polar field, and the sharp edge at the wall that the modes stop short of, are left out and counted. The beam then goes through the bench as any beam does.'
     + (rf.tx === 'up' ? ' As an upconverter it sends up what comes into its IF port: the carrier\u2019s power is the IF voltage squared over 50 \u03a9, less the conversion loss, and a mixer behind a receiving horn brings it down again.' : ' Under external control its power and frequency follow the electronics.')
     : 'Takes in the overlap of the field arriving on its aperture with its own mode (the field its horn would launch, sent backwards), so a wrong size, a wrong focus, an offset or a tilt each cost what they should. '
-    + (rf.rx === 'mixer' ? 'The mixer puts out each carrier at its IF, |f \u2212 f\u2097\u2092|, less the conversion loss, as volts across 50 \u03a9, over the noise of its temperature and what it looks into.' : 'The video detector puts out its responsivity times the power, over its NEP.')));
+    + (rf.rx === 'mixer' ? 'The mixer puts out each carrier at its IF, |f \u2212 f\u2097\u2092|, less the conversion loss, as volts across 50 \u03a9, over the noise of its temperature and what it looks into, k(T\u2090\u2099\u209c + T\u1d63\u2093) through the IF bandwidth\u2019s single pole (a noise bandwidth of \u03c0/2 times it). A carrier in either sideband comes down at the full gain; SSB counts the noise of one sideband (T\u1d63\u2093 an SSB temperature, the image terminated cold), DSB that of both, twice it (T\u1d63\u2093 a DSB temperature).' : 'The video detector puts out its responsivity times the power, over its NEP through the video bandwidth\u2019s single pole (a noise bandwidth of \u03c0/2 times it).')));
 }
 /* power leaving and entering a port, mW */
 export function portPower(el, p) {

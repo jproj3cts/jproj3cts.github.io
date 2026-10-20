@@ -1118,7 +1118,7 @@
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   /* on a phone, Examples, Share and Measure go into the File and View menus */
   .rt-menu button.rt-narrow { display: none; }
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
     .rt-menu button.rt-narrow { display: flex; }
     /* submenus open in place, under their item */
@@ -1130,7 +1130,7 @@
      Share, the cart, the account and Help in the ⋯ menu, whose View, Sweeps, account and Help open their own
      menus under the bar's right end */
   .rt-moremenu { display: none; }
-  @media (max-width: 600px) {
+  @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     .rt-app .rt-toolbar { position: relative; padding: 0.4rem 0.5rem; }
     .rt-bar { flex-wrap: nowrap; gap: 0.25rem; }
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
@@ -1563,6 +1563,32 @@
   .rt-plotleg { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; margin: 0.25rem 0 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-plotleg span { display: inline-flex; align-items: center; gap: 0.35rem; }
   .rt-plotleg i { display: inline-block; width: 1.4rem; }
+
+/* A phone (or a phone on its side): the bench is the whole window under the bar, and the panel of what is selected a sheet
+   over the bench's lower half, made taller or shorter with its arrow, closed with its ×; pinning is for wide screens */
+.rt-sheetbtn, .rt-narrownote { display: none !important; }
+.rt-welcome .rt-wdesk { margin: 0 0 0.5rem; padding: 0.4rem 0.55rem; background: #fdf1e6; color: #7a3c13; border-radius: 2px; }
+@media (max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse) {
+  html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
+  html.rt-noscroll body > footer { display: none; }
+  .rt-app .rt-wrap { height: 100vh; height: 100dvh; min-height: 0; }
+  .rt-app .rt-grid { display: block; position: relative; flex: 1; min-height: 0; }
+  .rt-app .rt-stage { position: absolute; inset: 0; height: auto; min-height: 0; }
+  .rt-app .rt-panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; max-height: 50%; padding: 0.55rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-width: 1px 0 0; border-radius: 12px 12px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,0.28); overscroll-behavior: contain; }
+  .rt-app .rt-panel.rt-tall { max-height: calc(100% - 0.75rem); }
+  .rt-app .rt-panel::before { content: ""; display: block; width: 2.5rem; height: 4px; margin: 0 auto 0.55rem; border-radius: 2px; background: var(--jek-line-2); }
+  .rt-app .rt-panel h2 { position: sticky; top: -0.55rem; z-index: 2; margin: -0.2rem -1rem 0.6rem; padding: 0.3rem 1rem 0.45rem; background: var(--jek-panel); }
+  .rt-sheetbtn { display: inline-grid !important; font-size: 1rem; }
+  .rt-narrownote { display: block !important; }
+  .rt-minimap { display: none !important; }
+  .rt-bar .rt-menu, .rt-picker { max-height: calc(100vh - 4rem); max-height: calc(100dvh - 4rem); overflow-y: auto; }
+  .rt-app .rt-welcome { left: calc(52px + 0.5rem); right: 0.5rem; bottom: 0.6rem; max-width: none; max-height: calc(100% - 1.2rem); overflow-y: auto; }
+  .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
+  /* touch: buttons and fields big enough for a finger */
+  .rt-panel input, .rt-panel select { min-height: 2.25rem; font-size: 16px; }
+  .rt-pin { width: 2.2rem; height: 2.2rem; }
+}
 </style>
 </head>
 <body>
@@ -1725,6 +1751,7 @@
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
               <button type="button" role="menuitem" data-click="btnHelpMenu" data-icon="info">Help and shortcuts…</button>
               <div class="sep"></div>
+              <span class="rt-menunote rt-narrownote">JEKray is best used on a desktop or laptop: the designers, plots and shortcuts need a larger screen.</span>
               <span class="rt-menunote">JEKray is in open beta: if something looks wrong, Help › Report a bug.</span>
             </div>
           </div>
@@ -23564,7 +23591,11 @@ function pinTitle(title, id, onSelect) {
       if (!main) { togglePinId(id); return; }
       selectOne(null); setSelFibreId(null); panelClosed = true; renderPanel(); requestRender();
     } }, '\u00d7');
-  title.append(pinBtn, closeBtn);
+  // on a phone the main panel is a sheet over the bench's lower part: this makes it taller, or shorter again
+  const sheetBtn = main ? h('button', { class: 'rt-pin rt-sheetbtn', type: 'button', 'aria-pressed': sheetTall ? 'true' : 'false',
+    'aria-label': sheetTall ? 'Make the panel shorter' : 'Make the panel taller', title: sheetTall ? 'Shorter: more of the bench' : 'Taller: more of the panel',
+    onclick: () => { sheetTall = !sheetTall; mainPanel.classList.toggle('rt-tall', sheetTall); renderPanel(); } }, sheetTall ? '\u2193' : '\u2191') : null;
+  title.append(...[pinBtn, sheetBtn, closeBtn].filter(Boolean));
   if (panel !== mainPanel) {
     const box = panel;                          // the panel being built now (panel is reassigned after)
     title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });   // (the close button is an .rt-pin too)
@@ -23629,6 +23660,15 @@ function dragPinned(e, title, box, id) {
 // the main panel closed with its ×; the tool opens with it closed, the bench across the page
 // (the tests open it, as their checks read it)
 let panelClosed = !TEST_MODE;
+/* a phone: the panel is a sheet over the bottom of the bench (style.css), short unless made tall */
+let sheetTall = false, sheetFor = null;
+const phoneSheet = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse)').matches;
+/* something just selected on a phone: if the sheet would cover it, the view moves it up into the bench left showing */
+function sheetReveal(el) {
+  if (!el || !phoneSheet() || el.x === undefined) return;
+  const top = H * (sheetTall ? 0.08 : 0.5), y = sy(el.y);
+  if (y > top - 24) V().cy -= (y - top * 0.5) / V().scale;      // (the bench's y is up the screen)
+}
 function setPanelClosed(v) { return (panelClosed = v); }
 function renderPanel() {
   pins = pins.filter(pinOk);
@@ -23650,6 +23690,10 @@ function renderPanel() {
   mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
   mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
   if (mainShows) renderInto(mainPanel, sel);
+  mainPanel.classList.toggle('rt-tall', sheetTall);
+  // newly selected on a phone: kept clear of the sheet
+  if (sel && sel.id !== sheetFor && mainShows) { sheetReveal(sel); requestRender(); }
+  sheetFor = sel ? sel.id : null;
   let after = mainPanel;
   for (const id of pins) {
     let box = pinBoxes.get(id);
@@ -45046,7 +45090,7 @@ function fillPicker(q) {
     PACKS.list.length ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab packs' + (pickTab === 'packs' ? ' on' : ''), 'aria-selected': pickTab === 'packs' ? 'true' : 'false',
       onclick: e => { e.stopPropagation(); pickTab = 'packs'; search.value = ''; fillPicker(''); } }, 'Packs') : null);
   picker.replaceChildren(h('div', { class: 'rt-phead' }, search, h('button', { type: 'button', class: 'rt-pclose', 'aria-label': 'Close', onclick: () => pickerShown(false) }, '×')), tabs, body,
-    h('p', { class: 'rt-pfoot' }, 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
+    h('p', { class: 'rt-pfoot' }, typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 'Tap to add in the middle of the view, or drag onto the bench to put it there.' : 'Click to add in the middle of the view, Shift+click to add several, or drag onto the bench to put it there.'));
   show();
   search.focus();
 }
@@ -47671,6 +47715,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>On a phone or tablet</b>: the bench fills the screen, and a part\u2019s settings open in a sheet over its lower half (\u2191 makes it taller, \u00d7 or a tap on the empty bench closes it), the part moved clear of the sheet if it would be under it. A phone on its side has the one-row bar too. The welcome note, the parts picker and the menus say tap rather than click, and that JEKray is best used on a desktop or laptop, where the designers, plots and shortcuts have the room they need.',
     'A lens surface\u2019s <b>hole radius</b> is set in the Optical designer only; the bench panel shows it when there is one. A hole as wide as the surface or wider (which left the face drawn but not there for the light) is no hole. And a lens with a plain hole through a face, nothing stacked in it, no longer stops the bench from tracing.',
     'In the Optical designer, <b>Insert a surface</b> and <b>Remove</b> now work on a lens with stacked faces or mirror coats: the new surface goes on the part itself, after the one selected the way the light goes on from it (back into the glass off a mirror), and the part\u2019s later surfaces keep their variables and solves. Before, the change was lost. The <b>Insert a surface</b> and <b>Insert an element</b> menus also stay open when clicked: the pointer had opened them and the click shut them again.',
     '<b>Layers on a face</b>: stacked surfaces of the same clear radius and hole are now layers, met one after the other in the order the light comes to them, on the bench, in the diffracted field and in the Optical designer. Before, only the first was there and the rest were ignored, coatings and all: a partly reflecting coating on a second layer now reflects, a bare face over a mirror coat reflects its share of light from behind, and a layer with the same glass either side is on the light\u2019s path and changes nothing.',
@@ -47951,9 +47996,16 @@ function hideWelcome() {
 function showWelcome() {
   try { if (localStorage.getItem('jek-raytracer-welcomed')) return; } catch (err) { return; }
   const pick = h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples');
+  // on a touch screen, the touch ways; a phone is told the designers and plots want a desktop
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches, phone = phoneSheet();
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray'),
-    h('ul', null,
+    phone ? h('p', { class: 'rt-wdesk' }, 'JEKray is best used on a desktop or laptop: the bench works here, but the designers, plots and shortcuts need a larger screen and a mouse.') : null,
+    touch ? h('ul', null,
+      h('li', null, 'Tap + to add parts, or drag one from the rail at the bench\u2019s left.'),
+      h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
+      h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
+    : h('ul', null,
       h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
       h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more.'),

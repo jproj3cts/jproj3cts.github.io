@@ -28,12 +28,10 @@ $$
 It saturates as a homogeneous amplifier does, on the total power $$P_\text{in}$$ reaching its input. At the band centre,
 
 $$
-G = \frac{G_0}{1 + G\,P_\text{in}/P_\text{sat}}
-\quad\Longrightarrow\quad
-G = \frac{-1 + \sqrt{1 + 4G_0 x}}{2x}, \qquad x = \frac{P_\text{in}}{P_\text{sat}},
+G = G_0 \exp\!\left(-\frac{(G - 1)\,P_\text{in}}{P_s}\right), \qquad P_s = \frac{P_\text{sat}}{\ln G_0},
 $$
 
-with $$P_\text{sat}$$ its saturated output power. The ratio $$\ln G/\ln G_0$$ then scales the gain, in the log, across the whole band. The network is solved, each amplifier's gain set from what reached it, and solved again, until the gains settle (see [Fibre optics: amplifiers](/jek/docs/jekray/fibre/#amplifiers)).
+solved for $$G$$ by Newton's method, with $$P_\text{sat}$$ its saturated output power. The power it adds, $$(G - 1)P_\text{in} = P_s \ln(G_0/G)$$, never exceeds $$P_\text{sat}$$, however hard it is driven. The ratio $$\ln G/\ln G_0$$ then scales the gain, in the log, across the whole band. The network is solved, each amplifier's gain set from what reached it, and solved again, until the gains settle (see [Fibre optics: amplifiers](/jek/docs/jekray/fibre/#amplifiers)).
 
 ### Spontaneous emission
 

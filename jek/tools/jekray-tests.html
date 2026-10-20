@@ -5984,8 +5984,8 @@ const TESTS = [
   },
   {
     name: 'A fibre amplifier saturates as it should',
-    why: '20 dB small-signal gain, 17 dBm saturated output, 1 mW in: G = (−1 + √(1 + 4 G₀ x)) / 2x, x = Pin / Psat',
-    wantFrom: () => { const G0 = 100, x = 1 / Math.pow(10, 1.7); return 10 * Math.log10((-1 + Math.sqrt(1 + 4 * G0 * x)) / (2 * x)); },
+    why: '20 dB small-signal gain, 17 dBm saturated output, 1 mW in: G = G₀ exp(−(G − 1) x), x = Pin ln G₀ / Psat',
+    wantFrom: () => { const G0 = 100, x = Math.log(G0) / Math.pow(10, 1.7); let G = G0; for (let i = 0; i < 200; i++) G = G0 * Math.exp(-(G - 1) * x) * 0.5 + G * 0.5; return 10 * Math.log10(G); },
     tol: 0.02, unit: ' dB',
     run: J => { J.load(ampBench(1, true)); J.trace(); return 10 * Math.log10(J.fibrePd('D') / 1); },
   },

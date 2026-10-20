@@ -361,8 +361,9 @@ export function fibreNetCached() {
   const key = JSON.stringify([fels, project.fibres || [], arr, srcs, fels.some(e => e.mod) ? MODS.rev : 0]);   // a mod's component: as its results stand
   if (fibreNetMemo.key !== key) {
     // amplifiers saturate on the total power reaching them: solve, set each one's gain from
-    // what arrived, solve again; G = G0 / (1 + G Pin / Psat) at the band centre, the ratio of
-    // logs then applying across the band
+    // what arrived, solve again; G = G0 exp(-(G - 1) Pin / Ps) at the band centre (a homogeneous
+    // medium's, its added power G Pin - Pin = Ps ln(G0 / G)), Ps = Psat / ln G0 so that a hard
+    // drive adds at most the rated saturated output; the ratio of logs then applying across the band
     const amps = fels.filter(e => e.type === 'fcomp' && e.kind === 'amp');
     ampSat = new Map();
     let net = fibreNet();
@@ -370,8 +371,10 @@ export function fibreNetCached() {
       let moved = 0;
       for (const A of amps) {
         const Pin = netPower(net.inn.get(pkey(A.id, 0)), net.keys) * 1e-3, Ps = Math.pow(10, A.psat / 10) * 1e-3;
-        const G0 = ampGain(A, A.centre, true), x = Pin / Ps;
-        const G = x > 1e-12 ? (-1 + Math.sqrt(1 + 4 * G0 * x)) / (2 * x) : G0;
+        const G0 = ampGain(A, A.centre, true), x = G0 > 1 ? Pin / Ps * Math.log(G0) : 0;
+        let y = Math.log(Math.max(1, G0));                 // ln G, by Newton from ln G0 (f convex: it comes down to the root)
+        if (x > 1e-12) for (let i = 0; i < 60; i++) { const f = y - Math.log(G0) + (Math.exp(y) - 1) * x, d = f / (1 + x * Math.exp(y)); y -= d; if (Math.abs(d) < 1e-12) break; }
+        const G = Math.exp(Math.max(0, y));
         const s = G0 > 1 ? Math.log(Math.max(1, G)) / Math.log(G0) : 1, was = ampSat.has(A.id) ? ampSat.get(A.id) : 1;
         ampSat.set(A.id, 0.5 * (s + was) * (it === 0 ? 0 : 1) + (it === 0 ? s : 0));
         moved = Math.max(moved, Math.abs(s - was));

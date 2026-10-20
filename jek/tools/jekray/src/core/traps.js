@@ -103,8 +103,21 @@ function hfsShift(F, I, J, A, B) {
   if (B && I >= 1 && J >= 1) E += B * (1.5 * K * (K + 1) - 2 * I * (I + 1) * J * (J + 1)) / (4 * I * (2 * I - 1) * J * (2 * J - 1));
   return E;
 }
+/* a Clebsch-Gordan coefficient squared, <j1 m1; 1 q | J m1+q>^2, by Racah's formula */
+function cg1(j1, m1, q, J) {
+  const r = Math.round, F = x => FACT[r(x)], M = m1 + q;
+  if (Math.abs(M) > J + 1e-9 || J > j1 + 1 + 1e-9 || J < Math.abs(j1 - 1) - 1e-9) return 0;
+  const pre = (2 * J + 1) * F(J + j1 - 1) * F(J - j1 + 1) * F(j1 + 1 - J) / F(j1 + 1 + J + 1) * F(J + M) * F(J - M) * F(j1 - m1) * F(j1 + m1) * F(1 - q) * F(1 + q);
+  let sum = 0;
+  for (let k = r(Math.max(0, j1 + q - J, 1 - J - m1)); k <= r(Math.min(j1 + 1 - J, j1 - m1, 1 + q)); k++)
+    sum += (k % 2 ? -1 : 1) / (F(k) * F(j1 + 1 - J - k) * F(j1 - m1 - k) * F(1 + q - k) * F(J - 1 + m1 + k) * F(J - j1 - q + k));
+  return pre * sum * sum;
+}
 /* every hyperfine transition of a cell's line: absolute frequency, the share of all atoms in
-   its lower level, its relative strength S, and the numbers its profile needs */
+   its lower level, its relative strength S, and the numbers its profile needs. Its saturation
+   is what zeemanLines' sigma components of it come to as the field goes to nothing: each m_F's
+   strength w_m S (w averaging one over m_F), saturating at the cycling Isat times
+   3 (2J+1) / (2J'+1), so the line's effective Isat is that over the mean of w^2 */
 const atomLineCache = new Map();
 export function atomLines(atom, line) {
   const key = atom + '|' + line;
@@ -118,11 +131,13 @@ export function atomLines(atom, line) {
       if (S < 1e-9) continue;
       const nu = L.nu + 1e6 * (hfsShift(Fe, I, Jp, L.Ae, L.Be) - hfsShift(Fg, I, J, X.Ag, 0));
       const lam = C_SI / L.nu;
+      let w2 = 0;
+      for (let m = -Fg; m <= Fg + 1e-9; m++) w2 += (3 * (2 * Fg + 1) / (2 * Fe + 1) * cg1(Fg, m, 1, Fe)) ** 2 / (2 * Fg + 1);
       out.push({ iso: isoName, Fg, Fe, nu, S, share: ab * (2 * Fg + 1) / ((2 * J + 1) * (2 * I + 1)), m: X.m * AMU, A, lam,
         // integrated cross-section of the whole F -> all F' line, m^2 Hz, before S
         sInt: lam * lam / (8 * Math.PI) * (2 * Jp + 1) / (2 * J + 1) * A,
-        // two-level saturation intensity of a cycling transition, W/m^2
-        Isat: Math.PI * HPL * C_SI * A / (3 * lam ** 3) });
+        // saturation intensity, W/m^2: the cycling transition's (Isat0), scaled as above
+        Isat0: Math.PI * HPL * C_SI * A / (3 * lam ** 3), Isat: Math.PI * HPL * C_SI * A / (3 * lam ** 3) * 3 * (2 * J + 1) / (2 * Jp + 1) / w2 });
     }
   }
   atomLineCache.set(key, out);

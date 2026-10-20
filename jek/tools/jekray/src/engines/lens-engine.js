@@ -2,7 +2,7 @@ import { dpBend, dpOn, dpPhase, dpPower, dpSlopeOverR, normOrder } from '../core
 import { ffGrad, ffList, ffSag, ffTurn } from '../core/freeform.js';
 import { GR_REACH, grDelta, grMatrix, grSlopeOverR, grStep } from '../core/gradient.js';
 import { refIndex } from '../core/glass.js';
-import { sagR2 } from '../core/sag.js';
+import { pastEdge, sagR2 } from '../core/sag.js';
 import { zoneHit } from '../core/geometry.js';
 import { dot3 } from '../core/numeric.js';
 
@@ -143,7 +143,7 @@ function paraStep(S, y, u, i0, i1) {
     // through a graded glass its r² term's matrix; else straight
     if (i > i0 && S.GR && S.GR[i - 1]) { const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]); [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; }
     else if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
-    const pc = S.PC && S.PC[i] !== undefined ? S.PC[i] : (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
+    const pc = S.PC && S.PC[i] !== undefined ? S.PC[i] : (S.cyl && S.cyl[i] === 2 ? 0 : paraC(S, i)) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
     else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y - dPow(S, i) * y) / S.n[i + 1];
@@ -183,6 +183,11 @@ export function paraxialOf(S) {
 // a diffractive face's power at the system's wavelength (0 for any other)
 const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
+/* an odd term's coefficient (j: 0 for rho, 1 for rho^2, ...), 0 where there is none */
+const oddAt = (S, i, j) => (S.odd[i] && S.odd[i].length > j ? S.odd[i][j] : 0);
+/* surface i's paraxial curvature from its sag: the conic's, and twice its rho^2 terms (a2 and the odd one); the odd rho
+   term, a cone's, has no curvature at the axis (its kink there is not a power) and is left out, as is rho^3 */
+export const paraC = (S, i) => S.c[i] + 2 * S.a2[i] + 2 * oddAt(S, i, 1);
 /* the sag; a zoned RF lens's cut face (S.zone[i], as the RF designer sets it: core/rf.js lensZones) is the smooth face stepped
    back by the whole layers taken out at that radius, each step a sheer wall, as the bench traces it (core/geometry.js) */
 const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true) + (S.zone && S.zone[i] ? S.zone[i].sg * S.zone[i].k(Math.sqrt(r2)) * S.zone[i].dz : 0);
@@ -229,7 +234,8 @@ function meetT(S, i, x, y, z, L, M, Nn) {
     if (!isFinite(f) || Math.abs(d) < 1e-15) return null;
     const dt = f / d;
     t -= dt;
-    if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) return t > -1e-9 || (i > 0 && S.z[i] < S.z[i - 1] - 1e-12) ? t : null;   // a negative gap: the surface is behind
+    // settled past the edge of the conic's sphere (on its clamped sag): no meeting
+    if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) return !pastEdge(S.c[i], S.k[i], r2) && (t > -1e-9 || (i > 0 && S.z[i] < S.z[i - 1] - 1e-12)) ? t : null;   // a negative gap: the surface is behind
   }
   return null;
 }
@@ -285,7 +291,8 @@ export function traceRay(S, R, i0, i1, noClip, rec) {
       if (!isFinite(f) || Math.abs(d) < 1e-15) break;
       const dt = f / d;
       t -= dt;
-      if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = true; break; }
+      // settled past the edge of the conic's sphere, on its sag clamped there for the search: it misses the surface
+      if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = !pastEdge(S.c[i], S.k[i], r2); break; }
     }
     if (!ok) return stop(-(1 + i));
     x += L * t; y += M * t; z += Nn * t; opl += (GM ? nHere : ni) * t;
@@ -508,7 +515,8 @@ export function spotOf(S, fieldDeg, pts) {
    An aspheric surface adds 8 (n' - n) G y⁴ to SI, G its fourth-order sag beyond the sphere of its
    paraxial curvature, and the same times ȳ/y, (ȳ/y)², (ȳ/y)³ to SII, SIII and SV. The sums are
    wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has
-   SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
+   SI > 0. A surface's odd rho^2 and rho^4 terms count as its even ones do (in its paraxial curvature and G); its
+   odd rho and rho^3 terms have no third-order part and are left out. S at the primary
    wavelength, Sshort and Slong at the shortest and longest (or null). */
 const NS = 1e6;
 export function seidel(S, fieldDeg, Sshort, Slong) {
@@ -545,9 +553,9 @@ export function seidel(S, fieldDeg, Sshort, Slong) {
     const sg1 = S.mir && S.mir[i] ? -sg : sg;
     // (in the plane of the fields: a cylinder curved out of it counts as flat)
     const flatHere = S.cyl && S.cyl[i] === 2;
-    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = flatHere ? 0 : sg * (S.c[i] + 2 * S.a2[i]);
-    // the aspheric part: fourth-order sag beyond the paraxial sphere
-    const c0 = flatHere ? 0 : sg * S.c[i], A4 = S.A[i] && !flatHere ? sg * S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
+    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = flatHere ? 0 : sg * paraC(S, i);
+    // the aspheric part: fourth-order sag beyond the paraxial sphere (the even rho^4 term and the odd one)
+    const c0 = flatHere ? 0 : sg * S.c[i], A4 = flatHere ? 0 : sg * ((S.A[i] ? S.A[i][0] : 0) + oddAt(S, i, 3)), G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
     const dn = Sshort && Slong ? sg * (Sshort.n[i] - Slong.n[i]) : null, dn1 = Sshort && Slong ? sg1 * (Sshort.n[i + 1] - Slong.n[i + 1]) : null;
     let r;
     if (S.PH && S.PH[i]) {

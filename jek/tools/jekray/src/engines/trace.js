@@ -1834,7 +1834,8 @@ export function paraxial(el, nm) {
   const N = el.surfaces.length;
   for (let i = 0; i < N; i++) {
     const sd = el.surfaces[i];
-    const c = (sd.R === null ? 0 : 1 / sd.R) + 2 * sd.a2;
+    // the paraxial curvature: the sphere's, and twice the r² terms (a2 and the odd one; an axicon's r term is no power)
+    const c = (sd.R === null ? 0 : 1 / sd.R) + 2 * sd.a2 + 2 * (sd.odd && sd.odd[1] || 0);
     const n2 = i === N - 1 ? 1 : refIndex(el.materials[i], nm);
     u = (n1 * u - (n2 - n1) * c * y) / n2;
     n1 = n2;

@@ -21,7 +21,10 @@ export function eomSidebands(el) {
   // ELEC hook: a slow drive _v (volts, set only while the electronics trace it) adds to the bias, or in phase mode a phase pi v / V_pi
   const dv = el._v ? el._v / Math.max(1e-6, num(el.vpi, 5)) : 0;
   const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180 + dv * Math.PI;
-  for (let n = -40; n <= 40; n++) {
+  // J_n(B) dies away past n = B and a few B^(1/3) (to 1e-20 in power by B + 6 B^(1/3) + 10):
+  // as far as that, at least 40, at most 400 (a deeper drive is out past what a trace can branch)
+  const B = Math.abs(el.emode === 'amplitude' ? b / 2 : b), N = Math.min(400, Math.max(40, Math.ceil(B + 6 * Math.cbrt(B) + 10)));
+  for (let n = -N; n <= N; n++) {
     let c;
     if (el.emode === 'amplitude') { const j = besselJn(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
     else c = [besselJn(n, b) * Math.cos(dv * Math.PI), besselJn(n, b) * Math.sin(dv * Math.PI)];

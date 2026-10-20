@@ -19,7 +19,9 @@ import { besselJn } from './special.js';
    reported. The far-field pattern is the Fourier transform of the aperture field itself. */
 const CHI = 1.8411837813, J0Z = 2.4048255577;
 /* the field at (x, y) in units of the aperture's radius a (half its side for a diagonal horn), as
-   [along the polarisation, across it]; k is the fitted Gaussian's radius over a */
+   [along the polarisation, across it]; k is the fitted Gaussian's radius over a; ext how far out
+   the field reaches along x and y, in a (1 unless given: a diagonal horn's square stands on its
+   corners, half a diagonal, sqrt2 a, out along each) */
 export const HORN_FIELDS = {
   corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [besselJn(0, J0Z * r), 0]; } },
   smooth: { k: 0.765, field: (x, y) => {
@@ -27,7 +29,7 @@ export const HORN_FIELDS = {
     const rho = CHI * r, j0 = besselJn(0, rho), j2 = besselJn(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
     return [j0 - j2 * c2, j2 * s2];                      // the field along y: phi from the H-plane (x)
   } },
-  diagonal: { k: 0.86, field: (x, y) => {
+  diagonal: { k: 0.86, ext: Math.SQRT2, field: (x, y) => {
     const u = (x + y) * Math.SQRT1_2, v = (y - x) * Math.SQRT1_2;     // the guide's sides, at 45 degrees to the field
     if (Math.abs(u) > 1 || Math.abs(v) > 1) return [0, 0];
     const cu = Math.cos(Math.PI * u / 2), cv = Math.cos(Math.PI * v / 2);
@@ -36,7 +38,7 @@ export const HORN_FIELDS = {
   gauss: { k: 0.6435, field: null },
 };
 const NMAX = 12;
-const K = 321;
+const KC = 321;
 const fact = m => { let f = 1; for (let i = 2; i <= m; i++) f *= i; return f; };
 const cmemo = new Map();
 /* a horn's beam as Hermite-Gauss modes of the fitted Gaussian, [m, n, re, im] of one norm summing to
@@ -46,7 +48,8 @@ export function hornComps(kind) {
   const H = HORN_FIELDS[kind] || HORN_FIELDS.corrugated;
   if (!H.field) return { comps: [[0, 0, 1, 0]], carried: 1, gauss: 1, co: 1, cross: 0, m2: [1, 1] };
   if (cmemo.has(kind)) return cmemo.get(kind);
-  const w = H.k, h = 2 / K, xs = Float64Array.from({ length: K }, (_, i) => -1 + (i + 0.5) * h);
+  // over the whole aperture, at about the same spacing whatever its extent
+  const ext = H.ext || 1, K = Math.ceil(KC * ext) | 1, w = H.k, h = 2 * ext / K, xs = Float64Array.from({ length: K }, (_, i) => -ext + (i + 0.5) * h);
   // the modes along one axis, of one norm on w: H_m(sqrt2 x / w) e^{-x^2/w^2} / sqrt(2^m m!) times (2 / pi w^2)^{1/4}
   const ax = [];
   for (let m = 0; m <= NMAX; m += 2) { const a = new Float64Array(K), nm = Math.sqrt(Math.pow(2, m) * fact(m)); for (let i = 0; i < K; i++) a[i] = hermite(m, Math.SQRT2 * xs[i] / w) * Math.exp(-xs[i] * xs[i] / (w * w)) / nm; ax.push(a); }
@@ -80,11 +83,11 @@ export function hornPattern(kind, a, L, lam) {
   if (pmemo.has(key)) return pmemo.get(key);
   const H = HORN_FIELDS[kind] || HORN_FIELDS.corrugated, w = H.k;
   const field = H.field || ((x, y) => { const r2 = x * x + y * y; return r2 > 1 ? [0, 0] : [Math.exp(-r2 / (w * w)), 0]; });
-  const KP = 161, h = 2 / KP, k = 2 * Math.PI / lam;
+  const ext = H.ext || 1, KP = Math.ceil(161 * ext) | 1, h = 2 * ext / KP, k = 2 * Math.PI / lam;
   const pts = [];
   let pt = 0;
   for (let j = 0; j < KP; j++) for (let i = 0; i < KP; i++) {
-    const x = -1 + (i + 0.5) * h, y = -1 + (j + 0.5) * h, [fc, fx] = field(x, y);
+    const x = -ext + (i + 0.5) * h, y = -ext + (j + 0.5) * h, [fc, fx] = field(x, y);
     if (!fc && !fx) continue;
     const ph = -k * a * a * (x * x + y * y) / (2 * L);     // the spherical front, out from the apex
     pts.push([x * a, y * a, fc * Math.cos(ph), fc * Math.sin(ph), fx * Math.cos(ph), fx * Math.sin(ph)]);

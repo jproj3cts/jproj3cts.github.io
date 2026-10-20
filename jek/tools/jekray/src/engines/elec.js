@@ -2,7 +2,7 @@ import { clamp } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { fmtHz } from '../core/format.js';
 import { MODS } from '../core/modulators.js';
-import { hornGeom, pdResp, responsivity } from '../core/rf.js';
+import { hornGeom, pdResp, responsivity, rfBeam } from '../core/rf.js';
 import { V, nextName, num, project } from '../state/project.js';
 import { VSRC, benchNms, detR, getEl, normElement, setVSRC, srcBody } from '../state/elements.js';
 import { makeSurf } from '../core/geometry.js';
@@ -580,8 +580,9 @@ function linearDrive(d, lo, hi) {
 }
 function applyDrive(el, v, port) {
   // a laser's frequency by fmk GHz per volt: its vacuum wavelength moves by -lambda^2 df / c
-  // an upconverting horn: the carrier's power follows the square of the IF voltage into its 50 ohm, less its conversion loss
-  if (isLaser(el) && port === 'if') el.power = el.mmw ? 1000 * v * v / 50 * Math.pow(10, -(el.mmw.cl || 0) / 10) : 0;
+  // an upconverting horn: the carrier's power follows the square of the IF voltage into its 50 ohm, less its conversion
+  // loss, times the share its modes carry (as applyRf sets a horn's power)
+  if (isLaser(el) && port === 'if') el.power = el.mmw ? 1000 * v * v / 50 * Math.pow(10, -(el.mmw.cl || 0) / 10) * rfBeam(el.mmw, el.mmw.ghz).g : 0;
   else if (isLaser(el) && port === 'fm') { const df = fmk(el) * 1e9 * v; el.wavelength = el.wavelength / (1 + el.wavelength * 1e-9 * df / 299792458); }
   else if (isLaser(el)) el.power = el.power * Math.max(0, 1 + modk(el) / 100 * v);
   else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
@@ -749,7 +750,7 @@ function detOutput(el, P, note) {
   const I = scaled(L, 1e-3 * R, 'A'), q = 1.602176634e-19;
   let n2 = 2 * q * (Math.max(0, I.dc) + (el.dark || 0) * 1e-9);
   if (!diode) n2 += (el.gain > 0 ? 4 * KT / el.gain : 0) + ((el.ampNoise || 0) * 1e-12) ** 2;
-  if (fibre && PS.noise && PS.B > 0) n2 += (PS.noise.parts.sigAse + PS.noise.parts.aseAse) / PS.B;
+  if (fibre && PS.noise && PS.Bn > 0) n2 += (PS.noise.parts.sigAse + PS.noise.parts.aseAse) / PS.Bn;   // the beat noise's density (pdSignal's parts are over the noise bandwidth)
   const S = through(I, pole(diode ? 1 : el.gain, el.bandwidth), diode ? 'A' : 'V', () => n2);
   if (!diode && peak(S) > el.vmax) note('The output would reach ' + elecFmtSig(peak(S), 'V') + ', past its ' + elecFmtSig(el.vmax, 'V') + ' limit: it would clip');
   if (PS.tones.some(t => t.incoh)) note('Beat notes between different lasers are left out: their phase wanders');
@@ -760,8 +761,11 @@ function detOutput(el, P, note) {
    mode takes in, with its NEP as noise, through its video bandwidth. A mixer puts out the IF:
    each feed horn's carrier comes down to |f - f_LO|, at the power it delivers less the
    conversion loss, as a tone of sqrt(2 R P) volts across 50 ohm, with the phase of the field at
-   the horn (so two paths to one horn beat as they should). The receiver's noise temperature
-   and what it looks into set the noise, k (T_ant + T_rx) R, referred to its input. A feed horn
+   the horn (so two paths to one horn beat as they should), conjugated for a carrier below the LO. The receiver's noise temperature
+   and what it looks into set the noise, k (T_ant + T_rx) R, referred to its input. Signals in either sideband
+   come down at the full conversion gain; the noise is a sideband's: an SSB mixer (the default) has T_rx quoted
+   SSB, its image band terminated cold (its noise in T_rx), so k (T_ant + T_rx) R; a DSB mixer has T_rx quoted
+   DSB and takes in the antenna's noise in both sidebands, each at the full gain, so 2 k (T_ant + T_rx) R. A feed horn
    that is an upconverter sends its IF input up and this mixer brings it down: the IF out is the
    drive, scaled by the link, mixed with the difference of the two local oscillators. A carrier
    whose power the bench's drives move puts its square root on the IF (linearised about the
@@ -778,14 +782,15 @@ function rfMixerOutput(el, P, note) {
   let out = zero('V');
   const tone = (f, ph) => { const T = zero('V'); if (f > 0) addTone(T.tones, f, Math.cos(ph), Math.sin(ph)); else T.dc = Math.cos(ph); return T; };
   if (C) for (const ln of C.lines) {
-    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9;
+    // a carrier below the LO comes down conjugated: cos((ω_LO − ω)t − φ), its phase turned round
+    const src = getEl(ln.id), fif = Math.abs(ln.ghz - rf.lo) * 1e9, ph = ln.ghz < rf.lo ? -ln.ph : ln.ph;
     if (fif > 1e10) { note('The IF from ' + (src ? src.name : 'a horn') + ' would be ' + fmtHz(fif) + ', past the electronics\u2019 10 GHz: left out'); continue; }
     if (src && src.mmw && src.mmw.tx === 'up') {
       const d = curDrives.find(q => q.el.id === ln.id && q.port === 'if');
       if (!d || !d.S) { note((src.name) + ' is an upconverter with nothing on its IF input: no carrier'); continue; }
       // from the IF in to the IF out: the bench, traced at the horn's nominal power, gives the link's power gain
       const G = ln.mw / Math.pow(10, src.mmw.dbm / 10) * Math.pow(10, -src.mmw.cl / 10) * gcl;
-      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ln.ph), 1), 1, 1);
+      out = sum(out, mixer(scaled(d.S, Math.sqrt(G), 'V'), tone(fif, ph), 1), 1, 1);
       continue;
     }
     const Vp = Math.sqrt(2 * R_IF * ln.mw * 1e-3 * gcl), A = zero('V');
@@ -796,9 +801,9 @@ function rfMixerOutput(el, P, note) {
       const sw = P.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
       if (sw > 0.3 * P.dc) note('The carrier\u2019s power swings by more than 30%: the IF follows its square root, taken as a straight line about the mean');
     }
-    out = sum(out, mixer(A, tone(fif, ln.ph), 1), 1, 1);
+    out = sum(out, mixer(A, tone(fif, ph), 1), 1, 1);
   }
-  const n2 = KT / 295 * (rf.tant + rf.trx) * R_IF * gcl;
+  const n2 = (rf.sideband === 'dsb' ? 2 : 1) * KT / 295 * (rf.tant + rf.trx) * R_IF * gcl;   // both sidebands' noise for a DSB mixer
   return through(out, pole(1, rf.ifbw * 1e6), 'V', () => n2);
 }
 /* the chopper's reference output: 0 to 5 V, rising as it opens */

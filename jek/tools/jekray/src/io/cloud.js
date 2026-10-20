@@ -743,7 +743,7 @@ export async function fillHome() {
       h('h3', null, 'Versions and forks'),
       ev.length ? graph : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'))));
     if (homeRO) homeRO.disconnect();
-    if (ev.length) { draw(); homeRO = new ResizeObserver(draw); homeRO.observe(list); }
+    if (ev.length) { draw(); homeRO = new ResizeObserver(() => requestAnimationFrame(draw)); homeRO.observe(list); }
     return;
   }
   // My links: the share links made, each a snapshot of a bench as it was: open it, copy its link, or delete it

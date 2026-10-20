@@ -6,7 +6,8 @@
    ========================================================================== */
 
 /* the sag at r² = r2. Beyond the edge of the conic's own sphere: clamped to the edge (clampEdge, as a tracer
-   feeling for a surface needs), or NaN (as a drawing or a thickness wants) */
+   feeling for a surface needs: a Newton step may land past it on the way to a root inside), or NaN (as a drawing or a
+   thickness wants). A root the tracer settles on past the edge is no meeting with the surface (pastEdge) */
 export function sagR2(c, k, a2, A, odd, r2, clampEdge) {
   let v = 0;
   if (c) {
@@ -19,6 +20,10 @@ export function sagR2(c, k, a2, A, odd, r2, clampEdge) {
   if (odd) { const r = Math.sqrt(r2); let q = r; for (let j = 0; j < odd.length; j++) { v += odd[j] * q; q *= r; } }
   return v;
 }
+
+/* r² = r2 beyond the edge of the conic's own sphere (of curvature c and constant k), where it has no surface: a ray
+   whose search settles there (on the clamped sag) has missed it */
+export const pastEdge = (c, k, r2) => c !== 0 && 1 - (1 + k) * c * c * r2 < -1e-12;
 
 /* a prescription surface's sag at height h in the plane of the fields: a cylinder curved out of that plane is flat
    in it (its aspheric terms along its curved axis too), and a freeform's terms along the section count; NaN beyond

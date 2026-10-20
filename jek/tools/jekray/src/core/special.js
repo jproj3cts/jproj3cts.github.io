@@ -56,12 +56,31 @@ export function besselZerosJ0(n) {
 }
 
 
-/* J_n(x) for integer n by its power series, summed until the terms stop mattering (fine for the arguments the
-   horns' aperture fields and a modulator's sidebands need: a few tens at most) */
+/* J_n(x) for integer n, to about 1e-11 for x to a few hundred and n to a few hundred: up from
+   J0 and J1 by the recurrence J_{k+1} = (2k / x) J_k - J_{k-1} where n < |x| (stable going up
+   there), and below it by Miller's: down from far above both n and x, where J_k dies away, and
+   scaled to J0 or J1 (whichever is the larger, the two never both small). A power series, as
+   this was, cancels away at large x: J10(40) came out 0.0918 for 0.1194 and J0(50) 655. */
 export function besselJn(n, x) {
   if (n < 0) return (n % 2 ? -1 : 1) * besselJn(-n, x);
-  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
-  let sum = term;
-  for (let k = 1; k < 300; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
-  return sum;
+  if (x < 0) return (n % 2 ? -1 : 1) * besselJn(n, -x);
+  if (x === 0) return n === 0 ? 1 : 0;
+  const [j0, j1] = besselJ01(x);
+  if (n === 0) return j0;
+  if (n === 1) return j1;
+  if (x > n) {
+    let a = j0, b = j1;
+    for (let k = 1; k < n; k++) { const c = 2 * k / x * b - a; a = b; b = c; }
+    return b;
+  }
+  // from an even order well past n and x, so the terms there are negligible against those wanted
+  const top = Math.max(n, x), m = 2 * Math.ceil((top + 20 + 4 * Math.sqrt(top)) / 2);
+  let hi = 0, lo = 1e-300, want = 0, at0 = 0, at1 = 0;
+  for (let k = m; k > 0; k--) {
+    const c = 2 * k / x * lo - hi; hi = lo; lo = c;        // lo is now J_{k-1}, hi J_k (unscaled)
+    if (Math.abs(lo) > 1e250) { lo *= 1e-250; hi *= 1e-250; want *= 1e-250; }
+    if (k - 1 === n) want = lo;
+    if (k === 1) { at0 = lo; at1 = hi; }
+  }
+  return Math.abs(j0) >= Math.abs(j1) ? want * j0 / at0 : want * j1 / at1;
 }

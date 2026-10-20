@@ -103,7 +103,10 @@ export function maskOf(s) {
 /* A surface's curvature in the bench plane, for the beam's pilot in it: a cylinder rolled about
    its axis keeps cos^2 of its power there (one curved out of the plane, sin^2) */
 export function kapIn(s, y) {
-  let k = s.c ? curvAt(s, y) : 0;
+  // any term that curves the face (not the conic alone: a2, the even and odd terms, a freeform's) gives it power; an
+  // axicon's cone alone none (curvAt leaves its r term out)
+  const curved = s.c || s.a2 || (s.A && s.A.some(v => v)) || (s.odd && s.odd.some((v, j) => j && v)) || s.FL;
+  let k = curved ? curvAt(s, y) : 0;
   if (s.tilt && s.roll) {
     const c2 = Math.cos(s.roll) ** 2;
     if (s.cylS) k = (s.cylS.c || 0) * (1 - c2) + 2 * (s.cylS.a2 || 0) * (1 - c2);

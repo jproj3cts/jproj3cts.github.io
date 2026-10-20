@@ -33,7 +33,7 @@ $$
 with the integral over the crystal. Here:
 
 - $$\xi = L/b$$ is the focusing, $$b$$ the confocal parameter inside the crystal;
-- $$\sigma = b\,\Delta k/2$$ is the phase mismatch the poling leaves;
+- $$\sigma = b\,\Delta k/2$$, $$\Delta k = 2k_1 + K - k_2$$ with $$K = 2\pi/\Lambda$$, is the phase mismatch the poling leaves (best near $$\sigma = 0.57$$, so the best period is a little shorter than the plane-wave one);
 - $$\mu$$ is where the waist sits.
 
 At best focusing, $$\xi = 2.84$$, $$h = 1.068$$: aim for a crystal about 2.84 confocal parameters long. $$d_\text{eff}$$ is 14 pm/V for MgO:PPLN and 9.5 pm/V for PPKTP.

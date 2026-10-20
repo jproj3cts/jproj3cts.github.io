@@ -44,7 +44,7 @@ function detectorPanel(el) {
   signalSection(el);
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (modReadouts('detector').length) modReadoutSection(el);                     // the mods' readouts
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the bandwidth.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the noise bandwidth: the bandwidth is a single pole, so white noise counts over π/2 times it.'));
 }
 
 const hitDetector = (el, lx, ly, tol) => lx <= tol && Math.hypot(lx, ly) <= detR(el) + tol;   // its semicircle

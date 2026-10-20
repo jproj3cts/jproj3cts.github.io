@@ -212,10 +212,11 @@ export function* popRunGen(beams, srcs, opts = {}) {
         const mode = (project.cavityLock && project.cavityLock[L.canon]) || 'lock';
         // one laser, one frequency: the higher modes of a beam of M^2 above 1 keep its lock
         const lk = L.canon + '|' + eng + '|' + (opts.paraxial ? 'p' : '');
-        // light shifted by f from the laser (a modulator's sideband) is 2 pi f Lopt / c further
-        // round in each round trip than the laser itself, locked or not: as the laser would be
-        // raised by f, which (the field going as e^{-ikz}) lowers delta
-        const LoptF = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
+        // light shifted by f from the laser (a modulator's sideband) is 2 pi f Lg / c further
+        // round in each round trip than the laser itself, locked or not (Lg the group path: the
+        // phase's own change with frequency): as the laser would be raised by f, which (the
+        // field going as e^{-ikz}) lowers delta
+        const LoptF = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + (beams[i].ng || beams[i].n) * beams[i].len, 0);
         const base = mode === 'lock' && res ? ((job.mode || b.fo) && lockOf.has(lk) ? lockOf.get(lk) : res.dLock) : 0;
         const delta = base - (b.fo ? 2 * Math.PI * b.fo * LoptF / C_MM : 0);
         if (!job.mode && !b.fo) lockOf.set(lk, delta);
@@ -228,8 +229,9 @@ export function* popRunGen(beams, srcs, opts = {}) {
           // Lorentzian line, right to first order for a Gaussian): the mean field is the solve
           // with the round trip damped by gamma(Lopt). It carries on as the launch itself,
           // interfering with the prompt reflection; what the line's average power holds beyond
-          // it carries on as light of its own that interferes with nothing.
-          const Lopt = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
+          // it carries on as light of its own that interferes with nothing. (Lopt here the group
+          // path, the delay a line's coherence goes by.)
+          const Lopt = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + (beams[i].ng || beams[i].n) * beams[i].len, 0);
           const line = cavLine(res, Lopt, src), P = res.at(delta).P;
           if (line && P > 0) {
             const g1 = cohGamma(src)(Lopt), pw = F => (eng === '2d' ? popStats2(F) : popStats(F)).power;

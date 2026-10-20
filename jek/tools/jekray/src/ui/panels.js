@@ -998,7 +998,7 @@ export function cellInfo(el) {
   const nu0 = ATOM_ISO[iso0][el.line].nu, T = el.temp + 273.15;
   const beams = ((lastTrace.cells || []).filter(c => c.id === el.id));
   const dop = a => 2 * Math.sqrt(Math.LN2) * a.nu / C_SI * Math.sqrt(2 * KB * T / a.m);
-  return { lines, nu0, beams, n: cellDensity(el), doppler: dop(lines[0]), natural: lines[0].A / (2 * Math.PI), Isat: lines[0].Isat };
+  return { lines, nu0, beams, n: cellDensity(el), doppler: dop(lines[0]), natural: lines[0].A / (2 * Math.PI), Isat: lines[0].Isat0 || lines[0].Isat };
 }
 export function drawCellSpectrum(cv, el, span) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170;

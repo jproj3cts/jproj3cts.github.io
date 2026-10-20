@@ -347,8 +347,10 @@ function picScatter(el, port, nm, fo) {
   const r = solveChip(c, lam, j), rp = solveChip(c, lam + d, j), rm = solveChip(c, lam - d, j);
   const th = e => (e.polAngle || 0) * Math.PI / 180;
   const ti = th(el), ci = Math.cos(ti), si = Math.sin(ti);
-  // the delay as a path: dphi/dlambda lambda^2 / 2 pi (e^{-ikz}: phase falls as the path grows)
-  const path = (a, b) => { const dph = Math.atan2(b[1], b[0]) - Math.atan2(a[1], a[0]), w = dph - 2 * Math.PI * Math.round(dph / (2 * Math.PI)); return -w / (2 * d) * lam * lam / (2 * Math.PI) * 1e-6; };
+  // the delay as a path, mm: dphi/dlambda lambda^2 / 2 pi, a from lam - d and b from lam + d.
+  // With e^{-ikz} the phase is -2 pi n L / lambda, which rises with lambda: dphi/dlambda =
+  // 2 pi n_g L / lambda^2, so the path comes out +n_g L, as a fibre adds FIBRE_NG L
+  const path = (a, b) => { const dph = Math.atan2(b[1], b[0]) - Math.atan2(a[1], a[0]), w = dph - 2 * Math.PI * Math.round(dph / (2 * Math.PI)); return w / (2 * d) * lam * lam / (2 * Math.PI) * 1e-6; };
   const out = [];
   c.ext.forEach((e, i) => {
     const P = c.ports.find(q => q.g === e);

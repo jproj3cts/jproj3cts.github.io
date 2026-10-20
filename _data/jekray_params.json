@@ -1100,7 +1100,7 @@
     {
      "k": "v",
      "def": "4200",
-     "meaning": "m/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear)."
+     "meaning": "m/s sound speed (4200 for TeO₂ longitudinal is typical of fibre AOMs; 650 slow shear)."
     },
     {
      "k": "eff",

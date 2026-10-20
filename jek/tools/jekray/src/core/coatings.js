@@ -19,33 +19,50 @@ export function coatPreset(kind, design) {
   }
   return [];
 }
-/* Complex amplitude reflection of a stack, for one polarisation.
-   n0 is the medium the ray is in, ns the one beyond, ci the cosine of incidence. */
-export function stackAmp(layers, n0, ns, ci, nmWave, pol) {
+/* A layer's characteristic matrix, [[C, i X], [i Y, C]] with C, X and Y real, for index n and thickness d (nm) at
+   nm, n0 sin(theta0) = sin0 given: [cos d, sin d / eta, eta sin d] where the wave runs through it; beyond its critical
+   angle its cosine is imaginary (the wave evanescent), d = i b and eta imaginary, and the matrix [cosh b, ±sinh b / |eta|,
+   ∓|eta| sinh b] (the same on either branch of the cosine) */
+export function filmLayer(n, d, sin0, nm, pol) {
+  const q = 1 - (sin0 / n) * (sin0 / n);
+  if (q >= 0) {
+    const ct = Math.sqrt(Math.max(1e-12, q)), e = pol === 's' ? n * ct : n / ct;
+    const ph = 2 * Math.PI * n * d * ct / nm, sn = Math.sin(ph);           // layer thickness in nm, like the wavelength
+    return [Math.cos(ph), sn / e, e * sn];
+  }
+  const b = Math.sqrt(-q), sh = Math.sinh(2 * Math.PI * n * d * b / nm), g = pol === 's' ? n * b : n / b;
+  return [Math.cosh(2 * Math.PI * n * d * b / nm), pol === 's' ? sh / g : -sh / g, pol === 's' ? -g * sh : g * sh];
+}
+/* a medium's tilted admittance, [re, im], and its cosine of angle: real where the wave runs in it, else imaginary on
+   the branch whose field decays away from the stack (the matrix's convention, e^{-ikz}: cos = -i |cos|) */
+export function filmAdmit(n, sin0, pol) {
+  const q = 1 - (sin0 / n) * (sin0 / n);
+  if (q >= 0) { const ct = Math.sqrt(Math.max(1e-12, q)); return [pol === 's' ? n * ct : n / ct, 0, ct, 0]; }
+  const b = Math.sqrt(-q);
+  return pol === 's' ? [0, -n * b, 0, -b] : [0, n / b, 0, -b];
+}
+/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances */
+export function filmBC(layers, n0, ns, ci, nmWave, pol) {
   const sin0 = Math.sqrt(Math.max(0, 1 - ci * ci)) * n0;   // n0 sin(theta0), invariant
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
   let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
   for (const L of layers) {
-    const ct = cosIn(L.n);
-    const d = 2 * Math.PI * L.n * L.d * ct / nmWave;       // layer thickness in nm, like the wavelength
-    const c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    // layer matrix [[c, i sn/e], [i e sn, c]]
-    const a11r = c, a11i = 0, a12r = 0, a12i = sn / e, a21r = 0, a21i = e * sn, a22r = c, a22i = 0;
-    const n11r = m11r * a11r - m11i * a11i + m12r * a21r - m12i * a21i;
-    const n11i = m11r * a11i + m11i * a11r + m12r * a21i + m12i * a21r;
-    const n12r = m11r * a12r - m11i * a12i + m12r * a22r - m12i * a22i;
-    const n12i = m11r * a12i + m11i * a12r + m12r * a22i + m12i * a22r;
-    const n21r = m21r * a11r - m21i * a11i + m22r * a21r - m22i * a21i;
-    const n21i = m21r * a11i + m21i * a11r + m22r * a21i + m22i * a21r;
-    const n22r = m21r * a12r - m21i * a12i + m22r * a22r - m22i * a22i;
-    const n22i = m21r * a12i + m21i * a12r + m22r * a22i + m22i * a22r;
-    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i;
-    m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
+    // times the layer's [[c, i x], [i y, c]]
+    const [c, x, y] = filmLayer(L.n, L.d, sin0, nmWave, pol);
+    const n11r = m11r * c - m12i * y, n11i = m11i * c + m12r * y;
+    const n12r = -m11i * x + m12r * c, n12i = m11r * x + m12i * c;
+    const n21r = m21r * c - m22i * y, n21i = m21i * c + m22r * y;
+    const n22r = -m21i * x + m22r * c, n22i = m21r * x + m22i * c;
+    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i; m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
   }
-  const es = eta(ns), e0 = eta(n0);
-  const Br = m11r + m12r * es, Bi = m11i + m12i * es;
-  const Cr = m21r + m22r * es, Ci = m21i + m22i * es;
+  const es = filmAdmit(ns, sin0, pol), e0 = filmAdmit(n0, sin0, pol);
+  const Br = m11r + m12r * es[0] - m12i * es[1], Bi = m11i + m12i * es[0] + m12r * es[1];
+  const Cr = m21r + m22r * es[0] - m22i * es[1], Ci = m21i + m22i * es[0] + m22r * es[1];
+  return { Br, Bi, Cr, Ci, e0: e0[0], es };
+}
+/* Complex amplitude reflection of a stack, for one polarisation.
+   n0 is the medium the ray is in (the wave running in it), ns the one beyond, ci the cosine of incidence. */
+export function stackAmp(layers, n0, ns, ci, nmWave, pol) {
+  const { Br, Bi, Cr, Ci, e0 } = filmBC(layers, n0, ns, ci, nmWave, pol);
   const numR = e0 * Br - Cr, numI = e0 * Bi - Ci;
   const denR = e0 * Br + Cr, denI = e0 * Bi + Ci;
   const dd = denR * denR + denI * denI;

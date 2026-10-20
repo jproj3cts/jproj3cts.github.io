@@ -534,7 +534,7 @@ A free-space acousto-optic modulator: shifts the diffracted order by the drive f
 |---|---|---|
 | length | `4` | mm aperture. |
 | rf | `80` | MHz drive: the order is shifted by this. |
-| v | `4200` | m/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear). |
+| v | `4200` | m/s sound speed (4200 for TeO₂ longitudinal is typical of fibre AOMs; 650 slow shear). |
 | eff | `80` | % into the order. |
 | order | `1` | +1 or −1. |
 

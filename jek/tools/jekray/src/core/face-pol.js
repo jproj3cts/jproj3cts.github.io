@@ -1,4 +1,4 @@
-import { stackAmp, mirrorR } from './coatings.js';
+import { filmBC, stackAmp, mirrorR } from './coatings.js';
 import { cabs2 } from './numeric.js';
 
 /* ==========================================================================
@@ -16,27 +16,15 @@ import { cabs2 } from './numeric.js';
 /* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
    n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
 export function stackT(layers, n0, ns, c0, nm, pol) {
-  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
-  let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
-  for (const L of layers) {
-    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    // times the layer's [[c, i sn/e], [i e sn, c]]
-    const n11r = m11r * c - m12i * e * sn, n11i = m11i * c + m12r * e * sn;
-    const n12r = -m11i * sn / e + m12r * c, n12i = m11r * sn / e + m12i * c;
-    const n21r = m21r * c - m22i * e * sn, n21i = m21i * c + m22r * e * sn;
-    const n22r = -m21i * sn / e + m22r * c, n22i = m21r * sn / e + m22i * c;
-    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i; m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
-  }
-  const es = eta(ns), e0 = eta(n0), Br = m11r + m12r * es, Bi = m11i + m12i * es, Cr = m21r + m22r * es, Ci = m21i + m22i * es;
+  const { Br, Bi, Cr, Ci, e0, es } = filmBC(layers, n0, ns, c0, nm, pol);
   const dr = e0 * Br + Cr, di = e0 * Bi + Ci, dd = dr * dr + di * di;
   if (!dd) return [0, 0];
   const t = [2 * e0 * dr / dd, -2 * e0 * di / dd];
-  // p: the field's ratio, not the tangential component's
+  // p: the field's ratio, not the tangential component's (c0 over the cosine beyond, imaginary where the wave there is evanescent)
   if (pol === 's') return t;
-  const k = c0 / cosIn(ns);
-  return [t[0] * k, t[1] * k];
+  if (!es[3]) { const k = c0 / es[2]; return [t[0] * k, t[1] * k]; }
+  const k = -c0 / es[3];
+  return [-t[1] * k, t[0] * k];
 }
 
 /* A refracting face (bare, coated, a film splitter): light from index n1 into n2 meeting it at cosine ci (> 0) at

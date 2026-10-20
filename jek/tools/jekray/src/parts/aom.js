@@ -16,7 +16,7 @@ export const AOM = {
   guide: {
     what: 'A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.',
     angle: 'its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.',
-    fields: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear).',
+    fields: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ longitudinal is typical of fibre AOMs; 650 slow shear).',
     eff: '% into the order.', order: '+1 or −1.' },
   },
 };

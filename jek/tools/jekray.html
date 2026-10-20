@@ -2288,14 +2288,33 @@ function besselZerosJ0(n) {
 }
 
 
-/* J_n(x) for integer n by its power series, summed until the terms stop mattering (fine for the arguments the
-   horns' aperture fields and a modulator's sidebands need: a few tens at most) */
+/* J_n(x) for integer n, to about 1e-11 for x to a few hundred and n to a few hundred: up from
+   J0 and J1 by the recurrence J_{k+1} = (2k / x) J_k - J_{k-1} where n < |x| (stable going up
+   there), and below it by Miller's: down from far above both n and x, where J_k dies away, and
+   scaled to J0 or J1 (whichever is the larger, the two never both small). A power series, as
+   this was, cancels away at large x: J10(40) came out 0.0918 for 0.1194 and J0(50) 655. */
 function besselJn(n, x) {
   if (n < 0) return (n % 2 ? -1 : 1) * besselJn(-n, x);
-  let term = 1; for (let k = 1; k <= n; k++) term *= x / 2 / k;
-  let sum = term;
-  for (let k = 1; k < 300; k++) { term *= -(x * x / 4) / (k * (k + n)); sum += term; if (Math.abs(term) < 1e-17 * Math.max(1e-300, Math.abs(sum))) break; }
-  return sum;
+  if (x < 0) return (n % 2 ? -1 : 1) * besselJn(n, -x);
+  if (x === 0) return n === 0 ? 1 : 0;
+  const [j0, j1] = besselJ01(x);
+  if (n === 0) return j0;
+  if (n === 1) return j1;
+  if (x > n) {
+    let a = j0, b = j1;
+    for (let k = 1; k < n; k++) { const c = 2 * k / x * b - a; a = b; b = c; }
+    return b;
+  }
+  // from an even order well past n and x, so the terms there are negligible against those wanted
+  const top = Math.max(n, x), m = 2 * Math.ceil((top + 20 + 4 * Math.sqrt(top)) / 2);
+  let hi = 0, lo = 1e-300, want = 0, at0 = 0, at1 = 0;
+  for (let k = m; k > 0; k--) {
+    const c = 2 * k / x * lo - hi; hi = lo; lo = c;        // lo is now J_{k-1}, hi J_k (unscaled)
+    if (Math.abs(lo) > 1e250) { lo *= 1e-250; hi *= 1e-250; want *= 1e-250; }
+    if (k - 1 === n) want = lo;
+    if (k === 1) { at0 = lo; at1 = hi; }
+  }
+  return Math.abs(j0) >= Math.abs(j1) ? want * j0 / at0 : want * j1 / at1;
 }
 /* ==========================================================================
    A surface's sag, written once
@@ -2305,7 +2324,8 @@ function besselJn(n, x) {
    ========================================================================== */
 
 /* the sag at r² = r2. Beyond the edge of the conic's own sphere: clamped to the edge (clampEdge, as a tracer
-   feeling for a surface needs), or NaN (as a drawing or a thickness wants) */
+   feeling for a surface needs: a Newton step may land past it on the way to a root inside), or NaN (as a drawing or a
+   thickness wants). A root the tracer settles on past the edge is no meeting with the surface (pastEdge) */
 function sagR2(c, k, a2, A, odd, r2, clampEdge) {
   let v = 0;
   if (c) {
@@ -2318,6 +2338,10 @@ function sagR2(c, k, a2, A, odd, r2, clampEdge) {
   if (odd) { const r = Math.sqrt(r2); let q = r; for (let j = 0; j < odd.length; j++) { v += odd[j] * q; q *= r; } }
   return v;
 }
+
+/* r² = r2 beyond the edge of the conic's own sphere (of curvature c and constant k), where it has no surface: a ray
+   whose search settles there (on the clamped sag) has missed it */
+const pastEdge = (c, k, r2) => c !== 0 && 1 - (1 + k) * c * c * r2 < -1e-12;
 
 /* a prescription surface's sag at height h in the plane of the fields: a cylinder curved out of that plane is flat
    in it (its aspheric terms along its curved axis too), and a freeform's terms along the section count; NaN beyond
@@ -5128,8 +5152,21 @@ function hfsShift(F, I, J, A, B) {
   if (B && I >= 1 && J >= 1) E += B * (1.5 * K * (K + 1) - 2 * I * (I + 1) * J * (J + 1)) / (4 * I * (2 * I - 1) * J * (2 * J - 1));
   return E;
 }
+/* a Clebsch-Gordan coefficient squared, <j1 m1; 1 q | J m1+q>^2, by Racah's formula */
+function cg1(j1, m1, q, J) {
+  const r = Math.round, F = x => FACT[r(x)], M = m1 + q;
+  if (Math.abs(M) > J + 1e-9 || J > j1 + 1 + 1e-9 || J < Math.abs(j1 - 1) - 1e-9) return 0;
+  const pre = (2 * J + 1) * F(J + j1 - 1) * F(J - j1 + 1) * F(j1 + 1 - J) / F(j1 + 1 + J + 1) * F(J + M) * F(J - M) * F(j1 - m1) * F(j1 + m1) * F(1 - q) * F(1 + q);
+  let sum = 0;
+  for (let k = r(Math.max(0, j1 + q - J, 1 - J - m1)); k <= r(Math.min(j1 + 1 - J, j1 - m1, 1 + q)); k++)
+    sum += (k % 2 ? -1 : 1) / (F(k) * F(j1 + 1 - J - k) * F(j1 - m1 - k) * F(1 + q - k) * F(J - 1 + m1 + k) * F(J - j1 - q + k));
+  return pre * sum * sum;
+}
 /* every hyperfine transition of a cell's line: absolute frequency, the share of all atoms in
-   its lower level, its relative strength S, and the numbers its profile needs */
+   its lower level, its relative strength S, and the numbers its profile needs. Its saturation
+   is what zeemanLines' sigma components of it come to as the field goes to nothing: each m_F's
+   strength w_m S (w averaging one over m_F), saturating at the cycling Isat times
+   3 (2J+1) / (2J'+1), so the line's effective Isat is that over the mean of w^2 */
 const atomLineCache = new Map();
 function atomLines(atom, line) {
   const key = atom + '|' + line;
@@ -5143,11 +5180,13 @@ function atomLines(atom, line) {
       if (S < 1e-9) continue;
       const nu = L.nu + 1e6 * (hfsShift(Fe, I, Jp, L.Ae, L.Be) - hfsShift(Fg, I, J, X.Ag, 0));
       const lam = C_SI / L.nu;
+      let w2 = 0;
+      for (let m = -Fg; m <= Fg + 1e-9; m++) w2 += (3 * (2 * Fg + 1) / (2 * Fe + 1) * cg1(Fg, m, 1, Fe)) ** 2 / (2 * Fg + 1);
       out.push({ iso: isoName, Fg, Fe, nu, S, share: ab * (2 * Fg + 1) / ((2 * J + 1) * (2 * I + 1)), m: X.m * AMU, A, lam,
         // integrated cross-section of the whole F -> all F' line, m^2 Hz, before S
         sInt: lam * lam / (8 * Math.PI) * (2 * Jp + 1) / (2 * J + 1) * A,
-        // two-level saturation intensity of a cycling transition, W/m^2
-        Isat: Math.PI * HPL * C_SI * A / (3 * lam ** 3) });
+        // saturation intensity, W/m^2: the cycling transition's (Isat0), scaled as above
+        Isat0: Math.PI * HPL * C_SI * A / (3 * lam ** 3), Isat: Math.PI * HPL * C_SI * A / (3 * lam ** 3) * 3 * (2 * J + 1) / (2 * Jp + 1) / w2 });
     }
   }
   atomLineCache.set(key, out);
@@ -5331,8 +5370,8 @@ function nlcConvert(el, P, nm, q, nq, cth) {
   const g = nq > 1.01 ? 1 : n1;
   const b = 2 * g * q[1] * 1e-3, xi = L / b, mu = -2 * g * q[0] * 1e-3 / L;
   let period = el.period, sigma, h;
-  if (!(period > 0)) { const B = bkBest(xi, mu); sigma = B.sigma; h = B.h; period = 2 * Math.PI * cth / (k2 - 2 * k1 - 2 * sigma / b) * 1e6; }
-  else { sigma = b * (k2 - 2 * k1 - 2 * Math.PI * cth / (period * 1e-6)) / 2; h = bkH(sigma, xi, mu); }
+  if (!(period > 0)) { const B = bkBest(xi, mu); sigma = B.sigma; h = B.h; period = 2 * Math.PI * cth / (k2 - 2 * k1 + 2 * sigma / b) * 1e6; }
+  else { sigma = b * (2 * k1 + 2 * Math.PI * cth / (period * 1e-6) - k2) / 2; h = bkH(sigma, xi, mu); }   // sigma = b dk / 2, dk = 2 k1 + K - k2
   const eta = 16 * Math.PI ** 2 * M.d ** 2 * L * h / (EPS0 * C_SI * (nm * 1e-9) ** 3 * n1 * n2);      // 1/W
   const P2 = P > 0 ? P * Math.tanh(Math.sqrt(eta * P)) ** 2 : 0;
   return { P2, conv: P > 0 ? P2 / P : 0, eta, h, xi, sigma, mu, period, periodPW: nlcPeriod(el.material, nm, T), n1, n2, b };
@@ -5594,7 +5633,10 @@ function eomSidebands(el) {
   // ELEC hook: a slow drive _v (volts, set only while the electronics trace it) adds to the bias, or in phase mode a phase pi v / V_pi
   const dv = el._v ? el._v / Math.max(1e-6, num(el.vpi, 5)) : 0;
   const out = [], b = el.beta, a = Math.pow(10, -Math.max(0, el.loss || 0) / 20), ph = (el.bias || 0) * Math.PI / 180 + dv * Math.PI;
-  for (let n = -40; n <= 40; n++) {
+  // J_n(B) dies away past n = B and a few B^(1/3) (to 1e-20 in power by B + 6 B^(1/3) + 10):
+  // as far as that, at least 40, at most 400 (a deeper drive is out past what a trace can branch)
+  const B = Math.abs(el.emode === 'amplitude' ? b / 2 : b), N = Math.min(400, Math.max(40, Math.ceil(B + 6 * Math.cbrt(B) + 10)));
+  for (let n = -N; n <= N; n++) {
     let c;
     if (el.emode === 'amplitude') { const j = besselJn(n, b / 2) / 2, sg = n % 2 ? -1 : 1; c = [j * (Math.cos(ph / 2) + sg * Math.cos(ph / 2)), j * (Math.sin(ph / 2) - sg * Math.sin(ph / 2))]; }
     else c = [besselJn(n, b) * Math.cos(dv * Math.PI), besselJn(n, b) * Math.sin(dv * Math.PI)];
@@ -6476,7 +6518,9 @@ function laguerre(p, a, x) {
    reported. The far-field pattern is the Fourier transform of the aperture field itself. */
 const CHI = 1.8411837813, J0Z = 2.4048255577;
 /* the field at (x, y) in units of the aperture's radius a (half its side for a diagonal horn), as
-   [along the polarisation, across it]; k is the fitted Gaussian's radius over a */
+   [along the polarisation, across it]; k is the fitted Gaussian's radius over a; ext how far out
+   the field reaches along x and y, in a (1 unless given: a diagonal horn's square stands on its
+   corners, half a diagonal, sqrt2 a, out along each) */
 const HORN_FIELDS = {
   corrugated: { k: 0.6435, field: (x, y) => { const r = Math.hypot(x, y); return r > 1 ? [0, 0] : [besselJn(0, J0Z * r), 0]; } },
   smooth: { k: 0.765, field: (x, y) => {
@@ -6484,7 +6528,7 @@ const HORN_FIELDS = {
     const rho = CHI * r, j0 = besselJn(0, rho), j2 = besselJn(2, rho), c2 = r > 0 ? (x * x - y * y) / (r * r) : 1, s2 = r > 0 ? 2 * x * y / (r * r) : 0;
     return [j0 - j2 * c2, j2 * s2];                      // the field along y: phi from the H-plane (x)
   } },
-  diagonal: { k: 0.86, field: (x, y) => {
+  diagonal: { k: 0.86, ext: Math.SQRT2, field: (x, y) => {
     const u = (x + y) * Math.SQRT1_2, v = (y - x) * Math.SQRT1_2;     // the guide's sides, at 45 degrees to the field
     if (Math.abs(u) > 1 || Math.abs(v) > 1) return [0, 0];
     const cu = Math.cos(Math.PI * u / 2), cv = Math.cos(Math.PI * v / 2);
@@ -6493,7 +6537,7 @@ const HORN_FIELDS = {
   gauss: { k: 0.6435, field: null },
 };
 const NMAX = 12;
-const K = 321;
+const KC = 321;
 const fact = m => { let f = 1; for (let i = 2; i <= m; i++) f *= i; return f; };
 const cmemo = new Map();
 /* a horn's beam as Hermite-Gauss modes of the fitted Gaussian, [m, n, re, im] of one norm summing to
@@ -6503,7 +6547,8 @@ function hornComps(kind) {
   const H = HORN_FIELDS[kind] || HORN_FIELDS.corrugated;
   if (!H.field) return { comps: [[0, 0, 1, 0]], carried: 1, gauss: 1, co: 1, cross: 0, m2: [1, 1] };
   if (cmemo.has(kind)) return cmemo.get(kind);
-  const w = H.k, h = 2 / K, xs = Float64Array.from({ length: K }, (_, i) => -1 + (i + 0.5) * h);
+  // over the whole aperture, at about the same spacing whatever its extent
+  const ext = H.ext || 1, K = Math.ceil(KC * ext) | 1, w = H.k, h = 2 * ext / K, xs = Float64Array.from({ length: K }, (_, i) => -ext + (i + 0.5) * h);
   // the modes along one axis, of one norm on w: H_m(sqrt2 x / w) e^{-x^2/w^2} / sqrt(2^m m!) times (2 / pi w^2)^{1/4}
   const ax = [];
   for (let m = 0; m <= NMAX; m += 2) { const a = new Float64Array(K), nm = Math.sqrt(Math.pow(2, m) * fact(m)); for (let i = 0; i < K; i++) a[i] = hermite(m, Math.SQRT2 * xs[i] / w) * Math.exp(-xs[i] * xs[i] / (w * w)) / nm; ax.push(a); }
@@ -6537,11 +6582,11 @@ function hornPattern(kind, a, L, lam) {
   if (pmemo.has(key)) return pmemo.get(key);
   const H = HORN_FIELDS[kind] || HORN_FIELDS.corrugated, w = H.k;
   const field = H.field || ((x, y) => { const r2 = x * x + y * y; return r2 > 1 ? [0, 0] : [Math.exp(-r2 / (w * w)), 0]; });
-  const KP = 161, h = 2 / KP, k = 2 * Math.PI / lam;
+  const ext = H.ext || 1, KP = Math.ceil(161 * ext) | 1, h = 2 * ext / KP, k = 2 * Math.PI / lam;
   const pts = [];
   let pt = 0;
   for (let j = 0; j < KP; j++) for (let i = 0; i < KP; i++) {
-    const x = -1 + (i + 0.5) * h, y = -1 + (j + 0.5) * h, [fc, fx] = field(x, y);
+    const x = -ext + (i + 0.5) * h, y = -ext + (j + 0.5) * h, [fc, fx] = field(x, y);
     if (!fc && !fx) continue;
     const ph = -k * a * a * (x * x + y * y) / (2 * L);     // the spherical front, out from the apex
     pts.push([x * a, y * a, fc * Math.cos(ph), fc * Math.sin(ph), fx * Math.cos(ph), fx * Math.sin(ph)]);
@@ -7667,12 +7712,13 @@ function srcModes(src) {
   return gsmModes(m2Of(src)).map(([m, n, w]) => ({ w, c: [[m, n, 1, 0]] }));
 }
 /* A cavity driven by a laser with a line of its own: the circulating power averaged over
-   the line. The line is Lc wide in path, 2 pi Lopt / Lc in round-trip phase; the solve's
+   the line. The line is Lc wide in path, 2 pi Lg / Lc in round-trip phase, Lg the round
+   trip's group path (the phase's change with frequency; a cavity's c.Lg); the solve's
    power against detuning is sampled over one free spectral range, more finely round each
    resonance, and the line (repeated every free spectral range) weights it. */
-function cavLine(res, Lopt, src) {
+function cavLine(res, Lg, src) {
   if (!res || !(src && src.coh > 0)) return null;
-  const G = 2 * Math.PI * Lopt / src.coh;
+  const G = 2 * Math.PI * Lg / src.coh;
   if (!(G > 1e-7)) return null;
   const key = G + '|' + src.lineshape;
   if (res._line && res._line.key === key) return res._line;
@@ -8516,7 +8562,7 @@ const AOM = {
   guide: {
     what: 'A free-space acousto-optic modulator: shifts the diffracted order by the drive frequency.',
     angle: 'its normal: 0 for a beam travelling ±x. Order +1 turns the beam anticlockwise by asin(λ·rf/v); order −1 clockwise.',
-    fields: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ shear is typical of fibre AOMs; 650 slow shear).',
+    fields: { length: 'mm aperture.', rf: 'MHz drive: the order is shifted by this.', v: 'm/s sound speed (4200 for TeO₂ longitudinal is typical of fibre AOMs; 650 slow shear).',
     eff: '% into the order.', order: '+1 or −1.' },
   },
 };
@@ -8897,33 +8943,50 @@ function coatPreset(kind, design) {
   }
   return [];
 }
-/* Complex amplitude reflection of a stack, for one polarisation.
-   n0 is the medium the ray is in, ns the one beyond, ci the cosine of incidence. */
-function stackAmp(layers, n0, ns, ci, nmWave, pol) {
+/* A layer's characteristic matrix, [[C, i X], [i Y, C]] with C, X and Y real, for index n and thickness d (nm) at
+   nm, n0 sin(theta0) = sin0 given: [cos d, sin d / eta, eta sin d] where the wave runs through it; beyond its critical
+   angle its cosine is imaginary (the wave evanescent), d = i b and eta imaginary, and the matrix [cosh b, ±sinh b / |eta|,
+   ∓|eta| sinh b] (the same on either branch of the cosine) */
+function filmLayer(n, d, sin0, nm, pol) {
+  const q = 1 - (sin0 / n) * (sin0 / n);
+  if (q >= 0) {
+    const ct = Math.sqrt(Math.max(1e-12, q)), e = pol === 's' ? n * ct : n / ct;
+    const ph = 2 * Math.PI * n * d * ct / nm, sn = Math.sin(ph);           // layer thickness in nm, like the wavelength
+    return [Math.cos(ph), sn / e, e * sn];
+  }
+  const b = Math.sqrt(-q), sh = Math.sinh(2 * Math.PI * n * d * b / nm), g = pol === 's' ? n * b : n / b;
+  return [Math.cosh(2 * Math.PI * n * d * b / nm), pol === 's' ? sh / g : -sh / g, pol === 's' ? -g * sh : g * sh];
+}
+/* a medium's tilted admittance, [re, im], and its cosine of angle: real where the wave runs in it, else imaginary on
+   the branch whose field decays away from the stack (the matrix's convention, e^{-ikz}: cos = -i |cos|) */
+function filmAdmit(n, sin0, pol) {
+  const q = 1 - (sin0 / n) * (sin0 / n);
+  if (q >= 0) { const ct = Math.sqrt(Math.max(1e-12, q)); return [pol === 's' ? n * ct : n / ct, 0, ct, 0]; }
+  const b = Math.sqrt(-q);
+  return pol === 's' ? [0, -n * b, 0, -b] : [0, n / b, 0, -b];
+}
+/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances */
+function filmBC(layers, n0, ns, ci, nmWave, pol) {
   const sin0 = Math.sqrt(Math.max(0, 1 - ci * ci)) * n0;   // n0 sin(theta0), invariant
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
   let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
   for (const L of layers) {
-    const ct = cosIn(L.n);
-    const d = 2 * Math.PI * L.n * L.d * ct / nmWave;       // layer thickness in nm, like the wavelength
-    const c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    // layer matrix [[c, i sn/e], [i e sn, c]]
-    const a11r = c, a11i = 0, a12r = 0, a12i = sn / e, a21r = 0, a21i = e * sn, a22r = c, a22i = 0;
-    const n11r = m11r * a11r - m11i * a11i + m12r * a21r - m12i * a21i;
-    const n11i = m11r * a11i + m11i * a11r + m12r * a21i + m12i * a21r;
-    const n12r = m11r * a12r - m11i * a12i + m12r * a22r - m12i * a22i;
-    const n12i = m11r * a12i + m11i * a12r + m12r * a22i + m12i * a22r;
-    const n21r = m21r * a11r - m21i * a11i + m22r * a21r - m22i * a21i;
-    const n21i = m21r * a11i + m21i * a11r + m22r * a21i + m22i * a21r;
-    const n22r = m21r * a12r - m21i * a12i + m22r * a22r - m22i * a22i;
-    const n22i = m21r * a12i + m21i * a12r + m22r * a22i + m22i * a22r;
-    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i;
-    m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
+    // times the layer's [[c, i x], [i y, c]]
+    const [c, x, y] = filmLayer(L.n, L.d, sin0, nmWave, pol);
+    const n11r = m11r * c - m12i * y, n11i = m11i * c + m12r * y;
+    const n12r = -m11i * x + m12r * c, n12i = m11r * x + m12i * c;
+    const n21r = m21r * c - m22i * y, n21i = m21i * c + m22r * y;
+    const n22r = -m21i * x + m22r * c, n22i = m21r * x + m22i * c;
+    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i; m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
   }
-  const es = eta(ns), e0 = eta(n0);
-  const Br = m11r + m12r * es, Bi = m11i + m12i * es;
-  const Cr = m21r + m22r * es, Ci = m21i + m22i * es;
+  const es = filmAdmit(ns, sin0, pol), e0 = filmAdmit(n0, sin0, pol);
+  const Br = m11r + m12r * es[0] - m12i * es[1], Bi = m11i + m12i * es[0] + m12r * es[1];
+  const Cr = m21r + m22r * es[0] - m22i * es[1], Ci = m21i + m22i * es[0] + m22r * es[1];
+  return { Br, Bi, Cr, Ci, e0: e0[0], es };
+}
+/* Complex amplitude reflection of a stack, for one polarisation.
+   n0 is the medium the ray is in (the wave running in it), ns the one beyond, ci the cosine of incidence. */
+function stackAmp(layers, n0, ns, ci, nmWave, pol) {
+  const { Br, Bi, Cr, Ci, e0 } = filmBC(layers, n0, ns, ci, nmWave, pol);
   const numR = e0 * Br - Cr, numI = e0 * Bi - Ci;
   const denR = e0 * Br + Cr, denI = e0 * Bi + Ci;
   const dd = denR * denR + denI * denI;
@@ -9100,27 +9163,15 @@ function coatToStack(layers, spec, label) {
 /* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
    n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
 function stackT(layers, n0, ns, c0, nm, pol) {
-  const sin0 = Math.sqrt(Math.max(0, 1 - c0 * c0)) * n0;
-  const cosIn = n => Math.sqrt(Math.max(1e-12, 1 - (sin0 / n) * (sin0 / n)));
-  const eta = n => (pol === 's' ? n * cosIn(n) : n / cosIn(n));
-  let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
-  for (const L of layers) {
-    const d = 2 * Math.PI * L.n * L.d * cosIn(L.n) / nm, c = Math.cos(d), sn = Math.sin(d), e = eta(L.n);
-    // times the layer's [[c, i sn/e], [i e sn, c]]
-    const n11r = m11r * c - m12i * e * sn, n11i = m11i * c + m12r * e * sn;
-    const n12r = -m11i * sn / e + m12r * c, n12i = m11r * sn / e + m12i * c;
-    const n21r = m21r * c - m22i * e * sn, n21i = m21i * c + m22r * e * sn;
-    const n22r = -m21i * sn / e + m22r * c, n22i = m21r * sn / e + m22i * c;
-    m11r = n11r; m11i = n11i; m12r = n12r; m12i = n12i; m21r = n21r; m21i = n21i; m22r = n22r; m22i = n22i;
-  }
-  const es = eta(ns), e0 = eta(n0), Br = m11r + m12r * es, Bi = m11i + m12i * es, Cr = m21r + m22r * es, Ci = m21i + m22i * es;
+  const { Br, Bi, Cr, Ci, e0, es } = filmBC(layers, n0, ns, c0, nm, pol);
   const dr = e0 * Br + Cr, di = e0 * Bi + Ci, dd = dr * dr + di * di;
   if (!dd) return [0, 0];
   const t = [2 * e0 * dr / dd, -2 * e0 * di / dd];
-  // p: the field's ratio, not the tangential component's
+  // p: the field's ratio, not the tangential component's (c0 over the cosine beyond, imaginary where the wave there is evanescent)
   if (pol === 's') return t;
-  const k = c0 / cosIn(ns);
-  return [t[0] * k, t[1] * k];
+  if (!es[3]) { const k = c0 / es[2]; return [t[0] * k, t[1] * k]; }
+  const k = -c0 / es[3];
+  return [-t[1] * k, t[0] * k];
 }
 
 /* A refracting face (bare, coated, a film splitter): light from index n1 into n2 meeting it at cosine ci (> 0) at
@@ -9573,7 +9624,10 @@ function maskOf(s) {
 /* A surface's curvature in the bench plane, for the beam's pilot in it: a cylinder rolled about
    its axis keeps cos^2 of its power there (one curved out of the plane, sin^2) */
 function kapIn(s, y) {
-  let k = s.c ? curvAt(s, y) : 0;
+  // any term that curves the face (not the conic alone: a2, the even and odd terms, a freeform's) gives it power; an
+  // axicon's cone alone none (curvAt leaves its r term out)
+  const curved = s.c || s.a2 || (s.A && s.A.some(v => v)) || (s.odd && s.odd.some((v, j) => j && v)) || s.FL;
+  let k = curved ? curvAt(s, y) : 0;
   if (s.tilt && s.roll) {
     const c2 = Math.cos(s.roll) ** 2;
     if (s.cylS) k = (s.cylS.c || 0) * (1 - c2) + 2 * (s.cylS.a2 || 0) * (1 - c2);
@@ -12125,7 +12179,8 @@ function paraxial(el, nm) {
   const N = el.surfaces.length;
   for (let i = 0; i < N; i++) {
     const sd = el.surfaces[i];
-    const c = (sd.R === null ? 0 : 1 / sd.R) + 2 * sd.a2;
+    // the paraxial curvature: the sphere's, and twice the r² terms (a2 and the odd one; an axicon's r term is no power)
+    const c = (sd.R === null ? 0 : 1 / sd.R) + 2 * sd.a2 + 2 * (sd.odd && sd.odd[1] || 0);
     const n2 = i === N - 1 ? 1 : refIndex(el.materials[i], nm);
     u = (n1 * u - (n2 - n1) * c * y) / n2;
     n1 = n2;
@@ -15683,11 +15738,12 @@ function rfCoupling(el) {
   return deviceMemo(el, () => {
     const arr = faceArrivals(el);
     if (!arr.length) return null;
-    const N = 96, rf = el.mmw, H = HORN_FIELDS[rf.kind] || HORN_FIELDS.corrugated, a = rf.a;
+    // the grid over the whole aperture (a diagonal horn's reaches sqrt2 a out), at about the same spacing
+    const rf = el.mmw, H = HORN_FIELDS[rf.kind] || HORN_FIELDS.corrugated, a = rf.a, ext = H.field ? H.ext || 1 : 1, N = Math.ceil(96 * ext);
     let inMw = 0, coupledMw = 0, inS = 0, gotS = 0, beam = null;
     const lines = new Map();
     for (const G of groupsOf(arr)) {
-      const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * a : 3.5 * wa, d = 2 * L / N;
+      const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * ext * a : 3.5 * wa, d = 2 * L / N;
       beam = B;
       // the mode on the grid, [co, cross] at each point, of unit power
       const mc = new Float64Array(N * N), mx = new Float64Array(N * N), rr = new Float64Array(N * N);
@@ -16136,8 +16192,9 @@ function fibreNetCached() {
   const key = JSON.stringify([fels, project.fibres || [], arr, srcs, fels.some(e => e.mod) ? MODS.rev : 0]);   // a mod's component: as its results stand
   if (fibreNetMemo.key !== key) {
     // amplifiers saturate on the total power reaching them: solve, set each one's gain from
-    // what arrived, solve again; G = G0 / (1 + G Pin / Psat) at the band centre, the ratio of
-    // logs then applying across the band
+    // what arrived, solve again; G = G0 exp(-(G - 1) Pin / Ps) at the band centre (a homogeneous
+    // medium's, its added power G Pin - Pin = Ps ln(G0 / G)), Ps = Psat / ln G0 so that a hard
+    // drive adds at most the rated saturated output; the ratio of logs then applying across the band
     const amps = fels.filter(e => e.type === 'fcomp' && e.kind === 'amp');
     ampSat = new Map();
     let net = fibreNet();
@@ -16145,8 +16202,10 @@ function fibreNetCached() {
       let moved = 0;
       for (const A of amps) {
         const Pin = netPower(net.inn.get(pkey(A.id, 0)), net.keys) * 1e-3, Ps = Math.pow(10, A.psat / 10) * 1e-3;
-        const G0 = ampGain(A, A.centre, true), x = Pin / Ps;
-        const G = x > 1e-12 ? (-1 + Math.sqrt(1 + 4 * G0 * x)) / (2 * x) : G0;
+        const G0 = ampGain(A, A.centre, true), x = G0 > 1 ? Pin / Ps * Math.log(G0) : 0;
+        let y = Math.log(Math.max(1, G0));                 // ln G, by Newton from ln G0 (f convex: it comes down to the root)
+        if (x > 1e-12) for (let i = 0; i < 60; i++) { const f = y - Math.log(G0) + (Math.exp(y) - 1) * x, d = f / (1 + x * Math.exp(y)); y -= d; if (Math.abs(d) < 1e-12) break; }
+        const G = Math.exp(Math.max(0, y));
         const s = G0 > 1 ? Math.log(Math.max(1, G)) / Math.log(G0) : 1, was = ampSat.has(A.id) ? ampSat.get(A.id) : 1;
         ampSat.set(A.id, 0.5 * (s + was) * (it === 0 ? 0 : 1) + (it === 0 ? s : 0));
         moved = Math.max(moved, Math.abs(s - was));
@@ -16737,8 +16796,10 @@ function picScatter(el, port, nm, fo) {
   const r = solveChip(c, lam, j), rp = solveChip(c, lam + d, j), rm = solveChip(c, lam - d, j);
   const th = e => (e.polAngle || 0) * Math.PI / 180;
   const ti = th(el), ci = Math.cos(ti), si = Math.sin(ti);
-  // the delay as a path: dphi/dlambda lambda^2 / 2 pi (e^{-ikz}: phase falls as the path grows)
-  const path = (a, b) => { const dph = Math.atan2(b[1], b[0]) - Math.atan2(a[1], a[0]), w = dph - 2 * Math.PI * Math.round(dph / (2 * Math.PI)); return -w / (2 * d) * lam * lam / (2 * Math.PI) * 1e-6; };
+  // the delay as a path, mm: dphi/dlambda lambda^2 / 2 pi, a from lam - d and b from lam + d.
+  // With e^{-ikz} the phase is -2 pi n L / lambda, which rises with lambda: dphi/dlambda =
+  // 2 pi n_g L / lambda^2, so the path comes out +n_g L, as a fibre adds FIBRE_NG L
+  const path = (a, b) => { const dph = Math.atan2(b[1], b[0]) - Math.atan2(a[1], a[0]), w = dph - 2 * Math.PI * Math.round(dph / (2 * Math.PI)); return w / (2 * d) * lam * lam / (2 * Math.PI) * 1e-6; };
   const out = [];
   c.ext.forEach((e, i) => {
     const P = c.ports.find(q => q.g === e);
@@ -25169,7 +25230,7 @@ function cellInfo(el) {
   const nu0 = ATOM_ISO[iso0][el.line].nu, T = el.temp + 273.15;
   const beams = ((lastTrace.cells || []).filter(c => c.id === el.id));
   const dop = a => 2 * Math.sqrt(Math.LN2) * a.nu / C_SI * Math.sqrt(2 * KB * T / a.m);
-  return { lines, nu0, beams, n: cellDensity(el), doppler: dop(lines[0]), natural: lines[0].A / (2 * Math.PI), Isat: lines[0].Isat };
+  return { lines, nu0, beams, n: cellDensity(el), doppler: dop(lines[0]), natural: lines[0].A / (2 * Math.PI), Isat: lines[0].Isat0 || lines[0].Isat };
 }
 function drawCellSpectrum(cv, el, span) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 170;
@@ -30796,7 +30857,7 @@ function cavityCard(c) {
       const scale = S.eng === '2d' ? 1 : (() => { const J = c.segs[0].J; return J.reduce((a, v) => a + v * v, 0); })();
       const off = -P.dLock * c.fsr / (2 * Math.PI), src = getEl(c.segs[0].src);
       // every mode of a beam of M^2 above 1, and over the laser's line when it has one
-      const all = [S, ...(S.others || [])], line = r => cavLine(r.res, c.Lopt, src);
+      const all = [S, ...(S.others || [])], line = r => cavLine(r.res, c.Lg || c.Lopt, src);
       const circ0 = all.reduce((a, r) => a + r.res.at(r.delta).P, 0) * scale;
       const circ = all.reduce((a, r) => { const l = line(r); return a + (l ? l.avg(r.delta) : r.res.at(r.delta).P); }, 0) * scale;
       rows.push(['Circulating (\u00d7 the source)', String(+circ.toPrecision(4)) + (S.mode === 'lock' ? ', locked' : ', as built') + (circ !== circ0 ? ', over the laser\u2019s line' : '')]);
@@ -30869,7 +30930,7 @@ function drawCavityScan(cv, c, pseudo) {
   // every mode of a beam of M^2 above 1 adds its power; a laser with a line of its own
   // builds up the average over it (solid), the line's centre alone shown faint
   const all = [S, ...(S.others || [])], src = getEl(c.segs[0].src);
-  const lines = all.map(r => cavLine(r.res, c.Lopt, src));
+  const lines = all.map(r => cavLine(r.res, c.Lg || c.Lopt, src));
   const pk = all.reduce((a, r) => a + r.res.Plock, 0);
   const curve = (fn, style, lw) => {
     g.strokeStyle = style; g.lineWidth = lw; g.beginPath();
@@ -31891,7 +31952,8 @@ const qThrough = (m, q) => { const nr = m[0] * q[0] + m[1], ni = m[0] * q[1], dr
    with s = l + 1/l they solve s^2 - tr(M) s + (b - 2) = 0, b = (tr(M)^2 - tr(M^2)) / 2. The loop is
    stable when both s are real and inside (-2, 2): l = e^{+-i theta}, theta each axis's round-trip
    Gouy phase. Its mode is Q = X Y^-1 from one eigenvector of each pair, [X; Y] (heights over
-   reduced slopes), taken so that Im Q is positive: the beam confined */
+   reduced slopes), taken so that Im Q is positive: the beam confined. That pair's l is e^{-i theta},
+   theta signed as a plane's sign(B) acos(h) (there, l = Cq + D with Im q > 0) */
 const ev4 = m => {
   const A = m.m4 ? m.m4.A : [[m.x[0], 0], [0, m.y[0]]], C = m.m4 ? m.m4.C : [[m.x[2], 0], [0, m.y[2]]];
   const d = A[0][0] * A[1][1] - A[0][1] * A[1][0], D = [[A[1][1] / d, -A[1][0] / d], [-A[0][1] / d, A[0][0] / d]];
@@ -31921,22 +31983,23 @@ function cav4Eigen(M) {
     return free.map(fc => { const v = [[0, 0], [0, 0], [0, 0], [0, 0]]; v[fc] = [1, 0]; piv.forEach((pc, r) => { v[pc] = cz.r(cz.d(N[r][fc], N[r][pc]), -1); }); return v; });
   };
   const lam = si => { const c = si / 2, sn = Math.sqrt(Math.max(0, 1 - c * c)); return [[c, sn], [c, -sn]]; };
-  const tryQ = (v1, v2) => {
+  const tryQ = (v1, v2, l1, l2) => {
     const X = [v1[0], v2[0], v1[1], v2[1]], Y = [v1[2], v2[2], v1[3], v2[3]], dY = ccDet(Y);
     if (!(Math.hypot(dY[0], dY[1]) > 1e-300)) return null;
     const Q = ccMul(X, ccInv(Y)), im = [Q[0][1], 0.5 * (Q[1][1] + Q[2][1]), Q[3][1]];
     if (!(im[0] > 0 && im[0] * im[2] - im[1] * im[1] > 0)) return null;
     const sym = cz.r(cz.a(Q[1], Q[2]), 0.5);
-    return { stable: true, s, Q: [Q[0], sym, sym, Q[3]], theta: [Math.acos(s[0] / 2), Math.acos(s[1] / 2)] };
+    return { stable: true, s, Q: [Q[0], sym, sym, Q[3]], theta: [-Math.atan2(l1[1], l1[0]), -Math.atan2(l2[1], l2[0])] };
   };
   if (Math.abs(s[0] - s[1]) < 1e-7) {
     // both axes alike: one l with a plane of eigenvectors
-    for (const l of lam(s[0])) { const V = nullOf(l); if (V.length >= 2) { const r = tryQ(V[0], V[1]); if (r) return r; } }
+    for (const l of lam(s[0])) { const V = nullOf(l); if (V.length >= 2) { const r = tryQ(V[0], V[1], l, l); if (r) return r; } }
   }
   for (const a of lam(s[0])) for (const bq of lam(s[1])) {
     const V1 = nullOf(a), V2 = nullOf(bq);
-    if (!V1.length || !V2.length) continue;
-    const r = tryQ(V1[0], V2[0]); if (r) return r;
+    // (axes nearly alike, as in a round loop barely tipped: each null space can hold both
+    // axes' vectors, so each pairing is tried)
+    for (const v1 of V1) for (const v2 of V2) { const r = tryQ(v1, v2, a, bq); if (r) return r; }
   }
   return { stable: false, s };
 }
@@ -32082,7 +32145,9 @@ function cavAnalyse(path, s, p, beams) {
     for (let j = 0; j < p; j++) { M = mul4(free4((B[j].len3 || B[j].len) / B[j].n), M); M = mul4(ev4(mats[(j + 1) % p]), M); }
     E4 = Object.assign(cav4Eigen(M), { M });
   }
-  const Lopt = B.reduce((a, b) => a + b.n * (b.len3 || b.len), 0), fsr = c0 / (Lopt * 1e-3);
+  // the round trip's optical path (phase index) and group path (group index), which sets the
+  // free spectral range: modes c / Lg apart, a dispersive crystal's closer than c / Lopt
+  const Lopt = B.reduce((a, b) => a + b.n * (b.len3 || b.len), 0), Lg = B.reduce((a, b) => a + (b.ng || b.n) * (b.len3 || b.len), 0), fsr = c0 / (Lg * 1e-3);
   // the surfaces, in order, and whether it is a standing (linear) or travelling (ring) loop
   const retro = evs.filter(ev => ev && ev.dOut && ev.dIn[0] * ev.dOut[0] + ev.dIn[1] * ev.dOut[1] < -0.999).length;
   const kind = retro >= 2 ? 'linear' : 'ring';
@@ -32210,7 +32275,7 @@ function cavAnalyse(path, s, p, beams) {
     kind, names, surfaces: evs.map(ev => ev && ev.el), p, Mx, My, M4: E4 ? E4.M : null,
     stability: E4 ? (E4.s ? { x: Math.abs(E4.s[0]) < 2 ? 'stable' : 'unstable', y: Math.abs(E4.s[1]) < 2 ? 'stable' : 'unstable', hx: E4.s[0] / 2, hy: E4.s[1] / 2, turned: true }
       : { x: 'unstable', y: 'unstable', hx: NaN, hy: NaN, turned: true }) : { x: stab(Mx), y: stab(My), hx: 0.5 * (Mx[0] + Mx[3]), hy: 0.5 * (My[0] + My[3]) },
-    Lopt, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin, sens,
+    Lopt, Lg, fsr, rho, finesse, linewidth: finesse ? fsr / finesse : null, buildup, Tin, sens,
     gouy: { x: gx, y: gy }, tms: { x: tms(gx), y: tms(gy) }, mode: { qx: E4 && E4.stable ? along[0] && along[0].qx : qx, qy: E4 && E4.stable ? along[0] && along[0].qy : qy, Q: E4 && E4.stable ? E4.Q : null, along, waists }, axis, match, lam0, segs: B,
   };
 }
@@ -34385,10 +34450,11 @@ function* popRunGen(beams, srcs, opts = {}) {
         const mode = (project.cavityLock && project.cavityLock[L.canon]) || 'lock';
         // one laser, one frequency: the higher modes of a beam of M^2 above 1 keep its lock
         const lk = L.canon + '|' + eng + '|' + (opts.paraxial ? 'p' : '');
-        // light shifted by f from the laser (a modulator's sideband) is 2 pi f Lopt / c further
-        // round in each round trip than the laser itself, locked or not: as the laser would be
-        // raised by f, which (the field going as e^{-ikz}) lowers delta
-        const LoptF = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
+        // light shifted by f from the laser (a modulator's sideband) is 2 pi f Lg / c further
+        // round in each round trip than the laser itself, locked or not (Lg the group path: the
+        // phase's own change with frequency): as the laser would be raised by f, which (the
+        // field going as e^{-ikz}) lowers delta
+        const LoptF = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + (beams[i].ng || beams[i].n) * beams[i].len, 0);
         const base = mode === 'lock' && res ? ((job.mode || b.fo) && lockOf.has(lk) ? lockOf.get(lk) : res.dLock) : 0;
         const delta = base - (b.fo ? 2 * Math.PI * b.fo * LoptF / C_MM : 0);
         if (!job.mode && !b.fo) lockOf.set(lk, delta);
@@ -34401,8 +34467,9 @@ function* popRunGen(beams, srcs, opts = {}) {
           // Lorentzian line, right to first order for a Gaussian): the mean field is the solve
           // with the round trip damped by gamma(Lopt). It carries on as the launch itself,
           // interfering with the prompt reflection; what the line's average power holds beyond
-          // it carries on as light of its own that interferes with nothing.
-          const Lopt = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + beams[i].n * beams[i].len, 0);
+          // it carries on as light of its own that interferes with nothing. (Lopt here the group
+          // path, the delay a line's coherence goes by.)
+          const Lopt = L.path.slice(L.s, L.s + L.p).reduce((a, i) => a + (beams[i].ng || beams[i].n) * beams[i].len, 0);
           const line = cavLine(res, Lopt, src), P = res.at(delta).P;
           if (line && P > 0) {
             const g1 = cohGamma(src)(Lopt), pw = F => (eng === '2d' ? popStats2(F) : popStats(F)).power;
@@ -37077,7 +37144,7 @@ function paraStep(S, y, u, i0, i1) {
     // through a graded glass its r² term's matrix; else straight
     if (i > i0 && S.GR && S.GR[i - 1]) { const m = grMatrix(S.GR[i - 1].G[0], S.n[i], S.z[i] - S.z[i - 1]); [y, u] = [m[0] * y + m[1] * u, m[2] * y + m[3] * u]; }
     else if (i > i0) y += (S.z[i] - S.z[i - 1]) * u;
-    const pc = S.PC && S.PC[i] !== undefined ? S.PC[i] : (S.cyl && S.cyl[i] === 2 ? 0 : S.c[i] + 2 * S.a2[i]) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
+    const pc = S.PC && S.PC[i] !== undefined ? S.PC[i] : (S.cyl && S.cyl[i] === 2 ? 0 : paraC(S, i)) + (S.FL && S.FL[i] ? 2 * ffY2(S.FL[i]) : 0);    // the paraxial curvature (in the plane of the fields; a cylinder curved out of it has none)
     // a mirror, unfolded: the light carries on, bent as by a lens of power -2 n c
     if (S.mir && S.mir[i]) u += 2 * pc * y;
     else u = (S.n[i] * u - (S.n[i + 1] - S.n[i]) * pc * y - dPow(S, i) * y) / S.n[i + 1];
@@ -37117,6 +37184,11 @@ function paraxialOf(S) {
 // a diffractive face's power at the system's wavelength (0 for any other)
 const dPow = (S, i) => (S.PH && S.PH[i] ? dpPower(S.PH[i], S.DM[i], S.lam) : 0);
 const ffY2 = L => { let v = 0; for (const [m, n, c] of L) if (m === 0 && n === 2) v += c; return v; };
+/* an odd term's coefficient (j: 0 for rho, 1 for rho^2, ...), 0 where there is none */
+const oddAt = (S, i, j) => (S.odd[i] && S.odd[i].length > j ? S.odd[i][j] : 0);
+/* surface i's paraxial curvature from its sag: the conic's, and twice its rho^2 terms (a2 and the odd one); the odd rho
+   term, a cone's, has no curvature at the axis (its kink there is not a power) and is left out, as is rho^3 */
+const paraC = (S, i) => S.c[i] + 2 * S.a2[i] + 2 * oddAt(S, i, 1);
 /* the sag; a zoned RF lens's cut face (S.zone[i], as the RF designer sets it: core/rf.js lensZones) is the smooth face stepped
    back by the whole layers taken out at that radius, each step a sheer wall, as the bench traces it (core/geometry.js) */
 const sag = (S, i, r2) => sagR2(S.c[i], S.k[i], S.a2[i], S.A[i], S.odd[i], r2, true) + (S.zone && S.zone[i] ? S.zone[i].sg * S.zone[i].k(Math.sqrt(r2)) * S.zone[i].dz : 0);
@@ -37163,7 +37235,8 @@ function meetT(S, i, x, y, z, L, M, Nn) {
     if (!isFinite(f) || Math.abs(d) < 1e-15) return null;
     const dt = f / d;
     t -= dt;
-    if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) return t > -1e-9 || (i > 0 && S.z[i] < S.z[i - 1] - 1e-12) ? t : null;   // a negative gap: the surface is behind
+    // settled past the edge of the conic's sphere (on its clamped sag): no meeting
+    if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) return !pastEdge(S.c[i], S.k[i], r2) && (t > -1e-9 || (i > 0 && S.z[i] < S.z[i - 1] - 1e-12)) ? t : null;   // a negative gap: the surface is behind
   }
   return null;
 }
@@ -37219,7 +37292,8 @@ function traceRay(S, R, i0, i1, noClip, rec) {
       if (!isFinite(f) || Math.abs(d) < 1e-15) break;
       const dt = f / d;
       t -= dt;
-      if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = true; break; }
+      // settled past the edge of the conic's sphere, on its sag clamped there for the search: it misses the surface
+      if (Math.abs(dt) < 1e-13 * (1 + Math.abs(t))) { ok = !pastEdge(S.c[i], S.k[i], r2); break; }
     }
     if (!ok) return stop(-(1 + i));
     x += L * t; y += M * t; z += Nn * t; opl += (GM ? nHere : ni) * t;
@@ -37442,7 +37516,8 @@ function spotOf(S, fieldDeg, pts) {
    An aspheric surface adds 8 (n' - n) G y⁴ to SI, G its fourth-order sag beyond the sphere of its
    paraxial curvature, and the same times ȳ/y, (ȳ/y)², (ȳ/y)³ to SII, SIII and SV. The sums are
    wavefront coefficients in mm, in the usual sign convention: an uncorrected positive singlet has
-   SI > 0. A surface's odd terms have no third-order part and are left out. S at the primary
+   SI > 0. A surface's odd rho^2 and rho^4 terms count as its even ones do (in its paraxial curvature and G); its
+   odd rho and rho^3 terms have no third-order part and are left out. S at the primary
    wavelength, Sshort and Slong at the shortest and longest (or null). */
 const NS = 1e6;
 function seidel(S, fieldDeg, Sshort, Slong) {
@@ -37479,9 +37554,9 @@ function seidel(S, fieldDeg, Sshort, Slong) {
     const sg1 = S.mir && S.mir[i] ? -sg : sg;
     // (in the plane of the fields: a cylinder curved out of it counts as flat)
     const flatHere = S.cyl && S.cyl[i] === 2;
-    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = flatHere ? 0 : sg * (S.c[i] + 2 * S.a2[i]);
-    // the aspheric part: fourth-order sag beyond the paraxial sphere
-    const c0 = flatHere ? 0 : sg * S.c[i], A4 = S.A[i] && !flatHere ? sg * S.A[i][0] : 0, G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
+    const n = sg * S.n[i], n1 = sg1 * S.n[i + 1], c = flatHere ? 0 : sg * paraC(S, i);
+    // the aspheric part: fourth-order sag beyond the paraxial sphere (the even rho^4 term and the odd one)
+    const c0 = flatHere ? 0 : sg * S.c[i], A4 = flatHere ? 0 : sg * ((S.A[i] ? S.A[i][0] : 0) + oddAt(S, i, 3)), G = ((1 + S.k[i]) * c0 * c0 * c0 - c * c * c) / 8 + A4;
     const dn = Sshort && Slong ? sg * (Sshort.n[i] - Slong.n[i]) : null, dn1 = Sshort && Slong ? sg1 * (Sshort.n[i + 1] - Slong.n[i + 1]) : null;
     let r;
     if (S.PH && S.PH[i]) {
@@ -40173,7 +40248,7 @@ function rfTrace(asm, P, ghz, opts) {
     // a face moved off the axis (tolerancing; a section's centre, not its parent's vertex) and tilted (a mirror's beyond its fold)
     const dcy = s.sec ? s.sec.c[1] || 0 : s.dec ? s.dec[1] || 0 : 0, tl = (s.tilt ? s.tilt[0] || 0 : 0) - (s.mirror ? s.fold || 0 : 0);
     surf.push({ i, z: S.z[i], w, R: beamOf(q, lam).R, semi: a, yc, taper: isFinite(a) ? 8.686 * (a / w) ** 2 : Infinity, spill: isFinite(a) ? 1 - gaussPass(a, w, yc - dcy) : 0, kind: sps[i].kind, pi: sps[i].pi });
-    const pc = s.pc !== undefined ? s.pc : S.c[i] + 2 * S.a2[i];
+    const pc = s.pc !== undefined ? s.pc : paraC(S, i);
     const phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     // 1/q' = 1/q - phi, in reduced form; the centre refracted about the face's own centre, and bent by a tilted face as a prism
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
@@ -40317,7 +40392,7 @@ function rfQBefore(asm, P, ghz, idx, feedD) {
   const R = normRfCond(asm.rf), nm = rfNm(ghz), S = lensSystem(P, nm), B = rfBeam(R.feed, ghz);
   let q = [(feedD === undefined ? R.feed.d : feedD) + B.dz, B.zR];
   for (let i = 0; i < idx; i++) {
-    const pc = P.surfaces[i].pc !== undefined ? P.surfaces[i].pc : S.c[i] + 2 * S.a2[i], phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
+    const pc = P.surfaces[i].pc !== undefined ? P.surfaces[i].pc : paraC(S, i), phi = S.mir[i] ? -2 * pc : (S.n[i + 1] - S.n[i]) * pc;
     const iq = cdiv([1, 0], q); q = cdiv([1, 0], [iq[0] - phi, iq[1]]);
     q = rfGap(q, P.gaps[i], S.n[i + 1], rfGR(S, i));
   }
@@ -41284,10 +41359,11 @@ function tolSensitivity(prob, T, from, to) {
   return Object.assign({ nominal: nom.crit, nominalDz: nom.dz, count: ops.length, rows }, nom.cv ? { nominalCv: nom.cv } : {});
 }
 /* the criterion expected over the builds from the sensitivities, each tolerance's effect on the
-   criterion's square added (a uniform tolerance's mean square is a third of its limit's, a normal
-   one cut at two deviations about a quarter) */
+   criterion's square added (a uniform tolerance's mean square is a third of its limit's; a normal one
+   cut at two deviations, the limit, has a variance of 1 - 4 φ(2) / (2 Φ(2) - 1) = 0.7737 of its
+   deviation's square, so 0.1934 of the limit's) */
 function rssEstimate(nominal, rows, dist) {
-  const f = dist === 'normal' ? 0.25 : 1 / 3;
+  const f = dist === 'normal' ? 0.19344 : 1 / 3;
   let add = 0;
   for (const r of rows) add += f * (((nominal + r.minus) ** 2 - nominal ** 2) + ((nominal + r.plus) ** 2 - nominal ** 2)) / 2;
   return Math.sqrt(Math.max(0, nominal * nominal + add));

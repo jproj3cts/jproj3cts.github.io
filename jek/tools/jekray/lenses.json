@@ -1,0 +1,254 @@
+{
+ "AC254-050-A": {
+  "x": 0,
+  "y": 0,
+  "source": "AC254-050-A_AC254-050-A-Zemax.zar",
+  "name": "AC254-050-A_AC254-050-A-Zemax.zar",
+  "type": "lens",
+  "angle": 0,
+  "diameter": 25.4,
+  "surfaces": [
+   {
+    "R": 33.34000000000005,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "band",
+     "R": 0.5,
+     "lo": 350,
+     "hi": 1700,
+     "label": "AR, assumed"
+    }
+   },
+   {
+    "R": -22.27999999999998,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   },
+   {
+    "R": -291.07000000000244,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "band",
+     "R": 0.5,
+     "lo": 350,
+     "hi": 1700,
+     "label": "AR, assumed"
+    }
+   }
+  ],
+  "gaps": [
+   9,
+   2.5
+  ],
+  "materials": [
+   {
+    "glass": "N-BAF10"
+   },
+   {
+    "glass": "SF10"
+   }
+  ],
+  "design": 587.6
+ },
+ "AC254-100-A": {
+  "x": 0,
+  "y": 0,
+  "source": "AC254-100-A_AC254-100-A-Zemax.zar",
+  "name": "AC254-100-A_AC254-100-A-Zemax.zar",
+  "type": "lens",
+  "angle": 0,
+  "diameter": 25.4,
+  "surfaces": [
+   {
+    "R": 62.749999999999936,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "band",
+     "R": 0.5,
+     "lo": 350,
+     "hi": 1700,
+     "label": "AR, assumed"
+    }
+   },
+   {
+    "R": -45.70999999999993,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   },
+   {
+    "R": -128.22999999999936,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "band",
+     "R": 0.5,
+     "lo": 350,
+     "hi": 1700,
+     "label": "AR, assumed"
+    }
+   }
+  ],
+  "gaps": [
+   4,
+   2.5
+  ],
+  "materials": [
+   {
+    "glass": "N-BK7"
+   },
+   {
+    "glass": "SF5"
+   }
+  ],
+  "design": 587.6
+ },
+ "LA1131": {
+  "x": 0,
+  "y": 0,
+  "source": "LA1131_LA1131-Zemax.zar",
+  "name": "LA1131 Plano-Convex - N-BK7",
+  "type": "lens",
+  "angle": 0,
+  "diameter": 25.4,
+  "surfaces": [
+   {
+    "R": 25.74999999999999,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   },
+   {
+    "R": null,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   }
+  ],
+  "gaps": [
+   5.34
+  ],
+  "materials": [
+   {
+    "glass": "N-BK7"
+   }
+  ],
+  "design": 587.6
+ },
+ "LA1509": {
+  "x": 0,
+  "y": 0,
+  "source": "LA1509_LA1509-Zemax.zar",
+  "name": "LA1509 Plano-Convex - N-BK7",
+  "type": "lens",
+  "angle": 0,
+  "diameter": 25.4,
+  "surfaces": [
+   {
+    "R": 51.50000000000011,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   },
+   {
+    "R": null,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   }
+  ],
+  "gaps": [
+   3.59
+  ],
+  "materials": [
+   {
+    "glass": "N-BK7"
+   }
+  ],
+  "design": 587.6
+ },
+ "LC1582": {
+  "x": 0,
+  "y": 0,
+  "source": "LC1582_LC1582-Zemax.zar",
+  "name": "LC1582 Plano-Concave - N-BK7",
+  "type": "lens",
+  "angle": 0,
+  "diameter": 25.4,
+  "surfaces": [
+   {
+    "R": -38.58999999999994,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   },
+   {
+    "R": null,
+    "k": 0,
+    "a2": 0,
+    "A": [],
+    "semi": null,
+    "coat": {
+     "mode": "bare",
+     "R": 4
+    }
+   }
+  ],
+  "gaps": [
+   3.5
+  ],
+  "materials": [
+   {
+    "glass": "N-BK7"
+   }
+  ],
+  "design": 587.6
+ }
+}

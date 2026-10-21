@@ -255,12 +255,11 @@ function trapSolve(el, R, dom, len) {
     // to obliquity at NA 0.1)
     let P = force ? null : vfPupil(sg, R, { reach: 4.2, M: 96 });
     if (P && P.NA <= VF_NA) P = null;
-    const src = sg.src, root = splitRoot(src);
     // a beam not converging on a focus ahead (collimated, or past its focus) has no pupil to sum
     // from: its propagated field is taken instead, cut along the beam as the search needs
     const leg = P ? null : trapLegPart(sg, P0);
     if (!P && !leg) { skipped.push(sg); continue; }
-    parts.push({ sg, P, leg, b: sg.b, coh: sg.coh, Pw: Math.max(0, root.power) * 1e-3 });
+    parts.push({ sg, P, leg, b: sg.b, coh: sg.coh, Pw: Math.max(0, sg.b.lmw) * 1e-3 });
   }
   if (!parts.length) return { error: 'no focused beam' };
   const isAtom = el.trap in TRAP_ATOMS;
@@ -413,11 +412,13 @@ export function popDiffraction(el, R) {
     const p = sYx * -sg.b.dy + sYy * sg.b.dx;           // cosine of the tilt, signed by the in-plane axis
     return Object.assign({ sg, G, st, ly, p }, arrival3(el, sg.b));
   });
-  // each arrival's laser power (mW): separate lasers weigh in by it, against the strongest arrival's
-  for (const h2 of hits) h2.Pl = Math.max(0, splitRoot(h2.sg.src).power || 0);
+  // each arrival's power (mW), its line's share of its laser's: separate lasers and lines weigh in by it, against the
+  // strongest arrival's laser
+  for (const h2 of hits) h2.Pl = Math.max(0, h2.sg.b.lmw || 0);
   const dom = hits.reduce((x, y) => y.st.power * segW(y.sg) * (y.Pl || 1) > x.st.power * segW(x.sg) * (x.Pl || 1) ? y : x);
-  // so the map stays per unit of the strongest arrival's laser power, the others scaled to it
-  for (const h2 of hits) h2.lw = dom.Pl > 0 ? Math.sqrt(h2.Pl / dom.Pl) : 1;
+  // so the map stays per unit of the strongest arrival's laser power (all its lines), the others scaled to it
+  const PL = Math.max(0, splitRoot(dom.sg.src).power || 0);
+  for (const h2 of hits) h2.lw = PL > 0 ? Math.sqrt(h2.Pl / PL) : 1;
   const { sg, G, st } = dom;
   const lam = G.lam0 / G.n, len = sg.b.len3 || sg.b.len;
   // the other modes of the dominant arrival's beam, when its M^2 is above 1
@@ -750,9 +751,9 @@ export function popDiffraction(el, R) {
   const power = interference === null ? powerInc : powerInc * interference;
   const Dout = {
     symmetric: sg.eng !== '2d', engine: sg.eng, NA, nm: sg.b.nm, airy, cutoff,
-    strehl: Iideal > 0 && !sibs.length ? peak * calib / Iideal : null, peak: peak * segW(sg), power, powerInc, interference, visibility, fine,
+    strehl: Iideal > 0 && !sibs.length ? peak * calib / Iideal : null, peak: peak * segW(sg) * dom.lw * dom.lw, power, powerInc, interference, visibility, fine,
     coherent, wx, wy, arrivals: hits.length, launches: launches.size, tilt,
-    laser: dom.sg.src ? { name: splitRoot(dom.sg.src).name, mW: dom.Pl } : null, lasers: new Set(hits.map(h2 => splitRoot(h2.sg.src).id)).size,
+    laser: dom.sg.src ? { name: splitRoot(dom.sg.src).name, mW: PL } : null, lasers: new Set(hits.map(h2 => splitRoot(h2.sg.src).id)).size,
     stokes: stokes[0] > 0 ? stokes.map(v => v / stokes[0]) : null,
     dop: stokes[0] > 0 ? Math.hypot(stokes[1], stokes[2], stokes[3]) / stokes[0] : null,
     curved: !!el.R, steep: [...R.notes.steep], coarse: [...R.notes.coarse], clipped: [...R.notes.clipped], fan: !!sg.b.fan,

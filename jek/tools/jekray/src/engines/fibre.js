@@ -328,7 +328,7 @@ function tipInputs(el) {
   const out = [];
   // multimode: each beam's own polarisation, scaled to the share it gets in
   if (el.mm) {
-    for (const A of faceArrivals(el)) { const f = Math.sqrt(mmShare(el, A)); out.push({ E: A.J.map(v => v * f), key: A.coh, nm: A.nm, dl: A.gpl + A.lag, root: splitRoot(A.src) }); }
+    for (const A of faceArrivals(el)) { const f = Math.sqrt(mmShare(el, A)); out.push({ E: A.J.map(v => v * f), key: A.coh, nm: A.nm, dl: A.gpl + A.lag, root: splitRoot(A.src), lp: A.b.lmw }); }
     return out;
   }
   for (const A of faceArrivals(el)) {
@@ -341,7 +341,7 @@ function tipInputs(el) {
       s0 += E[0] * M; s1 += E[1] * M; p0 += E[2] * M; p1 += E[3] * M;
     }
     const dd = d * d;
-    out.push({ E: [s0 * dd, s1 * dd, p0 * dd, p1 * dd], key: A.coh, nm: A.nm, dl: A.gpl + A.lag, root: splitRoot(A.src) });
+    out.push({ E: [s0 * dd, s1 * dd, p0 * dd, p1 * dd], key: A.coh, nm: A.nm, dl: A.gpl + A.lag, root: splitRoot(A.src), lp: A.b.lmw });
   }
   return out;
 }
@@ -418,7 +418,7 @@ export function fibreNet() {
     to.set(pkey(...F.a), { port: F.b, Lmm, a, F, end: 'a' });
     to.set(pkey(...F.b), { port: F.a, Lmm, a, F, end: 'b' });
   }
-  // the light put in: lasers, and tips taking in free-space light
+  // the light put in: lasers, and tips taking in free-space light (lp: the mW of its line, its laser's power unless that has several)
   const inputs = [];
   // the narrowest band a filter in the fibres passes or reflects, for how finely broadband light is sliced
   const feat = Math.min(Infinity, ...comps.filter(e => e.type === 'fcomp' && (e.kind === 'tbf' || e.kind === 'fbg' || e.kind === 'wdm')).map(e => e.fwhm));
@@ -452,13 +452,13 @@ export function fibreNet() {
   const groups = new Map();
   for (const I of inputs) {
     const base = famAt(I.key, 0), g = base + '|' + I.nm;
-    if (!groups.has(g)) groups.set(g, { key: base, nm: I.nm, root: I.root, list: [] });
+    if (!groups.has(g)) groups.set(g, { key: base, nm: I.nm, root: I.root, lp: I.lp !== undefined ? I.lp : I.root.power, list: [] });
     groups.get(g).list.push(I);
   }
   const res = { out: new Map(), inn: new Map(), pd: new Map(), tips: new Map(), spm: new Map(), truncated: false, keys: [] };
   const rec = (map, k, g, w) => { if (!map.has(k)) map.set(k, new Map()); const m = map.get(k); if (!m.has(g)) m.set(g, []); m.get(g).push(w); };
   for (const [gk, G] of groups) {
-    res.keys.push({ gk, key: G.key, nm: G.nm, root: G.root });
+    res.keys.push({ gk, key: G.key, nm: G.nm, root: G.root, lp: G.lp });
     const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
     const floor = 1e-20 * Math.max(P0, 1e-30);
     const Smemo = new Map(), Sof = el => { if (!Smemo.has(el.id)) Smemo.set(el.id, el.type === 'fcomp' ? FC[el.kind].S(el, G.nm) : []); return Smemo.get(el.id); };
@@ -512,7 +512,7 @@ export function fibreNet() {
         // nonlinearity too (the pulse then carries the spectrum it leaves with)
         let gdd = (w.gdd || 0) + fibreGDD(f.F, G.nm, f.Lmm / 1000), sp = w.sp || null;
         if (pulsed && f.Lmm > 0) {
-          const r = fibreSPMLater(f.F, G.nm, f.Lmm / 1000, pulsed, pw * (pulsed.power || 0) * 1e-3, w.gdd || 0, w.sp || null);
+          const r = fibreSPMLater(f.F, G.nm, f.Lmm / 1000, pulsed, pw * (G.lp || 0) * 1e-3, w.gdd || 0, w.sp || null);
           if (r) { sp = r; gdd = 0; const o = res.spm.get(f.F.id); if (!o || r.B > o.B) res.spm.set(f.F.id, { B: r.B, broad: r.broad, peak: r.peakIn, nm: G.nm }); }
         }
         arrive(next, q, E, dl, fo, gdd, sp);
@@ -538,7 +538,7 @@ export function netPower(byGroup, keys) {
       const A = ws[i].E, B = ws[j].E, d = A[0] * B[0] + A[1] * B[1] + A[2] * B[2] + A[3] * B[3];
       s += (i === j ? 1 : 2 * (g ? g(ws[i].dl - ws[j].dl) : 1)) * d;
     }
-    mw += s * (K.root.power || 0);
+    mw += s * (K.lp || 0);
   }
   return mw;
 }
@@ -558,7 +558,7 @@ function tipLaunches(net, byG) {
     if (!K.root.slice) { out.push([K, ws]); continue; }
     const g = K.root.of.id + K.root.half;
     if (!grp.has(g)) grp.set(g, []);
-    grp.get(g).push({ K, ws, p: pw(ws) * (K.root.power || 0) });
+    grp.get(g).push({ K, ws, p: pw(ws) * (K.lp || 0) });
   }
   for (const L of grp.values()) {
     const P = L.reduce((a, q) => a + q.p, 0);
@@ -607,7 +607,7 @@ export function tipSources(net) {
           gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : tipModeW(tip, nm), z0: 0,
           m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitTraceRays !== false && tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
           popN: tip.popN || 256, popModel: tip.popModel || 'auto', pol: 's', polAngle: 0,
-          coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.root.power || 0),
+          coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.lp || 0), vLp: K.lp,
           // a pulsed fibre laser's pulse, chirped by the fibres it came through
           tau: K.root.tau || 0, pshape: K.root.pshape || 'sech2', rep: K.root.rep || 80, gdd0: (c.sp ? 0 : K.root.gdd0 || 0) + (c.pw > 0 ? c.gw / c.pw : 0),
           // a spectrum a fibre's nonlinearity reshaped (its chirp at the laser already in it)

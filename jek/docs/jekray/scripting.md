@@ -41,7 +41,7 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.serialize()` | The bench as a `.jekray` object. |
 | `JEKray.trace()` | Traces it now (loading and changing a part trace on their own; this forces one). |
 | `JEKray.select(name)` | Selects a part, so its panel is open. |
-| `JEKray.stats(name)` | A screen's spot: count, centroid, rms, full width, power. |
+| `JEKray.stats(name)` | A screen's spot: count, centroid, rms, full width, power (see below: not mW). |
 | `JEKray.detector(name)` | A photodetector's or receiving horn's reading: mW, volts, SNR. |
 | `JEKray.spectrometer(name)` | A spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance, counts, saturation, SNR and the lines that get in. |
 | `JEKray.lensAntenna(name)` | An RF lens, disc or mirror on its axis as an antenna: gain, beamwidth, sidelobe, efficiencies. |
@@ -51,6 +51,8 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.exportZmx(names)` | Parts as a lens file. |
 | `JEKray.sweepPlay(name, path)`, `JEKray.sweepPause()` | A sweep played and paused. |
 | `JEKray.typeLabel(name)`, `JEKray.benches()`, `JEKray.showTab(name)` | What a part is called, the bench tabs, and switching between them. |
+
+A screen's `power` (from `JEKray.stats`, the headless `screen()` and the command line's `screen`) is the sum of the weights of the rays that reach it, not milliwatts: each ray leaves its source with weight 1 (an unpolarised one as two halves of ½), a fan for each of the source's wavelengths, so it counts rays as much as light and changes with a source's number of rays and lines. `powerPct` beside it is that sum as a percentage of what the sources reaching the screen send out, so `powerPct / 100` times those sources' power is the mW in the rays. For a reading in mW, put a photodetector there and read it with `detector`: it takes Gaussian beams by their fields and ray fans by each ray's share of its source's power.
 
 Parameters have **paths**, the same the panels and sweeps use: `x`, `angle`, `surfaces.0.R`, `gaps.0`, `mmw.ghz`, `grin.f`. The parts' fields are listed under each part in [Parts](/jek/docs/jekray/params.json) and in the [AI guide](/jek/tools/jekray-ai-guide.md).
 
@@ -65,7 +67,7 @@ import { openFile } from './jek/tools/jekray/headless.mjs';
 
 const B = await openFile('my-bench.jekray');
 B.trace();                                   // { rays, rayPower, beams, dropped, absorbed }
-B.screen('Sensor');                          // the spot on a screen
+B.screen('Sensor');                          // the spot on a screen (power: the rays' weights, not mW)
 B.detector('PD');                            // a photodetector's reading
 B.spectrometer('Spectrometer');              // a spectrometer's peak, width, counts and SNR
 B.antenna('GRIN lens');                      // an RF lens as an antenna

@@ -41,7 +41,7 @@ With **Reflect what it blocks** on, what the filter rejects is reflected as a mi
 ## Assumptions
 
 <div class="dx-warn" markdown="1">
-- The transmission does not depend on the angle of incidence or the polarisation. A real interference filter's edge moves to shorter wavelengths as it is tilted.
+- The transmission does not depend on the angle of incidence or the polarisation: a tilted filter is the same as one square on. A neutral density filter transmits $$10^{-D}$$ at any angle (a real one's longer path through its glass takes a little more), and an edge or band stays where it is, where a real interference filter's moves to shorter wavelengths as it is tilted.
 - The filter is thin: no substrate, no refraction and no added path.
 </div>
 

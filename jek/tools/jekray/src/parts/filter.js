@@ -24,7 +24,7 @@ export const FILTER = {
   },
   guide: {
     what: 'A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic).',
-    angle: 'its normal: 0 for a beam travelling ±x.',
+    angle: 'its normal: 0 for a beam travelling ±x. A simplification: tilt changes nothing, so an "nd" filter transmits 10^−od at any angle and an edge or band does not move to shorter wavelengths as the filter is tilted (a real interference filter\u2019s does).',
     fields: { length: 'mm aperture.', ftype: 'one of the filter types below.', edge: 'nm: the edge of a long- or short-pass.', slope: 'nm: the 10–90% width of the edge.',
     centre: 'nm: a band-pass centre.', fwhm: 'nm: a band-pass width.', od: 'optical density of an "nd" filter: it transmits 10^−od.', tmax: '% peak transmission.',
     reflect: 'true: what it rejects is reflected (a dichroic) rather than absorbed.',

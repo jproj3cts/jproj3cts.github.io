@@ -355,6 +355,13 @@ export function sourceLines(src) {
   for (const v of src.lines || []) if (!out.includes(v)) out.push(v);
   return out;
 }
+/* The mW its laser puts into each of a source's lines: its power shared equally among them, as
+   its rays share it (a fibre tip's or a harmonic's light is one line, with what it came with).
+   Each beam launched carries it as lmw, so every power read from a beam is that line's own */
+export function lineMw(src) {
+  if (src.virtual) return src.vLp !== undefined ? src.vLp : src.vRoot.power;
+  return splitRoot(src).power / sourceLines(src).length;
+}
 
 /* ---------- Tracing, and when to do it again ----------
    The trace depends on the bench and nothing else (what it works out for itself, lasing gain
@@ -728,7 +735,7 @@ function traceSceneOnce() {
     const root = splitRoot(src), launch = root.id;
     const sAmp = root === src || src.virtual ? 1 : Math.sqrt(Math.max(0, src.power) / Math.max(1e-12, root.power)), sPh = splitOffset(src).ph;
     const cA = sAmp * Math.cos(sPh), sA = sAmp * Math.sin(sPh);
-    const PG = pulseGrid(src);
+    const PG = pulseGrid(src), lmw = lineMw(src);
     const waves = sourceLines(src).map((nm, wi) => [wi, nm, -1]);
     if (PG) for (const q of PG.samples) waves.push(['P' + q.j, q.nm, q.j]);
     for (const [wi, nm, pj] of waves) {
@@ -858,7 +865,7 @@ function traceSceneOnce() {
       const grPlate = Dz => {
         const A0 = gr.at, cx = px - A0.x, cy = py - A0.y, cz = anyZ ? zh - A0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
         const sd = cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 };
-        beams.push(Object.assign({ x0: A0.x, y0: A0.y, qr: A0.qr, qi: A0.qi, n: gr.nb, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: gr.s.el.id,
+        beams.push(Object.assign({ x0: A0.x, y0: A0.y, qr: A0.qr, qi: A0.qi, n: gr.nb, nm, colour, src: src.id, lmw, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: gr.s.el.id,
           J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: A0.opl, gpl, ng: gCur, bench: bn, fo, z0: A0.z, ...(hole > 0 ? { hole } : {}) }, sd));
         bid = beams.length - 1;
         const Gs = gr.G, lam0 = nm * 1e-6, C = 2 * Gs[0] * Dz / gr.nb;
@@ -974,7 +981,7 @@ function traceSceneOnce() {
         }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-          if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
+          if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, lmw, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
             J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl, gpl, ng: gCur, bench: bn, fo, z0: zh, ...(hole > 0 ? { hole } : {}) }, segDir(FAR / 20)));
           if (anyZ) pts.zNext = zh + uz * FAR;
           pts.push(px + dx * FAR, py + dy * FAR);
@@ -988,7 +995,7 @@ function traceSceneOnce() {
           const G0 = gr && gr.at, ex = px + dx * best, ey = py + dy * best;
           const sd = G0 ? (() => { const cx = ex - G0.x, cy = ey - G0.y, cz = anyZ ? zh + (uz || 0) * best - G0.z : 0, l2 = Math.hypot(cx, cy), l3 = Math.hypot(cx, cy, cz) || 1e-12;
             return cz ? { dx: cx / (l2 || 1), dy: cy / (l2 || 1), len: l2, uz: cz / (l2 || 1), len3: l3, d3: [cx, cy, cz] } : { dx: cx / l3, dy: cy / l3, len: l3, uz: 0 }; })() : segDir(best);
-          beams.push(Object.defineProperty(Object.assign({ x0: G0 ? G0.x : px, y0: G0 ? G0.y : py, qr: G0 ? G0.qr : qr, qi: G0 ? G0.qi : qi, n: G0 ? gr.nb : nCur, nm, colour, src: src.id, parent: bid, ev: evt, w: w * qShare,
+          beams.push(Object.defineProperty(Object.assign({ x0: G0 ? G0.x : px, y0: G0 ? G0.y : py, qr: G0 ? G0.qr : qr, qi: G0 ? G0.qi : qi, n: G0 ? gr.nb : nCur, nm, colour, src: src.id, lmw, parent: bid, ev: evt, w: w * qShare,
             fan: !!fan, endEl: hitSeg ? null : hit.el.id, J: [sr, si, pr, pi], coh: fam, pol: pol || 0, par, opl: G0 ? G0.opl : opl, gpl, ng: gCur, bench: bn, fo, z0: G0 ? G0.z : zh, ...(hole > 0 ? { hole } : {}) }, sd),
             'endSurf', { value: hitSeg ? null : hit, enumerable: false }));
           if (G0) gr.at = null;
@@ -1279,7 +1286,7 @@ function traceSceneOnce() {
           const phiR = jonesRoll(s.el, ldx, par), th = (ax ? 0 : Math.PI / 2) + phiR, ac = phiR ? Math.cos(th) : +ax, as = phiR ? Math.sin(th) : +!ax;
           const er = pr * ac + sr * as, ei = pi * ac + si * as;          // the field along the axis
           if (isQ && w > 0 && !src.shg) {
-            const Pw = w * qShare * Math.max(0, splitRoot(src).power) * 1e-3, share = (er * er + ei * ei) / w;
+            const Pw = w * qShare * Math.max(0, lmw) * 1e-3, share = (er * er + ei * ei) / w;
             nlcHits.push({ id: s.el.id, k, src: src.id, nm, fo, P: Pw * share, q: [qr, qi], n: nCur, x: px, y: py, dir: [dx, dy], bench: bn, phiR, cth: Math.abs(cosd) });
             if (anyZ) { nlcHits[nlcHits.length - 1].z = zh; nlcPend = { H: nlcHits[nlcHits.length - 1], el: s.el.id }; }
           }
@@ -1304,7 +1311,7 @@ function traceSceneOnce() {
             // a higher-order mode: the Gaussian it is built on, and its Hermite-Gauss sum for the shape
             const hm = isHigherMode(src), comps = hm ? srcModes(src)[0].c : null;
             bw = beamAt(qr, qi, nCur, nm, hm ? 1 : m2Env(src)).w;
-            const Pw = w * qShare * Math.max(0, splitRoot(src).power) * 1e-3;
+            const Pw = w * qShare * Math.max(0, lmw) * 1e-3;
             if (bw > 0 && Pw > 0) { Iw = 2 * Pw / (Math.PI * (bw * 1e-3) ** 2); cellHits.push({ id: s.el.id, dir: ldir, sec, nu, I: Iw, P: Pw, w: bw, ly, src: src.id, comps, circ: circShares(pr, pi, sr, si, (par ? -1 : 1) * Math.sign(ldx || 1)) }); }
           }
           if (cellPolar(s.el)) {

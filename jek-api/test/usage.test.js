@@ -25,6 +25,14 @@ describe('usage counts', () => {
     expect(cols.sort()).toEqual(['day', 'event', 'n', 'prop', 'tier']);
   });
 
+  it('counts where visits came from and what they led to, by a post\'s tag', async () => {
+    expect((await post({ tier: 'anon', ev: [['from', 'ig-spectrometer'], ['from', 'ig-spectrometer.again'], ['goal', 'ig-spectrometer.save'], ['prompt', 'save.shown'], ['remind', '']] })).status).toBe(200);
+    const r = await report();
+    expect(count(r, 'from', 'ig-spectrometer')).toBe(1);
+    expect(count(r, 'goal', 'ig-spectrometer.save')).toBe(1);
+    expect(count(r, 'prompt', 'save.shown')).toBe(1);
+  });
+
   it('takes only known events, plain short tokens and known tiers', async () => {
     for (const bad of [
       { tier: 'anon', ev: [['keylogger', '']] },

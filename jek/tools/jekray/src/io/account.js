@@ -5,7 +5,7 @@ import { toast } from '../ui/actions.js';
 import { menuIcons } from './packs.js';
 import { cloudLink, cloudMenuShown, cloudPush } from './cloud.js';
 import { saveTimer } from './autosave.js';
-import { setUsageOff, track, usageBrowserSaysNo, usageFlush, usageOff } from './usage.js';
+import { goal, setUsageOff, track, usageBrowserSaysNo, usageFlush, usageOff } from './usage.js';
 
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
@@ -36,7 +36,7 @@ export const AUTH_OUTCOMES = {
   consent_failed: ['JEKray was not approved for your organisation. Nothing has changed.', true],
 };
 function signIn(provider, link) {
-  track('signin', provider); usageFlush();
+  track('signin', provider); goal('signin'); usageFlush();
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
   if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
@@ -74,7 +74,7 @@ const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency'
 let subInterval = 'month';
 const acCheck = { email: '', sent: false };   // a university address being confirmed by a code
 export async function showSubscribe() {
-  track('subscribe', '');
+  track('subscribe', ''); goal('subscribe');
   const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
   if (!dlg.open) dlg.showModal();
   box.replaceChildren(h('p', null, 'Loading prices…'));
@@ -195,6 +195,7 @@ export async function awaitPlan(tries = 12) {
         toast(own && own.plan && own.plan.billing && own.active && !own.plan.cancel_at ? 'Your team plan is active. Thank you! Your own subscription is no longer needed: stop it from the team panel.' : 'Your team plan is active. Thank you!');
         showTeam(mine.id);
       } else toast('Welcome to JEKrayPro. Thank you!');
+      goal('pro');
       if (cloud && cloud.dirty) cloudPush({ quiet: true }); return;
     }
   }
@@ -256,6 +257,7 @@ export function fillAccount() {
    also how a forgotten password is replaced: sign in by code, choose a new one). The session arrives as the cookie on
    the reply (the API and the app are one site), so no page leaves. link: the signed-in account adds the address. */
 export function showEmailSignIn(link) {
+  if (!link) { track('signin', 'email'); goal('signin'); }
   let dlg = document.getElementById('emailDialog');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'emailDialog', 'aria-labelledby': 'emailTitle' }); document.body.append(dlg); }
   let mode = link ? 'code' : 'password';                    // 'password' | 'code'
@@ -659,9 +661,52 @@ async function loadAccount() {
     orcidWarned = true;
     setTimeout(() => toast('Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + ': link Google or Microsoft from the account menu, top right, to keep your account.', true), 1200);
   }
+  // an account made in the last half hour: counted once, against where the visit came from
+  try {
+    if (account && Date.now() - account.user.created_at < 30 * 60e3 && !localStorage.getItem('jek-goal-account')) { localStorage.setItem('jek-goal-account', '1'); goal('account'); }
+  } catch (err) { /* not counted */ }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
   handleInvite();
+}
+/* ---------- Sign-in, offered where it helps ----------
+   Signed out, at the two moments an account would have helped. Share asks in a dialog, as a short link is
+   JEKrayPro's and it cannot go on without one. Save has already saved the file, so it only offers, in a note,
+   and then not again for a week. */
+const NUDGE_KEY = 'jek-nudge-save', NUDGE_DAYS = 7;
+function signInRow(where, close) {
+  const go = (p, fn) => () => { track('prompt', where + '.' + p); close(); fn(); };
+  return [h('button', { class: 'rt-btn primary', type: 'button', onclick: go('google', () => signIn('google')) }, 'Sign in with Google'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: go('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: go('email', () => showEmailSignIn(false)) }, 'Email')];
+}
+export function shareSignIn(saveInstead) {
+  track('prompt', 'share.shown');
+  try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch (err) { /* the save note may follow: fine */ }
+  let dlg = document.getElementById('shareSignIn');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'shareSignIn', 'aria-labelledby': 'shareSignInTitle' }); document.body.append(dlg); }
+  const close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'shareSignInTitle' }, 'Share this bench as a link'),
+    h('p', null, 'A short link opens this bench as it is now, for anyone, with your panels open and its sweeps ready to play. Short links come with JEKrayPro, along with saving to the cloud as you work: sign in, then subscribe. Your bench stays here while you do.'),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('share', close)),
+    h('p', { class: 'note' }, 'Or send it as a file: ', h('button', { class: 'rt-link', type: 'button', onclick: () => { track('prompt', 'share.file'); close(); saveInstead(); } }, 'save it as a .jekray file'), ' and attach that.'),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+export function saveNudge() {
+  if (!accountsOn() || account !== null || document.getElementById('saveNudge')) return;     // signed out, once that is known
+  try {
+    if (Date.now() - Number(localStorage.getItem(NUDGE_KEY) || 0) < NUDGE_DAYS * 864e5) return;
+    localStorage.setItem(NUDGE_KEY, String(Date.now()));
+  } catch (err) { return; }
+  track('prompt', 'save.shown');
+  const card = h('div', { class: 'rt-welcome rt-nudge', id: 'saveNudge', role: 'status' });
+  const close = () => card.remove();
+  card.append(h('h3', null, 'Saved to your downloads'),
+    h('p', null, 'That file keeps the bench on this computer. With JEKrayPro your benches save to the cloud as you work, with their history, and open on any computer. Sign in to start.'),
+    h('div', { class: 'rt-actions' }, ...signInRow('save', close),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'save.no'); close(); } }, 'Not now')));
+  document.getElementById('stage').append(card);
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 export const accountsOn = () => !TEST_MODE && !EMBED;

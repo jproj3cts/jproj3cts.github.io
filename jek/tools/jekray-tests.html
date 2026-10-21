@@ -7062,6 +7062,28 @@ const TESTS = [
         return same && !notes.length && dark && st && st.kinds.stl === 1 ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
+  },
+  {
+    name: 'A STEP file comes in as STL objects: read by OpenCascade in its own worker, its parts in place or as one',
+    why: 'the triplet assembly exported as STEP and brought back in (the reader fetched and run in a worker under the page\u2019s security policy): four bodies (three lenses and the stop\u2019s washer) in millimetres, as the file says; as separate parts, four objects in one group whose boxes together are the one object\u2019s; that object, its axis up as in the file and raised to the beam, stops the middle three of five rays; and a file that is not STEP is refused (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(asmTriplet()); J.makeAssembly(['Front', 'Middle', 'Iris', 'Back']);
+      const text = J.exportCad(J.assemblies()[0].name, 'step').text, bytes = Array.from(new TextEncoder().encode(text));
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 5, width: 30, pol: 's' },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 100 }] });
+      const parts = await J.step(bytes, 'triplet.step', 200, 0, { as: 'parts' }), one = await J.step(bytes, 'triplet.step', 200, 0, { as: 'one' });
+      const P = parts.names.map(n => J.byName(n)), O = J.byName(one.names[0]);
+      const box = e => { const s = e.mesh.size; return [e.x - s[0] / 2, e.x + s[0] / 2, e.y - s[1] / 2, e.y + s[1] / 2, e.z - s[2] / 2, e.z + s[2] / 2]; };
+      const U = P.map(box).reduce((a, b) => a.map((v, k) => (k % 2 ? Math.max(v, b[k]) : Math.min(v, b[k])))), B = box(O);
+      const inPlace = U.every((v, k) => Math.abs(v - B[k]) < 0.01) && Math.abs(B[4]) < 0.01;
+      const grouped = P.length === 4 && P.every(e => e.type === 'stl' && e.units === 'mm' && e.group && e.group === P[0].group);
+      J.setParam(O.name, 'x', 0); J.setParam(O.name, 'z', 75); J.trace();
+      const hits = J.lastTrace().screens.Sc.length;
+      let refused = false; try { await J.step(Array.from(new TextEncoder().encode('solid x\nendsolid x\n')), 'x.step'); } catch (e) { refused = /not a STEP file/.test(e.message); }
+      return parts.bodies === 4 && parts.units === 'mm' && parts.declared && grouped && inPlace && hits === 2 && refused ? 1 : 0;
+    },
   },  { group: 'The field in 3D' },
   {
     name: 'The 3D view\u2019s field is in W/cm\u00b2: a Gaussian beam peaks at 2P/\u03c0w\u00b2, an unpolarised one\u2019s halves added',

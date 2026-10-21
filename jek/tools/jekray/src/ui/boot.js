@@ -79,6 +79,7 @@ import { ghostPrescription } from '../engines/lens-ghost.js';
 import { meritReport, optProblem } from '../engines/lens-opt.js';
 import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
+import { stepElements, stepImportBytes, wireStep } from '../io/step.js';
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
@@ -114,7 +115,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -300,6 +301,14 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // an STL object onto the bench from a file's contents (text, or bytes as an array of numbers): its name
     stl(src, name, x, y, units) { const T = parseSTL(Array.isArray(src) ? new Uint8Array(src) : src), el = stlElement(T, name || 'object.stl', x || 0, y || 0, units); el.bench = project.tab; project.elements.push(el); changed(true); return el.name; },
     stlHull: name => meshHull(project.elements.find(e => e.name === name)),
+    // a STEP file onto the bench (its bytes: an ArrayBuffer, a Uint8Array or an array of numbers), read by OpenCascade in its
+    // worker as an import is: o.as 'parts' (one object each, grouped; the default) or 'one'. { names, bodies, tris, units, pass, ms }
+    async step(src, name, x, y, o) {
+      const bytes = src instanceof Uint8Array ? src : new Uint8Array(src), file = name || 'model.step', res = await stepImportBytes(bytes, file);
+      const els = stepElements(res, file, x || 0, y || 0, (o && o.as) === 'one' ? 'one' : 'parts');
+      project.elements.push(...els); changed(true);
+      return { names: els.map(e => e.name), bodies: res.bodies.length, tris: res.tris, units: res.units, declared: res.declared, pass: res.pass, ms: res.ms };
+    },
     pic: PIC.api,                                                                              // PIC hook
     elec: ELEC_UI.api,                                                                            // ELEC hook
     // the field steps kept between runs: how many, hits and misses since the last look; clear empties it

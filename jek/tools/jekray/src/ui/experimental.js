@@ -129,9 +129,10 @@ export const recentParts = () => { try { return JSON.parse(localStorage.getItem(
 /* add a part: in the middle of the view, or where it was dropped (screen point) */
 /* An STL object onto the bench, from a file: where it was dropped (or the middle of the view),
    resting on the breadboard. el, if given, has its mesh replaced instead. */
-export function stlElement(T, name, x, y, units) {
-  const mesh = meshEncode(T, name), u = units || 'mm', sc = STL_UNITS[u] || 1;
-  return normElement({ type: 'stl', name: name.replace(/\.stl$/i, '').slice(0, 60) || 'STL object', x, y, angle: 0, z: Math.max(0, mesh.size[2] * sc / 2), mesh, units: u });
+export function stlElement(T, name, x, y, units, o) {
+  o = o || {};                                    // from a STEP file: its triangle budget, height, file and colour
+  const mesh = meshEncode(T, o.file || name, o.budget), u = units || 'mm', sc = STL_UNITS[u] || 1;
+  return normElement(Object.assign({ type: 'stl', name: name.replace(/\.(stl|step|stp)$/i, '').slice(0, 60) || 'STL object', x, y, angle: 0, z: Math.max(0, o.z !== undefined ? o.z : mesh.size[2] * sc / 2), mesh, units: u }, o.colour ? { colour: o.colour } : {}));
 }
 export function importStl(file, at, el) {
   const fr = new FileReader();

@@ -50,7 +50,7 @@
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
-            <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
+            <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl, .step)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
@@ -446,6 +446,17 @@
     </div>
   </dialog>
 
+  <dialog class="rt-dialog" id="stepDialog" aria-labelledby="stepTitle">
+    <h2 id="stepTitle">Import STEP file</h2>
+    <p id="stepText"></p>
+    <p>Separate parts: an object for each, grouped, in place as in the file. One object: all of them merged into one.</p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="stepCancel">Cancel</button>
+      <button class="rt-btn" id="stepOne">One object</button>
+      <button class="rt-btn" id="stepParts">Separate parts</button>
+    </div>
+  </dialog>
+
   <dialog class="rt-dialog" id="newDialog">
     <h2>Start a new project?</h2>
     <p>The current bench will be cleared. Save it as a .jekray file first if you want to keep it. You can still undo this.</p>
@@ -467,7 +478,7 @@
 
   <input type="file" id="fileJekray" accept=".jekray,application/json" hidden>
   <input type="file" id="fileZmx" accept=".zmx,.ZMX,.zar,.ZAR" multiple hidden>
-  <input type="file" id="fileStl" accept=".stl,.STL" hidden>
+  <input type="file" id="fileStl" accept=".stl,.STL,.step,.STEP,.stp,.STP" hidden>
   <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
 
   <dialog class="rt-dialog" id="zmxDialog">

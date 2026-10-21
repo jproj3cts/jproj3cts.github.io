@@ -29,6 +29,7 @@ import './core/beams-hom.js';
 import './core/colour.js';
 import './core/fan-edge.js';
 import './core/src-tag.js';
+import './core/nudge.js';
 import './state/drawings.js';
 import './parts/stl.js';
 import './parts/source.js';

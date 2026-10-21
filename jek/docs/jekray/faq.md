@@ -14,6 +14,10 @@ description: Common questions about JEKray, its models and its limits.
 
 The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html), and so is the coating designer. The Optical and RF designers are free to open, build and analyse designs in, and an RF lens can be taken to a quote. JEKrayPro is a subscription that adds the designers' design work (the optimiser, tolerancing, design reports, lens drawings and exporting a design), short share links with embeds and QR codes, and a cloud account: benches saved online with version history, forks, team workspaces, and your own parts library. The experimental features under the Help menu need only an account: a free one is enough. Universities can cover everyone with one licence.
 
+### What does a free account give?
+
+The experimental features under **Help › Experimental features…**, and a place in a team workspace when someone invites you (a seat paid for by the team gives you JEKrayPro). If your university has a JEKray licence, signing in with your university email gives you JEKrayPro at no cost; if it has none, a university email gets you the academic price. Saving to the cloud, short share links and My parts need JEKrayPro. The first time you sign in, with Google, Microsoft or a code emailed to your address, makes the account; the account menu, top right (**⋯** on a phone), has the ways in. Without an account your benches stay in this browser alone: save a .jekray file to keep one safe.
+
 ### Does my bench leave my computer?
 
 Not unless you choose to send it. Your bench is autosaved in this browser, and nothing is sent anywhere until you save it to the cloud, share it or export it. A share link, which JEKrayPro makes, keeps a copy of the bench with your account until you delete the link; anyone with the link can open it. Only benches you save to a JEKrayPro account, and the share links you make, are stored online.

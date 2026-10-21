@@ -5,7 +5,7 @@
 //   node scripts/usage.mjs                          the last 30 days, in the terminal
 //   node scripts/usage.mjs --days 90                any number of days up to 760
 //   node scripts/usage.mjs --html report.html       the same as a page, with a chart of visits a day
-//   node scripts/usage.mjs --json                   the counts as they come
+//   node scripts/usage.mjs --json                   the counts as they come, and the sign-in prompts' table
 //   scripts\usage-report.cmd                         on Windows: double-click, or a desktop shortcut to it, and the page opens
 //
 // Counts, not people: a visit is one opening of the app, so one person opening it
@@ -17,7 +17,6 @@ import { parseArgs } from 'node:util';
 
 const API = process.env.JEK_API || 'https://api.jeksys.net';
 const TOKEN = process.env.JEK_OPS_TOKEN;
-const { values: o } = parseArgs({ strict: false, options: { days: { type: 'string' }, html: { type: 'string' }, json: { type: 'boolean' } } });
 
 // what each event counts, and what its token is
 export const LABELS = {
@@ -36,9 +35,9 @@ export const LABELS = {
 export const STEPS = ['save', 'share', 'remind', 'signin', 'account', 'subscribe', 'pro'];
 const TIERS = ['anon', 'free', 'pro'], TIER_NAMES = { anon: 'signed out', free: 'free', pro: 'JEKrayPro' };
 
-async function get() {
+async function get(days) {
   if (!TOKEN) throw new Error('Set JEK_OPS_TOKEN first (the value you gave `npx wrangler secret put OPS_TOKEN`).');
-  const res = await fetch(`${API}/ops/usage?days=${Number(o.days) || 30}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+  const res = await fetch(`${API}/ops/usage?days=${Number(days) || 30}`, { headers: { Authorization: `Bearer ${TOKEN}` } });
   const out = await res.json().catch(() => ({}));
   // the API answers 404 to a wrong token, as it does to anyone guessing at /ops
   if (res.status === 404) throw new Error(`${API} did not accept JEK_OPS_TOKEN: it is not the value of the OPS_TOKEN secret, or the API with usage counts is not deployed yet.`);
@@ -73,10 +72,36 @@ export function funnel(r) {
   return Object.values(rows).sort((a, b) => (a.src === 'none') - (b.src === 'none') || b.visits + b.again - a.visits - a.again);
 }
 
+// the sign-in prompts (the app's track('prompt', '<where>.<answer>')): a row for each, with how often it was shown,
+// each answer, the sign-in clicks among them (a way in chosen: Google, Microsoft or email) and those as a share of shown
+export const WAYS_IN = ['google', 'microsoft', 'email'];
+export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out' };
+export function prompts(r) {
+  const rows = {};
+  for (const e of r.events) {
+    if (e.event !== 'prompt' || !e.prop) continue;
+    const i = e.prop.indexOf('.');
+    if (i < 1) continue;
+    const where = e.prop.slice(0, i), answer = e.prop.slice(i + 1) || '?';
+    const x = (rows[where] ||= { where, shown: 0, signins: 0, answers: {} });
+    if (answer === 'shown') x.shown += e.n;
+    else { x.answers[answer] = (x.answers[answer] || 0) + e.n; if (WAYS_IN.includes(answer)) x.signins += e.n; }
+  }
+  const order = Object.keys(PROMPT_NAMES);
+  return Object.values(rows).map((x) => Object.assign(x, { rate: x.shown ? x.signins / x.shown : null }))
+    .sort((a, b) => ((order.indexOf(a.where) + 1 || 99) - (order.indexOf(b.where) + 1 || 99)) || b.shown - a.shown);
+}
+// the answers as columns: the ways in first, then the rest by how often they came
+export function promptAnswers(rows) {
+  const n = {};
+  for (const x of rows) for (const [k, v] of Object.entries(x.answers)) n[k] = (n[k] || 0) + v;
+  return [...WAYS_IN, ...Object.keys(n).filter((k) => !WAYS_IN.includes(k)).sort((a, b) => n[b] - n[a] || (a < b ? -1 : 1))];
+}
+
 const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '-');
 const top = (props, n = 8) => Object.entries(props).sort((a, b) => b[1] - a[1]).slice(0, n);
 
-function text(r) {
+export function text(r) {
   const { ev, days, visits } = summarise(r);
   const v = ev.open || { total: 0, tiers: {} };
   console.log(`JEKray usage, ${r.from} to ${r.to} (${r.days} ${r.days === 1 ? "day" : "days"})\n`);
@@ -103,6 +128,13 @@ function text(r) {
     console.log(`    ${'source'.padEnd(24)} ${'visits'.padStart(7)} ${'back'.padStart(6)} ${STEPS.map((k) => k.padStart(9)).join(' ')}`);
     for (const x of f) console.log(`    ${x.src.padEnd(24)} ${String(x.visits).padStart(7)} ${String(x.again).padStart(6)} ${STEPS.map((k) => String(x.steps[k]).padStart(9)).join(' ')}`);
   }
+  const p = prompts(r);
+  if (p.length) {
+    const cols = promptAnswers(p);
+    console.log('\nSign-in prompts (shown, each answer, sign-in clicks and their share of shown)');
+    console.log(`    ${'where'.padEnd(10)} ${'shown'.padStart(7)} ${cols.map((k) => k.padStart(9)).join(' ')} ${'sign-ins'.padStart(9)} ${'click-thru'.padStart(10)}`);
+    for (const x of p) console.log(`    ${x.where.padEnd(10)} ${String(x.shown).padStart(7)} ${cols.map((k) => String(x.answers[k] || 0).padStart(9)).join(' ')} ${String(x.signins).padStart(9)} ${pct(x.signins, x.shown).padStart(10)}`);
+  }
   console.log(`\nErrors (${r.errors.length} ${r.errors.length === 1 ? 'kind' : 'kinds'})`);
   for (const e of r.errors.slice(0, 20)) console.log(`  ${String(e.n).padStart(6)}  ${e.msg}\n          ${e.src}, ${e.first} to ${e.last}`);
 }
@@ -112,6 +144,12 @@ function funnelTable(r) {
   if (!f.length) return '';
   const cell = (n, of) => `<td>${n}${of && n ? ` <small>${pct(n, of)}</small>` : ''}</td>`;
   return `<h3 style="margin-top:24px">By source <span>a post's tag (?src=) or the site a visit came through; none: neither</span></h3><div style="overflow-x:auto"><table><tr><th>source</th><th>visits</th><th>back</th>${STEPS.map((k) => `<th>${k}</th>`).join('')}</tr>${f.map((x) => `<tr><td>${esc(x.src)}</td><td>${x.visits}</td><td>${x.again}</td>${STEPS.map((k) => cell(x.steps[k], x.visits + x.again)).join('')}</tr>`).join('')}</table></div>`;
+}
+function promptTable(r) {
+  const p = prompts(r);
+  if (!p.length) return '';
+  const cols = promptAnswers(p);
+  return `<h3 style="margin-top:24px">Sign-in prompts <span>where an account is offered: shown, each answer, and the sign-in clicks (${WAYS_IN.join(', ')}) as a share of shown</span></h3><div style="overflow-x:auto"><table><tr><th>where</th><th>shown</th>${cols.map((k) => `<th>${esc(k)}</th>`).join('')}<th>sign-ins</th><th>click-through</th></tr>${p.map((x) => `<tr><td title="${esc(PROMPT_NAMES[x.where] || '')}">${esc(x.where)}</td><td>${x.shown}</td>${cols.map((k) => `<td>${x.answers[k] || 0}</td>`).join('')}<td>${x.signins}</td><td>${pct(x.signins, x.shown)}</td></tr>`).join('')}</table></div>`;
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 export function html(r) {
@@ -158,6 +196,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowra
 <h3>Visits a day</h3><div class="key">${TIERS.map((t) => `<span><i class="t-${t}" style="background:var(--${t})"></i>${TIER_NAMES[t]}</span>`).join('')}</div>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visits a day">${grid}${bars}${labels}</svg>
 ${funnelTable(r)}
+${promptTable(r)}
 <div class="cols">${Object.keys(LABELS).filter((k) => ev[k]).map(section).join('')}</div>
 <h3 style="margin-top:28px">Errors <span>${r.errors.length} ${r.errors.length === 1 ? 'kind' : 'kinds'}</span></h3>${errs ? `<table><tr><th>count</th><th>message</th></tr>${errs}</table>` : '<p class="sub">None.</p>'}
 </main></body></html>`;
@@ -165,9 +204,10 @@ ${funnelTable(r)}
 
 // run, not imported (as a URL, so Windows paths compare too)
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const { values: o } = parseArgs({ strict: false, options: { days: { type: 'string' }, html: { type: 'string' }, json: { type: 'boolean' } } });
   try {
-    const r = await get();
-    if (o.json) console.log(JSON.stringify(r, null, 2));
+    const r = await get(o.days);
+    if (o.json) console.log(JSON.stringify(Object.assign({}, r, { prompts: prompts(r) }), null, 2));
     else text(r);
     if (o.html) { writeFileSync(o.html, html(r)); console.log(`\nWrote ${o.html}: open it in your browser.`); }
   } catch (err) {

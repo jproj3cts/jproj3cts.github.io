@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { call, signedIn } from './helpers.js';
 import { MAX_ERRORS, purgeUsage } from '../src/usage.js';
+import { html, prompts, promptAnswers, text } from '../scripts/usage.mjs';
 
 const OPS = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const post = (body, opts = {}) => call('/v1/events', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'text/plain' }, ...opts });
@@ -31,6 +32,41 @@ describe('usage counts', () => {
     expect(count(r, 'from', 'ig-spectrometer')).toBe(1);
     expect(count(r, 'goal', 'ig-spectrometer.save')).toBe(1);
     expect(count(r, 'prompt', 'save.shown')).toBe(1);
+  });
+
+  it('report a funnel for each sign-in prompt: shown, each answer, sign-in clicks and the click-through', async () => {
+    const ev = [['prompt', 'save.shown', 10], ['prompt', 'save.google', 2], ['prompt', 'save.email'], ['prompt', 'save.no', 6],
+      ['prompt', 'return.shown', 4], ['prompt', 'return.file', 3], ['prompt', 'shared.copy', 2], ['prompt', 'shared.shown'], ['prompt', 'shared.microsoft'],
+      ['prompt', 'menu.shown', 5], ['prompt', 'zz.shown'], ['part', 'lens']];
+    // as the API reports them (other tests' counts of the day are there too, so the figures are taken from a report of these alone)
+    const shownBefore = (prompts(await report()).find((x) => x.where === 'save') || { shown: 0 }).shown;
+    expect((await post({ tier: 'anon', ev })).status).toBe(200);
+    expect((await post({ tier: 'free', ev: [['prompt', 'shared.shown'], ['prompt', 'shared.pro']] })).status).toBe(200);
+    expect(prompts(await report()).find((x) => x.where === 'save').shown).toBe(shownBefore + 10);
+    const r = { from: '2026-10-01', to: '2026-10-01', days: 1, daily: [], errors: [],
+      events: [...ev.map(([event, prop, n = 1]) => ({ event, prop, tier: 'anon', n })), { event: 'prompt', prop: 'shared.shown', tier: 'free', n: 1 }, { event: 'prompt', prop: 'shared.pro', tier: 'free', n: 1 }] };
+    const p = prompts(r), by = Object.fromEntries(p.map((x) => [x.where, x]));
+    // the app's order first, then any other where
+    expect(p.map((x) => x.where)).toEqual(['save', 'return', 'shared', 'menu', 'zz']);
+    expect(by.save).toEqual({ where: 'save', shown: 10, signins: 3, answers: { google: 2, email: 1, no: 6 }, rate: 0.3 });
+    expect(by.return).toMatchObject({ shown: 4, signins: 0, answers: { file: 3 }, rate: 0 });
+    // both tiers counted; a bar's click is an answer, not a showing
+    expect(by.shared).toMatchObject({ shown: 2, signins: 1, answers: { copy: 2, microsoft: 1, pro: 1 }, rate: 0.5 });
+    expect(by.menu).toMatchObject({ shown: 5, signins: 0, rate: 0 });
+    expect(promptAnswers(p).slice(0, 3)).toEqual(['google', 'microsoft', 'email']);
+    expect(promptAnswers(p)).toEqual(expect.arrayContaining(['no', 'file', 'copy', 'pro']));
+    // the page has the table, beside the others
+    const page = html(r);
+    expect(page).toContain('Sign-in prompts <span>');
+    expect(page).toMatch(/<td title="After a file save">save<\/td><td>10<\/td>/);
+    expect(page).toContain('<td>3</td><td>30%</td></tr>');
+    // and so does the terminal's
+    const lines = [], log = console.log;
+    console.log = (...a) => lines.push(a.join(' '));
+    try { text(r); } finally { console.log = log; }
+    const out = lines.join('\n');
+    expect(out).toContain('Sign-in prompts (shown, each answer, sign-in clicks and their share of shown)');
+    expect(out).toMatch(/\n\s+save\s+10\s+2\s+0\s+1\s+6\s.*\s3\s+30%\n/);
   });
 
   it('takes only known events, plain short tokens and known tiers', async () => {

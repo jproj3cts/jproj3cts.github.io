@@ -3,6 +3,7 @@
 # Keeps build-only directories out of the published site. The repo is public
 # either way — this is tidiness, not security.
 exclude:
+  - CLAUDE.md                 # working notes for the coding assistant, not a page
   - worker
   - jek-api
   - README.md

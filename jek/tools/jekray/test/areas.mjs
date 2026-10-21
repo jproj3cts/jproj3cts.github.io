@@ -5,7 +5,7 @@
 export const AREAS = {
   build: {
     what: 'the build, the module rules and the committed page',
-    src: ['build.mjs', 'src/main.js', 'src/worker-main.js', 'src/worker/', 'src/page/', '../jekray.html', '../jekray-dev.html', 'package.json'],
+    src: ['build.mjs', 'src/main.js', 'src/worker-main.js', 'src/worker/', 'src/page/', '../jekray.html', '../jekray-dev.html', 'package.json', 'docs.mjs'],
     node: ['build.test.mjs'],
     browser: [],
   },

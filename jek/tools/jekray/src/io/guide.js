@@ -31,6 +31,7 @@ export function aiFieldsOf(type) {
   const d = aiDefaults(type), keys = Object.keys(d).filter(k => !AI_SKIP.has(k));
   if (type === 'source' && !keys.includes('fibre')) keys.push('fibre');
   if (type === 'lens' && !keys.includes('cyl')) keys.push('cyl');
+  if (type === 'screen') for (const k of ['phosphor', 'decay', 'glow']) if (!keys.includes(k)) keys.push(k);      // a phosphor screen's, set only on one
   if (type === 'draw') keys.push('rx', 'ry', 'nodes', 'closed', 'text', 'size', 'font', 'bold', 'italic', 'align', 'm');
   if (type === 'detector' || type === 'spectrometer' || type === 'fibre') { const i = keys.indexOf('absorb'); if (i >= 0) keys.splice(i, 1); }
   return keys;

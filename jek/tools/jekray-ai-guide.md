@@ -243,6 +243,9 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | abH | `1` | its largest object height, mm, for a diverging source (a point object). |
 | abN | `7` | fields across, 3 to 21. |
 | abRays | `61` | rays in each field’s fan, odd, 11 to 401. |
+| phosphor | (none) | true: a phosphor screen, whose face glows where the light lands and fades after the light moves on, leaving a trail (from the rays, or the diffracted field when it is shown); its face shows the glow in 3D. Made by the picker’s Phosphor. |
+| decay | (none) | a phosphor screen’s decay time, s: the glow falls to 1/e of its brightness this long after the light leaves (0.01 to 120). |
+| glow | (none) | a phosphor screen’s glow colour, "#rrggbb". |
 
 ### "stop": Stop
 

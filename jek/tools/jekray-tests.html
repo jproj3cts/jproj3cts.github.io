@@ -6947,6 +6947,28 @@ const TESTS = [
       return ok ? 1 : 0;
     },
   },  {
+    name: 'A phosphor screen glows where the light lands and fades after it',
+    why: 'a mirror turned 4\u00b0 moves the spot 4 mm across a phosphor screen with a 0.3 s decay: at once the old spot and the new both glow, the glow\u2019s centre between them; 2 s later (nearly 7 decay times) only the new spot is lit (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const pause = ms => new Promise(r => setTimeout(r, ms));
+      J.load({ format: 'jekray', version: 1, name: 'Phosphor', elements: [
+        { type: 'source', name: 'HeNe', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 2, divergence: 0, rays: 9 },
+        { type: 'mirror', name: 'Scan mirror', x: 25, y: 0, angle: 133, length: 25.4 },
+        { type: 'screen', name: 'Phosphor', x: 25, y: 30, angle: -90, length: 30, phosphor: true, decay: 0.3, glow: '#4dff7a' }] });
+      J.trace(); J.redraw(); await pause(300);
+      const A = J.phosphor('Phosphor');
+      J.setParam('Scan mirror', 'angle', 137); J.trace(); J.redraw(); await pause(60);
+      const B = J.phosphor('Phosphor');
+      await pause(2000);
+      const C = J.phosphor('Phosphor');
+      if (!A || !B || !C) return 0;
+      const between = (B.centre - A.centre) * (C.centre - B.centre) > 0, el = J.byName('Phosphor');
+      return A.peak === 1 && B.lit > 1.6 * A.lit && between && C.lit < 0.7 * B.lit && Math.abs(Math.abs(C.centre - A.centre) - 2 * 30 * Math.tan(4 * Math.PI / 180)) < 0.6
+        && el.phosphor === true && el.decay === 0.3 ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D a part is dragged across the table, snapped to the grid, and undone',
     why: 'the Michelson from above, snapping to 5 mm: the fixed mirror dragged 80 px to the right moves along +x by a whole number of 5 mm steps and not at all in y; Ctrl+Z puts it back (1 when all hold)',
     want: 1, tol: 0, unit: '',

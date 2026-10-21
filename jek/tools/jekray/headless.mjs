@@ -5,6 +5,7 @@
    draws; everything is the number the panel would show. The docs: /jek/docs/jekray/scripting/.
    ========================================================================== */
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import { workerShim } from './src/worker/shim.js';
 
 let ENGINE = null;
@@ -108,10 +109,26 @@ export async function openBench(data) {
       finally { E.PRM.setParam(el, path, was); traced = false; }
       return rows;
     },
+    /* a STEP file's solids onto the bench as STL objects (its bytes, or its path), read by OpenCascade (the vendored
+       occt-import-js) as the page reads one: o.as 'parts' (one object each, grouped; the default) or 'one' */
+    async step(src, name, x, y, o) {
+      const bytes = typeof src === 'string' ? new Uint8Array(fs.readFileSync(src)) : new Uint8Array(src), file = name || (typeof src === 'string' ? src.split(/[\\/]/).pop() : 'model.step');
+      const [occt, SC, SI] = await Promise.all([occtReader(), import('./src/core/step.js'), import('./src/io/step.js')]);
+      const res = await SC.stepRead(bytes, file, p => occt.ReadStepFile(bytes, p));
+      const els = SI.stepElements(res, file, x || 0, y || 0, (o && o.as) === 'one' ? 'one' : 'parts');
+      E.ST.project.elements.push(...els); traced = false;
+      return { names: els.map(e => e.name), bodies: res.bodies.length, tris: res.tris, units: res.units, declared: res.declared, pass: res.pass, ms: res.ms };
+    },
     /* the bench as a .jekray object */
     serialize() { return JSON.parse(JSON.stringify(E.ST.project)); },
   };
   return B;
+}
+/* OpenCascade's STEP reader (occt-import-js, vendored beside the site's other libraries), loaded once */
+let OCCT = null;
+export function occtReader() {
+  if (!OCCT) OCCT = createRequire(import.meta.url)('../../assets/vendor/occt-import-js/0.0.23/occt-import-js.js')();
+  return OCCT;
 }
 /* a bench from a .jekray file */
 export async function openFile(path) { return openBench(JSON.parse(fs.readFileSync(path, 'utf8'))); }

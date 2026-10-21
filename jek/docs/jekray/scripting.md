@@ -48,6 +48,7 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.rfSweep(name)`, `JEKray.linkBudget(name)` | A receiving horn against frequency, and its link budget. |
 | `JEKray.arrivals(name)` | The Gaussian beams arriving at a part's face: each beam's q, direction, polarisation and path. |
 | `JEKray.asmPrescription(name)`, `JEKray.asmEfl(name)` | An assembly as the lens designer reads it, and its focal length. |
+| `JEKray.step(bytes, name, x, y, { as })` | A STEP file (its bytes) brought in as STL objects at x, y, as the import does: `as: 'parts'` (one each, grouped; the default) or `'one'`. Resolves with their names, the bodies, triangles and units. |
 | `JEKray.exportZmx(names)` | Parts as a lens file. |
 | `JEKray.sweepPlay(name, path)`, `JEKray.sweepPause()` | A sweep played and paused. |
 | `JEKray.typeLabel(name)`, `JEKray.benches()`, `JEKray.showTab(name)` | What a part is called, the bench tabs, and switching between them. |
@@ -88,6 +89,7 @@ B.relIllum('Cooke triplet');                 // relative illumination and vignet
 B.merit('Cooke triplet');                    // the optimiser's merit function
 B.zmx(['L1', 'L2', 'L3']).text;              // parts as a lens file
 B.arrivals('Sensor');                        // the Gaussian beams arriving at a face
+await B.step('mount.step', null, 0, 0, { as: 'parts' });   // a STEP file's solids as STL objects (OpenCascade, as on the page)
 ```
 
 `openBench(data)` takes the bench's data instead of a file. `set` traces again on the next read; `sweep` sets each value, reads, and puts the parameter back. Every number is what the panel shows, rounded to six figures.

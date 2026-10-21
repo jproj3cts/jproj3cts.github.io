@@ -26,6 +26,7 @@ import { openJekray, openProjectData } from '../io/open.js';
 import { IMPORT_AS } from '../io/zmx-import.js';
 import { exportZmx, importZmx, setZmxToMine } from '../io/zmx-export.js';
 import { assignPalette, importStl, palette } from './experimental.js';
+import { importStep } from '../io/step.js';
 import { layoutPalette } from './rail.js';
 import { packInstallText } from '../io/packs.js';
 import { cloudLink } from '../io/cloud.js';
@@ -276,7 +277,7 @@ export function wireTours() {
 
   document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 
-  document.getElementById('fileStl').addEventListener('change', e => { const f = e.target.files[0]; if (f) importStl(f); e.target.value = ''; });
+  document.getElementById('fileStl').addEventListener('change', e => { const f = e.target.files[0]; if (f) (/\.(step|stp)$/i.test(f.name) ? importStep(f) : importStl(f)); e.target.value = ''; });
 
   {
     const sel = document.getElementById('zmxAs');
@@ -575,9 +576,10 @@ export function wireTours() {
     if (!f || LOCKED) return;
     if (/\.zmx$/i.test(f.name)) importZmx(f);
     else if (/\.stl$/i.test(f.name)) importStl(f, [e.clientX, e.clientY]);
+    else if (/\.(step|stp)$/i.test(f.name)) importStep(f, [e.clientX, e.clientY]);
     else if (/\.jekpack$/i.test(f.name)) f.text().then(t => packInstallText(t, f.name));   // a part pack: shown, then installed if wanted
     else if (/\.(jekray|json)$/i.test(f.name)) openJekray(f);
-    else toast(f.name + ' isn\u2019t a .zmx, .stl, .jekray or .jekpack file.', true);
+    else toast(f.name + ' isn\u2019t a .zmx, .stl, .step, .jekray or .jekpack file.', true);
   });
 
 }

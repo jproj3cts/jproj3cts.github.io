@@ -1650,7 +1650,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
-            <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl)…</button>
+            <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl, .step)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
@@ -2046,6 +2046,17 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     </div>
   </dialog>
 
+  <dialog class="rt-dialog" id="stepDialog" aria-labelledby="stepTitle">
+    <h2 id="stepTitle">Import STEP file</h2>
+    <p id="stepText"></p>
+    <p>Separate parts: an object for each, grouped, in place as in the file. One object: all of them merged into one.</p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="stepCancel">Cancel</button>
+      <button class="rt-btn" id="stepOne">One object</button>
+      <button class="rt-btn" id="stepParts">Separate parts</button>
+    </div>
+  </dialog>
+
   <dialog class="rt-dialog" id="newDialog">
     <h2>Start a new project?</h2>
     <p>The current bench will be cleared. Save it as a .jekray file first if you want to keep it. You can still undo this.</p>
@@ -2067,7 +2078,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <input type="file" id="fileJekray" accept=".jekray,application/json" hidden>
   <input type="file" id="fileZmx" accept=".zmx,.ZMX,.zar,.ZAR" multiple hidden>
-  <input type="file" id="fileStl" accept=".stl,.STL" hidden>
+  <input type="file" id="fileStl" accept=".stl,.STL,.step,.STEP,.stp,.STP" hidden>
   <input type="file" id="fileMat" accept=".csv,.txt,.yml,.yaml,text/plain" hidden>
 
   <dialog class="rt-dialog" id="zmxDialog">
@@ -7934,7 +7945,7 @@ function normDraw(e, base) {
 
 /* a text's lines and its box, in mm, in its own frame */
 const DRAW_FONTS = { sans: ['Sans', '--jek-sans'], serif: ['Serif', 'Georgia, "Times New Roman", serif'], mono: ['Mono', '--jek-mono'] };
-/* STL object: An STL object: an opaque shape brought in from a .stl file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray when the person imports the file; you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open ▾ → Import an object (.stl), or drop the file on the bench. */
+/* STL object: An STL object: an opaque shape brought in from a .stl or STEP (.step, .stp) file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray when the person imports the file; you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open ▾ → Import an object (.stl, .step), or drop the file on the bench. */
 const STL = {
   type: 'stl', label: 'STL object',
   norm(e, base) {
@@ -7947,9 +7958,9 @@ const STL = {
     });
   },
   guide: {
-    what: 'An STL object: an opaque shape brought in from a .stl file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray when the person imports the file; you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open \u25be \u2192 Import an object (.stl), or drop the file on the bench.',
+    what: 'An STL object: an opaque shape brought in from a .stl or STEP (.step, .stp) file (a mount, a housing, a baffle), every ray that meets it stopped where it lands, as a beam block. Its triangles ("mesh") are written by JEKray when the person imports the file (a STEP file\u2019s solids are tessellated by OpenCascade, as one object or one for each part, grouped); you cannot write one, so leave STL objects out of the file and tell the person to bring theirs in with Open \u25be \u2192 Import an object (.stl, .step), or drop the file on the bench.',
     angle: 'the way the object\u2019s own +x (as in its file) points; its tip and roll turn it as any part\u2019s.',
-    fields: { mesh: 'its triangles, written by the tool when a .stl file is imported: leave it out.', units: 'the file\u2019s units: "mm", "cm", "m", "in", or "other" with "scale".', scale: 'mm per unit of the file, with "units": "other".', colour: '"#rrggbb": how it is drawn.' },
+    fields: { mesh: 'its triangles, written by the tool when a .stl file is imported: leave it out.', units: 'the file\u2019s units: "mm", "cm", "m", "in", or "other" with "scale" (a STEP file\u2019s own, as it declares them).', scale: 'mm per unit of the file, with "units": "other".', colour: '"#rrggbb": how it is drawn.' },
   },
 };
 /* Source: A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown. */
@@ -10156,6 +10167,133 @@ function elementSurfaces(el) {
 }
 
 
+/* ---------- STEP files, as STL objects ----------
+   A .step (.stp) file is read by OpenCascade (occt-import-js, a WebAssembly build of it, vendored under
+   jek/assets/vendor/occt-import-js/ and loaded only when a STEP file is first brought in: io/step.js on the
+   page, headless.mjs in Node), which tessellates each solid into triangles. What is here is the part that
+   needs no page: the file's length unit, how finely to tessellate, and the triangles of each body, in the
+   same form parseSTL gives (a Float32Array of 9 numbers a triangle), so everything after is as for a .stl. */
+
+/* a STEP file's length unit, read from its text (the LENGTH_UNIT it declares): as an STL object's units, and
+   as occt-import-js names it (it hands back coordinates in the unit asked for, converting if need be). A file
+   with none, or one in a unit an STL object has no name for, is read in millimetres. */
+const STEP_PREFIX = { MILLI: 'mm', CENTI: 'cm', '': 'm' };
+const STEP_LINEAR = { mm: 'millimeter', cm: 'centimeter', m: 'meter', in: 'inch' };
+function stepText(bytes) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  return new TextDecoder('latin1').decode(u8);
+}
+function stepUnit(text) {
+  const unitOf = s => {
+    const si = s.match(/SI_UNIT\s*\(\s*(?:\.(\w+)\.|\$)\s*,\s*\.METRE\.\s*\)/), conv = s.match(/CONVERSION_BASED_UNIT\s*\(\s*'([^']*)'/);
+    if (conv) return /^(INCH|IN|FOOT|FT)$/i.test(conv[1].trim()) ? 'in' : 'mm';   // (a foot read in inches)
+    return si ? STEP_PREFIX[si[1] || ''] || 'mm' : null;
+  };
+  const entity = id => { const m = text.match(new RegExp('#' + id + '\\s*=\\s*([^;]*);')); return m ? m[1] : ''; };
+  // the units each representation context assigns (GLOBAL_UNIT_ASSIGNED_CONTEXT): its length unit's; an inch is a
+  // CONVERSION_BASED_UNIT, a millimetre times 25.4, so the millimetre is there too but only as what it is made from
+  const units = new Set();
+  for (const m of text.matchAll(/GLOBAL_UNIT_ASSIGNED_CONTEXT\s*\(\s*\(([^)]*)\)/g))
+    for (const r of m[1].matchAll(/#(\d+)/g)) { const e = entity(r[1]); if (/\bLENGTH_UNIT\s*\(/.test(e)) { const u = unitOf(e); if (u) units.add(u); } }
+  // one unit throughout: that one; none, or several (OpenCascade brings them all to one): millimetres
+  const units1 = units.size === 1 ? [...units][0] : 'mm';
+  return { units: units1, linearUnit: STEP_LINEAR[units1], declared: units.size === 1 };
+}
+const isStep = text => /^\s*ISO-10303-21\s*;/.test(text.slice(0, 256));
+/* the model's size, roughly, in its own unit: the widest spread of its vertices (the points its edges end at, which
+   lie on it, where a placement's origin or a sphere's centre need not); an assembly's parts are placed in their own
+   frames, so this is the size of its largest part, or of the whole where it is drawn as one */
+function stepExtent(text) {
+  const pts = new Map(), re = /#(\d+)\s*=\s*CARTESIAN_POINT\s*\(\s*'[^']*'\s*,\s*\(\s*([^)]*)\)/g;
+  let m;
+  while ((m = re.exec(text))) { const c = m[2].split(',').map(parseFloat); if (c.length === 3 && c.every(isFinite)) pts.set(m[1], c); }
+  const verts = [...text.matchAll(/VERTEX_POINT\s*\(\s*'[^']*'\s*,\s*#(\d+)/g)].map(v => pts.get(v[1])).filter(Boolean);
+  const use = verts.length >= 2 ? verts : [...pts.values()];
+  if (!use.length) return 0;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const c of use) for (let k = 0; k < 3; k++) { if (c[k] < lo[k]) lo[k] = c[k]; if (c[k] > hi[k]) hi[k] = c[k]; }
+  return Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
+}
+/* How finely to tessellate, pass by pass: the chord (linear deflection, in the file's unit, a fraction of the
+   model's size) and the largest angle a facet turns through (angular deflection, radians: 0.35 puts 18 facets
+   round a hole). The first is fine enough for any mount's outline; if the whole comes to more triangles than
+   STEP_TARGET, each next pass is coarser, and only after the last does meshEncode simplify as for a .stl. */
+const STEP_TARGET = 30000;
+const STEP_PASSES = [{ lin: 0.001, ang: 0.35 }, { lin: 0.003, ang: 0.5 }, { lin: 0.01, ang: 0.8 }, { lin: 0.03, ang: 1.2 }];
+function stepParams(text, pass) {
+  const u = stepUnit(text), ext = stepExtent(text), P = STEP_PASSES[Math.min(pass, STEP_PASSES.length - 1)];
+  // with no points to size it by, a fraction of each solid's own size (occt-import-js's bounding_box_ratio)
+  return ext > 0 ? { linearUnit: u.linearUnit, linearDeflectionType: 'absolute_value', linearDeflection: ext * P.lin, angularDeflection: P.ang }
+    : { linearUnit: u.linearUnit, linearDeflectionType: 'bounding_box_ratio', linearDeflection: P.lin, angularDeflection: P.ang };
+}
+/* the triangles of each body occt-import-js found (each of its meshes: a solid, or a shell), named from the
+   file's parts (the mesh's own name, else its part's, numbered if a part has several), each { name, T, colour } */
+function stepBodies(result, fileName) {
+  if (!result || !result.success) throw new Error('OpenCascade could not read ' + (fileName || 'this STEP file') + ': it may be damaged or cut short.');
+  const base = String(fileName || 'model.step').replace(/\.(step|stp)$/i, '') || 'model';
+  const nodeOf = new Map(), counts = new Map();
+  const visit = (node, parent) => {
+    const name = String(node.name || '').trim() || parent;
+    for (const i of node.meshes || []) nodeOf.set(i, name);
+    for (const c of node.children || []) visit(c, name);
+  };
+  if (result.root) visit(result.root, '');
+  for (const name of nodeOf.values()) if (name) counts.set(name, (counts.get(name) || 0) + 1);
+  const seen = new Map(), bodies = [];
+  (result.meshes || []).forEach((M, i) => {
+    const P = M.attributes && M.attributes.position ? M.attributes.position.array : M.P, I = M.index ? (M.index.array || M.index) : M.I;
+    if (!P || !I || I.length < 3) return;
+    const n = Math.floor(I.length / 3), T = new Float32Array(9 * n);
+    for (let t = 0; t < 3 * n; t++) { const v = 3 * I[t]; T[3 * t] = P[v]; T[3 * t + 1] = P[v + 1]; T[3 * t + 2] = P[v + 2]; }
+    let name = String(M.name || '').trim();
+    if (!name) { const part = nodeOf.get(i) || ''; name = part || base + ' part ' + (bodies.length + 1); if (part && counts.get(part) > 1) { const k = (seen.get(part) || 0) + 1; seen.set(part, k); name = part + ' ' + k; } }
+    const col = Array.isArray(M.color) && M.color.length === 3 ? '#' + M.color.map(c => Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16).padStart(2, '0')).join('') : null;
+    bodies.push({ name: name.slice(0, 60), T, colour: col });
+  });
+  if (!bodies.length) throw new Error('The STEP file has no solids in it to bring in.');
+  // the same name twice: numbered
+  const used = new Map();
+  for (const b of bodies) { const k = used.get(b.name) || 0; used.set(b.name, k + 1); if (k) b.name = b.name + ' (' + (k + 1) + ')'; }
+  return bodies;
+}
+const stepTris = bodies => bodies.reduce((a, b) => a + b.T.length / 9, 0);
+/* a box round triangles: [lo, hi] */
+function trisBox(T) {
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < T.length; i++) { const k = i % 3; if (T[i] < lo[k]) lo[k] = T[i]; if (T[i] > hi[k]) hi[k] = T[i]; }
+  return [lo, hi];
+}
+/* Read a STEP file, coarser pass by pass until its triangles fit: read(params) is occt-import-js's ReadStepFile
+   (on the page, in its worker), synchronous or not. Resolves with { bodies, units, declared, pass, tris, ms } */
+async function stepRead(bytes, fileName, read, onPass) {
+  const text = stepText(bytes);
+  if (!isStep(text)) throw new Error(fileName + ' is not a STEP file (it does not start ISO-10303-21).');
+  const u = stepUnit(text), t0 = Date.now();
+  let bodies = null, pass = 0;
+  for (; pass < STEP_PASSES.length; pass++) {
+    if (onPass) onPass(pass);
+    bodies = stepBodies(await read(stepParams(text, pass)), fileName);
+    if (stepTris(bodies) <= STEP_TARGET) break;
+  }
+  return { bodies, units: u.units, declared: u.declared, pass: Math.min(pass, STEP_PASSES.length - 1), tris: stepTris(bodies), ms: Date.now() - t0 };
+}
+/* What goes on the bench, in the bench's millimetres: 'one' object of every body's triangles, or 'parts', one for
+   each body, each at its own place (its box's centre from the whole's), so the whole stands as in the file,
+   resting on the breadboard. Each { name, T, colour, dx, dy, z, budget }: the triangles each keeps share
+   STL_KEEP between them by size, so the parts together keep what one object would. */
+function stepPlan(bodies, fileName, as, units, scale) {
+  const sc = scale || 1, name = String(fileName || 'model.step').replace(/\.(step|stp)$/i, '').slice(0, 60) || 'STEP object';
+  const all = new Float32Array(bodies.reduce((a, b) => a + b.T.length, 0));
+  { let o = 0; for (const b of bodies) { all.set(b.T, o); o += b.T.length; } }
+  const [lo, hi] = trisBox(all), c = [0, 1, 2].map(k => (lo[k] + hi[k]) / 2);
+  if (as !== 'parts' || bodies.length < 2) return [{ name, T: all, colour: bodies.length === 1 ? bodies[0].colour : null, dx: 0, dy: 0, z: (hi[2] - lo[2]) * sc / 2, budget: STL_KEEP }];
+  const N = all.length / 9;
+  return bodies.map(b => {
+    const [l, h] = trisBox(b.T);
+    return { name: b.name, T: b.T, colour: b.colour, dx: ((l[0] + h[0]) / 2 - c[0]) * sc, dy: ((l[1] + h[1]) / 2 - c[1]) * sc, z: ((l[2] + h[2]) / 2 - lo[2]) * sc,
+      budget: N > STL_KEEP ? Math.max(200, Math.floor(STL_KEEP * b.T.length / 9 / N)) : STL_KEEP };
+  });
+}
 /* ---------- Mask functions ----------
    An amplitude or a delay given as a formula in x (along the element, in the bench
    plane), y (out of it), r and theta, in millimetres, with lambda the wavelength in mm.
@@ -45809,9 +45947,10 @@ const recentParts = () => { try { return JSON.parse(localStorage.getItem(RECENT_
 /* add a part: in the middle of the view, or where it was dropped (screen point) */
 /* An STL object onto the bench, from a file: where it was dropped (or the middle of the view),
    resting on the breadboard. el, if given, has its mesh replaced instead. */
-function stlElement(T, name, x, y, units) {
-  const mesh = meshEncode(T, name), u = units || 'mm', sc = STL_UNITS[u] || 1;
-  return normElement({ type: 'stl', name: name.replace(/\.stl$/i, '').slice(0, 60) || 'STL object', x, y, angle: 0, z: Math.max(0, mesh.size[2] * sc / 2), mesh, units: u });
+function stlElement(T, name, x, y, units, o) {
+  o = o || {};                                    // from a STEP file: its triangle budget, height, file and colour
+  const mesh = meshEncode(T, o.file || name, o.budget), u = units || 'mm', sc = STL_UNITS[u] || 1;
+  return normElement(Object.assign({ type: 'stl', name: name.replace(/\.(stl|step|stp)$/i, '').slice(0, 60) || 'STL object', x, y, angle: 0, z: Math.max(0, o.z !== undefined ? o.z : mesh.size[2] * sc / 2), mesh, units: u }, o.colour ? { colour: o.colour } : {}));
 }
 function importStl(file, at, el) {
   const fr = new FileReader();
@@ -45855,6 +45994,156 @@ function partTile(p, onAdd, where) {
   b.addEventListener('click', e => { e.stopPropagation(); onAdd(p.key, e); });
   b.addEventListener('dragstart', e => { e.dataTransfer.setData(PART_DRAG, p.key); e.dataTransfer.effectAllowed = 'copy'; e.dataTransfer.setDragImage(img, 24, 24); });
   return b;
+}
+/* ==========================================================================
+   STEP import: a .step or .stp file as STL objects
+   OpenCascade reads the file (occt-import-js 0.0.23, LGPL-2.1, vendored as it was published under
+   jek/assets/vendor/occt-import-js/: its script and its WebAssembly, separate files, replaceable). It is fetched
+   only when a STEP file is first brought in, and runs in a worker of its own (a classic worker made from the
+   few lines in stepWorker, on the built page and the dev page alike), so the page never waits on it. What comes
+   back is each body's triangles (core/step.js), which become STL objects exactly as a .stl's do: one object,
+   or one for each part, grouped and in place, as the person chooses when there are several.
+   ========================================================================== */
+
+const OCCT_DIR = '../assets/vendor/occt-import-js/0.0.23/';
+const OCCT_WASM_BYTES = 7604031;            // the reader's size, to say how far its download has come
+const STEP_AS_KEY = 'jek-raytracer-step-as';
+
+/* the worker's code (a classic worker: importScripts, then OpenCascade's module), sent as its text */
+function stepWorker() {
+  let occt = null, bytes = null;
+  self.onmessage = async e => {
+    const m = e.data;
+    try {
+      if (m.load) {
+        // the WebAssembly fetched here, so its download can be followed; then the module made from it
+        const res = await fetch(m.wasm);
+        if (!res.ok) throw new Error('the STEP reader could not be fetched (HTTP ' + res.status + ')');
+        const parts = [], rd = res.body && res.body.getReader();
+        let got = 0, last = 0;
+        if (rd) for (;;) { const r = await rd.read(); if (r.done) break; parts.push(r.value); got += r.value.length; if (got - last > 262144) { last = got; self.postMessage({ progress: got }); } }
+        const bin = rd ? new Uint8Array(got) : new Uint8Array(await res.arrayBuffer());
+        if (rd) { let o = 0; for (const p of parts) { bin.set(p, o); o += p.length; } }
+        self.importScripts(m.lib);
+        occt = await self.occtimportjs({ wasmBinary: bin.buffer, locateFile: () => m.wasm });
+        self.postMessage({ id: m.id, ok: true });
+        return;
+      }
+      if (m.bytes) bytes = new Uint8Array(m.bytes);
+      const r = occt.ReadStepFile(bytes, m.params);
+      if (!r || !r.success) { self.postMessage({ id: m.id, ok: true, out: { success: false } }); return; }
+      const meshes = r.meshes.map(M => ({ name: M.name || '', color: M.color || null, P: new Float32Array(M.attributes.position.array), I: new Uint32Array(M.index.array) }));
+      self.postMessage({ id: m.id, ok: true, out: { success: true, root: r.root, meshes } }, meshes.flatMap(M => [M.P.buffer, M.I.buffer]));
+    } catch (err) { self.postMessage({ id: m.id, ok: false, err: String((err && err.message) || err) }); }
+  };
+}
+/* a reader in its worker: { read(params, bytes) → Promise of occt-import-js's result, close() }; onProgress(bytes so far) */
+async function stepReader(onProgress) {
+  const url = URL.createObjectURL(new Blob(['(' + stepWorker + ')();\n'], { type: 'text/javascript' }));
+  const w = new Worker(url);
+  URL.revokeObjectURL(url);
+  let seq = 0;
+  const waiting = new Map();
+  const fail = msg => { for (const p of waiting.values()) p.reject(new Error(msg)); waiting.clear(); };
+  w.onmessage = e => {
+    const m = e.data;
+    if (m.progress) { if (onProgress) onProgress(m.progress); return; }
+    const p = waiting.get(m.id); if (!p) return;
+    waiting.delete(m.id);
+    if (m.ok) p.resolve(m.out); else p.reject(new Error(m.err));
+  };
+  w.onerror = e => { e.preventDefault(); fail(e.message || 'the STEP reader stopped'); };
+  const ask = (msg, transfer) => new Promise((resolve, reject) => { msg.id = ++seq; waiting.set(msg.id, { resolve, reject }); w.postMessage(msg, transfer || []); });
+  const base = new URL(OCCT_DIR, location.href).href;
+  try { await ask({ load: true, lib: base + 'occt-import-js.js', wasm: base + 'occt-import-js.wasm' }); } catch (err) { w.terminate(); throw err; }
+  let sent = false;
+  return {
+    read(params, bytes) { const msg = { params }; if (!sent) { msg.bytes = bytes.slice().buffer; sent = true; } return ask(msg, msg.bytes ? [msg.bytes] : []); },
+    close() { w.terminate(); fail('closed'); },
+  };
+}
+
+/* Reads a STEP file's bodies in a worker, saying how it goes: { bodies, units, declared, pass, tris, ms } */
+async function stepImportBytes(bytes, fileName, say) {
+  say = say || (() => {});
+  const t0 = performance.now();
+  let slow = false;
+  // the reader's download, said only if it is not already at hand (from this browser's cache it comes at once)
+  const timer = setTimeout(() => { slow = true; say('Fetching the STEP reader (OpenCascade, ' + (OCCT_WASM_BYTES / 1e6).toFixed(1) + ' MB, once)…'); }, 400);
+  let reader;
+  try {
+    reader = await stepReader(got => { if (slow) say('Fetching the STEP reader: ' + Math.min(100, Math.round(100 * got / OCCT_WASM_BYTES)) + '% of ' + (OCCT_WASM_BYTES / 1e6).toFixed(1) + ' MB (once)…'); });
+  } catch (err) {
+    const net = /fetch|network|HTTP/i.test(err.message) || (typeof navigator !== 'undefined' && navigator.onLine === false);
+    throw new Error('The STEP reader could not be loaded (' + err.message + '). ' + (net ? 'It is fetched the first time a STEP file is brought in: try again when online.' : 'This browser may be too old to run it: try a current Chrome, Edge, Firefox or Safari.'));
+  } finally { clearTimeout(timer); }
+  const tick = setInterval(() => say('Reading ' + fileName + '… ' + Math.round((performance.now() - t0) / 1000) + ' s'), 1000);
+  try {
+    const out = await stepRead(bytes, fileName, params => reader.read(params, bytes), pass => say(pass ? 'Reading ' + fileName + ' again, more coarsely (it has many triangles)…' : 'Reading ' + fileName + '…'));
+    out.ms = Math.round(performance.now() - t0);
+    return out;
+  } finally { clearInterval(tick); reader.close(); }
+}
+
+/* the STL objects for what was read, onto the bench at (x, y): 'one' object, or 'parts' (one each, grouped) */
+function stepElements(res, fileName, x, y, as) {
+  const sc = STL_UNITS[res.units] || 1, plan = stepPlan(res.bodies, fileName, as, res.units, sc), g = plan.length > 1 ? 'g' + uid().slice(1) : null;
+  return plan.map(p => {
+    const el = stlElement(p.T, p.name, x + p.dx, y + p.dy, res.units, { budget: p.budget, z: p.z, file: fileName, colour: p.colour });
+    if (g) el.group = g;
+    el.bench = project.tab;
+    return el;
+  });
+}
+
+/* the choice, when a file has several bodies: 'parts', 'one', or null (cancelled); the last kept as the default */
+const stepAsDefault = () => { try { return !TEST_MODE && localStorage.getItem(STEP_AS_KEY) === 'one' ? 'one' : 'parts'; } catch (err) { return 'parts'; } };
+let stepAsk = null;
+function stepChoose(n, fileName) {
+  const dlg = document.getElementById('stepDialog');
+  document.getElementById('stepText').textContent = n + ' parts in ' + fileName;
+  const def = stepAsDefault(), bParts = document.getElementById('stepParts'), bOne = document.getElementById('stepOne');
+  bParts.classList.toggle('primary', def === 'parts'); bOne.classList.toggle('primary', def === 'one');
+  return new Promise(resolve => {
+    stepAsk = v => {
+      stepAsk = null;
+      if (v && !TEST_MODE) try { localStorage.setItem(STEP_AS_KEY, v); } catch (err) { /* not kept: fine */ }
+      resolve(v);
+    };
+    dlg.showModal();
+    (def === 'one' ? bOne : bParts).focus();
+  });
+}
+function wireStep() {
+  const dlg = document.getElementById('stepDialog'), pick = v => { if (stepAsk) stepAsk(v); dlg.close(); };
+  document.getElementById('stepParts').addEventListener('click', () => pick('parts'));
+  document.getElementById('stepOne').addEventListener('click', () => pick('one'));
+  document.getElementById('stepCancel').addEventListener('click', () => pick(null));
+  dlg.addEventListener('close', () => { if (stepAsk) stepAsk(null); });
+}
+
+/* A STEP file from the file picker or dropped on the bench (at: the screen point it was dropped at) */
+async function importStep(file, at) {
+  let res;
+  try {
+    toast('Reading ' + file.name + '…');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    res = await stepImportBytes(bytes, file.name, msg => toast(msg));
+  } catch (err) { toast(/^(The|OpenCascade|\S+ is not)/.test(err.message) ? err.message : 'Could not read ' + file.name + ': ' + err.message, true); return null; }
+  const n = res.bodies.length, as = n > 1 ? await stepChoose(n, file.name) : 'one';
+  if (!as) { toast('Nothing brought in.'); return null; }
+  let x = V().cx, y = V().cy;
+  if (at) { const r = canvas.getBoundingClientRect(), q = V3D.active() ? V3D.tablePoint(at[0], at[1]) : [wx(at[0] - r.left), wy(at[1] - r.top)]; if (q) [x, y] = q; }
+  checkpoint();
+  const els = stepElements(res, file.name, snapVal(x), snapVal(y), as);
+  project.elements.push(...els);
+  selectOne(els[0].id); for (const e of els.slice(1)) extraSel.add(e.id);
+  const kept = els.reduce((a, e) => a + e.mesh.n, 0), simpl = els.some(e => e.mesh.orig);
+  const kb = Math.round(els.reduce((a, e) => a + e.mesh.data.length, 0) / 1024);
+  toast('Brought in ' + (els.length > 1 ? els.length + ' parts of ' + file.name + ', grouped' : els[0].name) + ': ' + kept + ' triangles' + (simpl ? ' (simplified from ' + res.tris + ')' : '') +
+    ', in ' + ({ mm: 'millimetres', cm: 'centimetres', m: 'metres', in: 'inches' }[res.units]) + (res.declared ? ' as the file says' : '') + ', resting on the breadboard' + (kb > 1024 ? ' (' + (kb / 1024).toFixed(1) + ' MB with the bench: a share link to it will be long)' : ''));
+  changed(true);
+  return els;
 }
 /* ---------- the picker ---------- */
 const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
@@ -48668,6 +48957,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>STEP files</b> come in as STL objects: Open \u25be \u2192 Import an object (.stl, .step), or drop a .step or .stp file on the bench. OpenCascade reads it (fetched the first time, 7.6 MB, and run in the background), in the file\u2019s own units; a file of several parts asks whether to bring them in as separate parts, grouped and in place, or as one object.',
     'On a phone, <b>the tour no longer pushes the tool sideways</b>: its note was wider than the screen beside the parts rail, which shifted the bench and clipped the first tab; it now fits between the rail and the edge.',
     '<b>What a free account gives</b>, said wherever sign-in is offered: the experimental features, and joining a team you are invited to; with a university email, JEKrayPro where your university has a licence, or else the academic price. Signing in the first time, with Google, Microsoft or an emailed code, makes the account. A bench restored from this browser on a later visit, signed out, says it is kept here alone and offers a file or an account (once a week at most, as the other notes); a shared bench\u2019s bar has <b>Save a copy</b>, to the cloud with JEKrayPro, or as a file; and the tour\u2019s last step has <b>Save this bench</b>.',
     'The welcome note and the tour have a <b>\u00d7 to close them</b> in their corner, and a shared bench or example opened into a page already open closes the welcome note (on a phone it could stay over the bench).',
@@ -49588,7 +49878,7 @@ function wireTours() {
 
   document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 
-  document.getElementById('fileStl').addEventListener('change', e => { const f = e.target.files[0]; if (f) importStl(f); e.target.value = ''; });
+  document.getElementById('fileStl').addEventListener('change', e => { const f = e.target.files[0]; if (f) (/\.(step|stp)$/i.test(f.name) ? importStep(f) : importStl(f)); e.target.value = ''; });
 
   {
     const sel = document.getElementById('zmxAs');
@@ -49887,9 +50177,10 @@ function wireTours() {
     if (!f || LOCKED) return;
     if (/\.zmx$/i.test(f.name)) importZmx(f);
     else if (/\.stl$/i.test(f.name)) importStl(f, [e.clientX, e.clientY]);
+    else if (/\.(step|stp)$/i.test(f.name)) importStep(f, [e.clientX, e.clientY]);
     else if (/\.jekpack$/i.test(f.name)) f.text().then(t => packInstallText(t, f.name));   // a part pack: shown, then installed if wanted
     else if (/\.(jekray|json)$/i.test(f.name)) openJekray(f);
-    else toast(f.name + ' isn\u2019t a .zmx, .stl, .jekray or .jekpack file.', true);
+    else toast(f.name + ' isn\u2019t a .zmx, .stl, .step, .jekray or .jekpack file.', true);
   });
 
 }
@@ -50537,7 +50828,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -50723,6 +51014,14 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // an STL object onto the bench from a file's contents (text, or bytes as an array of numbers): its name
     stl(src, name, x, y, units) { const T = parseSTL(Array.isArray(src) ? new Uint8Array(src) : src), el = stlElement(T, name || 'object.stl', x || 0, y || 0, units); el.bench = project.tab; project.elements.push(el); changed(true); return el.name; },
     stlHull: name => meshHull(project.elements.find(e => e.name === name)),
+    // a STEP file onto the bench (its bytes: an ArrayBuffer, a Uint8Array or an array of numbers), read by OpenCascade in its
+    // worker as an import is: o.as 'parts' (one object each, grouped; the default) or 'one'. { names, bodies, tris, units, pass, ms }
+    async step(src, name, x, y, o) {
+      const bytes = src instanceof Uint8Array ? src : new Uint8Array(src), file = name || 'model.step', res = await stepImportBytes(bytes, file);
+      const els = stepElements(res, file, x || 0, y || 0, (o && o.as) === 'one' ? 'one' : 'parts');
+      project.elements.push(...els); changed(true);
+      return { names: els.map(e => e.name), bodies: res.bodies.length, tris: res.tris, units: res.units, declared: res.declared, pass: res.pass, ms: res.ms };
+    },
     pic: PIC.api,                                                                              // PIC hook
     elec: ELEC_UI.api,                                                                            // ELEC hook
     // the field steps kept between runs: how many, hits and misses since the last look; clear empties it

@@ -94,6 +94,7 @@ export function parseZmx(text, fileName, agf) {
   const lines = text.split(/\r?\n/);
   let unit = 1, title = null, pwav = 1, enpd = null, fnum = null, ftyp = 0;
   const surfs = [], wavm = {}, wwgt = {}, sys = { yfln: [], fwgn: [] };
+  let nwav = 0;                                               // how many wavelengths are in use (WAVL lists them; WAVM fills every slot)
   let cur = null;
   const warnings = new Set();
   for (const raw of lines) {
@@ -110,6 +111,8 @@ export function parseZmx(text, fileName, agf) {
       warnings.add('the file holds ' + tok[1] + ' configurations; the first was used');
     } else if (key === 'NAME' && !cur) {
       title = t.slice(5).trim().replace(/^"|"$/g, '') || title;
+    } else if (key === 'WAVL' && !cur) {
+      nwav = tok.slice(1).filter(v => isFinite(parseFloat(v))).length;
     } else if (key === 'WAVM' && !cur) {
       wavm[parseInt(tok[1], 10)] = parseFloat(tok[2]);       // the design wavelengths, um
       if (isFinite(parseFloat(tok[3]))) wwgt[parseInt(tok[1], 10)] = parseFloat(tok[3]);
@@ -153,7 +156,8 @@ export function parseZmx(text, fileName, agf) {
   if (surfs.length < 2) throw new Error('No surfaces were found in ' + fileName + '.');
   const design = wavm[pwav] > 0 ? Math.round(wavm[pwav] * 1e6) / 1000 : null;   // nm
   // the conditions it was designed for, for an assembly made from it: aperture, fields (angles only), wavelengths
-  const ks = Object.keys(wavm).map(Number).filter(k => wavm[k] > 0).sort((a, b) => a - b);
+  // (only the wavelengths in use: a file's unused slots hold a placeholder, 0.55 um at weight 1)
+  const ks = Object.keys(wavm).map(Number).filter(k => wavm[k] > 0 && !(nwav && k > nwav)).sort((a, b) => a - b);
   // the object: at infinity, or (the object surface's thickness finite) at that distance, its fields then heights
   const od = surfs[0] && isFinite(surfs[0].disz) && surfs[0].disz > 0 && surfs[0].disz * unit < 1e6 ? surfs[0].disz * unit : 0;   // (a kilometre or more is infinity)
   const cond = {
@@ -189,9 +193,11 @@ function zmxMaterial(g, warnings, agf) {
 /* Turn a parsed prescription into an element, as `mode` asks or by inspection */
 export function zmxToElement(Z, fileName, mode) {
   const { unit, surfs, warnings } = Z;
-  const name = (Z.title && Z.title.length < 60 ? Z.title : null) || fileName.replace(/\.zmx$/i, '');
+  // the file's name without its extension (and the -Zemax Thorlabs add to their downloads: AC254-050-A-Zemax.zar)
+  const base = fileName.replace(/(-zemax)?\.(zmx|zar)$/i, '');
+  const name = (Z.title && Z.title.length < 60 ? Z.title : null) || base;
   // Thorlabs put the coating band in the part number; the file itself only names a coating
-  const partCoat = coatingFromPart(fileName.replace(/\.zmx$/i, '')) || coatingFromPart(name);
+  const partCoat = coatingFromPart(base) || coatingFromPart(name);
   const anyCoatLine = surfs.some(t => t.coat);
   // a maker's coating by the name its file gives it: Edmund's EO_ codes carry the band
   const EO = [[/^EO_VIS0/i, 0.4, 425, 675, 'VIS 0\u00b0'], [/^EO_VIS_?NIR/i, 0.5, 400, 1000, 'VIS-NIR'], [/^EO_VIS_?EXT/i, 0.5, 350, 700, 'VIS-EXT'], [/^EO_NIR_?I\b|^EO_NIR1/i, 0.5, 600, 1050, 'NIR I'],

@@ -4,7 +4,7 @@ import { lagOf, splitRoot } from '../core/coherence.js';
 import { C_FS, PULSE_SAMPLES, pulseGrid, pulseHalf, pulseOf, pulseSpectrum, specAt } from '../core/pulses.js';
 import { deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
-import { lastTrace } from './trace.js';
+import { lastTrace, lineMw } from './trace.js';
 
 
 
@@ -119,9 +119,9 @@ function pulseReportRaw(el, hits) {
   for (const b of near) {
     const key = b.launch;
     // the power the rays' amplitudes are against: the laser's own (a fibre tip's amplitudes
-    // already carry the share of it that reached the tip)
+    // already carry the share of it that reached the tip, of the line it came on)
     if (!fields.has(key)) fields.set(key, { s: [new Float64Array(NT), new Float64Array(NT)], p: [new Float64Array(NT), new Float64Array(NT)], P: b.P, share: 0,
-      Pw: b.src.virtual && b.src.vRoot ? b.src.vRoot.power : b.P.power });
+      Pw: b.src.virtual && b.src.vRoot ? lineMw(b.src) : b.P.power });
     if (!spec.has(key)) spec.set(key, { s: [new Float64Array(NF), new Float64Array(NF)], p: [new Float64Array(NF), new Float64Array(NF)] });
     const F = fields.get(key), SP = spec.get(key);
     F.share += b.share;

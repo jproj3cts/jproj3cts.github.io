@@ -920,7 +920,7 @@
   "filter": {
    "label": "Filter",
    "what": "A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic).",
-   "angle": "its normal: 0 for a beam travelling ±x.",
+   "angle": "its normal: 0 for a beam travelling ±x. A simplification: tilt changes nothing, so an \"nd\" filter transmits 10^−od at any angle and an edge or band does not move to shorter wavelengths as the filter is tilted (a real interference filter’s does).",
    "fields": [
     {
      "k": "length",

@@ -69,16 +69,16 @@ export function detectorField(el, R) {
     const A = hits[i], B = hits[j], rA = root(A), rB = root(B);
     if (A.sg.coh === B.sg.coh) {                      // one launch at one frequency: its DC
       const c = ov(i, j), g = cohGamma(rA), gam = i === j || !g ? 1 : g(L(A) - L(B));
-      out.mw += (i === j ? 1 : 2) * gam * c[0] * (rA.power || 0);
+      out.mw += (i === j ? 1 : 2) * gam * c[0] * (A.sg.b.lmw || 0);
     } else if (base(A) === base(B) && fo(A) !== fo(B)) {
       // ov(i, j) is <E_i conj(E_j)>; the beat's phase is that of conj(E_X) E_Y, X the lower
       let c = ov(i, j), X = A, Y = B;
       if (fo(A) > fo(B)) { X = B; Y = A; } else c = [c[0], -c[1]];
-      const g = cohGamma(rA), w = 2 * (g ? g(L(X) - L(Y)) : 1) * (rA.power || 0);
+      const g = cohGamma(rA), w = 2 * (g ? g(L(X) - L(Y)) : 1) * (A.sg.b.lmw || 0);
       add(fo(Y) - fo(X), w * c[0], w * c[1], false);
     } else if (rA !== rB) {
       const df = Math.abs(C_MM / (B.sg.b.nm * 1e-6) + fo(B) - C_MM / (A.sg.b.nm * 1e-6) - fo(A));
-      if (df < 1e12) { const c = ov(i, j); add(df, 2 * Math.sqrt((rA.power || 0) * (rB.power || 0)) * Math.hypot(c[0], c[1]), 0, true); }
+      if (df < 1e12) { const c = ov(i, j); add(df, 2 * Math.sqrt((A.sg.b.lmw || 0) * (B.sg.b.lmw || 0)) * Math.hypot(c[0], c[1]), 0, true); }
     }
   }
   out.tones = [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);

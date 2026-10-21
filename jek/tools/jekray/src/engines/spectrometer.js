@@ -48,7 +48,7 @@ export function specLines(el) {
     const sinNA = el.na;
     // Gaussian launches: |E|^2 over the entrance, the beam's fields added within each launch, if it comes within the NA
     for (const G of groupsOf(faceArrivals(el))) {
-      const root = splitRoot(G[0].src), P0 = root.power || 0;
+      const root = splitRoot(G[0].src), P0 = G[0].b.lmw || 0;
       const W = arrivalWindow(G, Infinity), sinA = Math.sqrt(Math.max(0, 1 - G[0].ldx * G[0].ldx));
       const integrate = (u0, u1, v0, v1, keep) => {
         if (!(u1 > u0) || !(v1 > v0)) return 0;

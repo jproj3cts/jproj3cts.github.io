@@ -67,10 +67,10 @@ function volCutAt(L, G, px, py, J) {
   }
   return [p[0], p[1], s[0], s[1]];
 }
-/* the share of its laser's power a segment's field is per unit of, in W: the field has unit power
+/* the share of its laser's power a segment's field is per unit of, in W (its line's, of a laser of several): the field has unit power
    (a cavity's build-up aside), and the segment's Jones vector carries its launch's share and every
    reflection, transmission and loss on its way, so a 5 % leak through a mirror is 5 % here too */
-const volPw = sg => Math.max(0, splitRoot(sg.src).power || 0) * 1e-3 * (sg.boost || 1) * (sg.b && sg.b.J ? sg.b.J.reduce((a, v) => a + v * v, 0) : (sg.root || 1));
+const volPw = sg => Math.max(0, (sg.b && sg.b.lmw !== undefined ? sg.b.lmw : splitRoot(sg.src).power) || 0) * 1e-3 * (sg.boost || 1) * (sg.b && sg.b.J ? sg.b.J.reduce((a, v) => a + v * v, 0) : (sg.root || 1));
 /* Beams of one launch that run the same way through the same space interfere, and fringes
    across them are on a scale the 3D view can show: each such segment's mates, the others of its
    launch on the bench plane running within 6 degrees of it, side by side within a few beam

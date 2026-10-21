@@ -232,7 +232,7 @@ export function fibreCoupling(el) {
     if (!arr.length) return null;
     let inMw = 0, coupledMw = 0, pinS = 0, gotS = 0;
     for (const A of arr) {
-      const pin = A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2, got = pin * mmShare(el, A), P = splitRoot(A.src).power;
+      const pin = A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2, got = pin * mmShare(el, A), P = A.b.lmw;
       pinS += pin; gotS += got; inMw += pin * P; coupledMw += got * P;
     }
     return { eff: pinS > 0 ? gotS / pinS : 0, mw: coupledMw, inMw, mode: null, share: gotS, mm: true };
@@ -243,7 +243,7 @@ export function fibreCoupling(el) {
     const N = 96;
     let inMw = 0, coupledMw = 0, arrivingShare = 0, coupledShare = 0, mode = null;
     for (const G of groupsOf(arr)) {
-      const src = G[0].src, nm = G[0].nm;
+      const nm = G[0].nm;
       mode = fibreMode(el.core, el.na, nm); if (el.coll > 0) mode = Object.assign({}, mode, { w: tipModeW(el, nm) });
       const wf = mode.w, L = 3.5 * wf, d = 2 * L / N;
       let cs = [0, 0], cp = [0, 0], pin = 0;
@@ -259,7 +259,7 @@ export function fibreCoupling(el) {
       }
       const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d;
       arrivingShare += pin; coupledShare += got;
-      const P = splitRoot(src).power;           // amplitudes are against the laser's own source
+      const P = G[0].b.lmw;           // amplitudes are against the laser's own source, this line's share of it
       inMw += pin * P; coupledMw += got * P;
     }
     return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
@@ -316,7 +316,7 @@ export function rfCoupling(el) {
         }
       }
       const got = (cr * cr + ci * ci + c2r * c2r + c2i * c2i) * d * d * d * d;
-      const root = splitRoot(G[0].src), P = root.power;
+      const root = splitRoot(G[0].src), P = G[0].b.lmw;
       inS += pin; gotS += got; inMw += pin * P; coupledMw += got * P;
       const key = root.id, ln = lines.get(key) || { id: key, ghz: C_NM_GHZ / nm, mw: 0, inMw: 0, got: 0, ph: 0, top: -1 };
       ln.mw += got * P; ln.inMw += pin * P; ln.got += got;
@@ -365,7 +365,7 @@ export function detectorReading(el) {
         for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
         pw += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
       }
-      const mw = pw * du * dv * splitRoot(G[0].src).power;
+      const mw = pw * du * dv * G[0].b.lmw;
       P += mw; I += mw * responsivity(el, G[0].nm);
     }
     // ray fans, ray by ray: each launched ray carries its share of its source's power

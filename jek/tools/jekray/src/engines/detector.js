@@ -15,7 +15,7 @@ import { detectorFieldResult, viaCavity } from './pd-cavity.js';
    and an optical spectrum analyser's lines. The instruments that show these: ui/instruments.js.
    ========================================================================== */
 
-/* tones from pairs [{fo, dl, E, root, key, nm}]: same launch pairs at different offsets, and different lasers */
+/* tones from pairs [{fo, dl, E, root, lp (its line's mW), key, nm}]: same launch pairs at different offsets, and different lasers */
 function beatTones(parts) {
   const tones = new Map(), add = (f, re, im, incoh) => {
     const k = (incoh ? 'x' : '') + Math.round(f);
@@ -28,14 +28,14 @@ function beatTones(parts) {
       if (a.fo > b.fo) [a, b] = [b, a];
       // the fields go as e^{i w t}: the power holds 2 Re[conj(E_a) E_b e^{i (w_b - w_a) t}], so
       // the beat's phase is that of conj(E_a) E_b (cdotc gives E_a conj(E_b))
-      const g = cohGamma(a.root), c = cdotc(a.E, b.E), w = 2 * (g ? g(a.dl - b.dl) : 1) * (a.root.power || 0);
+      const g = cohGamma(a.root), c = cdotc(a.E, b.E), w = 2 * (g ? g(a.dl - b.dl) : 1) * (a.lp || 0);
       add(b.fo - a.fo, w * c[0], -w * c[1], false);
     } else if (a.root !== b.root) {
       // two lasers: their difference in frequency, with the offsets
       let df = C_MM / (b.nm * 1e-6) + b.fo - (C_MM / (a.nm * 1e-6) + a.fo);
       if (df < 0) { [a, b] = [b, a]; df = -df; }
       if (df > 1e12) continue;
-      const c = cdotc(a.E, b.E), w = 2 * Math.sqrt((a.root.power || 0) * (b.root.power || 0));
+      const c = cdotc(a.E, b.E), w = 2 * Math.sqrt((a.lp || 0) * (b.lp || 0));
       add(df, w * Math.hypot(c[0], c[1]), 0, true);
     }
   }
@@ -57,7 +57,7 @@ function fibrePdParts(el, minus) {
   const byG = net.pd.get(el.id + (minus ? '~' : ''));
   if (!byG) return out;
   // broadband light (an amplifier's ASE, an LED's slices) makes no beat notes: its noise is counted apart
-  for (const K of net.keys) if (!K.root.ase && !K.root.slice) for (const w of byG.get(K.gk) || []) out.push({ fo: w.fo || 0, dl: w.dl, E: w.E, root: K.root, key: K.gk, nm: K.nm });
+  for (const K of net.keys) if (!K.root.ase && !K.root.slice) for (const w of byG.get(K.gk) || []) out.push({ fo: w.fo || 0, dl: w.dl, E: w.E, root: K.root, lp: K.lp, key: K.gk, nm: K.nm });
   return out;
 }
 
@@ -101,7 +101,7 @@ function freePdTones(el, coarse) {
       [re, im] = pairInt(F[i], F[j]);
       if (A.fo > B.fo) { [A, B] = [B, A]; im = -im; }
       // re + i im is now <E_A conj(E_B)>, A the lower: the beat's phase is its conjugate's
-      const g = cohGamma(root(A)), w = 2 * (g ? g(A.gpl + A.lag - B.gpl - B.lag) : 1) * (root(A).power || 0);
+      const g = cohGamma(root(A)), w = 2 * (g ? g(A.gpl + A.lag - B.gpl - B.lag) : 1) * (A.b.lmw || 0);
       add(B.fo - A.fo, w * re, -w * im, false);
     } else {
       let df = C_MM / (B.nm * 1e-6) + B.fo - (C_MM / (A.nm * 1e-6) + A.fo);
@@ -109,7 +109,7 @@ function freePdTones(el, coarse) {
       // two lasers: each pair of their beams on its own, as before
       let m = 0;
       for (const p of G[i].mem) for (const q of G[j].mem) { const [r2, i2] = pairInt(Fi[p], Fi[q]); m += Math.hypot(r2, i2); }
-      add(Math.abs(df), 2 * Math.sqrt((root(A).power || 0) * (root(B).power || 0)) * m, 0, true);
+      add(Math.abs(df), 2 * Math.sqrt((A.b.lmw || 0) * (B.b.lmw || 0)) * m, 0, true);
     }
   }
   return [...tones.values()].map(t => ({ f: t.f, amp: Math.hypot(t.re, t.im), ph: Math.atan2(t.im, t.re), incoh: t.incoh })).filter(t => t.amp > 1e-12).sort((x, y) => x.f - y.f);

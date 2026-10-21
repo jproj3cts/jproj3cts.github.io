@@ -17,6 +17,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The welcome note and the tour have a <b>\u00d7 to close them</b> in their corner, and a shared bench or example opened into a page already open closes the welcome note (on a phone it could stay over the bench).',
     '<b>Phosphor screen</b>, beside the screen in the picker: its face glows where the light lands and fades after it, to 1/e in its decay time, so a beam swept across it by a sweep or a drag leaves a trail. Its decay time and glow colour are in its panel. The glow keeps up with the rays at any speed, or follows the diffracted field when the bench shows it, and in 3D it is always on the screen\u2019s face.',
     '<b>Experimental features for every account</b>: the switch under Help \u203a Experimental features\u2026 now needs only a signed-in account, a free one or JEKrayPro, where before it needed a plan.',
     'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
@@ -332,6 +333,7 @@ export function showWelcome() {
   // on a touch screen, the touch ways; a phone is told the designers and plots want a desktop
   const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches, phone = phoneSheet();
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
+    h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close the welcome note', onclick: hideWelcome }, '\u00d7'),
     h('h3', null, 'Welcome to JEKray'),
     phone ? h('p', { class: 'rt-wdesk' }, 'JEKray is best used on a desktop or laptop: the bench works here, but the designers, plots and shortcuts need a larger screen and a mouse.') : null,
     phone ? remindForm() : null,

@@ -132,7 +132,8 @@ function tourShow() {
     : [h('button', { class: 'rt-btn', type: 'button', onclick: endTour }, 'End tour'),
        i > 0 ? h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i--; tourShow(); } }, 'Back') : null,
        h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i++; tourShow(); } }, 'Skip step')];
-  c.replaceChildren(h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
+  c.replaceChildren(h('button', { class: 'rt-wx', type: 'button', title: 'End the tour', 'aria-label': 'End the tour', onclick: endTour }, '\u00d7'),
+    h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
     p, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
   for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
   const tg = st.target && tourTarget(st.target);

@@ -572,6 +572,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
     if (!sh && !ss && !dm) return;
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
+    hideWelcome();
     if (sh) openShareHash(sh[1]); else if (ss) openShortLink(ss[1]); else openDemo(dm[1], true);
   });
 })();

@@ -894,7 +894,8 @@
   .rt-subsmall { font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
   .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
-  .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+  .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; padding-right: 1.8rem; }
+  @media (pointer: coarse) { .rt-coachhead { padding-right: 2.6rem; } }
   .rt-coachhead span { font-size: 0.75rem; color: var(--jek-ink-soft); white-space: nowrap; }
   .rt-coach.rt-flash { animation: rt-flash 0.7s ease-out; }
   @keyframes rt-flash { 0% { box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.9); } 100% { box-shadow: var(--jek-shadow, 0 4px 14px rgba(0,0,0,0.2)); } }
@@ -916,7 +917,12 @@
   /* first visit: a few words on the bench, once */
   .rt-welcome { position: absolute; left: 0.8rem; bottom: 2.2rem; z-index: 5; max-width: min(24rem, calc(100% - 1.6rem)); padding: 0.8rem 0.95rem;
     background: var(--jek-panel); color: var(--jek-ink); border-radius: 2px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-size: 0.85rem; line-height: 1.45; }
-  .rt-welcome h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+  .rt-welcome h3 { margin: 0 0 0.35rem; padding-right: 1.8rem; font-size: 0.95rem; }
+  /* the welcome note's and the tour's close, in the corner */
+  .rt-wx { position: absolute; top: 0.3rem; right: 0.3rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 0; border-radius: 2px;
+    background: none; color: var(--jek-ink-soft); font: inherit; font-size: 1.35rem; line-height: 1; cursor: pointer; }
+  .rt-wx:hover, .rt-wx:focus-visible { color: #fff; background: var(--jek-red); }
+  @media (pointer: coarse) { .rt-wx { width: 2.75rem; height: 2.75rem; top: 0.1rem; right: 0.1rem; } .rt-welcome h3 { padding-right: 2.6rem; } }
   .rt-welcome ul { margin: 0 0 0.6rem; padding-left: 1.1rem; color: var(--jek-ink-soft); }
   .rt-welcome .rt-actions { display: flex; gap: 0.4rem; justify-content: flex-end; margin: 0; }
   dialog.rt-dialog {
@@ -48574,6 +48580,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The welcome note and the tour have a <b>\u00d7 to close them</b> in their corner, and a shared bench or example opened into a page already open closes the welcome note (on a phone it could stay over the bench).',
     '<b>Phosphor screen</b>, beside the screen in the picker: its face glows where the light lands and fades after it, to 1/e in its decay time, so a beam swept across it by a sweep or a drag leaves a trail. Its decay time and glow colour are in its panel. The glow keeps up with the rays at any speed, or follows the diffracted field when the bench shows it, and in 3D it is always on the screen\u2019s face.',
     '<b>Experimental features for every account</b>: the switch under Help \u203a Experimental features\u2026 now needs only a signed-in account, a free one or JEKrayPro, where before it needed a plan.',
     'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
@@ -48889,6 +48896,7 @@ function showWelcome() {
   // on a touch screen, the touch ways; a phone is told the designers and plots want a desktop
   const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches, phone = phoneSheet();
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
+    h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close the welcome note', onclick: hideWelcome }, '\u00d7'),
     h('h3', null, 'Welcome to JEKray'),
     phone ? h('p', { class: 'rt-wdesk' }, 'JEKray is best used on a desktop or laptop: the bench works here, but the designers, plots and shortcuts need a larger screen and a mouse.') : null,
     phone ? remindForm() : null,
@@ -49347,7 +49355,8 @@ function tourShow() {
     : [h('button', { class: 'rt-btn', type: 'button', onclick: endTour }, 'End tour'),
        i > 0 ? h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i--; tourShow(); } }, 'Back') : null,
        h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i++; tourShow(); } }, 'Skip step')];
-  c.replaceChildren(h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
+  c.replaceChildren(h('button', { class: 'rt-wx', type: 'button', title: 'End the tour', 'aria-label': 'End the tour', onclick: endTour }, '\u00d7'),
+    h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
     p, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
   for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
   const tg = st.target && tourTarget(st.target);
@@ -50892,6 +50901,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
     if (!sh && !ss && !dm) return;
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
+    hideWelcome();
     if (sh) openShareHash(sh[1]); else if (ss) openShortLink(ss[1]); else openDemo(dm[1], true);
   });
 })();

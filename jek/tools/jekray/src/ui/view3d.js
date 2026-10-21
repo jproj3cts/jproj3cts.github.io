@@ -28,7 +28,7 @@ import { QFree, beamQ, cavEventABCD, ccInv, mfree, qThrough } from '../engines/c
 import { popKeyOf, popRun, popSources, popState } from '../engines/beam-tree.js';
 import { volData, volDisp, volDispLine, volMerge, volPartners, volRay, volShare, volStitch } from '../engines/volume.js';
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
-import { phosphorCanvas, phosphorForget, phosphorTexture } from './phosphor.js';
+import { phosphorCanvas, phosphorForget, phosphorRoll, phosphorTexture } from './phosphor.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
 import { checkpoint, undo } from './tabs.js';
 import { qrLink } from '../io/share.js';
@@ -654,7 +654,7 @@ export const V3D = (() => {
       if (!p) continue;
       used.add(el.id);
       p.position.set(el.x, el.y, zOf(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
-      p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; });
+      p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
         const P = el.type === 'link' ? linkPartner(el) : null;

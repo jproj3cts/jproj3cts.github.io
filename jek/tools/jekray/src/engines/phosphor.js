@@ -8,9 +8,12 @@
    ========================================================================== */
 export const PHOS_N = 96;
 
-/* the excitation, 0..1 (its peak 1), from the rays on the face: each source's rays spread across
-   the face as they land, and up and down as far as across (a round beam; the rays are traced in
-   the bench's plane), each by the power it carries. hits: the trace's for this screen */
+/* the excitation, 0..1 (its peak 1), from the rays on the face: each source's rays, each by the power it
+   carries, blurred just enough that they join up, each way by how far apart they land that way. Rays
+   that sample the beam up and down (z: a grid or rings, or tipped out of the plane) show its own shape,
+   so a line spread by a cylinder stays a line, across or up; a fan all in the bench's plane says
+   nothing of the beam's height, so it is taken as round, as tall as it is wide. hits: the trace's for
+   this screen */
 export function phosphorFromRays(hits, L, n = PHOS_N) {
   const S = new Float32Array(n * n), cell = 2 * L / n;
   const groups = new Map();
@@ -22,12 +25,7 @@ export function phosphorFromRays(hits, L, n = PHOS_N) {
   }
   const wu = new Float32Array(n), wv = new Float32Array(n);
   for (const g of groups.values()) {
-    let sw = 0, su = 0, suu = 0;
-    for (const t of g) { sw += t.w; su += t.w * t.y; suu += t.w * t.y * t.y; }
-    const mu = su / sw, rms = Math.sqrt(Math.max(0, suu / sw - mu * mu));
-    const ys = g.map(t => t.y).sort((a, b) => a - b), gap = ys.length > 1 ? (ys[ys.length - 1] - ys[0]) / (ys.length - 1) : 0;
-    // across: wide enough that a fan's rays join up; up and down: as wide as the spot is across
-    const sigU = Math.max(0.7 * cell, 0.6 * gap), sigV = Math.max(0.7 * cell, rms);
+    const [sigU, sigV] = phosphorBlur(g, cell);
     for (const t of g) {
       const v0 = isFinite(t.z) ? t.z : 0;
       const iu0 = Math.max(0, Math.floor((t.y - 3 * sigU + L) / cell)), iu1 = Math.min(n - 1, Math.ceil((t.y + 3 * sigU + L) / cell));
@@ -39,6 +37,41 @@ export function phosphorFromRays(hits, L, n = PHOS_N) {
     }
   }
   return peakOne(S);
+}
+
+/* one source's blur on the face, [across, up], mm: at least 0.7 of a cell each way. Its rays where they land
+   (each place once: a ray's polarisations land together), u across, v up. A fan in the bench's plane (no
+   heights, or all at one height going level): joined up across, as tall as the spot is wide (a round beam).
+   Rays along a line (straight, at any slant): joined up along it, the line kept thin. Rays over an area (a
+   grid or rings): joined up each way by the spacing across the pattern, about the square root of the count */
+function phosphorBlur(g, cell) {
+  const lo = 0.7 * cell, pts = new Map();
+  let sw = 0, su = 0, suu = 0, flat = true;
+  const z0 = isFinite(g[0].z) ? g[0].z : 0, dz0 = g[0].dz || 0;
+  for (const t of g) {
+    const v = isFinite(t.z) ? t.z : 0;
+    sw += t.w; su += t.w * t.y; suu += t.w * t.y * t.y;
+    if (Math.abs(v - z0) > 1e-9 || Math.abs((t.dz || 0) - dz0) > 1e-12) flat = false;
+    pts.set(Math.round(t.y * 1e4) + ',' + Math.round(v * 1e4), [t.y, v]);
+  }
+  const P = [...pts.values()], m = P.length;
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, cu = 0, cv = 0;
+  for (const [u, v] of P) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); cu += u; cv += v; }
+  if (flat) { const mu = su / sw; return [Math.max(lo, m > 1 ? 0.6 * (u1 - u0) / (m - 1) : 0), Math.max(lo, Math.sqrt(Math.max(0, suu / sw - mu * mu)))]; }
+  // the spread of the places: its long way (at th to across) and how thick it is across that (sqrt l2)
+  cu /= m; cv /= m;
+  let a = 0, b = 0, c = 0;
+  for (const [u, v] of P) { a += (u - cu) ** 2; b += (u - cu) * (v - cv); c += (v - cv) ** 2; }
+  a /= m; b /= m; c /= m;
+  const h = Math.hypot((a - c) / 2, b), l1 = (a + c) / 2 + h, l2 = Math.max(0, (a + c) / 2 - h), th = Math.atan2(2 * b, a - c) / 2;
+  if (Math.sqrt(l2) < cell) {
+    let s0 = Infinity, s1 = -Infinity;
+    for (const [u, v] of P) { const s = u * Math.cos(th) + v * Math.sin(th); s0 = Math.min(s0, s); s1 = Math.max(s1, s); }
+    const gap = m > 1 && l1 > 0 ? (s1 - s0) / (m - 1) : 0;
+    return [Math.max(lo, 0.6 * gap * Math.abs(Math.cos(th))), Math.max(lo, 0.6 * gap * Math.abs(Math.sin(th)))];
+  }
+  const across = Math.max(2, Math.sqrt(4 * m / Math.PI));
+  return [Math.max(lo, 0.6 * (u1 - u0) / (across - 1)), Math.max(lo, 0.6 * (v1 - v0) / (across - 1))];
 }
 
 /* the excitation from the diffracted field's irradiance map ({n, u0, u1, v0, v1, v}: row j up, column i across),

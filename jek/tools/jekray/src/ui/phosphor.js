@@ -77,6 +77,10 @@ export function phosphorCanvas(el) {
 }
 /* a 3D picture of this screen's glow, to be told when to upload a new frame */
 export function phosphorTexture(el, tex) { const s = phosphorCanvas(el); s.texs.add(tex); }
+/* the glow is kept in the screen's unrolled frame (as its hits are recorded), the face it is painted on turns with the
+   screen's roll: the picture is turned back by it, so the light stays where it lands */
+export function phosphorRoll(tex, el) { tex.center.set(0.5, 0.5); tex.rotation = PHOS_ROLL_SIGN * (el.roll || 0) * Math.PI / 180; }
+const PHOS_ROLL_SIGN = -1;                 // three samples a turned picture at R(-rotation) uv; a point at (y, z) unrolled is at R(-roll) (y, z) on the face
 export function phosphorForget(tex) { for (const s of PH.values()) if (s.texs) s.texs.delete(tex); }
 const phosRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const FACE = [26, 31, 28];         // the unlit phosphor, a dark grey-green

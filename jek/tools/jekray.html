@@ -11097,11 +11097,11 @@ function intersect3(s, px, py, h0, dx, dy, u, tmin) {
   };
   if (!slab(px, dx, xmin, xmax) || !slab(py, dy, -s.semi, s.semi) || !slab(h0, u, -s.semi, s.semi) || !(t0 <= t1)) return null;
   if (s.conicOnly && !s.cylS) {
-    // closed form: c(y² + h² + (1+k)x²) − 2x = 0, keeping the branch through the vertex
-    const q = 1 + s.k, c = s.c;
-    const A = c * (dy * dy + u * u + q * dx * dx);
-    const B = 2 * c * (py * dy + h0 * u + q * px * dx) - 2 * dx;
-    const C = c * (py * py + h0 * h0 + q * px * px) - 2 * px;
+    // closed form: c(y² + h² + (1+k)x²) − 2x = 0, keeping the branch through the vertex (a cylinder curved in the plane: no h)
+    const q = 1 + s.k, c = s.c, hw = s.cyl === 'plane' ? 0 : 1;
+    const A = c * (dy * dy + hw * u * u + q * dx * dx);
+    const B = 2 * c * (py * dy + hw * h0 * u + q * px * dx) - 2 * dx;
+    const C = c * (py * py + hw * h0 * h0 + q * px * px) - 2 * px;
     let r1, r2;
     if (Math.abs(A) < 1e-14) { if (Math.abs(B) < 1e-15) return null; r1 = r2 = -C / B; }
     else {
@@ -11152,7 +11152,7 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   const [qy, qz] = rollFrame(s, py, qz0), [ey, ez] = rollFrame(s, dy, ez0);
   const [fx, fy] = faceFrame(s, qx, qy, true), [gx, gy] = faceFrame(s, ex, ey, false);
   let t;
-  if (s.flat) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }
+  if (s.flat && !s.cylS) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }   // (a cylinder curved out of the plane is flat in it, not here)
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
   const y = fy + gy * t, z = qz + ez * t;
@@ -11197,7 +11197,7 @@ function grGrad(gr, X) {
 }
 function tipNormal(s, px, py, h) {
   const [qx, qz0] = tipFrame(s, px, h), [qy, qz] = rollFrame(s, py, qz0), [, fy] = faceFrame(s, qx, qy, true);
-  return faceToLocal(s, ...(s.flat ? [1, 0, 0] : normal3(s, fy, qz)));
+  return faceToLocal(s, ...(s.flat && !s.cylS ? [1, 0, 0] : normal3(s, fy, qz)));
 }
 // a direction in a tipped or rolled part's face frame, in the frame of the face's in-plane axes (s.f)
 function faceToLocal(s, a, b, c) {
@@ -12451,9 +12451,12 @@ const TW_FREE = new Set(['source', 'lens', 'mirror', 'screen', 'stop', 'mask', '
    ========================================================================== */
 const PHOS_N = 96;
 
-/* the excitation, 0..1 (its peak 1), from the rays on the face: each source's rays spread across
-   the face as they land, and up and down as far as across (a round beam; the rays are traced in
-   the bench's plane), each by the power it carries. hits: the trace's for this screen */
+/* the excitation, 0..1 (its peak 1), from the rays on the face: each source's rays, each by the power it
+   carries, blurred just enough that they join up, each way by how far apart they land that way. Rays
+   that sample the beam up and down (z: a grid or rings, or tipped out of the plane) show its own shape,
+   so a line spread by a cylinder stays a line, across or up; a fan all in the bench's plane says
+   nothing of the beam's height, so it is taken as round, as tall as it is wide. hits: the trace's for
+   this screen */
 function phosphorFromRays(hits, L, n = PHOS_N) {
   const S = new Float32Array(n * n), cell = 2 * L / n;
   const groups = new Map();
@@ -12465,12 +12468,7 @@ function phosphorFromRays(hits, L, n = PHOS_N) {
   }
   const wu = new Float32Array(n), wv = new Float32Array(n);
   for (const g of groups.values()) {
-    let sw = 0, su = 0, suu = 0;
-    for (const t of g) { sw += t.w; su += t.w * t.y; suu += t.w * t.y * t.y; }
-    const mu = su / sw, rms = Math.sqrt(Math.max(0, suu / sw - mu * mu));
-    const ys = g.map(t => t.y).sort((a, b) => a - b), gap = ys.length > 1 ? (ys[ys.length - 1] - ys[0]) / (ys.length - 1) : 0;
-    // across: wide enough that a fan's rays join up; up and down: as wide as the spot is across
-    const sigU = Math.max(0.7 * cell, 0.6 * gap), sigV = Math.max(0.7 * cell, rms);
+    const [sigU, sigV] = phosphorBlur(g, cell);
     for (const t of g) {
       const v0 = isFinite(t.z) ? t.z : 0;
       const iu0 = Math.max(0, Math.floor((t.y - 3 * sigU + L) / cell)), iu1 = Math.min(n - 1, Math.ceil((t.y + 3 * sigU + L) / cell));
@@ -12482,6 +12480,41 @@ function phosphorFromRays(hits, L, n = PHOS_N) {
     }
   }
   return peakOne(S);
+}
+
+/* one source's blur on the face, [across, up], mm: at least 0.7 of a cell each way. Its rays where they land
+   (each place once: a ray's polarisations land together), u across, v up. A fan in the bench's plane (no
+   heights, or all at one height going level): joined up across, as tall as the spot is wide (a round beam).
+   Rays along a line (straight, at any slant): joined up along it, the line kept thin. Rays over an area (a
+   grid or rings): joined up each way by the spacing across the pattern, about the square root of the count */
+function phosphorBlur(g, cell) {
+  const lo = 0.7 * cell, pts = new Map();
+  let sw = 0, su = 0, suu = 0, flat = true;
+  const z0 = isFinite(g[0].z) ? g[0].z : 0, dz0 = g[0].dz || 0;
+  for (const t of g) {
+    const v = isFinite(t.z) ? t.z : 0;
+    sw += t.w; su += t.w * t.y; suu += t.w * t.y * t.y;
+    if (Math.abs(v - z0) > 1e-9 || Math.abs((t.dz || 0) - dz0) > 1e-12) flat = false;
+    pts.set(Math.round(t.y * 1e4) + ',' + Math.round(v * 1e4), [t.y, v]);
+  }
+  const P = [...pts.values()], m = P.length;
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, cu = 0, cv = 0;
+  for (const [u, v] of P) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); cu += u; cv += v; }
+  if (flat) { const mu = su / sw; return [Math.max(lo, m > 1 ? 0.6 * (u1 - u0) / (m - 1) : 0), Math.max(lo, Math.sqrt(Math.max(0, suu / sw - mu * mu)))]; }
+  // the spread of the places: its long way (at th to across) and how thick it is across that (sqrt l2)
+  cu /= m; cv /= m;
+  let a = 0, b = 0, c = 0;
+  for (const [u, v] of P) { a += (u - cu) ** 2; b += (u - cu) * (v - cv); c += (v - cv) ** 2; }
+  a /= m; b /= m; c /= m;
+  const h = Math.hypot((a - c) / 2, b), l1 = (a + c) / 2 + h, l2 = Math.max(0, (a + c) / 2 - h), th = Math.atan2(2 * b, a - c) / 2;
+  if (Math.sqrt(l2) < cell) {
+    let s0 = Infinity, s1 = -Infinity;
+    for (const [u, v] of P) { const s = u * Math.cos(th) + v * Math.sin(th); s0 = Math.min(s0, s); s1 = Math.max(s1, s); }
+    const gap = m > 1 && l1 > 0 ? (s1 - s0) / (m - 1) : 0;
+    return [Math.max(lo, 0.6 * gap * Math.abs(Math.cos(th))), Math.max(lo, 0.6 * gap * Math.abs(Math.sin(th)))];
+  }
+  const across = Math.max(2, Math.sqrt(4 * m / Math.PI));
+  return [Math.max(lo, 0.6 * (u1 - u0) / (across - 1)), Math.max(lo, 0.6 * (v1 - v0) / (across - 1))];
 }
 
 /* the excitation from the diffracted field's irradiance map ({n, u0, u1, v0, v1, v}: row j up, column i across),
@@ -12597,6 +12630,10 @@ function phosphorCanvas(el) {
 }
 /* a 3D picture of this screen's glow, to be told when to upload a new frame */
 function phosphorTexture(el, tex) { const s = phosphorCanvas(el); s.texs.add(tex); }
+/* the glow is kept in the screen's unrolled frame (as its hits are recorded), the face it is painted on turns with the
+   screen's roll: the picture is turned back by it, so the light stays where it lands */
+function phosphorRoll(tex, el) { tex.center.set(0.5, 0.5); tex.rotation = PHOS_ROLL_SIGN * (el.roll || 0) * Math.PI / 180; }
+const PHOS_ROLL_SIGN = -1;                 // three samples a turned picture at R(-rotation) uv; a point at (y, z) unrolled is at R(-roll) (y, z) on the face
 function phosphorForget(tex) { for (const s of PH.values()) if (s.texs) s.texs.delete(tex); }
 const phosRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const FACE = [26, 31, 28];         // the unlit phosphor, a dark grey-green
@@ -19635,7 +19672,7 @@ const V3D = (() => {
       if (!p) continue;
       used.add(el.id);
       p.position.set(el.x, el.y, zOf(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
-      p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; });
+      p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
         const P = el.type === 'link' ? linkPartner(el) : null;
@@ -48957,6 +48994,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A rolled cylindrical lens keeps its power at every roll</b>: rolled, it lost some or all of its power at many angles (a curved-in-plane cylinder\u2019s face was missed by rays off its rolled axis; a curved-out-of-plane one was met as flat). And on a <b>phosphor screen</b>, a line now glows as a thin line whichever way it lies (a horizontal one blurred into a wide patch), and a rolled screen\u2019s glow in 3D stays where the light lands.',
     '<b>STEP files</b> come in as STL objects: Open \u25be \u2192 Import an object (.stl, .step), or drop a .step or .stp file on the bench. OpenCascade reads it (fetched the first time, 7.6 MB, and run in the background), in the file\u2019s own units; a file of several parts asks whether to bring them in as separate parts, grouped and in place, or as one object.',
     'On a phone, <b>the tour no longer pushes the tool sideways</b>: its note was wider than the screen beside the parts rail, which shifted the bench and clipped the first tab; it now fits between the rail and the edge.',
     '<b>What a free account gives</b>, said wherever sign-in is offered: the experimental features, and joining a team you are invited to; with a university email, JEKrayPro where your university has a licence, or else the academic price. Signing in the first time, with Google, Microsoft or an emailed code, makes the account. A bench restored from this browser on a later visit, signed out, says it is kept here alone and offers a file or an account (once a week at most, as the other notes); a shared bench\u2019s bar has <b>Save a copy</b>, to the cloud with JEKrayPro, or as a file; and the tour\u2019s last step has <b>Save this bench</b>.',

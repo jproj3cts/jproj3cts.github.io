@@ -532,11 +532,11 @@ export function intersect3(s, px, py, h0, dx, dy, u, tmin) {
   };
   if (!slab(px, dx, xmin, xmax) || !slab(py, dy, -s.semi, s.semi) || !slab(h0, u, -s.semi, s.semi) || !(t0 <= t1)) return null;
   if (s.conicOnly && !s.cylS) {
-    // closed form: c(y² + h² + (1+k)x²) − 2x = 0, keeping the branch through the vertex
-    const q = 1 + s.k, c = s.c;
-    const A = c * (dy * dy + u * u + q * dx * dx);
-    const B = 2 * c * (py * dy + h0 * u + q * px * dx) - 2 * dx;
-    const C = c * (py * py + h0 * h0 + q * px * px) - 2 * px;
+    // closed form: c(y² + h² + (1+k)x²) − 2x = 0, keeping the branch through the vertex (a cylinder curved in the plane: no h)
+    const q = 1 + s.k, c = s.c, hw = s.cyl === 'plane' ? 0 : 1;
+    const A = c * (dy * dy + hw * u * u + q * dx * dx);
+    const B = 2 * c * (py * dy + hw * h0 * u + q * px * dx) - 2 * dx;
+    const C = c * (py * py + hw * h0 * h0 + q * px * px) - 2 * px;
     let r1, r2;
     if (Math.abs(A) < 1e-14) { if (Math.abs(B) < 1e-15) return null; r1 = r2 = -C / B; }
     else {
@@ -587,7 +587,7 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   const [qy, qz] = rollFrame(s, py, qz0), [ey, ez] = rollFrame(s, dy, ez0);
   const [fx, fy] = faceFrame(s, qx, qy, true), [gx, gy] = faceFrame(s, ex, ey, false);
   let t;
-  if (s.flat) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }
+  if (s.flat && !s.cylS) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }   // (a cylinder curved out of the plane is flat in it, not here)
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
   const y = fy + gy * t, z = qz + ez * t;
@@ -632,7 +632,7 @@ function grGrad(gr, X) {
 }
 function tipNormal(s, px, py, h) {
   const [qx, qz0] = tipFrame(s, px, h), [qy, qz] = rollFrame(s, py, qz0), [, fy] = faceFrame(s, qx, qy, true);
-  return faceToLocal(s, ...(s.flat ? [1, 0, 0] : normal3(s, fy, qz)));
+  return faceToLocal(s, ...(s.flat && !s.cylS ? [1, 0, 0] : normal3(s, fy, qz)));
 }
 // a direction in a tipped or rolled part's face frame, in the frame of the face's in-plane axes (s.f)
 function faceToLocal(s, a, b, c) {

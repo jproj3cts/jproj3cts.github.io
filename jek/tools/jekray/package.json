@@ -9,6 +9,8 @@
     "test:changed": "node test/run.mjs",
     "test:areas": "node test/run.mjs --areas",
     "test:full": "node test/run.mjs --full",
-    "test:list": "node test/run.mjs --list"
+    "test:list": "node test/run.mjs --list",
+    "docs": "node docs.mjs",
+    "docs:check": "node docs.mjs --check"
   }
 }

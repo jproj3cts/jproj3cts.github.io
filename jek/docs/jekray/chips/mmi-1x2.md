@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: mmi12 }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">A 1 × 2 multimode interference (MMI) splitter divides its input equally between two outputs, in phase. It stands for a Y-branch too. Run backwards, it combines two waveguides into one.</p>

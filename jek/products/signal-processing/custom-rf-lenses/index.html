@@ -1,3 +1,6 @@
+---
+# processed by Jekyll for the shared nav (_includes/site-nav.html) and the jek.css stamp (css_v in _config.yml)
+---
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +9,7 @@
 <title>JEK Systems | Custom RF Lenses</title>
 <meta name="description" content="RF and millimetre-wave lenses made to order to your own design: solid or graded-index, designed in JEKray, from 10 to about 100 GHz.">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <style>
   .product-description--full { width: 100%; max-width: 1040px; margin: 0 0 3.5rem; text-align: left; box-sizing: border-box; }
   .rf-design-btn { background: #f07e26 !important; border-color: #f07e26 !important; color: #fff !important; text-decoration: none; text-align: center; }
@@ -31,28 +34,7 @@
 
 <body>
 
-<div class="top-container">
-  <div class="bar bar1"></div>
-  <div class="bar bar2"></div>
-  <div class="bar bar3"></div>
-  <div class="bar bar4"></div>
-  <div class="bar bar5"></div>
-  <div class="bar6">
-    <a href="/jek/products.html">Products</a> |
-    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
-    <span class="nav-drop" data-nav-drop>
-      <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
-      <span class="nav-drop-menu">
-        <a href="/jek/calculators/">Calculators</a>
-        <a href="/jek/tools/jekray.html">JEKray</a>
-      </span>
-    </span> |
-    <a href="/jek/bio.html">Bio</a> |
-    <a href="/jek/contact.html">Contact</a>
-    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
-  </div>
-  <a class="text-overlay" href="/jek/">JEK Systems</a>
-</div>
+{% include site-nav.html %}
 
   <main class="main-content jek-flush">
 

@@ -17,7 +17,7 @@ API. The root README has the site conventions; `jek/tools/jekray/README.md` has 
 | Physics validation against external references | `jek/tools/validation/` |
 | Docs (Jekyll, `layout: docs`) | `jek/docs/jekray/**.md`; sidebar/prev-next from `_data/jekray_docs.yml` |
 | Docs parameter tables / AI guide (generated) | `_data/jekray_params.json`, `jek/tools/jekray-ai-guide.md` |
-| Site pages (static HTML, nav copied into each) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
+| Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |
@@ -69,6 +69,9 @@ through `core/hooks.js`.
   load (only `ui/boot.js`); another module's binding is changed through its setter (`setProject`, …).
 - A new usage event goes in three places: `EVENTS` in `jek-api/src/usage.js`, `LABELS` in `jek-api/scripts/usage.mjs`,
   and `src/io/usage.js`.
-- Site pages each carry their own nav and a `jek.css?v=` stamp; a nav or CSS change touches every page.
+- Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
+  `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`
+  (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` (nav +
+  stamp) and `jekray/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs` checks all of it. Preview: README.
 - Site search only finds pages listed in `searchablePages` in `jek/index.html`.
 - Thorlabs/vendor files are not committed; reproduce them in tests with synthetic text.

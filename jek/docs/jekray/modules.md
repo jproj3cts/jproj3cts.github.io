@@ -8,7 +8,7 @@ description: Parts whose behaviour is code, written by anyone and run in a sandb
 
 <p class="dx-lead">A module is a part pack that carries code. Its code defines new parts: a plate with any amplitude and phase across its face, a polarisation plate, a fibre component, an electronics block, or a readout for screens and detectors. Anyone can write one and share it as a file or a link.</p>
 
-Modules are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Modules are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 
 ## How modules are kept safe
 

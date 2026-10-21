@@ -931,7 +931,7 @@ export function cloudMenuShown() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireCloud() {
   hooks.proWhy = proWhy; hooks.proFix = proFix;
-  setExpGate(() => (accountsOn() ? proWhy() : ''));    // experimental features are JEKrayPro's
+  setExpGate(() => (accountsOn() && !account ? 'Sign in, top right, to use experimental features' : ''));    // any account: a free one or JEKrayPro
   window.addEventListener('online', () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); });
 
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });

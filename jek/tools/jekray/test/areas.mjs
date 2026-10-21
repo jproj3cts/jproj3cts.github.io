@@ -79,9 +79,9 @@ export const AREAS = {
     browser: ['Scripts'],
   },
   site: {
-    what: 'the documentation pages and the data they are built from',
-    src: ['../../docs/', '../../../_data/', '../jekray-ai-guide.md', '../../../_includes/', '../../../_layouts/', '../../../jek/', '../../../index.html', '../../../assets/'],
-    node: ['site-pages.test.mjs'],
+    what: 'the site pages (their shared nav and jek.css stamp), the documentation pages and the data they are built from',
+    src: ['../../docs/', '../../../_data/', '../jekray-ai-guide.md', '../../../_includes/', '../../../_layouts/', '../../../jek/', '../../../index.html', '../../../404.html', '../../../_config.yml', '../../../assets/'],
+    node: ['site-pages.test.mjs', 'site-nav.test.mjs'],
     browser: ['Projects written elsewhere, and the AI guide'],
   },
   // files everything rests on: a change here runs the whole suite

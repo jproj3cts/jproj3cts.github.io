@@ -879,7 +879,8 @@
   .rt-subsmall { font-size: 0.78rem; color: var(--jek-ink-soft); }
   .rt-welcome.rt-coach { top: 2.4rem; bottom: auto; width: min(24rem, calc(100% - 1.6rem)); }
   .rt-coach p { margin: 0 0 0.65rem; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink); }
-  .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+  .rt-coachhead { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; padding-right: 1.8rem; }
+  @media (pointer: coarse) { .rt-coachhead { padding-right: 2.6rem; } }
   .rt-coachhead span { font-size: 0.75rem; color: var(--jek-ink-soft); white-space: nowrap; }
   .rt-coach.rt-flash { animation: rt-flash 0.7s ease-out; }
   @keyframes rt-flash { 0% { box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.9); } 100% { box-shadow: var(--jek-shadow, 0 4px 14px rgba(0,0,0,0.2)); } }
@@ -901,7 +902,12 @@
   /* first visit: a few words on the bench, once */
   .rt-welcome { position: absolute; left: 0.8rem; bottom: 2.2rem; z-index: 5; max-width: min(24rem, calc(100% - 1.6rem)); padding: 0.8rem 0.95rem;
     background: var(--jek-panel); color: var(--jek-ink); border-radius: 2px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-size: 0.85rem; line-height: 1.45; }
-  .rt-welcome h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+  .rt-welcome h3 { margin: 0 0 0.35rem; padding-right: 1.8rem; font-size: 0.95rem; }
+  /* the welcome note's and the tour's close, in the corner */
+  .rt-wx { position: absolute; top: 0.3rem; right: 0.3rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 0; border-radius: 2px;
+    background: none; color: var(--jek-ink-soft); font: inherit; font-size: 1.35rem; line-height: 1; cursor: pointer; }
+  .rt-wx:hover, .rt-wx:focus-visible { color: #fff; background: var(--jek-red); }
+  @media (pointer: coarse) { .rt-wx { width: 2.75rem; height: 2.75rem; top: 0.1rem; right: 0.1rem; } .rt-welcome h3 { padding-right: 2.6rem; } }
   .rt-welcome ul { margin: 0 0 0.6rem; padding-left: 1.1rem; color: var(--jek-ink-soft); }
   .rt-welcome .rt-actions { display: flex; gap: 0.4rem; justify-content: flex-end; margin: 0; }
   dialog.rt-dialog {

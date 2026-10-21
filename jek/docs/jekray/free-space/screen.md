@@ -84,6 +84,23 @@ $$
 
 From the brightest point, Newton's method on the force finds where it is zero. The stiffness there gives the trap frequencies each way. The tab also gives the depth (in kelvin, and in units of $$kT$$), the scattering rate and recoil heating, and for a sphere the damping by the gas around it.
 
+## Phosphor screen
+
+**Phosphor** in the picker (beside Screen) is a screen whose face glows where the light lands and keeps glowing after the light has moved on, so a beam swept across it, by a sweep or by dragging a part, leaves a fading trail. It records the light and gives every readout an ordinary screen does.
+
+- **Decay time**: the glow falls to $$1/e$$ of its brightness this long after the light leaves (0.01 s to 120 s). Where the light is now, the face is lit at once:
+
+$$
+B(t + \Delta t) = \max\!\left(B(t)\, e^{-\Delta t/\tau},\; S\right),
+$$
+
+  with $$S$$ the light on that part of the face now, its brightest point 1.
+- **Glow colour**: the colour it glows (green by default).
+
+The light it glows with comes from the rays, so it keeps up with a sweep or a drag at any speed: each source's rays are spread across the face as they land, and up and down by as much as across (a round beam, as the rays are traced in the bench's plane), each by the power it carries. When the bench shows the diffracted field, the glow is the field's irradiance map instead. In the 3D view the glow is always painted on its face; on the bench it is laid along its line.
+
+The glow is drawn, not measured: it is the same however strong the light, and it is not kept in the bench.
+
 ## Settings
 
 {% include jekray_params.html group="free" key="screen" %}

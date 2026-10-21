@@ -6,7 +6,8 @@ API. The root README has the site conventions; `jek/tools/jekray/README.md` has 
 ## Working rules
 - Develop on a feature branch and push it. **Ask before pushing to `main`** every time; an earlier "yes" does not carry over.
 - Before pushing to main, merge `origin/main` into the branch (never rebase or force-push), rebuild, re-run the full suite.
-- There is no CI. A change is verified only by the suites below; run them and report the counts.
+- CI (`.github/workflows/tests.yml`) runs the build/docs checks, the Node and browser suites and the API tests on pushes to
+  `main` and `claude/**` and on PRs (~7 min). Still run the suites locally before pushing and report the counts.
 
 ## Where things are
 | Area | Path |
@@ -44,7 +45,8 @@ through `core/hooks.js`.
   `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
   tolerancing, reports, drawings, design export, share links/QR, scripts, My parts. `test/node/pro-gate.test.mjs`
-  matches the exact opening lines of gated functions — keep them byte-identical.
+  checks from the syntax tree that each gated function opens with its gate. Experimental features need only a
+  signed-in account (`setExpGate` in `io/cloud.js`).
 
 ## Adding or changing a tool feature — checklist
 1. Part field: `norm` (default so old files load — there are no format migrations) and `guide.fields`; the panel in

@@ -1,0 +1,55 @@
+# The checks a change must pass before it reaches main: the JEKray page is built from its sources and
+# current, the docs tables and AI guide are the tool's own, the Node tests, the browser suite, and the API's tests.
+name: tests
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jekray:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: jek/tools/jekray
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The page is built from its sources
+        run: node build.mjs --check
+      - name: The docs tables and AI guide are the tool's own
+        run: node docs.mjs --check
+      - name: Playwright for the browser suite
+        run: |
+          npm i --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Node tests and the browser suite
+        run: node test/run.mjs --full
+
+  jek-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: jek-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: jek-api/package-lock.json
+      - run: npm ci
+      - run: npm test

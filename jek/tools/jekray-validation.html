@@ -1,3 +1,6 @@
+---
+# processed by Jekyll for the shared nav (_includes/site-nav.html) and the jek.css stamp (css_v in _config.yml)
+---
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +9,7 @@
 <title>JEKray Validation | JEK Systems</title>
 <meta name="description" content="JEKray's results set against published papers and independent codes, run live in your browser.">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <style>
   .vd { width: 100%; max-width: 1040px; text-align: left; }
   .vd > p, .vd li { font-size: 0.9375rem; line-height: 1.6; }
@@ -54,28 +57,7 @@
 </head>
 <body>
 
-  <div class="top-container">
-    <div class="bar bar1"></div>
-    <div class="bar bar2"></div>
-    <div class="bar bar3"></div>
-    <div class="bar bar4"></div>
-    <div class="bar bar5"></div>
-    <div class="bar6">
-      <a href="/jek/products.html">Products</a> |
-      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
-      <span class="nav-drop" data-nav-drop>
-        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
-        <span class="nav-drop-menu">
-          <a href="/jek/calculators/">Calculators</a>
-          <a href="/jek/tools/jekray.html">JEKray</a>
-        </span>
-      </span> |
-      <a href="/jek/bio.html">Bio</a> |
-      <a href="/jek/contact.html">Contact</a>
-    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
-    </div>
-    <a class="text-overlay" href="/jek/">JEK Systems</a>
-  </div>
+  {% include site-nav.html %}
 
   <main class="main-content">
     <h1 class="page-title">JEKray Validation</h1>

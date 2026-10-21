@@ -2,9 +2,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import * as acorn from '../../vendor/acorn.mjs';
+import * as walk from '../../vendor/acorn-walk.mjs';
+
+// the sources read: jekray's src/, or a copy of it named by JEKRAY_SRC (to try the checks on an edited copy)
+const srcUrl = p => process.env.JEKRAY_SRC ? pathToFileURL(join(process.env.JEKRAY_SRC, p)) : new URL('../../src/' + p, import.meta.url);
+const readSrc = p => readFileSync(srcUrl(p), 'utf8');
 
 // designWhyOf is a pure function: read it from the module's source, without the page it needs to load
-const src = readFileSync(new URL('../../src/ui/pro.js', import.meta.url), 'utf8');
+const src = readSrc('ui/pro.js');
 const body = src.slice(src.indexOf('export function designWhyOf'), src.indexOf('export const designWhy ='));
 const designWhyOf = new Function(body.replace('export ', '') + '\nreturn designWhyOf;')();
 
@@ -15,30 +23,102 @@ test('the designers’ work is open with a plan, and says how to get one without
     'JEKrayPro is needed to save drawings: subscribe from the account menu, or join a team with a plan');
 });
 
+/* ---- the gates, read from the modules' syntax trees rather than their text ---- */
+const ASTS = new Map();
+const astOf = p => { if (!ASTS.has(p)) ASTS.set(p, acorn.parse(readSrc(p), { ecmaVersion: 2024, sourceType: 'module' })); return ASTS.get(p); };
+const GATES = ['designPro', 'designWhy'];
+/* a call of a gate (designPro / designWhy), with the reason given if one is asked for */
+const isGate = (n, reason) => n && n.type === 'CallExpression' && n.callee.type === 'Identifier' && GATES.includes(n.callee.name)
+  && (reason === undefined || (n.arguments[0] && n.arguments[0].type === 'Literal' && n.arguments[0].value === reason));
+const has = (node, pred) => { let found = false; walk.full(node, n => { if (pred(n)) found = true; }); return found; };
+const hasGate = (node, reason) => has(node, n => isGate(n, reason));
+/* the function named, however it is declared: function, export function, const arrow / function expression, method */
+function fnOf(file, name) {
+  let fn = null;
+  walk.full(astOf(file), n => {
+    if (fn) return;
+    if (n.type === 'FunctionDeclaration' && n.id && n.id.name === name) fn = n;
+    else if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.id.name === name && n.init && /Function/.test(n.init.type)) fn = n.init;
+    else if ((n.type === 'MethodDefinition' || n.type === 'Property') && !n.computed && n.key && (n.key.name || n.key.value) === name && /Function/.test(n.value.type)) fn = n.value;
+  });
+  assert.ok(fn, file + ': ' + name + ' is found');
+  return fn;
+}
+const exits = s => s && (s.type === 'ReturnStatement' || s.type === 'ThrowStatement' || (s.type === 'BlockStatement' && exits(s.body[s.body.length - 1])));
+/* The gate, among the guards a body opens with: before any other side effect, the body is a run of
+   guards (an `if (…) return / throw` with no else, e.g. `if (!WS) return false;`), plain `const`s worked
+   out without waiting (`const why = designWhy(…)`, then `if (why) throw …`), and, for a gate that holds
+   only in one case, an `if (…) { …guards… }` whose block opens with the gate. Returns the guard that holds
+   the gate and the guards before it, or null if the gate is not there or comes only after something done. */
+function gateIn(stmts, reason) {
+  const before = [], held = new Set();
+  for (const s of stmts) {
+    if (s.type === 'IfStatement' && !s.alternate) {
+      if (exits(s.consequent) && (hasGate(s.test, reason) || (s.test.type === 'Identifier' && held.has(s.test.name)))) return { guard: s, before };
+      if (s.consequent.type === 'BlockStatement' && hasGate(s.consequent)) {
+        // the gate holds in this case only: the block must open with it
+        const inner = gateIn(s.consequent.body, reason);
+        return inner && { guard: inner.guard, before: before.concat(s, inner.before) };
+      }
+      if (exits(s.consequent)) { before.push(s); continue; }
+      return null;
+    }
+    if (s.type === 'VariableDeclaration' && s.kind === 'const' && !has(s, n => n.type === 'AwaitExpression' || n.type === 'AssignmentExpression' || n.type === 'UpdateExpression')) {
+      for (const d of s.declarations) if (d.id.type === 'Identifier' && isGate(d.init, reason)) held.add(d.id.name);
+      before.push(s); continue;
+    }
+    return null;
+  }
+  return null;
+}
+function assertGated(file, name, reason) {
+  const fn = fnOf(file, name);
+  const g = fn.body.type === 'BlockStatement' ? gateIn(fn.body.body, reason) : null;
+  assert.ok(g, file + ': ' + name + ' asks for JEKrayPro' + (reason ? " ('" + reason + "')" : '') + ' before it does anything');
+  return g;
+}
+/* each call of `callee` in the file is done only when the gate says yes: inside an `if (gate(…))`'s consequent */
+function assertCallsGated(file, callee, reason) {
+  let calls = 0;
+  walk.fullAncestor(astOf(file), (n, st, anc) => {
+    if (n.type !== 'CallExpression' || n.callee.type !== 'Identifier' || n.callee.name !== callee) return;
+    calls++;
+    const ok = anc.some((a, i) => a.type === 'IfStatement' && isGate(a.test, reason) && a.consequent === anc[i + 1]);
+    assert.ok(ok, file + ': ' + callee + "() is called only after designPro('" + reason + "')");
+  });
+  assert.ok(calls > 0, file + ': ' + callee + '() is called');
+}
+
 test('each piece of the designers’ work asks for JEKrayPro before it is done, and the open parts do not', () => {
-  const read = p => readFileSync(new URL('../../src/' + p, import.meta.url), 'utf8');
-  const lw = read('ui/lens-workspace.js'), lt = read('ui/lens-tolerance.js'), ld = read('ui/lens-drawing.js'), rw = read('ui/rf-workspace.js'), zx = read('io/zmx-export.js');
-  assert.match(lw, /export function optStart\(mode, opts\) \{\n  if \(!WS\) return false;\n  if \(!designPro\(/);
-  assert.match(lw, /designPro\('save a design report'\)/);
-  assert.match(lt, /export function tolStart\(mode, ctx\) \{\n  if \(!designPro\('tolerance a design'\)\)/);
-  assert.match(ld, /export function saveDrawingSvg\(asm, i\) \{\n  if \(!designPro\('save drawings'\)\)/);
-  assert.match(ld, /export async function saveDrawingsPdf\(asm, i\) \{\n  if \(!designPro\('save drawings'\)\)/);
-  assert.match(rw, /function rwOptGo\(asm\) \{\n  if \(!designPro\('optimise a design'\)\)/);
-  assert.match(rw, /function rwMcGo\(asm\) \{\n  if \(!designPro\('tolerance a design'\)\)/);
-  assert.match(rw, /designPro\('save a design report'\)/);
-  assert.match(zx, /if \(asmOfSelection\(selection\(\)\) && !designPro\('export a design'\)\) return;/);
+  assertGated('ui/lens-workspace.js', 'optStart');
+  assertCallsGated('ui/lens-workspace.js', 'saveReport', 'save a design report');
+  assertGated('ui/lens-tolerance.js', 'tolStart', 'tolerance a design');
+  assertGated('ui/lens-drawing.js', 'saveDrawingSvg', 'save drawings');
+  assertGated('ui/lens-drawing.js', 'saveDrawingsPdf', 'save drawings');
+  assertGated('ui/rf-workspace.js', 'rwOptGo', 'optimise a design');
+  assertGated('ui/rf-workspace.js', 'rwMcGo', 'tolerance a design');
+  assertCallsGated('ui/rf-workspace.js', 'saveRfReport', 'save a design report');
+  // a design (an assembly's parts) is JEKrayPro's to export; a lens or a mirror of the bench's own is anyone's
+  const zx = assertGated('io/zmx-export.js', 'exportZmx', 'export a design');
+  assert.ok(has(zx.guard.test, n => n.type === 'CallExpression' && n.callee.name === 'asmOfSelection'), 'exportZmx gates only a design (asmOfSelection)');
   // the RF designer's way to a lens that can be made and quoted, and the coating designer, are open to all
-  for (const fn of ['rwSynthCard', 'rwMakeCard', 'rwApplySynth']) { const i = rw.indexOf('function ' + fn + '('), j = rw.indexOf('\nfunction ', i + 10); assert.ok(i >= 0 && !/designPro\(/.test(rw.slice(i, j)), fn + ' is not gated'); }
-  assert.ok(!/pro\.js/.test(read('ui/coat-workspace.js')), 'the coating designer is not gated');
+  for (const fn of ['rwSynthCard', 'rwMakeCard', 'rwApplySynth']) assert.ok(!hasGate(fnOf('ui/rf-workspace.js', fn)), fn + ' is not gated');
+  assert.ok(!astOf('ui/coat-workspace.js').body.some(s => s.type === 'ImportDeclaration' && /(^|\/)pro\.js$/.test(s.source.value)), 'the coating designer is not gated');
 });
 
 test('share links are JEKrayPro’s: made through the API with a plan, the QR code a short link, old links still opened, /s/ forwarded', () => {
-  const read = p => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
-  const sh = read('src/io/share.js'), boot = read('src/ui/boot.js'), nf = read('../../../404.html');
+  const read = p => p.startsWith('src/') ? readSrc(p.slice(4)) : readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
+  const boot = read('src/ui/boot.js'), nf = read('../../../404.html');
   // signed out, Share asks for a sign-in first (or offers a file); signed in without a plan, it says JEKrayPro is needed
-  assert.match(sh, /async function shareLink\(\) \{\n  const short = accountsOn\(\);\n  if \(short && account === null\) \{ shareSignIn\(saveFile\); return; \}\n  if \(short && !designPro\('share a link'\)\) return;/);
-  assert.match(sh, /api\('\/v1\/links', \{ method: 'POST'/);
-  assert.match(sh, /export async function qrLink\(\) \{\n  if \(accountsOn\(\)\) \{\n    const why = designWhy\('make a QR code of the bench'\);\n    if \(why\) throw new Error\(why\);/);
+  const sl = assertGated('io/share.js', 'shareLink', 'share a link');
+  assert.ok(sl.before.some(s => s.type === 'IfStatement' && has(s.test, n => n.type === 'BinaryExpression' && n.operator === '===' && n.left.name === 'account' && n.right.type === 'Literal' && n.right.value === null)
+    && has(s.consequent, n => n.type === 'CallExpression' && n.callee.name === 'shareSignIn')), 'shareLink asks a signed-out person to sign in before the plan is asked for');
+  assert.ok(has(sl.guard.test, n => n.type === 'Identifier' && n.name === 'short'), 'shareLink asks for JEKrayPro only for a short link (accounts on)');
+  assert.ok(has(fnOf('io/share.js', 'shortLink'), n => n.type === 'CallExpression' && n.callee.name === 'api' && n.arguments[0] && n.arguments[0].value === '/v1/links'
+    && n.arguments[1] && n.arguments[1].type === 'ObjectExpression' && n.arguments[1].properties.some(p => p.key.name === 'method' && p.value.value === 'POST')), "share links are made by POST /v1/links");
+  const qr = assertGated('io/share.js', 'qrLink', 'make a QR code of the bench');
+  assert.ok(qr.guard.consequent.type === 'ThrowStatement' || exits(qr.guard.consequent), 'qrLink throws the reason');
+  assert.ok(qr.before.some(s => s.type === 'IfStatement' && has(s.test, n => n.type === 'CallExpression' && n.callee.name === 'accountsOn')), 'qrLink asks for JEKrayPro only with accounts on');
   // links opened: the short ones fetched, the long ones and the QR codes' /R/ read as before
   assert.match(boot, /#s=\(\[A-Za-z2-7\]\{10\}\)\$/);
   assert.match(boot, /#p=\(\[zjq\]\[A-Za-z0-9_-\]\+\)/);
@@ -53,4 +133,15 @@ test('share links are JEKrayPro’s: made through the API with a plan, the QR co
   assert.match(cl, /P\.view === 'links' \? api\('\/v1\/me\/links'\)/);
   assert.match(cl, /wsInfo && wsInfo\.kind === 'personal' \? railBtn\('My links', 'link'/);
   assert.match(cl, /api\('\/v1\/links\/' \+ l\.id, \{ method: 'DELETE' \}\)/);
+});
+
+test('experimental features need only a signed-in account, not a plan', () => {
+  // the gate wireCloud gives ui/experimental.js: it reads the account, and nothing of JEKrayPro's
+  const set = [];
+  walk.full(fnOf('io/cloud.js', 'wireCloud'), n => { if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && n.callee.name === 'setExpGate') set.push(n); });
+  assert.equal(set.length, 1, 'io/cloud.js: wireCloud sets the experimental gate once');
+  const gate = set[0].arguments[0], ids = new Set();
+  walk.full(gate, n => { if (n.type === 'Identifier') ids.add(n.name); });
+  assert.ok(ids.has('account'), 'the experimental gate asks whether someone is signed in');
+  for (const pro of ['proWhy', 'designPro', 'designWhy', 'newPlaces']) assert.ok(!ids.has(pro), 'the experimental gate does not ask for JEKrayPro (' + pro + ')');
 });

@@ -16,3 +16,6 @@ include:
 # the old addresses (JEKray2D, before the rename) send people on to the new ones
 plugins:
   - jekyll-redirect-from
+# the cache-busting stamp on jek.css: every page links /jek/assets/css/jek.css?v={{ site.css_v }}.
+# Bump it after changing jek.css (and the copies Jekyll does not build: see the Gotchas in CLAUDE.md).
+css_v: "20261017"

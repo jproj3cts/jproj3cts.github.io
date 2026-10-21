@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: ringad }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">An add-drop ring resonator sits between two bus waveguides. On resonance the light goes round the ring and out of the drop port; off it, straight through. It is a channel filter for a wavelength-division multiplexed chip.</p>

@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: ps }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">A phase shifter is a section of waveguide with a phase you set, as a heater or an electro-optic section gives. It tunes a Mach–Zehnder between its outputs, or a ring's resonance, and its drive input lets the electronics modulate it, sweep it or lock it.</p>

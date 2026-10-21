@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: mmi22 }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">A 2 × 2 multimode interference (MMI) coupler is a 50:50 coupler made as a wide multimode section. It is less sensitive to fabrication than a directional coupler, and is used for Mach–Zehnders.</p>

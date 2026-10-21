@@ -40,7 +40,7 @@ const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experim
 export let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
 export let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
 export const expPicked = key => expPicks[key] !== false;
-// experimental features are part of JEKrayPro: the gate says why they are not available (not signed in, no plan), or ''
+// experimental features need an account (free or JEKrayPro): the gate says why they are not available (not signed in), or ''
 // when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
 let expGate = () => '';
 export const expWhy = () => (TEST_MODE ? '' : expGate() || '');

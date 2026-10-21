@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: pd }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">An on-chip photodiode ends a waveguide and reads the light that reaches it, as a germanium detector on a silicon chip does.</p>

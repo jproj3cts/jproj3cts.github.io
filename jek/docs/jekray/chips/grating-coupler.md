@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: gc }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature, part of JEKrayPro. Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
 </div>
 
 <p class="dx-lead">A grating coupler joins the chip to a fibre above it. Light from the fibre network enters the chip here and leaves it here. It takes one polarisation of the fibre's light, over a band about its centre wavelength.</p>

@@ -1,0 +1,27 @@
+{% comment %}
+  The site navigation, shared by every JEK page: pages with front matter (and _layouts/docs.html) pull it in
+  with {% include site-nav.html %}. jek/tools/jekray-tests.html is served unbuilt by the test runner, so it keeps
+  a copy; test/node/site-nav.test.mjs checks that copy matches this file.
+{% endcomment -%}
+<div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar6">
+      <a href="/jek/products.html">Products</a> |
+      <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+      <span class="nav-drop" data-nav-drop>
+        <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+        <span class="nav-drop-menu">
+          <a href="/jek/calculators/">Calculators</a>
+          <a href="/jek/tools/jekray.html">JEKray</a>
+        </span>
+      </span> |
+      <a href="/jek/bio.html">Bio</a> |
+      <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+    </div>
+    <a class="text-overlay" href="/jek/">JEK Systems</a>
+  </div>

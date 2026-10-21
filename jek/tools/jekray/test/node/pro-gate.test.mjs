@@ -35,7 +35,8 @@ test('each piece of the designers’ work asks for JEKrayPro before it is done, 
 test('share links are JEKrayPro’s: made through the API with a plan, the QR code a short link, old links still opened, /s/ forwarded', () => {
   const read = p => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
   const sh = read('src/io/share.js'), boot = read('src/ui/boot.js'), nf = read('../../../404.html');
-  assert.match(sh, /async function shareLink\(\) \{\n  const short = accountsOn\(\);\n  if \(short && !designPro\('share a link'\)\) return;/);
+  // signed out, Share asks for a sign-in first (or offers a file); signed in without a plan, it says JEKrayPro is needed
+  assert.match(sh, /async function shareLink\(\) \{\n  const short = accountsOn\(\);\n  if \(short && account === null\) \{ shareSignIn\(saveFile\); return; \}\n  if \(short && !designPro\('share a link'\)\) return;/);
   assert.match(sh, /api\('\/v1\/links', \{ method: 'POST'/);
   assert.match(sh, /export async function qrLink\(\) \{\n  if \(accountsOn\(\)\) \{\n    const why = designWhy\('make a QR code of the bench'\);\n    if \(why\) throw new Error\(why\);/);
   // links opened: the short ones fetched, the long ones and the QR codes' /R/ read as before

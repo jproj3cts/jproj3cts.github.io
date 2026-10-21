@@ -29,7 +29,11 @@ export const LABELS = {
   report: ['Reports made', 'designer'], search: ['Parts searched', ''], tour: ['Tours started', 'tour'], help: ['Help opened', 'page'],
   news: ['What’s new opened', ''], signin: ['Sign-ins started', 'way'], subscribe: ['Subscribe opened', ''], quote: ['Quotes requested', 'from'],
   mod: ['Mods', 'action'], experimental: ['Experimental features', 'switched'], cloud: ['Cloud', 'action'],
+  from: ['Where visits came from', 'post tag or site'], goal: ['What visits led to', 'source.step'],
+  prompt: ['Sign-in prompts', 'where.answer'], remind: ['Links emailed from a phone', ''],
 };
+// what a visit can lead to, in the order it usually goes (the app's goal() calls)
+export const STEPS = ['save', 'share', 'remind', 'signin', 'account', 'subscribe', 'pro'];
 const TIERS = ['anon', 'free', 'pro'], TIER_NAMES = { anon: 'signed out', free: 'free', pro: 'JEKrayPro' };
 
 async function get() {
@@ -58,6 +62,17 @@ export function summarise(r) {
   return { ev, days, visits };
 }
 
+// a row for each source: visits that came by its link (first), those back within 30 days, and each step
+export function funnel(r) {
+  const rows = {};
+  const row = (src) => (rows[src] ||= { src, visits: 0, again: 0, steps: Object.fromEntries(STEPS.map((k) => [k, 0])) });
+  for (const e of r.events) {
+    if (e.event === 'from' && e.prop) { const again = e.prop.endsWith('.again'); const x = row(again ? e.prop.slice(0, -6) : e.prop); x[again ? 'again' : 'visits'] += e.n; }
+    if (e.event === 'goal' && e.prop) { const i = e.prop.lastIndexOf('.'), x = row(e.prop.slice(0, i)), k = e.prop.slice(i + 1); if (k in x.steps) x.steps[k] += e.n; }
+  }
+  return Object.values(rows).sort((a, b) => (a.src === 'none') - (b.src === 'none') || b.visits + b.again - a.visits - a.again);
+}
+
 const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '-');
 const top = (props, n = 8) => Object.entries(props).sort((a, b) => b[1] - a[1]).slice(0, n);
 
@@ -82,10 +97,22 @@ function text(r) {
     console.log('\nHow visits began');
     for (const [p, n] of top(ev.open.props)) console.log(`    ${p.padEnd(30)} ${String(n).padStart(7)}  ${pct(n, v.total)}`);
   }
+  const f = funnel(r);
+  if (f.length) {
+    console.log('\nBy source (none: no tag and no social site)');
+    console.log(`    ${'source'.padEnd(24)} ${'visits'.padStart(7)} ${'back'.padStart(6)} ${STEPS.map((k) => k.padStart(9)).join(' ')}`);
+    for (const x of f) console.log(`    ${x.src.padEnd(24)} ${String(x.visits).padStart(7)} ${String(x.again).padStart(6)} ${STEPS.map((k) => String(x.steps[k]).padStart(9)).join(' ')}`);
+  }
   console.log(`\nErrors (${r.errors.length} ${r.errors.length === 1 ? 'kind' : 'kinds'})`);
   for (const e of r.errors.slice(0, 20)) console.log(`  ${String(e.n).padStart(6)}  ${e.msg}\n          ${e.src}, ${e.first} to ${e.last}`);
 }
 
+function funnelTable(r) {
+  const f = funnel(r);
+  if (!f.length) return '';
+  const cell = (n, of) => `<td>${n}${of && n ? ` <small>${pct(n, of)}</small>` : ''}</td>`;
+  return `<h3 style="margin-top:24px">By source <span>a post's tag (?src=) or the site a visit came through; none: neither</span></h3><div style="overflow-x:auto"><table><tr><th>source</th><th>visits</th><th>back</th>${STEPS.map((k) => `<th>${k}</th>`).join('')}</tr>${f.map((x) => `<tr><td>${esc(x.src)}</td><td>${x.visits}</td><td>${x.again}</td>${STEPS.map((k) => cell(x.steps[k], x.visits + x.again)).join('')}</tr>`).join('')}</table></div>`;
+}
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 export function html(r) {
   const { ev, days, visits } = summarise(r);
@@ -130,6 +157,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowra
 <div class="hero"><div><b>${v.total}</b>visits</div>${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
 <h3>Visits a day</h3><div class="key">${TIERS.map((t) => `<span><i class="t-${t}" style="background:var(--${t})"></i>${TIER_NAMES[t]}</span>`).join('')}</div>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visits a day">${grid}${bars}${labels}</svg>
+${funnelTable(r)}
 <div class="cols">${Object.keys(LABELS).filter((k) => ev[k]).map(section).join('')}</div>
 <h3 style="margin-top:28px">Errors <span>${r.errors.length} ${r.errors.length === 1 ? 'kind' : 'kinds'}</span></h3>${errs ? `<table><tr><th>count</th><th>message</th></tr>${errs}</table>` : '<p class="sub">None.</p>'}
 </main></body></html>`;

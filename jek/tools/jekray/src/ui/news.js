@@ -8,6 +8,8 @@ import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './
 import { hooks } from '../core/hooks.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
+import { API_BASE } from '../io/account.js';
+import { goal } from '../io/usage.js';
 
 /* ---------- Version, what's new, citing ---------- */
 export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
@@ -15,6 +17,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
     'In 3D, <b>the diffracted field of interfering beams runs to its end</b>: a beam\u2019s last stretch, up to where it meets a screen, could be left without its fringes when its length happened to round up by a millionth of a millimetre, so an interferometer\u2019s pattern stopped short of its screen and only the beam\u2019s own glow went on.',
     '<b>Collimator</b>, in the fibre palette (Ends and links) and beside the fibre tip in free space: a fibre tip with its lens, so a fibre network\u2019s light leaves as a collimated beam (0.6 mm in radius at 1550 nm for the usual f = 11 mm) with no lens to place and focus, and a beam coming back couples in by that beam\u2019s mode. Any fibre tip takes a <b>Collimating lens f</b>; 0 keeps it bare.',
     'A source\u2019s <b>Edge softness</b>: without a Gaussian beam, the diffracted field of its ray fan is a uniform top-hat, and its edge now rises over a set distance (10% to 90%). <b>Automatic</b>, the default, is just enough for the field grid: before, the hard edge rang on the grid, showing rings across a wide beam (about 1%) that were not in the light. Set 0 for a hard edge, or more for a lamp behind a soft aperture. A changed edge also redraws the field, which it had not.',
@@ -293,6 +296,28 @@ export const EXAMPLES = [
    (a levitated sphere's gas damping, against Gieseler et al.'s measurements) */
 const BETA_EXAMPLES = new Set(['polarisation-spectroscopy', 'optical-lattice', 'levitated-nanoparticle']);
 const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
+/* on a phone: the link emailed, to open on a computer later. The address goes to the API, which sends one fixed
+   email and keeps no copy of it (jek-api src/remind.js) */
+function remindForm() {
+  const input = h('input', { type: 'email', id: 'remindAddr', autocomplete: 'email', placeholder: 'you@example.com', spellcheck: 'false', 'aria-label': 'Your email address' });
+  const btn = h('button', { class: 'rt-btn primary', type: 'submit' }, 'Send');
+  const say = h('p', { class: 'rt-wsay', hidden: '', role: 'status' });
+  const form = h('form', { class: 'rt-remind' }, h('label', { for: 'remindAddr' }, 'Email me a link for my computer'), h('div', null, input, btn), say);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = input.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { say.textContent = 'That does not look like an email address.'; say.hidden = false; input.focus(); return; }
+    btn.disabled = true; say.hidden = true;
+    try {
+      const res = await fetch(API_BASE + '/v1/remind', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: v }) });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body && body.error && body.error.message || 'It could not be sent just now.');
+      goal('remind');
+      form.replaceChildren(h('p', { class: 'rt-wsay', role: 'status' }, 'Sent: open it on your computer. We keep no copy of your address.'));
+    } catch (err) { say.textContent = err.message; say.hidden = false; btn.disabled = false; }
+  });
+  return form;
+}
 /* the first visit: what to do first, and where the examples are */
 export function hideWelcome() {
   const w = document.getElementById('welcome');
@@ -307,6 +332,7 @@ export function showWelcome() {
   document.getElementById('stage').append(h('div', { class: 'rt-welcome', id: 'welcome', role: 'note' },
     h('h3', null, 'Welcome to JEKray'),
     phone ? h('p', { class: 'rt-wdesk' }, 'JEKray is best used on a desktop or laptop: the bench works here, but the designers, plots and shortcuts need a larger screen and a mouse.') : null,
+    phone ? remindForm() : null,
     touch ? h('ul', null,
       h('li', null, 'Tap + to add parts, or drag one from the rail at the bench\u2019s left.'),
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),

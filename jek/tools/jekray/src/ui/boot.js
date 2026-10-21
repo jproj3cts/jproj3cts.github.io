@@ -83,7 +83,7 @@ import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
 import { normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
-import { account, accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
+import { account, accountLoaded, accountsOn, proLink, returnNudge, wireAccount } from '../io/account.js';
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
@@ -120,7 +120,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
 
 /* Start-up: restore the last session in this browser, or show a demo bench */
 (function init() {
-  let restored = false;
+  let restored = false, again = true;
+  // a later visit, or a reload in this session (a tab's own store survives a reload and a sign-in's round trip)
+  try { again = !!sessionStorage.getItem('jek-visit'); sessionStorage.setItem('jek-visit', '1'); } catch (err) { /* not told apart: taken as a reload */ }
+  const arrived = location.hash + '&' + location.search;
   try {
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
@@ -133,6 +136,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
   if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  // restored on a later visit, signed out: what keeping it here alone means, once the account is known
+  if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));
   usageStart(shared || short ? 'share' : /[#?&]demo=/.test(location.hash + '&' + location.search) ? 'example' : restored ? 'restored' : 'fresh');
   renderPanel();
   updateUndoButtons();

@@ -49,8 +49,8 @@ export const AREAS = {
   },
   io: {
     what: 'files and links: opening, saving, sharing, lens files, CAD, merging, packs and modules, the AI guide',
-    src: ['src/io/', 'headless.mjs', 'cli.mjs', 'src/engines/mods.js', 'src/state/packs.js', 'src/state/drawings.js', 'src/ui/myparts.js', 'src/ui/tabs.js', 'src/ui/drawings.js'],
-    node: ['headless.test.mjs', 'merge.test.mjs', 'zmx-cb.test.mjs', 'cad-export.test.mjs', 'lens-stock.test.mjs'],
+    src: ['src/io/', 'src/core/nudge.js', 'headless.mjs', 'cli.mjs', 'src/engines/mods.js', 'src/state/packs.js', 'src/state/drawings.js', 'src/ui/myparts.js', 'src/ui/tabs.js', 'src/ui/drawings.js'],
+    node: ['headless.test.mjs', 'merge.test.mjs', 'zmx-cb.test.mjs', 'cad-export.test.mjs', 'lens-stock.test.mjs', 'nudge.test.mjs', 'usage.test.mjs'],
     browser: ['Import, files and tools', 'Projects written elsewhere, and the AI guide', 'Share links', 'Tabs and link planes', 'Part packs', 'Modules'],
   },
   view3d: {

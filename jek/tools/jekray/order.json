@@ -29,6 +29,7 @@
   "core/colour.js",
   "core/fan-edge.js",
   "core/src-tag.js",
+  "core/nudge.js",
   "state/drawings.js",
   "parts/stl.js",
   "parts/source.js",

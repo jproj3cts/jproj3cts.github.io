@@ -19,7 +19,7 @@ import {
 import { benchGear, h, renderPanel, setPanelClosed } from './panel.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
 import { screenStats } from '../engines/screen-stats.js';
-import { changed, fitView, toast, updateUndoButtons } from './actions.js';
+import { changed, fitView, saveFile, toast, updateUndoButtons } from './actions.js';
 import { addBench, checkpoint, redo, renderBenchTabs, undo } from './tabs.js';
 import { exportLayout } from '../io/layout.js';
 import { openJekray, openProjectData } from '../io/open.js';
@@ -32,6 +32,7 @@ import { cloudLink } from '../io/cloud.js';
 import { keepSnapshot, scheduleSave } from '../io/autosave.js';
 import { hideWelcome } from './news.js';
 import { track } from '../io/usage.js';
+import { account, accountsOn } from '../io/account.js';
 
 /* ---------- Guided tours ----------
    A tour builds a small bench step by step on a tab of its own, so the user's own work is
@@ -124,14 +125,18 @@ function tourShow() {
   let c = document.getElementById('coach');
   if (!c) { c = h('div', { class: 'rt-welcome rt-coach', id: 'coach', role: 'status', 'aria-live': 'polite' }); document.getElementById('stage').append(c); }
   const p = h('p'); p.innerHTML = st.text;
+  const out = st.final && accountsOn() && account === null;      // signed out: the end counted as a prompt to keep the bench
   const acts = st.final
     ? [tour.name === 'focus' ? h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('michelson') }, 'Michelson tour')
         : tour.name === 'michelson' ? h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('periscope') }, 'Periscope tour, in 3D') : null,
        h('button', { class: 'rt-btn', type: 'button', onclick: () => { endTour(); openGallery(); } }, 'Examples'),
+       // the bench made, kept as a file; signed out, the save note may follow (once a week at most)
+       h('button', { class: 'rt-btn', type: 'button', onclick: () => { if (out) track('prompt', 'tour.file'); endTour(); saveFile(); } }, 'Save this bench'),
        h('button', { class: 'rt-btn primary', type: 'button', onclick: endTour }, 'Done')]
     : [h('button', { class: 'rt-btn', type: 'button', onclick: endTour }, 'End tour'),
        i > 0 ? h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i--; tourShow(); } }, 'Back') : null,
        h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i++; tourShow(); } }, 'Skip step')];
+  if (out) track('prompt', 'tour.shown');
   c.replaceChildren(h('button', { class: 'rt-wx', type: 'button', title: 'End the tour', 'aria-label': 'End the tour', onclick: endTour }, '\u00d7'),
     h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
     p, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));

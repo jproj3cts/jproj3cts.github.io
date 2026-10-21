@@ -9,7 +9,8 @@ import { h, holdScroll, mainPanel, pinBoxes, pinOk, pins, renderPanel, setPins, 
 import { saveFile, toast } from '../ui/actions.js';
 import { undo } from '../ui/tabs.js';
 import { openProjectData } from './open.js';
-import { account, accountsOn, api, shareSignIn } from './account.js';
+import { account, accountsOn, api, shareSignIn, sharedCopyPrompt } from './account.js';
+import { cloudOn, copyPlaces, newCloudBench, proWhy } from './cloud.js';
 import { designPro, designWhy } from '../ui/pro.js';
 import { goal, track } from './usage.js';
 
@@ -254,7 +255,7 @@ export function embedMode() {
     h('a', { href: full, target: '_blank', rel: 'noopener' }, 'Open in JEKray \u2197')));
   setInterval(() => { play.hidden = !allSweeps().length; play.textContent = playing.size ? '\u275a\u275a Pause' : '\u25b6 Play'; }, 400);
 }
-/* A shared bench opened over the user's own: keep it (and change it as they like), or go
+/* A shared bench opened over the user's own: keep it (and change it as they like), save a copy, or go
    straight back to their work. Their work is kept under Open \u25be Earlier versions either way. */
 function sharedBar() {
   const old = document.getElementById('sharedBar');
@@ -262,8 +263,20 @@ function sharedBar() {
   const mark = history.length, bar = h('div', { class: 'rt-sharedbar', id: 'sharedBar', role: 'status' },
     h('span', null, h('b', null, 'A shared bench.'), ' Change it as you like; your own work is kept.'),
     h('button', { class: 'rt-btn', type: 'button', onclick: () => { bar.remove(); if (history.length >= mark) { while (history.length > mark) undo(); undo(); toast('Back to your work'); } } }, 'Back to my work'),
+    h('button', { class: 'rt-btn', type: 'button', onclick: () => { bar.remove(); saveSharedCopy(); } }, 'Save a copy'),
     h('button', { class: 'rt-btn primary', type: 'button', onclick: () => bar.remove() }, 'Keep this bench'));
   document.getElementById('stage').append(bar);
+}
+/* Save a copy: with a plan, a new cloud bench of theirs (their own workspace first, else a team they can save in);
+   without one, the prompt (an account, or the file); with no accounts here, the file */
+function saveSharedCopy() {
+  if (!accountsOn()) { saveFile(); return; }
+  track('prompt', 'shared.copy');
+  if (cloudOn() && !proWhy()) {
+    const places = copyPlaces(''), ws = places.find(w => w.kind === 'personal') || places[0];
+    if (ws) { track('prompt', 'shared.cloud'); newCloudBench(ws.id, null, true); return; }
+  }
+  sharedCopyPrompt();
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

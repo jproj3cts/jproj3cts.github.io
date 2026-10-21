@@ -3,14 +3,22 @@ import { glassKey } from '../core/glass.js';
 import { SPHERE_DENSITY, TRAP_ATOMS } from '../core/traps.js';
 import { nextName, num } from '../state/project.js';
 
+export const PHOSPHOR_GLOW = '#4dff7a';           // a green phosphor's glow, the usual
+
 /* Screen: A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more. */
 export const SCREEN = {
   type: 'screen', label: 'Screen',
-  picker: [{ key: 'screen', short: 'Screen' }],
-  keys: ['screen'],
-  make: (x, y) => ({ type: 'screen', name: nextName('Screen'), x, y, angle: 180, length: 25.4 }),
+  picker: [{ key: 'screen', short: 'Screen' }, { key: 'phosphor', short: 'Phosphor', long: 'Phosphor screen (glows, with a fading trail)' }],
+  keys: ['screen', 'phosphor'],
+  // a phosphor screen: a screen whose face glows where the light lands and fades after it, shown on its face in 3D
+  make: (x, y, kind) => kind === 'phosphor'
+    ? { type: 'screen', name: nextName('Phosphor screen'), x, y, angle: 180, length: 25.4, phosphor: true, decay: 1, glow: PHOSPHOR_GLOW }
+    : { type: 'screen', name: nextName('Screen'), x, y, angle: 180, length: 25.4 },
   norm(e, base) {
     return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), absorb: e.absorb !== false,
+      ...(e.phosphor === true ? { phosphor: true,
+        decay: clamp(num(e.decay, 1), 0.01, 120),                  // s: the glow falls to 1/e this long after the light moves on
+        glow: /^#[0-9a-f]{6}$/i.test(e.glow) ? e.glow.toLowerCase() : PHOSPHOR_GLOW } : {}),
       ...(e.faceMap === true ? { faceMap: true } : {}),             // its diffraction pattern painted on its face in the 3D view
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       binWidth: Math.max(0, num(e.binWidth, 0)),
@@ -36,7 +44,7 @@ export const SCREEN = {
   guide: {
     what: 'A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more.',
     angle: 'the direction its face points: towards the light it records.',
-    fields: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
+    fields: { length: 'mm: the width of its face.', phosphor: 'true: a phosphor screen, whose face glows where the light lands and fades after the light moves on, leaving a trail (from the rays, or the diffracted field when it is shown); its face shows the glow in 3D. Made by the picker\u2019s Phosphor.', decay: 'a phosphor screen\u2019s decay time, s: the glow falls to 1/e of its brightness this long after the light leaves (0.01 to 120).', glow: 'a phosphor screen\u2019s glow colour, "#rrggbb".', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
     R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
     mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapF: 'for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I \u2213 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres).', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
   },

@@ -17,6 +17,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Phosphor screen</b>, beside the screen in the picker: its face glows where the light lands and fades after it, to 1/e in its decay time, so a beam swept across it by a sweep or a drag leaves a trail. Its decay time and glow colour are in its panel. The glow keeps up with the rays at any speed, or follows the diffracted field when the bench shows it, and in 3D it is always on the screen\u2019s face.',
     '<b>Experimental features for every account</b>: the switch under Help \u203a Experimental features\u2026 now needs only a signed-in account, a free one or JEKrayPro, where before it needed a plan.',
     'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
     'In 3D, <b>the diffracted field of interfering beams runs to its end</b>: a beam\u2019s last stretch, up to where it meets a screen, could be left without its fringes when its length happened to round up by a millionth of a millimetre, so an interferometer\u2019s pattern stopped short of its screen and only the beam\u2019s own glow went on.',

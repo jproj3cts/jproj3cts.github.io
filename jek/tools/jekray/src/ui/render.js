@@ -18,6 +18,7 @@ import { FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruP
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
+import { phosphorKick } from './phosphor.js';
 import { ELEC_UI } from './elec.js';
 import { PART_UI } from './parts/registry.js';
 import { updateReadouts } from './readouts.js';
@@ -825,6 +826,7 @@ export function render() {
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
+  phosphorKick();                    // a phosphor screen's glow moves on with the light
   // a tab shown in 3D draws there instead (the 2D bench under it waits)
   let in3d = false;
   try { V3D.sync(); in3d = V3D.active(); } catch (e) { in3d = false; }

@@ -101,6 +101,7 @@ import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
 import { usageStart, wireUsage } from '../io/usage.js';
+import { phosphorRead } from './phosphor.js';
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
@@ -230,6 +231,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     addTab() { addBench(); return project.tab; },
     // the field worker's state, and a screen's figures as the panels last got them
     worker() { return { on: !!FW.w, failed: FW.failed, busy: FW.busy ? FW.busy.kind : null, queued: FW.queue.map(j => j.kind), sent: FW.seq }; },
+    // a phosphor screen's glow now: its peak, the share of its face lit and where across it the glow is centred (mm)
+    phosphor(name) { return phosphorRead(this.byName(name)); },
+    // the bench drawn again on the next frame, as after any change made on the page
+    redraw() { requestRender(); },
     shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },
     shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, delta: v.delta, dLock: v.res.dLock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
     byName(name) { return project.elements.find(e => e.name === name); },

@@ -281,9 +281,18 @@ export function screenParams(el) {
     const fm = h('input', { type: 'checkbox' });
     fm.checked = !!el.faceMap;
     fm.addEventListener('change', () => { checkpoint(); if (fm.checked) el.faceMap = true; else delete el.faceMap; changed(false); });
-    srows.append(h('label', { class: 'rt-check wide', title: 'Paints the irradiance map from its Diffraction tab onto the screen\u2019s face in the 3D view, where the light lands on it, in the same colours and scale.' }, fm, 'Show its diffraction pattern on its face (3D view)'));
+    if (!el.phosphor) srows.append(h('label', { class: 'rt-check wide', title: 'Paints the irradiance map from its Diffraction tab onto the screen\u2019s face in the 3D view, where the light lands on it, in the same colours and scale.' }, fm, 'Show its diffraction pattern on its face (3D view)'));
   }
   panel.append(srows);
+  // a phosphor screen: how long its glow lasts, and its colour
+  if (el.phosphor) {
+    panel.append(h('h3', null, 'Phosphor'));
+    const cid = 'rtf' + setFid(fid + 1), ci = h('input', { type: 'color', id: cid, value: el.glow });
+    ci.addEventListener('change', () => { checkpoint(); el.glow = ci.value; changed(false); });
+    bindSync(ci, () => { ci.value = el.glow; });
+    panel.append(h('div', { class: 'rt-rows' }, param('Decay time (s)', el, 'decay'), h('div', { class: 'rt-f' }, h('label', { for: cid }, 'Glow colour'), ci)));
+    panel.append(h('p', null, 'Its face glows where the light lands and fades after the light moves on, to 1/e in the decay time, leaving a trail: from the rays, or from the diffracted field when the bench shows it. In 3D the glow is on its face.'));
+  }
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'The screen records rays arriving on its ticked face; rays reaching it from behind pass straight through. Untick the box to sample a beam without blocking it, which is how to measure a cavity. Its length is how far it reaches across the bench, which sets what it catches and the span of its plots.' +
     (el.R ? ' The radius curves it: negative puts the centre of curvature on the side the light comes from (a retina, or a surface curved round a focus so every point is the same distance from it), positive bulges towards the light (a curved image field).' : ' Make it curved for a retina, a curved image field or a surface the same distance from a focus all round.')));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'screen' }));

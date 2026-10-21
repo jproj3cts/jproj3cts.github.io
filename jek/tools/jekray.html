@@ -8036,14 +8036,22 @@ const MIRROR = {
     mtfFreq: 'lp/mm at which its Diffraction tab quotes the MTF.' },
   },
 };
+const PHOSPHOR_GLOW = '#4dff7a';           // a green phosphor's glow, the usual
+
 /* Screen: A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more. */
 const SCREEN = {
   type: 'screen', label: 'Screen',
-  picker: [{ key: 'screen', short: 'Screen' }],
-  keys: ['screen'],
-  make: (x, y) => ({ type: 'screen', name: nextName('Screen'), x, y, angle: 180, length: 25.4 }),
+  picker: [{ key: 'screen', short: 'Screen' }, { key: 'phosphor', short: 'Phosphor', long: 'Phosphor screen (glows, with a fading trail)' }],
+  keys: ['screen', 'phosphor'],
+  // a phosphor screen: a screen whose face glows where the light lands and fades after it, shown on its face in 3D
+  make: (x, y, kind) => kind === 'phosphor'
+    ? { type: 'screen', name: nextName('Phosphor screen'), x, y, angle: 180, length: 25.4, phosphor: true, decay: 1, glow: PHOSPHOR_GLOW }
+    : { type: 'screen', name: nextName('Screen'), x, y, angle: 180, length: 25.4 },
   norm(e, base) {
     return Object.assign(base, { length: Math.max(0.1, num(e.length, 25)), absorb: e.absorb !== false,
+      ...(e.phosphor === true ? { phosphor: true,
+        decay: clamp(num(e.decay, 1), 0.01, 120),                  // s: the glow falls to 1/e this long after the light moves on
+        glow: /^#[0-9a-f]{6}$/i.test(e.glow) ? e.glow.toLowerCase() : PHOSPHOR_GLOW } : {}),
       ...(e.faceMap === true ? { faceMap: true } : {}),             // its diffraction pattern painted on its face in the 3D view
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       binWidth: Math.max(0, num(e.binWidth, 0)),
@@ -8069,7 +8077,7 @@ const SCREEN = {
   guide: {
     what: 'A screen: records the rays and the field arriving on its face, and gives spot size, profile, PSF, MTF, Strehl and more.',
     angle: 'the direction its face points: towards the light it records.',
-    fields: { length: 'mm: the width of its face.', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
+    fields: { length: 'mm: the width of its face.', phosphor: 'true: a phosphor screen, whose face glows where the light lands and fades after the light moves on, leaving a trail (from the rays, or the diffracted field when it is shown); its face shows the glow in 3D. Made by the picker\u2019s Phosphor.', decay: 'a phosphor screen\u2019s decay time, s: the glow falls to 1/e of its brightness this long after the light leaves (0.01 to 120).', glow: 'a phosphor screen\u2019s glow colour, "#rrggbb".', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
     R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
     mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapF: 'for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I \u2213 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres).', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
   },
@@ -8842,7 +8850,7 @@ const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism
 const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
-const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'spectrometer', 'screen', 'fibre', 'collimator']],
+const FREE_GROUPS = [['Sources and detectors', ['source', 'detector', 'spectrometer', 'screen', 'phosphor', 'fibre', 'collimator']],
   ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
@@ -12269,6 +12277,185 @@ function paraxial(el, nm) {
 const TW_FREE = new Set(['source', 'lens', 'mirror', 'screen', 'stop', 'mask', 'prism', 'cube', 'crystal', 'waveplate', 'polariser', 'grating',
   'filter', 'faraday', 'isolator', 'detector', 'aom', 'eom', 'link', 'draw']);
 /* ==========================================================================
+   A phosphor screen's glow: where the light lands now (the excitation), and what the face shows,
+   which follows the light up at once and fades exponentially, with the decay time, once it moves
+   on. Over the face's square, n by n cells: u across the face (its local y), v up (z), both
+   -L..L. The excitation is from the diffracted field's irradiance map when it is worked out,
+   else from the rays, so it keeps up with a sweep or a drag at any speed. The page keeps the glow
+   (ui/phosphor.js); this is only its arithmetic.
+   ========================================================================== */
+const PHOS_N = 96;
+
+/* the excitation, 0..1 (its peak 1), from the rays on the face: each source's rays spread across
+   the face as they land, and up and down as far as across (a round beam; the rays are traced in
+   the bench's plane), each by the power it carries. hits: the trace's for this screen */
+function phosphorFromRays(hits, L, n = PHOS_N) {
+  const S = new Float32Array(n * n), cell = 2 * L / n;
+  const groups = new Map();
+  for (const t of hits || []) {
+    if (t.chief || !(t.w > 0) || !isFinite(t.y)) continue;
+    const k = t.sid || '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(t);
+  }
+  const wu = new Float32Array(n), wv = new Float32Array(n);
+  for (const g of groups.values()) {
+    let sw = 0, su = 0, suu = 0;
+    for (const t of g) { sw += t.w; su += t.w * t.y; suu += t.w * t.y * t.y; }
+    const mu = su / sw, rms = Math.sqrt(Math.max(0, suu / sw - mu * mu));
+    const ys = g.map(t => t.y).sort((a, b) => a - b), gap = ys.length > 1 ? (ys[ys.length - 1] - ys[0]) / (ys.length - 1) : 0;
+    // across: wide enough that a fan's rays join up; up and down: as wide as the spot is across
+    const sigU = Math.max(0.7 * cell, 0.6 * gap), sigV = Math.max(0.7 * cell, rms);
+    for (const t of g) {
+      const v0 = isFinite(t.z) ? t.z : 0;
+      const iu0 = Math.max(0, Math.floor((t.y - 3 * sigU + L) / cell)), iu1 = Math.min(n - 1, Math.ceil((t.y + 3 * sigU + L) / cell));
+      const iv0 = Math.max(0, Math.floor((v0 - 3 * sigV + L) / cell)), iv1 = Math.min(n - 1, Math.ceil((v0 + 3 * sigV + L) / cell));
+      if (iu0 > iu1 || iv0 > iv1) continue;
+      for (let i = iu0; i <= iu1; i++) { const d = (-L + (i + 0.5) * cell - t.y) / sigU; wu[i] = Math.exp(-0.5 * d * d) / sigU; }
+      for (let j = iv0; j <= iv1; j++) { const d = (-L + (j + 0.5) * cell - v0) / sigV; wv[j] = Math.exp(-0.5 * d * d) / sigV; }
+      for (let j = iv0; j <= iv1; j++) { const a = t.w * wv[j], row = j * n; for (let i = iu0; i <= iu1; i++) S[row + i] += a * wu[i]; }
+    }
+  }
+  return peakOne(S);
+}
+
+/* the excitation from the diffracted field's irradiance map ({n, u0, u1, v0, v1, v}: row j up, column i across),
+   sampled at each cell's centre */
+function phosphorFromMap(M, L, n = PHOS_N) {
+  const S = new Float32Array(n * n), cell = 2 * L / n, m = M.n;
+  for (let j = 0; j < n; j++) {
+    const fv = ((-L + (j + 0.5) * cell) - M.v0) / (M.v1 - M.v0) * m - 0.5;
+    if (fv < -0.5 || fv > m - 0.5) continue;
+    const j0 = Math.max(0, Math.min(m - 1, Math.floor(fv))), j1 = Math.min(m - 1, j0 + 1), b = Math.max(0, Math.min(1, fv - j0));
+    for (let i = 0; i < n; i++) {
+      const fu = ((-L + (i + 0.5) * cell) - M.u0) / (M.u1 - M.u0) * m - 0.5;
+      if (fu < -0.5 || fu > m - 0.5) continue;
+      const i0 = Math.max(0, Math.min(m - 1, Math.floor(fu))), i1 = Math.min(m - 1, i0 + 1), a = Math.max(0, Math.min(1, fu - i0));
+      S[j * n + i] = (1 - b) * ((1 - a) * M.v[j0 * m + i0] + a * M.v[j0 * m + i1]) + b * ((1 - a) * M.v[j1 * m + i0] + a * M.v[j1 * m + i1]);
+    }
+  }
+  return peakOne(S);
+}
+function peakOne(S) {
+  let pk = 0;
+  for (let i = 0; i < S.length; i++) if (S[i] > pk) pk = S[i];
+  if (pk > 0) for (let i = 0; i < S.length; i++) S[i] /= pk;
+  return S;
+}
+
+/* dt seconds on: the glow B fades by e^(-dt/tau) and is lit at once to wherever the light is now (S; null for
+   none). True while it is still changing, so the page knows to keep going */
+function phosphorStep(B, S, dt, tau) {
+  const k = Math.exp(-Math.max(0, dt) / Math.max(1e-3, tau));
+  let moving = false;
+  for (let i = 0; i < B.length; i++) {
+    const s = S ? S[i] : 0;
+    let b = B[i] * k;
+    if (b < 2e-3) b = 0;
+    B[i] = b > s ? b : s;
+    if (B[i] !== s) moving = true;
+  }
+  return moving;
+}
+
+/* how bright a cell looks for its glow: a phosphor's faint tail still shows */
+const phosphorLook = b => (b > 0 ? Math.min(1, Math.pow(b, 0.6)) : 0);
+/* ==========================================================================
+   Phosphor screens on the page: each one's glow, kept here (not in the bench) and moved on in real
+   time, a frame at a time, while it is still fading. The glow is lit by the light on the screen
+   now: the rays of the latest trace, or the diffracted field's map when the bench shows the field.
+   The 2D bench draws it along the face (ui/parts/screen.js), the 3D view paints it on the face's
+   picture, kept here too so a frame only repaints it. The arithmetic: engines/phosphor.js.
+   ========================================================================== */
+const PH = new Map();             // id -> { B: the glow, S: the light now, src: what S was made from, t: when last moved on, tex: { cv, tex } in 3D }
+let raf = 0;
+
+const phosphors = () => (project ? project.elements.filter(e => e.type === 'screen' && e.phosphor && e.bench === project.tab) : []);
+function stateOf(el) {
+  let s = PH.get(el.id);
+  if (!s) { s = { B: new Float32Array(PHOS_N * PHOS_N), S: null, src: null, t: performance.now(), tex: null }; PH.set(el.id, s); }
+  return s;
+}
+/* the light on the screen now, worked out again only when the trace or the field changes */
+// the field's map, or else this screen's rays in the latest trace (a new list each trace)
+const NO_HITS = [];
+const srcOf = el => { const D = lightOf().field ? diffractionLater(el).D : null; return (D && D.map) || (lastTrace && lastTrace.screens && lastTrace.screens[el.id]) || NO_HITS; };
+const fresh = (el, s) => s.src === srcOf(el) && s.L === el.length / 2 && s.glow === el.glow;
+function excite(el, s) {
+  if (fresh(el, s)) return;
+  const L = el.length / 2, src = srcOf(el);
+  s.src = src; s.L = L; s.glow = el.glow;
+  s.S = Array.isArray(src) ? phosphorFromRays(src, L) : phosphorFromMap(src, L);
+}
+function phosTick(now) {
+  raf = 0;
+  let moving = false;
+  const live = new Set();
+  for (const el of phosphors()) {
+    live.add(el.id);
+    const s = stateOf(el);
+    excite(el, s);
+    const dt = Math.min(1, (now - s.t) / 1000);
+    s.t = now;
+    if (phosphorStep(s.B, s.S, dt, el.decay)) moving = true;
+    paint(el, s);
+  }
+  for (const id of PH.keys()) if (!live.has(id) && !(project && project.elements.some(e => e.id === id && e.phosphor))) PH.delete(id);
+  requestRender();
+  if (moving) raf = requestAnimationFrame(phosTick);
+}
+/* a change on the bench (a trace, a field, a new setting): the glow moves on from the next frame */
+function phosphorKick() {
+  if (raf) return;
+  const els = phosphors();
+  if (!els.some(el => { const s = PH.get(el.id); return !s || !fresh(el, s); })) return;
+  const now = performance.now();
+  // a screen not moved on for a while starts from now, its glow faded by the time gone
+  raf = requestAnimationFrame(phosTick);
+  for (const el of phosphors()) { const s = PH.get(el.id); if (s && now - s.t > 1000) { phosphorStep(s.B, null, (now - s.t) / 1000, el.decay); s.t = now; } }
+}
+/* the glow along the face for the 2D bench: each column across the face, its brightest cell, 0..1 (null: none yet) */
+function phosphorColumns(el) {
+  const s = PH.get(el.id);
+  if (!s) return null;
+  const n = PHOS_N, out = new Float32Array(n);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const b = s.B[j * n + i]; if (b > out[i]) out[i] = b; }
+  return out;
+}
+/* the glow's picture for the 3D face: a canvas, n by n, kept for this screen and repainted each frame */
+function phosphorCanvas(el) {
+  const s = stateOf(el);
+  if (!s.cv) { s.cv = document.createElement('canvas'); s.cv.width = s.cv.height = PHOS_N; }
+  s.texs = s.texs || new Set();
+  paint(el, s);
+  return s;
+}
+/* a 3D picture of this screen's glow, to be told when to upload a new frame */
+function phosphorTexture(el, tex) { const s = phosphorCanvas(el); s.texs.add(tex); }
+function phosphorForget(tex) { for (const s of PH.values()) if (s.texs) s.texs.delete(tex); }
+const phosRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
+const FACE = [26, 31, 28];         // the unlit phosphor, a dark grey-green
+function paint(el, s) {
+  if (!s.cv) return;
+  const n = PHOS_N, g = phosRgb(el.glow || '#4dff7a'), cx = s.cv.getContext('2d'), img = s.img || (s.img = cx.createImageData(n, n));
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const v = phosphorLook(s.B[j * n + i]), o = ((n - 1 - j) * n + i) * 4;
+    for (let c = 0; c < 3; c++) img.data[o + c] = Math.round(FACE[c] + (g[c] - FACE[c]) * v);
+    img.data[o + 3] = 255;
+  }
+  cx.putImageData(img, 0, 0);
+  if (s.texs) for (const t of s.texs) t.needsUpdate = true;
+}
+/* for the tests and scripts: a screen's glow now, its peak and how much of the face is lit */
+function phosphorRead(el) {
+  const s = PH.get(el.id);
+  if (!s) return null;
+  let pk = 0, lit = 0, su = 0, sw = 0;
+  const n = PHOS_N, cell = el.length / n;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const b = s.B[j * n + i]; if (b > pk) pk = b; if (b > 0.05) { lit++; su += b * (-el.length / 2 + (i + 0.5) * cell); sw += b; } }
+  return { peak: pk, lit: lit / (n * n), centre: sw ? su / sw : null };
+}
+/* ==========================================================================
    Rendering
    ========================================================================== */
 
@@ -13059,6 +13246,7 @@ function render() {
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
+  phosphorKick();                    // a phosphor screen's glow moves on with the light
   // a tab shown in 3D draws there instead (the 2D bench under it waits)
   let in3d = false;
   try { V3D.sync(); in3d = V3D.active(); } catch (e) { in3d = false; }
@@ -18925,13 +19113,13 @@ const V3D = (() => {
   /* models taken down: their geometry and pictures freed. Their materials are left to be collected
      rather than disposed: disposing the last material of a kind frees its compiled shader, which the
      next build (each step of a drag) would then compile again, the slowest thing the view does */
-  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
+  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) { phosphorForget(t); t.dispose(); } const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
   /* what a part's model is made from: everything but where it is, how it is turned and its name, so a
      part moved or turned keeps its model and is only put in its new place (a screen showing its
      pattern on its face is made again each time, its picture changing with the light) */
   const POSE = new Set(['x', 'y', 'z', 'angle', 'tip', 'roll', 'name', 'label', 'sweeps', 'hide3d', 'locked', 'group']);
   const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o) + (el.mmw && el.type === 'detector' ? '|' + hornLam(el) : ''); };   // a receiving horn is built for the bench's frequency
-  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
+  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) { phosphorForget(t); t.dispose(); } const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
   const mat = {
     glass: (c = 0xa9d8e6, o = 0.3) => new T.MeshStandardMaterial({ color: col(c), transparent: true, opacity: o, roughness: 0.05, metalness: 0, side: T.DoubleSide, depthWrite: false }),
@@ -19048,9 +19236,10 @@ const V3D = (() => {
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         // a monitor the light goes through is see-through; a dump or a camera is a solid plate
-        const face = el.absorb ? mat.matte(0xffb347) : new T.MeshStandardMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false });
+        const face = el.phosphor ? mat.matte(0x1a1f1c) : el.absorb ? mat.matte(0xffb347) : new T.MeshStandardMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false });
         add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
-        if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
+        if (el.phosphor) add(phosphorMesh(el, sg(0, 0)));
+        else if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
         return g;
       }
       case 'source': {
@@ -19236,6 +19425,20 @@ const V3D = (() => {
     const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.magFilter = T.LinearFilter;
     const m = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     m.userData.faceMap = el.id;
+    return m;
+  }
+  /* a phosphor screen's glow on its face, the whole square: its picture is repainted each frame as the glow
+     moves on (ui/phosphor.js), so the model itself is kept */
+  function phosphorMesh(el, x0) {
+    const L = el.length / 2, x = x0 + 0.05, cv = phosphorCanvas(el).cv;
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute([x, -L, -L, x, L, -L, x, L, L, x, -L, L], 3));
+    geo.setAttribute('uv', new T.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+    geo.setIndex([0, 1, 2, 0, 2, 3]);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.magFilter = T.LinearFilter;
+    phosphorTexture(el, tex);
+    const m = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.userData.phosphor = el.id; m.userData.texs = [tex];
     return m;
   }
   // what the screens painted with their pattern show now: the scene is built again when it changes
@@ -21740,9 +21943,11 @@ function drawScreen(el, sel) {
   const [surf] = elementSurfaces(el);
   const L = surf.semi;
   pathLocal(f, surfPoints(surf, 48, false, f));
-  ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
+  // a phosphor screen is its glow's colour, dimmed: lit, the glow is laid along it (below)
+  ctx.strokeStyle = sel ? selInk() : el.phosphor ? el.glow + '66' : getCss('--rt-screen');
   ctx.lineWidth = sel ? 4 : 3.5;
   ctx.stroke();
+  if (el.phosphor) drawGlow(el, f, surf);
   // ticks on the detecting face
   const k = 1 / V().scale;
   const nT = Math.max(3, Math.round(el.length * V().scale / 9));
@@ -21793,6 +21998,29 @@ function drawScreen(el, sel) {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+}
+
+/* a phosphor screen's glow along its face: each stretch as bright as the brightest of the face above and below it,
+   drawn as light (added, not painted over) */
+function drawGlow(el, f, surf) {
+  const C = phosphorColumns(el);
+  if (!C) return;
+  const n = C.length, L = surf.semi, was = ctx.globalCompositeOperation;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = el.glow; ctx.lineCap = 'butt';
+  for (const [wd, a] of [[14, 0.25], [7, 0.55], [3.5, 1]]) {
+    ctx.lineWidth = wd;
+    for (let i = 0; i < n; i++) {
+      const v = phosphorLook(C[i]);
+      if (v <= 0.01) continue;
+      const y0 = Math.max(-L, -el.length / 2 + i * el.length / n), y1 = Math.min(L, -el.length / 2 + (i + 1) * el.length / n);
+      if (y1 <= y0) continue;
+      const [ax, ay] = toWorld(f, sagFn(surf, y0), y0), [bx, by] = toWorld(f, sagFn(surf, y1), y1);
+      ctx.globalAlpha = a * v;
+      ctx.beginPath(); ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by)); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = was;
 }
 
 function screenPanel(el) {
@@ -24636,9 +24864,18 @@ function screenParams(el) {
     const fm = h('input', { type: 'checkbox' });
     fm.checked = !!el.faceMap;
     fm.addEventListener('change', () => { checkpoint(); if (fm.checked) el.faceMap = true; else delete el.faceMap; changed(false); });
-    srows.append(h('label', { class: 'rt-check wide', title: 'Paints the irradiance map from its Diffraction tab onto the screen\u2019s face in the 3D view, where the light lands on it, in the same colours and scale.' }, fm, 'Show its diffraction pattern on its face (3D view)'));
+    if (!el.phosphor) srows.append(h('label', { class: 'rt-check wide', title: 'Paints the irradiance map from its Diffraction tab onto the screen\u2019s face in the 3D view, where the light lands on it, in the same colours and scale.' }, fm, 'Show its diffraction pattern on its face (3D view)'));
   }
   panel.append(srows);
+  // a phosphor screen: how long its glow lasts, and its colour
+  if (el.phosphor) {
+    panel.append(h('h3', null, 'Phosphor'));
+    const cid = 'rtf' + setFid(fid + 1), ci = h('input', { type: 'color', id: cid, value: el.glow });
+    ci.addEventListener('change', () => { checkpoint(); el.glow = ci.value; changed(false); });
+    bindSync(ci, () => { ci.value = el.glow; });
+    panel.append(h('div', { class: 'rt-rows' }, param('Decay time (s)', el, 'decay'), h('div', { class: 'rt-f' }, h('label', { for: cid }, 'Glow colour'), ci)));
+    panel.append(h('p', null, 'Its face glows where the light lands and fades after the light moves on, to 1/e in the decay time, leaving a trail: from the rays, or from the diffracted field when the bench shows it. In 3D the glow is on its face.'));
+  }
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'The screen records rays arriving on its ticked face; rays reaching it from behind pass straight through. Untick the box to sample a beam without blocking it, which is how to measure a cavity. Its length is how far it reaches across the bench, which sets what it catches and the span of its plots.' +
     (el.R ? ' The radius curves it: negative puts the centre of curvature on the side the light comes from (a retina, or a surface curved round a focus so every point is the same distance from it), positive bulges towards the light (a curved image field).' : ' Make it curved for a retina, a curved image field or a surface the same distance from a focus all round.')));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'screen' }));
@@ -43656,6 +43893,7 @@ function aiFieldsOf(type) {
   const d = aiDefaults(type), keys = Object.keys(d).filter(k => !AI_SKIP.has(k));
   if (type === 'source' && !keys.includes('fibre')) keys.push('fibre');
   if (type === 'lens' && !keys.includes('cyl')) keys.push('cyl');
+  if (type === 'screen') for (const k of ['phosphor', 'decay', 'glow']) if (!keys.includes(k)) keys.push(k);      // a phosphor screen's, set only on one
   if (type === 'draw') keys.push('rx', 'ry', 'nodes', 'closed', 'text', 'size', 'font', 'bold', 'italic', 'align', 'm');
   if (type === 'detector' || type === 'spectrometer' || type === 'fibre') { const i = keys.indexOf('absorb'); if (i >= 0) keys.splice(i, 1); }
   return keys;
@@ -48336,6 +48574,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Phosphor screen</b>, beside the screen in the picker: its face glows where the light lands and fades after it, to 1/e in its decay time, so a beam swept across it by a sweep or a drag leaves a trail. Its decay time and glow colour are in its panel. The glow keeps up with the rays at any speed, or follows the diffracted field when the bench shows it, and in 3D it is always on the screen\u2019s face.',
     'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
     'In 3D, <b>the diffracted field of interfering beams runs to its end</b>: a beam\u2019s last stretch, up to where it meets a screen, could be left without its fringes when its length happened to round up by a millionth of a millimetre, so an interferometer\u2019s pattern stopped short of its screen and only the beam\u2019s own glow went on.',
     '<b>Collimator</b>, in the fibre palette (Ends and links) and beside the fibre tip in free space: a fibre tip with its lens, so a fibre network\u2019s light leaves as a collimated beam (0.6 mm in radius at 1550 nm for the usual f = 11 mm) with no lens to place and focus, and a beam coming back couples in by that beam\u2019s mode. Any fibre tip takes a <b>Collimating lens f</b>; 0 keeps it bare.',
@@ -50311,6 +50550,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     addTab() { addBench(); return project.tab; },
     // the field worker's state, and a screen's figures as the panels last got them
     worker() { return { on: !!FW.w, failed: FW.failed, busy: FW.busy ? FW.busy.kind : null, queued: FW.queue.map(j => j.kind), sent: FW.seq }; },
+    // a phosphor screen's glow now: its peak, the share of its face lit and where across it the glow is centred (mm)
+    phosphor(name) { return phosphorRead(this.byName(name)); },
+    // the bench drawn again on the next frame, as after any change made on the page
+    redraw() { requestRender(); },
     shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },
     shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, delta: v.delta, dLock: v.res.dLock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
     byName(name) { return project.elements.find(e => e.name === name); },

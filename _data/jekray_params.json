@@ -401,6 +401,21 @@
      "k": "abRays",
      "def": "61",
      "meaning": "rays in each field’s fan, odd, 11 to 401."
+    },
+    {
+     "k": "phosphor",
+     "def": null,
+     "meaning": "true: a phosphor screen, whose face glows where the light lands and fades after the light moves on, leaving a trail (from the rays, or the diffracted field when it is shown); its face shows the glow in 3D. Made by the picker’s Phosphor."
+    },
+    {
+     "k": "decay",
+     "def": null,
+     "meaning": "a phosphor screen’s decay time, s: the glow falls to 1/e of its brightness this long after the light leaves (0.01 to 120)."
+    },
+    {
+     "k": "glow",
+     "def": null,
+     "meaning": "a phosphor screen’s glow colour, \"#rrggbb\"."
     }
    ]
   },

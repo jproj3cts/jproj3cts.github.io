@@ -28,6 +28,7 @@ import { QFree, beamQ, cavEventABCD, ccInv, mfree, qThrough } from '../engines/c
 import { popKeyOf, popRun, popSources, popState } from '../engines/beam-tree.js';
 import { volData, volDisp, volDispLine, volMerge, volPartners, volRay, volShare, volStitch } from '../engines/volume.js';
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
+import { phosphorCanvas, phosphorForget, phosphorTexture } from './phosphor.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
 import { checkpoint, undo } from './tabs.js';
 import { qrLink } from '../io/share.js';
@@ -296,13 +297,13 @@ export const V3D = (() => {
   /* models taken down: their geometry and pictures freed. Their materials are left to be collected
      rather than disposed: disposing the last material of a kind frees its compiled shader, which the
      next build (each step of a drag) would then compile again, the slowest thing the view does */
-  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
+  const disposeObj = o => o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) { phosphorForget(t); t.dispose(); } const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); });
   /* what a part's model is made from: everything but where it is, how it is turned and its name, so a
      part moved or turned keeps its model and is only put in its new place (a screen showing its
      pattern on its face is made again each time, its picture changing with the light) */
   const POSE = new Set(['x', 'y', 'z', 'angle', 'tip', 'roll', 'name', 'label', 'sweeps', 'hide3d', 'locked', 'group']);
   const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o) + (el.mmw && el.type === 'detector' ? '|' + hornLam(el) : ''); };   // a receiving horn is built for the bench's frequency
-  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) t.dispose(); const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
+  const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) { phosphorForget(t); t.dispose(); } const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
   const mat = {
     glass: (c = 0xa9d8e6, o = 0.3) => new T.MeshStandardMaterial({ color: col(c), transparent: true, opacity: o, roughness: 0.05, metalness: 0, side: T.DoubleSide, depthWrite: false }),
@@ -419,9 +420,10 @@ export const V3D = (() => {
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         // a monitor the light goes through is see-through; a dump or a camera is a solid plate
-        const face = el.absorb ? mat.matte(0xffb347) : new T.MeshStandardMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false });
+        const face = el.phosphor ? mat.matte(0x1a1f1c) : el.absorb ? mat.matte(0xffb347) : new T.MeshStandardMaterial({ color: 0xffb347, transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false });
         add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
-        if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
+        if (el.phosphor) add(phosphorMesh(el, sg(0, 0)));
+        else if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
         return g;
       }
       case 'source': {
@@ -607,6 +609,20 @@ export const V3D = (() => {
     const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.magFilter = T.LinearFilter;
     const m = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     m.userData.faceMap = el.id;
+    return m;
+  }
+  /* a phosphor screen's glow on its face, the whole square: its picture is repainted each frame as the glow
+     moves on (ui/phosphor.js), so the model itself is kept */
+  function phosphorMesh(el, x0) {
+    const L = el.length / 2, x = x0 + 0.05, cv = phosphorCanvas(el).cv;
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute([x, -L, -L, x, L, -L, x, L, L, x, -L, L], 3));
+    geo.setAttribute('uv', new T.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+    geo.setIndex([0, 1, 2, 0, 2, 3]);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.magFilter = T.LinearFilter;
+    phosphorTexture(el, tex);
+    const m = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.userData.phosphor = el.id; m.userData.texs = [tex];
     return m;
   }
   // what the screens painted with their pattern show now: the scene is built again when it changes

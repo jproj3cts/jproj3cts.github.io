@@ -73,6 +73,8 @@
   "core/stl.js",
   "core/mask.js",
   "engines/trace.js",
+  "engines/phosphor.js",
+  "ui/phosphor.js",
   "ui/render.js",
   "ui/drawings.js",
   "ui/pointer.js",

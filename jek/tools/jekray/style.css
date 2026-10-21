@@ -1576,7 +1576,7 @@
   .rt-bar .rt-menu, .rt-picker { max-height: calc(100vh - 4rem); max-height: calc(100dvh - 4rem); overflow-y: auto; }
   .rt-app .rt-welcome { left: calc(52px + 0.5rem); right: 0.5rem; bottom: 0.6rem; max-width: none; max-height: calc(100% - 1.2rem); overflow-y: auto; }
   /* a sign-up note stands clear of the bench's settings button in the corner */
-  .rt-app .rt-welcome.rt-coach { bottom: auto; }
+  .rt-app .rt-welcome.rt-coach { bottom: auto; width: auto; }       /* between the rail and the edge, as the note is: its own 24rem would overflow a phone, and the stage would scroll sideways to show its buttons */
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* touch: buttons and fields big enough for a finger */

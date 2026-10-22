@@ -6,7 +6,7 @@ redirect_from: /jek/docs/jekray2d/part-packs/
 description: Sets of parts and glasses made by others (a maker's catalogue, a course's kit), installed from a file or a link. How to install one, how to make one, and the file format.
 ---
 
-<p class="dx-lead">A part pack is a set of ready-made parts and glasses in one file: a maker's catalogue of lenses, a course's kit of benches-in-a-box, a lab's own mounts and assemblies. Anyone can make one and share it as a file or a link. Packs hold parts and data only, never code.</p>
+<p class="dx-lead">A part pack is a set of ready-made parts and glasses in one file: a maker's catalogue of lenses, a course's kit of benches-in-a-box, a lab's own mounts and assemblies. Anyone with a free account can make one and share it as a file or a link. Packs hold parts and data only, never code.</p>
 
 ## Installing a pack
 
@@ -34,7 +34,7 @@ The easiest way is from a bench:
 
 1. Set up each part as it should be: a lens's radii, glass and diameter, a laser's wavelength and power. A part can be several elements: group them (select them, then **Group**) and the group becomes one part of the pack, its fibres included.
 2. Select everything to go in the pack.
-3. Choose **File › Part packs and modules… › Make a pack from the selection…**, and give it a name and its maker.
+3. Choose **File › Part packs and modules… › Make a pack from the selection…**, and give it a name and its maker. Making a pack needs a free account (sign in, top right); installing one needs none.
 
 JEKray saves it as a `.jekpack` file (JSON text, like a `.jekray` bench), with each part centred, a small picture of it, and any measured glasses it uses written once at the top. Open the file in any text editor to add a description, a licence, a home page, part names and summaries, and groups. Then share the file, or put it online and share its link.
 

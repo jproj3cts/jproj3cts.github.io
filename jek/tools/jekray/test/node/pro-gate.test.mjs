@@ -160,11 +160,10 @@ test('experimental features need only a signed-in account, not a plan', () => {
 /* ---- exports: an account's (a free one is enough); the bench's own .jekray file anyone's ---- */
 const EXPORTS = [['io/layout.js', 'exportLayout', 'export the layout'], ['io/layout.js', 'exportScreen', 'export a screen\u2019s data'],
   ['io/cad-export.js', 'exportCad', 'export for CAD'], ['io/zmx-export.js', 'exportZmx', 'export an element'],
-  ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view']];
-// downloads that are not exports of images or data: the bench's .jekray file, a part pack made from the selection (JEKray's
-// own format, to install elsewhere), and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
+  ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view'], ['io/packs.js', 'makePack', 'make a part pack']];
+// downloads that are not exports of images or data: the bench's .jekray file, and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
 // the designers' reports, whose every call is behind designPro (checked above)
-const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'io/packs.js make', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
+const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
 const srcFiles = (d, at = '') => readdirSync(d).flatMap(f => statSync(join(d, f)).isDirectory() ? srcFiles(join(d, f), at + f + '/') : f.endsWith('.js') ? [at + f] : []);
 
 test('each export asks for an account before it does anything, and saving the bench as a .jekray file does not', () => {

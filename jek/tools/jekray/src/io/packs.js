@@ -15,6 +15,7 @@ import { clipIcon, palOf } from '../ui/myparts.js';
 import { startTour } from '../ui/tours.js';
 import { modConfirmText, modPrepare, modsSync } from './mods.js';
 import { track } from './usage.js';
+import { accountGate } from '../ui/pro.js';
 
 /* ==========================================================================
    Part packs: sets of parts and glasses made by others (a maker's catalogue, a course's kit),
@@ -276,30 +277,33 @@ export function menuIcons(root) {
   }
 }
 
+/* a part pack made from the selection, saved as a file (a free account's, as the exports are) */
+export function makePack() {
+  if (!accountGate('make a part pack')) return;
+  const sel = selection();
+  if (!sel.length) { toast('Select the parts to put in the pack first (each part, or each group, becomes one part of it)', true); return; }
+  const name = prompt('A name for the pack', project.name ? project.name + ' parts' : 'My parts pack'); if (name === null) return;
+  const author = prompt('Who made it (shown to those who install it)', '') ; if (author === null) return;
+  const id = (author ? author + '.' : '') + name;
+  const pack = packFromSelection({ id: id.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'pack', name: name.trim().slice(0, 60), author: author.trim().slice(0, 80), packVersion: '1' });
+  try { normPack(pack); } catch (err) { toast('Could not make the pack: ' + err.message, true); return; }
+  downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
+  toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
+}
+
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wirePacks() {
   {
     const dlg = h('dialog', { class: 'rt-dialog', id: 'packDialog' });
     const fi = h('input', { type: 'file', accept: '.jekpack,.json,application/json', hidden: true });
     fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) await packInstallText(await f.text(), f.name); });
-    const make = () => {
-      const sel = selection();
-      if (!sel.length) { toast('Select the parts to put in the pack first (each part, or each group, becomes one part of it)', true); return; }
-      const name = prompt('A name for the pack', project.name ? project.name + ' parts' : 'My parts pack'); if (name === null) return;
-      const author = prompt('Who made it (shown to those who install it)', '') ; if (author === null) return;
-      const id = (author ? author + '.' : '') + name;
-      const pack = packFromSelection({ id: id.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'pack', name: name.trim().slice(0, 60), author: author.trim().slice(0, 80), packVersion: '1' });
-      try { normPack(pack); } catch (err) { toast('Could not make the pack: ' + err.message, true); return; }
-      downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
-      toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
-    };
     dlg.append(h('h2', null, 'Part packs and modules'),
       h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data; a module is a pack that carries code as well (an experimental feature), run in a sandbox. Both are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
       h('div', { id: 'packList', class: 'rt-packlist' }),
       h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
         h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install a pack/module from a file…'),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack or module (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install a pack/module from a link…'),
-        h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: make }, 'Make a pack from the selection…'),
+        h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: makePack, 'data-need': 'account', 'data-what': 'make a part pack' }, 'Make a pack from the selection…'),
         h('a', { class: 'rt-link', href: '/jek/docs/jekray/part-packs/', target: '_blank', rel: 'noopener' }, 'How to make one'),
         h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi);
     document.body.append(dlg);

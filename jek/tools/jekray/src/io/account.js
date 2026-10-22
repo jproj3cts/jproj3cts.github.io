@@ -685,7 +685,7 @@ async function loadAccount() {
    an account. One cap for the notes and the share dialog: once a week (core/nudge.js), which the export dialog
    counts against but is not held back by. Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
 const NUDGE_KEY = 'jek-nudge-save';
-const FREE_GIVES = 'A free account lets you export images and data and use the experimental features, and join a team when invited.';
+const FREE_GIVES = 'A free account lets you export images and data, make part packs and use the experimental features, and join a team when invited.';
 const UNI_LINE = 'University email? If your university has a JEKray licence, signing in with it gives you JEKrayPro; if not, it gets you the academic price.';
 // set when the account is known (signed in, or the API said signed out): the notes wait for it
 export let accountKnown = false;

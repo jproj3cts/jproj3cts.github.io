@@ -61,7 +61,7 @@ The rest of `window.JEKray` is the test suite's: it works, and may change betwee
 
 ## Headless, in Node
 
-The engine runs in Node as it is, with no browser. This is for your own computer or a build server, not the website: with the JEKray program files alongside (the same files that make the page, laid out as `jek/tools/jekray/`), `headless.mjs` opens a bench and gives it the same calls. It needs Node 20 or later and nothing installed. The paths below are relative to the folder holding `jek/`.
+The engine runs in Node as it is, with no browser. This is for your own computer or a build server, not the website: with the JEKray program files alongside (the same files that make the page, laid out as `jek/tools/jekray/`), `headless.mjs` opens a bench and gives it the same calls. It needs Node 20 or later and nothing installed, and no account: it runs on your own computer. The paths below are relative to the folder holding `jek/`.
 
 ```js
 import { openFile } from './jek/tools/jekray/headless.mjs';

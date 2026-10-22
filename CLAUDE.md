@@ -55,6 +55,9 @@ through `core/hooks.js`.
   checks from the syntax tree that each gated function opens with its gate, that every `downloadFile`/`download:` is
   behind one (or in its short list of non-exports), and that the .jekray save is not. Experimental features need only
   a signed-in account (`setExpGate` in `io/cloud.js`). None of it applies in TEST_MODE or without accounts.
+  Node scripting (`headless.mjs`, `cli.mjs`) is never gated: it runs from the public source, where a check could just
+  be deleted. Anything it gains that touches the cloud (benches, parts, links) goes through the API, whose own account
+  and plan checks are the gate.
 
 ## Adding or changing a tool feature — checklist
 1. Part field: `norm` (default so old files load — there are no format migrations) and `guide.fields`; the panel in

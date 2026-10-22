@@ -37,6 +37,9 @@ SUPPORT_EMAIL = "support@jeksys.net"
 # from QUOTE_FROM, with a receipt to the customer. Same key and domain as above.
 SALES_EMAIL = "sales@jeksys.net"
 QUOTE_FROM = "JEK Systems <quotes@jeksys.net>"
+# DNS-over-HTTPS (JSON) resolver a team's TXT record is looked up with when it
+# verifies its domain for signing part packs (src/packs.js).
+DOH_URL = "https://cloudflare-dns.com/dns-query"
 
 # Accounts, sessions, workspaces and bench heads.
 [[d1_databases]]

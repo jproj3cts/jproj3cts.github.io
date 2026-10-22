@@ -68,7 +68,7 @@ Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or 
 
 ### Is a part pack safe to install?
 
-A [part pack](/jek/docs/jekray/part-packs/) holds parts and data only, nothing that runs. One made in JEKray is signed with its maker's account: **✓ Verified** shows who made it and that it has not been changed since; **Unverified** means JEKray cannot say who made it. A [module](/jek/docs/jekray/modules/) carries code, run in a sandbox apart from the page, and installs only when it is verified. JEK Systems can revoke a pack that turns out to be harmful; report one with **Report this pack** or at [support@jeksys.net](mailto:support@jeksys.net).
+A [part pack](/jek/docs/jekray/part-packs/) holds parts and data only, nothing that runs. One made in JEKray is signed with its maker's account: **✓ Signed by the JEKray account ‘*name*’** shows which account made it and that it has not been changed since (the name is the account's own choice, so it is not a checked identity); **✓ Verified: *organisation* (*domain*)** is an organisation that has proved its web domain; **Unverified** means JEKray cannot say who made it. A [module](/jek/docs/jekray/modules/) carries code, run in a sandbox apart from the page, and installs only when it is signed and unchanged. JEK Systems can revoke a pack that turns out to be harmful; report one with **Report this pack** or at [support@jeksys.net](mailto:support@jeksys.net).
 
 ### Can an AI assistant build a bench for me?
 

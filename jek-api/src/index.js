@@ -38,6 +38,7 @@ async function purgeExpired(env) {
     env.DB.prepare('DELETE FROM password_fails WHERE until <= ?').bind(t),
     env.DB.prepare('DELETE FROM email_sends WHERE at <= ?').bind(t - 24 * 60 * 60 * 1000),
     env.DB.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').bind(t),
+    env.DB.prepare('DELETE FROM pack_domain_checks WHERE expires_at <= ?').bind(t),   // a team's domain not verified in 7 days
   ]);
 }
 
@@ -159,6 +160,10 @@ const router = new Router()
   )
   .on('POST', '/v1/teams/:id/leave', async (req, env, ctx, { id }) => json(await T.leave(env, await requireUser(req, env, ctx), id)))
   .on('POST', '/v1/teams/:id/transfer', async (req, env, ctx, { id }) => json(await T.transfer(req, env, await requireUser(req, env, ctx), id)))
+  // a team's domain for signing packs as itself (src/packs.js): a TXT record to add, then looked up
+  .on('POST', '/v1/teams/:id/domain', async (req, env, ctx, { id }) => json(await K.domainStart(req, env, await requireUser(req, env, ctx), id)))
+  .on('POST', '/v1/teams/:id/domain/verify', async (req, env, ctx, { id }) => json(await K.domainVerify(env, await requireUser(req, env, ctx), id)))
+  .on('DELETE', '/v1/teams/:id/domain', async (req, env, ctx, { id }) => json(await K.domainRemove(env, await requireUser(req, env, ctx), id)))
   .on('GET', '/v1/invitations/:token', async (req, env, ctx, { token }) => json(await T.peek(env, token)))
   .on('POST', '/v1/invitations/accept', async (req, env, ctx) => json(await T.accept(req, env, await requireUser(req, env, ctx))))
   // usage counts from the app, signed in or not, saying nothing of who (src/usage.js)

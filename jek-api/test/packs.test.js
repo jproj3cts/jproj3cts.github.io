@@ -1,6 +1,7 @@
-import { env } from 'cloudflare:workers';
-import { afterEach, describe, expect, it } from 'vitest';
+import { env, exports } from 'cloudflare:workers';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CONFIRM } from '../src/account.js';
+import { cleanDomain } from '../src/packs.js';
 import { canon, packHash, sigMessage, unb64u } from '../src/packsig.js';
 import { call, send, signedIn, withPlan } from './helpers.js';
 
@@ -17,7 +18,7 @@ const status = (q) => json(call('/v1/packs/status?' + q, { origin: null }));
 const pub = () => crypto.subtle.importKey('raw', unb64u(TEST_PUBLIC), { name: 'Ed25519' }, false, ['verify']);
 const checks = async (sig) => crypto.subtle.verify({ name: 'Ed25519' }, await pub(), unb64u(sig.s), sigMessage(sig));
 let saved;
-afterEach(() => { if (saved !== undefined) { env.PACK_SIGNING_KEY = saved; saved = undefined; } });
+afterEach(() => { if (saved !== undefined) { env.PACK_SIGNING_KEY = saved; saved = undefined; } vi.restoreAllMocks(); });
 
 describe('signing a pack', () => {
   it('needs a session, and from the app', async () => {
@@ -64,10 +65,11 @@ describe('signing a pack', () => {
     expect(s.body.ids['no.such']).toBeUndefined();
   });
 
-  it('keeps jek and jek.* for JEK Systems and those it names', async () => {
+  it('keeps jek, jekray, jeksys and the ids under them for JEK Systems and those it names', async () => {
     const B = await signedIn();
-    for (const id of ['jek', 'jek.example', 'jek.anything']) expect((await sign(B, pack(id))).body.error.code).toBe('id_reserved');
-    expect((await sign(B, pack('jekyll.parts'))).status).toBe(200);   // only "jek" and "jek." are kept
+    for (const id of ['jek', 'jek.example', 'jekray', 'jekray.parts', 'jeksys', 'jeksys.lenses']) expect((await sign(B, pack(id))).body.error.code).toBe('id_reserved');
+    expect((await sign(B, pack('jekyll.parts'))).status).toBe(200);   // only those names, and those with a dot after them
+    expect((await sign(B, pack('jekrayfan.parts'))).status).toBe(200);
     expect((await json(ops('/ops/packs/reserve', 'POST', { user: B.user.email }))).status).toBe(200);
     expect((await sign(B, pack('jek.b-parts'))).status).toBe(200);
     const mine = await json(ops('/ops/packs/sign', 'POST', { pack: pack('jek.example', { version: 2, code: 'jek.plate("x", {})' }) }));
@@ -222,5 +224,206 @@ describe('an account deleted', () => {
     expect(row.signer_name).toBeNull();
     expect((await sign(B, pack('gone.parts'))).body.error.code).toBe('id_taken');
     expect((await status('ids=gone.parts')).body.ids['gone.parts'].owner.name).toBe('Deleted user');
+  });
+});
+
+describe('a team verifies its own domain', () => {
+  // the DNS-over-HTTPS resolver, as Cloudflare's JSON one answers: TXT strings by name, 'fail' for a broken lookup
+  let dns, asked;
+  function resolver() {
+    dns = {}; asked = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init = {}) => {
+      const u = new URL(typeof input === 'string' ? input : input.url);
+      expect(u.origin + u.pathname).toBe(env.DOH_URL);
+      expect(new Headers(init.headers).get('accept')).toBe('application/dns-json');
+      const name = u.searchParams.get('name');
+      asked.push(name);
+      expect(u.searchParams.get('type')).toBe('TXT');
+      const r = dns[name];
+      if (r === 'fail') return new Response('{"Status":2}', { headers: { 'Content-Type': 'application/dns-json' } });
+      if (!r) return Response.json({ Status: 3, Answer: [] });
+      return Response.json({ Status: 0, Answer: r.map((t) => ({ name, type: 16, TTL: 300, data: '"' + t + '"' })) });
+    });
+  }
+  const dom = (who, t, method = 'POST', b) => json(send(`/v1/teams/${t}/domain${method === 'VERIFY' ? '/verify' : ''}`, method === 'VERIFY' ? 'POST' : method, who.token, b));
+  const unwait = (t) => env.DB.prepare('UPDATE pack_domain_checks SET checked_at = NULL WHERE workspace_id = ?').bind(t).run();
+  async function team(owner, name) {
+    const t = (await json(send('/v1/teams', 'POST', owner.token, { name }))).body.id;
+    await withPlan(t);
+    return t;
+  }
+
+  it('the domain made plain, and refused unless an organisation could own it', () => {
+    expect(cleanDomain('  Acme-Optics.COM. ')).toBe('acme-optics.com');
+    expect(cleanDomain('https://www.acme.com/about?x=1')).toBe('www.acme.com');
+    expect(cleanDomain('@lab.example.ac.uk')).toBe('lab.example.ac.uk');
+    expect(cleanDomain('bücher.de')).toBe('xn--bcher-kva.de');
+    expect(cleanDomain('xn--bcher-kva.de')).toBe('xn--bcher-kva.de');
+    expect(cleanDomain('example.xn--p1ai')).toBe('example.xn--p1ai');
+    for (const bad of ['', 'localhost', 'com', '192.168.1.1', '[::1]', '10.0.0.1:80', 'co.uk', 'ac.jp', 'a..b.com', '-acme.com', 'acme.c', 'acme_optics.com', 'jeksys.net', 'x.jeksys.net', 'jekray.com', 'a b.com', null, 42]) {
+      expect(() => cleanDomain(bad), String(bad)).toThrow(/organisation owns|JEK Systems/);
+    }
+  });
+
+  it('start, the record, a check that does not find it, one that does: the team signs as itself', async () => {
+    resolver();
+    const O = await signedIn('Olga');
+    const t = await team(O, 'Acme Photonics');
+    const s = await dom(O, t, 'POST', { domain: 'Acme-Photonics.com' });
+    expect(s.status).toBe(200);
+    expect(s.body.domain).toBeNull();
+    const { record, expires_at } = s.body.pending;
+    expect(record.type).toBe('TXT');
+    expect(record.name).toBe('_jekray-verify.acme-photonics.com');
+    expect(record.value).toMatch(/^jekray-verify=[0-9a-f]{32}$/);
+    expect(expires_at - Date.now()).toBeGreaterThan(6.9 * 86400000);
+    // asked again: the same record, so one already added still counts
+    expect((await dom(O, t, 'POST', { domain: 'acme-photonics.com' })).body.pending.record).toEqual(record);
+    // the team's page shows its owner the same
+    expect((await json(call('/v1/teams/' + t, { token: O.token }))).body.signing.pending.record).toEqual(record);
+    // not there yet; another token there; then right (several strings in one record, others beside it)
+    const miss = await dom(O, t, 'VERIFY');
+    expect([miss.status, miss.body.error.code]).toEqual([409, 'not_found_yet']);
+    expect(asked).toEqual(['_jekray-verify.acme-photonics.com']);
+    // too soon after the last look
+    const soon = await dom(O, t, 'VERIFY');
+    expect([soon.status, soon.body.error.code]).toEqual([429, 'too_soon']);
+    expect(asked.length).toBe(1);
+    await unwait(t);
+    dns[record.name] = ['jekray-verify=' + 'f'.repeat(32)];
+    const wrong = await dom(O, t, 'VERIFY');
+    expect([wrong.status, wrong.body.error.code]).toEqual([409, 'not_found_yet']);
+    expect(wrong.body.error.message).toContain(record.value);
+    await unwait(t);
+    dns[record.name] = ['v=spf1 -all', record.value.slice(0, 20) + '" "' + record.value.slice(20)];
+    const ok = await dom(O, t, 'VERIFY');
+    expect(ok.status).toBe(200);
+    expect(ok.body.domain).toMatchObject({ domain: 'acme-photonics.com', method: 'dns' });
+    expect(ok.body.pending).toBeNull();
+    const sg = (await json(call('/v1/packs/signers', { token: O.token }))).body.signers;
+    expect(sg[1]).toEqual({ kind: 'org', id: t, name: 'Acme Photonics', domain: 'acme-photonics.com' });
+    const r = await sign(O, pack('acmep.kit'), t);
+    expect(r.body.sig.by).toEqual({ kind: 'org', id: t, name: 'Acme Photonics', domain: 'acme-photonics.com' });
+    // in the team's activity
+    const act = (await json(call('/v1/teams/' + t, { token: O.token }))).body.activity.map((a) => a.action + ' ' + a.target);
+    expect(act).toContain('domain.verified acme-photonics.com');
+    // one domain a team: another needs this one off first
+    expect((await dom(O, t, 'POST', { domain: 'acme.org' })).body.error.code).toBe('has_domain');
+    // taken off: signing as the team stops; its signatures stand
+    const off = await dom(O, t, 'DELETE');
+    expect([off.status, off.body.domain, off.body.pending]).toEqual([200, null, null]);
+    expect((await sign(O, pack('acmep.kit', { packVersion: '2' }), t)).status).toBe(403);
+    expect((await status('ids=acmep.kit')).body.ids['acmep.kit'].owner).toEqual({ kind: 'org', id: t, name: 'Acme Photonics' });
+  });
+
+  it('a lookup that fails, and a record that has expired', async () => {
+    resolver();
+    const O = await signedIn();
+    const t = await team(O, 'Lab');
+    const { record } = (await dom(O, t, 'POST', { domain: 'lab.example' })).body.pending;
+    dns[record.name] = 'fail';
+    const r = await dom(O, t, 'VERIFY');
+    expect([r.status, r.body.error.code]).toEqual([503, 'dns_unavailable']);
+    await env.DB.prepare('UPDATE pack_domain_checks SET expires_at = ?, checked_at = NULL WHERE workspace_id = ?').bind(Date.now() - 1, t).run();
+    dns[record.name] = [record.value];
+    const old = await dom(O, t, 'VERIFY');
+    expect([old.status, old.body.error.code]).toEqual([410, 'expired']);
+    expect((await json(call('/v1/teams/' + t, { token: O.token }))).body.signing.pending.expired).toBe(true);
+    // started again: a new token
+    // the daily job clears it out
+    const waits = [];
+    await exports.default.scheduled({ cron: '17 3 * * *', scheduledTime: Date.now() }, env, { waitUntil: (p) => waits.push(p) });
+    await Promise.all(waits);
+    expect((await json(call('/v1/teams/' + t, { token: O.token }))).body.signing.pending).toBeNull();
+    const again = (await dom(O, t, 'POST', { domain: 'lab.example' })).body.pending.record;
+    expect(again.value).not.toBe(record.value);
+    expect((await dom(O, t, 'VERIFY')).body.error.code).toBe('not_found_yet');
+    expect((await dom(O, t, 'VERIFY', undefined)).status).toBe(429);
+    expect((await dom(await signedIn(), t, 'VERIFY')).status).toBe(404);
+    // nothing started
+    const P = await signedIn(), u = await team(P, 'Other');
+    expect((await dom(P, u, 'VERIFY')).body.error.code).toBe('no_check');
+  });
+
+  it('a domain is one team’s at a time; ops can free it', async () => {
+    resolver();
+    const O = await signedIn(), P = await signedIn();
+    const t = await team(O, 'Lab A'), u = await team(P, 'Lab B');
+    const a = (await dom(O, t, 'POST', { domain: 'shared.example' })).body.pending.record;
+    const b = (await dom(P, u, 'POST', { domain: 'shared.example' })).body.pending.record;
+    expect(a.value).not.toBe(b.value);
+    dns[a.name] = [a.value, b.value];
+    expect((await dom(O, t, 'VERIFY')).status).toBe(200);
+    // the other team, even with its record there: taken
+    const r = await dom(P, u, 'VERIFY');
+    expect([r.status, r.body.error.code]).toEqual([409, 'domain_taken']);
+    expect((await dom(P, u, 'POST', { domain: 'Shared.Example' })).body.error.code).toBe('domain_taken');
+    // nor by ops, until freed
+    expect((await json(ops('/ops/packs/org', 'POST', { org: u, domain: 'shared.example', force: true }))).body.error.code).toBe('domain_taken');
+    expect((await json(ops('/ops/packs/org', 'POST', { org: t, domain: null }))).body.domain).toBeNull();
+    expect((await dom(P, u, 'POST', { domain: 'shared.example' })).status).toBe(200);
+    await unwait(u);
+    expect((await dom(P, u, 'VERIFY')).body.domain.domain).toBe('shared.example');
+  });
+
+  it('only the owner and admins, of a team on an active plan', async () => {
+    resolver();
+    const O = await signedIn(), Ad = await signedIn(), Ed = await signedIn(), X = await signedIn();
+    const t = await team(O, 'Roles');
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'admin', 1, 0)").bind(t, Ad.user.id),
+      env.DB.prepare("INSERT INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'editor', 1, 0)").bind(t, Ed.user.id),
+    ]);
+    expect((await dom(Ad, t, 'POST', { domain: 'roles.example' })).status).toBe(200);
+    for (const m of ['POST', 'VERIFY', 'DELETE']) {
+      expect((await dom(Ed, t, m, { domain: 'roles.example' })).body.error.code, m).toBe('forbidden');
+      expect((await dom(X, t, m, { domain: 'roles.example' })).status, m).toBe(404);
+    }
+    // the editor does not see the record on the team's page
+    expect((await json(call('/v1/teams/' + t, { token: Ed.token }))).body.signing).toBeUndefined();
+    // a personal workspace is no team
+    expect((await dom(O, O.workspaceId, 'POST', { domain: 'me.example' })).status).toBe(404);
+    // no plan: nothing started or checked, though it can still be taken off
+    await withPlan(t, 'canceled', Date.now() - 1000);
+    const np = await dom(O, t, 'POST', { domain: 'roles.example' });
+    expect([np.status, np.body.error.code]).toEqual([402, 'no_plan']);
+    expect((await dom(O, t, 'VERIFY')).body.error.code).toBe('no_plan');
+    expect((await dom(O, t, 'DELETE')).status).toBe(200);
+    expect(asked).toEqual([]);
+    // bad domains refused
+    await withPlan(t);
+    expect((await dom(O, t, 'POST', { domain: '127.0.0.1' })).body.error.code).toBe('bad_domain');
+  });
+
+  it('looked at again on signing after 30 days: still there, signing goes on; gone, it stops', async () => {
+    resolver();
+    const O = await signedIn();
+    const t = await team(O, 'Recheck');
+    const { record } = (await dom(O, t, 'POST', { domain: 'recheck.example' })).body.pending;
+    dns[record.name] = [record.value];
+    await dom(O, t, 'VERIFY');
+    asked.length = 0;
+    expect((await sign(O, pack('re.one'), t)).status).toBe(200);
+    expect(asked).toEqual([], 'not looked at while the last check is fresh');
+    const age = (d) => env.DB.prepare('UPDATE pack_orgs SET checked_at = ? WHERE workspace_id = ?').bind(Date.now() - d * 86400000, t).run();
+    await age(31);
+    expect((await sign(O, pack('re.one', { packVersion: '2' }), t)).status).toBe(200);
+    expect(asked).toEqual([record.name]);
+    expect((await env.DB.prepare('SELECT checked_at FROM pack_orgs WHERE workspace_id = ?').bind(t).first()).checked_at).toBeGreaterThan(Date.now() - 60000);
+    // the resolver down: nothing held up
+    await age(31);
+    dns[record.name] = 'fail';
+    expect((await sign(O, pack('re.one', { packVersion: '3' }), t)).status).toBe(200);
+    // the record gone
+    delete dns[record.name];
+    const r = await sign(O, pack('re.one', { packVersion: '4' }), t);
+    expect([r.status, r.body.error.code]).toEqual([403, 'domain_lapsed']);
+    expect((await json(call('/v1/teams/' + t, { token: O.token }))).body.signing.domain).toBeNull();
+    // one set by ops is never looked at
+    await json(ops('/ops/packs/org', 'POST', { org: t, domain: 'recheck.example', force: true }));
+    await age(400);
+    asked.length = 0;
+    expect((await sign(O, pack('re.one', { packVersion: '5' }), t)).status).toBe(200);
+    expect(asked).toEqual([]);
   });
 });

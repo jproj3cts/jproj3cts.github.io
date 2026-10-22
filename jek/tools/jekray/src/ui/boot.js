@@ -172,8 +172,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       pack.trust = d.trust; if (raw.sig) pack.sig = raw.sig; if (pack.code) pack.signed = JSON.parse(JSON.stringify(raw));
       if (pack.code) await modPrepare(pack, notes); await packPut(pack); return pack.id;
     },
-    // what installing would make of it: { ok, code, why, notes, update, trust, label } (in the tests, the API not asked)
-    async packAssess(raw) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); const d = await packAssess(raw, pack); return Object.assign({}, d, { label: packTrustLabel(d.trust, pack.author).text }); },
+    // what installing would make of it: { ok, code, why, notes, update, trust, label } (in the tests, the API not asked:
+    // status stands in for its answer, as GET /v1/packs/status gives it)
+    async packAssess(raw, status) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); const d = await packAssess(raw, pack, status); return Object.assign({}, d, { label: packTrustLabel(d.trust, pack.author).text }); },
     packTrust: id => { const p = PACKS.list.find(q => q.id === id); return p ? packTrustOf(p) : null; },
     packs: () => PACKS.list.map(p => ({ id: p.id, name: p.name, parts: p.parts.map(P => P.name), glasses: p.glasses.map(g => g.glass) })),
     packPlace(id, i) { placePackPart(PACKS.list.find(p => p.id === id), i); return selection().map(e => e.name); },

@@ -133,6 +133,22 @@ describe('one account cannot reach another’s data', () => {
     expect(st).toContain('Ada Optics');
     expect(st).not.toContain(SECRET);
     expect(st).not.toContain(A.user.email);
+    // Ada's team's domain: Eve neither starts, checks, removes nor reads it; signed out or from another site, nothing
+    const lookups = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({ Status: 3 }));
+    await send(`/v1/teams/${team}/domain`, 'POST', A.token, { domain: 'ada-optics.example' });
+    const domainRoutes = [['POST', `/v1/teams/${team}/domain`, { domain: 'eve.example' }], ['POST', `/v1/teams/${team}/domain/verify`], ['DELETE', `/v1/teams/${team}/domain`]];
+    for (const r of domainRoutes) {
+      expect([r[0] + ' ' + r[1], (await hit(E.token, r)).status]).toEqual([r[0] + ' ' + r[1], 404]);
+      expect([r[0] + ' ' + r[1], (await hit(undefined, r)).status]).toEqual([r[0] + ' ' + r[1], 401]);
+      expect([r[0] + ' ' + r[1], (await hit(A.token, r, 'https://evil.example')).status]).toEqual([r[0] + ' ' + r[1], 403]);
+    }
+    expect(lookups).not.toHaveBeenCalled();
+    const eveSees = await (await call(`/v1/teams/${team}`, { token: E.token })).text();
+    expect(eveSees).not.toContain('jekray-verify');
+    const still = await (await call(`/v1/teams/${team}`, { token: A.token })).json();
+    expect(still.signing.domain.domain).toBe('ada-optics.example');
+    expect(still.signing.pending.domain).toBe('ada-optics.example');   // Ada's own check, not Eve's
+    expect(still.signing.domain.method).toBe('ops');
   });
 
   it('a viewer in a shared workspace can read but not change, and a member never reaches the owner’s personal benches', async () => {

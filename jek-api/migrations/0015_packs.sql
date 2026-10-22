@@ -33,7 +33,8 @@ CREATE TABLE pack_sigs (
 CREATE INDEX pack_sigs_id ON pack_sigs(id);
 CREATE INDEX pack_sigs_signer ON pack_sigs(signer_kind, signer_id);
 
--- Set by JEK Systems: 'jek' may sign ids under jek.; 'blocked' may sign nothing.
+-- Set by JEK Systems: 'jek' may sign the reserved ids (jek, jekray, jeksys and
+-- those under them); 'blocked' may sign nothing.
 CREATE TABLE pack_flags (
   owner_kind  TEXT NOT NULL CHECK (owner_kind IN ('person', 'org')),
   owner_id    TEXT NOT NULL,
@@ -43,9 +44,27 @@ CREATE TABLE pack_flags (
   PRIMARY KEY (owner_kind, owner_id, flag)
 );
 
--- A team that signs packs as itself: its domain, checked by JEK Systems.
+-- A team that signs packs as itself: its domain, one a team and a team one.
+-- method 'dns': the team proved it with a TXT record (_jekray-verify.<domain>
+-- holding jekray-verify=<token>), looked at again when the team signs once
+-- checked_at is 30 days old; 'ops': set by JEK Systems (scripts/packs.mjs org).
 CREATE TABLE pack_orgs (
   workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
   domain       TEXT NOT NULL UNIQUE,
-  verified_at  INTEGER NOT NULL
+  verified_at  INTEGER NOT NULL,
+  method       TEXT NOT NULL DEFAULT 'ops' CHECK (method IN ('dns', 'ops')),
+  token        TEXT,                    -- the TXT record's token (dns)
+  checked_at   INTEGER                  -- when the record was last found (dns)
+);
+
+-- A domain a team's owner or admin has asked to verify: the token to put in
+-- its TXT record, good until expires_at (7 days). checked_at: the last
+-- lookup, so lookups are held to one every few seconds.
+CREATE TABLE pack_domain_checks (
+  workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+  domain       TEXT NOT NULL,
+  token        TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL,
+  checked_at   INTEGER
 );

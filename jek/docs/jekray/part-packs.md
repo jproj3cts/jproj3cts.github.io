@@ -3,7 +3,7 @@ layout: docs
 title: Part packs
 permalink: /jek/docs/jekray/part-packs/
 redirect_from: /jek/docs/jekray2d/part-packs/
-description: Sets of parts and glasses made by others (a maker's catalogue, a course's kit), installed from a file or a link. How to install one, how to make and sign one, what Verified means, and the file format.
+description: Sets of parts and glasses made by others (a maker's catalogue, a course's kit), installed from a file or a link. How to install one, how to make and sign one, what Signed and Verified mean, verifying an organisation's domain, and the file format.
 ---
 
 <p class="dx-lead">A part pack is a set of ready-made parts and glasses in one file: a maker's catalogue of lenses, a course's kit of benches-in-a-box, a lab's own mounts and assemblies. Anyone with a free account can make one and share it as a file or a link. A pack made in JEKray is signed with its maker's account, so whoever installs it can see who made it. Packs hold parts and data only, never code.</p>
@@ -24,26 +24,30 @@ offers that pack when the page opens. It is never installed without you choosing
 
 Installed packs are kept in this browser. **File › Part packs and modules…** lists them, each with its standing (below), and **Remove** takes one away. Installing a newer version of a pack, with the same id, from the same maker updates it.
 
-## Verified, Unverified and Revoked
+## Signed, Verified, Unverified and Revoked
 
 When a pack is installed, and once a day after, JEKray says where it stands:
 
 | Label | What it means |
 |---|---|
-| **✓ Verified: made by *name*** | Signed with the JEKray account of the person named, and not changed since. The name is the one that account gives itself. |
-| **✓ Verified: *organisation* (*domain*)** | Signed by an organisation's team, whose web domain JEK Systems has checked belongs to it. |
+| **✓ Signed by the JEKray account ‘*name*’** | Signed with that JEKray account, and not changed since. The name is the account's own choice: anyone can call their account anything, and no one has checked who is behind it. So it tells you which account made the pack (and that later versions come from the same one), not who that is. |
+| **✓ Verified: *organisation* (*domain*)** | Signed by an organisation's team, which has shown that the web domain is its own (below), and not changed since. Only this label is shown as checked. |
 | **Unverified** | Not signed (made by hand, or before signing began). Its own `author` is shown as "By *name* (unverified)": anyone can write any name there. |
 | **Unverified: changed after it was signed** | It was signed, then edited. It may be the maker's own change; it may not. |
 | **Unverified: its signature does not check out** | Its signature is not one of ours, or not this pack's. |
 | **Revoked: *reason*** | JEK Systems has taken it down (below). |
 
-A parts pack installs whether it is verified or not; an unverified one says so before you choose **Install**. A [module](/jek/docs/jekray/modules/), which runs code, installs only when it is verified.
+A parts pack installs whether it is signed or not; an unverified one says so before you choose **Install**. A [module](/jek/docs/jekray/modules/), which runs code, installs only when it is signed and unchanged.
 
 ### A pack's id is its maker's
 
-A pack's `id` belongs to whoever first signs a pack with it. After that, only they (the same account, or the same organisation) can sign a pack with that id. So with a pack installed, a pack with the same id is offered as an **Update** only when it is signed by the same maker (or, when the installed one is unsigned, by the id's owner). Anything else is refused, saying a different maker's pack uses that id: remove the installed one first if you want the other instead.
+A pack's `id` belongs to whoever first signs a pack with it. After that, only they (the same account, or the same organisation) can sign a pack with that id, and JEKray installs a pack with that id only when they signed it. A copy that is unsigned, changed after signing, or signed by someone else is refused, whether or not you have the maker's pack installed, since it could pose as theirs: ask the maker for a copy they signed, or, if the pack is your own unsigned one, sign it with an id of your own.
 
-Ids starting `jek.` are JEKray's own: only JEK Systems can sign them.
+With a pack installed, a pack with the same id is offered as an **Update** only when it is signed by the same maker (or, when the installed one is unsigned, by the id's owner). Anything else is refused, saying a different maker's pack uses that id: remove the installed one first if you want the other instead.
+
+JEKray asks who owns an id as the pack is installed. If it cannot ask (you are offline), an unsigned parts pack installs as before, with a note that this could not be checked.
+
+The ids `jek`, `jekray` and `jeksys`, and ids starting `jek.`, `jekray.` or `jeksys.`, are JEKray's own: only JEK Systems can sign them.
 
 ### Taken down, and reporting a pack
 
@@ -73,7 +77,17 @@ If JEKray cannot reach its service to sign the pack, it offers to save it unsign
 
 ### Signing as an organisation
 
-A team on JEKrayPro can sign packs as the organisation, shown as **✓ Verified: *team name* (*domain*)**, once JEK Systems has checked that the team's web domain is theirs: email [support@jeksys.net](mailto:support@jeksys.net) from an address at that domain (normally the team owner's). The team's owner and admins then choose it under **Signed as** when they make or sign a pack. Ids the team signs are the team's, not any one member's.
+A team on JEKrayPro can sign packs as the organisation, shown as **✓ Verified: *team name* (*domain*)**, once it has shown that its web domain is its own. The team's owner or an admin does this, in a few minutes, with a DNS record:
+
+1. Open the team (account menu, top right › the team's name). Under **Signing packs as the team**, enter the organisation's web domain, as in its email addresses (`acme.com`), and choose **Get the record to add**.
+2. JEKray shows a **TXT** record: its name, `_jekray-verify.acme.com`, and its value, `jekray-verify=` and a code. Add it where the domain's DNS is managed (the domain's registrar or host), using the **Copy** buttons. Some DNS hosts want only `_jekray-verify` as the name.
+3. Choose **Check now**. JEKray looks the record up; a new record can take a while to show, so if it is not found yet, check again later. The record is good for 7 days: after that, ask for a new one.
+
+Once the record is found, the domain is the team's. The team's owner and admins then choose the team under **Signed as** when they make or sign a pack. Ids the team signs are the team's, not any one member's.
+
+Keep the record in place: JEKray looks it up again when the team signs a pack, every 30 days, and if it has gone, signing as the team stops until the domain is verified again. A team has one domain, and a domain belongs to one team at a time: if another team has already verified yours, write to [support@jeksys.net](mailto:support@jeksys.net). **Take the domain off** stops signing as the team; packs already signed stay as they were. JEK Systems can also verify a domain by hand: email [support@jeksys.net](mailto:support@jeksys.net) from an address at that domain.
+
+A domain is written in lower case, and an international one in its ASCII form (`xn--…`, which JEKray works out). An address (an IP) or a bare suffix (`co.uk`) cannot be verified.
 
 ## The format
 

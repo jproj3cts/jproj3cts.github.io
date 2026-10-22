@@ -108,6 +108,11 @@
   #teamBody .team-muted { color: var(--jek-ink-soft); }
   #teamBody .team-link { display: flex; gap: 0.5rem; align-items: center; margin: 0.3rem 0 0.6rem; }
   #teamBody .team-link input { flex: 1 1 10rem; min-width: 0; font-family: var(--jek-mono); font-size: 0.75rem; padding: 0.3rem; }
+  #teamBody .team-record { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.6rem; }
+  #teamBody .team-record > span { flex: 0 0 3.5rem; font-weight: 600; font-size: 0.85rem; }
+  #teamBody .team-record .team-link { flex: 1 1 16rem; margin: 0.15rem 0; }
+  #teamBody label.team-domain { display: block; margin: 0.4rem 0 0.1rem; font-size: 0.875rem; }
+  #teamBody p.team-domain .rt-trust { margin-left: 0; }
   #teamBody .team-log { max-height: 14rem; overflow: auto; }
   #uniBody .uni-list li, #teamBody .uni-list li { display: flex; gap: 0.75rem; align-items: center; padding: 0.15rem 0; }
   dialog.rt-dialog #deleteConfirm { width: min(20rem, 100%); box-sizing: border-box; font: inherit; margin-top: 0.3rem; }
@@ -727,9 +732,10 @@
   .rt-packlist { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-height: 45vh; overflow-y: auto; }
   .rt-packrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; }
   .rt-packrow small, .rt-pby { color: var(--jek-ink-soft); font-weight: 400; }
-  /* a pack's standing: Verified (who signed it), Unverified, Revoked */
+  /* a pack's standing: Verified (an organisation's checked domain), Signed (a person's account, plain), Unverified, Revoked */
   .rt-trust { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px solid currentColor; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; vertical-align: 0.1em; white-space: nowrap; }
   .rt-trust.ok { color: #17703a; background: #eaf6ee; }
+  .rt-trust.signed { color: var(--jek-ink); background: var(--jek-well); font-weight: 600; }
   .rt-trust.warn { color: #8a4b0f; background: #fdf3e7; }
   .rt-trust.bad { color: var(--jek-red); background: #fdecec; }
   p.rt-trustline { display: block; margin: 0 0 0.5rem; padding: 0.45rem 0.6rem; font-size: 0.9rem; letter-spacing: 0; white-space: normal; border-width: 0 0 0 3px; }
@@ -5852,6 +5858,8 @@ async function packVerify(raw, key) {
 /* Whether a pack may be installed, and as what. o: { id, module, v (packVerify's, the API's answer filled in),
    st (the API's word on it, null when it could not be asked: { revoked, blocked, owner }), old (the installed
    pack's trust, or null), oldName, test (the tests: nothing asked of the API) }.
+   An id registered to a maker (st.owner) takes only packs that maker signed, whether or not one is installed;
+   when the API could not be asked, a parts pack installs with a note (a module does not).
    Returns { ok, code, why, notes, update }. */
 function packDecide(o) {
   const v = o.v, st = o.st, verified = v.state === 'verified', notes = [];
@@ -5859,7 +5867,7 @@ function packDecide(o) {
   if (st && st.revoked) return no('revoked', 'It has been revoked by JEK Systems: ' + (st.revoked.reason || 'no reason given') + '.');
   if (st && st.blocked) return no('revoked', 'Packs with the id ' + o.id + ' have been taken down by JEK Systems: ' + (st.blocked.reason || 'no reason given') + '.');
   if (o.module && !verified) {
-    return no('unverified', 'A module runs code, so JEKray installs one only when it is verified: signed by its maker’s JEKray account and unchanged since. ' +
+    return no('unverified', 'A module runs code, so JEKray installs one only when its signature checks out: signed with its maker’s JEKray account (or a verified organisation’s) and unchanged since. ' +
       { unsigned: 'This one is not signed.', changed: 'This one was changed after it was signed.', nokey: 'Signatures cannot be checked on this page yet.', unknown: 'Its signature could not be checked just now (you may be offline): try again later.' }[v.state] || 'Its signature does not check out.');
   }
   if (o.module && !st && !o.test) return no('unchecked', 'A module is installed only once JEKray has checked it has not been revoked, and that could not be done just now (you may be offline, or the service is unavailable). Try again later.');
@@ -5873,21 +5881,34 @@ function packDecide(o) {
         : 'A pack with this id (' + o.id + ') is installed here already, and JEKray cannot tell this one is by the same maker' + (verified ? ' (its id is registered to ' + (owner ? owner.name : 'someone else') + ')' : ': ' + (o.oldName || 'the installed one') + ' is unverified, and so is this one') + '. Remove the installed one first (File › Part packs and modules…) if you want this one instead.');
     }
   }
-  if (!verified && owner) notes.push('Its id, ' + o.id + ', is registered to ' + owner.name + (owner.domain ? ' (' + owner.domain + ')' : '') + ', and this copy is not signed by them.');
-  if (!st && !o.test) notes.push('JEKray could not check whether it has been revoked (you may be offline, or the service is unavailable).');
+  // an id registered to a maker is theirs: a copy not signed by them could pose as their pack, installed or not
+  if (owner && !(verified && packSameSigner(owner, v.by))) {
+    return no('other_maker', 'Its id, ' + o.id + ', is registered to ' + owner.name + (owner.domain ? ' (' + owner.domain + ')' : '') + ', and this copy is ' +
+      (verified ? 'signed by ' + v.by.name + ' instead' : 'not signed by them') + ', so it could pose as their pack. Ask its maker for a copy they signed; if it is your own pack, sign it with an id of your own.');
+  }
+  if (!st && !o.test) notes.push('JEKray could not check whether it has been revoked, or who its id is registered to (you may be offline, or the service is unavailable).');
   return { ok: true, code: '', why: '', notes, update: !!old };
 }
 
-/* how a pack's standing reads: { cls: 'ok' | 'warn' | 'bad', short, text, by } (trust as io/packs.js keeps it, or
-   none: a pack installed before signing, taken as unsigned); by: who made it, as said ('' if no one is named) */
+/* how a pack's standing reads: { cls, short, text, by } (trust as io/packs.js keeps it, or none: a pack installed
+   before signing, taken as unsigned). cls: 'ok' only for an organisation whose domain JEK Systems has checked;
+   'signed' for a person's account, whose name is its own choice and checked by no one, so it is not shown as
+   vouched for; 'warn' unverified; 'bad' revoked. by: who made it, as said ('' if no one is named) */
 function packTrustLabel(t, author) {
-  const signed = t && t.state === 'verified' && t.by;
-  const who = signed ? t.by.name + (t.by.kind === 'org' && t.by.domain ? ' (' + t.by.domain + ')' : '') : '';
-  const by = signed ? (t.by.kind === 'org' ? who : 'Made by ' + who) : author ? 'By ' + author + ' (unverified)' : '';
+  const signed = t && t.state === 'verified' && t.by, org = signed && t.by.kind === 'org' && t.by.domain;
+  const who = org ? t.by.name + ' (' + t.by.domain + ')' : signed ? 'the JEKray account \u2018' + t.by.name + '\u2019' : '';
+  const by = org ? who : signed ? 'By ' + who : author ? 'By ' + author + ' (unverified)' : '';
   if (t && t.revoked) return { cls: 'bad', short: 'Revoked', text: 'Revoked: ' + (t.revoked.reason || 'taken down by JEK Systems'), by };
-  if (signed) return { cls: 'ok', short: '\u2713 Verified', text: t.by.kind === 'org' ? '\u2713 Verified: ' + who : '\u2713 Verified: made by ' + who, by };
+  if (org) return { cls: 'ok', short: '\u2713 Verified', text: '\u2713 Verified: ' + who, by };
+  if (signed) return { cls: 'signed', short: '\u2713 Signed', text: '\u2713 Signed by ' + who, by };
   const why = { changed: 'changed after it was signed', bad: 'its signature does not check out', nokey: 'signatures cannot be checked on this page yet', unknown: 'its signature could not be checked just now' }[t && t.state];
   return { cls: 'warn', short: 'Unverified', text: 'Unverified' + (why ? ': ' + why : ''), by };
+}
+/* the line under a signed pack's label: what its signature does and does not say ('' for any other) */
+function packTrustHelp(t) {
+  const L = packTrustLabel(t);
+  return L.cls === 'ok' ? 'Signed by the organisation ' + t.by.name + ', which has shown that the web domain ' + t.by.domain + ' is its own, and unchanged since.'
+    : L.cls === 'signed' ? 'Signed with that JEKray account, and unchanged since. The name is the one the account gives itself: no one has checked who is behind it.' : '';
 }
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
    Above about 30 GHz a beam through lenses, mirrors and horns is a Gaussian beam that
@@ -46891,7 +46912,7 @@ function packsBody(after) {
   for (const pk of PACKS.list) {
     if (!pk.parts.length) continue;
     const L = packTrustLabel(pk.trust, pk.author);
-    out.push(h('h4', null, pk.name, L.by ? h('small', { class: 'rt-pby' }, ' ' + L.by.replace(/^(By|Made by)/, 'by')) : null, packChip(pk)));
+    out.push(h('h4', null, pk.name, L.by ? h('small', { class: 'rt-pby' }, ' ' + L.by.replace(/^By /, 'by ')) : null, packChip(pk)));
     const groups = new Map();
     pk.parts.forEach((P, i) => { const g = P.group || ''; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(i); });
     for (const [g, idx] of groups) { if (g && groups.size > 1) out.push(h('h5', null, g)); out.push(h('div', { class: 'rt-pgrid' }, ...idx.map(i => packTile(pk, i, after)))); }
@@ -46901,10 +46922,11 @@ function packsBody(after) {
 const packHits = words => PACKS.list.flatMap(pk => pk.parts.map((P, i) => ({ pk, i, P }))).filter(({ pk, P }) => words.every(w => (P.name + ' ' + P.summary + ' ' + P.group + ' ' + pk.name).toLowerCase().includes(w)));
 /* ---------- signatures and standing ---------- */
 const packTrustOf = pk => pk.trust || { state: 'unsigned', by: null, hash: '', revoked: null };
-// a pack's standing as a chip: Verified, Unverified or Revoked, the whole of it in its title
+// a pack's standing as a chip: Verified (an organisation), Signed (a person's account), Unverified or Revoked, the whole of it in its title
+const packUnsure = L => L.cls === 'warn' || L.cls === 'bad';
 function packChip(pk) {
-  const L = packTrustLabel(pk.trust, pk.author);
-  return h('span', { class: 'rt-trust ' + L.cls, title: L.text + (L.by && L.cls !== 'ok' ? '. ' + L.by : '') }, L.short);
+  const L = packTrustLabel(pk.trust, pk.author), help = packTrustHelp(pk.trust);
+  return h('span', { class: 'rt-trust ' + L.cls, title: L.text + (L.by && packUnsure(L) ? '. ' + L.by : '') + (help && !(pk.trust && pk.trust.revoked) ? '. ' + help : '') }, L.short);
 }
 // a pack reported to JEK Systems: an email, as a bug report is
 function packReportLink(pk) {
@@ -46930,10 +46952,11 @@ async function packStatus(hashes, ids) {
     return r.ok ? await r.json() : null;
   } catch (err) { return null; }
 }
-/* whether this pack may be installed here, and as what: packDecide's answer, with the trust to keep */
-async function packAssess(raw, pack) {
+/* whether this pack may be installed here, and as what: packDecide's answer, with the trust to keep.
+   asked: the API's answer given (the tests), in place of asking it */
+async function packAssess(raw, pack, asked) {
   const v = await packVerifyHere(raw);
-  const S = await packStatus(v.state === 'verified' ? [v.hash] : [], [pack.id]);
+  const S = asked !== undefined ? asked : await packStatus(v.state === 'verified' ? [v.hash] : [], [pack.id]);
   const P = S && S.packs && S.packs[v.hash], I = S && S.ids && S.ids[pack.id];
   const st = S ? { revoked: v.state === 'verified' && P ? P.revoked : null, blocked: I ? I.blocked : null, owner: I ? I.owner : null } : null;
   const old = PACKS.list.find(p => p.id === pack.id);
@@ -46949,11 +46972,10 @@ function packConfirm(pack, notes, from, d) {
     const dlg = h('dialog', { class: 'rt-dialog rt-packconfirm' });
     const done = ok => { dlg.close(); dlg.remove(); resolve(ok); };
     const nG = pack.glasses.length, nP = pack.parts.length;
-    const sure = L.cls !== 'ok' ? '' : t.by.kind === 'org' ? 'Signed by the organisation ' + t.by.name + ', whose domain ' + (t.by.domain || '') + ' JEK Systems has checked, and unchanged since.'
-      : 'Signed with its maker’s JEKray account, and unchanged since. The name is the one that account gives itself.';
+    const sure = t.revoked ? '' : packTrustHelp(t);
     dlg.append(h('h2', null, (old ? 'Update ' : 'Install ') + pack.name + '?'),
       h('p', { class: 'rt-trust rt-trustline ' + L.cls }, L.text), sure ? h('p', { class: 'rt-hint' }, sure) : '',
-      h('p', null, (L.cls !== 'ok' && L.by ? L.by + '. ' : '') + 'Version ' + pack.packVersion + (old ? ' (installed: ' + old.packVersion + ')' : '') + (pack.licence ? '. Licence: ' + pack.licence : '') + '.'),
+      h('p', null, (packUnsure(L) && L.by ? L.by + '. ' : '') + 'Version ' + pack.packVersion + (old ? ' (installed: ' + old.packVersion + ')' : '') + (pack.licence ? '. Licence: ' + pack.licence : '') + '.'),
       ...((d && d.notes) || []).map(n => h('p', { class: 'note warn' }, n)),
       pack.description ? h('p', null, pack.description) : '',
       pack.code ? modConfirmText(pack, from) : h('p', null, nP + ' part' + (nP === 1 ? '' : 's') + (nG ? ' and ' + nG + ' glass' + (nG === 1 ? '' : 'es') : '') + '. ' + (from ? 'From ' + from + '. ' : '') +
@@ -46972,7 +46994,7 @@ function packRefused(pack, d, from) {
   const close = () => { dlg.close(); dlg.remove(); };
   dlg.append(h('h2', null, 'Can’t install ' + pack.name),
     h('p', { class: 'rt-trust rt-trustline ' + (d.code === 'revoked' ? 'bad' : L.cls) }, d.code === 'revoked' ? 'Revoked' : L.text),
-    h('p', null, d.why), L.by && L.cls !== 'ok' ? h('p', { class: 'rt-hint' }, L.by + (from ? '. From ' + from : '') + '.') : from ? h('p', { class: 'rt-hint' }, 'From ' + from + '.') : '',
+    h('p', null, d.why), L.by && packUnsure(L) ? h('p', { class: 'rt-hint' }, L.by + (from ? '. From ' + from : '') + '.') : from ? h('p', { class: 'rt-hint' }, 'From ' + from + '.') : '',
     h('div', { class: 'rt-actions' }, packReportLink(pack), h('button', { class: 'rt-btn primary', type: 'button', autofocus: '', onclick: close }, 'Close')));
   dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
   document.body.append(dlg); dlg.showModal();
@@ -47059,8 +47081,8 @@ function packDialogFill() {
   for (const pk of PACKS.list) {
     const rm = h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => { if (!confirm('Remove ' + pk.name + '? Parts already on your benches stay as they are.')) return; await packRemove(pk.id); toast('Removed ' + pk.name); } }, 'Remove');
     const L = packTrustLabel(pk.trust, pk.author), off = pk.code && pk.trust && pk.trust.revoked;
-    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (L.by ? ', ' + L.by.replace(/^(By|Made by)/, 'by') : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (off ? ': revoked, so it is turned off' : exp('mods') ? '' : ': modules are off, so its parts stand in') }, 'Mod') : null, packChip(pk),
-      h('div', { class: 'rt-hint' }, L.cls !== 'ok' && L.text !== L.short ? L.text + '. ' : '', off ? 'Turned off. ' : '', pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : '')),
+    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (L.by ? ', ' + L.by.replace(/^By /, 'by ') : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (off ? ': revoked, so it is turned off' : exp('mods') ? '' : ': modules are off, so its parts stand in') }, 'Mod') : null, packChip(pk),
+      h('div', { class: 'rt-hint' }, packUnsure(L) && L.text !== L.short ? L.text + '. ' : L.cls === 'signed' ? 'The name is the account’s own: no one has checked who is behind it. ' : '', off ? 'Turned off. ' : '', pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : '')),
       L.cls !== 'ok' ? h('div', null, packReportLink(pk)) : null), rm));
   }
 }
@@ -47120,10 +47142,12 @@ function packSave(pack) {
 // what the API said, as the person should read it
 const PACK_SIGN_WHY = {
   id_taken: 'That id belongs to another maker’s pack: choose another (yours, as “yourname.parts”).',
-  id_reserved: 'Ids starting “jek.” are JEKray’s own: choose another.',
+  id_reserved: 'Ids starting “jek.”, “jekray.” or “jeksys.” are JEKray’s own: choose another.',
+  domain_lapsed: 'The team’s domain no longer has its JEKray record (_jekray-verify), so the team cannot sign as itself until it is verified again (the team’s settings, under Signing packs as the team).',
   signing_off: 'Signing is not set up on the server yet.',
   signed_out: 'Sign in again (top right) to sign it: your session has ended.',
 };
+const PACK_UNSIGNED_IF = ' (but not once its id is registered to you: then only a copy you signed installs)';
 function packSignDialog(o) {
   const me = account && account.user ? account.user.name : '', file = o.raw || null;
   const nameIn = h('input', { type: 'text', maxlength: '60', value: file ? file.name || '' : project.name ? project.name + ' parts' : 'My parts pack' });
@@ -47143,7 +47167,7 @@ function packSignDialog(o) {
     h('p', null, file ? 'Signed with your account, so whoever installs it sees who made it, and that it has not been changed since.' + (isModule ? ' A module must be signed to be installed.' : '')
       : 'Each selected part, or group of parts, becomes one part of the pack. It is signed with your account, so whoever installs it sees who made it, and that it has not been changed since.'),
     row('Name', nameIn), row('Id', idIn, 'Yours once signed: later versions keep it, and only you can sign them.'), row('Version', verIn),
-    h('div', { class: 'rt-field' }, h('span', null, 'Signed as'), asLine, asSel),
+    h('div', { class: 'rt-field' }, h('span', null, 'Signed as'), asLine, asSel, h('small', { class: 'rt-hint' }, 'As you, it shows as “Signed by the JEKray account ‘' + (me || 'your name') + '’”. To sign as your organisation, verify its web domain in your team’s settings (account menu, top right › the team).')),
     msg, h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn', onclick: close }, 'Cancel'), unsignedBtn, go));
   dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
   document.body.append(dlg); dlg.showModal();
@@ -47155,8 +47179,8 @@ function packSignDialog(o) {
     if (signers.length > 1) { asSel.replaceChildren(...signers.map((S, i) => h('option', { value: String(i) }, S.kind === 'org' ? S.name + ' (' + S.domain + ')' : S.name + ' (you)'))); asSel.hidden = false; asLine.hidden = true; }
     else if (signers[0]) asLine.textContent = signers[0].name;
     if (!r.signing) go.disabled = true;
-    if (!r.signing) say(PACK_SIGN_WHY.signing_off + (isModule ? ' A module cannot be saved unsigned: try again later.' : ' You can save it unsigned for now: it installs labelled Unverified.'), true);
-  }).catch(err => say(err.status === 401 ? PACK_SIGN_WHY.signed_out : 'JEKray could not reach its service to sign it' + (isModule ? '. A module cannot be saved unsigned: try again later.' : ': you can save it unsigned, and it installs labelled Unverified.'), true));
+    if (!r.signing) say(PACK_SIGN_WHY.signing_off + (isModule ? ' A module cannot be saved unsigned: try again later.' : ' You can save it unsigned for now: it installs labelled Unverified' + PACK_UNSIGNED_IF + '.'), true);
+  }).catch(err => say(err.status === 401 ? PACK_SIGN_WHY.signed_out : 'JEKray could not reach its service to sign it' + (isModule ? '. A module cannot be saved unsigned: try again later.' : ': you can save it unsigned, and it installs labelled Unverified' + PACK_UNSIGNED_IF + '.'), true));
   const signer = () => signers[asSel.hidden ? 0 : +asSel.value] || null;
   const build = () => {
     const S = signer(), id = idIn.value.trim().toLowerCase(), meta = { id, name: nameIn.value.trim().slice(0, 60) || id, author: S ? S.name : me, packVersion: verIn.value.trim() || '1' };
@@ -47184,7 +47208,7 @@ function packSignDialog(o) {
       go.disabled = false;
       const known = PACK_SIGN_WHY[err.code];
       if (err.code && err.code !== 'signing_off' && err.status && err.status < 500) say(known || err.message);
-      else say((known || 'JEKray could not reach its service to sign it.') + (isModule ? ' A module cannot be saved unsigned: try again later.' : ' You can save it unsigned: it installs labelled Unverified.'), true);
+      else say((known || 'JEKray could not reach its service to sign it.') + (isModule ? ' A module cannot be saved unsigned: try again later.' : ' You can save it unsigned: it installs labelled Unverified' + PACK_UNSIGNED_IF + '.'), true);
     }
   });
   unsignedBtn.addEventListener('click', () => {
@@ -47219,7 +47243,7 @@ function wirePacks() {
     sfi.addEventListener('change', async () => { const f = sfi.files[0]; sfi.value = ''; if (f) await packSignFile(f); });
     dlg.append(h('h2', null, 'Part packs and modules'),
       h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data; a module is a pack that carries code as well (an experimental feature), run in a sandbox. Both are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
-      h('p', { class: 'rt-hint' }, 'A pack made here is signed with its maker’s account: ✓ Verified shows who made it and that it is unchanged. A module installs only when verified.'),
+      h('p', { class: 'rt-hint' }, 'A pack made here is signed with its maker’s account: ✓ Signed shows which JEKray account signed it (a name the account chose) and that it is unchanged; ✓ Verified, an organisation whose web domain has been checked. A module installs only when signed and unchanged.'),
       h('div', { id: 'packList', class: 'rt-packlist' }),
       h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
         h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install a pack/module from a file…'),
@@ -47945,7 +47969,68 @@ async function showTeam(id) {
     h('p', null, 'You are ' + (t.role === 'owner' ? 'the owner' : 'an ' + ROLE_NAMES[t.role].toLowerCase()) + ' of this team. ', rename),
     h('h3', null, 'Plan'), ...plan,
     h('h3', null, 'Members'), members,
-    ...invites, ...ends, ...log].filter(Boolean));
+    ...invites, ...(manages ? teamSigningSection(t, id, again) : []), ...ends, ...log].filter(Boolean));
+}
+/* Signing part packs as the team: its web domain, verified by the team itself with a DNS record. Its owner
+   and admins give the domain, add the TXT record JEKray answers with, and ask JEKray to look it up; once
+   found, packs they sign as the team read ✓ Verified: team (domain). Needs the team on an active plan. */
+function teamSigningSection(t, id, again) {
+  const S = t.signing || { domain: null, pending: null }, D = S.domain, P = S.pending;
+  const head = h('h3', { class: t.active ? '' : 'rt-proneed', title: t.active ? null : 'Needs the team on JEKrayPro' }, 'Signing packs as the team');
+  const out = [head, h('p', null, 'Part packs signed as the team show as ', h('b', null, '\u2713 Verified: ' + t.name + ' (' + (D ? D.domain : 'your domain') + ')'),
+    ', not as one person’s account, once the team has shown that its web domain is its own by adding a DNS record. Its owner and admins sign as the team when they make or sign a pack.')];
+  const remove = label => h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    if (!confirm(D ? 'Take ' + D.domain + ' off? Packs already signed as the team stay as they are; signing as the team stops until a domain is verified again.' : 'Stop verifying ' + P.domain + '?')) return;
+    try { await api('/v1/teams/' + id + '/domain', { method: 'DELETE' }); toast(D ? 'Domain taken off' : 'Stopped'); again(); } catch (err) { toast(err.message, true); }
+  } }, label);
+  if (D) {
+    out.push(h('p', { class: 'team-domain' }, h('span', { class: 'rt-trust ok' }, '\u2713 Verified'), ' ', h('b', null, D.domain),
+      h('span', { class: 'team-muted' }, D.method === 'dns' ? ', by its DNS record, last found ' + shortDate(D.checked_at || D.verified_at) + '.' : ', checked by JEK Systems.')),
+      D.method === 'dns' ? h('p', { class: 'rt-hint' }, 'Keep the record in place: JEKray looks it up again when the team signs a pack, every 30 days. If it has gone, signing as the team stops until the domain is verified again.') : '',
+      t.active ? '' : h('p', { class: 'note warn' }, 'The team’s plan is not active, so it cannot sign as itself just now.'),
+      h('div', { class: 'uni-row' }, remove('Take the domain off…')));
+    return out;
+  }
+  if (!t.active) {
+    out.push(h('p', { class: 'team-muted' }, t.role === 'owner' ? 'Subscribe the team (above) to verify a domain.' : 'Once the team is subscribed, verify a domain here.'));
+    return out;
+  }
+  // give the domain: the record to add comes back
+  const start = (value, btn) => async () => {
+    btn.disabled = true;
+    try { await api('/v1/teams/' + id + '/domain', jsonReq('POST', { domain: value() })); again(); }
+    catch (err) { toast(err.message, true); btn.disabled = false; }
+  };
+  if (!P || P.expired) {
+    const dom = h('input', { type: 'text', id: 'teamDomainIn', placeholder: 'acme.com', autocomplete: 'off', spellcheck: 'false', value: P ? P.domain : '' });
+    const go = h('button', { type: 'button', class: 'rt-btn primary' }, 'Get the record to add');
+    go.addEventListener('click', start(() => dom.value, go));
+    dom.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+    if (P) out.push(h('p', { class: 'note warn' }, 'The record for ' + P.domain + ' was good for 7 days and has expired. Ask again for a new one.'));
+    out.push(h('label', { class: 'team-domain', for: 'teamDomainIn' }, 'Verify a domain for signing packs: the organisation’s own web domain, as in its email addresses'), h('div', { class: 'uni-row' }, dom, go));
+    return out;
+  }
+  // the record, to copy into the domain's DNS settings, then Check now
+  const copyRow = (label, value) => {
+    const box = h('input', { type: 'text', readonly: true, value, 'aria-label': label });
+    return h('div', { class: 'team-record' }, h('span', null, label), h('div', { class: 'team-link' }, box,
+      h('button', { type: 'button', class: 'rt-btn', onclick: () => { box.select(); try { navigator.clipboard.writeText(value); toast(label + ' copied'); } catch (err) { toast('Copy it from the box', true); } } }, 'Copy')));
+  };
+  const said = h('p', { class: 'note', hidden: true, role: 'status' });
+  const check = h('button', { type: 'button', class: 'rt-btn primary' }, 'Check now');
+  check.addEventListener('click', async () => {
+    check.disabled = true; said.hidden = false; said.className = 'note'; said.textContent = 'Looking the record up…';
+    try {
+      const r = await api('/v1/teams/' + id + '/domain/verify', jsonReq('POST', {}));
+      toast('Verified ' + (r.domain ? r.domain.domain : P.domain) + ': the team can sign packs as itself');
+      again();
+    } catch (err) { said.className = 'note warn'; said.textContent = err.message; check.disabled = false; }
+  });
+  out.push(h('p', null, 'Add this record to ', h('b', null, P.domain), ' where its DNS is managed (the domain’s registrar or host: a new ', h('b', null, 'TXT'), ' record), then choose ', h('b', null, 'Check now'), '. A new record can take a while to show; it is good until ' + shortDate(P.expires_at) + '.'),
+    copyRow('Type', P.record.type), copyRow('Name', P.record.name), copyRow('Value', P.record.value),
+    h('p', { class: 'rt-hint' }, 'Some DNS hosts want the name without the domain: ' + P.record.name.slice(0, -(P.domain.length + 1)) + '.'),
+    h('div', { class: 'uni-row' }, check, remove('Cancel')), said);
+  return out;
 }
 /* an invitation link (?jekinvite=<token>) taken from the address and kept across the sign-in it
    may need; once signed in, what it is for is shown and, on a yes, accepted */
@@ -49389,7 +49474,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Signed part packs</b>: a pack made in JEKray is signed with your account (a free one is enough), so whoever installs it sees <b>\u2713 Verified: made by</b> you, and that it has not been changed since. A pack edited by hand afterwards reads <b>Unverified: changed after it was signed</b>: sign it again with File \u203a Part packs and modules\u2026 \u203a <b>Sign a pack file\u2026</b>, which also signs a module you wrote. A pack\u2019s id is its maker\u2019s once signed: a pack with the id of one installed is an update only from the same maker, which stops someone else\u2019s pack replacing yours. A <b>module installs only when verified</b>, from a file, a link or a bench; one installed before keeps working, labelled Unverified. JEK Systems can revoke a harmful pack (installed packs are checked once a day: a revoked module is turned off), and <b>Report this pack</b> tells us of one. Teams on JEKrayPro can sign as their organisation once we have checked their web domain.',
+    '<b>Signed part packs</b>: a pack made in JEKray is signed with your account (a free one is enough), so whoever installs it sees <b>\u2713 Signed by the JEKray account \u2018</b>your name<b>\u2019</b>, and that it has not been changed since (the name is your account\u2019s own, so it is shown plainly, not as checked). A pack edited by hand afterwards reads <b>Unverified: changed after it was signed</b>: sign it again with File \u203a Part packs and modules\u2026 \u203a <b>Sign a pack file\u2026</b>, which also signs a module you wrote. A pack\u2019s id is its maker\u2019s once signed: a pack with that id installs only when its maker signed it, which stops someone else\u2019s pack posing as or replacing yours (ids starting jek., jekray. and jeksys. are JEKray\u2019s own). A <b>module installs only when signed and unchanged</b>, from a file, a link or a bench; one installed before keeps working, labelled Unverified. JEK Systems can revoke a harmful pack (installed packs are checked once a day: a revoked module is turned off), and <b>Report this pack</b> tells us of one. Teams on JEKrayPro can sign as their organisation, shown as <b>\u2713 Verified: </b><i>organisation</i><b> (</b><i>domain</i><b>)</b>, once they have verified their web domain themselves: a DNS record, set up from the team\u2019s settings under <b>Signing packs as the team</b>.',
     '<b>Making a part pack</b> needs a free account, as exports do; installing a pack needs none.',
     '<b>Exports need a free account</b>: File \u203a Export layout (PNG, SVG, PDF), the 3D view\u2019s PNG, every plot\u2019s PNG and CSV, a screen\u2019s Export data (CSV), File \u203a Export an element (.zmx) and an assembly\u2019s CAD files (.step, .stl) ask you to sign in first; a free account is enough. Saving the bench as a .jekray file needs no account, as before. And <b>badges</b> say what needs what: <b>Free account</b> and <b>Pro</b>, on the buttons and menu items concerned, each gone once you have it.',
     '<b>A rolled cylindrical lens keeps its power at every roll</b>: rolled, it lost some or all of its power at many angles (a curved-in-plane cylinder\u2019s face was missed by rays off its rolled axis; a curved-out-of-plane one was met as flat). And on a <b>phosphor screen</b>, a line now glows as a thin line whichever way it lies (a horizontal one blurred into a wide patch), and a rolled screen\u2019s glow in 3D stays where the light lands.',
@@ -51319,8 +51404,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       pack.trust = d.trust; if (raw.sig) pack.sig = raw.sig; if (pack.code) pack.signed = JSON.parse(JSON.stringify(raw));
       if (pack.code) await modPrepare(pack, notes); await packPut(pack); return pack.id;
     },
-    // what installing would make of it: { ok, code, why, notes, update, trust, label } (in the tests, the API not asked)
-    async packAssess(raw) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); const d = await packAssess(raw, pack); return Object.assign({}, d, { label: packTrustLabel(d.trust, pack.author).text }); },
+    // what installing would make of it: { ok, code, why, notes, update, trust, label } (in the tests, the API not asked:
+    // status stands in for its answer, as GET /v1/packs/status gives it)
+    async packAssess(raw, status) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); const d = await packAssess(raw, pack, status); return Object.assign({}, d, { label: packTrustLabel(d.trust, pack.author).text }); },
     packTrust: id => { const p = PACKS.list.find(q => q.id === id); return p ? packTrustOf(p) : null; },
     packs: () => PACKS.list.map(p => ({ id: p.id, name: p.name, parts: p.parts.map(P => P.name), glasses: p.glasses.map(g => g.glass) })),
     packPlace(id, i) { placePackPart(PACKS.list.find(p => p.id === id), i); return selection().map(e => e.name); },

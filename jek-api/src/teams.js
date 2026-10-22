@@ -22,6 +22,7 @@
 import { MIN_SEATS, mirror, paidMembers, stripe } from './billing.js';
 import { readJson, workspaceAccess } from './benches.js';
 import { mailOn, sendEmail } from './mail.js';
+import { domainState } from './packs.js';
 import { ApiError, newId, newToken, now, sha256 } from './util.js';
 
 export { MIN_SEATS };
@@ -130,6 +131,7 @@ export async function get(env, user, id) {
     ).bind(id).all();
     out.invites = invites.filter((i) => i.expires_at > now());
     out.activity = activity;
+    out.signing = await domainState(env, id);   // its domain for signing packs as the team
   }
   return out;
 }
@@ -165,6 +167,7 @@ export async function remove(env, user, id) {
     env.DB.prepare('DELETE FROM benches WHERE workspace_id = ?').bind(id),
     env.DB.prepare('DELETE FROM folders WHERE workspace_id = ?').bind(id),
     env.DB.prepare('DELETE FROM pack_orgs WHERE workspace_id = ?').bind(id),   // its packs' ids stay claimed by it
+    env.DB.prepare('DELETE FROM pack_domain_checks WHERE workspace_id = ?').bind(id),
     env.DB.prepare('DELETE FROM workspaces WHERE id = ?').bind(id),
   ]);
   return { ok: true };

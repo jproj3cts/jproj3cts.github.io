@@ -3,11 +3,16 @@
 // as they made it. Migration 0015.
 //
 // - Any account may sign, as itself (its name at the time). A team on an
-//   active plan whose domain JEK Systems has verified (pack_orgs, set with
-//   scripts/packs.mjs org) may sign as the team, its owner and admins for it.
+//   active plan with a verified domain (pack_orgs) may sign as the team, its
+//   owner and admins for it. The team verifies the domain itself, with a TXT
+//   record the Worker looks up over DNS-over-HTTPS (DOH_URL): POST, then POST
+//   .../verify, DELETE /v1/teams/:id/domain; the record is looked at again when
+//   the team signs once its last check is 30 days old. JEK Systems can also
+//   set one (scripts/packs.mjs org), which is never looked at again.
 // - A pack's id is claimed by the first signature of it: after that only the
-//   same owner (the person, or the team) may sign that id. `jek` and `jek.*`
-//   are JEK Systems' own, and accounts or teams it has flagged ('jek').
+//   same owner (the person, or the team) may sign that id. `jek`, `jekray`,
+//   `jeksys` and ids under them (`jek.*` ...) are JEK Systems' own, and
+//   accounts or teams it has flagged ('jek').
 // - JEK Systems can revoke a signature (by hash, by id, or all of an
 //   account's), which the app checks on installing and once a day after;
 //   revoking by id or by account also stops any more signing of them.
@@ -15,10 +20,11 @@
 //   signed it and when. The private key is the PACK_SIGNING_KEY secret
 //   (scripts/pack-key.mjs makes one); without it signing answers 503.
 
+import { workspaceAccess } from './benches.js';
 import { requireOps } from './institutions.js';
 import { canon, packHash, signingKey, signWith, verifyWith, SIG_V } from './packsig.js';
 import { planActive } from './users.js';
-import { ApiError, now } from './util.js';
+import { ApiError, newId, now } from './util.js';
 
 export const PACK_MAX = 8 * 1024 * 1024;
 export const CODE_MAX = 512 * 1024;
@@ -27,8 +33,50 @@ export const SIGN_BODY_MAX = PACK_MAX + 64 * 1024;
 const ID = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 const HASH = /^[0-9a-f]{64}$/;
 export const JEK = { kind: 'org', id: 'jek', name: 'JEK Systems', domain: 'jeksys.net' };
-export const reservedId = (id) => id === 'jek' || id.startsWith('jek.');
-const DOMAIN = /^(?=.{3,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+const RESERVED = ['jek', 'jekray', 'jeksys'];
+export const reservedId = (id) => RESERVED.some((r) => id === r || id.startsWith(r + '.'));
+const DOMAIN = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
+const DAY = 24 * 60 * 60 * 1000;
+export const DOMAIN_CHECK_MS = 7 * DAY;     // a TXT record's token is good this long
+export const DOMAIN_RECHECK_MS = 30 * DAY;  // a verified domain's record looked at again, on signing, after this
+export const DOMAIN_WAIT_MS = 10 * 1000;    // lookups for one team at most this often
+const DOH = 'https://cloudflare-dns.com/dns-query';
+
+// A domain as typed, made plain: lower case, no scheme, path or final dot, an
+// international name in its ASCII (punycode) form. Refused unless it looks like
+// a name an organisation registers: no address, no bare suffix, not ours.
+export function cleanDomain(v) {
+  let d = String(v ?? '').trim().toLowerCase().replace(/^@/, '').replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/[/?#].*$/, '').replace(/\.$/, '');
+  const bad = () => new ApiError(400, 'bad_domain', `Not a domain an organisation owns: ${String(v ?? '').slice(0, 80) || '(none)'}. Give its name, as “acme.com”.`);
+  if (/[^\x21-\x7e]/.test(d)) {
+    try { d = new URL('http://' + d).hostname; } catch { throw bad(); }
+  }
+  if (!DOMAIN.test(d) || /^(ac|edu|co|gov|org|com|net|ltd|plc|sch|nhs|mil|gob|go|or|ne)\.[a-z]{2}$/.test(d)) throw bad();
+  if (/(^|\.)(jeksys\.net|jekray\.[a-z]+)$/.test(d)) throw new ApiError(400, 'bad_domain', `${d} is JEK Systems’ own.`);
+  return d;
+}
+
+// The TXT strings at `name`, looked up over DNS-over-HTTPS; [] when there are
+// none (or no such name), null when the lookup itself failed.
+export async function txtRecords(env, name) {
+  let r;
+  try {
+    r = await fetch((env.DOH_URL || DOH) + '?' + new URLSearchParams({ name, type: 'TXT' }), { headers: { accept: 'application/dns-json' } });
+  } catch {
+    return null;
+  }
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => null);
+  if (!j || typeof j.Status !== 'number') return null;
+  if (j.Status === 3) return [];              // NXDOMAIN: no such name
+  if (j.Status !== 0) return null;
+  // each record's data is its strings, quoted ("a" "b" for one longer than 255 characters), joined
+  return (Array.isArray(j.Answer) ? j.Answer : []).filter((a) => a && a.type === 16).map((a) => {
+    const parts = [...String(a.data).matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1].replace(/\\(.)/g, '$1'));
+    return (parts.length ? parts.join('') : String(a.data)).trim();
+  });
+}
+const recordOf = (d, token) => ({ type: 'TXT', name: `_jekray-verify.${d}`, value: `jekray-verify=${token}` });
 
 const off = () => new ApiError(503, 'signing_off', 'Signing packs is not set up on this server yet.');
 
@@ -93,7 +141,7 @@ async function signAs(env, by, pack, user) {
   }
   const id = pack.id;
   if (reservedId(id) && !(by.kind === JEK.kind && by.id === JEK.id) && !flags.has('jek')) {
-    throw new ApiError(403, 'id_reserved', 'Ids starting "jek." are JEKray’s own. Choose another id, as "yourname.parts".');
+    throw new ApiError(403, 'id_reserved', 'Ids starting "jek.", "jekray." or "jeksys." are JEKray’s own. Choose another id, as "yourname.parts".');
   }
   const claim = await env.DB.prepare('SELECT owner_kind, owner_id, blocked_at, reason FROM pack_ids WHERE id = ?').bind(id).first();
   if (claim && claim.blocked_at) throw new ApiError(403, 'id_blocked', `The id ${id} has been taken down${claim.reason ? ': ' + claim.reason : ''}.`);
@@ -123,6 +171,7 @@ export async function sign(req, env, user) {
   if (!b || typeof b !== 'object') throw new ApiError(400, 'bad_request', 'Send {pack}.');
   const by = b.as ? (await signersOf(env, user)).find((s) => s.kind === 'org' && s.id === b.as) : { kind: 'person', id: user.id, name: user.name };
   if (!by) throw new ApiError(403, 'forbidden', 'You cannot sign for that team: it needs a verified domain and an active plan, and you its owner or an admin.');
+  if (by.kind === 'org') await recheckOrg(env, by, user);
   return signAs(env, by, b.pack, user);
 }
 
@@ -176,6 +225,110 @@ export async function status(req, env) {
     for (const r of results) owners[r.id] = { owner: await ownerOf(env, r.owner_kind, r.owner_id), blocked: r.blocked_at ? { at: r.blocked_at, reason: r.reason || '' } : null };
   }
   return { packs, ids: owners, at: now() };
+}
+
+// ---------- a team's domain, verified by the team ----------
+
+const audit = (env, ws, user, action, target) =>
+  env.DB.prepare('INSERT INTO audit (id, workspace_id, user_id, action, target, at) VALUES (?, ?, ?, ?, ?, ?)').bind(newId(), ws, user ? user.id : null, action, target || null, now());
+
+// A domain verified by its TXT record, looked at again on signing once the last
+// check is 30 days old. Gone: the team signs as itself no more until verified
+// again. The lookup failing (the resolver down) holds nothing up.
+async function recheckOrg(env, by, user, t = now()) {
+  const o = await env.DB.prepare('SELECT domain, method, token, checked_at, verified_at FROM pack_orgs WHERE workspace_id = ?').bind(by.id).first();
+  if (!o || o.method !== 'dns' || t - (o.checked_at || o.verified_at) < DOMAIN_RECHECK_MS) return;
+  const recs = await txtRecords(env, recordOf(o.domain, o.token).name);
+  if (recs === null) return;
+  if (recs.includes(recordOf(o.domain, o.token).value)) {
+    await env.DB.prepare('UPDATE pack_orgs SET checked_at = ? WHERE workspace_id = ?').bind(t, by.id).run();
+    return;
+  }
+  await env.DB.batch([env.DB.prepare('DELETE FROM pack_orgs WHERE workspace_id = ?').bind(by.id), audit(env, by.id, user, 'domain.lapsed', o.domain)]);
+  throw new ApiError(403, 'domain_lapsed', `The record _jekray-verify.${o.domain} is no longer there, so the team cannot sign as itself until it verifies the domain again (the team’s settings, under Signing packs as the team).`);
+}
+
+// The team's domain as its owner and admins see it: the one verified, and one being checked with the record to add.
+export async function domainState(env, ws, t = now()) {
+  const o = await env.DB.prepare('SELECT domain, verified_at, method, checked_at FROM pack_orgs WHERE workspace_id = ?').bind(ws).first();
+  const p = await env.DB.prepare('SELECT domain, token, created_at, expires_at, checked_at FROM pack_domain_checks WHERE workspace_id = ?').bind(ws).first();
+  return {
+    domain: o ? { domain: o.domain, verified_at: o.verified_at, method: o.method, checked_at: o.checked_at } : null,
+    pending: p ? { domain: p.domain, record: recordOf(p.domain, p.token), created_at: p.created_at, expires_at: p.expires_at, checked_at: p.checked_at, expired: p.expires_at <= t } : null,
+  };
+}
+
+// The caller runs this team (owner or admin); with plan, it is on an active plan.
+async function domainAccess(env, user, id, plan = true) {
+  const a = await workspaceAccess(env, user, id);
+  if (a.kind !== 'team') throw new ApiError(404, 'not_found', 'No such team.');
+  if (a.role !== 'owner' && a.role !== 'admin') throw new ApiError(403, 'forbidden', 'Only the team’s owner and admins can do that.');
+  if (plan && !a.active) throw new ApiError(402, 'no_plan', 'Signing packs as an organisation needs the team on an active JEKrayPro plan.');
+  return a;
+}
+const takenBy = (env, d, ws) => env.DB.prepare('SELECT workspace_id FROM pack_orgs WHERE domain = ? AND workspace_id != ?').bind(d, ws).first();
+const takenError = (d) => new ApiError(409, 'domain_taken', `${d} is verified by another team. If it is your organisation’s, write to support@jeksys.net.`);
+
+// POST /v1/teams/:id/domain  {domain}: the TXT record to add, good for 7 days
+// (the same one again while it is good, so asking twice does not undo a record added).
+export async function domainStart(req, env, user, id) {
+  await domainAccess(env, user, id);
+  const b = await body(req);
+  const d = cleanDomain(b && b.domain), t = now();
+  const o = await env.DB.prepare('SELECT domain FROM pack_orgs WHERE workspace_id = ?').bind(id).first();
+  if (o && o.domain !== d) throw new ApiError(409, 'has_domain', `The team’s domain is ${o.domain}: remove it first to verify another.`);
+  if (await takenBy(env, d, id)) throw takenError(d);
+  const p = await env.DB.prepare('SELECT domain, token, expires_at FROM pack_domain_checks WHERE workspace_id = ?').bind(id).first();
+  const token = p && p.domain === d && p.expires_at > t ? p.token : newId();
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR REPLACE INTO pack_domain_checks (workspace_id, domain, token, created_at, expires_at, checked_at) VALUES (?, ?, ?, ?, ?, NULL)')
+      .bind(id, d, token, t, t + DOMAIN_CHECK_MS),
+    audit(env, id, user, 'domain.asked', d),
+  ]);
+  return domainState(env, id);
+}
+
+// POST /v1/teams/:id/domain/verify: the record looked up; found, the domain is the team's
+export async function domainVerify(env, user, id) {
+  await domainAccess(env, user, id);
+  const t = now();
+  const p = await env.DB.prepare('SELECT domain, token, expires_at, checked_at FROM pack_domain_checks WHERE workspace_id = ?').bind(id).first();
+  if (!p) throw new ApiError(400, 'no_check', 'Give the domain to verify first.');
+  if (p.expires_at <= t) throw new ApiError(410, 'expired', `The record for ${p.domain} was good for 7 days and has expired: start again for a new one.`);
+  if (p.checked_at && t - p.checked_at < DOMAIN_WAIT_MS) throw new ApiError(429, 'too_soon', 'Checked a moment ago: wait a few seconds and check again.');
+  await env.DB.prepare('UPDATE pack_domain_checks SET checked_at = ? WHERE workspace_id = ?').bind(t, id).run();
+  if (await takenBy(env, p.domain, id)) throw takenError(p.domain);
+  const rec = recordOf(p.domain, p.token), recs = await txtRecords(env, rec.name);
+  if (recs === null) throw new ApiError(503, 'dns_unavailable', 'JEKray could not look the record up just now: try again in a minute.');
+  if (!recs.includes(rec.value)) {
+    const other = recs.some((r) => r.startsWith('jekray-verify='));
+    throw new ApiError(409, 'not_found_yet', other
+      ? `${rec.name} has a jekray-verify record, but not this one: its value must be exactly ${rec.value}.`
+      : `No TXT record ${rec.name} was found yet. A new record can take a while to show (up to an hour or two): check again later.`);
+  }
+  try {
+    await env.DB.batch([
+      env.DB.prepare("INSERT OR REPLACE INTO pack_orgs (workspace_id, domain, verified_at, method, token, checked_at) VALUES (?, ?, ?, 'dns', ?, ?)").bind(id, p.domain, t, p.token, t),
+      env.DB.prepare('DELETE FROM pack_domain_checks WHERE workspace_id = ?').bind(id),
+      audit(env, id, user, 'domain.verified', p.domain),
+    ]);
+  } catch (err) {
+    if (/UNIQUE/.test(String(err && err.message))) throw takenError(p.domain);   // another team verified it a moment before
+    throw err;
+  }
+  return domainState(env, id);
+}
+
+// DELETE /v1/teams/:id/domain: the verified domain, and any being checked, taken off (signatures made stand)
+export async function domainRemove(env, user, id) {
+  await domainAccess(env, user, id, false);
+  const o = await env.DB.prepare('SELECT domain FROM pack_orgs WHERE workspace_id = ?').bind(id).first();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM pack_orgs WHERE workspace_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM pack_domain_checks WHERE workspace_id = ?').bind(id),
+    ...(o ? [audit(env, id, user, 'domain.removed', o.domain)] : []),
+  ]);
+  return domainState(env, id);
 }
 
 // ---------- operations: JEK Systems only (scripts/packs.mjs) ----------
@@ -239,7 +392,7 @@ export async function opsRevoke(req, env, undo = false) {
   return { ok: true, signatures: out[0].meta.changes };
 }
 
-// POST /ops/packs/reserve  {user | org, on}: may sign ids under jek.
+// POST /ops/packs/reserve  {user | org, on}: may sign ids under jek., jekray. and jeksys.
 export async function opsReserve(req, env) {
   requireOps(req, env);
   const b = (await body(req)) || {};
@@ -252,8 +405,9 @@ export async function opsReserve(req, env) {
   return { ok: true, ...who, jek: b.on !== false };
 }
 
-// POST /ops/packs/org  {org, domain, force?}: the team signs as itself with that domain; domain null takes it off.
-// Its owner's email (verified by their sign-in provider) must be at the domain, unless force (checked some other way).
+// POST /ops/packs/org  {org, domain, force?}: the team signs as itself with that domain; domain null takes it off
+// (which also frees a domain for another team). Its owner's email (verified by their sign-in provider) must be at
+// the domain, unless force (checked some other way). An override of the team's own DNS check: never looked at again.
 export async function opsOrg(req, env) {
   requireOps(req, env);
   const b = (await body(req)) || {};
@@ -263,15 +417,14 @@ export async function opsOrg(req, env) {
     await env.DB.prepare('DELETE FROM pack_orgs WHERE workspace_id = ?').bind(w.id).run();
     return { ok: true, org: w.id, domain: null };
   }
-  const d = String(b.domain).trim().toLowerCase().replace(/^@/, '');
-  if (!DOMAIN.test(d) || /^(ac|edu|co|gov|org|com)\.[a-z]{2}$/.test(d)) throw new ApiError(400, 'bad_domain', `Not a domain an organisation owns: ${d}`);
+  const d = cleanDomain(b.domain);
   const mail = String(w.email || '').toLowerCase().split('@')[1] || '';
   if (!b.force && mail !== d && !mail.endsWith('.' + d)) {
     throw new ApiError(409, 'not_verified', `The team owner’s email (${w.email || 'none'}) is not at ${d}. Check it some other way, then pass force.`);
   }
   const taken = await env.DB.prepare('SELECT workspace_id FROM pack_orgs WHERE domain = ? AND workspace_id != ?').bind(d, w.id).first();
   if (taken) throw new ApiError(409, 'domain_taken', `${d} is already another team’s.`);
-  await env.DB.prepare('INSERT OR REPLACE INTO pack_orgs (workspace_id, domain, verified_at) VALUES (?, ?, ?)').bind(w.id, d, now()).run();
+  await env.DB.prepare("INSERT OR REPLACE INTO pack_orgs (workspace_id, domain, verified_at, method, token, checked_at) VALUES (?, ?, ?, 'ops', NULL, NULL)").bind(w.id, d, now()).run();
   return { ok: true, org: w.id, name: w.name, domain: d };
 }
 

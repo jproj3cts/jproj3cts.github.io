@@ -7,14 +7,18 @@
 //   node scripts/packs.mjs revoke --id acme.optics --reason "Trademark"          (every version; no more signing of it)
 //   node scripts/packs.mjs revoke --user someone@example.com --reason "Spam"     (all of an account's; it signs no more)
 //   node scripts/packs.mjs unrevoke --hash ... | --id ... | --user ... | --org ...
-//   node scripts/packs.mjs reserve --user <id or email> | --org <team id> [--off]   (may sign ids under jek.)
-//   node scripts/packs.mjs org <team id> --domain acme.com [--force] | --remove   (the team signs as itself)
+//   node scripts/packs.mjs reserve --user <id or email> | --org <team id> [--off]   (may sign ids under jek., jekray., jeksys.)
+//   node scripts/packs.mjs org <team id> --domain acme.com [--force] | --remove   (the team signs as itself; --remove frees the domain)
 //   node scripts/packs.mjs release acme.optics                                   (an id's claim dropped: a dispute settled)
 //   node scripts/packs.mjs sign <in.jekpack> [<out.jekpack>]                     (signed as JEK Systems: our own packs)
 //   node scripts/packs.mjs sign-bench <bench.jekray> <signed.jekpack>            (a bench carries that signed module)
 //
-// org: the team owner's email (verified by their sign-in provider) must be at the
-// domain; --force when you have checked it some other way (a DNS record, a letter).
+// org: an override. Teams verify their domain themselves with a DNS record (the
+// team's settings in the app; POST /v1/teams/:id/domain). Set here, the team
+// owner's email (verified by their sign-in provider) must be at the domain;
+// --force when you have checked it some other way (a letter, a call).
+// --remove takes a team's domain off, whichever way it was verified: so a
+// disputed domain is freed for the team that should have it.
 // A reason is shown to everyone who has the pack. JEK_API overrides https://api.jeksys.net.
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -53,7 +57,7 @@ try {
       }
       if (!r.signatures.length) console.log('No signatures.');
       if (r.flags.length) console.log('\nFlags:\n' + r.flags.map((f) => `  ${f.flag}  ${f.owner_kind} ${f.owner_id}${f.reason ? ': ' + f.reason : ''}`).join('\n'));
-      if (r.orgs.length) console.log('\nVerified teams:\n' + r.orgs.map((g) => `  ${g.name} [${g.workspace_id}]  ${g.domain}`).join('\n'));
+      if (r.orgs.length) console.log('\nVerified teams:\n' + r.orgs.map((g) => `  ${g.name} [${g.workspace_id}]  ${g.domain}  (${g.method === 'dns' ? 'DNS record, last found ' + day(g.checked_at) : 'set by hand'})`).join('\n'));
     }
   } else if (cmd === 'revoke') {
     const r = await api('/ops/packs/revoke', 'POST', { ...which(), reason: need(o.reason, '--reason (shown to whoever has the pack)') });
@@ -63,7 +67,7 @@ try {
     console.log(`Restored ${r.signatures} signature(s).`);
   } else if (cmd === 'reserve') {
     const r = await api('/ops/packs/reserve', 'POST', { ...(o.user ? { user: o.user } : { org: need(o.org, '--user or --org') }), on: !o.off });
-    console.log(`${r.kind} ${r.id} ${r.jek ? 'may' : 'may no longer'} sign ids under jek.`);
+    console.log(`${r.kind} ${r.id} ${r.jek ? 'may' : 'may no longer'} sign ids under jek., jekray. and jeksys.`);
   } else if (cmd === 'org') {
     const r = await api('/ops/packs/org', 'POST', { org: need(args[0], 'the team id'), domain: o.remove ? null : need(o.domain, '--domain or --remove'), force: !!o.force });
     console.log(r.domain ? `${r.name} signs as itself, with ${r.domain}.` : 'The team no longer signs as itself.');

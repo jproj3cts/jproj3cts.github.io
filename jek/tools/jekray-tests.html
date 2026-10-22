@@ -7414,8 +7414,8 @@ const TESTS = [
     },
   },
   {
-    name: 'A signed pack reads as verified, and as unverified once changed after it was signed',
-    why: 'a pack signed with the test key (core/packsig.js, accepted only in the tests and on localhost) by the account “Ada Lovelace”: ✓ Verified, made by her; the same pack with a part renamed, its signature’s name changed, or its signature taken off: Unverified (changed after it was signed, its signature does not check out, plain Unverified), each still installable as a parts pack (1 when all hold)',
+    name: 'A signed pack reads as signed by its account, and as unverified once changed after it was signed',
+    why: 'a pack signed with the test key (core/packsig.js, accepted only in the tests and on localhost) by the account “Ada Lovelace”: ✓ Signed by the JEKray account ‘Ada Lovelace’ (a person’s account is never shown as Verified: its name is its own choice); the same pack with a part renamed, its signature’s name changed, or its signature taken off: Unverified (changed after it was signed, its signature does not check out, plain Unverified), each still installable as a parts pack (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const F = PACKSIG_FIXTURES, A = JSON.parse(JSON.stringify(F.A1));
@@ -7424,12 +7424,12 @@ const TESTS = [
       const forged = JSON.parse(JSON.stringify(A)); forged.sig.by.name = 'Someone famous';
       const bare = JSON.parse(JSON.stringify(A)); delete bare.sig;
       const [c, f, b] = [await J.packAssess(ch), await J.packAssess(forged), await J.packAssess(bare)];
-      return ok.ok && ok.label === '\u2713 Verified: made by Ada Lovelace' && ok.trust.by.id === 'a'.repeat(32) &&
+      return ok.ok && ok.label === '\u2713 Signed by the JEKray account \u2018Ada Lovelace\u2019' && ok.trust.by.id === 'a'.repeat(32) &&
         c.ok && c.label === 'Unverified: changed after it was signed' && f.ok && f.label === 'Unverified: its signature does not check out' && b.ok && b.label === 'Unverified' ? 1 : 0;
     },
   },
   {
-    name: 'A module installs only when verified',
+    name: 'A module installs only when signed and unchanged',
     why: 'with modules on, a module signed with the test key passes; the same module unsigned, or with its code changed after signing, is refused (its code never read), saying it must be signed by its maker (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -7457,6 +7457,19 @@ const TESTS = [
         const after = await J.packAssess(F.E);
         return kept.state === 'verified' && up.ok && up.update && !eve.ok && eve.code === 'other_maker' && /Ada Lovelace/.test(eve.why) && !un.ok && un.code === 'other_maker' && after.ok && !after.update ? 1 : 0;
       } finally { await J.packRemove(id); }
+    },
+  },
+  {
+    name: 'A registered id takes only its owner’s packs, even with nothing installed',
+    why: 'nothing installed, and the API (its answer given) says ada.mirrors is registered to Ada: her signed pack installs; the same id signed by Eve, or unsigned, is refused, naming Ada and saying it could pose as hers; with no answer (offline) the unsigned one installs as before, and Eve’s too (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const F = JSON.parse(JSON.stringify(PACKSIG_FIXTURES)), bare = JSON.parse(JSON.stringify(F.A1));
+      delete bare.sig;
+      const S = { packs: {}, ids: { 'ada.mirrors': { owner: { kind: 'person', id: 'a'.repeat(32), name: 'Ada Lovelace' }, blocked: null } } };
+      const [ada, eve, un, unOff, eveOff] = [await J.packAssess(F.A1, S), await J.packAssess(F.E, S), await J.packAssess(bare, S), await J.packAssess(bare, null), await J.packAssess(F.E, null)];
+      return !J.packs().some(p => p.id === 'ada.mirrors') && ada.ok && !eve.ok && eve.code === 'other_maker' && /registered to Ada Lovelace/.test(eve.why) && /signed by Eve instead/.test(eve.why) &&
+        !un.ok && /not signed by them, so it could pose as their pack/.test(un.why) && unOff.ok && eveOff.ok ? 1 : 0;
     },
   },  { group: 'RF: millimetre-wave quasi-optics' },
   {

@@ -102,16 +102,33 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   `PACK_SIGNING_KEY` secret; the app checks signatures against the public key
   it carries (`jek/tools/jekray/src/core/packsig.js`, `PACK_PUBLIC_KEY`). The
   first signature of an id claims it for that account (or team); later ones
-  must be the same owner; `jek` and `jek.*` need the ops flag. A team on an
-  active plan whose domain ops has verified (`pack_orgs`) signs as itself
-  (`as`: the team's id), through its owner and admins: `GET /v1/packs/signers`.
+  must be the same owner; `jek`, `jekray`, `jeksys` and ids under them
+  (`jek.*`, `jekray.*`, `jeksys.*`) need the ops flag. A team on an active
+  plan with a verified domain (`pack_orgs`) signs as itself (`as`: the team's
+  id), through its owner and admins: `GET /v1/packs/signers`. The team
+  verifies its domain itself (owner or admin, active plan; in the slow-actions
+  limit and one lookup per team every 10 s): `POST /v1/teams/:id/domain`
+  {domain} answers the TXT record to add (`_jekray-verify.<domain>`, value
+  `jekray-verify=<token>`, good for 7 days; asking again for the same domain
+  gives the same token), `POST /v1/teams/:id/domain/verify` looks it up over
+  DNS-over-HTTPS (`DOH_URL` in `wrangler.toml`, Cloudflare's JSON resolver)
+  and on a match makes the domain the team's, `DELETE /v1/teams/:id/domain`
+  takes it off; `GET /v1/teams/:id` shows its owner and admins the state
+  (`signing`: `{domain, pending}`). Domains are lower-cased, international
+  ones taken in their punycode form, addresses and bare suffixes refused; one
+  per team, and one team per domain (`domain_taken`; ops frees one with
+  `scripts/packs.mjs org <team> --remove`). A record-verified domain is looked
+  up again when the team signs once its last check is 30 days old: gone, the
+  team signs as itself no more (`domain_lapsed`) until verified again; the
+  lookup failing holds nothing up. `scripts/packs.mjs org --domain` sets one
+  by hand, an override never looked up again.
   `GET /v1/packs/status?hashes=&ids=` (public, cached 5 minutes) says whether
   each hash is revoked and who owns each id; `POST /v1/packs/verify` {sig}
   checks a signature for a browser without Ed25519; `GET /v1/packs/key` gives
   the public key. Only the record is kept (id, hash, version, kind, signer,
   time); revoking (by hash, by id, or all of an account's, with a reason) is
-  done with `scripts/packs.mjs`, as are the `jek.` flag, verifying a team's
-  domain, releasing a claim and signing JEK Systems' own packs. Without the
+  done with `scripts/packs.mjs`, as are the `jek.` flag, setting a team's
+  domain by hand, releasing a claim and signing JEK Systems' own packs. Without the
   secret, signing answers 503 `signing_off` and the app offers an unsigned
   parts pack. `scripts/pack-key.mjs` makes the key pair.
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago and
@@ -202,3 +219,7 @@ JEK_OPS_TOKEN=... node scripts/packs.mjs sign ../jek/tools/modules/example.jekpa
 node scripts/packs.mjs sign-bench ../jek/tools/demos/mod-vortex.jekray ../jek/tools/modules/example.jekpack
 cd ../jek/tools/jekray && node build.mjs && node test/run.mjs --full
 ```
+
+Teams then verify their own domains from the app (no secret needed: the
+lookups go to `DOH_URL`, set in `wrangler.toml`). To check one by hand:
+`curl -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=_jekray-verify.acme.com&type=TXT'`.

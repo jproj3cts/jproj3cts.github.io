@@ -45,10 +45,16 @@ through `core/hooks.js`.
   OpenCascade's occt-import-js vendored in `jek/assets/vendor/occt-import-js/<version>/` (LGPL-2.1, loaded on first use).
 - **Signed part packs**: signatures checked in `core/packsig.js` (canonical JSON, hash, Ed25519 verify with
   `PACK_PUBLIC_KEY`, the install decision `packDecide`, labels); install/make/sign dialogs, status checks and the daily
-  re-check in `io/packs.js`; a bench carries a module as signed (`signed`, `engines/mods.js` `normCarried`). API side
+  re-check in `io/packs.js`; a bench carries a module as signed (`signed`, `engines/mods.js` `normCarried`). Labels
+  (`packTrustLabel`): a person's account reads plainly "✓ Signed by the JEKray account ‘name’" (class `signed`, never
+  green: the name is the account's own choice); the green "✓ Verified: org (domain)" only for a team with a verified
+  domain. An id registered to a maker installs only that maker's signed packs, installed or not (`packDecide`). API side
   `jek-api/src/packs.js` + `src/packsig.js` (its own copy of the canonical form: `test/node/packsig.test.mjs` checks they
-  agree), migration 0015; the private key is the `PACK_SIGNING_KEY` Worker secret (`scripts/pack-key.mjs`); ops
-  (revoke, `jek.` flag, team domains, signing our own packs) `scripts/packs.mjs`. The source carries a TEST public key
+  agree), migration 0015; the private key is the `PACK_SIGNING_KEY` Worker secret (`scripts/pack-key.mjs`). Teams verify
+  their domain themselves (owner/admin, active plan): `POST|DELETE /v1/teams/:id/domain`, `POST …/domain/verify`, a TXT
+  record `_jekray-verify.<domain>` looked up over DNS-over-HTTPS (`DOH_URL`), re-checked on signing every 30 days; UI
+  `teamSigningSection` in `io/account.js`. Ops (revoke, the reserved-ids flag for `jek`/`jekray`/`jeksys`, a team's
+  domain by hand or freed, signing our own packs) `scripts/packs.mjs`. The source carries a TEST public key
   (private half only in `jek-api/vitest.config.js`), taken only in TEST_MODE and on localhost, until the real one
   replaces it. Modules install only verified; ids are claimed by their first signer.
 - **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`); Node `headless.mjs`,

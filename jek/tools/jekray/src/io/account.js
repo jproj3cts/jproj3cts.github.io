@@ -543,7 +543,68 @@ export async function showTeam(id) {
     h('p', null, 'You are ' + (t.role === 'owner' ? 'the owner' : 'an ' + ROLE_NAMES[t.role].toLowerCase()) + ' of this team. ', rename),
     h('h3', null, 'Plan'), ...plan,
     h('h3', null, 'Members'), members,
-    ...invites, ...ends, ...log].filter(Boolean));
+    ...invites, ...(manages ? teamSigningSection(t, id, again) : []), ...ends, ...log].filter(Boolean));
+}
+/* Signing part packs as the team: its web domain, verified by the team itself with a DNS record. Its owner
+   and admins give the domain, add the TXT record JEKray answers with, and ask JEKray to look it up; once
+   found, packs they sign as the team read ✓ Verified: team (domain). Needs the team on an active plan. */
+function teamSigningSection(t, id, again) {
+  const S = t.signing || { domain: null, pending: null }, D = S.domain, P = S.pending;
+  const head = h('h3', { class: t.active ? '' : 'rt-proneed', title: t.active ? null : 'Needs the team on JEKrayPro' }, 'Signing packs as the team');
+  const out = [head, h('p', null, 'Part packs signed as the team show as ', h('b', null, '\u2713 Verified: ' + t.name + ' (' + (D ? D.domain : 'your domain') + ')'),
+    ', not as one person’s account, once the team has shown that its web domain is its own by adding a DNS record. Its owner and admins sign as the team when they make or sign a pack.')];
+  const remove = label => h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
+    if (!confirm(D ? 'Take ' + D.domain + ' off? Packs already signed as the team stay as they are; signing as the team stops until a domain is verified again.' : 'Stop verifying ' + P.domain + '?')) return;
+    try { await api('/v1/teams/' + id + '/domain', { method: 'DELETE' }); toast(D ? 'Domain taken off' : 'Stopped'); again(); } catch (err) { toast(err.message, true); }
+  } }, label);
+  if (D) {
+    out.push(h('p', { class: 'team-domain' }, h('span', { class: 'rt-trust ok' }, '\u2713 Verified'), ' ', h('b', null, D.domain),
+      h('span', { class: 'team-muted' }, D.method === 'dns' ? ', by its DNS record, last found ' + shortDate(D.checked_at || D.verified_at) + '.' : ', checked by JEK Systems.')),
+      D.method === 'dns' ? h('p', { class: 'rt-hint' }, 'Keep the record in place: JEKray looks it up again when the team signs a pack, every 30 days. If it has gone, signing as the team stops until the domain is verified again.') : '',
+      t.active ? '' : h('p', { class: 'note warn' }, 'The team’s plan is not active, so it cannot sign as itself just now.'),
+      h('div', { class: 'uni-row' }, remove('Take the domain off…')));
+    return out;
+  }
+  if (!t.active) {
+    out.push(h('p', { class: 'team-muted' }, t.role === 'owner' ? 'Subscribe the team (above) to verify a domain.' : 'Once the team is subscribed, verify a domain here.'));
+    return out;
+  }
+  // give the domain: the record to add comes back
+  const start = (value, btn) => async () => {
+    btn.disabled = true;
+    try { await api('/v1/teams/' + id + '/domain', jsonReq('POST', { domain: value() })); again(); }
+    catch (err) { toast(err.message, true); btn.disabled = false; }
+  };
+  if (!P || P.expired) {
+    const dom = h('input', { type: 'text', id: 'teamDomainIn', placeholder: 'acme.com', autocomplete: 'off', spellcheck: 'false', value: P ? P.domain : '' });
+    const go = h('button', { type: 'button', class: 'rt-btn primary' }, 'Get the record to add');
+    go.addEventListener('click', start(() => dom.value, go));
+    dom.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+    if (P) out.push(h('p', { class: 'note warn' }, 'The record for ' + P.domain + ' was good for 7 days and has expired. Ask again for a new one.'));
+    out.push(h('label', { class: 'team-domain', for: 'teamDomainIn' }, 'Verify a domain for signing packs: the organisation’s own web domain, as in its email addresses'), h('div', { class: 'uni-row' }, dom, go));
+    return out;
+  }
+  // the record, to copy into the domain's DNS settings, then Check now
+  const copyRow = (label, value) => {
+    const box = h('input', { type: 'text', readonly: true, value, 'aria-label': label });
+    return h('div', { class: 'team-record' }, h('span', null, label), h('div', { class: 'team-link' }, box,
+      h('button', { type: 'button', class: 'rt-btn', onclick: () => { box.select(); try { navigator.clipboard.writeText(value); toast(label + ' copied'); } catch (err) { toast('Copy it from the box', true); } } }, 'Copy')));
+  };
+  const said = h('p', { class: 'note', hidden: true, role: 'status' });
+  const check = h('button', { type: 'button', class: 'rt-btn primary' }, 'Check now');
+  check.addEventListener('click', async () => {
+    check.disabled = true; said.hidden = false; said.className = 'note'; said.textContent = 'Looking the record up…';
+    try {
+      const r = await api('/v1/teams/' + id + '/domain/verify', jsonReq('POST', {}));
+      toast('Verified ' + (r.domain ? r.domain.domain : P.domain) + ': the team can sign packs as itself');
+      again();
+    } catch (err) { said.className = 'note warn'; said.textContent = err.message; check.disabled = false; }
+  });
+  out.push(h('p', null, 'Add this record to ', h('b', null, P.domain), ' where its DNS is managed (the domain’s registrar or host: a new ', h('b', null, 'TXT'), ' record), then choose ', h('b', null, 'Check now'), '. A new record can take a while to show; it is good until ' + shortDate(P.expires_at) + '.'),
+    copyRow('Type', P.record.type), copyRow('Name', P.record.name), copyRow('Value', P.record.value),
+    h('p', { class: 'rt-hint' }, 'Some DNS hosts want the name without the domain: ' + P.record.name.slice(0, -(P.domain.length + 1)) + '.'),
+    h('div', { class: 'uni-row' }, check, remove('Cancel')), said);
+  return out;
 }
 /* an invitation link (?jekinvite=<token>) taken from the address and kept across the sign-in it
    may need; once signed in, what it is for is shown and, on a yes, accepted */

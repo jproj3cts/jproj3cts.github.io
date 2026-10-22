@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { PACK_PUBLIC_KEY, PACK_TEST_KEY, packCanon, packDecide, packHashOf, packKeyFor, packSigMessage, packTrustLabel, packVerify } from '../../src/core/packsig.js';
+import { PACK_PUBLIC_KEY, PACK_TEST_KEY, packCanon, packDecide, packHashOf, packKeyFor, packSigMessage, packTrustHelp, packTrustLabel, packVerify } from '../../src/core/packsig.js';
 import * as API from '../../../../../jek-api/src/packsig.js';
 
 // the test key's private half is kept in the API's test config alone; read from there
@@ -85,7 +85,7 @@ test('the test key is taken only in the tests and on this computer; the real one
   assert.ok(PACK_PUBLIC_KEY === PACK_TEST_KEY || !/GHJ888/.test(PACK_PUBLIC_KEY));
 });
 
-test('whether a pack installs: modules only verified and checked; an installed id kept to its maker', () => {
+test('whether a pack installs: modules only verified and checked; an id kept to its maker, installed or not', () => {
   const ADA2 = { ...ADA, name: 'Ada (renamed)' }, EVE = { kind: 'person', id: 'e'.repeat(32), name: 'Eve' };
   const V = by => ({ state: 'verified', by }), U = { state: 'unsigned', by: null }, C = { state: 'changed', by: ADA };
   const st = (o = {}) => ({ revoked: null, blocked: null, owner: null, ...o });
@@ -96,7 +96,7 @@ test('whether a pack installs: modules only verified and checked; an installed i
   assert.equal(d({ v: V(ADA) }).update, false);
   const off = d({ st: null });
   assert.equal(off.ok, true);
-  assert.match(off.notes[0], /could not check whether it has been revoked/);
+  assert.match(off.notes[0], /could not check whether it has been revoked, or who its id is registered to/);
   // revoked (by hash, or its id taken down): refused, whatever it is
   assert.equal(d({ v: V(ADA), st: st({ revoked: { reason: 'Malware' } }) }).code, 'revoked');
   assert.match(d({ v: V(ADA), st: st({ revoked: { reason: 'Malware' } }) }).why, /Malware/);
@@ -124,16 +124,38 @@ test('whether a pack installs: modules only verified and checked; an installed i
   assert.equal(d({ v: V(EVE), old: oldU, st: st({ owner: ADA }) }).code, 'other_maker');
   assert.equal(d({ v: U, old: oldU }).code, 'other_maker', 'two unsigned: no telling they are the same maker');
   assert.equal(d({ v: C, old: oldU }).code, 'other_maker');
-  // nothing installed, unsigned, but the id is someone's: installs, saying so
-  const claimed = d({ v: U, st: st({ owner: { kind: 'org', id: 'o', name: 'Acme Optics', domain: 'acme.com' } }) });
-  assert.equal(claimed.ok, true);
-  assert.match(claimed.notes[0], /registered to Acme Optics \(acme\.com\), and this copy is not signed by them/);
+  // nothing installed, but the id is someone's: only a pack they signed installs; unsigned, changed or another's is refused
+  const ACME = { kind: 'org', id: 'o', name: 'Acme Optics', domain: 'acme.com' };
+  const claimed = d({ v: U, st: st({ owner: ACME }) });
+  assert.deepEqual([claimed.ok, claimed.code], [false, 'other_maker']);
+  assert.match(claimed.why, /^Its id, ada\.lenses, is registered to Acme Optics \(acme\.com\), and this copy is not signed by them, so it could pose as their pack/);
+  assert.equal(d({ v: C, st: st({ owner: ACME }) }).code, 'other_maker');
+  const eves = d({ v: V(EVE), st: st({ owner: ACME }) });
+  assert.equal(eves.code, 'other_maker');
+  assert.match(eves.why, /this copy is signed by Eve instead/);
+  assert.equal(d({ module: true, v: V(EVE), st: st({ owner: ADA }) }).code, 'other_maker');
+  assert.deepEqual([d({ v: V(ADA2), st: st({ owner: ADA }) }).ok, d({ v: V(ADA2), st: st({ owner: ADA }) }).notes], [true, []], 'its owner’s, renamed since');
+  assert.equal(d({ v: V({ ...ACME }), st: st({ owner: ACME }) }).ok, true);
+  // installed and signed by the same maker, but the id is now someone else's (a claim released and taken): refused too
+  assert.equal(d({ v: V(ADA), old: oldAda, st: st({ owner: EVE }) }).code, 'other_maker');
+  // the API out of reach: whose the id is cannot be known, so a parts pack installs as before, saying so; a module waits
+  const unk = d({ v: U, st: null });
+  assert.deepEqual([unk.ok, unk.notes.length], [true, 1]);
+  assert.equal(d({ v: V(EVE), st: null }).ok, true);
+  assert.equal(d({ module: true, v: V(EVE), st: null }).code, 'unchecked');
 });
 
-test('each standing reads plainly', () => {
-  const L = packTrustLabel;
-  assert.deepEqual(L({ state: 'verified', by: { kind: 'person', id: 'x', name: 'Ada' } }), { cls: 'ok', short: '✓ Verified', text: '✓ Verified: made by Ada', by: 'Made by Ada' });
-  assert.equal(L({ state: 'verified', by: { kind: 'org', id: 'x', name: 'Acme Optics', domain: 'acme.com' } }).text, '✓ Verified: Acme Optics (acme.com)');
+test('each standing reads plainly: Verified only for an organisation’s checked domain, a person’s account plainly Signed', () => {
+  const L = packTrustLabel, ada = { state: 'verified', by: { kind: 'person', id: 'x', name: 'Ada' } }, acme = { state: 'verified', by: { kind: 'org', id: 'x', name: 'Acme Optics', domain: 'acme.com' } };
+  assert.deepEqual(L(ada), { cls: 'signed', short: '✓ Signed', text: '✓ Signed by the JEKray account ‘Ada’', by: 'By the JEKray account ‘Ada’' });
+  assert.match(packTrustHelp(ada), /The name is the one the account gives itself: no one has checked who is behind it\./);
+  assert.deepEqual(L(acme), { cls: 'ok', short: '✓ Verified', text: '✓ Verified: Acme Optics (acme.com)', by: 'Acme Optics (acme.com)' });
+  assert.match(packTrustHelp(acme), /organisation Acme Optics, which has shown that the web domain acme\.com is its own/);
+  // an organisation with no domain to show is not Verified: it reads as the account it is
+  assert.equal(L({ state: 'verified', by: { kind: 'org', id: 'x', name: 'Acme Optics' } }).cls, 'signed');
+  // a name that claims to be checked is still only a name
+  assert.equal(L({ state: 'verified', by: { kind: 'person', id: 'x', name: 'Acme Optics (acme.com)' } }).text, '✓ Signed by the JEKray account ‘Acme Optics (acme.com)’');
+  assert.equal(packTrustHelp({ state: 'unsigned' }), '');
   assert.deepEqual(L({ state: 'unsigned' }, 'Acme'), { cls: 'warn', short: 'Unverified', text: 'Unverified', by: 'By Acme (unverified)' });
   assert.deepEqual(L(undefined, ''), { cls: 'warn', short: 'Unverified', text: 'Unverified', by: '' }, 'a pack installed before signing');
   assert.equal(L({ state: 'changed', by: { kind: 'person', id: 'x', name: 'Ada' } }, 'Ada').text, 'Unverified: changed after it was signed');

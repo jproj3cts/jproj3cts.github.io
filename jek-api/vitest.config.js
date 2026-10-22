@@ -24,6 +24,9 @@ export default defineConfig(async () => {
             RESEND_API_KEY: 're_test_key',
             OPS_TOKEN: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
             PASSWORD_PEPPER: 'test-pepper-test-pepper-test-pepper-test-pepper',
+            // TEST ONLY: the private half of the test key the app carries (jekray src/core/packsig.js
+            // PACK_TEST_KEY). Never the production key, which is a secret (scripts/pack-key.mjs).
+            PACK_SIGNING_KEY: 'MC4CAQAwBQYDK2VwBCIEIN73aHtbrOp89tjcxjmaJ78feXHhqUTEbHaLI3NSC1KC',
           },
         },
       }),

@@ -5,7 +5,7 @@
 //   RL_OPS    JEK Systems' /ops, per address     30 a minute
 //   RL_SLOW   slow or costly actions, per person 10 a minute
 //   RL_WRITE  other changes, per person         120 a minute;
-//             and opening a share link, and usage counts, per address
+//             and opening a share link, a pack's standing and usage counts, per address
 //
 // A person is their session (its hash), or their address when signed out. A
 // university's people may share one address, hence the generous sign-in
@@ -17,7 +17,7 @@ import { cookie, sha256 } from './util.js';
 
 const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-// The actions that call ORCID or Stripe, build a zip, send email, or delete an account.
+// The actions that call ORCID or Stripe, build a zip, send email, sign a pack, or delete an account.
 const SLOW = [
   ['POST', /^\/v1\/me\/(academic|institution)(\/(email|code))?$/],
   ['PUT', /^\/v1\/me\/password$/],
@@ -31,6 +31,7 @@ const SLOW = [
   ['POST', /^\/v1\/quotes$/],
   ['POST', /^\/v1\/remind$/],
   ['POST', /^\/v1\/links$/],
+  ['POST', /^\/v1\/packs\/sign$/],
 ];
 
 // The binding and key for this request, or null for none.
@@ -41,6 +42,8 @@ async function bucket(req, env, path) {
   if (path.startsWith('/stripe/')) return null; // Stripe's own retries; the signature is the guard
   // a share link opened by anyone, signed in or not: held back per address, so its ids cannot be run through
   if (req.method === 'GET' && /^\/v1\/links\/[^/]+$/.test(path)) return [env.RL_WRITE, `link:${ip}`];
+  // a pack's standing, asked by anyone: per address
+  if (req.method === 'GET' && path === '/v1/packs/status') return [env.RL_WRITE, `pk:${ip}`];
   // usage counts come with no cookie: held back per address, which is used for nothing else
   if (path === '/v1/events') return [env.RL_WRITE, `ev:${ip}`];
   const token = cookie(req, COOKIE);

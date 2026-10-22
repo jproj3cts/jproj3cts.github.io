@@ -62,6 +62,8 @@ export function modParams(el) {
 /* Why a mod part is not working, or '' when it is: not installed, failed, still working out */
 export function modStatus(el) {
   const pk = modPack(el);
+  const off = !pk && PACKS.list.find(p => p.id === el.mod.id && p.code && p.trust && p.trust.revoked);
+  if (off) return 'its module, ' + off.name + ', was revoked by JEK Systems (' + (off.trust.revoked.reason || 'no reason given') + '), so it is turned off';
   if (!pk) return MODS.packs.size || !IN_WORKER ? 'its mod, ' + el.mod.id + ', is not installed here' : '';
   if (!modDefOf(el)) return 'its mod has no part called ' + el.mod.def;
   const f = MODS.failed.get(pk.hash + '|' + el.mod.def);
@@ -158,8 +160,12 @@ export function modJonesM(el, nm) {
 export function normCarried(list) {
   return (Array.isArray(list) ? list.slice(0, 16) : []).filter(m => m && typeof m.code === 'string' && m.code.length <= MOD_CODE_MAX && /^[a-z0-9][a-z0-9._-]{1,63}$/.test(m.id))
     .map(m => ({ id: m.id, name: modText(m.name, 60) || m.id, author: modText(m.author, 80), packVersion: modText(String(m.packVersion || '1'), 20), licence: modText(m.licence, 60),
-      description: modText(m.description, 600), hash: /^[0-9a-f]{64}$/.test(m.hash) ? m.hash : '', code: m.code }));
+      description: modText(m.description, 600), hash: /^[0-9a-f]{64}$/.test(m.hash) ? m.hash : '', code: m.code,
+      // the module as its maker signed it (checked only when it is offered: io/packs.js), so it can be installed verified
+      ...(modSignedOk(m) ? { signed: m.signed } : {}) }));
 }
+const modSignedOk = m => !!(m.signed && typeof m.signed === 'object' && !Array.isArray(m.signed) && m.signed.format === 'jekpack' && m.signed.id === m.id && typeof m.signed.code === 'string'
+  && m.signed.sig && JSON.stringify(m.signed).length <= 2.5 * 1024 * 1024);
 
 /* ---------- a readout's answer: rows of figures, and series to plot, checked ---------- */
 function modReadoutCheck(out) {
@@ -267,7 +273,7 @@ export function modsCarried() {
   const ids = new Set(project.elements.filter(e => e.mod).map(e => e.mod.id)), out = [];
   for (const id of ids) {
     const pk = MODS.packs.get(id) || PACKS.list.find(p => p.id === id && p.code), was = (project.mods || []).find(m => m.id === id);
-    if (pk) out.push({ id, name: pk.name, author: pk.author, packVersion: pk.packVersion, licence: pk.licence, description: pk.description, hash: pk.hash, code: pk.code });
+    if (pk) out.push(Object.assign({ id, name: pk.name, author: pk.author, packVersion: pk.packVersion, licence: pk.licence, description: pk.description, hash: pk.hash, code: pk.code }, pk.signed ? { signed: pk.signed } : {}));
     else if (was) out.push(was);
   }
   return out;

@@ -43,6 +43,14 @@ through `core/hooks.js`.
   `io/usage.js`, AI guide/docs tables `io/guide.js`.
   STEP import: `io/step.js` (blob worker, dialog, `importStep`) + `core/step.js` (units, tessellation passes, bodies);
   OpenCascade's occt-import-js vendored in `jek/assets/vendor/occt-import-js/<version>/` (LGPL-2.1, loaded on first use).
+- **Signed part packs**: signatures checked in `core/packsig.js` (canonical JSON, hash, Ed25519 verify with
+  `PACK_PUBLIC_KEY`, the install decision `packDecide`, labels); install/make/sign dialogs, status checks and the daily
+  re-check in `io/packs.js`; a bench carries a module as signed (`signed`, `engines/mods.js` `normCarried`). API side
+  `jek-api/src/packs.js` + `src/packsig.js` (its own copy of the canonical form: `test/node/packsig.test.mjs` checks they
+  agree), migration 0015; the private key is the `PACK_SIGNING_KEY` Worker secret (`scripts/pack-key.mjs`); ops
+  (revoke, `jek.` flag, team domains, signing our own packs) `scripts/packs.mjs`. The source carries a TEST public key
+  (private half only in `jek-api/vitest.config.js`), taken only in TEST_MODE and on localhost, until the real one
+  replaces it. Modules install only verified; ids are claimed by their first signer.
 - **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`); Node `headless.mjs`,
   `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
@@ -76,6 +84,8 @@ through `core/hooks.js`.
   browser suite in Playwright; Chromium is at `/opt/pw-browsers/chromium`). Every fifth run is made a full one.
 - `node --test test/node/<file>.test.mjs` for one file. `build.test.mjs` fails until the page is rebuilt.
 - `jek-api`: `npm test` (vitest, Workers pool). Deploy is manual: `npm run migrate:remote`, then `npm run deploy`.
+  A change that needs a new secret or migration (e.g. signed packs) goes: migrate → secret → deploy the API → then the
+  page (`jek-api/README.md`, "Turning on signed part packs").
 
 ## Gotchas
 - The build joins every module into one scope: top-level names must be unique across modules; a module may not act at

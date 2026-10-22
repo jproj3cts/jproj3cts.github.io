@@ -96,6 +96,24 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   HSTS, no-referrer and DENY framing on every answer; export paths kept inside
   their folder. `test/isolation.test.js` calls every route that names another
   account's data as someone else, signed out and from another origin.
+- Signed part packs (`src/packs.js`, `src/packsig.js`, migration 0015): any
+  signed-in account can have a pack signed (`POST /v1/packs/sign` {pack, as?},
+  up to 8 MB, in the slow-actions limit) with the Ed25519 key in the
+  `PACK_SIGNING_KEY` secret; the app checks signatures against the public key
+  it carries (`jek/tools/jekray/src/core/packsig.js`, `PACK_PUBLIC_KEY`). The
+  first signature of an id claims it for that account (or team); later ones
+  must be the same owner; `jek` and `jek.*` need the ops flag. A team on an
+  active plan whose domain ops has verified (`pack_orgs`) signs as itself
+  (`as`: the team's id), through its owner and admins: `GET /v1/packs/signers`.
+  `GET /v1/packs/status?hashes=&ids=` (public, cached 5 minutes) says whether
+  each hash is revoked and who owns each id; `POST /v1/packs/verify` {sig}
+  checks a signature for a browser without Ed25519; `GET /v1/packs/key` gives
+  the public key. Only the record is kept (id, hash, version, kind, signer,
+  time); revoking (by hash, by id, or all of an account's, with a reason) is
+  done with `scripts/packs.mjs`, as are the `jek.` flag, verifying a team's
+  domain, releasing a claim and signing JEK Systems' own packs. Without the
+  secret, signing answers 503 `signing_off` and the app offers an unsigned
+  parts pack. `scripts/pack-key.mjs` makes the key pair.
 - A daily cron (03:17 UTC) empties the bin of benches deleted 30 days ago and
   clears expired sessions and abandoned sign-ins.
 - CORS and the Origin check for writes.
@@ -156,7 +174,31 @@ Secrets are added with `npx wrangler secret put NAME` and never committed:
 `GOOGLE_CLIENT_SECRET`, `ORCID_CLIENT_SECRET`, `STRIPE_SECRET_KEY` (a
 restricted key: write on Checkout Sessions, Customers, Customer portal and
 Subscriptions; read on Prices, Products and Invoices), `STRIPE_WEBHOOK_SECRET`,
-`MICROSOFT_CLIENT_SECRET`, `RESEND_API_KEY`, `OPS_TOKEN` and `PASSWORD_PEPPER`
+`MICROSOFT_CLIENT_SECRET`, `RESEND_API_KEY`, `OPS_TOKEN`, `PACK_SIGNING_KEY`
+(the part packs' Ed25519 private key, PKCS8 in base64, from
+`node scripts/pack-key.mjs`, which prints the public key for the app) and `PASSWORD_PEPPER`
 (32 or more random characters, e.g. `openssl rand -hex 32`, mixed into every
 password hash; without it passwords are off and codes still sign in. Changing
 it invalidates every stored password).
+
+## Turning on signed part packs
+
+In this order (the page checks signatures with the key it carries, so it goes last):
+
+```sh
+npm run migrate:remote                       # 0015_packs.sql
+node scripts/pack-key.mjs                    # prints the public key and the private key, once
+npx wrangler secret put PACK_SIGNING_KEY     # paste the private key when asked
+npm run deploy
+curl https://api.jeksys.net/v1/packs/key     # its "key" must be the public key printed above
+```
+
+Then put the public key in `jek/tools/jekray/src/core/packsig.js` as
+`PACK_PUBLIC_KEY` (in place of `PACK_TEST_KEY`), sign JEK Systems' own module
+and the example bench that carries it, rebuild and publish the page:
+
+```sh
+JEK_OPS_TOKEN=... node scripts/packs.mjs sign ../jek/tools/modules/example.jekpack
+node scripts/packs.mjs sign-bench ../jek/tools/demos/mod-vortex.jekray ../jek/tools/modules/example.jekpack
+cd ../jek/tools/jekray && node build.mjs && node test/run.mjs --full
+```

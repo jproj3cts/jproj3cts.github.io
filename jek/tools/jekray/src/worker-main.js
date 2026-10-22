@@ -15,6 +15,7 @@ import './core/traps.js';
 import './core/zeeman.js';
 import './core/nlc.js';
 import './core/modulators.js';
+import './core/packsig.js';
 import './core/rf.js';
 import './core/grin.js';
 import './core/coherence.js';

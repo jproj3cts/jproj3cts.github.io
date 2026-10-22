@@ -109,6 +109,32 @@ describe('one account cannot reach another’s data', () => {
     expect([a.status, await a.json()]).toEqual([b.status, await b.json()]);
   });
 
+  it('packs: no one signs as another’s team, takes another’s pack id, or reads more than who owns it', async () => {
+    const A = await ada(), E = await signedIn('Eve');
+    await withPlan(E.workspaceId);
+    const team = 't'.repeat(31) + '2';
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO workspaces (id, kind, name, owner_id, created_at) VALUES (?, 'team', 'Ada Optics', ?, 0)").bind(team, A.user.id),
+      env.DB.prepare("INSERT INTO members (workspace_id, user_id, role, seat, created_at) VALUES (?, ?, 'owner', 1, 0)").bind(team, A.user.id),
+      env.DB.prepare("INSERT INTO pack_orgs (workspace_id, domain, verified_at) VALUES (?, 'ada-optics.example', 0)").bind(team),
+    ]);
+    await withPlan(team);
+    const p = (id, v = '1') => ({ format: 'jekpack', version: 1, id, name: SECRET, packVersion: v, parts: [] });
+    const mine = await send('/v1/packs/sign', 'POST', A.token, { pack: p('ada.secret'), as: team });
+    expect(mine.status).toBe(200);
+    // Eve: not as Ada's team, not Ada's id, not as Ada's team's id, and signed out not at all
+    expect((await send('/v1/packs/sign', 'POST', E.token, { pack: p('eve.parts'), as: team })).status).toBe(403);
+    expect((await send('/v1/packs/sign', 'POST', E.token, { pack: p('ada.secret', '2') })).status).toBe(409);
+    expect((await send('/v1/packs/sign', 'POST', undefined, { pack: p('eve.parts') })).status).toBe(401);
+    const signers = await (await call('/v1/packs/signers', { token: E.token })).json();
+    expect(signers.signers.map((s) => s.id)).toEqual([E.user.id]);
+    // the public status says who owns the id, nothing of the pack
+    const st = await (await call('/v1/packs/status?ids=ada.secret', { origin: null })).text();
+    expect(st).toContain('Ada Optics');
+    expect(st).not.toContain(SECRET);
+    expect(st).not.toContain(A.user.email);
+  });
+
   it('a viewer in a shared workspace can read but not change, and a member never reaches the owner’s personal benches', async () => {
     const A = await ada(), V = await signedIn('Vic');
     const team = 't'.repeat(31) + '1';

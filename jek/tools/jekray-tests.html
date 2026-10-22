@@ -1463,6 +1463,10 @@ function foxLiLoss(N) {
 /* ---------- The checks ----------
    want: the expected value; tol: absolute unless rel is true. */
 
+// part packs signed with the test key (its private half is in jek-api's test config; the page takes the key only in the tests
+// and on localhost): Ada's mirrors, version 1 and 2, the same id signed by another account (Eve), and a module of Ada's
+const PACKSIG_FIXTURES = {"A1":{"format":"jekpack","version":1,"id":"ada.mirrors","name":"Ada’s mirrors","author":"Ada Lovelace","packVersion":"1","parts":[{"name":"M25","elements":[{"type":"mirror","id":"m","name":"M","x":0,"y":0}]}],"sig":{"alg":"Ed25519","v":1,"id":"ada.mirrors","hash":"c3122edeb18ed97d44d61989275b69d6572c8b7085b6fb99a8380e2562740b2b","by":{"kind":"person","id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","name":"Ada Lovelace"},"at":1792627200000,"s":"fvZbz-5YM1XjJGh1Xn4kywLx_g2ThQXxobzgUataG6Bn5CQA4-l0SREGbobaiZzTasMNT60oC8Ytsr0JM6uIBQ"}},"A2":{"format":"jekpack","version":1,"id":"ada.mirrors","name":"Ada’s mirrors","author":"Ada Lovelace","packVersion":"2","parts":[{"name":"M25","elements":[{"type":"mirror","id":"m","name":"M","x":0,"y":0}]}],"sig":{"alg":"Ed25519","v":1,"id":"ada.mirrors","hash":"7fc5806b5fdb64eee0993ea460248cca97a4514849e21ca012ced83be944a294","by":{"kind":"person","id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","name":"Ada Lovelace"},"at":1792627200000,"s":"Xfu9g9zpVthyOYww-q3OKmAL0u0G22qF0bc3G9gLVzr_oxxw8MXARG8YkqO9eTKHkEBjz0xzjLC8ZKVYiTT_Ag"}},"E":{"format":"jekpack","version":1,"id":"ada.mirrors","name":"Not Ada’s mirrors","author":"Ada Lovelace","packVersion":"1","parts":[{"name":"M25","elements":[{"type":"mirror","id":"m","name":"M","x":0,"y":0}]}],"sig":{"alg":"Ed25519","v":1,"id":"ada.mirrors","hash":"5c80a8f8a171b18fe047addb4fb2a8b891e624f5dba88dbc2795db6509dd4b45","by":{"kind":"person","id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","name":"Eve"},"at":1792627200000,"s":"v16F1aJhCm3i4obMbUbInrvJm-3KgtMkyF_wkECLO9TvpryLO27e1YLDcv5_4PYkb_1Ut675hIs0vxk54ybTAw"}},"MOD":{"format":"jekpack","version":2,"id":"ada.plates","name":"Ada’s plates","author":"Ada Lovelace","packVersion":"1","code":"jek.plate('clear', { name: 'Clear', jones: function () { return 1; } });","sig":{"alg":"Ed25519","v":1,"id":"ada.plates","hash":"b00b0bebcf80db9379adc68fe63a2ea10c98b14bb9367f5522dc684b5f1debc7","by":{"kind":"person","id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","name":"Ada Lovelace"},"at":1792627200000,"s":"KUIGlmxE8B2rNb-K0ryfRXWxJE58G3FZdJCs7augSfhE4dVXzT1c2ZnliPkU2lQTCxhhWweO87Smtcj3roPIAQ"}}};
+
 const TESTS = [
   { group: 'Materials and dispersion' },
   {
@@ -7406,6 +7410,52 @@ const TESTS = [
         const placed = J.project();
         return P.parts.length === 2 && pair && pair.fibres && pair.fibres.length === 1 && lens && centred(pair) && centred(lens) &&
           P.glasses.length === 1 && P.glasses[0].glass === 'MYGLASS' && !chk.error && !chk.notes.length && placed.elements.length === 2 && placed.fibres.length === 1 ? 1 : 0;
+      } finally { await J.packRemove(id); }
+    },
+  },
+  {
+    name: 'A signed pack reads as verified, and as unverified once changed after it was signed',
+    why: 'a pack signed with the test key (core/packsig.js, accepted only in the tests and on localhost) by the account “Ada Lovelace”: ✓ Verified, made by her; the same pack with a part renamed, its signature’s name changed, or its signature taken off: Unverified (changed after it was signed, its signature does not check out, plain Unverified), each still installable as a parts pack (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const F = PACKSIG_FIXTURES, A = JSON.parse(JSON.stringify(F.A1));
+      const ok = await J.packAssess(A);
+      const ch = JSON.parse(JSON.stringify(A)); ch.parts[0].name = 'M50';
+      const forged = JSON.parse(JSON.stringify(A)); forged.sig.by.name = 'Someone famous';
+      const bare = JSON.parse(JSON.stringify(A)); delete bare.sig;
+      const [c, f, b] = [await J.packAssess(ch), await J.packAssess(forged), await J.packAssess(bare)];
+      return ok.ok && ok.label === '\u2713 Verified: made by Ada Lovelace' && ok.trust.by.id === 'a'.repeat(32) &&
+        c.ok && c.label === 'Unverified: changed after it was signed' && f.ok && f.label === 'Unverified: its signature does not check out' && b.ok && b.label === 'Unverified' ? 1 : 0;
+    },
+  },
+  {
+    name: 'A module installs only when verified',
+    why: 'with modules on, a module signed with the test key passes; the same module unsigned, or with its code changed after signing, is refused (its code never read), saying it must be signed by its maker (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.experimental(true);
+      try {
+        const M = JSON.parse(JSON.stringify(PACKSIG_FIXTURES.MOD)), bare = JSON.parse(JSON.stringify(M)), ch = JSON.parse(JSON.stringify(M));
+        delete bare.sig; ch.code = ch.code.replace('return 1', 'return 0.5');
+        const [ok, u, c] = [await J.packAssess(M), await J.packAssess(bare), await J.packAssess(ch)];
+        return ok.ok && !u.ok && u.code === 'unverified' && /not signed/.test(u.why) && !c.ok && c.code === 'unverified' && /changed after it was signed/.test(c.why) ? 1 : 0;
+      } finally { J.experimental(false); }
+    },
+  },
+  {
+    name: 'An installed pack’s id is kept to its maker: an update only from them',
+    why: 'Ada’s signed pack installed: her version 2 is offered as an update; a pack with the same id signed by another account, or unsigned, is refused as a different maker’s; once hers is removed, the other installs (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const F = JSON.parse(JSON.stringify(PACKSIG_FIXTURES)), bare = JSON.parse(JSON.stringify(F.A1));
+      delete bare.sig;
+      const id = await J.packInstall(F.A1);
+      try {
+        const [up, eve, un] = [await J.packAssess(F.A2), await J.packAssess(F.E), await J.packAssess(bare)];
+        const kept = J.packTrust(id);
+        await J.packRemove(id);
+        const after = await J.packAssess(F.E);
+        return kept.state === 'verified' && up.ok && up.update && !eve.ok && eve.code === 'other_maker' && /Ada Lovelace/.test(eve.why) && !un.ok && un.code === 'other_maker' && after.ok && !after.update ? 1 : 0;
       } finally { await J.packRemove(id); }
     },
   },  { group: 'RF: millimetre-wave quasi-optics' },

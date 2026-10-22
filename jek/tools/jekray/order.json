@@ -15,6 +15,7 @@
   "core/zeeman.js",
   "core/nlc.js",
   "core/modulators.js",
+  "core/packsig.js",
   "core/rf.js",
   "core/grin.js",
   "core/coherence.js",

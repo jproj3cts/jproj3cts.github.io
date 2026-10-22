@@ -3,10 +3,10 @@ layout: docs
 title: Part packs
 permalink: /jek/docs/jekray/part-packs/
 redirect_from: /jek/docs/jekray2d/part-packs/
-description: Sets of parts and glasses made by others (a maker's catalogue, a course's kit), installed from a file or a link. How to install one, how to make one, and the file format.
+description: Sets of parts and glasses made by others (a maker's catalogue, a course's kit), installed from a file or a link. How to install one, how to make and sign one, what Verified means, and the file format.
 ---
 
-<p class="dx-lead">A part pack is a set of ready-made parts and glasses in one file: a maker's catalogue of lenses, a course's kit of benches-in-a-box, a lab's own mounts and assemblies. Anyone with a free account can make one and share it as a file or a link. Packs hold parts and data only, never code.</p>
+<p class="dx-lead">A part pack is a set of ready-made parts and glasses in one file: a maker's catalogue of lenses, a course's kit of benches-in-a-box, a lab's own mounts and assemblies. Anyone with a free account can make one and share it as a file or a link. A pack made in JEKray is signed with its maker's account, so whoever installs it can see who made it. Packs hold parts and data only, never code.</p>
 
 ## Installing a pack
 
@@ -22,7 +22,36 @@ https://jeksys.net/jek/tools/jekray.html?pack=https://example.com/acme.jekpack
 
 offers that pack when the page opens. It is never installed without you choosing **Install**. A pack read from a link must be served by a site that lets other pages read it (with an `Access-Control-Allow-Origin` header); most file hosts and code hosts do.
 
-Installed packs are kept in this browser. **File › Part packs and modules…** lists them, and **Remove** takes one away. Installing a pack with the same id again updates it.
+Installed packs are kept in this browser. **File › Part packs and modules…** lists them, each with its standing (below), and **Remove** takes one away. Installing a newer version of a pack, with the same id, from the same maker updates it.
+
+## Verified, Unverified and Revoked
+
+When a pack is installed, and once a day after, JEKray says where it stands:
+
+| Label | What it means |
+|---|---|
+| **✓ Verified: made by *name*** | Signed with the JEKray account of the person named, and not changed since. The name is the one that account gives itself. |
+| **✓ Verified: *organisation* (*domain*)** | Signed by an organisation's team, whose web domain JEK Systems has checked belongs to it. |
+| **Unverified** | Not signed (made by hand, or before signing began). Its own `author` is shown as "By *name* (unverified)": anyone can write any name there. |
+| **Unverified: changed after it was signed** | It was signed, then edited. It may be the maker's own change; it may not. |
+| **Unverified: its signature does not check out** | Its signature is not one of ours, or not this pack's. |
+| **Revoked: *reason*** | JEK Systems has taken it down (below). |
+
+A parts pack installs whether it is verified or not; an unverified one says so before you choose **Install**. A [module](/jek/docs/jekray/modules/), which runs code, installs only when it is verified.
+
+### A pack's id is its maker's
+
+A pack's `id` belongs to whoever first signs a pack with it. After that, only they (the same account, or the same organisation) can sign a pack with that id. So with a pack installed, a pack with the same id is offered as an **Update** only when it is signed by the same maker (or, when the installed one is unsigned, by the id's owner). Anything else is refused, saying a different maker's pack uses that id: remove the installed one first if you want the other instead.
+
+Ids starting `jek.` are JEKray's own: only JEK Systems can sign them.
+
+### Taken down, and reporting a pack
+
+JEK Systems can revoke a pack's signature: one version of it, every pack with its id, or every pack an account has signed, with a reason. A revoked pack cannot be installed, and one already installed is labelled **Revoked** when it is next checked (once a day, when you are online): a revoked module is turned off. Parts already placed on your benches are never changed.
+
+JEKray asks whether a pack has been revoked as it is installed. If it cannot ask (you are offline, or the service is down), a parts pack still installs, with a note that it could not be checked; a module waits until it can.
+
+To report a pack (one that is harmful, misleading, or not its maker's to share), use **Report this pack** in the install prompt or the list of packs, or email [support@jeksys.net](mailto:support@jeksys.net) with its id and where you found it.
 
 ### A part on the bench stands on its own
 
@@ -34,9 +63,17 @@ The easiest way is from a bench:
 
 1. Set up each part as it should be: a lens's radii, glass and diameter, a laser's wavelength and power. A part can be several elements: group them (select them, then **Group**) and the group becomes one part of the pack, its fibres included.
 2. Select everything to go in the pack.
-3. Choose **File › Part packs and modules… › Make a pack from the selection…**, and give it a name and its maker. Making a pack needs a free account (sign in, top right); installing one needs none.
+3. Choose **File › Part packs and modules… › Make a pack from the selection…**. Give it a name, an id and a version, then **Make and sign**. Making a pack needs a free account (sign in, top right); installing one needs none.
 
-JEKray saves it as a `.jekpack` file (JSON text, like a `.jekray` bench), with each part centred, a small picture of it, and any measured glasses it uses written once at the top. Open the file in any text editor to add a description, a licence, a home page, part names and summaries, and groups. Then share the file, or put it online and share its link.
+The pack is signed with your account: its maker is your account's name, and its id is yours from then on. JEKray saves it as a `.jekpack` file (JSON text, like a `.jekray` bench), with each part centred, a small picture of it, and any measured glasses it uses written once at the top. Share the file, or put it online and share its link.
+
+To add a description, a licence, a home page, part names and summaries, and groups, open the file in any text editor. Any edit leaves it **Unverified: changed after it was signed**, so sign it again afterwards: **File › Part packs and modules… › Sign a pack file…**. A new version is made the same way, with the same id and a new version.
+
+If JEKray cannot reach its service to sign the pack, it offers to save it unsigned: it then installs labelled Unverified.
+
+### Signing as an organisation
+
+A team on JEKrayPro can sign packs as the organisation, shown as **✓ Verified: *team name* (*domain*)**, once JEK Systems has checked that the team's web domain is theirs: email [support@jeksys.net](mailto:support@jeksys.net) from an address at that domain (normally the team owner's). The team's owner and admins then choose it under **Signed as** when they make or sign a pack. Ids the team signs are the team's, not any one member's.
 
 ## The format
 
@@ -84,8 +121,10 @@ A pack is a `.jekpack` file, which is JSON text:
 |---|---|
 | `format` | Always `"jekpack"`. |
 | `version` | The version of this format: `1`. |
-| `id` | The pack's own name, 2 to 64 lower-case letters, digits, dots, dashes or underscores. By custom, the maker then the pack: `acme.optics`. A pack installed with the same id replaces it. |
-| `name`, `author`, `description` | Shown when it is installed and in the Packs tab. |
+| `id` | The pack's own name, 2 to 64 lower-case letters, digits, dots, dashes or underscores. By custom, the maker then the pack: `acme.optics`. It belongs to whoever first signs it; a pack installed with the same id from the same maker updates it. |
+| `name`, `description` | Shown when it is installed and in the Packs tab. |
+| `author` | Who made it, as it says itself: shown as "By *name* (unverified)" when it is not signed. A signed pack's maker is its signer. |
+| `sig` | Its signature, written by JEKray when it is signed; leave it alone. It covers everything else in the file. |
 | `packVersion` | Your own version of the pack, any text: `"1.2"`. |
 | `licence`, `homepage` | Optional. The home page must start `https://`. |
 | `glasses` | Optional. Each has a `glass` name and either a `table` of the refractive index `n` (and, optionally, the extinction `k`) at wavelengths `wl` in µm, or `nd` and `vd`, its index at 587.6 nm and its Abbe number. |

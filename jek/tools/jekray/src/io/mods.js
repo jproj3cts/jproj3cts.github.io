@@ -11,7 +11,7 @@ import { helpLine, h, panel, param, selectField } from '../ui/panel.js';
 import { toast } from '../ui/actions.js';
 import { exp } from '../ui/experimental.js';
 import { palOf } from '../ui/myparts.js';
-import { PACK_FORMAT, normPack, packConfirm } from './packs.js';
+import { PACK_FORMAT, packInstallRaw } from './packs.js';
 
 /* ==========================================================================
    Mods: parts whose behaviour is code, written by anyone, run in a sandbox
@@ -248,7 +248,7 @@ export function modConfirmText(pack, from) {
 /* the mods in use: the installed packs with code, when mods are on */
 export function modsSync() {
   const on = typeof exp === 'function' && exp('mods');
-  MODS.packs = new Map(on ? PACKS.list.filter(p => p.code && p.hash).map(p => [p.id, p]) : []);
+  MODS.packs = new Map(on ? PACKS.list.filter(p => p.code && p.hash && !(p.trust && p.trust.revoked)).map(p => [p.id, p]) : []);   // a revoked one: turned off
   MODS.rev++;
   if (!IN_WORKER && !TEST_MODE) { setLastTraceKey(null); requestRender(); }
 }
@@ -260,13 +260,11 @@ export async function modsOffer() {
   const want = (project.mods || []).filter(m => { const pk = PACKS.list.find(p => p.id === m.id); return (!pk || pk.hash !== m.hash) && !MODS.offered.has(m.id + '|' + m.hash); });
   if (!want.length) return;
   if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on under Help › Experimental features to run them'); return; }
+  // each as its maker signed it, if the bench carries that, checked as any pack is (an unsigned one is refused, saying why)
   for (const m of want) {
     MODS.offered.add(m.id + '|' + m.hash);
-    try {
-      const raw = { format: PACK_FORMAT, version: 2, id: m.id, name: m.name, author: m.author, packVersion: m.packVersion, licence: m.licence, description: m.description, code: m.code };
-      const r = normPack(raw); await modPrepare(r.pack, r.notes);
-      await packConfirm(r.pack, r.notes, 'this bench');
-    } catch (err) { toast('This bench’s module ' + m.name + ' could not be used: ' + err.message, true); }
+    const raw = m.signed ? JSON.parse(JSON.stringify(m.signed)) : { format: PACK_FORMAT, version: 2, id: m.id, name: m.name, author: m.author, packVersion: m.packVersion, licence: m.licence, description: m.description, code: m.code };
+    await packInstallRaw(raw, 'this bench');
   }
 }
 

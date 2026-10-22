@@ -1130,6 +1130,8 @@
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
+    /* where they open in place, a submenu's items carry the badge, not the submenu (no room for both) */
+    .rt-imenu > .rt-sub.rt-acctneed::before, .rt-imenu > .rt-sub.rt-proneed::before { content: none; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
   /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, View, Sweeps, Examples,
@@ -1436,7 +1438,21 @@
   .rt-sharelinks li.cur .nm { font-weight: 700; }
   .rt-sharelinks .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-sharelinks .rt-lsub { grid-column: 1 / -1; }
-  .rt-btn.rt-proneed::after { content: 'Pro'; margin-left: 0.4em; padding: 0 0.35em; border-radius: 0.6em; font-size: 0.68em; font-weight: 700; letter-spacing: 0.04em; vertical-align: 0.1em; background: var(--jek-orange, #e8590c); color: #fff; }
+  /* the badges (ui/pro.js): Pro, and Free account, on what needs them, shown only while it is needed */
+  .rt-proneed::after, .rt-acctneed::after, .rt-sub.rt-acctneed::before, .rt-sub.rt-proneed::before { flex: none; margin-left: 0.4em; padding: 0 0.4em; border-radius: 0.6em;
+    font: 700 0.68em/1.5 var(--jek-sans); letter-spacing: 0.04em; text-transform: none; vertical-align: 0.1em; white-space: nowrap; opacity: 1; color: #fff; }
+  .rt-proneed::after, .rt-sub.rt-proneed::before { content: 'Pro'; background: var(--jek-orange, #f47742); }
+  .rt-acctneed::after, .rt-sub.rt-acctneed::before { content: 'Free account'; background: var(--jek-cyan-dark, #007893); }
+  /* in a menu, at the row's right; a submenu's own arrow (its ::after) stays last, the badge before it */
+  .rt-imenu > .rt-proneed::after, .rt-imenu > .rt-acctneed::after, .rt-ctx > .rt-proneed::after { margin-left: auto; font-size: 0.66rem; }
+  .rt-imenu > .rt-sub.rt-acctneed::before, .rt-imenu > .rt-sub.rt-proneed::before { order: 1; margin-left: auto; font-size: 0.66rem; }
+  .rt-imenu > .rt-sub.rt-acctneed::after, .rt-imenu > .rt-sub.rt-proneed::after { content: '\25b8'; order: 2; margin-left: 0; padding: 0 0 0 0.6rem; border-radius: 0; background: none; color: inherit; font: inherit; font-size: 0.7rem; opacity: 0.7; }
+  .rt-sub > .rt-menu { order: 3; }
+  /* the account's badge on the menu's lit row: light on the accent */
+  .rt-imenu > button.rt-acctneed:hover::after, .rt-imenu > button.rt-acctneed:focus-visible::after, .rt-imenu > .rt-sub.rt-acctneed:hover::before, .rt-imenu > .rt-sub.rt-acctneed:focus-within::before { background: #fff; color: var(--jek-cyan-dark, #007893); }
+  /* a plot's PNG and CSV share one */
+  .rt-save.rt-acctneed { align-items: center; }
+  .rt-save.rt-acctneed::after { margin-left: 0.1em; font-size: 0.66rem; }
   .rt-ltable tr.unmet td { color: var(--jek-ink-soft); font-style: italic; }
   .rt-ltable tr.unmet td.nm { font-weight: 400; cursor: default; }
   .rt-lpathhead { margin-top: 1rem; }
@@ -1628,7 +1644,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <button class="rt-btn rt-icon quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
-            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
+            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
               <div class="rt-menu rt-imenu" role="menu">
@@ -1649,22 +1665,22 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl, .step)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
-            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export" data-need="account" data-what="export the layout">Export layout
               <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" data-export="png" data-icon="image">PNG image</button>
-                <button type="button" role="menuitem" data-export="svg" data-icon="vector">SVG (vector)</button>
-                <button type="button" role="menuitem" data-export="pdf" data-icon="pdf">PDF (vector)</button>
+                <button type="button" role="menuitem" data-export="png" data-icon="image" data-need="account" data-what="export the layout">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-icon="vector" data-need="account" data-what="export the layout">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout (current view)
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export" data-need="account" data-what="export the layout">Export layout (current view)
               <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" data-export="png" data-view="1" data-icon="image">PNG image</button>
-                <button type="button" role="menuitem" data-export="svg" data-view="1" data-icon="vector">SVG (vector)</button>
-                <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf">PDF (vector)</button>
+                <button type="button" role="menuitem" data-export="png" data-view="1" data-icon="image" data-need="account" data-what="export the layout">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-view="1" data-icon="vector" data-need="account" data-what="export the layout">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
             <div class="sep"></div>
@@ -1714,7 +1730,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
           <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
-          <button class="rt-btn" id="btnShare" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
+          <button class="rt-btn" id="btnShare" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <div class="rt-more rt-phonegone">
             <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
@@ -1731,7 +1747,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
               <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
               <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
-              <button type="button" role="menuitem" id="btnExp" data-icon="flask" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+              <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
               <div class="sep"></div>
               <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
               <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
@@ -1758,7 +1774,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <button type="button" role="menuitem" data-click="btnSweeps" data-icon="wave">Sweeps…</button>
               <div class="sep"></div>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
-              <button type="button" role="menuitem" data-click="btnShare" data-icon="link">Copy a share link</button>
+              <button type="button" role="menuitem" data-click="btnShare" data-icon="link" data-need="pro" data-what="share a link">Copy a share link</button>
               <div class="sep"></div>
               <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
                 <div class="rt-menu rt-imenu" role="menu">
@@ -2168,6 +2184,8 @@ const hooks = {
   saveParts: null,
   // the cloud: why a saving, forking or keeping action is not possible now ('' when it is), and the way to make it so (sign in, or subscribe)
   proWhy: () => '', proFix() {},
+  // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
+  account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -19116,7 +19134,7 @@ const V3D = (() => {
     flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
     flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
     // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
-    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), nm, mouse, btn('PNG', 'Save this view as a picture', png));
+    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), nm, mouse, acctMark(btn('PNG', 'Save this view as a picture', png), 'save a picture of the 3D view'));
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
@@ -20471,6 +20489,7 @@ const V3D = (() => {
   }
   function png() {
     if (!R) return;
+    if (!accountGate('save a picture of the 3D view')) return;
     const { gl, scene, camera } = R;
     gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); volPass(); gl.render(scene, camera);
     D.cv.toBlob(b => {
@@ -22821,7 +22840,7 @@ function stlPanel(el) {
   const fi = h('input', { type: 'file', accept: '.stl,.STL', hidden: true });
   fi.addEventListener('change', () => { const f = fi.files[0]; if (f) importStl(f, null, el); fi.value = ''; });
   panel.append(fi, h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Replace its shape from a .stl file\u2026'),
-    h('button', { type: 'button', class: 'rt-btn', title: 'Keep it in My parts (JEKrayPro), to add to any bench from + Add part', onclick: () => saveToMine([el]) }, '\u2605 Save to My parts\u2026')));
+    proMark(h('button', { type: 'button', class: 'rt-btn', title: 'Keep it in My parts (JEKrayPro), to add to any bench from + Add part', onclick: () => saveToMine([el]) }, '\u2605 Save to My parts\u2026'), 'keep parts in My parts')));
   const M = el.mesh;
   if (M) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, M.n + ' triangles' + (M.orig ? ', simplified from the file\u2019s ' + M.orig + ' (to detail of ' + M.cell + ' file units) so it saves with the bench' : '') +
     ', ' + Math.max(1, Math.round(M.data.length / 1024)) + ' KB with the bench' + (M.file ? ', from ' + M.file : '') + '.'));
@@ -25082,7 +25101,7 @@ function screenParams(el) {
     (el.R ? ' The radius curves it: negative puts the centre of curvature on the side the light comes from (a retina, or a surface curved round a focus so every point is the same distance from it), positive bulges towards the light (a curved image field).' : ' Make it curved for a retina, a curved image field or a surface the same distance from a focus all round.')));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'screen' }));
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
+    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const RAY_PLOTS = [
@@ -25111,7 +25130,7 @@ function rayPlots(el) {
     zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power'), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
+    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const ABER_PLOTS = [
@@ -25321,7 +25340,7 @@ function screenPlots(el) {
       () => el.vectorFocus, v => { el.vectorFocus = v; }, { wide: true })));
   diffractionSection(el);
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
+    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 function coatingRows(el, holder, label) {
@@ -25855,7 +25874,7 @@ function designWhyOf(why, what) {
   if (!why) return '';
   return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
 }
-const designWhy = what => (!accountsOn() || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
+const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 function designPro(what) {
   const why = designWhy(what);
@@ -25864,14 +25883,49 @@ function designPro(what) {
   if (hooks.proFix) hooks.proFix();
   return false;
 }
-/* a button for such work, marked Pro (and saying why in its title) while it is not open */
-function proMark(btn, what) {
-  const why = designWhy(what);
-  if (!btn || !why) return btn;
-  btn.classList.add('rt-proneed');
-  btn.title = why + (btn.title ? '. ' + btn.title : '');
-  return btn;
+
+/* ==========================================================================
+   Exports as an account's
+   Exporting images and data (the layout, the 3D view, plots, a screen's numbers, an element's .zmx, CAD files)
+   needs an account, a free one being enough. Saving the bench as a .jekray file needs none. Only someone signed
+   out for sure is asked: while the account is not known yet, or the API is out of reach, exports stay open (an
+   outage is not the person's fault). The tests, and a build without accounts, are not gated. The account comes
+   through hooks (io/account.js installs them), so what exports does not load the account's modules.
+   ========================================================================== */
+/* why the export named is not open now: on (accounts here), signedIn, known (the API has said): '' when it is */
+function acctWhyOf(on, signedIn, known, what) {
+  return on && !signedIn && known ? 'Needs a free account: sign in, top right, to ' + what : '';
 }
+const acctWhy = what => { const a = hooks.account(); return acctWhyOf(a.on, a.signedIn, a.known, what); };
+/* before the export is done: true when it may be; otherwise the sign-in prompt, saying why */
+function accountGate(what) {
+  if (!acctWhy(what)) return true;
+  hooks.exportSignIn(what);
+  return false;
+}
+
+/* ---- the badges: Pro, or Free account, on what needs it, shown only while it is needed ----
+   el.dataset.need is 'pro' or 'account', el.dataset.what the work; needsShown() redoes them all as the account changes */
+function needShow(el) {
+  const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
+  el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
+  // the reason in the title: the control's own, or, for a group with one badge, each button's in it
+  for (const b of el.matches('button, [role="menuitem"]') ? [el] : [el, ...el.querySelectorAll('button')]) {
+    if (b.dataset.needTitle === undefined) b.dataset.needTitle = b.title || '';
+    b.title = why ? why + (b.dataset.needTitle ? '. ' + b.dataset.needTitle : '') : b.dataset.needTitle;
+  }
+}
+function needMark(el, need, what) {
+  if (!el) return el;
+  el.dataset.need = need; el.dataset.what = what;
+  needShow(el);
+  return el;
+}
+function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+/* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
+const proMark = (btn, what) => needMark(btn, 'pro', what);
+/* a button that exports, marked Free account while signed out */
+const acctMark = (btn, what) => needMark(btn, 'account', what);
 /* ---------- Assemblies on the bench ----------
    Made from lenses and stops picked on the bench, split back into them, or started afresh from the
    File menu. The parts stay the bench's own parts (core/assembly.js); this is how they are made one,
@@ -25992,8 +26046,8 @@ function assemblyPanel(asm) {
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem' },
     h('button', { class: 'rt-btn primary', type: 'button', title: 'Open it in the Optical designer: its conditions, layout and element data (or double-click it)', onclick: () => openLensDesign(asm) }, 'Design…'),
     proMark(B('Export as an element file (.zmx)', () => { setSelection(asmMembers(asm)); exportZmx(); }, 'Its prescription, its stop and the conditions it is designed for'), 'export a design'),
-    B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'),
-    B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'),
+    acctMark(B('Export for CAD (.step)', () => exportCad(asm, 'step'), 'Its lenses, mirrors and stops as solids, placed as the design has them, for mechanical design'), 'export for CAD'),
+    acctMark(B('Export as a mesh (.stl)', () => exportCad(asm, 'stl'), 'The same solids in triangles'), 'export for CAD'),
     B('Split into parts', () => splitAssembly(asm), 'Back to separate lenses and stops; nothing on the bench moves')));
   panel.append(helpLine('Moved and traced as one. Ctrl-click a part to edit it alone; double-click to design it.', ['An assembly is its parts, traced on the bench as they always are: it is picked and moved as one, and read as one prescription along its axis. Ctrl-click one of its parts to edit it alone; double-click it to design it.'], 'note', 'margin-top:0.6rem'));
 }
@@ -28132,7 +28186,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optical designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
-    hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
+    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -29541,7 +29595,7 @@ function drawWs() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
     ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
-    hooks.saveParts ? h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: hooks.proWhy() || 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…') : null,
+    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveReport(asm); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -30860,6 +30914,7 @@ function csvText(D) {
   return [D.cols.map(cell).join(','), ...rows.map(r => r.map(cell).join(','))].join('\n') + '\n';
 }
 function savePlot(cv, kind) {
+  if (!accountGate('save plots')) return;
   const D = cv._csv, base = safeFileName(project.name) + ' - ' + safeFileName(D ? D.name : 'plot');
   if (kind === 'csv') {
     if (!D) { toast('That plot has no numbers to save yet.', true); return; }
@@ -30874,7 +30929,8 @@ function savePlot(cv, kind) {
 }
 function plotSaveBtns(cv) {
   const b = (t, k, title) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => savePlot(cv, k) }, t);
-  return h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot'));
+  // one Free account badge for the pair, the reason in each one's title
+  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot')), 'save plots');
 }
 function plotSaveRow(cv, hidden) { const r = h('div', { class: 'rt-zoom rt-saverow' }, plotSaveBtns(cv)); r.hidden = !!hidden; cv._saveRow = r; return r; }
 function zoomControls(cv, getZ, redraw, yFromBase) {
@@ -43150,8 +43206,8 @@ function hideCtxMenu() { const m = document.getElementById('ctxMenu'); if (m) m.
 function showCtxMenu(x, y, items) {
   const m = document.getElementById('ctxMenu');
   m.replaceChildren(...items.map(it => it === '-' ? h('div', { class: 'sep' }) :
-    h('button', { type: 'button', role: 'menuitem', disabled: it.off && !it.why ? '' : null, class: it.off && it.why ? 'rt-off' : null, 'aria-disabled': it.off && it.why ? 'true' : null, title: it.off && it.why ? it.why : null,
-      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { toast(it.why, true); hooks.proFix(); } } else it.fn(); } }, it.label, it.off && it.why ? h('span', { class: 'k rt-why' }, it.why.startsWith('Sign in') ? 'Sign in' : 'JEKrayPro') : it.key ? h('span', { class: 'k' }, it.key) : null)));
+    h('button', { type: 'button', role: 'menuitem', disabled: it.off && !it.why ? '' : null, class: it.off && it.why ? 'rt-off rt-proneed' : null, 'aria-disabled': it.off && it.why ? 'true' : null, title: it.off && it.why ? it.why : null,
+      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { toast(it.why, true); hooks.proFix(); } } else it.fn(); } }, it.label, it.key && !(it.off && it.why) ? h('span', { class: 'k' }, it.key) : null)));
   m.hidden = false;
   // placed, then moved by however far off it landed: whatever box it is fixed to
   m.style.left = '0px'; m.style.top = '0px';
@@ -44001,6 +44057,7 @@ async function pdfDoc(recs, title, opts) {
 const layoutPdf = rec => pdfDoc([rec]);
 /* the layout as a picture: the whole tab, framed as Fit frames it, or (view) just what is on screen now */
 async function exportLayout(kind, view) {
+  if (!accountGate('export the layout')) return;
   const base = safeFileName(project.name) + (project.benches.length > 1 ? ' - ' + safeFileName((project.benches.find(b => b.id === project.tab) || {}).name) : '');
   const keep = Object.assign({}, V());
   if (!view) fitView();                                         // put back as soon as it is drawn
@@ -44033,6 +44090,7 @@ async function exportLayout(kind, view) {
 
 /* Everything a screen saw, as a spreadsheet: the rays, then the curves */
 function exportScreen(el) {
+  if (!accountGate('export a screen\u2019s data')) return;
   const st = screenStats(el);
   if (!st || st.empty) { toast('That screen has nothing on it to export.', true); return; }
   const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
@@ -45495,6 +45553,7 @@ function zmxBroken(S, L, n, nm, diam) {
   return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings, efl: Sy.par.efl, bfl: Sy.par.bfl };
 }
 function exportZmx() {
+  if (!accountGate('export an element')) return;
   // a design (an assembly's parts) is JEKrayPro's to export; a lens or a mirror of the bench's own is anyone's
   if (asmOfSelection(selection()) && !designPro('export a design')) return;
   try {
@@ -45863,6 +45922,7 @@ function cadSTEP(asm, opts) {
 
 /* the download: STEP or STL of an assembly */
 function exportCad(asm, kind) {
+  if (!accountGate('export for CAD')) return null;
   try {
     const out = kind === 'stl' ? cadSTL(asm) : cadSTEP(asm), fname = safeFileName(asm.name || 'design') + (kind === 'stl' ? '.stl' : '.step');
     if (!out.solids) { toast('There is nothing round to export in ' + asm.name + '.', true); return null; }
@@ -46548,10 +46608,10 @@ function mineTile(p, after) {
 function mineBody(after) {
   if (MINE.list === null) { loadMine().then(() => mineChanged()); return [h('p', { class: 'rt-pnone' }, 'Loading your parts…')]; }
   const sel = selection();
-  const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
-    sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
-  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
-    onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…');
+  const keep = proMark(h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
+    sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here'), 'keep parts in My parts');
+  const zmx = proMark(h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
+    onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…'), 'keep parts in My parts');
   const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
@@ -47704,11 +47764,12 @@ async function loadAccount() {
 /* ---------- Sign-in, offered where it helps ----------
    Signed out, at the moments an account would have helped. Each says first what a free account gives, then
    JEKrayPro, then the university line. Share asks in a dialog, as a short link is JEKrayPro's and it cannot go on
-   without one. Save has already saved the file, so it only offers, in a note. A bench restored on a later visit,
-   and a shared bench kept, offer the file and an account. One cap for the notes and the share dialog: once a week
-   (core/nudge.js). Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
+   without one; so does an export (ui/pro.js accountGate), as exporting needs an account. Save has already saved the
+   file, so it only offers, in a note. A bench restored on a later visit, and a shared bench kept, offer the file and
+   an account. One cap for the notes and the share dialog: once a week (core/nudge.js), which the export dialog
+   counts against but is not held back by. Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
 const NUDGE_KEY = 'jek-nudge-save';
-const FREE_GIVES = 'A free account opens the experimental features and lets you join a team when invited.';
+const FREE_GIVES = 'A free account lets you export images and data and use the experimental features, and join a team when invited.';
 const UNI_LINE = 'University email? If your university has a JEKray licence, signing in with it gives you JEKrayPro; if not, it gets you the academic price.';
 // set when the account is known (signed in, or the API said signed out): the notes wait for it
 let accountKnown = false;
@@ -47738,6 +47799,19 @@ function shareSignIn(saveInstead) {
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('share', close)),
     h('p', { class: 'note' }, 'Or send it as a file: ', h('button', { class: 'rt-link', type: 'button', onclick: () => { track('prompt', 'share.file'); close(); saveInstead(); } }, 'save it as a .jekray file'), ' and attach that.'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
+function exportSignIn(what) {
+  track('prompt', 'export.shown');
+  nudgeTaken();
+  const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
+    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'export.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
 /* a note on the bench, in the welcome note's style, with its × in the corner (counted as Not now) */
@@ -47811,6 +47885,7 @@ function accountShown() {
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 function wireAccount() {
+  hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown }); hooks.exportSignIn = exportSignIn;
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
   document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
   document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());
@@ -48037,17 +48112,20 @@ function proFix() {
   // after the menu the click came from has closed
   setTimeout(() => { if (!account) { const b = document.getElementById('btnAcct'); if (b && document.getElementById('acctMenu').hidden) b.click(); } else showSubscribe(); });
 }
-/* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix */
+/* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix.
+   badge: 'pro' (the Pro badge, the default) or 'account' (Free account) for what is missing, or a word of its own */
 function gateItem(el, why, badge) {
-  const off = !!why;
+  const off = !!why, chip = !badge || badge === 'pro' || badge === 'account';
   el.hidden = false;
   el.classList.toggle('rt-off', off);
   el.setAttribute('aria-disabled', off ? 'true' : 'false');
   if (el.dataset.title === undefined) el.dataset.title = el.title || '';
   el.title = off ? why : el.dataset.title;
   el.dataset.why = off ? why : '';
+  el.classList.toggle('rt-proneed', off && chip && badge !== 'account');
+  el.classList.toggle('rt-acctneed', off && badge === 'account');
   let k = el.querySelector('.k.rt-why');
-  if (off) { if (!k) { k = h('span', { class: 'k rt-why' }); el.append(k); } k.textContent = badge || (account ? 'JEKrayPro' : 'Sign in'); }
+  if (off && !chip) { if (!k) { k = h('span', { class: 'k rt-why' }); el.append(k); } k.textContent = badge; }
   else if (k) k.remove();
 }
 /* a gated item's click: true when it was off (explained, and the fix offered), so the handler stops */
@@ -48832,13 +48910,12 @@ function closeHome() {
 /* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
 function cloudGates() {
   const on = cloudOn(), show = accountsOn(), why = proWhy();
-  // share links are JEKrayPro's: the button marked Pro while they are not open
-  const sb = document.getElementById('btnShare');
-  if (sb) sb.classList.toggle('rt-proneed', show && !!why);
+  // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
+  needsShown();
   document.getElementById('btnHome').hidden = !on;
   for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
   if (!show) return;
-  gateItem(document.getElementById('btnCloudList'), account ? '' : why);
+  gateItem(document.getElementById('btnCloudList'), account ? '' : why, 'account');
   gateItem(document.getElementById('btnCloudSave'), why);
   gateItem(document.getElementById('btnCloudFork'), why || (cloud ? '' : 'This bench is not in the cloud yet: Save to cloud first'), why ? null : 'Not in the cloud');
 }
@@ -48994,6 +49071,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Exports need a free account</b>: File \u203a Export layout (PNG, SVG, PDF), the 3D view\u2019s PNG, every plot\u2019s PNG and CSV, a screen\u2019s Export data (CSV), File \u203a Export an element (.zmx) and an assembly\u2019s CAD files (.step, .stl) ask you to sign in first; a free account is enough. Saving the bench as a .jekray file needs no account, as before. And <b>badges</b> say what needs what: <b>Free account</b> and <b>Pro</b>, on the buttons and menu items concerned, each gone once you have it.',
     '<b>A rolled cylindrical lens keeps its power at every roll</b>: rolled, it lost some or all of its power at many angles (a curved-in-plane cylinder\u2019s face was missed by rays off its rolled axis; a curved-out-of-plane one was met as flat). And on a <b>phosphor screen</b>, a line now glows as a thin line whichever way it lies (a horizontal one blurred into a wide patch), and a rolled screen\u2019s glow in 3D stays where the light lands.',
     '<b>STEP files</b> come in as STL objects: Open \u25be \u2192 Import an object (.stl, .step), or drop a .step or .stp file on the bench. OpenCascade reads it (fetched the first time, 7.6 MB, and run in the background), in the file\u2019s own units; a file of several parts asks whether to bring them in as separate parts, grouped and in place, or as one object.',
     'On a phone, <b>the tour no longer pushes the tool sideways</b>: its note was wider than the screen beside the parts rail, which shifted the bench and clipped the first tab; it now fits between the rail and the edge.',
@@ -49173,6 +49251,7 @@ const NEWS = [
     'Photodetectors in free space and fibre now work alike (material, dark current, amplifier noise), the free-space one drawn as a semicircle, with scope and spectrum views that match the instruments. An <b>optical chopper</b> for the free-space palette.',
     'A bench that fills the window, a <b>Bench panel you can pin</b>, R and Shift+R to turn parts, steady readouts while sweeping, and the optimiser on mirrors as on screens.',
     'Faster: moving electronics no longer re-solves them, and a laser\u2019s power drive is traced at its two ends when nothing on the bench saturates.'], [
+    '<b>Exports with a free account</b>: pictures, plots, data, .zmx and CAD files; a .jekray file needs none. <b>Free account</b> and <b>Pro</b> badges mark what needs what.',
     'A <b>3D view</b> of every bench, a switch away: every free-space part placed, tipped and rolled in all six degrees of freedom, with rays, Gaussian beams and the diffracted field followed exactly through it, misaligned cavities included.',
     '<b>STL objects</b> from CAD on the bench (mounts, housings, baffles), saved with it and kept in My parts.',
     '<b>Electronics</b> as a standard part of the tool, with <b>feedthroughs</b> carrying signals between tabs, and photonic chips wired to them.',

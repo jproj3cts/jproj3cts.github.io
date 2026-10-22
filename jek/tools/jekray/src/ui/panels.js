@@ -36,6 +36,7 @@ import { screenStats, trapReport } from '../engines/screen-stats.js';
 import { alignEls, changed, duplicateSel, moveToTab, removeEls, rotateEls, setLocked, zoomToSelection } from './actions.js';
 import { addBench, checkpoint, selectEl } from './tabs.js';
 import { exportScreen } from '../io/layout.js';
+import { acctMark } from './pro.js';
 import { modReadoutSection } from '../io/mods.js';
 
 function drawPulse(cv, el, view) {
@@ -297,7 +298,7 @@ export function screenParams(el) {
     (el.R ? ' The radius curves it: negative puts the centre of curvature on the side the light comes from (a retina, or a surface curved round a focus so every point is the same distance from it), positive bulges towards the light (a curved image field).' : ' Make it curved for a retina, a curved image field or a surface the same distance from a focus all round.')));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'screen' }));
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
+    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const RAY_PLOTS = [
@@ -326,7 +327,7 @@ function rayPlots(el) {
     zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power'), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
+    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const ABER_PLOTS = [
@@ -536,7 +537,7 @@ function screenPlots(el) {
       () => el.vectorFocus, v => { el.vectorFocus = v; }, { wide: true })));
   diffractionSection(el);
   panel.append(h('div', { class: 'rt-actions' },
-    h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)')));
+    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 export function coatingRows(el, holder, label) {

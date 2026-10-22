@@ -10,6 +10,7 @@ import { markUnsaved, setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from './merge.js';
 import { PALETTE_NAMES, setExpGate } from '../ui/experimental.js';
+import { needsShown } from '../ui/pro.js';
 import { fillRail } from '../ui/rail.js';
 import { MINE, placeMine } from '../ui/myparts.js';
 import { MENU_ICONS } from './packs.js';
@@ -114,17 +115,20 @@ export function proFix() {
   // after the menu the click came from has closed
   setTimeout(() => { if (!account) { const b = document.getElementById('btnAcct'); if (b && document.getElementById('acctMenu').hidden) b.click(); } else showSubscribe(); });
 }
-/* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix */
+/* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix.
+   badge: 'pro' (the Pro badge, the default) or 'account' (Free account) for what is missing, or a word of its own */
 export function gateItem(el, why, badge) {
-  const off = !!why;
+  const off = !!why, chip = !badge || badge === 'pro' || badge === 'account';
   el.hidden = false;
   el.classList.toggle('rt-off', off);
   el.setAttribute('aria-disabled', off ? 'true' : 'false');
   if (el.dataset.title === undefined) el.dataset.title = el.title || '';
   el.title = off ? why : el.dataset.title;
   el.dataset.why = off ? why : '';
+  el.classList.toggle('rt-proneed', off && chip && badge !== 'account');
+  el.classList.toggle('rt-acctneed', off && badge === 'account');
   let k = el.querySelector('.k.rt-why');
-  if (off) { if (!k) { k = h('span', { class: 'k rt-why' }); el.append(k); } k.textContent = badge || (account ? 'JEKrayPro' : 'Sign in'); }
+  if (off && !chip) { if (!k) { k = h('span', { class: 'k rt-why' }); el.append(k); } k.textContent = badge; }
   else if (k) k.remove();
 }
 /* a gated item's click: true when it was off (explained, and the fix offered), so the handler stops */
@@ -909,13 +913,12 @@ function closeHome() {
 /* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
 function cloudGates() {
   const on = cloudOn(), show = accountsOn(), why = proWhy();
-  // share links are JEKrayPro's: the button marked Pro while they are not open
-  const sb = document.getElementById('btnShare');
-  if (sb) sb.classList.toggle('rt-proneed', show && !!why);
+  // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
+  needsShown();
   document.getElementById('btnHome').hidden = !on;
   for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
   if (!show) return;
-  gateItem(document.getElementById('btnCloudList'), account ? '' : why);
+  gateItem(document.getElementById('btnCloudList'), account ? '' : why, 'account');
   gateItem(document.getElementById('btnCloudSave'), why);
   gateItem(document.getElementById('btnCloudFork'), why || (cloud ? '' : 'This bench is not in the cloud yet: Save to cloud first'), why ? null : 'Not in the cloud');
 }

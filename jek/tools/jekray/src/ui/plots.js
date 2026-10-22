@@ -11,6 +11,7 @@ import { pctTxt, stopSweepsFor } from './optimise.js';
 import { bindSync, h, panel, selectField, vs } from './panel.js';
 import { diffractionLater } from '../engines/pd-cavity.js';
 import { changed, downloadFile, safeFileName, toast } from './actions.js';
+import { acctMark, accountGate } from './pro.js';
 import { checkpoint } from './tabs.js';
 import { ffTurn } from '../core/freeform.js';
 
@@ -233,6 +234,7 @@ function csvText(D) {
   return [D.cols.map(cell).join(','), ...rows.map(r => r.map(cell).join(','))].join('\n') + '\n';
 }
 function savePlot(cv, kind) {
+  if (!accountGate('save plots')) return;
   const D = cv._csv, base = safeFileName(project.name) + ' - ' + safeFileName(D ? D.name : 'plot');
   if (kind === 'csv') {
     if (!D) { toast('That plot has no numbers to save yet.', true); return; }
@@ -247,7 +249,8 @@ function savePlot(cv, kind) {
 }
 function plotSaveBtns(cv) {
   const b = (t, k, title) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => savePlot(cv, k) }, t);
-  return h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot'));
+  // one Free account badge for the pair, the reason in each one's title
+  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot')), 'save plots');
 }
 export function plotSaveRow(cv, hidden) { const r = h('div', { class: 'rt-zoom rt-saverow' }, plotSaveBtns(cv)); r.hidden = !!hidden; cv._saveRow = r; return r; }
 export function zoomControls(cv, getZ, redraw, yFromBase) {

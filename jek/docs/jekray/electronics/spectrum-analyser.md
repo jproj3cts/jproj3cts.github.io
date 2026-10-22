@@ -35,7 +35,7 @@ So narrowing the resolution bandwidth lowers the noise floor and leaves the tone
 
 ## Readouts
 
-Its panel draws the spectrum, which can be saved as a picture (PNG) or as its numbers (CSV).
+Its panel draws the spectrum, which can be saved as a picture (PNG) or as its numbers (CSV) with a free account.
 
 ## Assumptions
 

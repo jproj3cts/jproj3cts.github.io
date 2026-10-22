@@ -50,6 +50,6 @@ test('every prompt is counted as <where>.<answer>, a token the API takes, under 
   }
   for (const p of props) { assert.match(p, token, p); assert.match(p, /^[a-z]+\.[a-z]+$/, p); wheres.add(p.split('.')[0]); }
   assert.ok(props.length >= 12);
-  for (const w of ['share', 'save', 'return', 'shared', 'tour', 'menu']) assert.ok(wheres.has(w), w + ' is not counted');
+  for (const w of ['share', 'save', 'return', 'shared', 'tour', 'menu', 'export']) assert.ok(wheres.has(w), w + ' is not counted');
   for (const w of wheres) assert.ok(known.has(w), 'the usage report does not name the prompt ' + w);
 });

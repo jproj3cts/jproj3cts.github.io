@@ -171,8 +171,8 @@ export function hideCtxMenu() { const m = document.getElementById('ctxMenu'); if
 export function showCtxMenu(x, y, items) {
   const m = document.getElementById('ctxMenu');
   m.replaceChildren(...items.map(it => it === '-' ? h('div', { class: 'sep' }) :
-    h('button', { type: 'button', role: 'menuitem', disabled: it.off && !it.why ? '' : null, class: it.off && it.why ? 'rt-off' : null, 'aria-disabled': it.off && it.why ? 'true' : null, title: it.off && it.why ? it.why : null,
-      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { toast(it.why, true); hooks.proFix(); } } else it.fn(); } }, it.label, it.off && it.why ? h('span', { class: 'k rt-why' }, it.why.startsWith('Sign in') ? 'Sign in' : 'JEKrayPro') : it.key ? h('span', { class: 'k' }, it.key) : null)));
+    h('button', { type: 'button', role: 'menuitem', disabled: it.off && !it.why ? '' : null, class: it.off && it.why ? 'rt-off rt-proneed' : null, 'aria-disabled': it.off && it.why ? 'true' : null, title: it.off && it.why ? it.why : null,
+      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { toast(it.why, true); hooks.proFix(); } } else it.fn(); } }, it.label, it.key && !(it.off && it.why) ? h('span', { class: 'k' }, it.key) : null)));
   m.hidden = false;
   // placed, then moved by however far off it landed: whatever box it is fixed to
   m.style.left = '0px'; m.style.top = '0px';

@@ -33,7 +33,7 @@ A script runs on this page, on your own bench, as typing into the browser's cons
 
 ## In the page
 
-The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its functions take parts by **name**, as the panels show them, and return plain numbers and objects: what the panel would show, without the words. The stable set:
+The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its functions take parts by **name**, as the panels show them, and return plain numbers and objects: what the panel would show, without the words. They hand back data rather than downloading files, so the free account the page's own exports ask for is not asked for here; nor does anything in Node below need an account. The stable set:
 
 | Call | What it does |
 |---|---|

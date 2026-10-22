@@ -46,9 +46,15 @@ through `core/hooks.js`.
 - **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`); Node `headless.mjs`,
   `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
-  tolerancing, reports, drawings, design export, share links/QR, scripts, My parts. `test/node/pro-gate.test.mjs`
-  checks from the syntax tree that each gated function opens with its gate. Experimental features need only a
-  signed-in account (`setExpGate` in `io/cloud.js`).
+  tolerancing, reports, drawings, design export, share links/QR, scripts, My parts. Exports (layout, 3D PNG, plots'
+  PNG/CSV, screen CSV, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
+  and shows the sign-in prompt (`exportSignIn` in `io/account.js`, counted as `export.*`); only someone signed out for
+  sure is stopped (account unknown or API down: allowed). Saving the .jekray file is never gated. Badges: `proMark` /
+  `acctMark` (or `data-need="pro|account" data-what` in `page.html`) give the Pro / Free account chip, redone live by
+  `needsShown()` from `cloudGates`; menu items greyed by `gateItem` take the same chips. `test/node/pro-gate.test.mjs`
+  checks from the syntax tree that each gated function opens with its gate, that every `downloadFile`/`download:` is
+  behind one (or in its short list of non-exports), and that the .jekray save is not. Experimental features need only
+  a signed-in account (`setExpGate` in `io/cloud.js`). None of it applies in TEST_MODE or without accounts.
 
 ## Adding or changing a tool feature — checklist
 1. Part field: `norm` (default so old files load — there are no format migrations) and `guide.fields`; the panel in

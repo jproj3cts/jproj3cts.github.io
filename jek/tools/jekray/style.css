@@ -1115,6 +1115,8 @@
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
+    /* where they open in place, a submenu's items carry the badge, not the submenu (no room for both) */
+    .rt-imenu > .rt-sub.rt-acctneed::before, .rt-imenu > .rt-sub.rt-proneed::before { content: none; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
   /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, View, Sweeps, Examples,
@@ -1421,7 +1423,21 @@
   .rt-sharelinks li.cur .nm { font-weight: 700; }
   .rt-sharelinks .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-sharelinks .rt-lsub { grid-column: 1 / -1; }
-  .rt-btn.rt-proneed::after { content: 'Pro'; margin-left: 0.4em; padding: 0 0.35em; border-radius: 0.6em; font-size: 0.68em; font-weight: 700; letter-spacing: 0.04em; vertical-align: 0.1em; background: var(--jek-orange, #e8590c); color: #fff; }
+  /* the badges (ui/pro.js): Pro, and Free account, on what needs them, shown only while it is needed */
+  .rt-proneed::after, .rt-acctneed::after, .rt-sub.rt-acctneed::before, .rt-sub.rt-proneed::before { flex: none; margin-left: 0.4em; padding: 0 0.4em; border-radius: 0.6em;
+    font: 700 0.68em/1.5 var(--jek-sans); letter-spacing: 0.04em; text-transform: none; vertical-align: 0.1em; white-space: nowrap; opacity: 1; color: #fff; }
+  .rt-proneed::after, .rt-sub.rt-proneed::before { content: 'Pro'; background: var(--jek-orange, #f47742); }
+  .rt-acctneed::after, .rt-sub.rt-acctneed::before { content: 'Free account'; background: var(--jek-cyan-dark, #007893); }
+  /* in a menu, at the row's right; a submenu's own arrow (its ::after) stays last, the badge before it */
+  .rt-imenu > .rt-proneed::after, .rt-imenu > .rt-acctneed::after, .rt-ctx > .rt-proneed::after { margin-left: auto; font-size: 0.66rem; }
+  .rt-imenu > .rt-sub.rt-acctneed::before, .rt-imenu > .rt-sub.rt-proneed::before { order: 1; margin-left: auto; font-size: 0.66rem; }
+  .rt-imenu > .rt-sub.rt-acctneed::after, .rt-imenu > .rt-sub.rt-proneed::after { content: '\25b8'; order: 2; margin-left: 0; padding: 0 0 0 0.6rem; border-radius: 0; background: none; color: inherit; font: inherit; font-size: 0.7rem; opacity: 0.7; }
+  .rt-sub > .rt-menu { order: 3; }
+  /* the account's badge on the menu's lit row: light on the accent */
+  .rt-imenu > button.rt-acctneed:hover::after, .rt-imenu > button.rt-acctneed:focus-visible::after, .rt-imenu > .rt-sub.rt-acctneed:hover::before, .rt-imenu > .rt-sub.rt-acctneed:focus-within::before { background: #fff; color: var(--jek-cyan-dark, #007893); }
+  /* a plot's PNG and CSV share one */
+  .rt-save.rt-acctneed { align-items: center; }
+  .rt-save.rt-acctneed::after { margin-left: 0.1em; font-size: 0.66rem; }
   .rt-ltable tr.unmet td { color: var(--jek-ink-soft); font-style: italic; }
   .rt-ltable tr.unmet td.nm { font-weight: 400; cursor: default; }
   .rt-lpathhead { margin-top: 1rem; }

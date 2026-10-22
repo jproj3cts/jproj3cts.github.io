@@ -1,9 +1,10 @@
-/* The designers' work as JEKrayPro's (ui/pro.js): the reason given for each case of the account's own. */
+/* The designers' work as JEKrayPro's, and exports as an account's (ui/pro.js): the reasons given, and the gates read
+   from the modules' syntax trees. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as acorn from '../../vendor/acorn.mjs';
 import * as walk from '../../vendor/acorn-walk.mjs';
 
@@ -15,6 +16,8 @@ const readSrc = p => readFileSync(srcUrl(p), 'utf8');
 const src = readSrc('ui/pro.js');
 const body = src.slice(src.indexOf('export function designWhyOf'), src.indexOf('export const designWhy ='));
 const designWhyOf = new Function(body.replace('export ', '') + '\nreturn designWhyOf;')();
+const acctBody = src.slice(src.indexOf('export function acctWhyOf'), src.indexOf('export const acctWhy ='));
+const acctWhyOf = new Function(acctBody.replace('export ', '') + '\nreturn acctWhyOf;')();
 
 test('the designers’ work is open with a plan, and says how to get one without', () => {
   assert.equal(designWhyOf('', 'optimise a design'), '');
@@ -23,15 +26,23 @@ test('the designers’ work is open with a plan, and says how to get one without
     'JEKrayPro is needed to save drawings: subscribe from the account menu, or join a team with a plan');
 });
 
+test('an export needs an account only from someone signed out for sure: not while it is not known, nor with the API out of reach', () => {
+  const what = 'export the layout', why = 'Needs a free account: sign in, top right, to export the layout';
+  assert.equal(acctWhyOf(true, false, true, what), why, 'signed out, the API has said so');
+  assert.equal(acctWhyOf(true, true, true, what), '', 'signed in (a free account or JEKrayPro)');
+  assert.equal(acctWhyOf(true, false, false, what), '', 'not known yet, or the API out of reach');
+  assert.equal(acctWhyOf(false, false, true, what), '', 'no accounts here: the tests, an embed');
+});
+
 /* ---- the gates, read from the modules' syntax trees rather than their text ---- */
 const ASTS = new Map();
 const astOf = p => { if (!ASTS.has(p)) ASTS.set(p, acorn.parse(readSrc(p), { ecmaVersion: 2024, sourceType: 'module' })); return ASTS.get(p); };
-const GATES = ['designPro', 'designWhy'];
-/* a call of a gate (designPro / designWhy), with the reason given if one is asked for */
-const isGate = (n, reason) => n && n.type === 'CallExpression' && n.callee.type === 'Identifier' && GATES.includes(n.callee.name)
+const GATES = ['designPro', 'designWhy'], ACCT = ['accountGate'];
+/* a call of a gate (JEKrayPro's designPro / designWhy, or names given: the account's accountGate), with the reason given if one is asked for */
+const isGate = (n, reason, names = GATES) => n && n.type === 'CallExpression' && n.callee.type === 'Identifier' && names.includes(n.callee.name)
   && (reason === undefined || (n.arguments[0] && n.arguments[0].type === 'Literal' && n.arguments[0].value === reason));
 const has = (node, pred) => { let found = false; walk.full(node, n => { if (pred(n)) found = true; }); return found; };
-const hasGate = (node, reason) => has(node, n => isGate(n, reason));
+const hasGate = (node, reason, names) => has(node, n => isGate(n, reason, names));
 /* the function named, however it is declared: function, export function, const arrow / function expression, method */
 function fnOf(file, name) {
   let fn = null;
@@ -50,31 +61,31 @@ const exits = s => s && (s.type === 'ReturnStatement' || s.type === 'ThrowStatem
    out without waiting (`const why = designWhy(…)`, then `if (why) throw …`), and, for a gate that holds
    only in one case, an `if (…) { …guards… }` whose block opens with the gate. Returns the guard that holds
    the gate and the guards before it, or null if the gate is not there or comes only after something done. */
-function gateIn(stmts, reason) {
+function gateIn(stmts, reason, names) {
   const before = [], held = new Set();
   for (const s of stmts) {
     if (s.type === 'IfStatement' && !s.alternate) {
-      if (exits(s.consequent) && (hasGate(s.test, reason) || (s.test.type === 'Identifier' && held.has(s.test.name)))) return { guard: s, before };
-      if (s.consequent.type === 'BlockStatement' && hasGate(s.consequent)) {
+      if (exits(s.consequent) && (hasGate(s.test, reason, names) || (s.test.type === 'Identifier' && held.has(s.test.name)))) return { guard: s, before };
+      if (s.consequent.type === 'BlockStatement' && hasGate(s.consequent, undefined, names)) {
         // the gate holds in this case only: the block must open with it
-        const inner = gateIn(s.consequent.body, reason);
+        const inner = gateIn(s.consequent.body, reason, names);
         return inner && { guard: inner.guard, before: before.concat(s, inner.before) };
       }
       if (exits(s.consequent)) { before.push(s); continue; }
       return null;
     }
     if (s.type === 'VariableDeclaration' && s.kind === 'const' && !has(s, n => n.type === 'AwaitExpression' || n.type === 'AssignmentExpression' || n.type === 'UpdateExpression')) {
-      for (const d of s.declarations) if (d.id.type === 'Identifier' && isGate(d.init, reason)) held.add(d.id.name);
+      for (const d of s.declarations) if (d.id.type === 'Identifier' && isGate(d.init, reason, names)) held.add(d.id.name);
       before.push(s); continue;
     }
     return null;
   }
   return null;
 }
-function assertGated(file, name, reason) {
+function assertGated(file, name, reason, names) {
   const fn = fnOf(file, name);
-  const g = fn.body.type === 'BlockStatement' ? gateIn(fn.body.body, reason) : null;
-  assert.ok(g, file + ': ' + name + ' asks for JEKrayPro' + (reason ? " ('" + reason + "')" : '') + ' before it does anything');
+  const g = fn.body.type === 'BlockStatement' ? gateIn(fn.body.body, reason, names) : null;
+  assert.ok(g, file + ': ' + name + ' asks for ' + (names === ACCT ? 'an account' : 'JEKrayPro') + (reason ? " ('" + reason + "')" : '') + ' before it does anything');
   return g;
 }
 /* each call of `callee` in the file is done only when the gate says yes: inside an `if (gate(…))`'s consequent */
@@ -144,4 +155,49 @@ test('experimental features need only a signed-in account, not a plan', () => {
   walk.full(gate, n => { if (n.type === 'Identifier') ids.add(n.name); });
   assert.ok(ids.has('account'), 'the experimental gate asks whether someone is signed in');
   for (const pro of ['proWhy', 'designPro', 'designWhy', 'newPlaces']) assert.ok(!ids.has(pro), 'the experimental gate does not ask for JEKrayPro (' + pro + ')');
+});
+
+/* ---- exports: an account's (a free one is enough); the bench's own .jekray file anyone's ---- */
+const EXPORTS = [['io/layout.js', 'exportLayout', 'export the layout'], ['io/layout.js', 'exportScreen', 'export a screen\u2019s data'],
+  ['io/cad-export.js', 'exportCad', 'export for CAD'], ['io/zmx-export.js', 'exportZmx', 'export an element'],
+  ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view']];
+// downloads that are not exports of images or data: the bench's .jekray file, a part pack made from the selection (JEKray's
+// own format, to install elsewhere), and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
+// the designers' reports, whose every call is behind designPro (checked above)
+const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'io/packs.js make', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
+const srcFiles = (d, at = '') => readdirSync(d).flatMap(f => statSync(join(d, f)).isDirectory() ? srcFiles(join(d, f), at + f + '/') : f.endsWith('.js') ? [at + f] : []);
+
+test('each export asks for an account before it does anything, and saving the bench as a .jekray file does not', () => {
+  for (const [file, name, reason] of EXPORTS) assertGated(file, name, reason, ACCT);
+  // a design's .zmx is still JEKrayPro's: after the account, the plan
+  const zx = assertGated('io/zmx-export.js', 'exportZmx', 'export a design');
+  assert.ok(zx.before.some(s => hasGate(s, 'export an element', ACCT)), 'exportZmx asks for an account first');
+  // the .jekray file (Save, Save as a file, the prompts' file) and the download itself are gated by neither
+  for (const [file, name] of [['ui/actions.js', 'saveFile'], ['ui/actions.js', 'downloadFile']])
+    assert.ok(!hasGate(fnOf(file, name), undefined, [...GATES, ...ACCT, 'acctWhy']), file + ': ' + name + ' is not gated');
+  // the gate is the account's alone: it asks nothing of JEKrayPro's
+  const ids = new Set();
+  walk.full(fnOf('ui/pro.js', 'accountGate'), n => { if (n.type === 'Identifier') ids.add(n.name); });
+  for (const pro of ['proWhy', 'designPro', 'designWhy']) assert.ok(!ids.has(pro), 'accountGate does not ask for JEKrayPro (' + pro + ')');
+});
+
+test('every download in the tool is an export behind a gate, or one of the few that are not exports', () => {
+  const root = fileURLToPath(srcUrl('.')), named = (fn, parent) => fn.id ? fn.id.name : parent && parent.type === 'VariableDeclarator' ? parent.id.name
+    : parent && (parent.type === 'Property' || parent.type === 'MethodDefinition') ? parent.key.name || parent.key.value : '(anonymous)';
+  let n = 0;
+  for (const file of srcFiles(root)) {
+    if (/^(main|worker-main)\.js$|^worker\//.test(file)) continue;
+    const text = readSrc(file);
+    if (!/downloadFile\(|download:/.test(text)) continue;
+    walk.fullAncestor(astOf(file), (node, st, anc) => {
+      const dl = (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'downloadFile')
+        || (node.type === 'Property' && !node.computed && node.key.name === 'download');
+      if (!dl || (file === 'ui/actions.js' && anc.some(a => a.type === 'FunctionDeclaration' && a.id.name === 'downloadFile'))) return;
+      n++;
+      const fns = anc.map((a, i) => /Function/.test(a.type) ? { fn: a, name: named(a, anc[i - 1]) } : null).filter(Boolean);
+      const gated = fns.some(({ fn }) => fn.body.type === 'BlockStatement' && (gateIn(fn.body.body, undefined, ACCT) || gateIn(fn.body.body, undefined, GATES)));
+      assert.ok(gated || fns.some(f => NOT_EXPORTS.has(file + ' ' + f.name)), file + ': a download in ' + (fns.map(f => f.name).reverse().join(' < ') || 'the module') + ' is behind no gate');
+    });
+  }
+  assert.ok(n >= 12, 'the downloads are found (' + n + ')');
 });

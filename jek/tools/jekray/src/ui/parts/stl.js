@@ -8,6 +8,7 @@ import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
 import { importStl } from '../experimental.js';
 import { saveToMine } from '../myparts.js';
+import { proMark } from '../pro.js';
 
 /* STL object on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/stl.js */
 
@@ -34,7 +35,7 @@ function stlPanel(el) {
   const fi = h('input', { type: 'file', accept: '.stl,.STL', hidden: true });
   fi.addEventListener('change', () => { const f = fi.files[0]; if (f) importStl(f, null, el); fi.value = ''; });
   panel.append(fi, h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Replace its shape from a .stl file\u2026'),
-    h('button', { type: 'button', class: 'rt-btn', title: 'Keep it in My parts (JEKrayPro), to add to any bench from + Add part', onclick: () => saveToMine([el]) }, '\u2605 Save to My parts\u2026')));
+    proMark(h('button', { type: 'button', class: 'rt-btn', title: 'Keep it in My parts (JEKrayPro), to add to any bench from + Add part', onclick: () => saveToMine([el]) }, '\u2605 Save to My parts\u2026'), 'keep parts in My parts')));
   const M = el.mesh;
   if (M) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, M.n + ' triangles' + (M.orig ? ', simplified from the file\u2019s ' + M.orig + ' (to detail of ' + M.cell + ' file units) so it saves with the bench' : '') +
     ', ' + Math.max(1, Math.round(M.data.length / 1024)) + ' KB with the bench' + (M.file ? ', from ' + M.file : '') + '.'));

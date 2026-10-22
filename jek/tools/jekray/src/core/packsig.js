@@ -12,13 +12,14 @@ import { TEST_MODE } from './constants.js';
    ========================================================================== */
 export const PACK_SIG_V = 1;
 /* TEST key: its private half is in jek-api's test config (vitest.config.js), so anyone can sign with
-   it. It is taken only in the tests and on this computer (localhost), never on jeksys.net. Before
-   signing goes live, PACK_PUBLIC_KEY becomes the key jek-api/scripts/pack-key.mjs prints. */
+   it. It is taken only in the tests, never on jeksys.net. */
 export const PACK_TEST_KEY = 'GHJ888iIUQbtlhN8uwy2QJv8Nzsdj-_XUKPRFUJNJqE';
-export const PACK_PUBLIC_KEY = PACK_TEST_KEY;
-/* the key signatures are checked with on this host, or null when none may be (the test key on the site) */
+/* the live key: the public half of the API's PACK_SIGNING_KEY (jek-api/scripts/pack-key.mjs, 22 October 2026) */
+export const PACK_PUBLIC_KEY = 'AKCB_BGU-FlV-WrUt9HXX_5Jyu8JlAkgVVqHqmaFx9I';
+/* the key signatures are checked with: the tests' own in the test suite; else the live one, or the test one only on
+   this computer (localhost), never on the site (null: none may be) */
 export const packKeyFor = (host, test = TEST_MODE, key = PACK_PUBLIC_KEY) =>
-  key !== PACK_TEST_KEY || test || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(host || '') ? key : null;
+  test ? PACK_TEST_KEY : key !== PACK_TEST_KEY || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(host || '') ? key : null;
 
 /* JSON with every object's keys sorted and no whitespace, written out as text (a "__proto__" key stays a key) */
 export function packCanon(v) {

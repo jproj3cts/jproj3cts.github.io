@@ -54,9 +54,8 @@ through `core/hooks.js`.
   their domain themselves (owner/admin, active plan): `POST|DELETE /v1/teams/:id/domain`, `POST …/domain/verify`, a TXT
   record `_jekray-verify.<domain>` looked up over DNS-over-HTTPS (`DOH_URL`), re-checked on signing every 30 days; UI
   `teamSigningSection` in `io/account.js`. Ops (revoke, the reserved-ids flag for `jek`/`jekray`/`jeksys`, a team's
-  domain by hand or freed, signing our own packs) `scripts/packs.mjs`. The source carries a TEST public key
-  (private half only in `jek-api/vitest.config.js`), taken only in TEST_MODE and on localhost, until the real one
-  replaces it. Modules install only verified; ids are claimed by their first signer.
+  domain by hand or freed, signing our own packs) `scripts/packs.mjs`. `PACK_PUBLIC_KEY` is the live key (set 22 Oct 2026); the
+  TEST key (private half only in `jek-api/vitest.config.js`) is used in TEST_MODE, and on localhost only if passed. Modules install only verified; ids are claimed by their first signer.
 - **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`); Node `headless.mjs`,
   `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,

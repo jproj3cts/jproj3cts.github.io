@@ -75,14 +75,16 @@ test('a signature checks with the key it was made with, and fails once anything 
   assert.deepEqual((await packVerify(await signed(pack(), ORG), K)).by, ORG);
 });
 
-test('the test key is taken only in the tests and on this computer; the real one anywhere', () => {
-  assert.equal(packKeyFor('jeksys.net', false), null, 'the site never trusts the test key');
-  assert.equal(packKeyFor('localhost', false), PACK_TEST_KEY);
-  assert.equal(packKeyFor('127.0.0.1', false), PACK_TEST_KEY);
-  assert.equal(packKeyFor('jeksys.net', true), PACK_TEST_KEY, 'the test suite');
-  assert.equal(packKeyFor('jeksys.net', false, 'REALKEY'), 'REALKEY');
+test('the test key is taken only in the tests and on this computer; the live one on the site', () => {
+  assert.equal(packKeyFor('jeksys.net', false, PACK_TEST_KEY), null, 'the site never trusts the test key');
+  assert.equal(packKeyFor('localhost', false, PACK_TEST_KEY), PACK_TEST_KEY);
+  assert.equal(packKeyFor('127.0.0.1', false, PACK_TEST_KEY), PACK_TEST_KEY);
+  assert.equal(packKeyFor('jeksys.net', true), PACK_TEST_KEY, 'the test suite signs with the test key, whatever the live one');
+  assert.equal(packKeyFor('jeksys.net', false), PACK_PUBLIC_KEY, 'the site checks with the live key');
   assert.equal(packKeyFor('localhost', false, 'REALKEY'), 'REALKEY');
-  assert.ok(PACK_PUBLIC_KEY === PACK_TEST_KEY || !/GHJ888/.test(PACK_PUBLIC_KEY));
+  // the live key is set, a 32-byte Ed25519 key, and is not the test one
+  assert.notEqual(PACK_PUBLIC_KEY, PACK_TEST_KEY);
+  assert.equal(Buffer.from(PACK_PUBLIC_KEY, 'base64url').length, 32);
 });
 
 test('whether a pack installs: modules only verified and checked; an id kept to its maker, installed or not', () => {

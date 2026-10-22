@@ -5,6 +5,7 @@ import { DPR, H, W, canvas, ctx, lightLayer, render, requestRender, setCtx, setD
 import { diffraction } from '../engines/pd-cavity.js';
 import { binnedField, screenStats } from '../engines/screen-stats.js';
 import { downloadFile, fitView, safeFileName, toast } from '../ui/actions.js';
+import { accountGate } from '../ui/pro.js';
 
 /* ---------- The layout as a vector drawing ----------
    The bench is drawn again into a context that keeps what it is told (paths, text, and the
@@ -288,6 +289,7 @@ export async function pdfDoc(recs, title, opts) {
 const layoutPdf = rec => pdfDoc([rec]);
 /* the layout as a picture: the whole tab, framed as Fit frames it, or (view) just what is on screen now */
 export async function exportLayout(kind, view) {
+  if (!accountGate('export the layout')) return;
   const base = safeFileName(project.name) + (project.benches.length > 1 ? ' - ' + safeFileName((project.benches.find(b => b.id === project.tab) || {}).name) : '');
   const keep = Object.assign({}, V());
   if (!view) fitView();                                         // put back as soon as it is drawn
@@ -320,6 +322,7 @@ export async function exportLayout(kind, view) {
 
 /* Everything a screen saw, as a spreadsheet: the rays, then the curves */
 export function exportScreen(el) {
+  if (!accountGate('export a screen\u2019s data')) return;
   const st = screenStats(el);
   if (!st || st.empty) { toast('That screen has nothing on it to export.', true); return; }
   const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);

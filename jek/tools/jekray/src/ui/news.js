@@ -17,6 +17,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Exports need a free account</b>: File \u203a Export layout (PNG, SVG, PDF), the 3D view\u2019s PNG, every plot\u2019s PNG and CSV, a screen\u2019s Export data (CSV), File \u203a Export an element (.zmx) and an assembly\u2019s CAD files (.step, .stl) ask you to sign in first; a free account is enough. Saving the bench as a .jekray file needs no account, as before. And <b>badges</b> say what needs what: <b>Free account</b> and <b>Pro</b>, on the buttons and menu items concerned, each gone once you have it.',
     '<b>A rolled cylindrical lens keeps its power at every roll</b>: rolled, it lost some or all of its power at many angles (a curved-in-plane cylinder\u2019s face was missed by rays off its rolled axis; a curved-out-of-plane one was met as flat). And on a <b>phosphor screen</b>, a line now glows as a thin line whichever way it lies (a horizontal one blurred into a wide patch), and a rolled screen\u2019s glow in 3D stays where the light lands.',
     '<b>STEP files</b> come in as STL objects: Open \u25be \u2192 Import an object (.stl, .step), or drop a .step or .stp file on the bench. OpenCascade reads it (fetched the first time, 7.6 MB, and run in the background), in the file\u2019s own units; a file of several parts asks whether to bring them in as separate parts, grouped and in place, or as one object.',
     'On a phone, <b>the tour no longer pushes the tool sideways</b>: its note was wider than the screen beside the parts rail, which shifted the bench and clipped the first tab; it now fits between the rail and the edge.',
@@ -196,6 +197,7 @@ const NEWS = [
     'Photodetectors in free space and fibre now work alike (material, dark current, amplifier noise), the free-space one drawn as a semicircle, with scope and spectrum views that match the instruments. An <b>optical chopper</b> for the free-space palette.',
     'A bench that fills the window, a <b>Bench panel you can pin</b>, R and Shift+R to turn parts, steady readouts while sweeping, and the optimiser on mirrors as on screens.',
     'Faster: moving electronics no longer re-solves them, and a laser\u2019s power drive is traced at its two ends when nothing on the bench saturates.'], [
+    '<b>Exports with a free account</b>: pictures, plots, data, .zmx and CAD files; a .jekray file needs none. <b>Free account</b> and <b>Pro</b> badges mark what needs what.',
     'A <b>3D view</b> of every bench, a switch away: every free-space part placed, tipped and rolled in all six degrees of freedom, with rays, Gaussian beams and the diffracted field followed exactly through it, misaligned cavities included.',
     '<b>STL objects</b> from CAD on the bench (mounts, housings, baffles), saved with it and kept in My parts.',
     '<b>Electronics</b> as a standard part of the tool, with <b>feedthroughs</b> carrying signals between tabs, and photonic chips wired to them.',

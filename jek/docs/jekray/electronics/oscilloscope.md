@@ -39,7 +39,7 @@ Each channel has its own vertical scale, channel 1's on the left and channel 2's
 
 ## Readouts
 
-Its panel draws the traces, which can be saved as a picture (PNG) or as their numbers (CSV).
+Its panel draws the traces, which can be saved as a picture (PNG) or as their numbers (CSV) with a free account.
 
 ## Assumptions
 

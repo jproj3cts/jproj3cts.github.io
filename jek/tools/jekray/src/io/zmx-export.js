@@ -15,7 +15,7 @@ import { api, showSubscribe } from './account.js';
 import { personalWs } from './cloud.js';
 import { openLensDesign } from '../ui/lens-workspace.js';
 import { designOne } from '../ui/assembly.js';
-import { designPro } from '../ui/pro.js';
+import { accountGate, designPro } from '../ui/pro.js';
 
 /* ==========================================================================
    .zmx lens file export
@@ -271,6 +271,7 @@ function zmxBroken(S, L, n, nm, diam) {
   return { text: L.join('\r\n') + '\r\n', name: S.name, warnings: S.warnings, efl: Sy.par.efl, bfl: Sy.par.bfl };
 }
 export function exportZmx() {
+  if (!accountGate('export an element')) return;
   // a design (an assembly's parts) is JEKrayPro's to export; a lens or a mirror of the bench's own is anyone's
   if (asmOfSelection(selection()) && !designPro('export a design')) return;
   try {

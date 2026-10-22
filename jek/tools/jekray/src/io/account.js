@@ -8,6 +8,7 @@ import { saveTimer } from './autosave.js';
 import { goal, setUsageOff, track, usageBrowserSaysNo, usageFlush, usageOff } from './usage.js';
 import { nudgeCapOk, returnDue } from '../core/nudge.js';
 import { project } from '../state/project.js';
+import { hooks } from '../core/hooks.js';
 
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
@@ -679,11 +680,12 @@ async function loadAccount() {
 /* ---------- Sign-in, offered where it helps ----------
    Signed out, at the moments an account would have helped. Each says first what a free account gives, then
    JEKrayPro, then the university line. Share asks in a dialog, as a short link is JEKrayPro's and it cannot go on
-   without one. Save has already saved the file, so it only offers, in a note. A bench restored on a later visit,
-   and a shared bench kept, offer the file and an account. One cap for the notes and the share dialog: once a week
-   (core/nudge.js). Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
+   without one; so does an export (ui/pro.js accountGate), as exporting needs an account. Save has already saved the
+   file, so it only offers, in a note. A bench restored on a later visit, and a shared bench kept, offer the file and
+   an account. One cap for the notes and the share dialog: once a week (core/nudge.js), which the export dialog
+   counts against but is not held back by. Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
 const NUDGE_KEY = 'jek-nudge-save';
-const FREE_GIVES = 'A free account opens the experimental features and lets you join a team when invited.';
+const FREE_GIVES = 'A free account lets you export images and data and use the experimental features, and join a team when invited.';
 const UNI_LINE = 'University email? If your university has a JEKray licence, signing in with it gives you JEKrayPro; if not, it gets you the academic price.';
 // set when the account is known (signed in, or the API said signed out): the notes wait for it
 export let accountKnown = false;
@@ -713,6 +715,19 @@ export function shareSignIn(saveInstead) {
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('share', close)),
     h('p', { class: 'note' }, 'Or send it as a file: ', h('button', { class: 'rt-link', type: 'button', onclick: () => { track('prompt', 'share.file'); close(); saveInstead(); } }, 'save it as a .jekray file'), ' and attach that.'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
+export function exportSignIn(what) {
+  track('prompt', 'export.shown');
+  nudgeTaken();
+  const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
+    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'export.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
 /* a note on the bench, in the welcome note's style, with its × in the corner (counted as Not now) */
@@ -786,6 +801,7 @@ export function accountShown() {
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireAccount() {
+  hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown }); hooks.exportSignIn = exportSignIn;
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
   document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
   document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());

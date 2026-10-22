@@ -40,7 +40,7 @@ The trace is in dBm, ten divisions down from a top level set in dBm, at a set nu
 
 ## Readouts
 
-Its panel draws the spectrum, which can be saved as a picture (PNG) or as its numbers (CSV).
+Its panel draws the spectrum, which can be saved as a picture (PNG) or as its numbers (CSV) with a free account.
 
 ## Assumptions
 

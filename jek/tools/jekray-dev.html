@@ -28,7 +28,7 @@
           <button class="rt-btn rt-icon quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
             <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
-            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare">Copy a share link</button>
+            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
               <div class="rt-menu rt-imenu" role="menu">
@@ -49,22 +49,22 @@
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl, .step)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
-            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export" data-need="account" data-what="export the layout">Export layout
               <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" data-export="png" data-icon="image">PNG image</button>
-                <button type="button" role="menuitem" data-export="svg" data-icon="vector">SVG (vector)</button>
-                <button type="button" role="menuitem" data-export="pdf" data-icon="pdf">PDF (vector)</button>
+                <button type="button" role="menuitem" data-export="png" data-icon="image" data-need="account" data-what="export the layout">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-icon="vector" data-need="account" data-what="export the layout">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export">Export layout (current view)
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export" data-need="account" data-what="export the layout">Export layout (current view)
               <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" data-export="png" data-view="1" data-icon="image">PNG image</button>
-                <button type="button" role="menuitem" data-export="svg" data-view="1" data-icon="vector">SVG (vector)</button>
-                <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf">PDF (vector)</button>
+                <button type="button" role="menuitem" data-export="png" data-view="1" data-icon="image" data-need="account" data-what="export the layout">PNG image</button>
+                <button type="button" role="menuitem" data-export="svg" data-view="1" data-icon="vector" data-need="account" data-what="export the layout">SVG (vector)</button>
+                <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
             <div class="sep"></div>
@@ -114,7 +114,7 @@
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
           <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
           <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
-          <button class="rt-btn" id="btnShare" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
+          <button class="rt-btn" id="btnShare" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <div class="rt-more rt-phonegone">
             <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
@@ -131,7 +131,7 @@
               <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
               <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
               <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
-              <button type="button" role="menuitem" id="btnExp" data-icon="flask" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+              <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
               <div class="sep"></div>
               <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
               <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
@@ -158,7 +158,7 @@
               <button type="button" role="menuitem" data-click="btnSweeps" data-icon="wave">Sweeps…</button>
               <div class="sep"></div>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
-              <button type="button" role="menuitem" data-click="btnShare" data-icon="link">Copy a share link</button>
+              <button type="button" role="menuitem" data-click="btnShare" data-icon="link" data-need="pro" data-what="share a link">Copy a share link</button>
               <div class="sep"></div>
               <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
                 <div class="rt-menu rt-imenu" role="menu">

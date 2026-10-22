@@ -2,6 +2,7 @@ import { getEl } from '../state/elements.js';
 import { designPrescription } from '../engines/lens-design.js';
 import { lensSystem } from '../engines/lens-engine.js';
 import { downloadFile, safeFileName, toast } from '../ui/actions.js';
+import { accountGate } from '../ui/pro.js';
 import { sagR2 } from '../core/sag.js';
 import { track } from './usage.js';
 
@@ -240,6 +241,7 @@ export function cadSTEP(asm, opts) {
 
 /* the download: STEP or STL of an assembly */
 export function exportCad(asm, kind) {
+  if (!accountGate('export for CAD')) return null;
   try {
     const out = kind === 'stl' ? cadSTL(asm) : cadSTEP(asm), fname = safeFileName(asm.name || 'design') + (kind === 'stl' ? '.stl' : '.step');
     if (!out.solids) { toast('There is nothing round to export in ' + asm.name + '.', true); return null; }

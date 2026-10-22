@@ -97,7 +97,7 @@ A part kept in **My parts** comes onto the bench under the name it is kept as, s
 
 ## Exporting a lens
 
-**File › Export an element (.zmx)** writes the lenses you have selected as a sequential .zmx prescription, which lens-design programs open. It holds:
+**File › Export an element (.zmx)** writes the lenses you have selected as a sequential .zmx prescription, which lens-design programs open. It needs a free account (an assembly's, a design, needs JEKrayPro). It holds:
 
 - every face's radius, conic and aspheric terms (even or odd), its glass and its semi-diameter;
 - the wavelengths of the bench's sources, the first as the primary;

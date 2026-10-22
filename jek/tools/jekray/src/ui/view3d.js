@@ -30,6 +30,7 @@ import { volData, volDisp, volDispLine, volMerge, volPartners, volRay, volShare,
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
 import { phosphorCanvas, phosphorForget, phosphorRoll, phosphorTexture } from './phosphor.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
+import { acctMark, accountGate } from './pro.js';
 import { checkpoint, undo } from './tabs.js';
 import { qrLink } from '../io/share.js';
 import { exp, palette } from './experimental.js';
@@ -98,7 +99,7 @@ export const V3D = (() => {
     flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
     flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
     // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
-    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), nm, mouse, btn('PNG', 'Save this view as a picture', png));
+    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), nm, mouse, acctMark(btn('PNG', 'Save this view as a picture', png), 'save a picture of the 3D view'));
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
@@ -1453,6 +1454,7 @@ export const V3D = (() => {
   }
   function png() {
     if (!R) return;
+    if (!accountGate('save a picture of the 3D view')) return;
     const { gl, scene, camera } = R;
     gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); volPass(); gl.render(scene, camera);
     D.cv.toBlob(b => {

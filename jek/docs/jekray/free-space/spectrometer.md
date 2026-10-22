@@ -76,7 +76,7 @@ and the signal-to-noise at the peak is $$n_e/\sigma$$, given only when the array
 - **Width (FWHM)**: measured from the spectrum itself; when it is close to the resolution the panel says that it is set by the resolution rather than by the light.
 - **Lines through the entrance**, when more than one gets in.
 
-The Spectrum tab plots counts against wavelength, on a linear or log scale, and saves it as a picture (PNG) or as its numbers (CSV): wavelength, counts, noise and power on each pixel.
+The Spectrum tab plots counts against wavelength, on a linear or log scale, and saves it as a picture (PNG) or as its numbers (CSV): wavelength, counts, noise and power on each pixel (with a free account, as every export).
 
 ## Settings
 

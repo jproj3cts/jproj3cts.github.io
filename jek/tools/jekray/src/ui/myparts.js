@@ -10,6 +10,7 @@ import { snapVal } from './pointer.js';
 import { V3D } from './view3d.js';
 import { helpLine, h } from './panel.js';
 import { clipOf, pasteClip, showCtxMenu, toast } from './actions.js';
+import { proMark } from './pro.js';
 import { PALETTE_NAMES, PART_DRAG } from './experimental.js';
 import { fillPicker, picker, pickerShown } from './picker.js';
 import { fillRail, flyShown } from './rail.js';
@@ -188,10 +189,10 @@ export function mineTile(p, after) {
 export function mineBody(after) {
   if (MINE.list === null) { loadMine().then(() => mineChanged()); return [h('p', { class: 'rt-pnone' }, 'Loading your parts…')]; }
   const sel = selection();
-  const keep = h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
-    sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here');
-  const zmx = h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
-    onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…');
+  const keep = proMark(h('button', { type: 'button', class: 'rt-btn rt-pkeep', disabled: sel.length ? null : '', onclick: e => { e.stopPropagation(); saveToMine(selection()); } },
+    sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here'), 'keep parts in My parts');
+  const zmx = proMark(h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
+    onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…'), 'keep parts in My parts');
   const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {

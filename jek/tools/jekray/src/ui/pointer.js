@@ -69,6 +69,9 @@ export function inPolygon(V, x, y, tol) {
 const pointers = new Map();
 export let drag = null;   // {mode:'move'|'rotate'|'pan'|'pinch', ...}
 export function setDrag(v) { return (drag = v); }
+/* the right button pans as it drags and opens the menu when it does not: the menu is shown on its release
+   (the browser's contextmenu comes on the press on some systems, on the release on others), never after a pan */
+export const RIGHT = { on: false, moved: false, menu: null, panned: 0 };
 
 export function snapVal(v, e) {
   const st = project.snap;
@@ -138,7 +141,14 @@ function endPointer(e) {
     return;
   }
   if (drag.mode === 'measure') { measureUp(); return; }
-  if (drag.mode === 'pan' && !drag.moved && (selectedId || selFibreId)) { selectOne(null); setSelFibreId(null); renderPanel(); }
+  if (drag.mode === 'pan' && drag.right) {
+    // a right-drag that panned: no menu after it; one that did not: the menu it held back, if the press brought it
+    const menu = RIGHT.menu;
+    if (drag.moved) RIGHT.panned = performance.now();
+    Object.assign(RIGHT, { on: false, moved: false, menu: null });
+    if (!drag.moved && menu) menu();
+  }
+  else if (drag.mode === 'pan' && !drag.moved && (selectedId || selFibreId)) { selectOne(null); setSelFibreId(null); renderPanel(); }
   if (drag.mode === 'move' && !drag.started && drag.wasSel && drag.el.type === 'draw' && drawTool === 'select') setXformMode(xformMode === 'scale' ? 'rotate' : 'scale');
   if ((drag.mode === 'move' || drag.mode === 'rotate') && drag.started) changed();
   else scheduleSave();
@@ -167,7 +177,8 @@ export function wirePointer() {
     }
     hideCtxMenu();
     if (e.button === 2 && penDraft) { finishPen(); setPenEnded(performance.now()); return; }   // the pen's right-click ends its path
-    if (e.button === 2) return;                          // the right button opens the menu instead
+    // the right button: a pan if it drags, the menu if it does not
+    if (e.button === 2) { drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: false, right: true }; Object.assign(RIGHT, { on: true, moved: false, menu: null }); return; }
     // the middle button, Space held, or a finger on empty bench: pan
     const panNow = e.button === 1 || spaceDown || LOCKED;            // a locked embed: every press pans
     if (panNow) { e.preventDefault(); drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: true }; canvas.classList.add('dragging'); return; }
@@ -288,7 +299,7 @@ export function wirePointer() {
       return;
     }
     if (drag.mode === 'pan') {
-      if (Math.hypot(px - drag.px0, py - drag.py0) > 3) drag.moved = true;
+      if (Math.hypot(px - drag.px0, py - drag.py0) > 3) { drag.moved = true; if (drag.right && !RIGHT.moved) { RIGHT.moved = true; canvas.classList.add('dragging'); } }
       V().cx = drag.cx0 - (px - drag.px0) / V().scale;
       V().cy = drag.cy0 + (py - drag.py0) / V().scale;
       requestRender();

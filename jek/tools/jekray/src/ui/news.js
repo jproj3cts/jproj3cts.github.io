@@ -17,6 +17,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Right-drag pans the bench</b>, as middle-drag and Space-drag do; a right-click that does not drag still opens the menu.',
     '<b>Signed part packs</b>: a pack made in JEKray is signed with your account (a free one is enough), so whoever installs it sees <b>\u2713 Signed by the JEKray account \u2018</b>your name<b>\u2019</b>, and that it has not been changed since (the name is your account\u2019s own, so it is shown plainly, not as checked). A pack edited by hand afterwards reads <b>Unverified: changed after it was signed</b>: sign it again with File \u203a Part packs and modules\u2026 \u203a <b>Sign a pack file\u2026</b>, which also signs a module you wrote. A pack\u2019s id is its maker\u2019s once signed: a pack with that id installs only when its maker signed it, which stops someone else\u2019s pack posing as or replacing yours (ids starting jek., jekray. and jeksys. are JEKray\u2019s own). A <b>module installs only when signed and unchanged</b>, from a file, a link or a bench; one installed before keeps working, labelled Unverified. JEK Systems can revoke a harmful pack (installed packs are checked once a day: a revoked module is turned off), and <b>Report this pack</b> tells us of one. Teams on JEKrayPro can sign as their organisation, shown as <b>\u2713 Verified: </b><i>organisation</i><b> (</b><i>domain</i><b>)</b>, once they have verified their web domain themselves: a DNS record, set up from the team\u2019s settings under <b>Signing packs as the team</b>.',
     '<b>Making a part pack</b> needs a free account, as exports do; installing a pack needs none.',
     '<b>Exports need a free account</b>: File \u203a Export layout (PNG, SVG, PDF), the 3D view\u2019s PNG, every plot\u2019s PNG and CSV, a screen\u2019s Export data (CSV), File \u203a Export an element (.zmx) and an assembly\u2019s CAD files (.step, .stl) ask you to sign in first; a free account is enough. Saving the bench as a .jekray file needs no account, as before. And <b>badges</b> say what needs what: <b>Free account</b> and <b>Pro</b>, on the buttons and menu items concerned, each gone once you have it.',
@@ -351,7 +352,7 @@ export function showWelcome() {
       h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
     : h('ul', null,
       h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
-      h('li', null, 'Drag to move, scroll to zoom, middle-drag or Space-drag to pan.'),
+      h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more.'),
       h('li', null, 'Press ? for every shortcut.')),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),

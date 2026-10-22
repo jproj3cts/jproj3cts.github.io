@@ -12,7 +12,7 @@ import {
   selInk, selection, setSelFibreId, setSelection, sx, sy, worldBox, wx, wy
 } from './render.js';
 import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
-import { drag, hitTest, setDrag, snapVal } from './pointer.js';
+import { RIGHT, drag, hitTest, setDrag, snapVal } from './pointer.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
 import { stopSweepsFor, updateSweepButtons } from './optimise.js';
@@ -536,6 +536,12 @@ export function wireActions() {
     e.preventDefault();
     if (LOCKED) return;
     if (performance.now() - penEnded < 800) return;          // that right-click ended a pen path
+    if (performance.now() - RIGHT.panned < 250) return;      // that right button panned the bench (its menu comes just after the release)
+    if (RIGHT.on && !RIGHT.moved) { RIGHT.menu = () => benchContext(e); return; }   // still held: the menu when it is let go, unless it drags
+    if (RIGHT.on) return;
+    benchContext(e);
+  });
+  function benchContext(e) {
     const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top, at = [wx(px), wy(py)];
     const hit = hitTest(px, py) || (labelAt(px, py) || {}).el || null, fh = hit || partsLocked() ? null : fibreAtPx(px, py);
     if (fh) {
@@ -546,7 +552,7 @@ export function wireActions() {
       return;
     }
     benchMenu(e.clientX, e.clientY, hit, at);
-  });
+  }
 
   document.addEventListener('pointerdown', e => { const m = document.getElementById('ctxMenu'); if (m && !m.hidden && !m.contains(e.target)) hideCtxMenu(); }, true);
 

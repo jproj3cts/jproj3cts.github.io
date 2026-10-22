@@ -16,6 +16,8 @@ import { startTour } from '../ui/tours.js';
 import { modConfirmText, modPrepare, modsSync } from './mods.js';
 import { track } from './usage.js';
 import { accountGate } from '../ui/pro.js';
+import { packDecide, packKeyFor, packTrustLabel, packVerify } from '../core/packsig.js';
+import { API_BASE, account, api } from './account.js';
 
 /* ==========================================================================
    Part packs: sets of parts and glasses made by others (a maker's catalogue, a course's kit),
@@ -29,7 +31,11 @@ import { accountGate } from '../ui/pro.js';
    runs. A part's glasses are written into it, so once placed it needs nothing from its pack,
    and a bench made with packs opens anywhere. Packs are installed from a file or a link, always
    after showing what is in them, and kept in this browser (IndexedDB). A "code" entry is kept
-   for mods that run code, in a sandbox, which this version does not: such a pack is refused.
+   for mods that run code, in a sandbox (io/mods.js), when modules are on.
+   A pack made or signed here by someone signed in carries a "sig" from the API (core/packsig.js):
+   who made it, checked on installing along with whether JEK Systems has revoked it (and once a day
+   after). A module installs only verified; a parts pack unsigned installs labelled Unverified. An
+   installed pack's id is kept to its maker: one with the same id is an update only from them.
    ========================================================================== */
 export const PACK_FORMAT = 'jekpack', PACK_VERSION = 2, PACK_MAX = 8 * 1024 * 1024;
 /* a pack as found, checked and tidied: { pack, notes } or throws with why it cannot be used */
@@ -112,6 +118,7 @@ async function packsLoad() {
   catch (err) { console.warn('JEKray: part packs could not be read', err); }
   PACKS.ready = true;
   packsChanged();
+  setTimeout(() => packsRecheck(), 4000);
 }
 export async function packPut(pack) {
   PACKS.list = PACKS.list.filter(p => p.id !== pack.id).concat(pack).sort((a, b) => a.name.localeCompare(b.name));
@@ -153,7 +160,8 @@ export function packsBody(after) {
   const out = [];
   for (const pk of PACKS.list) {
     if (!pk.parts.length) continue;
-    out.push(h('h4', null, pk.name, pk.author ? h('small', { class: 'rt-pby' }, ' by ' + pk.author) : null));
+    const L = packTrustLabel(pk.trust, pk.author);
+    out.push(h('h4', null, pk.name, L.by ? h('small', { class: 'rt-pby' }, ' ' + L.by.replace(/^(By|Made by)/, 'by')) : null, packChip(pk)));
     const groups = new Map();
     pk.parts.forEach((P, i) => { const g = P.group || ''; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(i); });
     for (const [g, idx] of groups) { if (g && groups.size > 1) out.push(h('h5', null, g)); out.push(h('div', { class: 'rt-pgrid' }, ...idx.map(i => packTile(pk, i, after)))); }
@@ -161,37 +169,102 @@ export function packsBody(after) {
   return out;
 }
 export const packHits = words => PACKS.list.flatMap(pk => pk.parts.map((P, i) => ({ pk, i, P }))).filter(({ pk, P }) => words.every(w => (P.name + ' ' + P.summary + ' ' + P.group + ' ' + pk.name).toLowerCase().includes(w)));
-/* ---------- installing ---------- */
-async function packFromText(txt, where) {
-  let raw;
-  try { raw = JSON.parse(txt); } catch (err) { throw new Error((where || 'It') + ' is not JSON'); }
-  const r = normPack(raw, txt.length);
-  if (r.pack.code) await modPrepare(r.pack, r.notes);
-  return r;
+/* ---------- signatures and standing ---------- */
+export const packTrustOf = pk => pk.trust || { state: 'unsigned', by: null, hash: '', revoked: null };
+// a pack's standing as a chip: Verified, Unverified or Revoked, the whole of it in its title
+export function packChip(pk) {
+  const L = packTrustLabel(pk.trust, pk.author);
+  return h('span', { class: 'rt-trust ' + L.cls, title: L.text + (L.by && L.cls !== 'ok' ? '. ' + L.by : '') }, L.short);
 }
-// what is in it, and Install or Cancel; resolves true when installed
-export function packConfirm(pack, notes, from) {
+// a pack reported to JEK Systems: an email, as a bug report is
+export function packReportLink(pk) {
+  const t = packTrustOf(pk), enc = encodeURIComponent;
+  const body = ['Pack: ' + pk.name + ' (id ' + pk.id + ', version ' + pk.packVersion + ')', 'Signed by: ' + (t.state === 'verified' && t.by ? t.by.name + ' [' + t.by.kind + ' ' + t.by.id + ']' : 'not signed' + (pk.author ? ' (it says ' + pk.author + ')' : '')),
+    'Hash: ' + (t.hash || '-'), '', 'What is wrong with it:', ''].join('\n');
+  return h('a', { class: 'rt-link', href: 'mailto:support@jeksys.net?subject=' + enc('Report a part pack: ' + pk.id) + '&body=' + enc(body) }, 'Report this pack');
+}
+/* what its signature says, checked here; a browser with no Ed25519 asks the API */
+async function packVerifyHere(raw) {
+  const v = await packVerify(raw, packKeyFor(location.hostname));
+  if (v.state === 'unsupported') {
+    try { v.state = (await api('/v1/packs/verify', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ sig: raw.sig }) })).valid ? 'verified' : 'bad'; }
+    catch (err) { v.state = 'unknown'; }
+  }
+  return v;
+}
+/* the API's word on these hashes (revoked?) and ids (whose?); null when it cannot be asked (offline, the tests) */
+async function packStatus(hashes, ids) {
+  if (TEST_MODE || (typeof navigator !== 'undefined' && navigator.onLine === false)) return null;
+  try {
+    const r = await fetch(API_BASE + '/v1/packs/status?' + new URLSearchParams({ hashes: hashes.join(','), ids: ids.join(',') }), { credentials: 'omit' });
+    return r.ok ? await r.json() : null;
+  } catch (err) { return null; }
+}
+/* whether this pack may be installed here, and as what: packDecide's answer, with the trust to keep */
+export async function packAssess(raw, pack) {
+  const v = await packVerifyHere(raw);
+  const S = await packStatus(v.state === 'verified' ? [v.hash] : [], [pack.id]);
+  const P = S && S.packs && S.packs[v.hash], I = S && S.ids && S.ids[pack.id];
+  const st = S ? { revoked: v.state === 'verified' && P ? P.revoked : null, blocked: I ? I.blocked : null, owner: I ? I.owner : null } : null;
+  const old = PACKS.list.find(p => p.id === pack.id);
+  const d = packDecide({ id: pack.id, module: !!pack.code, v, st, old: old ? packTrustOf(old) : null, oldName: old && old.name, test: TEST_MODE });
+  d.trust = { state: v.state, by: v.by, hash: v.hash, revoked: st && st.revoked || null, checked: S ? Date.now() : 0 };
+  return d;
+}
+/* ---------- installing ---------- */
+// what is in it, and Install or Cancel; resolves true when installed. d: packAssess's answer
+export function packConfirm(pack, notes, from, d) {
   return new Promise(resolve => {
-    const old = PACKS.list.find(p => p.id === pack.id);
+    const old = PACKS.list.find(p => p.id === pack.id), L = packTrustLabel(pack.trust, pack.author), t = packTrustOf(pack);
     const dlg = h('dialog', { class: 'rt-dialog rt-packconfirm' });
     const done = ok => { dlg.close(); dlg.remove(); resolve(ok); };
     const nG = pack.glasses.length, nP = pack.parts.length;
+    const sure = L.cls !== 'ok' ? '' : t.by.kind === 'org' ? 'Signed by the organisation ' + t.by.name + ', whose domain ' + (t.by.domain || '') + ' JEK Systems has checked, and unchanged since.'
+      : 'Signed with its maker’s JEKray account, and unchanged since. The name is the one that account gives itself.';
     dlg.append(h('h2', null, (old ? 'Update ' : 'Install ') + pack.name + '?'),
-      h('p', null, (pack.author ? 'By ' + pack.author + '. ' : '') + 'Version ' + pack.packVersion + (old ? ' (installed: ' + old.packVersion + ')' : '') + (pack.licence ? '. Licence: ' + pack.licence : '') + '.'),
+      h('p', { class: 'rt-trust rt-trustline ' + L.cls }, L.text), sure ? h('p', { class: 'rt-hint' }, sure) : '',
+      h('p', null, (L.cls !== 'ok' && L.by ? L.by + '. ' : '') + 'Version ' + pack.packVersion + (old ? ' (installed: ' + old.packVersion + ')' : '') + (pack.licence ? '. Licence: ' + pack.licence : '') + '.'),
+      ...((d && d.notes) || []).map(n => h('p', { class: 'note warn' }, n)),
       pack.description ? h('p', null, pack.description) : '',
       pack.code ? modConfirmText(pack, from) : h('p', null, nP + ' part' + (nP === 1 ? '' : 's') + (nG ? ' and ' + nG + ' glass' + (nG === 1 ? '' : 'es') : '') + '. ' + (from ? 'From ' + from + '. ' : '') +
         'A pack holds parts and data only, never code. Its parts appear under + Add part, in the Packs tab, and its glasses in each lens’s material menu.'),
       pack.homepage ? h('p', { class: 'rt-hint' }, 'Its home page: ', h('a', { href: pack.homepage, target: '_blank', rel: 'noopener noreferrer' }, pack.homepage)) : '',
       notes.length ? h('details', null, h('summary', null, notes.length + ' thing' + (notes.length === 1 ? '' : 's') + ' left out'), h('ul', null, ...notes.slice(0, 50).map(n => h('li', null, n)))) : '',
-      h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => done(false) }, 'Cancel'),
-        h('button', { class: 'rt-btn primary', type: 'button', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' module' : ''))));
+      h('div', { class: 'rt-actions' }, packReportLink(pack), h('button', { class: 'rt-btn', type: 'button', onclick: () => done(false) }, 'Cancel'),
+        h('button', { class: 'rt-btn primary', type: 'button', autofocus: '', onclick: async () => { await packPut(pack); done(true); toast('Installed ' + pack.name + ': find its parts under + Add part › Packs'); } }, (old ? 'Update' : 'Install') + (pack.code ? ' module' : ''))));
     dlg.addEventListener('cancel', e => { e.preventDefault(); done(false); });
     document.body.append(dlg); dlg.showModal();
   });
 }
+// why it cannot be installed, said plainly
+function packRefused(pack, d, from) {
+  const L = packTrustLabel(pack.trust, pack.author), dlg = h('dialog', { class: 'rt-dialog rt-packconfirm' });
+  const close = () => { dlg.close(); dlg.remove(); };
+  dlg.append(h('h2', null, 'Can’t install ' + pack.name),
+    h('p', { class: 'rt-trust rt-trustline ' + (d.code === 'revoked' ? 'bad' : L.cls) }, d.code === 'revoked' ? 'Revoked' : L.text),
+    h('p', null, d.why), L.by && L.cls !== 'ok' ? h('p', { class: 'rt-hint' }, L.by + (from ? '. From ' + from : '') + '.') : from ? h('p', { class: 'rt-hint' }, 'From ' + from + '.') : '',
+    h('div', { class: 'rt-actions' }, packReportLink(pack), h('button', { class: 'rt-btn primary', type: 'button', autofocus: '', onclick: close }, 'Close')));
+  dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
+  document.body.append(dlg); dlg.showModal();
+}
+/* a pack as read (its JSON parsed): checked, its signature and standing found, then offered or refused */
+export async function packInstallRaw(raw, from, sizeHint) {
+  try {
+    const { pack, notes } = normPack(raw, sizeHint);
+    track('mod', 'install');
+    const d = await packAssess(raw, pack);
+    pack.trust = d.trust;
+    if (!d.ok) { track('mod', 'refused.' + d.code); packRefused(pack, d, from); return false; }
+    if (raw.sig) pack.sig = JSON.parse(JSON.stringify(raw.sig));
+    // a module keeps the pack as signed, which a bench using it carries (so it opens verified elsewhere)
+    if (pack.code) { pack.signed = JSON.parse(JSON.stringify(raw)); await modPrepare(pack, notes); }
+    return await packConfirm(pack, notes, from, d);
+  } catch (err) { toast('Could not use that pack: ' + err.message + '.', true); return false; }
+}
 export async function packInstallText(txt, from) {
-  try { const { pack, notes } = await packFromText(txt, from); track('mod', 'install'); return await packConfirm(pack, notes, from); }
-  catch (err) { toast('Could not use that pack: ' + err.message + '.', true); return false; }
+  let raw;
+  try { raw = JSON.parse(txt); } catch (err) { toast('Could not use that pack: ' + (from || 'it') + ' is not JSON.', true); return false; }
+  return packInstallRaw(raw, from, txt.length);
 }
 async function packInstallUrl(url) {
   let u;
@@ -204,6 +277,31 @@ async function packInstallUrl(url) {
     if (len > PACK_MAX) throw new Error('it is larger than ' + (PACK_MAX >> 20) + ' MB');
     return await packInstallText(await r.text(), u.host);
   } catch (err) { toast('Could not fetch that pack: ' + err.message + ' (its site may not let other pages read it).', true); return false; }
+}
+/* Installed packs looked at again, at most once a day (and not offline, nor in the tests): a revoked
+   module is turned off, a revoked parts pack labelled, and the person told either way */
+const PACK_CHECKED = 'jek-packs-checked', DAY_MS = 864e5;
+export async function packsRecheck(force) {
+  if (TEST_MODE || EMBED) return;
+  let last = 0;
+  try { last = +localStorage.getItem(PACK_CHECKED) || 0; } catch (err) { /* checked now */ }
+  if (!force && Date.now() - last < DAY_MS) return;
+  const signed = PACKS.list.filter(p => p.trust && p.trust.state === 'verified' && p.trust.hash).slice(0, 100);
+  if (!signed.length) return;
+  const S = await packStatus(signed.map(p => p.trust.hash), []);
+  if (!S) return;                                   // offline, or the API down: another time
+  try { localStorage.setItem(PACK_CHECKED, String(Date.now())); } catch (err) { /* asked again next load */ }
+  for (const p of signed) {
+    const P = S.packs && S.packs[p.trust.hash], rv = P && P.revoked || null;
+    const was = !!p.trust.revoked;
+    p.trust = Object.assign({}, p.trust, { revoked: rv, checked: Date.now() });
+    if (was === !!rv) continue;
+    await packPut(p);
+    if (!rv) continue;
+    track('mod', 'revoked');
+    toast(p.code ? 'The module ' + p.name + ' has been revoked by JEK Systems (' + (rv.reason || 'no reason given') + '): it is turned off, and its parts on your benches stand in.'
+      : 'The part pack ' + p.name + ' has been revoked by JEK Systems (' + (rv.reason || 'no reason given') + '). Parts from it already on your benches are unchanged.', true);
+  }
 }
 /* ---------- making one: each selected part (or group of them) one part of the pack ---------- */
 export function packFromSelection(meta) {
@@ -230,8 +328,10 @@ function packDialogFill() {
   if (!PACKS.list.length) { list.append(h('p', { class: 'rt-hint' }, 'None installed yet.')); return; }
   for (const pk of PACKS.list) {
     const rm = h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => { if (!confirm('Remove ' + pk.name + '? Parts already on your benches stay as they are.')) return; await packRemove(pk.id); toast('Removed ' + pk.name); } }, 'Remove');
-    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (pk.author ? ', by ' + pk.author : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (exp('mods') ? '' : ': modules are off, so its parts stand in') }, 'Mod') : null,
-      h('div', { class: 'rt-hint' }, pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : ''))), rm));
+    const L = packTrustLabel(pk.trust, pk.author), off = pk.code && pk.trust && pk.trust.revoked;
+    list.append(h('div', { class: 'rt-packrow' }, h('div', null, h('b', null, pk.name), ' ', h('small', null, 'v' + pk.packVersion + (L.by ? ', ' + L.by.replace(/^(By|Made by)/, 'by') : '')), pk.code ? h('span', { class: 'rt-exp', title: 'It has code, run in a sandbox' + (off ? ': revoked, so it is turned off' : exp('mods') ? '' : ': modules are off, so its parts stand in') }, 'Mod') : null, packChip(pk),
+      h('div', { class: 'rt-hint' }, L.cls !== 'ok' && L.text !== L.short ? L.text + '. ' : '', off ? 'Turned off. ' : '', pk.parts.length + ' part' + (pk.parts.length === 1 ? '' : 's') + (pk.glasses.length ? ', ' + pk.glasses.length + ' glass' + (pk.glasses.length === 1 ? '' : 'es') : '') + (pk.description ? ': ' + pk.description.slice(0, 140) : '')),
+      L.cls !== 'ok' ? h('div', null, packReportLink(pk)) : null), rm));
   }
 }
 /* the menus: File (by the bench's name), View, Sweeps and Help */
@@ -277,18 +377,106 @@ export function menuIcons(root) {
   }
 }
 
-/* a part pack made from the selection, saved as a file (a free account's, as the exports are) */
+/* ---------- making and signing ----------
+   A pack made from the selection, or a .jekpack file (a module written by hand, or a pack edited after it was
+   made), signed by the API as the account (or a verified team it runs) and saved as a file. Without signing
+   (the service out of reach, or not set up yet) a parts pack may be saved unsigned; a module may not. */
+export const packSlug = v => String(v || '').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-._]+|[-._]+$/g, '').slice(0, 30);
+export const packIdFor = (who, name) => ((packSlug(who) ? packSlug(who) + '.' : '') + (packSlug(name) || 'parts')).slice(0, 64).replace(/[-._]+$/, '');
+function packSave(pack) {
+  if (!accountGate('make a part pack')) return;
+  downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
+}
+// what the API said, as the person should read it
+const PACK_SIGN_WHY = {
+  id_taken: 'That id belongs to another maker’s pack: choose another (yours, as “yourname.parts”).',
+  id_reserved: 'Ids starting “jek.” are JEKray’s own: choose another.',
+  signing_off: 'Signing is not set up on the server yet.',
+  signed_out: 'Sign in again (top right) to sign it: your session has ended.',
+};
+function packSignDialog(o) {
+  const me = account && account.user ? account.user.name : '', file = o.raw || null;
+  const nameIn = h('input', { type: 'text', maxlength: '60', value: file ? file.name || '' : project.name ? project.name + ' parts' : 'My parts pack' });
+  const idIn = h('input', { type: 'text', maxlength: '64', spellcheck: 'false', value: file ? file.id || '' : packIdFor(me, nameIn.value) });
+  const verIn = h('input', { type: 'text', maxlength: '20', value: file ? String(file.packVersion || '1') : '1' });
+  let idEdited = !!file;
+  nameIn.addEventListener('input', () => { if (!idEdited) idIn.value = packIdFor(me, nameIn.value); });
+  idIn.addEventListener('input', () => { idEdited = true; });
+  const asSel = h('select', { hidden: true }), asLine = h('span', null, me || 'your account');
+  const msg = h('p', { class: 'note warn', hidden: true }), unsignedBtn = h('button', { type: 'button', class: 'rt-btn', hidden: true }, 'Save it unsigned');
+  const go = h('button', { type: 'button', class: 'rt-btn primary' }, file ? 'Sign and save' : 'Make and sign');
+  const dlg = h('dialog', { class: 'rt-dialog rt-packsign' });
+  const close = () => { dlg.close(); dlg.remove(); };
+  const isModule = !!(file && file.code !== undefined);
+  const row = (label, input, hint) => h('label', { class: 'rt-field' }, h('span', null, label), input, hint ? h('small', { class: 'rt-hint' }, hint) : null);
+  dlg.append(h('h2', null, file ? 'Sign ' + (file.name || 'a pack') : 'Make a part pack'),
+    h('p', null, file ? 'Signed with your account, so whoever installs it sees who made it, and that it has not been changed since.' + (isModule ? ' A module must be signed to be installed.' : '')
+      : 'Each selected part, or group of parts, becomes one part of the pack. It is signed with your account, so whoever installs it sees who made it, and that it has not been changed since.'),
+    row('Name', nameIn), row('Id', idIn, 'Yours once signed: later versions keep it, and only you can sign them.'), row('Version', verIn),
+    h('div', { class: 'rt-field' }, h('span', null, 'Signed as'), asLine, asSel),
+    msg, h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn', onclick: close }, 'Cancel'), unsignedBtn, go));
+  dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
+  document.body.append(dlg); dlg.showModal();
+  const say = (text, unsigned) => { msg.textContent = text; msg.hidden = !text; unsignedBtn.hidden = !unsigned || isModule; };
+  // who it may be signed as: the account, and each verified team it runs
+  let signers = [];
+  api('/v1/packs/signers').then(r => {
+    signers = r.signers || [];
+    if (signers.length > 1) { asSel.replaceChildren(...signers.map((S, i) => h('option', { value: String(i) }, S.kind === 'org' ? S.name + ' (' + S.domain + ')' : S.name + ' (you)'))); asSel.hidden = false; asLine.hidden = true; }
+    else if (signers[0]) asLine.textContent = signers[0].name;
+    if (!r.signing) go.disabled = true;
+    if (!r.signing) say(PACK_SIGN_WHY.signing_off + (isModule ? ' A module cannot be saved unsigned: try again later.' : ' You can save it unsigned for now: it installs labelled Unverified.'), true);
+  }).catch(err => say(err.status === 401 ? PACK_SIGN_WHY.signed_out : 'JEKray could not reach its service to sign it' + (isModule ? '. A module cannot be saved unsigned: try again later.' : ': you can save it unsigned, and it installs labelled Unverified.'), true));
+  const signer = () => signers[asSel.hidden ? 0 : +asSel.value] || null;
+  const build = () => {
+    const S = signer(), id = idIn.value.trim().toLowerCase(), meta = { id, name: nameIn.value.trim().slice(0, 60) || id, author: S ? S.name : me, packVersion: verIn.value.trim() || '1' };
+    let pack;
+    if (file) { pack = JSON.parse(JSON.stringify(file)); delete pack.sig; Object.assign(pack, meta); }
+    else pack = packFromSelection(meta);
+    normPack(JSON.parse(JSON.stringify(pack)));    // throws with why it would not install
+    return pack;
+  };
+  const saved = (pack, signed) => {
+    packSave(pack); close();
+    track('mod', (file ? 'sign.' : 'make.') + (signed ? 'signed' : 'unsigned'));
+    toast((signed ? 'Signed and saved ' : 'Saved, unsigned, ') + pack.id + '.jekpack' + (file ? '' : ' (' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ')') + ': share the file, or put it online and share its link');
+  };
+  go.addEventListener('click', async () => {
+    let pack;
+    try { pack = build(); } catch (err) { say('It cannot be made: ' + err.message + '.'); return; }
+    const S = signer();
+    go.disabled = true; say('');
+    try {
+      const r = await api('/v1/packs/sign', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(Object.assign({ pack }, S && S.kind === 'org' ? { as: S.id } : {})) });
+      pack.sig = r.sig;
+      saved(pack, true);
+    } catch (err) {
+      go.disabled = false;
+      const known = PACK_SIGN_WHY[err.code];
+      if (err.code && err.code !== 'signing_off' && err.status && err.status < 500) say(known || err.message);
+      else say((known || 'JEKray could not reach its service to sign it.') + (isModule ? ' A module cannot be saved unsigned: try again later.' : ' You can save it unsigned: it installs labelled Unverified.'), true);
+    }
+  });
+  unsignedBtn.addEventListener('click', () => {
+    let pack;
+    try { pack = build(); } catch (err) { say('It cannot be made: ' + err.message + '.'); return; }
+    if (pack.code !== undefined) return;
+    saved(pack, false);
+  });
+}
+/* a part pack made from the selection, signed, and saved as a file (a free account's, as the exports are) */
 export function makePack() {
   if (!accountGate('make a part pack')) return;
-  const sel = selection();
-  if (!sel.length) { toast('Select the parts to put in the pack first (each part, or each group, becomes one part of it)', true); return; }
-  const name = prompt('A name for the pack', project.name ? project.name + ' parts' : 'My parts pack'); if (name === null) return;
-  const author = prompt('Who made it (shown to those who install it)', '') ; if (author === null) return;
-  const id = (author ? author + '.' : '') + name;
-  const pack = packFromSelection({ id: id.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'pack', name: name.trim().slice(0, 60), author: author.trim().slice(0, 80), packVersion: '1' });
-  try { normPack(pack); } catch (err) { toast('Could not make the pack: ' + err.message, true); return; }
-  downloadFile(pack.id + '.jekpack', new Blob([JSON.stringify(pack, null, 1)], { type: 'application/json' }));
-  toast('Saved ' + pack.parts.length + ' part' + (pack.parts.length === 1 ? '' : 's') + ' as ' + pack.id + '.jekpack: share the file, or put it online and share its link');
+  if (!selection().length) { toast('Select the parts to put in the pack first (each part, or each group, becomes one part of it)', true); return; }
+  packSignDialog({});
+}
+/* a .jekpack file signed: a module written by hand, or a pack edited after it was made */
+export async function packSignFile(f) {
+  if (!accountGate('make a part pack')) return;
+  let raw;
+  try { raw = JSON.parse(await f.text()); normPack(JSON.parse(JSON.stringify(raw))); }
+  catch (err) { toast('Could not sign that pack: ' + (err instanceof SyntaxError ? 'it is not JSON' : err.message) + '.', true); return; }
+  packSignDialog({ raw });
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
@@ -297,21 +485,25 @@ export function wirePacks() {
     const dlg = h('dialog', { class: 'rt-dialog', id: 'packDialog' });
     const fi = h('input', { type: 'file', accept: '.jekpack,.json,application/json', hidden: true });
     fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) await packInstallText(await f.text(), f.name); });
+    const sfi = h('input', { type: 'file', accept: '.jekpack,.json,application/json', hidden: true });
+    sfi.addEventListener('change', async () => { const f = sfi.files[0]; sfi.value = ''; if (f) await packSignFile(f); });
     dlg.append(h('h2', null, 'Part packs and modules'),
       h('p', null, 'Sets of parts and glasses made by others: a maker’s catalogue, a course’s kit. They hold data; a module is a pack that carries code as well (an experimental feature), run in a sandbox. Both are kept in this browser. Their parts appear under + Add part › Packs; once on a bench, a part needs nothing from its pack.'),
+      h('p', { class: 'rt-hint' }, 'A pack made here is signed with its maker’s account: ✓ Verified shows who made it and that it is unchanged. A module installs only when verified.'),
       h('div', { id: 'packList', class: 'rt-packlist' }),
       h('div', { class: 'rt-actions', style: 'flex-wrap:wrap' },
         h('button', { type: 'button', class: 'rt-btn', onclick: () => fi.click() }, 'Install a pack/module from a file…'),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => { const u = prompt('The link to a part pack or module (https://…)'); if (u) packInstallUrl(u.trim()); } }, 'Install a pack/module from a link…'),
-        h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, saved as a file', onclick: makePack, 'data-need': 'account', 'data-what': 'make a part pack' }, 'Make a pack from the selection…'),
+        h('button', { type: 'button', class: 'rt-btn', title: 'Each selected part, or group of parts, becomes one part of a new pack, signed and saved as a file', onclick: makePack, 'data-need': 'account', 'data-what': 'make a part pack' }, 'Make a pack from the selection…'),
+        h('button', { type: 'button', class: 'rt-btn', title: 'A .jekpack file signed with your account: a module you wrote, or a pack you edited after making it', onclick: () => { if (accountGate('make a part pack')) sfi.click(); }, 'data-need': 'account', 'data-what': 'make a part pack' }, 'Sign a pack file…'),
         h('a', { class: 'rt-link', href: '/jek/docs/jekray/part-packs/', target: '_blank', rel: 'noopener' }, 'How to make one'),
-        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi);
+        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Close')), fi, sfi);
     document.body.append(dlg);
     document.getElementById('btnPacks').addEventListener('click', () => { packDialogFill(); dlg.showModal(); });
     // a link with ?pack=...: offered, never installed without asking
     const q = new URLSearchParams(location.search).get('pack');
     if (q && !TEST_MODE && !EMBED) setTimeout(() => packInstallUrl(q), 800);
-    if (!TEST_MODE) packsLoad(); else PACKS.ready = true;
+    if (!TEST_MODE) { packsLoad(); setInterval(() => packsRecheck(), 3600e3); } else PACKS.ready = true;   // a tab left open: still once a day
   }
 
   // the phone's ⋯ menu, as the bar it stands for is: undo and redo as they can be, the cart's count, the account

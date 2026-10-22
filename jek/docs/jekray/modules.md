@@ -23,11 +23,15 @@ What a module is given is only the settings of its own parts and what it is aske
 
 ## Installing a module
 
-A module is a `.jekpack` file, installed as any [part pack](/jek/docs/jekray/part-packs/) is, from **File › Part packs and modules…**, a link, or by dropping it on the bench. Before it is installed, you see what it defines, its size and where it came from. To list what it defines, its code is run once in the sandbox. Its parts then appear under **+ Add part › Packs**, and its readouts as a **Modules** tab on screens and a section on detectors.
+A module is a `.jekpack` file, installed as any [part pack](/jek/docs/jekray/part-packs/) is, from **File › Part packs and modules…**, a link, or by dropping it on the bench.
+
+A module installs only when it is **verified**: signed with its maker's JEKray account (or a verified organisation's) and unchanged since, and not revoked. An unsigned module, or one changed after it was signed, is refused, from a file, a link or a bench, before any of its code runs. JEKray also checks that it has not been revoked, so a module installs only when you are online. A module installed before signing began keeps working, labelled **Unverified**; one that is revoked is turned off. See [Verified, Unverified and Revoked](/jek/docs/jekray/part-packs/#verified-unverified-and-revoked).
+
+Before it is installed, you see who made it, what it defines, its size and where it came from. To list what it defines, its code is run once in the sandbox. Its parts then appear under **+ Add part › Packs**, and its readouts as a **Modules** tab on screens and a section on detectors.
 
 ### Benches carry their modules
 
-A bench with a module's parts saves the module's code with it, so a file, a share link or a QR code opens complete. Opening such a bench never installs or runs its modules: you are offered each one not installed here, with the same prompt. Until you install it, its parts stand in. A plate passes no light, and a component, block or readout gives nothing, and each panel says why.
+A bench with a module's parts saves the module's code with it, as its maker signed it, so a file, a share link or a QR code opens complete. Opening such a bench never installs or runs its modules: you are offered each one not installed here, with the same prompt and the same checks (a module the bench carries unsigned is refused). Until you install it, its parts stand in. A plate passes no light, and a component, block or readout gives nothing, and each panel says why.
 
 ## Writing a module
 
@@ -46,6 +50,8 @@ A module is a version 2 part pack with a `code` entry:
   "code": "jek.element('lens', { ... });"
 }
 ```
+
+Then sign it: **File › Part packs and modules… › Sign a pack file…** (with a free account). Signing sets its `author` to your account's name, claims its `id` for you, and adds its `sig`. Sign it again after every change: an edited module will not install until it is.
 
 The code is a script of at most 512 KB. It defines its parts by calling `jek.element`, `jek.plate`, `jek.component`, `jek.block` and `jek.readout`, each with a key (letters, digits, dashes and underscores) and a definition. Every definition can have:
 

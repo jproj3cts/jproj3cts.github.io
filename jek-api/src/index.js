@@ -13,6 +13,7 @@ import { exportAll } from './export.js';
 import * as I from './institutions.js';
 import * as P from './parts.js';
 import * as L from './links.js';
+import * as K from './packs.js';
 import * as T from './teams.js';
 import * as U from './usage.js';
 import { remind } from './remind.js';
@@ -125,6 +126,12 @@ const router = new Router()
     return json({ ok: true });
   })
   .on('GET', '/v1/me/links', async (req, env, ctx) => json(await L.list(env, await requireUser(req, env, ctx))))
+  // signed part packs (src/packs.js): signed with an account, checked by anyone
+  .on('POST', '/v1/packs/sign', async (req, env, ctx) => json(await K.sign(req, env, await requireUser(req, env, ctx))), { maxBody: K.SIGN_BODY_MAX })
+  .on('GET', '/v1/packs/signers', async (req, env, ctx) => json(await K.signers(env, await requireUser(req, env, ctx))))
+  .on('GET', '/v1/packs/status', async (req, env) => json(await K.status(req, env), 200, { 'Cache-Control': 'public, max-age=300' }))
+  .on('GET', '/v1/packs/key', async (req, env) => json(await K.publicKey(env), 200, { 'Cache-Control': 'public, max-age=3600' }))
+  .on('POST', '/v1/packs/verify', async (req, env) => json(await K.verify(req, env)))
   // folders
   .on('GET', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) => json(await B.folders(env, await requireUser(req, env, ctx), w)))
   .on('POST', '/v1/workspaces/:w/folders', async (req, env, ctx, { w }) =>
@@ -198,6 +205,13 @@ const router = new Router()
   .on('POST', '/ops/institutions/:id/remove', async (req, env, ctx, { id }) => json(await I.opsRemove(req, env, id)), { anyOrigin: true })
   .on('POST', '/ops/institutions/:id/tier', async (req, env, ctx, { id }) => json(await I.opsTier(req, env, id)), { anyOrigin: true })
   .on('POST', '/ops/institutions/:id/invoice', async (req, env, ctx, { id }) => json(await I.opsInvoice(req, env, id)), { anyOrigin: true })
+  .on('GET', '/ops/packs', async (req, env) => json(await K.opsList(req, env)), { anyOrigin: true })
+  .on('POST', '/ops/packs/revoke', async (req, env) => json(await K.opsRevoke(req, env)), { anyOrigin: true })
+  .on('POST', '/ops/packs/unrevoke', async (req, env) => json(await K.opsRevoke(req, env, true)), { anyOrigin: true })
+  .on('POST', '/ops/packs/reserve', async (req, env) => json(await K.opsReserve(req, env)), { anyOrigin: true })
+  .on('POST', '/ops/packs/org', async (req, env) => json(await K.opsOrg(req, env)), { anyOrigin: true })
+  .on('POST', '/ops/packs/release', async (req, env) => json(await K.opsRelease(req, env)), { anyOrigin: true })
+  .on('POST', '/ops/packs/sign', async (req, env) => json(await K.opsSign(req, env)), { anyOrigin: true, maxBody: K.SIGN_BODY_MAX })
   .on('GET', '/ops/usage', async (req, env) => json(await U.report(req, env)), { anyOrigin: true })
   // Stripe proves itself by signature, not by Origin.
   .on('POST', '/stripe/webhook', async (req, env) => json(await webhook(req, env)), { anyOrigin: true })
@@ -238,9 +252,9 @@ export default {
       if (await overLimit(req, env, url.pathname)) {
         throw new ApiError(429, 'slow_down', 'Too many requests just now. Please wait a minute and try again.', { retry_after: 60 });
       }
-      // every body is read here, at most MAX_BODY bytes, whatever the request says its length is
+      // every body is read here, at most MAX_BODY bytes (a pack to sign: 8 MB), whatever the request says its length is
       if (req.body && req.method !== 'GET' && req.method !== 'HEAD') {
-        const bytes = await readCapped(req, MAX_BODY);
+        const bytes = await readCapped(req, hit.route.opts.maxBody || MAX_BODY);
         if (!bytes) throw new ApiError(413, 'too_large', 'That request is too large.');
         req = new Request(req, { body: bytes });
       }

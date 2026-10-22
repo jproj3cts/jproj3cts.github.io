@@ -6,6 +6,7 @@ import { newId, now } from '../src/util.js';
 const TABLES = [
   'users', 'identities', 'sessions', 'workspaces', 'members', 'invitations', 'subscriptions',
   'folders', 'benches', 'bench_versions', 'institution_domains', 'jobs', 'audit', 'share_links',
+  'pack_ids', 'pack_sigs', 'pack_flags', 'pack_orgs',
 ];
 
 describe('schema', () => {

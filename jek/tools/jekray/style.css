@@ -712,6 +712,19 @@
   .rt-packlist { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-height: 45vh; overflow-y: auto; }
   .rt-packrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; }
   .rt-packrow small, .rt-pby { color: var(--jek-ink-soft); font-weight: 400; }
+  /* a pack's standing: Verified (who signed it), Unverified, Revoked */
+  .rt-trust { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px solid currentColor; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; vertical-align: 0.1em; white-space: nowrap; }
+  .rt-trust.ok { color: #17703a; background: #eaf6ee; }
+  .rt-trust.warn { color: #8a4b0f; background: #fdf3e7; }
+  .rt-trust.bad { color: var(--jek-red); background: #fdecec; }
+  p.rt-trustline { display: block; margin: 0 0 0.5rem; padding: 0.45rem 0.6rem; font-size: 0.9rem; letter-spacing: 0; white-space: normal; border-width: 0 0 0 3px; }
+  .rt-packsign .rt-field { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin: 0 0 0.55rem; font-size: 0.85rem; }
+  .rt-packsign .rt-field > span:first-child { flex: 0 0 5.5rem; font-weight: 600; }
+  .rt-packsign .rt-field input, .rt-packsign .rt-field select { flex: 1 1 12rem; min-width: 0; padding: 0.35rem 0.5rem; font: inherit; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink); }
+  .rt-packsign .rt-field small { flex-basis: 100%; padding-left: 6.1rem; }
+  @media (max-width: 520px) { .rt-packsign .rt-field small { padding-left: 0; } }
+  .rt-packconfirm .rt-actions .rt-link, .rt-packrow .rt-link { margin-right: auto; font-size: 0.8rem; }
+  .rt-packconfirm .note.warn, .rt-packsign .note.warn { color: #8a4b0f; font-size: 0.85rem; }
   .rt-news-all summary { cursor: pointer; font-weight: 600; color: var(--jek-cyan-dark); margin-bottom: 0.3rem; }
   .rt-news li { margin-bottom: 0.2rem; }
   .rt-subhead { margin: 0.6rem 0 0.3rem; font-size: 0.85rem; }

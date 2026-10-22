@@ -16,7 +16,7 @@ The simulator is free under the [JEKray Licence](/jek/tools/jekray-licence.html)
 
 ### What does a free account give?
 
-Exporting images and data: **File › Export layout** (PNG, SVG or PDF), the 3D view's **PNG**, every plot's **PNG** and **CSV**, a screen's **Export data (CSV)**, **File › Export an element (.zmx)** and an assembly's CAD files (.step, .stl). Making a part pack from your parts. The experimental features under **Help › Experimental features…**. And a place in a team workspace when someone invites you (a seat paid for by the team gives you JEKrayPro). If your university has a JEKray licence, signing in with your university email gives you JEKrayPro at no cost; if it has none, a university email gets you the academic price. Saving to the cloud, short share links and My parts need JEKrayPro. The first time you sign in, with Google, Microsoft or a code emailed to your address, makes the account; the account menu, top right (**⋯** on a phone), has the ways in. Without an account your benches stay in this browser alone: save a .jekray file to keep one safe (that needs no account). In the menus and panels, a **Free account** badge marks what needs one and a **Pro** badge what needs JEKrayPro, each shown only until you have it.
+Exporting images and data: **File › Export layout** (PNG, SVG or PDF), the 3D view's **PNG**, every plot's **PNG** and **CSV**, a screen's **Export data (CSV)**, **File › Export an element (.zmx)** and an assembly's CAD files (.step, .stl). Making (and signing) a part pack from your parts. The experimental features under **Help › Experimental features…**. And a place in a team workspace when someone invites you (a seat paid for by the team gives you JEKrayPro). If your university has a JEKray licence, signing in with your university email gives you JEKrayPro at no cost; if it has none, a university email gets you the academic price. Saving to the cloud, short share links and My parts need JEKrayPro. The first time you sign in, with Google, Microsoft or a code emailed to your address, makes the account; the account menu, top right (**⋯** on a phone), has the ways in. Without an account your benches stay in this browser alone: save a .jekray file to keep one safe (that needs no account). In the menus and panels, a **Free account** badge marks what needs one and a **Pro** badge what needs JEKrayPro, each shown only until you have it.
 
 ### Does my bench leave my computer?
 
@@ -65,6 +65,10 @@ A source can launch a *ray fan*, many rays across its width, and a *Gaussian bea
 ### How do I model a part from a catalogue?
 
 Type in its prescription: radii, thicknesses, glass and diameter for a lens. Or import a lens file: **File › Import an element (.zmx)…** reads the files lens makers publish. **File › Export an element (.zmx)** goes the other way, writing the selected lenses as a prescription that lens-design programs open (see [Lens](/jek/docs/jekray/free-space/lens/#exporting-a-lens)). With JEKrayPro you can keep parts in **My parts** to use on any bench.
+
+### Is a part pack safe to install?
+
+A [part pack](/jek/docs/jekray/part-packs/) holds parts and data only, nothing that runs. One made in JEKray is signed with its maker's account: **✓ Verified** shows who made it and that it has not been changed since; **Unverified** means JEKray cannot say who made it. A [module](/jek/docs/jekray/modules/) carries code, run in a sandbox apart from the page, and installs only when it is verified. JEK Systems can revoke a pack that turns out to be harmful; report one with **Report this pack** or at [support@jeksys.net](mailto:support@jeksys.net).
 
 ### Can an AI assistant build a bench for me?
 

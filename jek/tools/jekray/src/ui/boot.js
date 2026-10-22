@@ -83,7 +83,8 @@ import { stepElements, stepImportBytes, wireStep } from '../io/step.js';
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
-import { normPack, packFromSelection, packPut, packRemove, placePackPart, wirePacks } from '../io/packs.js';
+import { normPack, packAssess, packFromSelection, packPut, packRemove, packTrustOf, placePackPart, wirePacks } from '../io/packs.js';
+import { packTrustLabel } from '../core/packsig.js';
 import { account, accountLoaded, accountsOn, proLink, returnNudge, wireAccount } from '../io/account.js';
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
@@ -163,7 +164,17 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
         axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },
-    async packInstall(raw) { const { pack, notes } = normPack(JSON.parse(JSON.stringify(raw))); if (pack.code) await modPrepare(pack, notes); await packPut(pack); return pack.id; },
+    // (a script on the page installs only what the dialog would: a module verified; the tests take any)
+    async packInstall(raw) {
+      const { pack, notes } = normPack(JSON.parse(JSON.stringify(raw)));
+      const d = await packAssess(raw, pack);
+      if (!TEST_MODE && !d.ok) throw new Error(d.why);
+      pack.trust = d.trust; if (raw.sig) pack.sig = raw.sig; if (pack.code) pack.signed = JSON.parse(JSON.stringify(raw));
+      if (pack.code) await modPrepare(pack, notes); await packPut(pack); return pack.id;
+    },
+    // what installing would make of it: { ok, code, why, notes, update, trust, label } (in the tests, the API not asked)
+    async packAssess(raw) { const { pack } = normPack(JSON.parse(JSON.stringify(raw))); const d = await packAssess(raw, pack); return Object.assign({}, d, { label: packTrustLabel(d.trust, pack.author).text }); },
+    packTrust: id => { const p = PACKS.list.find(q => q.id === id); return p ? packTrustOf(p) : null; },
     packs: () => PACKS.list.map(p => ({ id: p.id, name: p.name, parts: p.parts.map(P => P.name), glasses: p.glasses.map(g => g.glass) })),
     packPlace(id, i) { placePackPart(PACKS.list.find(p => p.id === id), i); return selection().map(e => e.name); },
     packRemove: id => packRemove(id),

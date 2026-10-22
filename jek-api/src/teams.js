@@ -164,6 +164,7 @@ export async function remove(env, user, id) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM benches WHERE workspace_id = ?').bind(id),
     env.DB.prepare('DELETE FROM folders WHERE workspace_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM pack_orgs WHERE workspace_id = ?').bind(id),   // its packs' ids stay claimed by it
     env.DB.prepare('DELETE FROM workspaces WHERE id = ?').bind(id),
   ]);
   return { ok: true };

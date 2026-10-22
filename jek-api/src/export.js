@@ -1,7 +1,8 @@
 // GET /v1/me/export: everything we hold about the person, as a zip — their
 // account as JSON, the current version of every bench in every workspace
 // they belong to, in its folders, their saved parts, and the benches in their
-// share links (with a list of the links). Works with or without a plan.
+// share links (with a list of the links), and the part packs they signed.
+// Works with or without a plan.
 
 import { me } from './users.js';
 import { zip } from './zip.js';
@@ -82,6 +83,11 @@ export async function exportAll(env, user) {
   )
     .bind(user.id)
     .all();
+  // part packs signed with the account (only their record is kept: id, hash, version, when)
+  const { results: packs } = await env.DB.prepare(
+    "SELECT id, pack_version, kind, hash, signer_name, signed_at, revoked_at, reason FROM pack_sigs WHERE (signer_kind = 'person' AND signer_id = ?) OR asked_by = ? ORDER BY signed_at",
+  ).bind(user.id, user.id).all();
+  if (packs.length) files.push({ name: 'Part packs signed.json', data: JSON.stringify(packs, null, 2) });
   files.unshift({ name: 'account.json', data: JSON.stringify({ ...account, sessions, exported_at: new Date().toISOString() }, null, 2) });
   return zip(files);
 }

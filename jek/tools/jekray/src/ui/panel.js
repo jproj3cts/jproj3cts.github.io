@@ -497,6 +497,8 @@ function renderInto(box, el) {
   refs = [];
   try { renderPanelBody(el); } finally { box._refs = refs; panel = saved; refs = []; }
 }
+/* a part's panel made in a box of the caller's, apart from the page's own (File › Export data reads the plots drawn in it) */
+export function panelInto(box, el) { renderInto(box, el); }
 /* ---------- A panel's sections ----------
    Each heading and what follows it is a section that folds away, remembered for the kind of
    part (About, the long explanations gathered at the foot, starts folded). Readouts set among a

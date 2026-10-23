@@ -37,7 +37,7 @@ test('an export needs an account only from someone signed out for sure: not whil
 /* ---- the gates, read from the modules' syntax trees rather than their text ---- */
 const ASTS = new Map();
 const astOf = p => { if (!ASTS.has(p)) ASTS.set(p, acorn.parse(readSrc(p), { ecmaVersion: 2024, sourceType: 'module' })); return ASTS.get(p); };
-const GATES = ['designPro', 'designWhy'], ACCT = ['accountGate'];
+const GATES = ['designPro', 'designWhy'], ACCT = ['accountGate'], SCRIPTS = ['scriptsWhy'];
 /* a call of a gate (JEKrayPro's designPro / designWhy, or names given: the account's accountGate), with the reason given if one is asked for */
 const isGate = (n, reason, names = GATES) => n && n.type === 'CallExpression' && n.callee.type === 'Identifier' && names.includes(n.callee.name)
   && (reason === undefined || (n.arguments[0] && n.arguments[0].type === 'Literal' && n.arguments[0].value === reason));
@@ -199,7 +199,8 @@ test('experimental features need only a signed-in account, not a plan', () => {
 const EXPORTS = [['io/layout.js', 'exportLayout', 'export the layout'], ['io/layout.js', 'exportScreen', 'export a screen\u2019s data'],
   ['io/cad-export.js', 'exportCad', 'export for CAD'], ['io/zmx-export.js', 'exportZmx', 'export an element'],
   ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view'], ['io/packs.js', 'makePack', 'make a part pack'],
-  ['io/packs.js', 'packSave', 'make a part pack'], ['io/packs.js', 'packSignFile', 'make a part pack']];
+  ['io/packs.js', 'packSave', 'make a part pack'], ['io/packs.js', 'packSignFile', 'make a part pack'],
+  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data']];
 // downloads that are not exports of images or data: the bench's .jekray file, and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
 // the designers' reports, whose every call is behind designPro (checked above)
 const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
@@ -233,9 +234,61 @@ test('every download in the tool is an export behind a gate, or one of the few t
       if (!dl || (file === 'ui/actions.js' && anc.some(a => a.type === 'FunctionDeclaration' && a.id.name === 'downloadFile'))) return;
       n++;
       const fns = anc.map((a, i) => /Function/.test(a.type) ? { fn: a, name: named(a, anc[i - 1]) } : null).filter(Boolean);
-      const gated = fns.some(({ fn }) => fn.body.type === 'BlockStatement' && (gateIn(fn.body.body, undefined, ACCT) || gateIn(fn.body.body, undefined, GATES)));
+      const gated = fns.some(({ fn }) => fn.body.type === 'BlockStatement' && (gateIn(fn.body.body, undefined, ACCT) || gateIn(fn.body.body, undefined, GATES) || gateIn(fn.body.body, undefined, SCRIPTS)));
       assert.ok(gated || fns.some(f => NOT_EXPORTS.has(file + ' ' + f.name)), file + ': a download in ' + (fns.map(f => f.name).reverse().join(' < ') || 'the module') + ' is behind no gate');
     });
   }
   assert.ok(n >= 12, 'the downloads are found (' + n + ')');
+});
+
+test('data export: CSV and JSON with a free account; Excel, NumPy, MATLAB, several kinds at once and everything at once with JEKrayPro', () => {
+  const read = p => readSrc(p), de = read('io/data-export.js');
+  // which formats are JEKrayPro's: the three, and not CSV or JSON
+  const m = /export const DATA_PRO = new Set\(\[([^\]]*)\]\)/.exec(de);
+  assert.ok(m, 'DATA_PRO is declared');
+  assert.deepEqual(m[1].split(',').map(t => t.trim().replace(/'/g, '')).sort(), ['mat', 'npz', 'xlsx']);
+  // exportData: the account first (the sign-in prompt), then JEKrayPro for a Pro format, then for several kinds, before anything is done
+  const body = fnOf('io/data-export.js', 'exportData').body.body;
+  assert.ok(isGate(body[0].test.argument, 'export data', ACCT), 'exportData asks for an account first');
+  const proIf = (s, what, testName) => s.type === 'IfStatement' && !s.alternate && has(s.test, n => n.type === 'Identifier' && n.name === testName || n.type === 'MemberExpression' && n.object.name === testName)
+    && s.consequent.type === 'BlockStatement' && s.consequent.body[0].type === 'IfStatement' && exits(s.consequent.body[0].consequent) && isGate(s.consequent.body[0].test.argument, undefined, GATES)
+    && has(s.consequent.body[0].test, n => n.type === 'Identifier' && n.name === what);
+  assert.ok(proIf(body[1], 'PRO_FMT_WHAT', 'DATA_PRO'), 'exportData asks for JEKrayPro for Excel, NumPy and MATLAB, before anything is done');
+  assert.ok(proIf(body[2], 'PRO_MANY_WHAT', 'kinds'), 'exportData asks for JEKrayPro for several kinds at once');
+  const all = fnOf('io/data-export.js', 'exportEverything').body.body;
+  assert.ok(isGate(all[0].test.argument, 'export data', ACCT) && all[1].type === 'IfStatement' && exits(all[1].consequent) && has(all[1].test, n => isGate(n, undefined, GATES) && n.arguments[0].name === 'PRO_ALL_WHAT'), 'exportEverything asks for an account, then JEKrayPro');
+  // the reasons, as the badges show them
+  for (const [k, v] of [['PRO_FMT_WHAT', 'export data as Excel, NumPy or MATLAB files'], ['PRO_MANY_WHAT', 'export several kinds of data at once'], ['PRO_ALL_WHAT', 'export everything at once']])
+    assert.ok(de.includes(k + " = '" + v + "'"), k);
+  // the menu's item and the dialog's badges: Free account on the item and on CSV and JSON, Pro on the rest and on Export everything
+  const page = readFileSync(new URL('../../page.html', import.meta.url), 'utf8');
+  assert.match(page, /id="btnExportData"[^>]*data-need="account" data-what="export data"/);
+  const wire = fnOf('io/data-export.js', 'wireDataExport');
+  assert.ok(has(wire, n => n.type === 'CallExpression' && n.callee.name === 'needMark' && n.arguments[1].value === 'pro' && n.arguments[2].name === 'PRO_FMT_WHAT'), 'the Pro formats carry the Pro badge');
+  assert.ok(has(wire, n => n.type === 'CallExpression' && n.callee.name === 'needMark' && n.arguments[1].value === 'pro' && n.arguments[2].name === 'PRO_ALL_WHAT'), 'Export everything carries the Pro badge');
+  assert.ok(has(wire, n => n.type === 'CallExpression' && n.callee.name === 'needMark' && n.arguments[1].value === 'account' && n.arguments[2].value === 'export data'), 'CSV and JSON carry the Free account badge');
+  // the dialog exports only through the two gated functions
+  const calls = [];
+  walk.full(wire, n => { if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && /^export|downloadFile|dataFile/.test(n.callee.name)) calls.push(n.callee.name); });
+  assert.deepEqual(calls.sort(), ['exportData', 'exportEverything']);
+});
+
+test('a script’s save() files and its Save as… are made on the page behind the scripts’ own gate, and only when a run ends, never when it is stopped', () => {
+  // the one place the files are downloaded opens with JEKrayPro's scripts gate
+  assertGated('ui/scripts.js', 'saveScriptFiles', undefined, SCRIPTS);
+  for (const fn of ['scriptDataFile', 'makeJ', 'execScript', 'runScript', 'stopScript'])
+    assert.ok(!has(fnOf('ui/scripts.js', fn), n => n.type === 'CallExpression' && n.callee.name === 'downloadFile'), fn + ' downloads nothing');
+  // the window saves a run's files after the run, unless it was stopped; Save as… goes through saveScriptFiles too
+  let after = 0;
+  walk.fullAncestor(astOf('ui/scripts.js'), (n, st, anc) => {
+    if (n.type !== 'CallExpression' || n.callee.name !== 'saveScriptFiles') return;
+    const inRun = anc.some(a => a.type === 'VariableDeclarator' && a.id.name === 'run'), inBar = anc.some(a => a.type === 'VariableDeclarator' && a.id.name === 'saveBar');
+    assert.ok(inRun || inBar, 'saveScriptFiles is called from the window’s run or its Save as… bar');
+    if (inRun) { after++; assert.ok(anc.some(a => a.type === 'IfStatement' && has(a.test, q => q.type === 'MemberExpression' && q.property.name === 'stopped')), 'a stopped run saves nothing'); }
+  });
+  assert.equal(after, 1, 'the run saves its files once');
+  // in the worker, save() only collects: what it was asked for goes back with the run's end, and Stop ends the worker before that
+  const w = fnOf('page/script-worker.js', 'scriptWorkerMain');
+  assert.ok(has(w, n => n.type === 'Property' && n.key.name === 'saves'), 'the done message carries the saves');
+  assert.ok(!has(fnOf('ui/scripts.js', 'stopScript'), n => n.type === 'Identifier' && n.name === 'saves'), 'Stop carries no saves');
 });

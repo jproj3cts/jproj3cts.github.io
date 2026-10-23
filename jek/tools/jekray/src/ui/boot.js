@@ -87,6 +87,8 @@ import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
 import { scriptCalls } from './script-calls.js';
 import { runScript, scriptRunning, stopScript, wireScripts } from './scripts.js';
+import { exportData, exportEverything, plotsData, wireDataExport } from '../io/data-export.js';
+import { gatherData } from '../engines/data-export.js';
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
@@ -113,7 +115,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -290,6 +292,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     scriptRun: (code, lang, o) => runScript(code, lang, undefined, o),
     scriptStop: () => stopScript(),
     scriptBusy: () => scriptRunning(),
+    // File › Export data: the kinds' items as the export gathers them (plots: the panels' own, so async), and the export itself
+    dataItems(kinds) { traceScene(); return gatherData(kinds || ['readouts', 'screens', 'beams', 'sweeps', 'bench']).items; },
+    plotsData: () => plotsData(),
+    exportData: (kinds, fmt) => exportData(kinds, fmt),
+    exportEverything: fmt => exportEverything(fmt),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),

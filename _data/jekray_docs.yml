@@ -202,6 +202,8 @@
   url: /jek/docs/jekray/modules/
 - title: Scripting and headless use
   url: /jek/docs/jekray/scripting/
+- title: Exporting data
+  url: /jek/docs/jekray/data-export/
 - title: FAQ
   url: /jek/docs/jekray/faq/
   group: Help

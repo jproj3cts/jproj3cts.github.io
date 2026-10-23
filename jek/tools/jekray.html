@@ -753,6 +753,18 @@
   .rt-news-all summary { cursor: pointer; font-weight: 600; color: var(--jek-cyan-dark); margin-bottom: 0.3rem; }
   .rt-news li { margin-bottom: 0.2rem; }
   .rt-subhead { margin: 0.6rem 0 0.3rem; font-size: 0.85rem; }
+  /* File › Export data: the kinds, each with its count and what it is; the formats in a row that wraps */
+  .rt-datakinds { display: grid; gap: 0.35rem; margin-bottom: 0.4rem; }
+  .rt-datakinds .rt-check { font-weight: 400; }
+  .rt-datakinds .rt-check.off { opacity: 0.55; cursor: default; }
+  .rt-dk b { font-weight: 600; }
+  .rt-dk i { font-style: normal; color: var(--jek-ink-soft); font-size: 0.82rem; }
+  .rt-datafmts { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; margin-bottom: 0.6rem; }
+  .rt-datafmts .rt-check { align-items: center; font-weight: 500; }
+  @media (pointer: coarse) { .rt-datakinds .rt-check, .rt-datafmts .rt-check { min-height: 2.2rem; align-items: center; } }
+  /* the parts' panels made out of sight, for their plots' numbers: laid out at a panel's width, never seen */
+  .rt-dataprobe { position: fixed; left: -10000px; top: 0; width: 360px; max-height: none; visibility: hidden; pointer-events: none; overflow: hidden; }
+  .rt-dataprobe .rt-sec.shut > .rt-secbody { display: block; }
   dialog.rt-dialog #bugWhat, dialog.rt-dialog #bugExpect { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.875rem; }
   #bugNote:empty { display: none; }
   dialog.rt-dialog #citeText, dialog.rt-dialog #citeBib { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.78rem; }
@@ -1706,6 +1718,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
                 <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
+            <button type="button" role="menuitem" id="btnExportData" data-icon="export" data-need="account" data-what="export data" title="The numbers behind the bench (readouts, plots, screens’ rays and fields, beams, sweeps, the parts) as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
             <div class="sep"></div>
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
@@ -2082,6 +2095,21 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
       <button class="rt-btn" id="ccCopy">Keep mine as a copy</button>
       <button class="rt-btn" id="ccMerge" hidden>Merge the two…</button>
       <button class="rt-btn primary" id="ccMine">Overwrite with mine</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="dataDialog" aria-labelledby="dataTitle">
+    <h2 id="dataTitle">Export data</h2>
+    <p>The numbers behind this bench, as a file to open in a spreadsheet, in Python or in MATLAB. <a class="rt-link" href="/jek/docs/jekray/data-export/" target="_blank" rel="noopener">What each file holds, and how to open it</a>.</p>
+    <h3 class="rt-subhead">What to export</h3>
+    <div class="rt-datakinds" id="dataKinds"></div>
+    <h3 class="rt-subhead">As</h3>
+    <div class="rt-datafmts" id="dataFormats" role="radiogroup" aria-label="The file’s format"></div>
+    <p class="note" id="dataNote"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" type="button" id="dataClose">Close</button>
+      <button class="rt-btn" type="button" id="dataAll" title="Every kind of data on this bench, in one file, in the format chosen">Export everything</button>
+      <button class="rt-btn primary" type="button" id="dataGo">Export</button>
     </div>
   </dialog>
 
@@ -2515,6 +2543,584 @@ function fmtLine(v) {
 }
 
 const packText = (v, n) => typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n) : '';
+/* ==========================================================================
+   Data files, written here with no library: a zip (stored, or deflated where the browser can), CSV, JSON,
+   an Excel workbook (.xlsx), NumPy's .npz and MATLAB's .mat (Level 5). File › Export data and a script's
+   save() hand these a set of named items, each a table (columns, each with its unit), an array (a shape and
+   its numbers) or a value (anything JSON holds), with the context every file carries: the bench, JEKray's
+   version, the date, the units, and the settings of the parts the numbers come from. Nothing here touches
+   the page, so the Node tests read what it writes with Python's own readers. The layouts are documented in
+   jek/docs/jekray/data-export.md: change one there too.
+   ========================================================================== */
+
+/* ---------- The data: a set of named items ----------
+   set   { meta, items }: meta the context (title, bench, version, created, and the parts' settings as parts)
+   table { kind: 'table', name, about, cols: [{ name, unit, type?, values }] }: type 'num', 'int', 'bool' or 'str',
+         worked out from the values when not given (numbers, booleans, else text)
+   array { kind: 'array', name, about, unit, dtype: 'f8' | 'i8' | 'i4' | 'u1' | 'b1', shape, data } (row-major, flat)
+   value { kind: 'value', name, about, value }: anything JSON holds */
+const DATA_FORMATS = {
+  csv: { label: 'CSV', ext: '.zip', mime: 'application/zip' },
+  json: { label: 'JSON', ext: '.json', mime: 'application/json' },
+  xlsx: { label: 'Excel', ext: '.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  npz: { label: 'NumPy', ext: '.npz', mime: 'application/octet-stream' },
+  mat: { label: 'MATLAB', ext: '.mat', mime: 'application/x-matlab-data' },
+};
+
+const dfIsNum = v => typeof v === 'number';
+/* a column's type, from its values when it does not say */
+function dfColType(c) {
+  if (c.type) return c.type;
+  let num = 0, bool = 0, other = 0;
+  for (const v of c.values) {
+    if (v === null || v === undefined) continue;
+    if (dfIsNum(v)) num++; else if (typeof v === 'boolean') bool++; else other++;
+  }
+  return other || (num && bool) ? 'str' : bool ? 'bool' : 'num';
+}
+/* a value as text in a text column: numbers in full, objects as JSON */
+const dfText = v => (v === null || v === undefined ? '' : typeof v === 'string' ? v : dfIsNum(v) ? dfNum(v) : typeof v === 'object' ? JSON.stringify(v) : String(v));
+/* a number in full: the shortest text that reads back as the same float64; NaN as nothing, the infinities as inf */
+const dfNum = v => (Number.isFinite(v) ? String(v) : Number.isNaN(v) ? '' : v > 0 ? 'inf' : '-inf');
+/* a column's heading, as a spreadsheet shows it: its name, its unit in brackets */
+const dfHead = c => c.name + (c.unit ? ' (' + c.unit + ')' : '');
+/* a name a program can use (a MATLAB variable or field, a NumPy key): letters, digits and _, starting with a letter, 63 at most */
+function dfIdent(s, fallback = 'x') {
+  let t = String(s == null ? '' : s).replace(/µ|μ/g, 'u').replace(/°/g, 'deg').replace(/%/g, 'pct').replace(/²/g, '2').replace(/³/g, '3')
+    .replace(/\//g, '_per_').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if (!t) t = fallback;
+  if (!/^[A-Za-z]/.test(t)) t = fallback + '_' + t;
+  return t.slice(0, 63).replace(/_+$/, '');
+}
+/* names made unique within a set (case aside, as a spreadsheet's sheets and Windows' files take them) */
+function dfUnique(names, max = 63, reserved = []) {
+  const seen = new Set(reserved.map(n => n.toLowerCase()));
+  return names.map(n => {
+    let t = n.slice(0, max), k = 2;
+    while (seen.has(t.toLowerCase())) { const s = '_' + k++; t = n.slice(0, max - s.length) + s; }
+    seen.add(t.toLowerCase());
+    return t;
+  });
+}
+/* a column's key: its name and unit as one name a program can use (x_mm, power_pct) */
+const dfColKey = c => dfIdent(c.name + (c.unit ? '_' + c.unit : ''), 'col');
+const dfColKeys = (T, reserved = []) => dfUnique(T.cols.map(dfColKey), 63, reserved);
+/* a file's name in a zip: plain, no folders */
+const dfFileName = s => String(s).replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'data';
+
+/* ---------- What a script hands save(), as items ----------
+   rows (a list of objects) or an object of equal-length lists: a table; a list of numbers (nested, rectangular),
+   a typed array or NumPy's array: an array; an object of named things: one item each; anything else: a value */
+const dfPlainObj = v => v !== null && typeof v === 'object' && !Array.isArray(v) && !ArrayBuffer.isView(v);
+const dfIsRows = v => Array.isArray(v) && v.length > 0 && v.every(dfPlainObj) && !v.some(r => r.__ndarray__);
+const dfPrim = v => v === null || ['number', 'string', 'boolean'].includes(typeof v);
+function dfColumns(o) {
+  if (!dfPlainObj(o) || o.__ndarray__) return null;
+  const ks = Object.keys(o);
+  if (!ks.length) return null;
+  const vs = ks.map(k => (ArrayBuffer.isView(o[k]) ? Array.from(o[k], Number) : o[k]));
+  if (!vs.every(v => Array.isArray(v) && v.every(dfPrim))) return null;
+  const n = vs[0].length;
+  return n > 0 && vs.every(v => v.length === n) ? ks.map((k, i) => ({ name: k, values: vs[i] })) : null;
+}
+const DF_TYPED = [[Float64Array, 'f8'], [Float32Array, 'f8'], [Int32Array, 'i4'], [Int16Array, 'i4'], [Int8Array, 'i4'], [Uint16Array, 'i4'],
+  [Uint32Array, 'i8'], [Uint8Array, 'u1'], [Uint8ClampedArray, 'u1']];
+const DF_NPDTYPE = { float64: 'f8', float32: 'f8', float16: 'f8', int64: 'i8', uint32: 'i8', int32: 'i4', int16: 'i4', int8: 'i4', uint16: 'i4', uint8: 'u1', bool: 'b1' };
+/* a rectangular nest of numbers or booleans: { shape, data, dtype }, or null */
+function dfArrayOf(v) {
+  if (ArrayBuffer.isView(v) && !(v instanceof DataView)) {
+    if (typeof BigInt64Array !== 'undefined' && (v instanceof BigInt64Array || v instanceof BigUint64Array)) return { shape: [v.length], data: Array.from(v, Number), dtype: 'i8' };
+    const t = DF_TYPED.find(([C]) => v instanceof C);
+    return { shape: [v.length], data: t && t[1] === 'f8' ? Float64Array.from(v) : Array.from(v), dtype: t ? t[1] : 'f8' };
+  }
+  if (dfPlainObj(v) && Array.isArray(v.__ndarray__) && Array.isArray(v.shape)) {       // NumPy's, from a Python script (ui/python.js)
+    const n = v.shape.reduce((a, b) => a * b, 1), d = v.__ndarray__;
+    if (d.length !== n || !d.every(x => x === null || dfIsNum(x) || typeof x === 'boolean')) return null;
+    const dt = DF_NPDTYPE[v.dtype] || 'f8';
+    return { shape: v.shape.slice(), data: d.map(x => (x === null ? NaN : dt === 'b1' ? !!x : +x)), dtype: dt };
+  }
+  if (!Array.isArray(v) || !v.length) return null;
+  const shape = [];
+  for (let a = v; Array.isArray(a); a = a[0]) { if (!a.length) return null; shape.push(a.length); }
+  const data = [];
+  let bool = 0, num = 0;
+  const walk = (a, d) => {
+    if (d === shape.length) {
+      if (typeof a === 'boolean') bool++; else if (dfIsNum(a) || a === null) num++; else return false;
+      data.push(a === null ? NaN : a);
+      return true;
+    }
+    return Array.isArray(a) && a.length === shape[d] && a.every(x => walk(x, d + 1));
+  };
+  if (!walk(v, 0)) return null;
+  if (bool && num) return null;
+  return { shape, data: bool ? data : Float64Array.from(data), dtype: bool ? 'b1' : 'f8' };
+}
+/* one thing a script saves, as one item (or, for an object of named things, several) */
+function dfItemsOf(data, name) {
+  name = String(name || 'data');
+  if (dfIsRows(data)) {
+    const keys = [...new Set(data.flatMap(r => Object.keys(r)))];
+    return [{ kind: 'table', name, cols: keys.map(k => ({ name: k, values: data.map(r => (r[k] === undefined ? null : r[k])) })) }];
+  }
+  if (dfPlainObj(data)) {
+    const cols = dfColumns(data);
+    if (cols) return [{ kind: 'table', name, cols }];
+    const A = dfArrayOf(data);
+    if (A) return [Object.assign({ kind: 'array', name }, A)];
+    const ks = Object.keys(data);
+    if (ks.length && ks.every(k => dfIsRows(data[k]) || dfColumns(data[k]) || dfArrayOf(data[k]))) return ks.flatMap(k => dfItemsOf(data[k], k));
+    return [{ kind: 'value', name, value: data }];
+  }
+  const A = dfArrayOf(data);
+  if (A) return [Object.assign({ kind: 'array', name }, A)];
+  return [{ kind: 'value', name, value: data === undefined ? null : data }];
+}
+
+/* JSON for anything: non-finite numbers as null (JSON has none), typed arrays as lists */
+const dfJsonSafe = v => JSON.parse(JSON.stringify(v === undefined ? null : v, (k, x) => (ArrayBuffer.isView(x) && !(x instanceof DataView) ? Array.from(x, Number)
+  : typeof x === 'bigint' ? Number(x) : x)));
+/* an object as rows of path and value, for a sheet or a text file: nested objects and lists of objects opened out,
+   a list of plain values kept as one JSON value */
+function dfFlat(v, path = '', out = []) {
+  if (v !== null && typeof v === 'object' && !ArrayBuffer.isView(v)) {
+    const arr = Array.isArray(v);
+    if (arr && v.every(dfPrim)) { out.push([path, JSON.stringify(v)]); return out; }
+    const ks = Object.keys(v);
+    if (!ks.length) { out.push([path, arr ? '[]' : '{}']); return out; }
+    for (const k of ks) dfFlat(v[k], arr ? path + '[' + k + ']' : path ? path + '.' + k : k, out);
+    return out;
+  }
+  if (ArrayBuffer.isView(v)) { out.push([path, JSON.stringify(Array.from(v, Number))]); return out; }
+  out.push([path, v === undefined ? null : v]);
+  return out;
+}
+/* the context as plain lines: what README.txt and a sheet's About open with */
+function dfMetaPairs(meta) {
+  const out = [];
+  for (const [k, v] of Object.entries(meta || {})) if (k !== 'parts' && k !== 'items' && k !== 'title' && v !== undefined && v !== null && v !== '') out.push([DF_META_LABEL[k] || k, typeof v === 'object' ? JSON.stringify(v) : v]);
+  return out;
+}
+const DF_META_LABEL = { title: 'What', bench: 'Bench', tab: 'Tab', version: 'JEKray version', created: 'Created', source: 'Made by', script: 'Script', note: 'Note' };
+/* what each item is, for the file's own description of itself */
+function dfDescribe(item) {
+  if (item.kind === 'table') return { kind: 'table', about: item.about || '', rows: item.cols.length ? item.cols[0].values.length : 0, columns: item.cols.map(c => ({ name: c.name, unit: c.unit || '', key: dfColKey(c), type: dfColType(c) })) };
+  if (item.kind === 'array') return { kind: 'array', about: item.about || '', unit: item.unit || '', shape: item.shape, dtype: DF_DTYPE_NAME[item.dtype] };
+  return { kind: 'value', about: item.about || '' };
+}
+const DF_DTYPE_NAME = { f8: 'float64', i8: 'int64', i4: 'int32', u1: 'uint8', b1: 'bool' };
+/* the context with what each item holds, for the files that carry it whole (JSON, NumPy, MATLAB) */
+const dfMetaFull = set => Object.assign({}, set.meta, { items: Object.fromEntries(set.items.map(it => [it.name, dfDescribe(it)])) });
+
+/* ---------- Zip ----------
+   Entries stored, or deflated (CompressionStream's deflate-raw: Chrome and Edge 103, Firefox 113, Safari 16.4, Node 18)
+   where that is smaller; a browser without it stores them all, which every reader takes as well */
+const DF_CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function dfCrc32(u8) {
+  let c = 0xffffffff;
+  for (let i = 0; i < u8.length; i++) c = DF_CRC[(c ^ u8[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+const dfUtf8 = s => new TextEncoder().encode(s);
+function dfDeflateOk() {
+  try { if (typeof CompressionStream === 'undefined') return false; new CompressionStream('deflate-raw'); return true; } catch (err) { return false; }
+}
+async function dfDeflateRaw(u8) {
+  const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+const dfDosTime = d => ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xffff;
+const dfDosDate = d => ((Math.max(0, d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff;
+/* files [{ name, data: Uint8Array or text }] as one zip's bytes; o.deflate false to store them all; o.date their time */
+async function dfZip(files, o = {}) {
+  const date = o.date ? new Date(o.date) : new Date(), tm = dfDosTime(date), dt = dfDosDate(date);
+  const z = o.deflate !== false && dfDeflateOk(), locals = [], central = [];
+  let off = 0;
+  for (const f of files) {
+    const raw = typeof f.data === 'string' ? dfUtf8(f.data) : f.data, name = dfUtf8(f.name), crc = dfCrc32(raw);
+    let body = raw, method = 0;
+    if (z && raw.length > 128) { try { const d = await dfDeflateRaw(raw); if (d.length < raw.length) { body = d; method = 8; } } catch (err) { /* stored */ } }
+    if (off + body.length > 0xfffffff0) throw new Error('the data is too big for one zip file (4 GB)');
+    const head = (sig, extra) => {
+      const b = new Uint8Array(extra), v = new DataView(b.buffer);
+      v.setUint32(0, sig, true);
+      return [b, v];
+    };
+    const [L, lv] = head(0x04034b50, 30 + name.length);
+    lv.setUint16(4, 20, true); lv.setUint16(6, 0x0800, true); lv.setUint16(8, method, true); lv.setUint16(10, tm, true); lv.setUint16(12, dt, true);
+    lv.setUint32(14, crc, true); lv.setUint32(18, body.length, true); lv.setUint32(22, raw.length, true); lv.setUint16(26, name.length, true);
+    L.set(name, 30);
+    const [C, cv] = head(0x02014b50, 46 + name.length);
+    cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true); cv.setUint16(10, method, true); cv.setUint16(12, tm, true); cv.setUint16(14, dt, true);
+    cv.setUint32(16, crc, true); cv.setUint32(20, body.length, true); cv.setUint32(24, raw.length, true); cv.setUint16(28, name.length, true);
+    cv.setUint32(42, off, true);
+    C.set(name, 46);
+    locals.push(L, body); central.push(C);
+    off += L.length + body.length;
+  }
+  const cdSize = central.reduce((a, c) => a + c.length, 0), E = new Uint8Array(22), ev = new DataView(E.buffer);
+  if (files.length > 0xffff) throw new Error('too many files for one zip');
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, files.length, true); ev.setUint16(10, files.length, true); ev.setUint32(12, cdSize, true); ev.setUint32(16, off, true);
+  return dfConcat([...locals, ...central, E]);
+}
+function dfConcat(parts) {
+  const n = parts.reduce((a, p) => a + p.length, 0), out = new Uint8Array(n);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/* ---------- CSV (RFC 4180) ----------
+   One heading row, each column named with its unit in brackets ("x (mm)"), as Excel and pandas take it; then a row
+   for each record. Numbers in full (the shortest text that reads back exactly); a missing number blank, the
+   infinities inf and -inf; text quoted where it holds a comma, a quote or a line break. Lines end CRLF, and the
+   file opens with a byte-order mark so Excel reads µ and ° as they are (pandas and Python's csv, with
+   encoding='utf-8-sig', read past it). */
+const dfCsvCell = s => (/[",\r\n]/.test(s) || /^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s);
+const DF_BOM = '﻿';
+function dfCsvRows(rows) { return DF_BOM + rows.map(r => r.map(v => dfCsvCell(dfIsNum(v) ? dfNum(v) : dfText(v))).join(',')).join('\r\n') + '\r\n'; }
+/* a table as CSV text */
+function dfTableCsv(T) {
+  const n = T.cols.length ? T.cols[0].values.length : 0, rows = [T.cols.map(dfHead)];
+  const ty = T.cols.map(dfColType);
+  for (let i = 0; i < n; i++) rows.push(T.cols.map((c, j) => { const v = c.values[i]; return ty[j] === 'str' ? dfText(v) : v === null || v === undefined ? '' : ty[j] === 'bool' ? (v ? 'TRUE' : 'FALSE') : +v; }));
+  return dfCsvRows(rows);
+}
+/* an array as CSV text: one column (1-D, headed with its unit), the matrix itself (2-D, no heading), or one row
+   for each element with its indices (3-D and up) */
+function dfArrayCsv(A) {
+  const v = x => (A.dtype === 'b1' ? (x ? 'TRUE' : 'FALSE') : x);
+  if (A.shape.length <= 1) return dfCsvRows([['value' + (A.unit ? ' (' + A.unit + ')' : '')], ...Array.from(A.data, x => [v(x)])]);
+  if (A.shape.length === 2) {
+    const [r, c] = A.shape, rows = [];
+    for (let i = 0; i < r; i++) { const row = new Array(c); for (let j = 0; j < c; j++) row[j] = v(A.data[i * c + j]); rows.push(row); }
+    return dfCsvRows(rows);
+  }
+  const rows = [[...A.shape.map((_, k) => 'i' + k), 'value' + (A.unit ? ' (' + A.unit + ')' : '')]], N = A.data.length, idx = new Array(A.shape.length).fill(0);
+  for (let q = 0; q < N; q++) {
+    rows.push([...idx, v(A.data[q])]);
+    for (let k = A.shape.length - 1; k >= 0; k--) { if (++idx[k] < A.shape[k]) break; idx[k] = 0; }
+  }
+  return dfCsvRows(rows);
+}
+/* README.txt: the context, then each file and what is in it, column by column */
+function dfReadme(set, names) {
+  const L = [set.meta.title || 'JEKray data', ''];
+  for (const [k, v] of dfMetaPairs(set.meta)) L.push(k + ': ' + v);
+  L.push('', 'Each table is a CSV file: one heading row, each column named with its unit in brackets, then one row for each record.',
+    'Numbers are given in full; a missing number is left blank. The files are UTF-8 with a byte-order mark (Excel opens them as they are;',
+    "in Python: pandas.read_csv('file.csv'), or csv.reader(open('file.csv', encoding='utf-8-sig'))).", '');
+  set.items.forEach((it, i) => {
+    const D = dfDescribe(it);
+    L.push(names[i] + (it.about ? ': ' + it.about : ''));
+    if (it.kind === 'table') { L.push('  ' + D.rows + ' row' + (D.rows === 1 ? '' : 's') + '. Columns:'); for (const c of D.columns) L.push('    ' + dfHead(c) + (c.type === 'str' ? ' (text)' : c.type === 'bool' ? ' (TRUE or FALSE)' : '')); }
+    else if (it.kind === 'array') L.push('  An array of ' + it.shape.join(' x ') + (it.unit ? ', in ' + it.unit : '') + (it.shape.length === 2 ? ': the matrix itself, row by row, with no heading.' : it.shape.length > 2 ? ': one row for each element, its indices first.' : ': one column.'));
+    else L.push('  As JSON.');
+    L.push('');
+  });
+  if (set.meta.parts && Object.keys(set.meta.parts).length) L.push('The settings of the parts these numbers come from are in meta.json (parts), with all of the above.', '');
+  return L.join('\r\n');
+}
+/* the CSV export: a zip of one CSV file for each table or array, JSON for a value, README.txt and meta.json */
+async function dfCsvZip(set, o = {}) {
+  const names = dfUnique(set.items.map(it => dfFileName(it.name)), 76, ['README', 'meta']).map((n, i) => n + (set.items[i].kind === 'value' ? '.json' : '.csv'));
+  const files = [{ name: 'README.txt', data: dfReadme(set, names) }, { name: 'meta.json', data: JSON.stringify(dfJsonSafe(dfMetaFull(set)), null, 1) + '\n' }];
+  set.items.forEach((it, i) => files.push({ name: names[i], data: it.kind === 'table' ? dfTableCsv(it) : it.kind === 'array' ? dfArrayCsv(it) : JSON.stringify(dfJsonSafe(it.value), null, 1) + '\n' }));
+  return dfZip(files, Object.assign({ date: set.meta.created }, o));
+}
+
+/* ---------- JSON ----------
+   { format: 'JEKray data', meta, tables: { name: { about, columns: [{ name, unit, key }], data: { key: [...] } } },
+     arrays: { name: { about, unit, dtype, shape, data: nested lists } }, values: { name: … } }: a table's data by
+   column, so pandas.DataFrame(d['tables'][name]['data']) is the table; a missing or non-finite number is null */
+function dfNest(A) {
+  const conv = x => (A.dtype === 'b1' ? !!x : Number.isFinite(x) ? x : null);
+  if (A.shape.length <= 1) return Array.from(A.data, conv);
+  const rec = (d, o) => { if (d === A.shape.length - 1) return Array.from(A.data.slice(o, o + A.shape[d]), conv); const st = A.shape.slice(d + 1).reduce((a, b) => a * b, 1), out = []; for (let i = 0; i < A.shape[d]; i++) out.push(rec(d + 1, o + i * st)); return out; };
+  return rec(0, 0);
+}
+function dfJson(set) {
+  const out = { format: 'JEKray data', meta: dfJsonSafe(set.meta), tables: {}, arrays: {}, values: {} };
+  for (const it of set.items) {
+    if (it.kind === 'table') {
+      const keys = dfColKeys(it), ty = it.cols.map(dfColType), data = {};
+      it.cols.forEach((c, j) => { data[keys[j]] = c.values.map(v => (ty[j] === 'str' ? (v === null || v === undefined ? null : dfText(v)) : ty[j] === 'bool' ? (v === null || v === undefined ? null : !!v) : Number.isFinite(+v) && v !== null && v !== undefined ? +v : null)); });
+      out.tables[it.name] = { about: it.about || '', columns: it.cols.map((c, j) => ({ name: c.name, unit: c.unit || '', key: keys[j], type: ty[j] })), data };
+    } else if (it.kind === 'array') out.arrays[it.name] = { about: it.about || '', unit: it.unit || '', dtype: DF_DTYPE_NAME[it.dtype], shape: it.shape, data: dfNest(it) };
+    else out.values[it.name] = dfJsonSafe(it.value);
+  }
+  return JSON.stringify(out, null, 1) + '\n';
+}
+
+/* ---------- Excel (.xlsx) ----------
+   The smallest workbook Excel, LibreOffice, Numbers and openpyxl open: a first sheet About (the context, each sheet
+   and what it holds, each column's unit, the parts' settings), then one sheet for each item: a table with its
+   heading row bold and frozen, numbers as numbers and text as inline strings; an array as its column (1-D), its
+   matrix (2-D) or a row for each element with its indices; a value opened out as path and value. Sheet names are
+   31 characters at most, without []:*?/\ and unique. A sheet holds 1,048,576 rows: past that it says it is cut short. */
+const DF_XL_ROWS = 1048576, DF_XL_TEXT = 32767;
+const dfXml = s => String(s).replace(/[^\x09\x0a\x0d\x20-퟿-�\u{10000}-\u{10ffff}]/gu, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function dfColLetter(i) { let s = ''; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; }
+const dfSheetName = s => (String(s).replace(/[[\]:*?/\\\x00-\x1f]+/g, ' ').replace(/^'+|'+$/g, '').replace(/\s+/g, ' ').trim() || 'Sheet').slice(0, 31).trim();
+function dfXlCell(ref, v, bold) {
+  const s = bold ? ' s="1"' : '';
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'boolean') return '<c r="' + ref + '" t="b"' + s + '><v>' + (v ? 1 : 0) + '</v></c>';
+  if (dfIsNum(v)) return Number.isFinite(v) ? '<c r="' + ref + '"' + s + '><v>' + String(v) + '</v></c>' : '';
+  let t = String(v);
+  if (t.length > DF_XL_TEXT) t = t.slice(0, DF_XL_TEXT - 40) + ' … (cut short: a cell holds 32767 characters)';
+  return '<c r="' + ref + '" t="inlineStr"' + s + '><is><t' + (/^\s|\s$/.test(t) ? ' xml:space="preserve"' : '') + '>' + dfXml(t) + '</t></is></c>';
+}
+/* a sheet's XML from its rows (lists of values); head: how many rows at the top are headings (bold, the first frozen) */
+function dfSheetXml(rows, head = 0, widths = null) {
+  const out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'];
+  if (head) out.push('<sheetViews><sheetView workbookViewId="0"><pane ySplit="' + head + '" topLeftCell="A' + (head + 1) + '" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>');
+  if (widths && widths.length) out.push('<cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols>');
+  out.push('<sheetData>');
+  const n = Math.min(rows.length, DF_XL_ROWS);
+  for (let i = 0; i < n; i++) {
+    let r = rows[i];
+    if (i === DF_XL_ROWS - 1 && rows.length > DF_XL_ROWS) r = ['(cut short: ' + (rows.length - DF_XL_ROWS + 1) + ' more rows do not fit on a sheet; export as CSV, NumPy or MATLAB for all of them)'];
+    const cells = r.slice(0, 16384).map((v, j) => dfXlCell(dfColLetter(j) + (i + 1), v, i < head)).join('');
+    out.push('<row r="' + (i + 1) + '">' + cells + '</row>');
+  }
+  out.push('</sheetData></worksheet>');
+  return out.join('');
+}
+/* an item's rows on its sheet, and how many of them are headings */
+function dfItemRows(it) {
+  if (it.kind === 'table') {
+    const n = it.cols.length ? it.cols[0].values.length : 0, ty = it.cols.map(dfColType), rows = [it.cols.map(dfHead)];
+    for (let i = 0; i < n; i++) rows.push(it.cols.map((c, j) => { const v = c.values[i]; return v === null || v === undefined ? null : ty[j] === 'str' ? dfText(v) : ty[j] === 'bool' ? !!v : +v; }));
+    return [rows, 1];
+  }
+  if (it.kind === 'array') {
+    const v = x => (it.dtype === 'b1' ? !!x : x);
+    if (it.shape.length <= 1) return [[['value' + (it.unit ? ' (' + it.unit + ')' : '')], ...Array.from(it.data, x => [v(x)])], 1];
+    if (it.shape.length === 2) { const [r, c] = it.shape, rows = []; for (let i = 0; i < r; i++) rows.push(Array.from(it.data.slice(i * c, i * c + c), v)); return [rows, 0]; }
+    const rows = [[...it.shape.map((_, k) => 'i' + k), 'value' + (it.unit ? ' (' + it.unit + ')' : '')]], idx = new Array(it.shape.length).fill(0);
+    for (let q = 0; q < it.data.length; q++) { rows.push([...idx, v(it.data[q])]); for (let k = it.shape.length - 1; k >= 0; k--) { if (++idx[k] < it.shape[k]) break; idx[k] = 0; } }
+    return [rows, 1];
+  }
+  return [[['path', 'value'], ...dfFlat(it.value).map(([p, v]) => [p, v])], 1];
+}
+function dfAboutRows(set, sheets) {
+  const rows = [[set.meta.title || 'JEKray data']];
+  for (const [k, v] of dfMetaPairs(set.meta)) rows.push([k, v]);
+  rows.push([], ['Sheet', 'Holds', 'Size']);
+  set.items.forEach((it, i) => {
+    const D = dfDescribe(it);
+    rows.push([sheets[i], it.about || (it.kind === 'value' ? 'settings, as path and value' : ''), it.kind === 'table' ? D.rows + ' rows' : it.kind === 'array' ? it.shape.join(' x ') + (it.shape.length === 2 ? ' (the matrix itself, no heading)' : '') : '']);
+  });
+  const tabs = set.items.filter(it => it.kind === 'table');
+  if (tabs.length) {
+    rows.push([], ['Sheet', 'Column', 'Unit']);
+    set.items.forEach((it, i) => { if (it.kind === 'table') for (const c of it.cols) rows.push([sheets[i], c.name, c.unit || '']); });
+  }
+  const P = set.meta.parts && Object.keys(set.meta.parts).length ? set.meta.parts : null;
+  if (P) {
+    rows.push([], ['Part', 'Setting', 'Value']);
+    for (const [name, s] of Object.entries(P)) for (const [p, v] of dfFlat(s)) rows.push([name, p, v]);
+  }
+  return rows;
+}
+async function dfXlsx(set, o = {}) {
+  const sheets = dfUnique(set.items.map(it => dfSheetName(it.name)), 31, ['About', 'History']);
+  const all = ['About', ...sheets], W = 'http://schemas.openxmlformats.org/', ct = 'application/vnd.openxmlformats-';
+  const created = (set.meta.created ? new Date(set.meta.created) : new Date()).toISOString().replace(/\.\d+Z$/, 'Z');
+  const files = [
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="' + W + 'package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="' + ct + 'package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="' + ct + 'officedocument.spreadsheetml.sheet.main+xml"/>' +
+      all.map((_, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="' + ct + 'officedocument.spreadsheetml.worksheet+xml"/>').join('') +
+      '<Override PartName="/xl/styles.xml" ContentType="' + ct + 'officedocument.spreadsheetml.styles+xml"/>' +
+      '<Override PartName="/docProps/core.xml" ContentType="' + ct + 'package.core-properties+xml"/>' +
+      '<Override PartName="/docProps/app.xml" ContentType="' + ct + 'officedocument.extended-properties+xml"/></Types>' },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="' + W + 'package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="' + W + 'officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '<Relationship Id="rId2" Type="' + W + 'package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>' +
+      '<Relationship Id="rId3" Type="' + W + 'officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>' },
+    { name: 'docProps/core.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<cp:coreProperties xmlns:cp="' + W + 'package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
+      '<dc:title>' + dfXml((set.meta.title || 'JEKray data') + (set.meta.bench ? ': ' + set.meta.bench : '')) + '</dc:title><dc:creator>JEKray' + (set.meta.version ? ' ' + dfXml(set.meta.version) : '') + '</dc:creator>' +
+      '<dc:description>' + dfXml(dfMetaPairs(set.meta).map(([k, v]) => k + ': ' + v).join('; ')) + '</dc:description>' +
+      '<dcterms:created xsi:type="dcterms:W3CDTF">' + created + '</dcterms:created></cp:coreProperties>' },
+    { name: 'docProps/app.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Properties xmlns="' + W + 'officeDocument/2006/extended-properties"><Application>JEKray</Application></Properties>' },
+    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="' + W + 'spreadsheetml/2006/main" xmlns:r="' + W + 'officeDocument/2006/relationships"><sheets>' +
+      all.map((n, i) => '<sheet name="' + dfXml(n) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="' + W + 'package/2006/relationships">' +
+      all.map((_, i) => '<Relationship Id="rId' + (i + 1) + '" Type="' + W + 'officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') +
+      '<Relationship Id="rId' + (all.length + 1) + '" Type="' + W + 'officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/styles.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="' + W + 'spreadsheetml/2006/main">' +
+      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' },
+    { name: 'xl/worksheets/sheet1.xml', data: dfSheetXml(dfAboutRows(set, sheets), 0, [24, 60, 28]) },
+  ];
+  set.items.forEach((it, i) => { const [rows, head] = dfItemRows(it); files.push({ name: 'xl/worksheets/sheet' + (i + 2) + '.xml', data: dfSheetXml(rows, head) }); });
+  return dfZip(files, Object.assign({ date: set.meta.created }, o));
+}
+
+/* ---------- NumPy (.npz) ----------
+   A zip of .npy files (format 1.0), as numpy.savez writes: each table's columns as arrays of their own, named
+   table/column_unit ('screens/x_mm'); each array as itself, with its shape; text as fixed-width unicode ('<U');
+   a value, and the context (meta: the bench, version, date, every item's columns and units, the parts'
+   settings), as JSON text in a 0-d unicode array, so json.loads(str(d['meta'])) reads it, with no pickle */
+const DF_NPY = { f8: ['<f8', 8], i8: ['<i8', 8], i4: ['<i4', 4], u1: ['|u1', 1], b1: ['|b1', 1] };
+function dfNpy(descr, shape, body) {
+  const sh = '(' + shape.join(', ') + (shape.length === 1 ? ',' : '') + ')';
+  let h = "{'descr': '" + descr + "', 'fortran_order': False, 'shape': " + sh + ', }';
+  const pad = 64 - ((10 + h.length + 1) % 64);
+  h += ' '.repeat(pad % 64) + '\n';
+  const head = new Uint8Array(10 + h.length);
+  head.set([0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59, 1, 0], 0);
+  new DataView(head.buffer).setUint16(8, h.length, true);
+  for (let i = 0; i < h.length; i++) head[10 + i] = h.charCodeAt(i);
+  return dfConcat([head, body]);
+}
+function dfNumBody(dtype, data) {
+  const [, size] = DF_NPY[dtype], n = data.length, b = new Uint8Array(n * size), v = new DataView(b.buffer);
+  for (let i = 0; i < n; i++) {
+    const x = data[i];
+    if (dtype === 'f8') v.setFloat64(8 * i, x === null || x === undefined ? NaN : +x, true);
+    else if (dtype === 'i8') v.setBigInt64(8 * i, BigInt(Math.trunc(+x || 0)), true);
+    else if (dtype === 'i4') v.setInt32(4 * i, +x || 0, true);
+    else b[i] = dtype === 'b1' ? (x ? 1 : 0) : (+x || 0) & 255;
+  }
+  return b;
+}
+/* text as '<U': each string its code points, UTF-32 little-endian, padded to the longest */
+function dfNpyText(strs, shape) {
+  const cps = strs.map(s => Array.from(String(s), c => c.codePointAt(0))), w = Math.max(1, ...cps.map(c => c.length));
+  const b = new Uint8Array(cps.length * w * 4), v = new DataView(b.buffer);
+  cps.forEach((c, i) => c.forEach((p, j) => v.setUint32(4 * (i * w + j), p, true)));
+  return dfNpy('<U' + w, shape || [strs.length], b);
+}
+async function dfNpz(set, o = {}) {
+  const files = [], names = dfUnique(set.items.map(it => dfIdent(it.name, 'item')), 63, ['meta']);
+  files.push({ name: 'meta.npy', data: dfNpyText([JSON.stringify(dfJsonSafe(dfMetaFull(set)))], []) });
+  set.items.forEach((it, i) => {
+    if (it.kind === 'table') {
+      const keys = dfColKeys(it);
+      it.cols.forEach((c, j) => {
+        const ty = dfColType(c), n = c.values.length, name = names[i] + '/' + keys[j] + '.npy';
+        if (ty === 'str') files.push({ name, data: dfNpyText(c.values.map(dfText), [n]) });
+        else if (ty === 'bool' && !c.values.some(v => v === null || v === undefined)) files.push({ name, data: dfNpy('|b1', [n], dfNumBody('b1', c.values)) });
+        else if (ty === 'int' && c.values.every(v => Number.isInteger(v))) files.push({ name, data: dfNpy('<i8', [n], dfNumBody('i8', c.values)) });
+        else files.push({ name, data: dfNpy('<f8', [n], dfNumBody('f8', c.values.map(v => (v === null || v === undefined ? NaN : +v)))) });
+      });
+    } else if (it.kind === 'array') files.push({ name: names[i] + '.npy', data: dfNpy(DF_NPY[it.dtype][0], it.shape, dfNumBody(it.dtype, it.data)) });
+    else files.push({ name: names[i] + '.npy', data: dfNpyText([JSON.stringify(dfJsonSafe(it.value))], []) });
+  });
+  return dfZip(files, Object.assign({ date: set.meta.created }, o));
+}
+
+/* ---------- MATLAB (.mat, Level 5) ----------
+   The 128-byte header ("MATLAB 5.0 MAT-file, Platform: JEKray, Created on: …"), little-endian, then a variable for
+   each item, uncompressed: a table as a struct of column vectors (numbers as double, text as a cell of char,
+   true/false as logical), with its units (a struct of the columns' units) and headings (a cell); an array as a
+   double (or integer, or logical) array of its shape (a 1-D one as a column); a value as structs, cells, char,
+   double and logical, nested as it is; and meta, the context, as a struct. MATLAB's load and scipy.io.loadmat read it. */
+const MI = { INT8: 1, UINT8: 2, UTF8: 16, INT32: 5, UINT32: 6, DOUBLE: 9, INT64: 12, MATRIX: 14 };
+const MX = { CELL: 1, STRUCT: 2, CHAR: 4, DOUBLE: 6, UINT8: 9, INT32: 12, INT64: 14 };
+const DF_MAT_CLASS = { f8: [MX.DOUBLE, MI.DOUBLE, 8], i8: [MX.INT64, MI.INT64, 8], i4: [MX.INT32, MI.INT32, 4], u1: [MX.UINT8, MI.UINT8, 1], b1: [MX.UINT8, MI.UINT8, 1] };
+/* one data element: its tag (type, bytes) and its bytes, padded to 8 */
+function dfMatEl(type, body) {
+  const pad = (8 - (body.length % 8)) % 8, out = new Uint8Array(8 + body.length + pad), v = new DataView(out.buffer);
+  v.setUint32(0, type, true); v.setUint32(4, body.length, true);
+  out.set(body, 8);
+  return out;
+}
+function dfU32s(list, signed) { const b = new Uint8Array(4 * list.length), v = new DataView(b.buffer); list.forEach((x, i) => (signed ? v.setInt32(4 * i, x, true) : v.setUint32(4 * i, x >>> 0, true))); return b; }
+const dfAscii = s => Uint8Array.from(String(s), c => c.charCodeAt(0) & 127);
+/* a matrix element: class, dims, name and what follows (its data, or a cell's or struct's elements) */
+function dfMatrix(cls, dims, name, rest, logical) {
+  const flags = dfMatEl(MI.UINT32, dfU32s([cls | (logical ? 0x0200 : 0), 0])), D = dfMatEl(MI.INT32, dfU32s(dims, true)), N = dfMatEl(MI.INT8, dfAscii(name));
+  return dfMatEl(MI.MATRIX, dfConcat([flags, D, N, ...rest]));
+}
+/* row-major data of a shape, as MATLAB's column-major order */
+function dfColMajor(shape, data) {
+  if (shape.length < 2) return data;
+  const n = data.length, out = new Array(n), st = shape.map((_, k) => shape.slice(k + 1).reduce((a, b) => a * b, 1)), idx = new Array(shape.length).fill(0);
+  for (let q = 0; q < n; q++) {                   // q runs column-major: the first index fastest
+    let o = 0; for (let k = 0; k < shape.length; k++) o += idx[k] * st[k];
+    out[q] = data[o];
+    for (let k = 0; k < shape.length; k++) { if (++idx[k] < shape[k]) break; idx[k] = 0; }
+  }
+  return out;
+}
+function dfMatNum(name, dtype, shape, data) {
+  const [cls, mi] = DF_MAT_CLASS[dtype], dims = shape.length === 0 ? [1, 1] : shape.length === 1 ? [shape[0], 1] : shape;
+  const flat = dfColMajor(shape, Array.from(data)), body = dtype === 'f8' ? dfNumBody('f8', flat) : dtype === 'i8' ? dfNumBody('i8', flat) : dtype === 'i4' ? dfNumBody('i4', flat) : dfNumBody(dtype === 'b1' ? 'b1' : 'u1', flat);
+  return dfMatrix(cls, dims, name, [dfMatEl(mi, body)], dtype === 'b1');
+}
+function dfMatChar(name, s) {
+  // UTF-8, as MATLAB writes text and scipy reads it, a character for each of MATLAB's (one beyond those is a ?)
+  const t = String(s).replace(/[\ud800-\udfff]+/g, m => '?'.repeat(Math.ceil(m.length / 2)));
+  return dfMatrix(MX.CHAR, t.length ? [1, t.length] : [0, 0], name, [dfMatEl(MI.UTF8, dfUtf8(t))]);
+}
+const dfMatCell = (name, els, dims) => dfMatrix(MX.CELL, dims || [els.length, 1], name, els);
+function dfMatStruct(name, fields) {
+  const keys = dfUnique(fields.map(([k]) => dfIdent(k, 'f')), 63), len = Math.max(1, ...keys.map(k => k.length)) + 1;
+  const names = new Uint8Array(len * keys.length);
+  keys.forEach((k, i) => names.set(dfAscii(k), i * len));
+  return dfMatrix(MX.STRUCT, [1, 1], name, [dfMatEl(MI.INT32, dfU32s([len], true)), dfMatEl(MI.INT8, names), ...fields.map(([, el]) => el)]);
+}
+/* anything JSON holds, as MATLAB's own: struct, cell, char, double, logical */
+function dfMatValue(name, v) {
+  if (v === null || v === undefined) return dfMatNum(name, 'f8', [0, 0], []);
+  if (typeof v === 'boolean') return dfMatNum(name, 'b1', [1, 1], [v]);
+  if (dfIsNum(v)) return dfMatNum(name, 'f8', [1, 1], [v]);
+  if (typeof v === 'string') return dfMatChar(name, v);
+  if (ArrayBuffer.isView(v)) return dfMatNum(name, 'f8', [1, v.length], Array.from(v, Number));
+  if (Array.isArray(v)) {
+    if (!v.length) return dfMatCell(name, [], [0, 0]);
+    const A = dfArrayOf(v);
+    if (A) return dfMatNum(name, A.dtype, A.shape.length === 1 ? [1, A.shape[0]] : A.shape, A.data);
+    return dfMatCell(name, v.map(x => dfMatValue('', x)), [1, v.length]);
+  }
+  return dfMatStruct(name, Object.entries(v).filter(([, x]) => x !== undefined && typeof x !== 'function').map(([k, x]) => [k, dfMatValue('', x)]));
+}
+function dfMatTable(name, T) {
+  const keys = dfColKeys(T, ['about', 'units', 'headings']), fields = [];
+  T.cols.forEach((c, j) => {
+    const ty = dfColType(c), n = c.values.length;
+    if (ty === 'str') fields.push([keys[j], dfMatCell('', c.values.map(v => dfMatChar('', dfText(v))), [n, 1])]);
+    else if (ty === 'bool' && !c.values.some(v => v === null || v === undefined)) fields.push([keys[j], dfMatNum('', 'b1', [n], c.values)]);
+    else fields.push([keys[j], dfMatNum('', 'f8', [n], c.values.map(v => (v === null || v === undefined ? NaN : +v)))]);
+  });
+  fields.push(['about', dfMatChar('', T.about || '')]);
+  fields.push(['units', dfMatStruct('', T.cols.map((c, j) => [keys[j], dfMatChar('', c.unit || '')]))]);
+  fields.push(['headings', dfMatCell('', T.cols.map(c => dfMatChar('', dfHead(c))), [1, T.cols.length])]);
+  return dfMatStruct(name, fields);
+}
+const DF_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], DF_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/* MATLAB's own date in the header: Fri Oct 23 10:00:00 2026 */
+const dfCtime = d => DF_DAYS[d.getDay()] + ' ' + DF_MONTHS[d.getMonth()] + ' ' + String(d.getDate()).padStart(2, ' ') + ' ' + [d.getHours(), d.getMinutes(), d.getSeconds()].map(x => String(x).padStart(2, '0')).join(':') + ' ' + d.getFullYear();
+function dfMat(set) {
+  const date = set.meta.created ? new Date(set.meta.created) : new Date();
+  const text = 'MATLAB 5.0 MAT-file, Platform: JEKray, Created on: ' + dfCtime(date), head = new Uint8Array(128);
+  head.fill(32, 0, 116);
+  head.set(dfAscii(text.slice(0, 116)), 0);
+  head[124] = 0x00; head[125] = 0x01; head[126] = 0x49; head[127] = 0x4d;        // version 0x0100; 'IM': little-endian
+  const names = dfUnique(set.items.map(it => dfIdent(it.name, 'v')), 63, ['meta']), els = [head, dfMatValue('meta', dfJsonSafe(dfMetaFull(set)))];
+  set.items.forEach((it, i) => {
+    if (it.kind === 'table') els.push(dfMatTable(names[i], it));
+    else if (it.kind === 'array') els.push(dfMatNum(names[i], it.dtype, it.shape, it.dtype === 'f8' ? Array.from(it.data, x => (x === null ? NaN : x)) : it.data));
+    else els.push(dfMatValue(names[i], dfJsonSafe(it.value)));
+  });
+  return dfConcat(els);
+}
+
+/* the set as a file in the format named: { bytes, ext, mime } */
+async function dfWrite(set, fmt, o = {}) {
+  const F = DATA_FORMATS[fmt];
+  if (!F) throw new Error('no such format: ' + fmt);
+  const bytes = fmt === 'csv' ? await dfCsvZip(set, o) : fmt === 'json' ? dfUtf8(dfJson(set)) : fmt === 'xlsx' ? await dfXlsx(set, o) : fmt === 'npz' ? await dfNpz(set, o) : dfMat(set);
+  return { bytes, ext: F.ext, mime: F.mime };
+}
 /* ---------- The makers' glass catalogues ----------
    Generated from the refractiveindex.info database (CC0, public domain), which carries the
    makers' own Zemax catalogues: Schott, Ohara, Hoya, CDGM and Sumita, as the parts of
@@ -24850,6 +25456,8 @@ function renderInto(box, el) {
   refs = [];
   try { renderPanelBody(el); } finally { box._refs = refs; panel = saved; refs = []; }
 }
+/* a part's panel made in a box of the caller's, apart from the page's own (File › Export data reads the plots drawn in it) */
+function panelInto(box, el) { renderInto(box, el); }
 /* ---------- A panel's sections ----------
    Each heading and what follows it is a section that folds away, remembered for the kind of
    part (About, the long explanations gathered at the foot, starts folded). Readouts set among a
@@ -43224,6 +43832,233 @@ function trapReport(el, T) {
 
 const lastTraceNm = el => { const all = (lastTrace.screens && lastTrace.screens[el.id]) || []; const c = all.find(t => t.chief); return c ? c.nm : 1064; };
 /* ==========================================================================
+   The bench's numbers as data: tables and arrays for File › Export data (io/data-export.js), a script's
+   J.data(), and Node (headless.mjs). Each kind gives { items, parts }: the items (core/datafiles.js's tables,
+   arrays and values, each column with its unit, as the panels give it) and the ids of the parts they come
+   from, whose settings go with the file. The plots are the page's own (io/data-export.js reads them from the
+   panels); everything else is here, from the trace and the engines, so it is the same in the page, the
+   script worker and Node.
+   ========================================================================== */
+
+/* The kinds, as File › Export data lists them */
+const DATA_KINDS = [['readouts', 'Readouts'], ['plots', 'Plots'], ['screens', 'Screen data'], ['beams', 'Beams'], ['sweeps', 'Sweep results'], ['bench', 'The bench']];
+
+/* What the bench's studies found, kept for the export as they are run (ui/tours.js): the sensitivity table,
+   the Monte Carlo's trials and the optimiser's search, each with what it measured. Plain data: names, not parts */
+const STUDIES = { sensitivity: null, tolerance: null, optimiser: null };
+function keepStudy(kind, v) { STUDIES[kind] = v ? Object.assign({ when: new Date().toISOString(), bench: project.name }, v) : null; }
+
+const tabName = el => { const b = (project.benches || []).find(x => x.id === el.bench); return b ? b.name : ''; };
+const fin = v => (typeof v === 'number' && isFinite(v) ? v : v === Infinity || v === -Infinity ? v : NaN);
+/* a part's settings for a file's context: as saved, less an imported mesh's triangles */
+function partSettings(el) {
+  const s = JSON.parse(JSON.stringify(el));
+  if (s.mesh && typeof s.mesh.data === 'string') s.mesh = Object.assign({}, s.mesh, { data: '(' + s.mesh.data.length + ' characters of triangles, left out)' });
+  return s;
+}
+const col = (name, unit, values, type) => ({ name, unit: unit || '', values, ...(type ? { type } : {}) });
+const isRf = () => benchNms().some(nm => nm > 1e5);
+const isAntenna = el => (el.type === 'lens' && (el.mmw || el.grin) && isRf()) || (el.type === 'mirror' && isRf() && (F => !!F && !F.h)(mirrorFocus(el)));
+const readoutParts = () => project.elements.filter(el => el.type === 'screen' || el.type === 'detector' || el.type === 'spectrometer' || isAntenna(el));
+
+/* ---------- Readouts: every screen, detector, spectrometer and antenna on the bench, as one long table ---------- */
+function readoutsData() {
+  traceScene();
+  const part = [], type = [], tab = [], reading = [], value = [], unit = [], text = [], ids = new Set();
+  const add = (el, what, v, u, t) => {
+    if (v === null || v === undefined) return;
+    ids.add(el.id); part.push(el.name); type.push(typeLabel(el)); tab.push(tabName(el)); reading.push(what);
+    if (typeof v === 'boolean') { value.push(v ? 1 : 0); text.push(t || (v ? 'yes' : 'no')); }
+    else if (typeof v === 'string') { value.push(NaN); text.push(v); }
+    else { value.push(fin(v)); text.push(t || ''); }
+    unit.push(u || '');
+  };
+  for (const el of readoutParts()) {
+    if (el.type === 'screen') {
+      const st = screenStats(el);
+      if (!st || st.empty) { add(el, el.absorb ? 'Rays hitting' : 'Crossings recorded', 0, ''); }
+      else {
+        add(el, el.absorb ? 'Rays hitting' : 'Crossings recorded', st.count, '');
+        add(el, el.absorb ? 'Power received' : 'Power, all crossings', st.powerPct, '%', 'of what its sources emit');
+        add(el, 'Centroid', st.centroid, 'mm'); add(el, 'RMS spot', st.rms, 'mm'); add(el, 'Full width', st.full, 'mm');
+        add(el, 'Mean optical path', st.oplMean, 'mm'); add(el, 'Wavelength of the path figures', st.nm, 'nm');
+        add(el, 'Wavefront, peak to valley', st.wfPV, 'mm', 'optical path'); add(el, 'Wavefront, RMS', st.wfRMS, 'mm', 'optical path');
+        add(el, 'Round trip', st.roundTrip, 'mm', 'optical path'); add(el, 'Fringe visibility', st.visibility, ''); add(el, 'Interference', st.interference, '', 'coherent over incoherent power');
+        const K = st.stokes;
+        if (K && K.S0 > 0) { add(el, 'Stokes S1/S0', K.S1 / K.S0, ''); add(el, 'Stokes S2/S0', K.S2 / K.S0, ''); add(el, 'Stokes S3/S0', K.S3 / K.S0, '', 'positive right-handed'); }
+        for (const q of st.perNm || []) if (st.mixed) { add(el, 'RMS spot at ' + q.nm + ' nm', q.rms, 'mm'); add(el, 'Centroid at ' + q.nm + ' nm', q.centroid, 'mm'); }
+      }
+      const B = st && st.beam;
+      if (B) {
+        add(el, 'Beam radius (1/e²)', B.w, 'mm'); add(el, 'Wavefront radius of curvature', B.R, 'mm'); add(el, 'Waist radius', B.w0, 'mm');
+        add(el, 'Waist ahead of the screen', B.waistDist, 'mm', 'negative: behind it'); add(el, 'Rayleigh range', B.zR, 'mm');
+      }
+      const D = diffraction(el);
+      if (D) {
+        add(el, 'Strehl ratio', D.strehl, ''); add(el, 'Peak irradiance', D.peak, 'relative'); add(el, 'FWHM', D.fwhm, 'mm');
+        add(el, 'FWHM along the screen', D.fwhmX, 'mm'); add(el, 'FWHM out of the plane', D.fwhmY, 'mm');
+        add(el, 'Radius holding 50% of the energy', D.ee50, 'mm'); add(el, 'Radius holding 80% of the energy', D.ee80, 'mm');
+        add(el, 'MTF falls to 50% at', D.mtf50, 'lp/mm'); add(el, 'Airy radius', D.airy, 'mm'); add(el, 'NA', D.NA, '');
+        add(el, 'Field power arriving', D.power, 'relative'); add(el, 'Degree of polarisation', D.dop, '');
+      }
+    } else if (el.type === 'detector') {
+      const r = detectorReading(el);
+      if (el.mmw) {
+        add(el, 'Power into its mode', r.mw, 'mW'); if (r.rf) add(el, 'Coupling into its mode', r.rf.eff, '');
+        add(el, r.mixer ? 'IF tone, peak' : 'Video output', r.V, 'V'); if (r.mixer) add(el, 'IF power', r.ifMw, 'mW');
+        add(el, 'Noise, rms', r.noiseV, 'V'); add(el, 'Smallest detectable signal', r.mds, 'mW'); add(el, 'Signal to noise', r.snr, 'dB');
+        if (r.mixer) add(el, 'System noise temperature', r.tsys, 'K');
+        if (!r.mixer) add(el, 'Saturated', !!r.sat);
+        const L = linkBudget(el);
+        if (L) add(el, 'Link budget, horn to receiver', L.total, 'dB');
+      } else {
+        add(el, 'Power', r.mw, 'mW'); add(el, 'Photocurrent', r.mA, 'mA'); add(el, 'Output', r.V, 'V'); add(el, 'Saturated', !!r.sat);
+        add(el, 'Noise, rms', r.noiseV, 'V'); add(el, 'Signal to noise', r.snr, 'dB'); add(el, 'From the cavity’s field', !!viaCavity(el));
+      }
+    } else if (el.type === 'spectrometer') {
+      const r = specReading(el);
+      add(el, 'Peak', r.peak, 'nm'); add(el, 'Peak width (FWHM)', r.fwhm, 'nm'); add(el, 'Resolution', r.R, 'nm');
+      add(el, 'Power through the entrance', r.mw, 'mW'); add(el, 'Share of the light at its face', r.share, ''); add(el, 'Counts at the peak', r.counts, 'e⁻');
+      add(el, 'Signal to noise at the peak', r.snr, ''); add(el, 'Saturated', !!r.sat);
+    } else {
+      const A = antennaNow(el, 'ant');
+      if (!A) continue;
+      add(el, 'Gain, horn and lens', A.Gdbi, 'dBi'); add(el, 'Directivity', A.Ddbi, 'dBi'); add(el, 'Horn alone', A.hornDbi, 'dBi');
+      add(el, 'Half-power beamwidth', A.hpbw, '°', 'in the bench plane'); if (!A.round) add(el, 'Half-power beamwidth across', A.hpbwY, '°');
+      add(el, 'Highest sidelobe', A.sll, 'dB'); add(el, 'Beam direction', A.beam, '°', 'from the axis'); add(el, 'Feed direction', A.feed, '°', 'from the axis');
+      if (A.eta) { add(el, 'Aperture efficiency', A.eta.ap, ''); add(el, 'Taper efficiency', A.eta.taper, ''); add(el, 'Phase efficiency', A.eta.phase, ''); add(el, 'Spillover efficiency', A.eta.spill, ''); add(el, 'Through the lens', A.eta.through, ''); }
+      add(el, 'Far field from', A.farField, 'mm', '2D²/λ'); add(el, 'Focus', A.focus, 'mm');
+    }
+  }
+  const item = { kind: 'table', name: 'readouts', about: 'every screen, detector, spectrometer and antenna on the bench: one row for each reading, as its panel gives it',
+    cols: [col('part', '', part, 'str'), col('type', '', type, 'str'), col('tab', '', tab, 'str'), col('reading', '', reading, 'str'), col('value', '', value, 'num'), col('unit', '', unit, 'str'), col('note', '', text, 'str')] };
+  return { items: part.length ? [item] : [], parts: ids };
+}
+
+/* ---------- Screen data: each screen's ray hits, and the diffracted field's map where there is one ---------- */
+const screensOf = () => project.elements.filter(el => el.type === 'screen');
+function screensData() {
+  traceScene();
+  const items = [], ids = new Set();
+  for (const el of screensOf()) {
+    const hits = ((lastTrace.screens || {})[el.id] || []).filter(t => !t.chief);
+    if (hits.length) {
+      ids.add(el.id);
+      for (const s of new Set(hits.map(t => t.sid))) ids.add(s);
+      const nameOf = new Map();
+      const srcName = id => { if (!nameOf.has(id)) { const s = getEl(id); nameOf.set(id, s ? s.name : id); } return nameOf.get(id); };
+      const C = f => hits.map(f);
+      items.push({ kind: 'table', name: el.name + ' hits', about: 'each ray arriving on ' + el.name + ': where (across the screen from its centre, and up out of the bench plane), its direction, power, wavelength, optical path and polarisation (s out of the bench plane, p in it; amplitudes as the trace carries them, their squares the powers)',
+        cols: [col('source', '', C(t => srcName(t.sid)), 'str'), col('ray', '', C(t => t.k), 'int'), col('path', '', C(t => t.path || ''), 'str'),
+          col('across', 'mm', C(t => t.y)), col('up', 'mm', C(t => t.z || 0)),
+          col('angle from the normal', '°', C(t => Math.asin(Math.max(-1, Math.min(1, t.dly || 0))) / deg)), col('slope up', '', C(t => t.dz || 0)),
+          col('power', '% of its source', C(t => pctOfSources(t.w, [t.sid]))), col('ray weight', '', C(t => t.w)),
+          col('wavelength', 'nm', C(t => t.nm)), col('optical path', 'mm', C(t => t.opl)), col('index', '', C(t => t.n)),
+          col('s power', '', C(t => t.sr * t.sr + t.si * t.si)), col('p power', '', C(t => t.pr * t.pr + t.pi * t.pi)),
+          col('Es real', '', C(t => t.sr)), col('Es imaginary', '', C(t => t.si)), col('Ep real', '', C(t => t.pr)), col('Ep imaginary', '', C(t => t.pi))] });
+    }
+    const D = diffraction(el), M = D && D.map;
+    if (M && M.n) {
+      ids.add(el.id);
+      const n = M.n, du = (M.u1 - M.u0) / n, dv = (M.v1 - M.v0) / n;
+      items.push({ kind: 'array', name: el.name + ' field', unit: 'relative', dtype: 'f8', shape: [n, n], data: Float64Array.from(M.v),
+        about: 'the diffracted field’s irradiance on ' + el.name + ' (relative), row j out of the bench plane at "' + el.name + ' field up", column i along the screen at "' + el.name + ' field along"' });
+      items.push({ kind: 'array', name: el.name + ' field along', unit: 'mm', dtype: 'f8', shape: [n], data: Float64Array.from({ length: n }, (_, i) => M.u0 + (i + 0.5) * du), about: 'the field map’s columns: along the screen from its centre' });
+      items.push({ kind: 'array', name: el.name + ' field up', unit: 'mm', dtype: 'f8', shape: [n], data: Float64Array.from({ length: n }, (_, j) => M.v0 + (j + 0.5) * dv), about: 'the field map’s rows: out of the bench plane' });
+    }
+  }
+  return { items, parts: ids };
+}
+
+/* ---------- Beams: each Gaussian beam's segments, face to face: q, its size, waist and divergence at each end ---------- */
+function beamsData() {
+  traceScene();
+  const B = (lastTrace.beams || []), ids = new Set(), rows = [];
+  B.forEach((b, i) => {
+    if (b.fan || !isFinite(b.qr) || !isFinite(b.qi)) return;
+    const src = getEl(b.src), M2 = src ? m2Env(src) : 1, L = b.len3 || b.len || 0;
+    const a = beamAt(b.qr, b.qi, b.n, b.nm, M2), e = beamAt(b.qr + L, b.qi, b.n, b.nm, M2);
+    if (!a) return;
+    if (src) ids.add(src.id);
+    const end = b.endEl ? getEl(b.endEl) : null;
+    rows.push([i, b.parent, src ? src.name : b.src, (project.benches.find(x => x.id === b.bench) || {}).name || '', b.nm, b.n, b.x0, b.y0, b.z0 || 0,
+      Math.atan2(b.dy, b.dx) / deg, b.uz || 0, L, end ? end.name : '', b.qr, b.qi, a.w, e ? e.w : NaN, a.R, a.w0, a.waistDist, a.zR,
+      a.zR > 0 ? 1000 * a.w0 / a.zR : NaN, M2, b.w, b.lmw || 0]);
+  });
+  const H = [['beam', '', 'int'], ['parent', '', 'int'], ['source', '', 'str'], ['tab', '', 'str'], ['wavelength', 'nm'], ['index', ''], ['start x', 'mm'], ['start y', 'mm'], ['start z', 'mm'],
+    ['direction', '°'], ['slope up', ''], ['length', 'mm'], ['ends at', '', 'str'], ['q real', 'mm'], ['q imaginary', 'mm'], ['radius at the start', 'mm'], ['radius at the end', 'mm'],
+    ['wavefront radius at the start', 'mm'], ['waist radius', 'mm'], ['waist ahead of the start', 'mm'], ['Rayleigh range', 'mm'], ['divergence (half angle)', 'mrad'], ['M²', ''], ['share of its launch', ''], ['launch power', 'mW']];
+  const item = { kind: 'table', name: 'beams', about: 'each Gaussian beam segment, from the face it starts at to the face it ends at (beam is its number, parent the one it came from, -1 for none): q = z + i zR at the start (z from the waist), the 1/e² radius at each end, and the waist, Rayleigh range and far-field half angle in the medium it is in (times M²)',
+    cols: H.map(([n, u, t], j) => col(n, u, rows.map(r => r[j]), t)) };
+  return { items: rows.length ? [item] : [], parts: ids };
+}
+
+/* ---------- Sweep results: the sweeps set, each RF receiver's frequency sweep, and the bench's studies ---------- */
+function sweepsData() {
+  const items = [], ids = new Set();
+  const sw = [];
+  for (const el of project.elements) for (const [path, s] of Object.entries(el.sweeps || {})) { sw.push([el, path, s]); ids.add(el.id); }
+  if (sw.length) items.push({ kind: 'table', name: 'sweeps', about: 'each parameter given a sweep: its range, the wave it follows, how fast, its phase, and its value now',
+    cols: [col('part', '', sw.map(q => q[0].name), 'str'), col('parameter', '', sw.map(q => q[1]), 'str'), col('from', '', sw.map(q => q[2].min)), col('to', '', sw.map(q => q[2].max)),
+      col('wave', '', sw.map(q => q[2].wave || 'sine'), 'str'), col('frequency', 'Hz', sw.map(q => q[2].freq)), col('phase', '°', sw.map(q => q[2].phase || 0)),
+      col('now', '', sw.map(([el, path]) => { let v = el; for (const k of path.split('.')) v = v == null ? v : v[k]; return typeof v === 'number' ? v : NaN; }))] });
+  for (const el of project.elements) {
+    if (el.type !== 'detector' || !el.mmw || el.mmw.part) continue;
+    const S = rfSweep(el);
+    if (!S) continue;
+    ids.add(el.id);
+    items.push({ kind: 'table', name: el.name + ' frequency sweep', about: 'the receiving horn ' + el.name + ' against frequency, the bench traced again at each step: S21 (into its mode over what the horns are set to) and its coupling',
+      cols: [col('frequency', 'GHz', S.ghz.slice()), col('S21', 'dB', S.s21.slice()), col('coupling', '', S.eff.slice())] });
+  }
+  const T = STUDIES.sensitivity;
+  if (T) items.push({ kind: 'table', name: 'sensitivity', about: 'Tolerance the bench › Sensitivity: each parameter alone at each end of its range, and how far ' + T.metric + ' on ' + T.target + ' moved from ' + T.base + ' (RSS ' + T.rss + ')',
+    cols: [col('part', '', T.rows.map(r => r.part), 'str'), col('parameter', '', T.rows.map(r => r.path), 'str'), col('at the low end', '', T.rows.map(r => r.lo)), col('at the high end', '', T.rows.map(r => r.hi)),
+      col('change at the low end', '', T.rows.map(r => r.dLo)), col('change at the high end', '', T.rows.map(r => r.dHi)), col('worst swing', '', T.rows.map(r => r.worst))] });
+  const M = STUDIES.tolerance;
+  if (M) items.push({ kind: 'table', name: 'monte carlo', about: 'Tolerance the bench › Monte Carlo: ' + M.samples.length + ' trials of ' + M.metric + ' on ' + M.target + ' (' + M.dist + ' over the swept ranges), sorted; nominal ' + M.nominal,
+    cols: [col('trial', '', M.samples.map((_, i) => i + 1), 'int'), col(M.metric, '', M.samples.slice())] });
+  const O = STUDIES.optimiser;
+  if (O) {
+    items.push({ kind: 'table', name: 'optimiser', about: 'Optimise the bench: each value varied and each goal, at the start and at the best found (' + O.evals + ' traces' + (O.stopped ? ', stopped early' : '') + '; merit ' + O.startMerit + ' to ' + O.bestMerit + ')',
+      cols: [col('what', '', [...O.vars.map(v => v.part + ': ' + v.path), ...O.terms.map(q => q.target + ': ' + q.metric + ' (' + q.goal + ')')], 'str'),
+        col('at the start', '', [...O.vars.map(v => v.start), ...O.terms.map(q => q.start)]), col('best', '', [...O.vars.map(v => v.best), ...O.terms.map(q => q.best)])] });
+    if (O.history && O.history.length) items.push({ kind: 'table', name: 'optimiser merit', about: 'the best merit found, trace by trace', cols: [col('trace', '', O.history.map((_, i) => i), 'int'), col('best merit', '', O.history.slice())] });
+    if (O.scan && O.scan.length) items.push({ kind: 'table', name: 'optimiser scan', about: 'the coarse scan of the one value varied', cols: [col('value tried', '', O.scan.map(q => q.v)), col('reading', '', O.scan.map(q => (q.raw === null ? NaN : q.raw)))] });
+  }
+  return { items, parts: ids };
+}
+
+/* ---------- The bench: its parts (name, type, place and every setting) and the whole bench as saved ---------- */
+function benchData() {
+  const E = project.elements;
+  const parts = { kind: 'table', name: 'parts', about: 'every part on the bench: where it is, and all its settings (as JSON, as a .jekray file holds them)',
+    cols: [col('name', '', E.map(e => e.name), 'str'), col('type', '', E.map(e => e.type), 'str'), col('kind', '', E.map(e => typeLabel(e)), 'str'), col('tab', '', E.map(tabName), 'str'),
+      col('x', 'mm', E.map(e => e.x)), col('y', 'mm', E.map(e => e.y)), col('z', 'mm', E.map(e => (typeof e.z === 'number' ? e.z : NaN))), col('angle', '°', E.map(e => e.angle)),
+      col('settings', '', E.map(e => JSON.stringify(partSettings(e))), 'str')] };
+  const all = serialize();
+  all.elements = all.elements.map(partSettings);
+  return { items: [parts, { kind: 'value', name: 'bench', about: 'the whole bench, as a .jekray file holds it (an imported mesh’s triangles left out)', value: all }], parts: new Set() };
+}
+
+/* how many of each kind the bench has, for the export's list: { readouts, screens, beams, sweeps, bench } (plots are the page's) */
+function dataCounts() {
+  return {
+    readouts: readoutParts().length,
+    screens: screensOf().length,
+    beams: (lastTrace.beams || []).filter(b => !b.fan).length,
+    sweeps: project.elements.reduce((a, el) => a + Object.keys(el.sweeps || {}).length + (el.type === 'detector' && el.mmw && !el.mmw.part ? 1 : 0), 0) + Object.values(STUDIES).filter(Boolean).length,
+    bench: project.elements.length,
+  };
+}
+/* the kinds named, gathered: { items, parts } (the plots left to the page) */
+function gatherData(kinds) {
+  const F = { readouts: readoutsData, screens: screensData, beams: beamsData, sweeps: sweepsData, bench: benchData }, items = [], parts = new Set();
+  for (const k of kinds) { const f = F[k]; if (!f) continue; const r = f(); items.push(...r.items); for (const id of r.parts) parts.add(id); }
+  return { items, parts };
+}
+/* the parts' settings, by name, for the file's context */
+const partsMeta = ids => Object.fromEntries([...ids].map(getEl).filter(Boolean).map(el => [el.name, partSettings(el)]));
+/* ==========================================================================
    Actions
    ========================================================================== */
 
@@ -44313,6 +45148,195 @@ function exportScreen(el) {
   const name = safeFileName(project.name + ' ' + el.name) + '.csv';
   downloadFile(name, new Blob([L.join('\n')], { type: 'text/csv' }));
   toast('Saved ' + name);
+}
+/* ---------- File › Export data ----------
+   The numbers behind the bench as files: its readouts (every screen, detector, spectrometer and antenna as one
+   table), its plots' curves, each screen's ray hits and field map, its Gaussian beams, its sweeps and studies,
+   and the bench itself, as CSV (a zip of CSV files with README.txt), JSON, Excel, NumPy or MATLAB
+   (core/datafiles.js writes them; engines/data-export.js gathers all but the plots, which are the panels' own).
+   A free account exports one kind at a time as CSV or JSON; several kinds at once, everything in one go,
+   and Excel, NumPy and MATLAB files are JEKrayPro's. The tests, and a build without accounts, are not gated. */
+const DATA_PRO = new Set(['xlsx', 'npz', 'mat']);
+const DATA_FMT_LIST = [['csv', 'CSV (zip)'], ['json', 'JSON'], ['xlsx', 'Excel (.xlsx)'], ['npz', 'NumPy (.npz)'], ['mat', 'MATLAB (.mat)']];
+const PRO_FMT_WHAT = 'export data as Excel, NumPy or MATLAB files', PRO_MANY_WHAT = 'export several kinds of data at once', PRO_ALL_WHAT = 'export everything at once';
+
+/* what every file says of itself: the bench, the tab, JEKray's version and when */
+function dataMeta(extra) {
+  return Object.assign({ title: 'JEKray data', bench: project.name, tab: (curBench() || {}).name || '', version: APP_VERSION, created: new Date().toISOString(),
+    source: 'JEKray, https://jeksys.net/jek/tools/jekray.html' }, extra || {});
+}
+
+/* ---- the plots: the curves each part's panel draws, read from the panels (those open, and each other part's made
+   out of sight for a moment: its plots draw as its panel would, then it goes) ---- */
+const PLOTS = { key: '', out: null, busy: null };
+const PLOT_TABS = ['params', 'plots', 'rays', 'pulse'];          // a screen's tabs with plots (Aberrations, worked out across the field, left to its panel)
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
+const plotRows = D => (typeof D.rows === 'function' ? D.rows() : D.rows) || [];
+function plotItem(D, el) {
+  const rows = plotRows(D);
+  return { kind: 'table', name: D.name, about: 'the curves of the plot ' + D.name + (el ? ' (' + el.name + '’s panel)' : ''),
+    cols: D.cols.map((c, j) => ({ name: String(c), unit: '', values: rows.map(r => (r[j] === '' ? null : r[j])) })) };
+}
+// (the bench as it stands, and the views its plots are set to)
+const plotsKey = () => { let v = ''; try { v = JSON.stringify([...viewState]); } catch (err) { v = String(Math.random()); } return snapshot() + '|' + v; };
+async function plotsData() {
+  const key = plotsKey();
+  if (PLOTS.key === key && PLOTS.out) return PLOTS.out;
+  if (PLOTS.busy && PLOTS.busy.key === key) return PLOTS.busy.p;
+  const p = (async () => {
+    const items = [], parts = new Set(), seen = new Set();
+    const take = (cv, el) => {
+      const D = cv._csv;
+      if (!D || !D.cols || seen.has(D.name)) return;
+      try { const it = plotItem(D, el); if (!it.cols.length || !it.cols[0].values.length) return; seen.add(D.name); items.push(it); if (el) parts.add(el.id); } catch (err) { /* a plot that cannot give its numbers now */ }
+    };
+    // the panels open now, as they are
+    for (const [box, el] of [[mainPanel, selected()], ...[...pinBoxes].map(([id, b]) => [b, getEl(id)])]) {
+      if (!box || box.style.display === 'none') continue;
+      for (const cv of box.querySelectorAll('canvas')) take(cv, el);
+    }
+    // every part's (those open too, for their other tabs), out of sight: laid out (so its plots measure their width) but not seen, its sections open; a screen's
+    // or a mirror's face's each tab of plots too (its field worked out first, as its Plots tab would), its tab put back after
+    const probe = document.createElement('aside');
+    probe.className = 'rt-panel rt-dataprobe';
+    probe.setAttribute('aria-hidden', 'true');
+    document.body.append(probe);
+    const made = [], tabsWas = new Map();
+    try {
+      for (const el of project.elements) {
+        if (el.type === 'draw') continue;
+        const tabbed = el.type === 'screen' || el.type === 'mirror';
+        for (const tab of tabbed ? PLOT_TABS : [null]) {
+          if (tab) { if (!tabsWas.has(el.id)) tabsWas.set(el.id, vs(el).screenTab); vs(el).screenTab = tab; if (tab === 'plots') { try { diffraction(el); } catch (err) { /* its plots show what they can */ } } }
+          const box = document.createElement('div');
+          probe.append(box);
+          try { panelInto(box, el); } catch (err) { box.remove(); continue; }
+          if (tab && vs(el).screenTab !== tab) { box.remove(); continue; }          // a tab this part does not have
+          if (box.querySelector('canvas')) made.push([box, el]); else box.remove();
+        }
+      }
+      for (const [id, t] of tabsWas) { const el = getEl(id); if (el) vs(el).screenTab = t; }
+      if (made.length) for (let k = 0; k < 3; k++) await nextFrame();
+      for (const [box, el] of made) for (const cv of box.querySelectorAll('canvas')) take(cv, el);
+    } finally { probe.remove(); for (const [id, t] of tabsWas) { const el = getEl(id); if (el) vs(el).screenTab = t; } }
+    return { items, parts };
+  })();
+  PLOTS.busy = { key, p };
+  // kept for the bench as it stands after (a panel made the first time gives its part its views' defaults), if it did not change meanwhile
+  const bench = snapshot();
+  try { const out = await p; if (snapshot() === bench) { PLOTS.key = plotsKey(); PLOTS.out = out; } return out; } finally { if (PLOTS.busy && PLOTS.busy.p === p) PLOTS.busy = null; }
+}
+
+/* the kinds asked for, as one file in the format: { name, blob, count } */
+async function dataFile(kinds, fmt) {
+  const G = { items: [], parts: new Set() };
+  for (const [k] of DATA_KINDS) {
+    if (!kinds.includes(k)) continue;
+    const R = k === 'plots' ? await plotsData() : gatherData([k]);
+    G.items.push(...R.items);
+    for (const id of R.parts) G.parts.add(id);
+  }
+  if (!G.items.length) return null;
+  const what = kinds.length === DATA_KINDS.length ? 'all' : kinds.map(k => (DATA_KINDS.find(q => q[0] === k) || [k, k])[1].toLowerCase()).join(', ');
+  const set = { meta: dataMeta({ title: 'JEKray data: ' + what, parts: partsMeta(G.parts) }), items: G.items };
+  const out = await dfWrite(set, fmt);
+  const base = safeFileName(project.name) + ' - ' + (kinds.length === 1 ? (DATA_KINDS.find(q => q[0] === kinds[0]) || [0, kinds[0]])[1].toLowerCase() : 'data');
+  return { name: base + out.ext, blob: new Blob([out.bytes], { type: out.mime }), count: G.items.length };
+}
+
+/* the kinds ticked, in the format chosen: a free account's for one kind as CSV or JSON; JEKrayPro's for more */
+async function exportData(kinds, fmt) {
+  if (!accountGate('export data')) return null;
+  if (DATA_PRO.has(fmt)) { if (!designPro(PRO_FMT_WHAT)) return null; }
+  if (kinds.length > 1) { if (!designPro(PRO_MANY_WHAT)) return null; }
+  if (!kinds.length) { toast('Tick what to export first.', true); return null; }
+  try {
+    const F = await dataFile(kinds, DATA_FORMATS[fmt] ? fmt : 'csv');
+    if (!F) { toast('There is nothing of that on this bench to export yet.', true); return null; }
+    downloadFile(F.name, F.blob);
+    toast('Saved ' + F.name);
+    track('export', 'data.' + fmt);
+    return F.name;
+  } catch (err) { toast('The data could not be exported: ' + err.message, true); return null; }
+}
+/* everything there is, in one file (JEKrayPro) */
+async function exportEverything(fmt) {
+  if (!accountGate('export data')) return null;
+  if (!designPro(PRO_ALL_WHAT)) return null;
+  try {
+    const F = await dataFile(DATA_KINDS.map(k => k[0]), DATA_FORMATS[fmt] ? fmt : 'csv');
+    if (!F) { toast('There is nothing on this bench to export yet.', true); return null; }
+    downloadFile(F.name, F.blob);
+    toast('Saved ' + F.name);
+    track('export', 'data.all.' + fmt);
+    return F.name;
+  } catch (err) { toast('The data could not be exported: ' + err.message, true); return null; }
+}
+
+/* ---- the dialog ---- */
+const DATA_HINT = { readouts: 'every screen, detector, spectrometer and antenna: one table', plots: 'the curves each part’s panel plots', screens: 'each screen’s ray hits, and its field map',
+  beams: 'each Gaussian beam’s q, size, waist and divergence', sweeps: 'the sweeps set, RF frequency sweeps and the bench’s studies', bench: 'every part and its settings' };
+function wireDataExport() {
+  const btn = document.getElementById('btnExportData'), dlg = document.getElementById('dataDialog');
+  if (!btn || !dlg) return;
+  const list = document.getElementById('dataKinds'), fmts = document.getElementById('dataFormats'), go = document.getElementById('dataGo'), all = document.getElementById('dataAll'), note = document.getElementById('dataNote');
+  const KEY = 'jek-rt-data-export';
+  let kept = {};
+  try { kept = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (err) { kept = {}; }
+  const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(kept)); } catch (err) { /* this visit only */ } };
+  const fmtNow = () => (fmts.querySelector('input:checked') || {}).value || 'csv';
+  const kindsNow = () => [...list.querySelectorAll('input:checked')].map(cb => cb.value);
+  for (const [k, label] of DATA_FMT_LIST) {
+    const lab = document.createElement('label');
+    lab.className = 'rt-check';
+    lab.innerHTML = '<input type="radio" name="dataFmt" value="' + k + '"> <span></span>';
+    lab.querySelector('span').textContent = label;
+    if (DATA_PRO.has(k)) needMark(lab, 'pro', PRO_FMT_WHAT); else needMark(lab, 'account', 'export data');
+    fmts.append(lab);
+  }
+  needMark(all, 'pro', PRO_ALL_WHAT);
+  const counts = { plots: null };
+  const say = () => {
+    const ks = kindsNow(), f = fmtNow(), pro = DATA_PRO.has(f) || ks.length > 1;
+    go.disabled = !ks.length;
+    note.textContent = !ks.length ? 'Tick at least one kind of data.' : pro && designWhy(ks.length > 1 ? PRO_MANY_WHAT : PRO_FMT_WHAT) ? 'With a free account: one kind at a time, as CSV or JSON. Several at once, everything in one go, and Excel, NumPy and MATLAB files are part of JEKrayPro.'
+      : 'Each file says what it holds: the bench, the JEKray version, the date, every column’s unit and the settings of the parts the numbers come from.';
+    go.textContent = ks.length > 1 ? 'Export ' + ks.length + ' kinds' : 'Export';
+  };
+  const fill = () => {
+    const C = Object.assign(dataCounts(), counts);
+    list.replaceChildren();
+    for (const [k, label] of DATA_KINDS) {
+      const n = C[k], lab = document.createElement('label');
+      lab.className = 'rt-check';
+      lab.innerHTML = '<input type="checkbox" value="' + k + '"> <span class="rt-dk"><b></b><i></i></span>';
+      lab.querySelector('b').textContent = label + (n === null ? ' (counting…)' : ' (' + n + ')');
+      lab.querySelector('i').textContent = ': ' + DATA_HINT[k];
+      const cb = lab.querySelector('input');
+      cb.checked = kept.kinds ? kept.kinds.includes(k) : k === 'readouts';
+      if (n === 0) { cb.checked = false; cb.disabled = true; lab.classList.add('off'); }
+      cb.id = 'dataKind-' + k;
+      list.append(lab);
+    }
+    say();
+  };
+  list.addEventListener('change', () => { kept.kinds = kindsNow(); keep(); say(); });
+  fmts.addEventListener('change', () => { kept.fmt = fmtNow(); keep(); say(); });
+  btn.addEventListener('click', () => {
+    counts.plots = null;
+    const r = fmts.querySelector('input[value="' + (DATA_FORMATS[kept.fmt] ? kept.fmt : 'csv') + '"]');
+    if (r) r.checked = true;
+    fill();
+    dlg.showModal();
+    const first = list.querySelector('input:checked') || list.querySelector('input:not(:disabled)');
+    if (first) first.focus();
+    plotsData().then(P => { counts.plots = P.items.length; if (dlg.open) { const was = kindsNow(); fill(); for (const cb of list.querySelectorAll('input')) if (was.includes(cb.value) && !cb.disabled) cb.checked = true; say(); } })
+      .catch(() => { counts.plots = 0; if (dlg.open) fill(); });
+  });
+  const busy = async (b, fn) => { const t = b.textContent; b.disabled = true; b.textContent = 'Exporting…'; try { const name = await fn(); if (name) dlg.close(); } finally { b.disabled = false; b.textContent = t; say(); } };
+  go.addEventListener('click', () => busy(go, () => exportData(kindsNow(), fmtNow())));
+  all.addEventListener('click', () => busy(all, () => exportEverything(fmtNow())));
+  document.getElementById('dataClose').addEventListener('click', () => dlg.close());
 }
 /* ==========================================================================
    The guide for AI assistants
@@ -49510,6 +50534,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Export data</b>: <b>File \u203a Export data\u2026</b> writes the numbers behind the bench as files for a spreadsheet, Python or MATLAB: its <b>readouts</b> (every screen, detector, spectrometer and antenna, one table), its <b>plots</b>\u2019 curves, each screen\u2019s <b>ray hits</b> and <b>field map</b>, its <b>Gaussian beams</b> (q, size, waist and divergence along the way), its <b>sweeps</b> and studies, and <b>the bench</b> itself, every part with its settings. Each file says what it holds: the bench, the version, the date, every column\u2019s unit and the settings of the parts the numbers come from. CSV (a zip, with a README) and JSON need a free account, one kind at a time; <b>Excel, NumPy and MATLAB</b> files, several kinds at once and <b>Export everything</b> are JEKrayPro\u2019s. In Scripts, <code>save(name, data, format)</code> keeps what a script makes as a file in any of the five formats, downloaded when the run ends (nothing when it is stopped), and a result\u2019s <b>Save as</b> offers them all.',
     '<b>Scripts run in the background, with Stop</b> (JEKrayPro): File \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',
     '<b>Right-drag pans the bench</b>, as middle-drag and Space-drag do; a right-click that does not drag still opens the menu.',
     '<b>Signed part packs</b>: a pack made in JEKray is signed with your account (a free one is enough), so whoever installs it sees <b>\u2713 Signed by the JEKray account \u2018</b>your name<b>\u2019</b>, and that it has not been changed since (the name is your account\u2019s own, so it is shown plainly, not as checked). A pack edited by hand afterwards reads <b>Unverified: changed after it was signed</b>: sign it again with File \u203a Part packs and modules\u2026 \u203a <b>Sign a pack file\u2026</b>, which also signs a module you wrote. A pack\u2019s id is its maker\u2019s once signed: a pack with that id installs only when its maker signed it, which stops someone else\u2019s pack posing as or replacing yours (ids starting jek., jekray. and jeksys. are JEKray\u2019s own). A <b>module installs only when signed and unchanged</b>, from a file, a link or a bench; one installed before keeps working, labelled Unverified. JEK Systems can revoke a harmful pack (installed packs are checked once a day: a revoked module is turned off), and <b>Report this pack</b> tells us of one. Teams on JEKrayPro can sign as their organisation, shown as <b>\u2713 Verified: </b><i>organisation</i><b> (</b><i>domain</i><b>)</b>, once they have verified their web domain themselves: a DNS record, set up from the team\u2019s settings under <b>Signing packs as the team</b>.',
@@ -49695,6 +50720,7 @@ const NEWS = [
     'Photodetectors in free space and fibre now work alike (material, dark current, amplifier noise), the free-space one drawn as a semicircle, with scope and spectrum views that match the instruments. An <b>optical chopper</b> for the free-space palette.',
     'A bench that fills the window, a <b>Bench panel you can pin</b>, R and Shift+R to turn parts, steady readouts while sweeping, and the optimiser on mirrors as on screens.',
     'Faster: moving electronics no longer re-solves them, and a laser\u2019s power drive is traced at its two ends when nothing on the bench saturates.'], [
+    '<b>Export data</b>: the bench\u2019s readouts, plots, screens\u2019 rays and fields, beams, sweeps and parts as CSV or JSON (a free account), or Excel, NumPy and MATLAB files (JEKrayPro); <code>save()</code> in Scripts.',
     '<b>Exports with a free account</b>: pictures, plots, data, .zmx and CAD files; a .jekray file needs none. <b>Free account</b> and <b>Pro</b> badges mark what needs what.',
     'A <b>3D view</b> of every bench, a switch away: every free-space part placed, tipped and rolled in all six degrees of freedom, with rays, Gaussian beams and the diffracted field followed exactly through it, misaligned cavities included.',
     '<b>STL objects</b> from CAD on the bench (mounts, housings, baffles), saved with it and kept in My parts.',
@@ -50099,7 +51125,7 @@ class _Bench:
             raise AttributeError(f'J has no call {name!r}')
         return lambda *args: _call(name, *args)
     def __dir__(self):
-        return sorted(self._calls | {'elements', 'element', 'get', 'set', 'range', 'sweep', 'csv'})
+        return sorted(self._calls | {'elements', 'element', 'get', 'set', 'range', 'sweep', 'csv', 'save'})
     def elements(self):
         return _call('elements')
     def element(self, name):
@@ -50128,6 +51154,27 @@ class _Bench:
         return rows
     def csv(self, rows):
         return _call('csv', rows)
+    def save(self, name, data, format='csv', meta=None):
+        save(name, data, format, meta)
+
+def _saveable(v):
+    # what save() is given, as JSON carries it: a NumPy array as its numbers with its shape and type, so it arrives as it was
+    if isinstance(v, dict):
+        return {str(k): _saveable(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_saveable(x) for x in v]
+    shape, dtype = getattr(v, 'shape', None), getattr(v, 'dtype', None)
+    if shape is not None and dtype is not None and callable(getattr(v, 'ravel', None)):
+        if len(shape) == 0:
+            return _plain(v.item())
+        if getattr(dtype, 'kind', '') in 'biuf':
+            return {'__ndarray__': v.ravel().tolist(), 'shape': list(shape), 'dtype': str(dtype)}
+        return _plain(v.tolist())
+    return _plain(v)
+
+def save(name, data, format='csv', meta=None):
+    """A file made of data when the run ends: format 'csv', 'json', 'xlsx', 'npz' or 'mat'; meta, your own fields for its context."""
+    _call('save', name, _saveable(data), format, _plain(meta))
 
 def _shown(v):
     # what a run shows: a dict of equal-length lists becomes rows, as a table
@@ -50167,7 +51214,7 @@ async def _jekray_run(code, calls):
     out, shown, err, tb = _Out(), None, None, None
     def log(*args):
         out.write(' '.join(_cell(a) for a in args) + '\n')
-    ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'BenchError': BenchError}
+    ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'save': save, 'BenchError': BenchError}
     linecache.cache['<script>'] = (len(code), None, code.splitlines(True), '<script>')
     try:
         tree = ast.parse(code, '<script>')
@@ -50336,8 +51383,9 @@ function scriptCalls() {
    calls the documentation lists for scripting (a screen's spot, a detector's reading, an
    antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
    (in Python: what it sets result to, or its last line's value) is shown: a table when it is rows,
-   with the rows saved as CSV, else as JSON. A script runs in the script worker (page/script-worker.js),
-   on its own copy of the bench, so the page carries on meanwhile and Stop ends it at once; its log()
+   which Save as… keeps as CSV, JSON, Excel, NumPy or MATLAB, else as JSON; save(name, data, format)
+   keeps what it makes as files, downloaded when the run ends (not when it is stopped). A script runs
+   in the script worker (page/script-worker.js), on its own copy of the bench, so the page carries on meanwhile and Stop ends it at once; its log()
    lines come as they are written, and when it ends what it changed is applied to the bench as one
    step Undo puts back. A script that needs the page itself (J.sweepPlay) can be run on the page
    instead, as typing it into the browser's console would (no Stop then). Scripts are kept in this
@@ -50359,7 +51407,7 @@ const S = J.stats(screen.name);
 log('rms', S.rms, 'mm;', S.powerPct, '% of the light from the sources reaching it');
 return S;`, 'js'],
   ['Sweep a part to a table', `// Move the first lens along x and read the spot at each place.
-// The result is a table; Save as CSV keeps it for a plot.
+// The result is a table; Save as keeps it (CSV, JSON, Excel, NumPy or MATLAB) for a plot.
 const lens = J.elements().find(e => e.type === 'lens'), screen = J.elements().find(e => e.type === 'screen');
 if (!lens || !screen) throw new Error('This needs a lens and a screen.');
 const x0 = J.get(lens.name, 'x');
@@ -50382,7 +51430,7 @@ S = J.stats(screen['name'])
 log('rms', S['rms'], 'mm;', S['powerPct'], '% of the light from the sources reaching it')
 result = S`, 'py'],
   ['Sweep a part to a table', `# Move the first lens along x and read the spot at each place.
-# The result is a table; Save as CSV keeps it for a plot.
+# The result is a table; Save as keeps it (CSV, JSON, Excel, NumPy or MATLAB) for a plot.
 import numpy as np
 
 parts = J.elements()
@@ -50413,8 +51461,10 @@ J.elements()`, 'py'],
 // why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
 const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
 
-/* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node) */
-function makeJ(P = window.JEKray) {   // (in the script worker, P is its own: page/script-worker.js)
+/* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node); saves, the
+   list its save() calls go into, for the page to make into files when the run ends */
+const SAVE_MAX = 20;
+function makeJ(P = window.JEKray, saves = []) {   // (in the script worker, P is its own: page/script-worker.js)
   const J = {};
   for (const k of CALLS) if (typeof P[k] === 'function') J[k] = (...a) => P[k](...a);
   J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
@@ -50431,8 +51481,72 @@ function makeJ(P = window.JEKray) {   // (in the script worker, P is its own: pa
     return rows;
   };
   J.csv = rows => toCsv(rows);
+  // save(name, data, format, meta): a file made of data when the run ends, in a format of DATA_FORMATS (core/datafiles.js)
+  J.save = (name, data, format = 'csv', meta = null) => {
+    const f = String(format == null ? 'csv' : format).toLowerCase().replace(/^\./, '');
+    if (!DATA_FORMATS[f]) throw new Error('save: the format is one of ' + Object.keys(DATA_FORMATS).join(', ') + ', not ' + JSON.stringify(format));
+    if (data === undefined) throw new Error('save: give it something to save, as save(name, data)');
+    if (saves.length >= SAVE_MAX) throw new Error('save: ' + SAVE_MAX + ' files at most from one run');
+    saves.push({ name: String(name == null || name === '' ? 'data' : name).slice(0, 80), data: saveCopy(data), format: f,
+      meta: meta === null || meta === undefined ? null : typeof meta === 'object' && !Array.isArray(meta) ? saveCopy(meta) : { note: String(meta) } });
+  };
   return J;
 }
+/* what save() is given, as it is then (a script may change it after): cloned, or where that cannot be (a function in it), its plain parts */
+function saveCopy(v, seen = new Set()) {
+  try { return structuredClone(v); } catch (err) { /* below */ }
+  if (v === null || typeof v !== 'object') return typeof v === 'function' || typeof v === 'symbol' ? undefined : v;
+  if (ArrayBuffer.isView(v)) return v.slice();
+  if (seen.has(v)) return null;
+  seen.add(v);
+  const out = Array.isArray(v) ? v.map(x => { const y = saveCopy(x, seen); return y === undefined ? null : y; }) : {};
+  if (!Array.isArray(v)) for (const k of Object.keys(v)) { const y = saveCopy(v[k], seen); if (y !== undefined) out[k] = y; }
+  seen.delete(v);
+  return out;
+}
+
+/* One thing a script saved, as a file: { name, blob }. A single table or array as CSV is a plain .csv; anything else
+   as CSV is a zip of them with README.txt, and every other format one file with an item for each named thing */
+async function scriptDataFile(s, script) {
+  const items = dfItemsOf(s.data, s.name), base = safeFileName(s.name);
+  const user = s.meta && typeof s.meta === 'object' ? s.meta : {};
+  const meta = Object.assign({}, user, dataMeta({ title: 'JEKray script data: ' + s.name, script: script || '' }));
+  if (s.format === 'csv' && items.length === 1 && items[0].kind !== 'value') {
+    const text = items[0].kind === 'table' ? dfTableCsv(items[0]) : dfArrayCsv(items[0]);
+    return { name: base + '.csv', base, ext: '.csv', blob: new Blob([dfUtf8(text)], { type: 'text/csv' }) };
+  }
+  const out = await dfWrite({ meta, items }, s.format);
+  return { name: base + out.ext, base, ext: out.ext, blob: new Blob([out.bytes], { type: out.mime }) };
+}
+/* the files a run's save() calls asked for, downloaded (a run's script is JEKrayPro's: so is this). More than five come as one zip */
+async function saveScriptFiles(saves, script) {
+  if (scriptsWhy()) { toast(scriptsWhy(), true); return []; }
+  if (!saves || !saves.length) return [];
+  const files = [], used = new Set();
+  for (const s of saves) {
+    try {
+      const F = await scriptDataFile(s, script);
+      let name = F.name, k = 2;
+      while (used.has(name.toLowerCase())) name = F.base + ' ' + k++ + F.ext;
+      used.add(name.toLowerCase());
+      files.push({ name, blob: F.blob, format: s.format });
+    } catch (err) { toast('“' + s.name + '” could not be saved: ' + err.message, true); }
+  }
+  if (!files.length) return [];
+  if (files.length > 5) {
+    const parts = await Promise.all(files.map(async f => ({ name: f.name, data: new Uint8Array(await f.blob.arrayBuffer()) })));
+    const name = safeFileName((script || 'script') + ' files') + '.zip';
+    downloadFile(name, new Blob([await dfZip(parts, { deflate: false })], { type: 'application/zip' }));
+    toast('Saved ' + name + ': ' + files.map(f => f.name).join(', '));
+  } else {
+    for (const f of files) downloadFile(f.name, f.blob);
+    toast('Saved ' + files.map(f => f.name).join(', '));
+  }
+  for (const f of files) track('export', 'script.' + f.format);
+  return files.map(f => f.name);
+}
+const SAVE_AS = [['csv', 'CSV', 'A .csv file (a zip of them for several tables)'], ['json', 'JSON', 'One .json file'], ['xlsx', 'Excel', 'An .xlsx workbook, a sheet for each table'],
+  ['npz', 'NumPy', 'A NumPy .npz file: numpy.load reads it'], ['mat', 'MATLAB', 'A MATLAB .mat file: load (or scipy.io.loadmat) reads it']];
 const isRows = v => Array.isArray(v) && v.length > 0 && v.every(r => r && typeof r === 'object' && !Array.isArray(r));
 const cell = v => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Number(v.toPrecision(6)).toString()) : v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 function toCsv(rows) {
@@ -50455,8 +51569,9 @@ async function execScript(code, J, lang, say, onLog) {
   let result, error = null;
   try {
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-    const fn = new AsyncFunction('J', 'log', '"use strict";\n' + String(code));
-    result = await fn(J, log);
+    // (in a block of its own, so a script's own const save or log is its own, as before save() was given)
+    const fn = new AsyncFunction('J', 'log', 'save', '"use strict";\n{\n' + String(code) + '\n}');
+    result = await fn(J, log, (...a) => (J.save ? J.save(...a) : undefined));
   } catch (err) {
     error = (err && err.message) || String(err);
   }
@@ -50514,7 +51629,7 @@ function runInWorker(code, lang, say, onLog) {
       else if (m.t === 'log') { run.logs.push(m.line); if (onLog) onLog(m.line); }
       else if (m.t === 'done') {
         if (lang === 'py' && !/^Python could not be loaded/.test(m.R.error || '')) SCRIPT_W.py = true;
-        const R = Object.assign(m.R, { where: 'worker', pageOnly: m.pageOnly || (m.R.error && /\b(window|document)\b/.test(code) ? 'page' : '') });
+        const R = Object.assign(m.R, { where: 'worker', saves: m.saves || [], pageOnly: m.pageOnly || (m.R.error && /\b(window|document)\b/.test(code) ? 'page' : '') });
         R.note = scriptTakeUp(m, run.start);
         end(R);
       }
@@ -50556,12 +51671,12 @@ async function runScript(code, lang, say, o = {}) {
   if (py) {
     try { await pyReady(say); } catch (err) { return { result: undefined, logs: [], traceback: null, ms: 0, where: 'page', error: pyLoadError(err) }; }
   }
-  const t0 = performance.now();
+  const t0 = performance.now(), saves = [];
   checkpoint();
-  const R = await execScript(code, makeJ(), py ? 'py' : 'js', say, o.onLog);
+  const R = await execScript(code, makeJ(window.JEKray, saves), py ? 'py' : 'js', say, o.onLog);
   window.JEKray.trace(); hooks.renderPanel(); hooks.requestRender();
   track('mod', py ? 'script.python' : 'script.js');
-  return Object.assign(R, { ms: performance.now() - t0, where: 'page' });
+  return Object.assign(R, { ms: performance.now() - t0, where: 'page', saves });
 }
 
 /* the scripts kept in this browser, each with its language (one kept before there was a choice is JavaScript) */
@@ -50576,8 +51691,8 @@ function saveScripts(list) { try { localStorage.setItem(KEY, JSON.stringify(list
 const lastLang = () => { try { return localStorage.getItem(LANG_KEY) === 'py' ? 'py' : 'js'; } catch (err) { return 'js'; } };
 const keepLang = lang => { try { localStorage.setItem(LANG_KEY, lang); } catch (err) { /* not kept: fine */ } };
 const SCRIPT_HINT = {
-  js: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown.',
-  py: 'Python. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() and print() write below; set result to what to show (or end with it).',
+  js: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown; save(name, data, \'csv\') keeps a file.',
+  py: 'Python. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() and print() write below; set result to what to show (or end with it); save(name, data, \'csv\') keeps a file.',
 };
 
 function wireScripts() {
@@ -50608,15 +51723,21 @@ function wireScripts() {
       const cols = [...new Set(R.result.flatMap(r => Object.keys(r)))];
       out.append(h('table', null, h('thead', null, h('tr', null, ...cols.map(c => h('th', null, c)))),
         h('tbody', null, ...R.result.map(r => h('tr', null, ...cols.map(c => h('td', null, cell(r[c]))))))));
-      out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => downloadFile((current() ? current().name : 'script') + '.csv', new Blob([toCsv(R.result)], { type: 'text/csv' })) }, 'Save as CSV'),
-        h('span', { class: 'rt-script-note' }, R.result.length + ' row' + (R.result.length === 1 ? '' : 's'))));
-    } else if (R.result !== undefined) out.append(h('pre', null, typeof R.result === 'string' ? R.result : JSON.stringify(R.result, null, 1)));
+      out.append(saveBar(R.result, R.result.length + ' row' + (R.result.length === 1 ? '' : 's')));
+    } else if (R.result !== undefined) {
+      out.append(h('pre', null, typeof R.result === 'string' ? R.result : JSON.stringify(R.result, null, 1)));
+      if (dfItemsOf(R.result, 'result').some(it => it.kind !== 'value')) out.append(saveBar(R.result, ''));
+    }
     // a script that needs the page (sweepPlay, the page's own window or document): run there instead, without Stop
     if (R.error && R.pageOnly && R.where === 'worker') out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn', id: 'scriptOnPage', onclick: () => run({ page: true }) }, 'Run on the page (no Stop)'),
       h('span', { class: 'rt-script-note' }, 'Runs it on this page as the console would: the page waits for it, and it cannot be stopped.')));
     const took = R.ms < 1000 ? Math.round(R.ms) + ' ms' : secs + ' s';
     out.append(h('div', { class: 'rt-script-note', id: 'scriptDone' }, (R.error ? 'Failed after ' : 'Done in ') + took + (R.where === 'page' ? ' (on the page)' : '') + '.' + (R.note ? ' ' + R.note : R.where === 'page' && R.error ? ' Undo puts the bench back if the script changed it.' : '')));
   };
+  // what a run returned, saved as a file in the format picked (a table, an array, or several named ones)
+  const saveBar = (result, note) => h('div', { class: 'rt-script-bar', id: 'scriptSaveAs' }, h('span', { class: 'rt-script-note' }, 'Save as'),
+    ...SAVE_AS.map(([k, label, title]) => h('button', { type: 'button', class: 'rt-btn quiet', 'data-fmt': k, title, onclick: () => saveScriptFiles([{ name: current() ? current().name : 'script', data: result, format: k, meta: null }], current() ? current().name : 'script') }, label)),
+    note ? h('span', { class: 'rt-script-note' }, note) : null);
   // Run becomes Stop while a script runs, with the time it has run beside it
   const busy = on => {
     runBtn.textContent = on ? 'Stop' : 'Run';
@@ -50639,7 +51760,15 @@ function wireScripts() {
     const onLog = line => { logBox.append(h('div', { class: 'rt-script-log' }, line)); into(); if (out.scrollHeight - out.scrollTop - out.clientHeight < 60) out.scrollTop = out.scrollHeight; };
     const onPage = o.page || !scriptWorkerOk();
     if (onPage) runBtn.disabled = true; else busy(true);
-    try { show(await runScript(ed.value, langOf(), say, { page: o.page, onLog })); } finally { runBtn.disabled = false; busy(false); }
+    try {
+      const R = await runScript(ed.value, langOf(), say, { page: o.page, onLog });
+      show(R);
+      // what it asked save() for, made into files now it has ended (a stopped run saves nothing)
+      if (!R.stopped && R.saves && R.saves.length) {
+        const names = await saveScriptFiles(R.saves, current() ? current().name : 'script');
+        if (names.length) out.append(h('div', { class: 'rt-script-note', id: 'scriptSaved' }, 'Saved ' + names.join(', ') + '.'));
+      }
+    } finally { runBtn.disabled = false; busy(false); }
   };
   const build = () => {
     dlg = h('dialog', { class: 'rt-dialog rt-wide rt-scripts', id: 'scriptDialog', 'aria-labelledby': 'scriptTitle' });
@@ -51049,6 +52178,8 @@ function wireTours() {
       checkpoint();
       const S = sensitivity(vars, target, key);
       changed(true);
+      keepStudy('sensitivity', { target: target.name, metric: (metricByKey(key) || {}).label || key, base: S.base, rss: S.rss,
+        rows: S.rows.map(r => ({ part: r.el.name, path: r.path, lo: r.lo, hi: r.hi, dLo: r.dLo, dHi: r.dHi, worst: r.worst })) });
       const head = h('tr', null, h('th', null, 'Parameter'), h('th', null, 'At the low end'),
         h('th', null, 'At the high end'), h('th', null, 'Worst swing'), h('th', null, ''));
       const table = h('table', { class: 'rt-sens' }, head);
@@ -51082,6 +52213,7 @@ function wireTours() {
         (samples, nominal) => {
           running = false;
           if (!samples.length) { result.textContent = 'No trial produced a reading there.'; return; }
+          keepStudy('tolerance', { target: target.name, metric: (metricByKey(key) || {}).label || key, nominal, dist: dist === 'uniform' ? 'uniform' : 'Gaussian, range = 6 sigma', samples: samples.slice() });
           const n = samples.length;
           const mean = samples.reduce((a, b) => a + b, 0) / n;
           const sd = Math.sqrt(samples.reduce((a, b) => a + (b - mean) * (b - mean), 0) / n);
@@ -51174,6 +52306,10 @@ function wireTours() {
       const finish = r => {
         job = null; runBtn.disabled = false; stopBtn.hidden = true;
         changed(true);
+        keepStudy('optimiser', { evals: r.evals, stopped: !!r.stopped, improved: !!r.improved, startMerit: r.startMerit, bestMerit: r.bestMerit,
+          vars: vars.map(([el, path], i) => ({ part: el.name, path, start: r.start[i], best: r.improved ? r.best[i] : r.start[i] })),
+          terms: terms.map((q, i) => ({ target: q.target.name, metric: (metricByKey(q.key) || {}).label || q.key, goal: q.goal === 'match' ? 'match ' + q.targetVal : q.goal, start: r.raw0[i], best: r.improved ? r.rawBest[i] : r.raw0[i] })),
+          history: r.history.slice(), scan: r.scan.map(q => ({ v: q.v, raw: q.raw })) });
         scanCv.style.display = 'block';
         if (vars.length === 1 && terms.length === 1 && r.scan.length && !r.stopped) drawScan(scanCv, r.scan, terms[0].key, r.improved ? r.best[0] : r.start[0]);
         else drawConvergence(scanCv, r.history);
@@ -51758,7 +52894,7 @@ function traceLater() {
    loaded into the worker's own copy and traced, as headless.mjs does it in Node; J is made over the
    same calls window.JEKray gives (ui/script-calls.js), so the answers are the page's. log() lines are
    sent as they are written. When the script ends, the bench is sent back if the script changed it
-   (J.set, J.load), for the page to take up as one change; the calls that are the page's own (select,
+   (J.set, J.load), for the page to take up as one change, with what save() was asked for (the page makes the files); the calls that are the page's own (select,
    showTab, sweepPause) are kept and done there then; sweepPlay, which plays a sweep on the bench in
    view, is refused, and the page offers to run the script there instead (no Stop).
    One worker is kept between runs (Python stays loaded in it); Stop ends it, and a fresh one starts.
@@ -51801,6 +52937,7 @@ function scriptWorkerMain() {
     if (m.t === 'warm') { if (m.lang === 'py') pyReady(() => {}, m.py).catch(() => {}); return; }
     if (m.t !== 'run') return;
     let R, out = {};
+    const saves = [];
     try {
       if (m.mods) modAbsorb(m.mods);                       // the mods' results the page has (their code never runs here)
       loadProject(JSON.parse(m.proj)); setLastTraceKey(null); traceScene();
@@ -51812,16 +52949,18 @@ function scriptWorkerMain() {
         try { await pyReady(say, m.py); } catch (err) { post({ t: 'done', R: { result: undefined, logs: [], traceback: null, ms: 0, error: pyLoadError(err) } }); return; }
       }
       const t0 = performance.now();
-      R = await execScript(m.code, makeJ(P), m.lang === 'py' ? 'py' : 'js', say, line => post({ t: 'log', line }));
+      R = await execScript(m.code, makeJ(P, saves), m.lang === 'py' ? 'py' : 'js', say, line => post({ t: 'log', line }));
       R.ms = performance.now() - t0;
       const moved = st.loaded || snapshot() !== key0;
       out = { bench: moved ? JSON.stringify(serialize()) : null, whole: st.loaded, tab: project.tab !== tab0 ? project.tab : null, ops, pageOnly: st.pageOnly };
     } catch (err) {
       R = { result: undefined, logs: R ? R.logs : [], traceback: null, ms: 0, error: (err && err.message) || String(err) };
     }
-    let res = R.result;
+    let res = R.result, kept = saves;
     try { res = structuredClone(res); } catch (err) { res = scriptPlain(res); }
-    post(Object.assign({ t: 'done', R: { result: res, logs: R.logs, error: R.error, traceback: R.traceback, ms: R.ms } }, out));
+    try { kept = structuredClone(saves); } catch (err) { kept = scriptPlain(saves); }
+    // (what save() was asked for goes with it: the page makes the files, now the run has ended)
+    post(Object.assign({ t: 'done', R: { result: res, logs: R.logs, error: R.error, traceback: R.traceback, ms: R.ms }, saves: kept }, out));
   };
 }
 /* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
@@ -51960,7 +53099,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -52137,6 +53276,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     scriptRun: (code, lang, o) => runScript(code, lang, undefined, o),
     scriptStop: () => stopScript(),
     scriptBusy: () => scriptRunning(),
+    // File › Export data: the kinds' items as the export gathers them (plots: the panels' own, so async), and the export itself
+    dataItems(kinds) { traceScene(); return gatherData(kinds || ['readouts', 'screens', 'beams', 'sweeps', 'bench']).items; },
+    plotsData: () => plotsData(),
+    exportData: (kinds, fmt) => exportData(kinds, fmt),
+    exportEverything: fmt => exportEverything(fmt),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),

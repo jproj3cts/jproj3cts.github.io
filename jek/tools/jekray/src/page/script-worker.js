@@ -16,7 +16,7 @@ import { snapshot } from '../ui/tabs.js';
    loaded into the worker's own copy and traced, as headless.mjs does it in Node; J is made over the
    same calls window.JEKray gives (ui/script-calls.js), so the answers are the page's. log() lines are
    sent as they are written. When the script ends, the bench is sent back if the script changed it
-   (J.set, J.load), for the page to take up as one change; the calls that are the page's own (select,
+   (J.set, J.load), for the page to take up as one change, with what save() was asked for (the page makes the files); the calls that are the page's own (select,
    showTab, sweepPause) are kept and done there then; sweepPlay, which plays a sweep on the bench in
    view, is refused, and the page offers to run the script there instead (no Stop).
    One worker is kept between runs (Python stays loaded in it); Stop ends it, and a fresh one starts.
@@ -59,6 +59,7 @@ export function scriptWorkerMain() {
     if (m.t === 'warm') { if (m.lang === 'py') pyReady(() => {}, m.py).catch(() => {}); return; }
     if (m.t !== 'run') return;
     let R, out = {};
+    const saves = [];
     try {
       if (m.mods) modAbsorb(m.mods);                       // the mods' results the page has (their code never runs here)
       loadProject(JSON.parse(m.proj)); setLastTraceKey(null); traceScene();
@@ -70,15 +71,17 @@ export function scriptWorkerMain() {
         try { await pyReady(say, m.py); } catch (err) { post({ t: 'done', R: { result: undefined, logs: [], traceback: null, ms: 0, error: pyLoadError(err) } }); return; }
       }
       const t0 = performance.now();
-      R = await execScript(m.code, makeJ(P), m.lang === 'py' ? 'py' : 'js', say, line => post({ t: 'log', line }));
+      R = await execScript(m.code, makeJ(P, saves), m.lang === 'py' ? 'py' : 'js', say, line => post({ t: 'log', line }));
       R.ms = performance.now() - t0;
       const moved = st.loaded || snapshot() !== key0;
       out = { bench: moved ? JSON.stringify(serialize()) : null, whole: st.loaded, tab: project.tab !== tab0 ? project.tab : null, ops, pageOnly: st.pageOnly };
     } catch (err) {
       R = { result: undefined, logs: R ? R.logs : [], traceback: null, ms: 0, error: (err && err.message) || String(err) };
     }
-    let res = R.result;
+    let res = R.result, kept = saves;
     try { res = structuredClone(res); } catch (err) { res = scriptPlain(res); }
-    post(Object.assign({ t: 'done', R: { result: res, logs: R.logs, error: R.error, traceback: R.traceback, ms: R.ms } }, out));
+    try { kept = structuredClone(saves); } catch (err) { kept = scriptPlain(saves); }
+    // (what save() was asked for goes with it: the page makes the files, now the run has ended)
+    post(Object.assign({ t: 'done', R: { result: res, logs: R.logs, error: R.error, traceback: R.traceback, ms: R.ms }, saves: kept }, out));
   };
 }

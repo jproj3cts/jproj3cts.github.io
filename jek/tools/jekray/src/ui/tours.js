@@ -19,6 +19,7 @@ import {
 import { benchGear, h, renderPanel, setPanelClosed } from './panel.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
 import { screenStats } from '../engines/screen-stats.js';
+import { keepStudy } from '../engines/data-export.js';
 import { changed, fitView, saveFile, toast, updateUndoButtons } from './actions.js';
 import { addBench, checkpoint, redo, renderBenchTabs, undo } from './tabs.js';
 import { exportLayout } from '../io/layout.js';
@@ -390,6 +391,8 @@ export function wireTours() {
       checkpoint();
       const S = sensitivity(vars, target, key);
       changed(true);
+      keepStudy('sensitivity', { target: target.name, metric: (metricByKey(key) || {}).label || key, base: S.base, rss: S.rss,
+        rows: S.rows.map(r => ({ part: r.el.name, path: r.path, lo: r.lo, hi: r.hi, dLo: r.dLo, dHi: r.dHi, worst: r.worst })) });
       const head = h('tr', null, h('th', null, 'Parameter'), h('th', null, 'At the low end'),
         h('th', null, 'At the high end'), h('th', null, 'Worst swing'), h('th', null, ''));
       const table = h('table', { class: 'rt-sens' }, head);
@@ -423,6 +426,7 @@ export function wireTours() {
         (samples, nominal) => {
           running = false;
           if (!samples.length) { result.textContent = 'No trial produced a reading there.'; return; }
+          keepStudy('tolerance', { target: target.name, metric: (metricByKey(key) || {}).label || key, nominal, dist: dist === 'uniform' ? 'uniform' : 'Gaussian, range = 6 sigma', samples: samples.slice() });
           const n = samples.length;
           const mean = samples.reduce((a, b) => a + b, 0) / n;
           const sd = Math.sqrt(samples.reduce((a, b) => a + (b - mean) * (b - mean), 0) / n);
@@ -515,6 +519,10 @@ export function wireTours() {
       const finish = r => {
         job = null; runBtn.disabled = false; stopBtn.hidden = true;
         changed(true);
+        keepStudy('optimiser', { evals: r.evals, stopped: !!r.stopped, improved: !!r.improved, startMerit: r.startMerit, bestMerit: r.bestMerit,
+          vars: vars.map(([el, path], i) => ({ part: el.name, path, start: r.start[i], best: r.improved ? r.best[i] : r.start[i] })),
+          terms: terms.map((q, i) => ({ target: q.target.name, metric: (metricByKey(q.key) || {}).label || q.key, goal: q.goal === 'match' ? 'match ' + q.targetVal : q.goal, start: r.raw0[i], best: r.improved ? r.rawBest[i] : r.raw0[i] })),
+          history: r.history.slice(), scan: r.scan.map(q => ({ v: q.v, raw: q.raw })) });
         scanCv.style.display = 'block';
         if (vars.length === 1 && terms.length === 1 && r.scan.length && !r.stopped) drawScan(scanCv, r.scan, terms[0].key, r.improved ? r.best[0] : r.start[0]);
         else drawConvergence(scanCv, r.history);

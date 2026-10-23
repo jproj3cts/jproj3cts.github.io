@@ -5,12 +5,12 @@ The tool is served as one page, `jek/tools/jekray.html`. That page is built from
 - `page.html`: the markup, with `{{STYLE}}` and `{{SCRIPT}}` where the style and the script go.
 - `style.css`: the page's style.
 - `src/`: the script, as ES modules, in the order `order.json` gives:
-  - `core/`: constants, maths, formats, glasses, materials physics, geometry, masks, STL meshes, and `hooks.js`;
+  - `core/`: constants, maths, formats, the data files' writers (`datafiles.js`: zip, CSV, JSON, Excel, NumPy, MATLAB), glasses, materials physics, geometry, masks, STL meshes, and `hooks.js`;
   - `state/`: the project, its elements, drawings, benches, parameters, installed packs;
   - `parts/`: one module per part type (`mirror.js`, `lens.js`, ...) and `registry.js`, which gathers them;
-  - `engines/`: ray tracing, the diffracted field, cavities, fibre, electronics, photonic circuits, modules' results, screen figures, an RF receiver's frequency sweep and link budget;
+  - `engines/`: ray tracing, the diffracted field, cavities, fibre, electronics, photonic circuits, modules' results, screen figures, an RF receiver's frequency sweep and link budget, the bench's numbers gathered as data (`data-export.js`);
   - `ui/`: rendering, drawings, the pointer, panels, readouts, plots, sweeps, tabs, the close-up, the 3D view, wiring, and `ui/parts/`, one module per part (how it is drawn, picked and edited) with its own `registry.js`;
-  - `io/`: saving and opening, autosave, share links, .zmx, part packs, modules, the cloud, the AI guide;
+  - `io/`: saving and opening, autosave, share links, .zmx, part packs, modules, the cloud, the AI guide, File › Export data (`data-export.js`);
   - `page/`: the page's workers (the field worker's client, the trace worker, the shim) and the script worker, where File › Scripts runs a script on a copy of the bench (`script-worker.js`, a module worker of the same script, so that Pyodide runs in it and Stop can end it);
   - `worker/`: the field worker's side, and the dev page's worker entry.
 

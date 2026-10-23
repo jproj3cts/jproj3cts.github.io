@@ -2,7 +2,7 @@ import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { project } from '../state/project.js';
 import { h } from './panel.js';
-import { downloadFile, toast } from './actions.js';
+import { downloadFile, safeFileName, toast } from './actions.js';
 import { adoptBench, checkpoint, snapshot } from './tabs.js';
 import { serialize } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
@@ -10,14 +10,17 @@ import { accountsOn } from '../io/account.js';
 import { track } from '../io/usage.js';
 import { NUMPY_BYTES, PY_BYTES, PY_DIR, pyReady, pyRun } from './python.js';
 import { WORKERS_OK, newAppWorker } from '../page/workers.js';
+import { DATA_FORMATS, dfArrayCsv, dfItemsOf, dfTableCsv, dfUtf8, dfWrite, dfZip } from '../core/datafiles.js';
+import { dataMeta } from '../io/data-export.js';
 
 /* ---------- Scripts: JavaScript or Python run against the bench, in the background (JEKrayPro) ----------
    File › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
    calls the documentation lists for scripting (a screen's spot, a detector's reading, an
    antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
    (in Python: what it sets result to, or its last line's value) is shown: a table when it is rows,
-   with the rows saved as CSV, else as JSON. A script runs in the script worker (page/script-worker.js),
-   on its own copy of the bench, so the page carries on meanwhile and Stop ends it at once; its log()
+   which Save as… keeps as CSV, JSON, Excel, NumPy or MATLAB, else as JSON; save(name, data, format)
+   keeps what it makes as files, downloaded when the run ends (not when it is stopped). A script runs
+   in the script worker (page/script-worker.js), on its own copy of the bench, so the page carries on meanwhile and Stop ends it at once; its log()
    lines come as they are written, and when it ends what it changed is applied to the bench as one
    step Undo puts back. A script that needs the page itself (J.sweepPlay) can be run on the page
    instead, as typing it into the browser's console would (no Stop then). Scripts are kept in this
@@ -39,7 +42,7 @@ const S = J.stats(screen.name);
 log('rms', S.rms, 'mm;', S.powerPct, '% of the light from the sources reaching it');
 return S;`, 'js'],
   ['Sweep a part to a table', `// Move the first lens along x and read the spot at each place.
-// The result is a table; Save as CSV keeps it for a plot.
+// The result is a table; Save as keeps it (CSV, JSON, Excel, NumPy or MATLAB) for a plot.
 const lens = J.elements().find(e => e.type === 'lens'), screen = J.elements().find(e => e.type === 'screen');
 if (!lens || !screen) throw new Error('This needs a lens and a screen.');
 const x0 = J.get(lens.name, 'x');
@@ -62,7 +65,7 @@ S = J.stats(screen['name'])
 log('rms', S['rms'], 'mm;', S['powerPct'], '% of the light from the sources reaching it')
 result = S`, 'py'],
   ['Sweep a part to a table', `# Move the first lens along x and read the spot at each place.
-# The result is a table; Save as CSV keeps it for a plot.
+# The result is a table; Save as keeps it (CSV, JSON, Excel, NumPy or MATLAB) for a plot.
 import numpy as np
 
 parts = J.elements()
@@ -93,8 +96,10 @@ J.elements()`, 'py'],
 // why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
 export const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
 
-/* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node) */
-export function makeJ(P = window.JEKray) {   // (in the script worker, P is its own: page/script-worker.js)
+/* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node); saves, the
+   list its save() calls go into, for the page to make into files when the run ends */
+export const SAVE_MAX = 20;
+export function makeJ(P = window.JEKray, saves = []) {   // (in the script worker, P is its own: page/script-worker.js)
   const J = {};
   for (const k of CALLS) if (typeof P[k] === 'function') J[k] = (...a) => P[k](...a);
   J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
@@ -111,8 +116,72 @@ export function makeJ(P = window.JEKray) {   // (in the script worker, P is its 
     return rows;
   };
   J.csv = rows => toCsv(rows);
+  // save(name, data, format, meta): a file made of data when the run ends, in a format of DATA_FORMATS (core/datafiles.js)
+  J.save = (name, data, format = 'csv', meta = null) => {
+    const f = String(format == null ? 'csv' : format).toLowerCase().replace(/^\./, '');
+    if (!DATA_FORMATS[f]) throw new Error('save: the format is one of ' + Object.keys(DATA_FORMATS).join(', ') + ', not ' + JSON.stringify(format));
+    if (data === undefined) throw new Error('save: give it something to save, as save(name, data)');
+    if (saves.length >= SAVE_MAX) throw new Error('save: ' + SAVE_MAX + ' files at most from one run');
+    saves.push({ name: String(name == null || name === '' ? 'data' : name).slice(0, 80), data: saveCopy(data), format: f,
+      meta: meta === null || meta === undefined ? null : typeof meta === 'object' && !Array.isArray(meta) ? saveCopy(meta) : { note: String(meta) } });
+  };
   return J;
 }
+/* what save() is given, as it is then (a script may change it after): cloned, or where that cannot be (a function in it), its plain parts */
+function saveCopy(v, seen = new Set()) {
+  try { return structuredClone(v); } catch (err) { /* below */ }
+  if (v === null || typeof v !== 'object') return typeof v === 'function' || typeof v === 'symbol' ? undefined : v;
+  if (ArrayBuffer.isView(v)) return v.slice();
+  if (seen.has(v)) return null;
+  seen.add(v);
+  const out = Array.isArray(v) ? v.map(x => { const y = saveCopy(x, seen); return y === undefined ? null : y; }) : {};
+  if (!Array.isArray(v)) for (const k of Object.keys(v)) { const y = saveCopy(v[k], seen); if (y !== undefined) out[k] = y; }
+  seen.delete(v);
+  return out;
+}
+
+/* One thing a script saved, as a file: { name, blob }. A single table or array as CSV is a plain .csv; anything else
+   as CSV is a zip of them with README.txt, and every other format one file with an item for each named thing */
+export async function scriptDataFile(s, script) {
+  const items = dfItemsOf(s.data, s.name), base = safeFileName(s.name);
+  const user = s.meta && typeof s.meta === 'object' ? s.meta : {};
+  const meta = Object.assign({}, user, dataMeta({ title: 'JEKray script data: ' + s.name, script: script || '' }));
+  if (s.format === 'csv' && items.length === 1 && items[0].kind !== 'value') {
+    const text = items[0].kind === 'table' ? dfTableCsv(items[0]) : dfArrayCsv(items[0]);
+    return { name: base + '.csv', base, ext: '.csv', blob: new Blob([dfUtf8(text)], { type: 'text/csv' }) };
+  }
+  const out = await dfWrite({ meta, items }, s.format);
+  return { name: base + out.ext, base, ext: out.ext, blob: new Blob([out.bytes], { type: out.mime }) };
+}
+/* the files a run's save() calls asked for, downloaded (a run's script is JEKrayPro's: so is this). More than five come as one zip */
+export async function saveScriptFiles(saves, script) {
+  if (scriptsWhy()) { toast(scriptsWhy(), true); return []; }
+  if (!saves || !saves.length) return [];
+  const files = [], used = new Set();
+  for (const s of saves) {
+    try {
+      const F = await scriptDataFile(s, script);
+      let name = F.name, k = 2;
+      while (used.has(name.toLowerCase())) name = F.base + ' ' + k++ + F.ext;
+      used.add(name.toLowerCase());
+      files.push({ name, blob: F.blob, format: s.format });
+    } catch (err) { toast('“' + s.name + '” could not be saved: ' + err.message, true); }
+  }
+  if (!files.length) return [];
+  if (files.length > 5) {
+    const parts = await Promise.all(files.map(async f => ({ name: f.name, data: new Uint8Array(await f.blob.arrayBuffer()) })));
+    const name = safeFileName((script || 'script') + ' files') + '.zip';
+    downloadFile(name, new Blob([await dfZip(parts, { deflate: false })], { type: 'application/zip' }));
+    toast('Saved ' + name + ': ' + files.map(f => f.name).join(', '));
+  } else {
+    for (const f of files) downloadFile(f.name, f.blob);
+    toast('Saved ' + files.map(f => f.name).join(', '));
+  }
+  for (const f of files) track('export', 'script.' + f.format);
+  return files.map(f => f.name);
+}
+const SAVE_AS = [['csv', 'CSV', 'A .csv file (a zip of them for several tables)'], ['json', 'JSON', 'One .json file'], ['xlsx', 'Excel', 'An .xlsx workbook, a sheet for each table'],
+  ['npz', 'NumPy', 'A NumPy .npz file: numpy.load reads it'], ['mat', 'MATLAB', 'A MATLAB .mat file: load (or scipy.io.loadmat) reads it']];
 const isRows = v => Array.isArray(v) && v.length > 0 && v.every(r => r && typeof r === 'object' && !Array.isArray(r));
 const cell = v => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Number(v.toPrecision(6)).toString()) : v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 function toCsv(rows) {
@@ -135,8 +204,9 @@ export async function execScript(code, J, lang, say, onLog) {
   let result, error = null;
   try {
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-    const fn = new AsyncFunction('J', 'log', '"use strict";\n' + String(code));
-    result = await fn(J, log);
+    // (in a block of its own, so a script's own const save or log is its own, as before save() was given)
+    const fn = new AsyncFunction('J', 'log', 'save', '"use strict";\n{\n' + String(code) + '\n}');
+    result = await fn(J, log, (...a) => (J.save ? J.save(...a) : undefined));
   } catch (err) {
     error = (err && err.message) || String(err);
   }
@@ -194,7 +264,7 @@ function runInWorker(code, lang, say, onLog) {
       else if (m.t === 'log') { run.logs.push(m.line); if (onLog) onLog(m.line); }
       else if (m.t === 'done') {
         if (lang === 'py' && !/^Python could not be loaded/.test(m.R.error || '')) SCRIPT_W.py = true;
-        const R = Object.assign(m.R, { where: 'worker', pageOnly: m.pageOnly || (m.R.error && /\b(window|document)\b/.test(code) ? 'page' : '') });
+        const R = Object.assign(m.R, { where: 'worker', saves: m.saves || [], pageOnly: m.pageOnly || (m.R.error && /\b(window|document)\b/.test(code) ? 'page' : '') });
         R.note = scriptTakeUp(m, run.start);
         end(R);
       }
@@ -236,12 +306,12 @@ export async function runScript(code, lang, say, o = {}) {
   if (py) {
     try { await pyReady(say); } catch (err) { return { result: undefined, logs: [], traceback: null, ms: 0, where: 'page', error: pyLoadError(err) }; }
   }
-  const t0 = performance.now();
+  const t0 = performance.now(), saves = [];
   checkpoint();
-  const R = await execScript(code, makeJ(), py ? 'py' : 'js', say, o.onLog);
+  const R = await execScript(code, makeJ(window.JEKray, saves), py ? 'py' : 'js', say, o.onLog);
   window.JEKray.trace(); hooks.renderPanel(); hooks.requestRender();
   track('mod', py ? 'script.python' : 'script.js');
-  return Object.assign(R, { ms: performance.now() - t0, where: 'page' });
+  return Object.assign(R, { ms: performance.now() - t0, where: 'page', saves });
 }
 
 /* the scripts kept in this browser, each with its language (one kept before there was a choice is JavaScript) */
@@ -256,8 +326,8 @@ function saveScripts(list) { try { localStorage.setItem(KEY, JSON.stringify(list
 const lastLang = () => { try { return localStorage.getItem(LANG_KEY) === 'py' ? 'py' : 'js'; } catch (err) { return 'js'; } };
 const keepLang = lang => { try { localStorage.setItem(LANG_KEY, lang); } catch (err) { /* not kept: fine */ } };
 const SCRIPT_HINT = {
-  js: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown.',
-  py: 'Python. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() and print() write below; set result to what to show (or end with it).',
+  js: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown; save(name, data, \'csv\') keeps a file.',
+  py: 'Python. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() and print() write below; set result to what to show (or end with it); save(name, data, \'csv\') keeps a file.',
 };
 
 export function wireScripts() {
@@ -288,15 +358,21 @@ export function wireScripts() {
       const cols = [...new Set(R.result.flatMap(r => Object.keys(r)))];
       out.append(h('table', null, h('thead', null, h('tr', null, ...cols.map(c => h('th', null, c)))),
         h('tbody', null, ...R.result.map(r => h('tr', null, ...cols.map(c => h('td', null, cell(r[c]))))))));
-      out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => downloadFile((current() ? current().name : 'script') + '.csv', new Blob([toCsv(R.result)], { type: 'text/csv' })) }, 'Save as CSV'),
-        h('span', { class: 'rt-script-note' }, R.result.length + ' row' + (R.result.length === 1 ? '' : 's'))));
-    } else if (R.result !== undefined) out.append(h('pre', null, typeof R.result === 'string' ? R.result : JSON.stringify(R.result, null, 1)));
+      out.append(saveBar(R.result, R.result.length + ' row' + (R.result.length === 1 ? '' : 's')));
+    } else if (R.result !== undefined) {
+      out.append(h('pre', null, typeof R.result === 'string' ? R.result : JSON.stringify(R.result, null, 1)));
+      if (dfItemsOf(R.result, 'result').some(it => it.kind !== 'value')) out.append(saveBar(R.result, ''));
+    }
     // a script that needs the page (sweepPlay, the page's own window or document): run there instead, without Stop
     if (R.error && R.pageOnly && R.where === 'worker') out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn', id: 'scriptOnPage', onclick: () => run({ page: true }) }, 'Run on the page (no Stop)'),
       h('span', { class: 'rt-script-note' }, 'Runs it on this page as the console would: the page waits for it, and it cannot be stopped.')));
     const took = R.ms < 1000 ? Math.round(R.ms) + ' ms' : secs + ' s';
     out.append(h('div', { class: 'rt-script-note', id: 'scriptDone' }, (R.error ? 'Failed after ' : 'Done in ') + took + (R.where === 'page' ? ' (on the page)' : '') + '.' + (R.note ? ' ' + R.note : R.where === 'page' && R.error ? ' Undo puts the bench back if the script changed it.' : '')));
   };
+  // what a run returned, saved as a file in the format picked (a table, an array, or several named ones)
+  const saveBar = (result, note) => h('div', { class: 'rt-script-bar', id: 'scriptSaveAs' }, h('span', { class: 'rt-script-note' }, 'Save as'),
+    ...SAVE_AS.map(([k, label, title]) => h('button', { type: 'button', class: 'rt-btn quiet', 'data-fmt': k, title, onclick: () => saveScriptFiles([{ name: current() ? current().name : 'script', data: result, format: k, meta: null }], current() ? current().name : 'script') }, label)),
+    note ? h('span', { class: 'rt-script-note' }, note) : null);
   // Run becomes Stop while a script runs, with the time it has run beside it
   const busy = on => {
     runBtn.textContent = on ? 'Stop' : 'Run';
@@ -319,7 +395,15 @@ export function wireScripts() {
     const onLog = line => { logBox.append(h('div', { class: 'rt-script-log' }, line)); into(); if (out.scrollHeight - out.scrollTop - out.clientHeight < 60) out.scrollTop = out.scrollHeight; };
     const onPage = o.page || !scriptWorkerOk();
     if (onPage) runBtn.disabled = true; else busy(true);
-    try { show(await runScript(ed.value, langOf(), say, { page: o.page, onLog })); } finally { runBtn.disabled = false; busy(false); }
+    try {
+      const R = await runScript(ed.value, langOf(), say, { page: o.page, onLog });
+      show(R);
+      // what it asked save() for, made into files now it has ended (a stopped run saves nothing)
+      if (!R.stopped && R.saves && R.saves.length) {
+        const names = await saveScriptFiles(R.saves, current() ? current().name : 'script');
+        if (names.length) out.append(h('div', { class: 'rt-script-note', id: 'scriptSaved' }, 'Saved ' + names.join(', ') + '.'));
+      }
+    } finally { runBtn.disabled = false; busy(false); }
   };
   const build = () => {
     dlg = h('dialog', { class: 'rt-dialog rt-wide rt-scripts', id: 'scriptDialog', 'aria-labelledby': 'scriptTitle' });

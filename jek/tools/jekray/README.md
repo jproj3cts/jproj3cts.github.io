@@ -11,7 +11,7 @@ The tool is served as one page, `jek/tools/jekray.html`. That page is built from
   - `engines/`: ray tracing, the diffracted field, cavities, fibre, electronics, photonic circuits, modules' results, screen figures, an RF receiver's frequency sweep and link budget;
   - `ui/`: rendering, drawings, the pointer, panels, readouts, plots, sweeps, tabs, the close-up, the 3D view, wiring, and `ui/parts/`, one module per part (how it is drawn, picked and edited) with its own `registry.js`;
   - `io/`: saving and opening, autosave, share links, .zmx, part packs, modules, the cloud, the AI guide;
-  - `page/`: the page's workers (the field worker's client, the trace worker, the shim);
+  - `page/`: the page's workers (the field worker's client, the trace worker, the shim) and the script worker, where File › Scripts runs a script on a copy of the bench (`script-worker.js`, a module worker of the same script, so that Pyodide runs in it and Stop can end it);
   - `worker/`: the field worker's side, and the dev page's worker entry.
 
 The first five of those are layers. `core/`, `state/`, `parts/`, `engines/` and `worker/` know nothing of the page: they import nothing from `ui/`, `io/` or `page/`, and when an engine has something to tell the page (redraw, rebuild a panel, run a mod in its sandbox, ask the field worker) it calls `core/hooks.js`, whose entries do nothing until `ui/boot.js` installs the page's own. The lint refuses an import the other way. The electronics and the photonic circuits are split the same way: their signals and scattering in `engines/elec.js` and `engines/pic.js` (`ELEC`, `PIC`), their symbols, panels and instruments in `ui/elec.js` and `ui/pic.js` (`ELEC_UI`, `PIC_UI`).

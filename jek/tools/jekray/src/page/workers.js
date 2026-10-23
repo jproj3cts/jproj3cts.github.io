@@ -32,12 +32,14 @@ import { workerShim } from '../worker/shim.js';
    ========================================================================== */
 
 /* a worker running this app: the page's own script with the shim in front, or on the dev page
-   the modules as a module worker; null where there can be none */
+   the modules as a module worker; null where there can be none. A script worker (script: true,
+   File › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
+   needs one, and is told what it is before the script runs (JEKRAY_SCRIPT_WORKER, or ?script) */
 export const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
-export function newAppWorker() {
-  if (!APP_SRC) return new Worker(DEV_WORKER, { type: 'module' });
-  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
-  const w = new Worker(url);
+export function newAppWorker(script) {
+  if (!APP_SRC) return new Worker(DEV_WORKER + (script ? '?script' : ''), { type: 'module' });
+  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', script ? 'self.JEKRAY_SCRIPT_WORKER = true;\n' : '', APP_SRC], { type: 'text/javascript' }));
+  const w = script ? new Worker(url, { type: 'module' }) : new Worker(url);
   URL.revokeObjectURL(url);
   return w;
 }

@@ -1,6 +1,6 @@
 import { LOCKED, clamp } from '../core/constants.js';
 import { extraSel, future, history, project, selectOne, selectedId, setFuture } from '../state/project.js';
-import { getEl, selected } from '../state/elements.js';
+import { getEl, loadProject, selected } from '../state/elements.js';
 import { benchName, curBench, ensureBenches, onTab } from '../state/tabs.js';
 import { requestRender } from './render.js';
 import { pauseAll } from './sweeps.js';
@@ -128,7 +128,7 @@ export function renderBenchTabs() {
 }
 
 /* History */
-const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [] });
+export const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [] });
 
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
@@ -139,6 +139,19 @@ function restore(str) {
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();
+}
+
+/* A bench a script worked on in its worker (page/script-worker.js), taken up as one change that Undo puts back:
+   its parts, fibres, measures, assemblies and tabs, with this page's views of its tabs and the selection kept
+   where they still apply; or, when the script loaded a bench of its own (whole), that bench as loaded */
+export function adoptBench(data, whole) {
+  checkpoint();
+  if (whole) { loadProject(data); selectOne(null); }
+  else restore(JSON.stringify({ e: data.elements, b: data.benches, f: data.fibres, m: data.measures, a: data.assemblies || [] }));
+  if (selectedId && !getEl(selectedId)) selectOne(null);
+  for (const id of [...extraSel]) if (!getEl(id)) extraSel.delete(id);
+  renderBenchTabs();
+  changed(true);
 }
 
 export function checkpoint() {

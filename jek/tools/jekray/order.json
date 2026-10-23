@@ -196,11 +196,13 @@
   "io/autosave.js",
   "ui/news.js",
   "ui/python.js",
+  "ui/script-calls.js",
   "ui/scripts.js",
   "ui/tours.js",
   "io/mods.js",
   "worker/shim.js",
   "page/workers.js",
+  "page/script-worker.js",
   "worker/main.js",
   "ui/boot.js"
 ]

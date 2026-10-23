@@ -1,10 +1,11 @@
 /* ---------- Python for Scripts: Pyodide, fetched the first time a Python script runs ----------
    Pyodide 314.0.7 (MPL-2.0: CPython 3.14 built for WebAssembly), vendored as it was published under
    jek/assets/vendor/pyodide/, with NumPy's wheel beside it: separate files, replaceable, from this site and
-   nowhere else. It runs on the page's own thread, as a JavaScript script does: the bench's calls are
-   synchronous from Python, and a worker would need SharedArrayBuffer, which needs headers GitHub Pages does
-   not send. Everything crossing between the two languages crosses as JSON text, so no proxy is left behind
-   by a run: the Python J sends its calls to pyBridge as text and gets text back. */
+   nowhere else. It runs in the script worker beside its own copy of the bench (page/script-worker.js), so the
+   bench's calls are synchronous from Python there with no SharedArrayBuffer (which needs headers GitHub Pages
+   does not send), and Stop ends it by ending the worker; or, run on the page, on the page's own thread.
+   Everything crossing between the two languages crosses as JSON text, so no proxy is left behind by a run:
+   the Python J sends its calls to pyBridge as text and gets text back. */
 
 export const PY_DIR = '../assets/vendor/pyodide/314.0.7/';
 // what comes down the first time (the loader, the interpreter, its standard library, the package list), and NumPy's wheel
@@ -122,8 +123,22 @@ def _imports(code):
     names |= {n.module.split('.')[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module and not n.level}
     return json.dumps(sorted(names))
 
+class _Out(io.StringIO):
+    # what log() and print() write, kept; each line also handed on as it is finished (the script worker streams it)
+    def __init__(self):
+        super().__init__()
+        self._part = ''
+    def write(self, s):
+        n = super().write(s)
+        self._part += s
+        if '\n' in self._part:
+            *done, self._part = self._part.split('\n')
+            for line in done:
+                _jekray.line(line)
+        return n
+
 async def _jekray_run(code, calls):
-    out, shown, err, tb = io.StringIO(), None, None, None
+    out, shown, err, tb = _Out(), None, None, None
     def log(*args):
         out.write(' '.join(_cell(a) for a in args) + '\n')
     ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'BenchError': BenchError}
@@ -172,7 +187,7 @@ export function pyParse(text) {
   return JSON.parse(marked, (k, v) => (typeof v === 'string' && /^\u0000(NaN|-?Infinity)$/.test(v) ? Number(v.slice(1)) : v));
 }
 
-let pyodide = null, pyBase = '', pyLoading = null, pyRunFn = null, pyImportsFn = null, pyJ = null, numpyIn = false;
+let pyodide = null, pyBase = '', pyLoading = null, pyRunFn = null, pyImportsFn = null, pyJ = null, numpyIn = false, pyOnLine = null;
 /* the Python J's calls, as JSON text in and out: { value } or { error }; a promise's answer comes later */
 function pyBridge(name, text) {
   const fail = err => pyJson({ error: (err && err.message) || String(err) });
@@ -220,7 +235,7 @@ export function pyReady(say, dir) {
         const { loadPyodide } = await import(base + 'pyodide.mjs');
         const py = await loadPyodide({ indexURL: base, packageBaseUrl: base, lockFileURL: base + 'pyodide-lock.json', stdin: () => null });
         say('Starting Python…');
-        py.registerJsModule('_jekray', { call: pyBridge });
+        py.registerJsModule('_jekray', { call: pyBridge, line: text => { if (pyOnLine) pyOnLine(String(text)); } });
         py.runPython(PY_GLUE);
         pyRunFn = py.globals.get('_jekray_run'); pyImportsFn = py.globals.get('_imports');
         pyodide = py; pyBase = base;
@@ -244,13 +259,14 @@ async function pyNumpy(py, base, say) {
   numpyIn = true;
 }
 
-/* a Python script's text run against J: { result, logs, error, traceback }; Python is loaded first if it is not yet */
-export async function pyRun(code, J, say, dir) {
+/* a Python script's text run against J: { result, logs, error, traceback }; Python is loaded first if it is not yet.
+   onLine(text), if given, is told each line log() or print() finishes, as it is written */
+export async function pyRun(code, J, say, dir, onLine) {
   say = say || (() => {});
   const py = await pyReady(say, dir);
   if (JSON.parse(pyImportsFn(String(code))).includes('numpy')) await pyNumpy(py, pyBase, say);
-  pyJ = J;
-  try { return pyParse(await pyRunFn(String(code), JSON.stringify(Object.keys(J).filter(k => typeof J[k] === 'function')))); } finally { pyJ = null; }
+  pyJ = J; pyOnLine = onLine || null;
+  try { return pyParse(await pyRunFn(String(code), JSON.stringify(Object.keys(J).filter(k => typeof J[k] === 'function')))); } finally { pyJ = null; pyOnLine = null; }
 }
 
 /* what Python holds, for the tests (a run should leave nothing behind): its objects, and the WebAssembly memory's size */

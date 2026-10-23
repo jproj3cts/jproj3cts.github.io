@@ -7374,6 +7374,119 @@ const TESTS = [
       if (!(okRows && okLog && okBack && okErr && okImp && okEls)) throw new Error(JSON.stringify({ okRows, okLog, okBack, okErr, okImp, okEls, B: { error: B.error, logs: B.logs, n: B.result && B.result.length }, C: C.error }));
       return 1;
     },
+  },
+  {
+    name: 'A script runs in the background: a JavaScript loop that never ends is stopped at once, the page answering meanwhile and the bench as it was',
+    why: 'the script moves the lens, logs a line and loops for ever in the script worker; meanwhile the page answers a timer within 250 ms and traces; Stop ends it within a second, its line kept, and the lens is where it was (nothing the script did is applied); the next run starts in a fresh worker (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts-stop', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const before = JSON.stringify(J.serialize().elements), lines = [];
+      const p = J.scriptRun("J.set('L', 'x', 99); log('looping'); let i = 0; while (true) i++;", 'js', { onLog: l => lines.push(l) });
+      for (let k = 0; k < 200 && !lines.length; k++) await new Promise(r => setTimeout(r, 25));
+      const t0 = performance.now();
+      await new Promise(r => rigWin().setTimeout(r, 0));
+      const lag = performance.now() - t0;
+      J.trace();
+      const busy = J.scriptBusy(), t1 = performance.now();
+      J.scriptStop();
+      const R = await p, took = performance.now() - t1;
+      const okStop = R.stopped && R.where === 'worker' && took < 1000 && R.logs.join() === 'looping' && lines.join() === 'looping' && !J.scriptBusy();
+      const okBench = J.getParam('L', 'x') === 60 && JSON.stringify(J.serialize().elements) === before;
+      const N = await J.scriptRun('return 6 * 7;');
+      if (!(busy && lag < 250 && okStop && okBench && N.result === 42)) throw new Error(JSON.stringify({ busy, lag, took, okStop, okBench, R, N: N.result }));
+      return 1;
+    },
+  },
+  {
+    name: 'A Python loop that never ends is stopped at once too, and Python is ready again for the next run',
+    why: 'Python runs in the script worker beside its own copy of the bench: a while True loop after a J.set is stopped within a second with the bench unchanged and its printed line kept; the next Python run loads it again in a fresh worker (from the browser’s cache) and answers (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts-stop-py', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const lines = [];
+      const p = J.scriptRun("J.set('L', 'x', 99)\nprint('looping')\nwhile True:\n    pass", 'py', { onLog: l => lines.push(l) });
+      for (let k = 0; k < 1200 && !lines.length; k++) await new Promise(r => setTimeout(r, 25));
+      await new Promise(r => setTimeout(r, 200));
+      const t1 = performance.now();
+      J.scriptStop();
+      const R = await p, took = performance.now() - t1;
+      const okStop = R.stopped && took < 1000 && lines.join() === 'looping' && J.getParam('L', 'x') === 60;
+      const N = await J.scriptRun("result = J.get('L', 'x') + 1", 'py');
+      if (!(okStop && N.result === 61 && !N.error)) throw new Error(JSON.stringify({ took, okStop, R, N }));
+      return 1;
+    },
+  },
+  {
+    name: 'A sweep gives the same table in the background as on the page, and changes nothing',
+    why: 'the “Sweep a part to a table” example (21 places of the lens, the spot’s rms and share of the light at each) run in the script worker and on the page: the same rows, number for number; the lens put back and nothing taken up from the worker (no step for Undo) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts-same', [src({ name: 'Src', x: 0 }), bk7Lens({ name: 'L', x: 60 }), screen({ name: 'Sc', x: 160 })]));
+      const ex = "const lens = J.elements().find(e => e.type === 'lens'), screen = J.elements().find(e => e.type === 'screen');\nconst x0 = J.get(lens.name, 'x');\nreturn J.sweep(lens.name, 'x', J.range(x0 - 20, x0 + 20, 21), () => { const S = J.stats(screen.name); return { rms: S.rms, powerPct: S.powerPct }; });";
+      const W = await J.scriptRun(ex), P = await J.scriptRun(ex, 'js', { page: true });
+      const okSame = W.where === 'worker' && P.where === 'page' && !W.error && W.result.length === 21 && JSON.stringify(W.result) === JSON.stringify(P.result) && W.result.some(r => r.rms > 0);
+      const okNote = !W.note && J.getParam('L', 'x') === 60;
+      if (!(okSame && okNote)) throw new Error(JSON.stringify({ okSame, okNote, W: W.result && W.result.slice(0, 2), P: P.result && P.result.slice(0, 2), err: W.error }));
+      return 1;
+    },
+  },
+  {
+    name: 'What a script changes in the background is applied when it ends, as one step that one Undo puts back',
+    why: 'a script sets the lens’s x and y and selects the screen: when it ends the page has both, the screen selected and the view as it was; one Undo puts both back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts-apply', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const view = JSON.stringify(J.serialize().view);
+      const R = await J.scriptRun("J.set('L', 'x', 90).set('L', 'y', 4); J.select('Sc'); return J.get('L', 'x');");
+      const okApplied = R.where === 'worker' && R.result === 90 && J.getParam('L', 'x') === 90 && J.getParam('L', 'y') === 4 && /Undo/.test(R.note) && J.sel().join() === 'Sc' && JSON.stringify(J.serialize().view) === view;
+      J.undo();
+      const okUndo = J.getParam('L', 'x') === 60 && J.getParam('L', 'y') === 0;
+      const S = await J.scriptRun("J.sweepPlay('L', 'x')");
+      const okPageOnly = /^sweepPlay runs on the page/.test(S.error) && S.pageOnly === 'sweepPlay';
+      if (!(okApplied && okUndo && okPageOnly)) throw new Error(JSON.stringify({ okApplied, okUndo, okPageOnly, R, sel: J.sel(), S: S.error }));
+      return 1;
+    },
+  },
+  {
+    name: 'A script’s lines come as it logs them, and the Scripts window shows Stop and the time while it runs',
+    why: 'log() lines arrive while the script is still running (one before a pause, one after); in File › Scripts, Run turns to Stop with a running time beside it, Stop ends the script and says “Stopped after … s”, a script that ends says “Done in”, and one that reaches for the page itself is offered Run on the page (no Stop), which runs it there (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts-ui', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const got = [];
+      const p = J.scriptRun("log('first'); await new Promise(r => setTimeout(r, 400)); log('second'); return 1;", 'js', { onLog: l => got.push([l, J.scriptBusy()]) });
+      const R = await p;
+      const okStream = got.length === 2 && got.every(([, busy]) => busy) && R.logs.join() === 'first,second';
+      const doc = rigDoc();
+      doc.getElementById('btnScripts').click();
+      const ed = doc.getElementById('scriptCode'), runBtn = doc.getElementById('scriptRun');
+      const was = ed.value;
+      ed.value = "log('tick'); while (true) {}";
+      runBtn.click();
+      for (let k = 0; k < 200 && !doc.querySelector('#scriptLogs .rt-script-log'); k++) await new Promise(r => setTimeout(r, 25));
+      await new Promise(r => setTimeout(r, 300));
+      const okRunning = runBtn.textContent === 'Stop' && /^Running… \d+\.\d s$/.test(doc.getElementById('scriptTimer').textContent) && doc.querySelector('#scriptLogs .rt-script-log').textContent === 'tick';
+      runBtn.click();
+      for (let k = 0; k < 40 && !doc.getElementById('scriptStopped'); k++) await new Promise(r => setTimeout(r, 25));
+      const okStopped = runBtn.textContent === 'Run' && /^Stopped after \d+\.\d s/.test((doc.getElementById('scriptStopped') || {}).textContent || '') && doc.getElementById('scriptTimer').textContent === '';
+      ed.value = 'return 2;';
+      runBtn.click();
+      for (let k = 0; k < 200 && !doc.getElementById('scriptDone'); k++) await new Promise(r => setTimeout(r, 25));
+      const okDone = /^Done in \d+ ms\.$/.test((doc.getElementById('scriptDone') || {}).textContent || '');
+      // a script that reaches for the page itself fails in the background, and is offered the page (no Stop), where it runs
+      ed.value = 'return window.JEKray.version();';
+      runBtn.click();
+      for (let k = 0; k < 200 && !doc.getElementById('scriptOnPage'); k++) await new Promise(r => setTimeout(r, 25));
+      const onPage = doc.getElementById('scriptOnPage');
+      if (onPage) onPage.click();
+      for (let k = 0; k < 200 && !/on the page/.test((doc.getElementById('scriptDone') || {}).textContent || ''); k++) await new Promise(r => setTimeout(r, 25));
+      const okPage = !!onPage && /on the page/.test(doc.getElementById('scriptDone').textContent) && doc.querySelector('#scriptOut pre').textContent === J.version();
+      ed.value = was; ed.dispatchEvent(new (rigWin().Event)('input'));
+      doc.getElementById('scriptDialog').close();
+      if (!(okStream && okRunning && okStopped && okDone && okPage)) throw new Error(JSON.stringify({ okStream, got, okRunning, okStopped, okDone, okPage, out: doc.getElementById('scriptOut').textContent }));
+      return 1;
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

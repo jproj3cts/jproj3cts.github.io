@@ -73,9 +73,9 @@ export const AREAS = {
     browser: ['RF: millimetre-wave quasi-optics', 'RF parts on the bench', 'The RF designer'],
   },
   scripts: {
-    what: 'scripts run against the bench, in JavaScript or Python (Pyodide, vendored)',
-    src: ['src/ui/scripts.js', 'src/ui/python.js', '../../assets/vendor/pyodide/'],
-    node: ['scripts-python.test.mjs', 'pro-gate.test.mjs'],
+    what: 'scripts run against the bench, in JavaScript or Python (Pyodide, vendored), in the script worker or on the page',
+    src: ['src/ui/scripts.js', 'src/ui/script-calls.js', 'src/ui/python.js', 'src/page/script-worker.js', '../../assets/vendor/pyodide/'],
+    node: ['scripts-python.test.mjs', 'scripts-worker.test.mjs', 'pro-gate.test.mjs'],
     browser: ['Scripts'],
   },
   site: {

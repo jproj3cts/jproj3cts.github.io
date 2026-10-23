@@ -73,7 +73,7 @@ class _Bench:
             raise AttributeError(f'J has no call {name!r}')
         return lambda *args: _call(name, *args)
     def __dir__(self):
-        return sorted(self._calls | {'elements', 'element', 'get', 'set', 'range', 'sweep', 'csv'})
+        return sorted(self._calls | {'elements', 'element', 'get', 'set', 'range', 'sweep', 'csv', 'save'})
     def elements(self):
         return _call('elements')
     def element(self, name):
@@ -102,6 +102,27 @@ class _Bench:
         return rows
     def csv(self, rows):
         return _call('csv', rows)
+    def save(self, name, data, format='csv', meta=None):
+        save(name, data, format, meta)
+
+def _saveable(v):
+    # what save() is given, as JSON carries it: a NumPy array as its numbers with its shape and type, so it arrives as it was
+    if isinstance(v, dict):
+        return {str(k): _saveable(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_saveable(x) for x in v]
+    shape, dtype = getattr(v, 'shape', None), getattr(v, 'dtype', None)
+    if shape is not None and dtype is not None and callable(getattr(v, 'ravel', None)):
+        if len(shape) == 0:
+            return _plain(v.item())
+        if getattr(dtype, 'kind', '') in 'biuf':
+            return {'__ndarray__': v.ravel().tolist(), 'shape': list(shape), 'dtype': str(dtype)}
+        return _plain(v.tolist())
+    return _plain(v)
+
+def save(name, data, format='csv', meta=None):
+    """A file made of data when the run ends: format 'csv', 'json', 'xlsx', 'npz' or 'mat'; meta, your own fields for its context."""
+    _call('save', name, _saveable(data), format, _plain(meta))
 
 def _shown(v):
     # what a run shows: a dict of equal-length lists becomes rows, as a table
@@ -141,7 +162,7 @@ async def _jekray_run(code, calls):
     out, shown, err, tb = _Out(), None, None, None
     def log(*args):
         out.write(' '.join(_cell(a) for a in args) + '\n')
-    ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'BenchError': BenchError}
+    ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'save': save, 'BenchError': BenchError}
     linecache.cache['<script>'] = (len(code), None, code.splitlines(True), '<script>')
     try:
         tree = ast.parse(code, '<script>')

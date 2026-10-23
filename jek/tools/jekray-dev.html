@@ -67,6 +67,7 @@
                 <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
+            <button type="button" role="menuitem" id="btnExportData" data-icon="export" data-need="account" data-what="export data" title="The numbers behind the bench (readouts, plots, screens’ rays and fields, beams, sweeps, the parts) as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
             <div class="sep"></div>
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
@@ -443,6 +444,21 @@
       <button class="rt-btn" id="ccCopy">Keep mine as a copy</button>
       <button class="rt-btn" id="ccMerge" hidden>Merge the two…</button>
       <button class="rt-btn primary" id="ccMine">Overwrite with mine</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="dataDialog" aria-labelledby="dataTitle">
+    <h2 id="dataTitle">Export data</h2>
+    <p>The numbers behind this bench, as a file to open in a spreadsheet, in Python or in MATLAB. <a class="rt-link" href="/jek/docs/jekray/data-export/" target="_blank" rel="noopener">What each file holds, and how to open it</a>.</p>
+    <h3 class="rt-subhead">What to export</h3>
+    <div class="rt-datakinds" id="dataKinds"></div>
+    <h3 class="rt-subhead">As</h3>
+    <div class="rt-datafmts" id="dataFormats" role="radiogroup" aria-label="The file’s format"></div>
+    <p class="note" id="dataNote"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" type="button" id="dataClose">Close</button>
+      <button class="rt-btn" type="button" id="dataAll" title="Every kind of data on this bench, in one file, in the format chosen">Export everything</button>
+      <button class="rt-btn primary" type="button" id="dataGo">Export</button>
     </div>
   </dialog>
 

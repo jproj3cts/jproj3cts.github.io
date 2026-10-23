@@ -9,6 +9,8 @@ import { createRequire } from 'node:module';
 import { workerShim } from './src/worker/shim.js';
 
 let ENGINE = null;
+// JEKray's version, as the page has it (ui/news.js, which needs a page to load: read from its text)
+const appVersion = () => (fs.readFileSync(new URL('./src/ui/news.js', import.meta.url), 'utf8').match(/APP_VERSION = '([^']+)'/) || [0, ''])[1];
 /* the engine, loaded once: the page's stand-ins first (the modules reach for the page as they load), then the modules */
 export async function engine() {
   if (ENGINE) return ENGINE;
@@ -20,7 +22,8 @@ export async function engine() {
     import('./src/engines/fibre-face.js'), import('./src/engines/antenna-field.js'), import('./src/engines/detector.js'), import('./src/engines/cavity.js'),
     import('./src/state/params.js'), import('./src/engines/lens-design.js'), import('./src/engines/rf-design.js'), import('./src/engines/rf-sweep.js'), import('./src/core/horns.js'),
     import('./src/engines/lens-analysis.js'), import('./src/core/assembly.js'), import('./src/io/zmx-export.js'), import('./src/engines/lens-opt.js'), import('./src/engines/lens-engine.js'), import('./src/engines/spectrometer.js')]);
-  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE, SPEC };
+  const [DX, DF] = await Promise.all([import('./src/engines/data-export.js'), import('./src/core/datafiles.js')]);
+  ENGINE = { ST, EL, TRACE, SS, FF, ANT, DET, CAV, PRM, LD, RF, RS, HORN, LA, ASM, ZMX, LO, LE, SPEC, DX, DF };
   return ENGINE;
 }
 const round = (v, p = 6) => (typeof v === 'number' && isFinite(v) ? +v.toPrecision(p) : v);
@@ -60,6 +63,17 @@ export async function openBench(data) {
     /* a receiving horn against frequency, and its link budget (RF) */
     rfSweep(name) { ensure(); return plain(E.RS.rfSweep(byName(name))); },
     linkBudget(name) { ensure(); return plain(E.RS.linkBudget(byName(name))); },
+    /* ---------- data, as File › Export data gives it (the plots are the page's: not here) ---------- */
+    /* the kinds' items (readouts, screens, beams, sweeps, bench): tables of columns with their units, arrays, values */
+    data(kinds) { ensure(); return E.DX.gatherData(kinds || ['readouts', 'screens', 'beams', 'sweeps', 'bench']).items; },
+    /* the kinds as one file's bytes, in a format: 'csv' (a zip), 'json', 'xlsx', 'npz' or 'mat'; or, given items (or rows,
+       arrays, an object of named ones) in place of the kinds, those */
+    async exportData(kinds, fmt = 'csv', meta = {}) {
+      ensure();
+      const G = Array.isArray(kinds) && kinds.every(k => typeof k === 'string') ? E.DX.gatherData(kinds) : { items: E.DF.dfItemsOf(kinds, 'data'), parts: new Set() };
+      const set = { meta: Object.assign({ title: 'JEKray data', bench: E.ST.project.name, version: appVersion(), created: new Date().toISOString(), source: 'JEKray headless (Node)', parts: E.DX.partsMeta(G.parts) }, meta), items: G.items };
+      return (await E.DF.dfWrite(set, fmt)).bytes;
+    },
     /* ---------- the lens designer: an assembly's prescription and analyses ---------- */
     /* the assemblies on the bench: name, kind (lens or rf) and their parts */
     assemblies() { return (E.ST.project.assemblies || []).map(a => ({ name: a.name, kind: a.kind === 'rf' ? 'rf' : 'lens', parts: E.ASM.asmMembers(a).map(e => e.name) })); },

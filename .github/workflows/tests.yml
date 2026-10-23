@@ -31,6 +31,11 @@ jobs:
         run: node build.mjs --check
       - name: The docs tables and AI guide are the tool's own
         run: node docs.mjs --check
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python's readers for the data export tests (numpy, scipy, openpyxl, pandas)
+        run: python -m pip install numpy scipy openpyxl pandas
       - name: Playwright for the browser suite
         run: |
           npm i --no-save --no-package-lock playwright@1.56.1

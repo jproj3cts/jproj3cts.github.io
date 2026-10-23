@@ -75,8 +75,14 @@ export const AREAS = {
   scripts: {
     what: 'scripts run against the bench, in JavaScript or Python (Pyodide, vendored), in the script worker or on the page',
     src: ['src/ui/scripts.js', 'src/ui/script-calls.js', 'src/ui/python.js', 'src/page/script-worker.js', '../../assets/vendor/pyodide/'],
-    node: ['scripts-python.test.mjs', 'scripts-worker.test.mjs', 'pro-gate.test.mjs'],
-    browser: ['Scripts'],
+    node: ['scripts-python.test.mjs', 'scripts-worker.test.mjs', 'data-export.test.mjs', 'pro-gate.test.mjs'],
+    browser: ['Scripts', 'Data export'],
+  },
+  data: {
+    what: 'data export: the file writers (zip, CSV, JSON, Excel, NumPy, MATLAB), the bench’s numbers gathered, File › Export data, a script’s save()',
+    src: ['src/core/datafiles.js', 'src/engines/data-export.js', 'src/io/data-export.js'],
+    node: ['datafiles.test.mjs', 'data-export.test.mjs', 'pro-gate.test.mjs', 'headless.test.mjs'],
+    browser: ['Data export', 'Scripts'],
   },
   site: {
     what: 'the site pages (their shared nav and jek.css stamp), the documentation pages and the data they are built from',

@@ -7487,6 +7487,113 @@ const TESTS = [
       if (!(okStream && okRunning && okStopped && okDone && okPage)) throw new Error(JSON.stringify({ okStream, got, okRunning, okStopped, okDone, okPage, out: doc.getElementById('scriptOut').textContent }));
       return 1;
     },
+  },  { group: 'Data export' },
+  {
+    name: 'File › Export data lists each kind with its count, and exports the kinds ticked in the format chosen, each file saying what it holds',
+    why: 'a laser, a lens and a screen: the dialog lists Readouts (1), Plots (the screen’s, counted from its panel), Screen data (1), Beams, Sweep results (0, so not offered) and The bench (3); readouts alone as JSON give one table with its units and the context (the bench, the version, the date, the screen’s settings); readouts and screen data as Excel come as one workbook; Export everything as NumPy one .npz; none leaves a panel made out of sight on the page (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('data-dialog', [src({ name: 'Laser', gauss: true, w0: 1, rays: 5, x: -60 }), bk7Lens({ name: 'L', x: 0 }), screen({ name: 'Sc', x: 100 })]));
+      J.trace();
+      // each download caught as it is made: its name and its blob (the page's own URL.createObjectURL, watched)
+      const doc = rigDoc(), W = rigWin(), A = W.HTMLAnchorElement.prototype, was = A.click, got = [], blobs = new Map(), mk = W.URL.createObjectURL;
+      W.URL.createObjectURL = b => { const u = mk.call(W.URL, b); blobs.set(u, b); return u; };
+      A.click = function () { if (this.download) got.push({ name: this.download, href: this.href }); else return was.call(this); };
+      const bytes = async i => new Uint8Array(await blobs.get(got[i].href).arrayBuffer());
+      const wait = async (f, n = 400) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
+      const dlg = doc.getElementById('dataDialog');
+      try {
+        doc.getElementById('btnExportData').click();
+        await wait(() => !/counting/.test(doc.getElementById('dataKinds').textContent));
+        const labels = [...doc.querySelectorAll('#dataKinds label b')].map(b => b.textContent);
+        const nPlots = +(/Plots \((\d+)\)/.exec(labels[1]) || [0, 0])[1];
+        const okList = dlg.open && labels[0] === 'Readouts (1)' && nPlots > 0 && labels[2] === 'Screen data (1)' && /^Beams \(\d+\)$/.test(labels[3]) && labels[4] === 'Sweep results (0)' && labels[5] === 'The bench (3)'
+          && doc.getElementById('dataKind-sweeps').disabled;
+        const fmts = [...doc.querySelectorAll('#dataFormats input')].map(i => i.value), needs = [...doc.querySelectorAll('#dataFormats label')].map(l => l.dataset.need);
+        const okFmts = fmts.join() === 'csv,json,xlsx,npz,mat' && needs.join() === 'account,account,pro,pro,pro' && doc.getElementById('dataAll').dataset.need === 'pro'
+          && doc.getElementById('btnExportData').dataset.need === 'account';
+        const tick = ks => { for (const cb of doc.querySelectorAll('#dataKinds input')) cb.checked = ks.includes(cb.value); doc.getElementById('dataKinds').dispatchEvent(new W.Event('change', { bubbles: true })); };
+        const pick = f => { doc.querySelector('#dataFormats input[value="' + f + '"]').checked = true; doc.getElementById('dataFormats').dispatchEvent(new W.Event('change', { bubbles: true })); };
+        tick(['readouts']); pick('json');
+        doc.getElementById('dataGo').click();
+        await wait(() => got.length === 1);
+        const Jn = JSON.parse(new TextDecoder().decode(await bytes(0))), T = Jn.tables.readouts;
+        const okJson = got[0].name === 'data-dialog - readouts.json' && Object.keys(Jn.tables).join() === 'readouts' && T.columns.map(c => c.key).join() === 'part,type,tab,reading,value,unit,note'
+          && T.data.unit[T.data.reading.indexOf('RMS spot')] === 'mm' && Jn.meta.bench === 'data-dialog' && Jn.meta.version === J.version() && !!Jn.meta.parts.Sc && /^\d{4}-\d\d-\d\dT/.test(Jn.meta.created);
+        doc.getElementById('btnExportData').click();
+        await wait(() => !/counting/.test(doc.getElementById('dataKinds').textContent));
+        tick(['readouts', 'screens']); pick('xlsx');
+        const okLabel = doc.getElementById('dataGo').textContent === 'Export 2 kinds';
+        doc.getElementById('dataGo').click();
+        await wait(() => got.length === 2);
+        const X = await bytes(1), xs = new TextDecoder('latin1').decode(X);
+        const okXlsx = got[1].name === 'data-dialog - data.xlsx' && X[0] === 0x50 && X[1] === 0x4b && xs.includes('xl/worksheets/sheet3.xml') && xs.includes('[Content_Types].xml');
+        doc.getElementById('btnExportData').click();
+        await wait(() => !/counting/.test(doc.getElementById('dataKinds').textContent));
+        pick('npz');
+        doc.getElementById('dataAll').click();
+        await wait(() => got.length === 3);
+        const Z = new TextDecoder('latin1').decode(await bytes(2));
+        const okAll = got[2].name === 'data-dialog - data.npz' && Z.includes('meta.npy') && Z.includes('readouts/value.npy') && Z.includes('Sc_hits/across_mm.npy') && Z.includes('parts/settings.npy') && Z.includes('beams/q_real_mm.npy');
+        const okClean = !doc.querySelector('.rt-dataprobe') && !dlg.open;
+        if (!(okList && okFmts && okJson && okLabel && okXlsx && okAll && okClean)) throw new Error(JSON.stringify({ okList, labels, okFmts, needs, okJson, names: got.map(g => g.name), okLabel, okXlsx, okAll, okClean }));
+        return 1;
+      } finally { A.click = was; W.URL.createObjectURL = mk; if (dlg.open) dlg.close(); }
+    },
+  },
+  {
+    name: 'The plots’ numbers come from the panels: each part’s plots, drawn out of sight, as the CSV under each plot gives them',
+    why: 'a screen whose panel is not open: its plots are drawn in a panel made out of sight and read, then the panel goes; its Plots tab’s irradiance map and its Rays tab’s plot, the columns as their CSV names them; asked again with nothing changed, the same answer comes back at once; the panel on the page is as it was (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('data-plots', [src({ name: 'Laser', gauss: true, w0: 1, rays: 7, x: -60 }), screen({ name: 'Sc', x: 60 })]));
+      J.trace();
+      const doc = rigDoc(), shownNow = () => { const p = doc.getElementById('panel'); return [p.style.display, (p.querySelector('h2') || {}).textContent, p.querySelectorAll('canvas').length].join('|'); }, before = shownNow();
+      const P = await J.plotsData();
+      const names = P.items.map(i => i.name), ray = P.items.find(i => /^Sc /.test(i.name) && i.cols.length === 2);
+      const okPlots = names.length > 0 && names.every(n => /^Sc |^Laser /.test(n)) && !!ray && ray.cols[0].values.length > 0 && P.items.every(i => i.kind === 'table' && i.cols.every(c => c.values.length === i.cols[0].values.length));
+      const t0 = performance.now(), Q = await J.plotsData(), quick = performance.now() - t0 < 50 && Q === P;
+      const okPage = !doc.querySelector('.rt-dataprobe') && shownNow() === before;
+      if (!(okPlots && quick && okPage)) throw new Error(JSON.stringify({ okPlots, names, quick, okPage, before, after: shownNow() }));
+      return 1;
+    },
+  },
+  {
+    name: 'A script’s save() becomes files when the run ends, in JavaScript and Python, and none when it is stopped; Save as… keeps a result in any format',
+    why: 'save() in the background comes back with the run (a NumPy array with its shape and type); in File › Scripts a run that saves a table as CSV and a matrix as NumPy downloads spot.csv and grid.npz once it ends and says so; Save as… offers CSV, JSON, Excel, NumPy and MATLAB for the table it returned, and MATLAB gives a .mat; a run stopped after a save() downloads nothing (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('data-save', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const R = await J.scriptRun("save('spot', [{ a: 1, b: 2 }]); J.save('m', [[1, 2], [3, 4]], 'mat', { note: 'hi' }); return 1;");
+      const okJs = R.where === 'worker' && !R.error && R.saves.map(s => s.name + '.' + s.format).join() === 'spot.csv,m.mat' && R.saves[1].meta.note === 'hi';
+      const P = await J.scriptRun("import numpy as np\nsave('a', np.arange(6, dtype=np.int64).reshape(2, 3), 'npz')\nresult = 1", 'py');
+      const okPy = !P.error && P.saves.length === 1 && P.saves[0].data.dtype === 'int64' && P.saves[0].data.shape.join() === '2,3';
+      const doc = rigDoc(), W = rigWin(), A = W.HTMLAnchorElement.prototype, was = A.click, got = [];
+      A.click = function () { if (this.download) got.push(this.download); else return was.call(this); };
+      const wait = async (f, n = 400) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
+      const ed = doc.getElementById('scriptCode') || (doc.getElementById('btnScripts').click(), doc.getElementById('scriptCode'));
+      if (!doc.getElementById('scriptDialog').open) doc.getElementById('btnScripts').click();
+      const runBtn = doc.getElementById('scriptRun'), was2 = ed.value, sel = doc.querySelector('#scriptDialog select'), name = sel.options[sel.selectedIndex].textContent.replace(/ \(Python\)$/, '');
+      try {
+        ed.value = "save('spot', [{ a: 1 }, { a: 2 }]); save('grid', [[1, 2], [3, 4]], 'npz'); return [{ x: 1, y: 2 }];";
+        runBtn.click();
+        await wait(() => got.length >= 2 && doc.getElementById('scriptSaved'));
+        const okFiles = got.join() === 'spot.csv,grid.npz' && /^Saved spot\.csv, grid\.npz\.$/.test(doc.getElementById('scriptSaved').textContent);
+        const bar = [...doc.querySelectorAll('#scriptSaveAs button')].map(b => b.dataset.fmt);
+        doc.querySelector('#scriptSaveAs button[data-fmt="mat"]').click();
+        await wait(() => got.length === 3);
+        const okSaveAs = bar.join() === 'csv,json,xlsx,npz,mat' && got[2] === name.replace(/[\\/:*?"<>|]+/g, '').trim() + '.mat';
+        ed.value = "save('never', [1]); log('tick'); while (true) {}";
+        runBtn.click();
+        await wait(() => doc.querySelector('#scriptLogs .rt-script-log'));
+        runBtn.click();
+        await wait(() => doc.getElementById('scriptStopped'));
+        await new Promise(r => setTimeout(r, 300));
+        const okStop = !!doc.getElementById('scriptStopped') && got.length === 3 && !doc.getElementById('scriptSaved');
+        if (!(okJs && okPy && okFiles && okSaveAs && okStop)) throw new Error(JSON.stringify({ okJs, okPy, P: P.error, okFiles, got, bar, okSaveAs, name, okStop }));
+        return 1;
+      } finally { A.click = was; ed.value = was2; ed.dispatchEvent(new W.Event('input')); doc.getElementById('scriptDialog').close(); }
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

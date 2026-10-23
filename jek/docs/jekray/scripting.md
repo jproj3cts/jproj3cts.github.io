@@ -9,7 +9,7 @@ description: "Drive JEKray from a script: the Scripts editor on the bench (JEKra
 
 ## On the bench: Scripts
 
-**File › Scripts…** opens an editor beside the bench, part of JEKrayPro. A script is JavaScript or [Python](#python), chosen for each script in the menu beside its name, given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below as the script writes them, then what the script returned: rows (an array of objects) as a table with **Save as CSV**, anything else as JSON. What the script changed is applied to the bench when it ends, as one step, so one **Undo** puts it back. Scripts are kept in this browser by name, each with its language; **Save as a file** and **Open a file…** move them as `.js` or `.py` files, and **Start from an example…** gives four to begin with, in either language: read a screen, sweep a part to a table, check a figure, list every part.
+**File › Scripts…** opens an editor beside the bench, part of JEKrayPro. A script is JavaScript or [Python](#python), chosen for each script in the menu beside its name, given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below as the script writes them, then what the script returned: rows (an array of objects) as a table, anything else as JSON. **Save as** under it keeps a table, an array or an object of named ones as CSV, JSON, Excel, NumPy or MATLAB; `save()` keeps whatever the script makes as a file of its own ([Saving files](#saving-files)). What the script changed is applied to the bench when it ends, as one step, so one **Undo** puts it back. Scripts are kept in this browser by name, each with its language; **Save as a file** and **Open a file…** move them as `.js` or `.py` files, and **Start from an example…** gives four to begin with, in either language: read a screen, sweep a part to a table, check a figure, list every part.
 
 `J` has the calls in the table below, taking parts by name, and these besides:
 
@@ -21,12 +21,39 @@ description: "Drive JEKray from a script: the Scripts editor on the bench (JEKra
 | `J.range(a, b, n)` | n values from a to b. |
 | `J.sweep(name, path, values, read)` | Each value set, `read(value)` called, and the parameter put back: rows of the value and what was read. |
 | `J.csv(rows)` | Rows as CSV text. |
+| `save(name, data, format, meta)` (also `J.save`) | A file made of `data` when the run ends: [Saving files](#saving-files). |
 
 A script to read the spot as a lens moves, as a table:
 
 ```js
 const x0 = J.get('Lens', 'x');
 return J.sweep('Lens', 'x', J.range(x0 - 20, x0 + 20, 21), () => ({ rms: J.stats('Screen').rms }));
+```
+
+### Saving files
+
+`save(name, data, format='csv', meta=null)` keeps what a script makes as a file: it is downloaded **when the run ends**, named `name` with the format's extension, and the output says what was saved. A run that is **stopped saves nothing**; one that fails saves what it asked for before it failed. The format is one of `'csv'`, `'json'`, `'xlsx'`, `'npz'` or `'mat'`, laid out as [File › Export data](/jek/docs/jekray/data-export/#how-each-format-is-laid-out) lays them out, and `data` can be
+
+- rows, a list of objects (`[{ x: 1, rms: 0.2 }, …]`): a table, one column for each key;
+- an object of equal-length lists (`{ x: xs, rms: rms }`): a table;
+- a list of numbers, nested to any depth but rectangular (`[[1, 2], [3, 4]]`), a typed array (`Float64Array`, `Int32Array`), or in Python a NumPy array: an array, in its shape and type;
+- an object of named things, each one of those (`{ spot: rows, field: grid }`): one file with a sheet, variable or entry for each name (as CSV, a zip of CSV files);
+- anything else: a value, kept as JSON (in a `.mat`, as structs and cells).
+
+A single table or array saved as CSV is a plain `.csv` file; everything else as CSV is a zip of them with `README.txt`. Every file carries its context (the script's name, the bench, the JEKray version and the date), with your own fields from `meta` beside it (`{ run: 3, operator: 'AB' }`). What `data` holds is kept as it is when `save()` is called. A run saves 20 files at most; more than five come down as one zip.
+
+```js
+const rows = J.sweep('Lens', 'x', J.range(80, 120, 41), () => ({ rms: J.stats('Screen').rms }));
+save('focus', rows);                                   // focus.csv
+save('focus', rows, 'mat', { lens: 'LA1509' });        // focus.mat: S = load('focus.mat'); plot(S.focus.x, S.focus.rms)
+```
+
+```python
+import numpy as np
+xs = np.linspace(80, 120, 41)
+rms = np.array([J.set('Lens', 'x', x).stats('Screen')['rms'] for x in xs])
+save('focus', {'x': xs, 'rms': rms}, 'npz')            # numpy.load('focus.npz')['focus/rms']
+save('grid', np.outer(xs, rms), format='xlsx')         # a 41 x 41 sheet
 ```
 
 ### In the background, and Stop
@@ -56,7 +83,7 @@ rows = J.sweep('Lens', 'x', J.range(x0 - 20, x0 + 20, 21), lambda x: {'rms': J.s
 
 `J.sweep(name, path, values, read)` takes any Python function (a `def` or a `lambda`) for `read`, called with each value; it puts the parameter back afterwards, also when `read` raises. `log(*values)` writes a line below, numbers to six figures as JavaScript's `log()` does, and `print()` writes there too. A bench call that fails (a part that is not there, say) raises `BenchError` with the bench's message.
 
-**What is shown.** Python has no top-level `return`, so a Python script shows what it sets **`result`** to; if it sets none, the value of its last line, when that line is an expression and not `None`, as a notebook cell shows it. So `J.elements()` as a last line shows every part, and `result = rows` shows the sweep. Rows (a list of dicts) are a table with **Save as CSV**, and so is a dict of lists of equal length, one column each (`{'x': xs, 'rms': rms}`); NumPy arrays are shown as lists; anything else as JSON.
+**What is shown.** Python has no top-level `return`, so a Python script shows what it sets **`result`** to; if it sets none, the value of its last line, when that line is an expression and not `None`, as a notebook cell shows it. So `J.elements()` as a last line shows every part, and `result = rows` shows the sweep. Rows (a list of dicts) are a table with **Save as**, and so is a dict of lists of equal length, one column each (`{'x': xs, 'rms': rms}`); NumPy arrays are shown as lists; anything else as JSON. `save(name, data, format='csv', meta=None)` is there as in JavaScript ([Saving files](#saving-files)), and takes NumPy arrays as they are: their shape and type (int64, float64, bool) reach the file.
 
 ```python
 import numpy as np
@@ -144,6 +171,8 @@ B.zmx(['L1', 'L2', 'L3']).text;              // parts as a lens file
 B.arrivals('Sensor');                        // the Gaussian beams arriving at a face
 await B.step('mount.step', null, 0, 0, { as: 'parts' });   // a STEP file's solids as STL objects (OpenCascade, as on the page)
 ```
+
+The data File › Export data writes is there too: `B.data(['readouts', 'screens', 'beams', 'sweeps', 'bench'])` gives its tables and arrays (each column with its unit), and `await B.exportData(kinds, 'npz')` the bytes of the file, in any of the five formats (`fs.writeFileSync('bench.npz', …)`); given rows, arrays or an object of named ones in place of the kinds, it writes those, as `save()` does. The plots are the page's own, so they are not here. See [Exporting data](/jek/docs/jekray/data-export/).
 
 `openBench(data)` takes the bench's data instead of a file. `set` traces again on the next read; `sweep` sets each value, reads, and puts the parameter back. Every number is what the panel shows, rounded to six figures.
 

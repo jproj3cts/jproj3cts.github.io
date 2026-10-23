@@ -43,6 +43,15 @@ through `core/hooks.js`.
   `io/usage.js`, AI guide/docs tables `io/guide.js`.
   STEP import: `io/step.js` (blob worker, dialog, `importStep`) + `core/step.js` (units, tessellation passes, bodies);
   OpenCascade's occt-import-js vendored in `jek/assets/vendor/occt-import-js/<version>/` (LGPL-2.1, loaded on first use).
+- **Data export** (File › Export data, `save()` in scripts; docs `jek/docs/jekray/data-export.md`): the writers, pure,
+  no library, `core/datafiles.js` (`dfWrite(set, fmt)`: zip STORE/deflate-raw via CompressionStream, CSV RFC 4180 one
+  heading row "name (unit)" + BOM, JSON by column, XLSX inline strings + About sheet, NPZ .npy 1.0 a column each as
+  `table/key_unit` + `meta` JSON in a 0-d `<U`, MAT Level 5 structs/cells/char UTF-8; a set is `{ meta, items }` of
+  tables/arrays/values; `dfItemsOf` turns a script's data into items); the bench's numbers `engines/data-export.js`
+  (`gatherData(kinds)`: readouts, screens, beams, sweeps + `STUDIES`/`keepStudy` from `ui/tours.js`, bench; also
+  headless `B.data`/`B.exportData`); the plots (the panels drawn out of sight via `panelInto`), dialog
+  `#dataDialog`, `exportData`/`exportEverything` in `io/data-export.js`. Tests `datafiles.test.mjs` (read back by
+  Python's numpy/scipy/openpyxl/pandas when installed: CI pip-installs them) and `data-export.test.mjs`.
 - **Signed part packs**: signatures checked in `core/packsig.js` (canonical JSON, hash, Ed25519 verify with
   `PACK_PUBLIC_KEY`, the install decision `packDecide`, labels); install/make/sign dialogs, status checks and the daily
   re-check in `io/packs.js`; a bench carries a module as signed (`signed`, `engines/mods.js` `normCarried`). Labels
@@ -65,17 +74,24 @@ through `core/hooks.js`.
   alike), log lines streamed; Stop (`stopScript`) terminates it; at the end a changed bench comes back and `adoptBench`
   (`ui/tabs.js`) takes it up as one Undo step; select/showTab/sweepPause are done on the page then, sweepPlay is refused
   with "Run on the page (no Stop)" (`runScript(…, { page: true })`, the old main-thread path). A new J call goes in
-  `scriptCalls` if it needs only the bench, else in `workerCalls`. Node `headless.mjs`, `cli.mjs`; documented in
+  `scriptCalls` if it needs only the bench, else in `workerCalls`. `save(name, data, format, meta)` (JS bare or `J.save`;
+  Python `save`, NumPy arrays tagged `__ndarray__` with shape and dtype) only collects into the run's `saves`, which come
+  back with the worker's done message (Stop: none) and become files on the page in `saveScriptFiles` (gated by
+  `scriptsWhy`); the output's Save as… goes through it too. Node `headless.mjs`, `cli.mjs`; documented in
   `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
-  tolerancing, reports, drawings, design export, share links/QR, scripts, My parts. Exports (layout, 3D PNG, plots'
-  PNG/CSV, screen CSV, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
+  tolerancing, reports, drawings, design export, share links/QR, scripts, My parts, and data export as XLSX/NPZ/MAT,
+  several kinds at once or Export everything (`exportData`/`exportEverything` in `io/data-export.js`: `accountGate`
+  first, then `designPro`; `DATA_PRO`). Exports (layout, 3D PNG, plots' PNG/CSV, screen CSV, data as CSV or JSON one
+  kind at a time, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
   and shows the sign-in prompt (`exportSignIn` in `io/account.js`, counted as `export.*`); only someone signed out for
   sure is stopped (account unknown or API down: allowed). Saving the .jekray file is never gated. Badges: `proMark` /
   `acctMark` (or `data-need="pro|account" data-what` in `page.html`) give the Pro / Free account chip, redone live by
   `needsShown()` from `cloudGates`; menu items greyed by `gateItem` take the same chips. `test/node/pro-gate.test.mjs`
   checks from the syntax tree that each gated function opens with its gate, that every `downloadFile`/`download:` is
-  behind one (or in its short list of non-exports), and that the .jekray save is not. Experimental features need only
+  behind one (`accountGate`, `designPro`/`designWhy`, or the scripts' `scriptsWhy`; or in its short list of
+  non-exports), the data export's split, and that a script's files are made only after a run, never on Stop, and that
+  the .jekray save is not. Experimental features need only
   a signed-in account (`setExpGate` in `io/cloud.js`). None of it applies in TEST_MODE or without accounts.
   Node scripting (`headless.mjs`, `cli.mjs`) is never gated: it runs from the public source, where a check could just
   be deleted. Anything it gains that touches the cloud (benches, parts, links) goes through the API, whose own account

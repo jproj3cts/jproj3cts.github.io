@@ -7353,6 +7353,27 @@ const TESTS = [
       const dlg = document.getElementById('rig').contentDocument.getElementById('btnScripts');
       return okRows && okLog && okBack && okErr && okEls && !!dlg ? 1 : 0;
     },
+  },
+  {
+    name: 'A Python script gives what the same JavaScript one does: a sweep to rows over NumPy values, log() and print(), and an error as a traceback',
+    why: 'File \u203a Scripts runs Python too (Pyodide, fetched from this site the first time, slow then: a few seconds): the same sweep as a JavaScript script over numpy.linspace gives the same rms at each place; log() and print() lines are kept; the part is put back; an error comes back as its type and message with a traceback of the script\u2019s own lines; an import that is not vendored says what is available (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scripts-py', [src({ name: 'Src', x: 0 }), { type: 'lens', id: 'l', name: 'L', x: 60, y: 0, angle: 0 }, screen({ name: 'Sc', x: 160 })]));
+      const x0 = J.getParam('L', 'x');
+      const A = await J.scriptRun("return J.sweep('L', 'x', J.range(50, 70, 5), () => ({ rms: J.stats('Sc').rms }));");
+      const B = await J.scriptRun("import numpy as np\nlog('hello', 2)\nprint('from print')\nresult = J.sweep('L', 'x', np.linspace(50, 70, 5), lambda x: {'rms': J.stats('Sc')['rms']})", 'py');
+      const okRows = !B.error && Array.isArray(B.result) && B.result.length === 5 && B.result.every((r, i) => r.x === A.result[i].x && Math.abs(r.rms - A.result[i].rms) <= 1e-9 * Math.max(1, A.result[i].rms));
+      const okLog = B.logs.join('|') === 'hello 2|from print', okBack = J.getParam('L', 'x') === x0;
+      const C = await J.scriptRun("x = 1\nJ.get('Nothing', 'x')", 'py');
+      const okErr = /^BenchError: No part is called "Nothing"/.test(C.error) && /line 2, in <module>/.test(C.traceback) && !/_call/.test(C.traceback);
+      const D = await J.scriptRun('import scipy', 'py');
+      const okImp = /only the standard library and NumPy are available on the bench/.test(D.error);
+      const E = await J.scriptRun("[e['type'] for e in J.elements()]", 'py');
+      const okEls = Array.isArray(E.result) && E.result.join() === 'source,lens,screen';
+      if (!(okRows && okLog && okBack && okErr && okImp && okEls)) throw new Error(JSON.stringify({ okRows, okLog, okBack, okErr, okImp, okEls, B: { error: B.error, logs: B.logs, n: B.result && B.result.length }, C: C.error }));
+      return 1;
+    },
   },  { group: 'Part packs' },
   {
     name: 'A part pack installs its parts and glasses, and a part placed from it carries its glass with it',

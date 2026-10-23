@@ -146,6 +146,24 @@ test('share links are JEKrayPro’s: made through the API with a plan, the QR co
   assert.match(cl, /api\('\/v1\/links\/' \+ l\.id, \{ method: 'DELETE' \}\)/);
 });
 
+test('a script, in JavaScript or Python, runs from the Scripts window only with JEKrayPro', () => {
+  // the window's Run (and Ctrl+Enter) asks scriptsWhy first; scriptsWhy is JEKrayPro's reason, outside the tests and without accounts
+  assertGated('ui/scripts.js', 'run', undefined, ['scriptsWhy']);
+  const ids = new Set();
+  walk.full(fnOf('ui/scripts.js', 'scriptsWhy'), n => { if (n.type === 'Identifier') ids.add(n.name); else if (n.type === 'MemberExpression' && !n.computed) ids.add(n.property.name); });
+  assert.ok(ids.has('proWhy'), 'scriptsWhy asks for JEKrayPro');
+  // the window runs a script, in either language, only through that run: runScript is called nowhere else in it
+  let calls = 0;
+  walk.fullAncestor(astOf('ui/scripts.js'), (n, st, anc) => {
+    if (n.type !== 'CallExpression' || n.callee.type !== 'Identifier' || !['runScript', 'execScript', 'pyRun'].includes(n.callee.name)) return;
+    const fns = anc.filter(a => /Function/.test(a.type));
+    const inRun = anc.some((a, i) => a.type === 'VariableDeclarator' && a.id.name === 'run'), inRunScript = fns.some(f => f.id && ['runScript', 'execScript'].includes(f.id.name));
+    assert.ok(inRun || inRunScript, 'ui/scripts.js: ' + n.callee.name + '() is called only from the window’s gated run, or from runScript itself');
+    calls++;
+  });
+  assert.ok(calls >= 3, 'runScript, execScript and pyRun are called');
+});
+
 test('experimental features need only a signed-in account, not a plan', () => {
   // the gate wireCloud gives ui/experimental.js: it reads the account, and nothing of JEKrayPro's
   const set = [];

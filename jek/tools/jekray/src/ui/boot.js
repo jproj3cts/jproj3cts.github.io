@@ -305,8 +305,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
     typeLabel(name) { return typeLabel(this.byName(name)); },
-    // a script as File › Scripts runs it: { result, logs, error, ms }
-    scriptRun: code => runScript(code),
+    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms }
+    scriptRun: (code, lang) => runScript(code, lang),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),

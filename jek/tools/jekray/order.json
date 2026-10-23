@@ -195,6 +195,7 @@
   "io/cloud.js",
   "io/autosave.js",
   "ui/news.js",
+  "ui/python.js",
   "ui/scripts.js",
   "ui/tours.js",
   "io/mods.js",

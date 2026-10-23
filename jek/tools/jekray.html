@@ -728,6 +728,7 @@
   .rt-script-out th, .rt-script-out td { padding: 0.15rem 0.6rem 0.15rem 0; border-bottom: 1px solid var(--jek-line); text-align: right; white-space: nowrap; }
   .rt-script-out th { font-weight: 600; }
   .rt-script-err { color: var(--jek-red); }
+  .rt-script-out pre.rt-script-err { white-space: pre; overflow-x: auto; }
   .rt-script-note { color: var(--jek-ink-soft); font-family: inherit; font-size: 0.78rem; }
   .rt-packlist { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-height: 45vh; overflow-y: auto; }
   .rt-packrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; }
@@ -49497,6 +49498,7 @@ const NEWS = [
     '<b>Making a part pack</b> needs a free account, as exports do; installing a pack needs none.',
     '<b>Exports need a free account</b>: File \u203a Export layout (PNG, SVG, PDF), the 3D view\u2019s PNG, every plot\u2019s PNG and CSV, a screen\u2019s Export data (CSV), File \u203a Export an element (.zmx) and an assembly\u2019s CAD files (.step, .stl) ask you to sign in first; a free account is enough. Saving the bench as a .jekray file needs no account, as before. And <b>badges</b> say what needs what: <b>Free account</b> and <b>Pro</b>, on the buttons and menu items concerned, each gone once you have it.',
     '<b>A rolled cylindrical lens keeps its power at every roll</b>: rolled, it lost some or all of its power at many angles (a curved-in-plane cylinder\u2019s face was missed by rays off its rolled axis; a curved-out-of-plane one was met as flat). And on a <b>phosphor screen</b>, a line now glows as a thin line whichever way it lies (a horizontal one blurred into a wide patch), and a rolled screen\u2019s glow in 3D stays where the light lands.',
+    '<b>Python in Scripts</b> (JEKrayPro): File \u203a Scripts\u2026 runs Python as well as JavaScript, chosen for each script beside its name. It is given the same <code>J</code>, its answers as dicts and lists, and <code>log()</code> (and <code>print()</code>); what it sets <code>result</code> to, or its last line\u2019s value, is shown, rows as a table with Save as CSV. <code>import numpy</code> works, and NumPy arrays are taken as lists. An error shows Python\u2019s traceback for the script\u2019s own lines. Python (Pyodide) runs in this browser, fetched from this site the first time a Python script runs (13.5 MB, and NumPy 3.0 MB more, once); nothing leaves it. The examples come in Python too.',
     '<b>STEP files</b> come in as STL objects: Open \u25be \u2192 Import an object (.stl, .step), or drop a .step or .stp file on the bench. OpenCascade reads it (fetched the first time, 7.6 MB, and run in the background), in the file\u2019s own units; a file of several parts asks whether to bring them in as separate parts, grouped and in place, or as one object.',
     'On a phone, <b>the tour no longer pushes the tool sideways</b>: its note was wider than the screen beside the parts rail, which shifted the bench and clipped the first tab; it now fits between the rail and the edge.',
     '<b>What a free account gives</b>, said wherever sign-in is offered: the experimental features, and joining a team you are invited to; with a university email, JEKrayPro where your university has a licence, or else the academic price. Signing in the first time, with Google, Microsoft or an emailed code, makes the account. A bench restored from this browser on a later visit, signed out, says it is kept here alone and offers a file or an account (once a week at most, as the other notes); a shared bench\u2019s bar has <b>Save a copy</b>, to the cloud with JEKrayPro, or as a file; and the tour\u2019s last step has <b>Save this bench</b>.',
@@ -50004,16 +50006,275 @@ function wireNews() {
   }
 
 }
-/* ---------- Scripts: JavaScript run against the bench, on the page (JEKrayPro) ----------
-   File › Scripts… opens an editor beside the bench. A script is JavaScript given J, the same
+/* ---------- Python for Scripts: Pyodide, fetched the first time a Python script runs ----------
+   Pyodide 314.0.7 (MPL-2.0: CPython 3.14 built for WebAssembly), vendored as it was published under
+   jek/assets/vendor/pyodide/, with NumPy's wheel beside it: separate files, replaceable, from this site and
+   nowhere else. It runs on the page's own thread, as a JavaScript script does: the bench's calls are
+   synchronous from Python, and a worker would need SharedArrayBuffer, which needs headers GitHub Pages does
+   not send. Everything crossing between the two languages crosses as JSON text, so no proxy is left behind
+   by a run: the Python J sends its calls to pyBridge as text and gets text back. */
+
+const PY_DIR = '../assets/vendor/pyodide/314.0.7/';
+// what comes down the first time (the loader, the interpreter, its standard library, the package list), and NumPy's wheel
+const PY_BYTES = 17931 + 1250344 + 9598218 + 2545637 + 119077;
+const PY_FETCHED = 9598218 + 2545637 + 119077;      // the part of it fetched (the scripts are imported), followed as it comes
+const NUMPY_WHEEL = 'numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl', NUMPY_BYTES = 2960568;
+
+/* the Python side, run once as Python starts: J, log(), and _jekray_run(code) → the run as JSON text */
+const PY_GLUE = String.raw`
+import ast, contextlib, inspect, io, json, linecache, math, traceback
+import _jekray
+
+class BenchError(Exception):
+    """A bench call that failed: no part of that name, a parameter it does not have."""
+
+def _plain(v):
+    # what JSON can carry: NumPy arrays and numbers as lists and numbers, tuples and sets as lists
+    if v is None or isinstance(v, (bool, int, float, str)):
+        return v
+    if isinstance(v, dict):
+        return {str(k): _plain(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple, set, frozenset, range)):
+        return [_plain(x) for x in v]
+    tolist = getattr(v, 'tolist', None)
+    if callable(tolist):
+        return _plain(tolist())
+    return str(v)
+
+def _dumps(v):
+    return json.dumps(_plain(v), allow_nan=True)
+
+def _answer(text):
+    d = json.loads(text)
+    if 'error' in d:
+        raise BenchError(d['error'])
+    return d.get('value')
+
+def _call(name, *args):
+    out = _jekray.call(name, _dumps(list(args)))
+    if isinstance(out, str):
+        return _answer(out)
+    async def later():
+        return _answer(await out)
+    return later()
+
+def _cell(v):
+    # as JavaScript's log() writes a value: numbers to six figures, lists and dicts as JSON
+    v = _plain(v)
+    if isinstance(v, bool) or v is None:
+        return repr(v)
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        return f'{v:.6g}' if math.isfinite(v) else repr(v)
+    if isinstance(v, str):
+        return v
+    return json.dumps(v)
+
+class _Bench:
+    """The bench, as JavaScript's J is: the same calls, taking parts by name, giving dicts and lists."""
+    def __init__(self, calls):
+        self._calls = frozenset(calls)
+    def __getattr__(self, name):
+        if name.startswith('_') or name not in self._calls:
+            raise AttributeError(f'J has no call {name!r}')
+        return lambda *args: _call(name, *args)
+    def __dir__(self):
+        return sorted(self._calls | {'elements', 'element', 'get', 'set', 'range', 'sweep', 'csv'})
+    def elements(self):
+        return _call('elements')
+    def element(self, name):
+        return _call('element', name)
+    def get(self, name, path):
+        return _call('get', name, path)
+    def set(self, name, path, value):
+        _call('set', name, path, value)
+        return self
+    def range(self, a, b, n):
+        n = max(2, math.floor(n + 0.5))
+        return [a + (b - a) * i / (n - 1) for i in range(n)]
+    def sweep(self, name, path, values, read):
+        # each value set, read(value) called, and the parameter put back: rows of {path: value, ...what was read}
+        was, rows = self.get(name, path), []
+        try:
+            for v in values:
+                v = _plain(v)
+                self.set(name, path, v)
+                r = _plain(read(v))
+                row = {path: v}
+                row.update(r if isinstance(r, dict) else {'value': r})
+                rows.append(row)
+        finally:
+            self.set(name, path, was)
+        return rows
+    def csv(self, rows):
+        return _call('csv', rows)
+
+def _shown(v):
+    # what a run shows: a dict of equal-length lists becomes rows, as a table
+    v = _plain(v)
+    if isinstance(v, dict) and v and all(isinstance(c, list) for c in v.values()):
+        n = {len(c) for c in v.values()}
+        if len(n) == 1 and n != {0}:
+            keys = list(v)
+            return [{k: v[k][i] for k in keys} for i in range(n.pop())]
+    return v
+
+def _imports(code):
+    # the top-level packages a script imports, as JSON (none when it does not parse: the run says why)
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return '[]'
+    names = {a.name.split('.')[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    names |= {n.module.split('.')[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module and not n.level}
+    return json.dumps(sorted(names))
+
+async def _jekray_run(code, calls):
+    out, shown, err, tb = io.StringIO(), None, None, None
+    def log(*args):
+        out.write(' '.join(_cell(a) for a in args) + '\n')
+    ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'BenchError': BenchError}
+    linecache.cache['<script>'] = (len(code), None, code.splitlines(True), '<script>')
+    try:
+        tree = ast.parse(code, '<script>')
+        last = tree.body.pop() if tree.body and isinstance(tree.body[-1], ast.Expr) else None
+        flags, value = ast.PyCF_ALLOW_TOP_LEVEL_AWAIT, None
+        with contextlib.redirect_stdout(out):
+            body = compile(tree, '<script>', 'exec', flags=flags)
+            r = eval(body, ns)
+            if body.co_flags & inspect.CO_COROUTINE:
+                await r
+            if last is not None:
+                tail = compile(ast.Expression(last.value), '<script>', 'eval', flags=flags)
+                value = eval(tail, ns)
+                if tail.co_flags & inspect.CO_COROUTINE or inspect.iscoroutine(value):
+                    value = await value
+        # what to show: result, if the script set it; else the last line's value, as a notebook's cell shows it
+        shown = _shown(ns['result'] if 'result' in ns else value)
+    except (Exception, SystemExit) as e:
+        if isinstance(e, ModuleNotFoundError) and (e.name or '').split('.')[0] != 'numpy':
+            e2 = ModuleNotFoundError(f'No module named {e.name!r}: only the standard library and NumPy are available on the bench', name=e.name)
+            e2.__traceback__ = e.__traceback__
+            e = e2
+        te = traceback.TracebackException.from_exception(e)
+        te.stack = traceback.StackSummary.from_list([f for f in te.stack if f.filename == '<script>'])
+        err = ''.join(te.format_exception_only()).strip().splitlines()[-1]
+        if isinstance(e, SyntaxError) and "'return' outside function" in str(e):
+            err += ' (in Python, set result to what to show, or end with it)'
+        tb = ''.join(te.format()).rstrip()
+    finally:
+        linecache.cache.pop('<script>', None)
+    return json.dumps({'result': shown, 'logs': out.getvalue().splitlines(), 'error': err, 'traceback': tb}, allow_nan=True, default=str)
+`;
+
+/* JSON as Python reads it: NaN and the infinities as its words for them, typed arrays as lists */
+function pyJson(v) {
+  const s = JSON.stringify(v === undefined ? null : v, (k, x) => (typeof x === 'number' && !isFinite(x) ? '\u0000' + x
+    : ArrayBuffer.isView(x) && !(x instanceof DataView) ? Array.from(x) : typeof x === 'bigint' ? String(x) : x));
+  return s.replace(/"\\u0000(NaN|-?Infinity)"/g, '$1');
+}
+/* JSON as Python writes it (NaN, Infinity, -Infinity among its numbers), as JavaScript's values */
+function pyParse(text) {
+  const marked = text.replace(/"(?:[^"\\]|\\.)*"|(-?Infinity|NaN)/g, (m, t) => (t ? '"\\u0000' + t + '"' : m));
+  return JSON.parse(marked, (k, v) => (typeof v === 'string' && /^\u0000(NaN|-?Infinity)$/.test(v) ? Number(v.slice(1)) : v));
+}
+
+let pyodide = null, pyBase = '', pyLoading = null, pyRunFn = null, pyImportsFn = null, pyJ = null, numpyIn = false;
+/* the Python J's calls, as JSON text in and out: { value } or { error }; a promise's answer comes later */
+function pyBridge(name, text) {
+  const fail = err => pyJson({ error: (err && err.message) || String(err) });
+  try {
+    if (!pyJ || typeof pyJ[name] !== 'function') throw new Error('J has no call ' + name);
+    const v = pyJ[name](...pyParse(text));
+    if (v && typeof v.then === 'function') return v.then(x => pyJson({ value: x === pyJ ? null : x }), fail);
+    return pyJson({ value: v === pyJ ? null : v });
+  } catch (err) { return fail(err); }
+}
+
+/* the bytes fetched from dir as they come (Pyodide fetches its own files): until the returned function is called */
+function pyWatch(dir, onBytes) {
+  const was = globalThis.fetch;
+  if (typeof was !== 'function' || !/^https?:/.test(dir)) return () => {};
+  const watched = async (input, init) => {
+    const res = await was(input, init), u = typeof input === 'string' ? input : (input && input.url) || String(input);
+    if (!res.ok || !res.body || !new URL(u, location.href).href.startsWith(dir)) return res;
+    const rd = res.body.getReader();
+    const body = new ReadableStream({
+      async pull(c) { const r = await rd.read(); if (r.done) c.close(); else { onBytes(r.value.length); c.enqueue(r.value); } },
+      cancel(why) { return rd.cancel(why); },
+    });
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  };
+  globalThis.fetch = watched;
+  return () => { if (globalThis.fetch === watched) globalThis.fetch = was; };
+}
+
+/* Python, started once: its folder (a URL on the page; a path in Node) and say(text), told how it goes */
+function pyReady(say, dir) {
+  if (pyodide) return Promise.resolve(pyodide);
+  if (!pyLoading) {
+    say = say || (() => {});
+    const base = dir || new URL(PY_DIR, location.href).href, mb = (PY_BYTES / 1e6).toFixed(1);
+    pyLoading = (async () => {
+      let got = 0, last = 0;
+      say('Fetching Python (' + mb + ' MB, once)…');
+      const unwatch = pyWatch(base, n => {
+        got += n;
+        if (got >= PY_FETCHED) say('Starting Python…');
+        else if (got - last > 262144) { last = got; say('Fetching Python: ' + Math.round(100 * got / PY_FETCHED) + '% of ' + mb + ' MB (once)…'); }
+      });
+      try {
+        const { loadPyodide } = await import(base + 'pyodide.mjs');
+        const py = await loadPyodide({ indexURL: base, packageBaseUrl: base, lockFileURL: base + 'pyodide-lock.json', stdin: () => null });
+        say('Starting Python…');
+        py.registerJsModule('_jekray', { call: pyBridge });
+        py.runPython(PY_GLUE);
+        pyRunFn = py.globals.get('_jekray_run'); pyImportsFn = py.globals.get('_imports');
+        pyodide = py; pyBase = base;
+        return py;
+      } finally { unwatch(); }
+    })();
+    pyLoading.catch(() => { pyLoading = null; });
+  }
+  return pyLoading;
+}
+
+/* NumPy's wheel, loaded the first time a script imports it */
+async function pyNumpy(py, base, say) {
+  if (numpyIn) return;
+  say('Fetching NumPy (' + (NUMPY_BYTES / 1e6).toFixed(1) + ' MB, once)…');
+  let got = 0, last = 0;
+  const unwatch = pyWatch(base, n => { got += n; if (got - last > 262144) { last = got; say('Fetching NumPy: ' + Math.min(100, Math.round(100 * got / NUMPY_BYTES)) + '% of ' + (NUMPY_BYTES / 1e6).toFixed(1) + ' MB (once)…'); } });
+  let bad = '';
+  try { await py.loadPackage('numpy', { checkIntegrity: true, messageCallback: () => {}, errorCallback: m => { bad = bad || m; } }); } finally { unwatch(); }
+  if (!py.runPython('import importlib.util\nimportlib.util.find_spec("numpy") is not None')) throw new Error('NumPy could not be loaded' + (bad ? ' (' + bad + ')' : ''));
+  numpyIn = true;
+}
+
+/* a Python script's text run against J: { result, logs, error, traceback }; Python is loaded first if it is not yet */
+async function pyRun(code, J, say, dir) {
+  say = say || (() => {});
+  const py = await pyReady(say, dir);
+  if (JSON.parse(pyImportsFn(String(code))).includes('numpy')) await pyNumpy(py, pyBase, say);
+  pyJ = J;
+  try { return pyParse(await pyRunFn(String(code), JSON.stringify(Object.keys(J).filter(k => typeof J[k] === 'function')))); } finally { pyJ = null; }
+}
+
+/* what Python holds, for the tests (a run should leave nothing behind): its objects, and the WebAssembly memory's size */
+const pyHeld = () => (pyodide ? { objects: pyodide.runPython('import gc\ngc.collect()\nlen(gc.get_objects())'), bytes: pyodide._module.HEAP8.length } : null);
+/* ---------- Scripts: JavaScript or Python run against the bench, on the page (JEKrayPro) ----------
+   File › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
    calls the documentation lists for scripting (a screen's spot, a detector's reading, an
    antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
-   is shown: a table when it is rows, with the rows saved as CSV, else as JSON. A script runs on
-   this page, on your own bench, as typing it into the browser's console would; it is kept in
-   this browser by name, or saved as a .js file. The bench is checkpointed before each run, so
-   Undo puts back whatever a script changed. */
+   (in Python: what it sets result to, or its last line's value) is shown: a table when it is rows,
+   with the rows saved as CSV, else as JSON. A script runs on this page, on your own bench, as typing
+   it into the browser's console would; it is kept in this browser by name with its language, or saved
+   as a .js or .py file. Python is Pyodide (ui/python.js), fetched the first time a Python script runs.
+   The bench is checkpointed before each run, so Undo puts back whatever a script changed. */
 
-const KEY = 'jek-raytracer-scripts';
+const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
+const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
 const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam'];
@@ -50025,30 +50286,65 @@ const screen = J.elements().find(e => e.type === 'screen');
 if (!screen) throw new Error('Put a screen on the bench first.');
 const S = J.stats(screen.name);
 log('rms', S.rms, 'mm;', S.powerPct, '% of the light from the sources reaching it');
-return S;`],
+return S;`, 'js'],
   ['Sweep a part to a table', `// Move the first lens along x and read the spot at each place.
 // The result is a table; Save as CSV keeps it for a plot.
 const lens = J.elements().find(e => e.type === 'lens'), screen = J.elements().find(e => e.type === 'screen');
 if (!lens || !screen) throw new Error('This needs a lens and a screen.');
 const x0 = J.get(lens.name, 'x');
-return J.sweep(lens.name, 'x', J.range(x0 - 20, x0 + 20, 21), () => { const S = J.stats(screen.name); return { rms: S.rms, powerPct: S.powerPct }; });`],
+return J.sweep(lens.name, 'x', J.range(x0 - 20, x0 + 20, 21), () => { const S = J.stats(screen.name); return { rms: S.rms, powerPct: S.powerPct }; });`, 'js'],
   ['Check a figure', `// A check that fails loudly when a figure drifts: here a detector's reading.
 const pd = J.elements().find(e => e.type === 'detector');
 if (!pd) throw new Error('This needs a photodetector.');
 const R = J.detector(pd.name);
 if (R.mw < 0.1) throw new Error('only ' + R.mw.toFixed(4) + ' mW reaches ' + pd.name);
 log('ok:', R.mw.toFixed(4), 'mW');
-return R;`],
+return R;`, 'js'],
   ['Every part', `// Every part on this bench, with its type and place.
-return J.elements();`],
+return J.elements();`, 'js'],
+  ['Read a screen', `# The spot on the first screen: its rms radius, and the share of the sources' light that reaches it.
+# (A screen counts rays, not milliwatts: for mW, read a photodetector there.)
+screen = next((e for e in J.elements() if e['type'] == 'screen'), None)
+if screen is None:
+    raise RuntimeError('Put a screen on the bench first.')
+S = J.stats(screen['name'])
+log('rms', S['rms'], 'mm;', S['powerPct'], '% of the light from the sources reaching it')
+result = S`, 'py'],
+  ['Sweep a part to a table', `# Move the first lens along x and read the spot at each place.
+# The result is a table; Save as CSV keeps it for a plot.
+import numpy as np
+
+parts = J.elements()
+lens = next((e for e in parts if e['type'] == 'lens'), None)
+screen = next((e for e in parts if e['type'] == 'screen'), None)
+if lens is None or screen is None:
+    raise RuntimeError('This needs a lens and a screen.')
+
+def read(x):
+    S = J.stats(screen['name'])
+    return {'rms': S['rms'], 'powerPct': S['powerPct']}
+
+x0 = J.get(lens['name'], 'x')
+result = J.sweep(lens['name'], 'x', np.linspace(x0 - 20, x0 + 20, 21), read)`, 'py'],
+  ['Check a figure', `# A check that fails loudly when a figure drifts: here a detector's reading.
+pd = next((e for e in J.elements() if e['type'] == 'detector'), None)
+if pd is None:
+    raise RuntimeError('This needs a photodetector.')
+R = J.detector(pd['name'])
+if R['mw'] < 0.1:
+    raise RuntimeError(f"only {R['mw']:.4f} mW reaches {pd['name']}")
+log('ok:', f"{R['mw']:.4f}", 'mW')
+result = R`, 'py'],
+  ['Every part', `# Every part on this bench, with its type and place (a last line's value is shown, as result would be).
+J.elements()`, 'py'],
 ];
 
 // why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
 const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
 
-/* what a script is given */
-function makeJ() {
-  const P = window.JEKray, J = {};
+/* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node) */
+function makeJ(P = window.JEKray) {
+  const J = {};
   for (const k of CALLS) if (typeof P[k] === 'function') J[k] = (...a) => P[k](...a);
   J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
   J.element = name => { const e = P.byName(name); if (!e) throw new Error('No part is called ' + JSON.stringify(name)); return JSON.parse(JSON.stringify(e)); };
@@ -50075,44 +50371,80 @@ function toCsv(rows) {
   return [cols.join(','), ...rows.map(r => cols.map(c => esc(cell(r[c]))).join(','))].join('\n') + '\n';
 }
 
-/* run a script's text: { result, logs, error, ms }; the bench is checkpointed first so Undo puts it back */
-async function runScript(code) {
-  const logs = [], t0 = performance.now();
-  const log = (...a) => { logs.push(a.map(cell).join(' ')); };
+/* a script's text run against J, in its language ('js' or 'py'): { result, logs, error, traceback } */
+async function execScript(code, J, lang, say) {
+  if (lang === 'py') {
+    try {
+      const R = await pyRun(code, J, say);
+      return { result: R.result === null ? undefined : R.result, logs: R.logs, error: R.error, traceback: R.traceback };
+    } catch (err) { return { result: undefined, logs: [], error: (err && err.message) || String(err), traceback: null }; }
+  }
+  const logs = [], log = (...a) => { logs.push(a.map(cell).join(' ')); };
   let result, error = null;
-  checkpoint();
   try {
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     const fn = new AsyncFunction('J', 'log', '"use strict";\n' + String(code));
-    result = await fn(makeJ(), log);
+    result = await fn(J, log);
   } catch (err) {
     error = (err && err.message) || String(err);
   }
-  window.JEKray.trace(); hooks.renderPanel(); hooks.requestRender();
-  return { result, logs, error, ms: performance.now() - t0 };
+  return { result, logs, error, traceback: null };
 }
 
-/* the scripts kept in this browser */
-function loadScripts() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v.filter(s => s && typeof s.name === 'string' && typeof s.code === 'string') : []; } catch (err) { return []; } }
+/* run a script's text: { result, logs, error, traceback, ms }; the bench is checkpointed first so Undo puts it back.
+   Python is fetched and started first, the first time (say(text) is told how that goes): not counted in ms */
+async function runScript(code, lang, say) {
+  const py = lang === 'py';
+  if (py) {
+    try { await pyReady(say); } catch (err) {
+      const net = /fetch|network|HTTP|import/i.test(err.message) || (typeof navigator !== 'undefined' && navigator.onLine === false);
+      return { result: undefined, logs: [], traceback: null, ms: 0, error: 'Python could not be loaded (' + ((err && err.message) || err) + '). ' + (net ? 'It is fetched the first time a Python script runs: try again when online.' : 'This browser may be too old to run it: try a current Chrome, Edge, Firefox or Safari.') };
+    }
+  }
+  const t0 = performance.now();
+  checkpoint();
+  const R = await execScript(code, makeJ(), py ? 'py' : 'js', say);
+  window.JEKray.trace(); hooks.renderPanel(); hooks.requestRender();
+  track('mod', py ? 'script.python' : 'script.js');
+  return Object.assign(R, { ms: performance.now() - t0 });
+}
+
+/* the scripts kept in this browser, each with its language (one kept before there was a choice is JavaScript) */
+function loadScripts() {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) || '[]');
+    return Array.isArray(v) ? v.filter(s => s && typeof s.name === 'string' && typeof s.code === 'string').map(s => ({ name: s.name, code: s.code, lang: s.lang === 'py' ? 'py' : 'js' })) : [];
+  } catch (err) { return []; }
+}
 function saveScripts(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (err) { /* not kept: fine */ } }
+// the language a new script starts in: the last one chosen
+const lastLang = () => { try { return localStorage.getItem(LANG_KEY) === 'py' ? 'py' : 'js'; } catch (err) { return 'js'; } };
+const keepLang = lang => { try { localStorage.setItem(LANG_KEY, lang); } catch (err) { /* not kept: fine */ } };
+const SCRIPT_HINT = {
+  js: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown.',
+  py: 'Python. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() and print() write below; set result to what to show (or end with it).',
+};
 
 function wireScripts() {
   const btn = document.getElementById('btnScripts');
   if (!btn) return;
-  let scripts = loadScripts(), cur = 0, dlg = null, ed, out, pick, runBtn, gate;
+  let scripts = loadScripts(), cur = 0, dlg = null, ed, out, pick, langPick, runBtn, gate;
   const current = () => scripts[cur] || null;
+  const langOf = () => (current() ? current().lang : lastLang());
   const showList = () => {
-    pick.replaceChildren(...scripts.map((s, i) => h('option', { value: String(i), selected: i === cur ? true : null }, s.name)));
+    pick.replaceChildren(...scripts.map((s, i) => h('option', { value: String(i), selected: i === cur ? true : null }, s.name + (s.lang === 'py' ? ' (Python)' : ''))));
     pick.disabled = !scripts.length;
     ed.value = current() ? current().code : '';
     ed.disabled = !current();
+    langPick.value = langOf(); langPick.disabled = !current();
+    ed.placeholder = SCRIPT_HINT[langOf()];
   };
   const keep = () => { if (current()) { current().code = ed.value; saveScripts(scripts); } };
-  const add = (name, code) => { scripts.push({ name, code }); cur = scripts.length - 1; saveScripts(scripts); showList(); };
+  const add = (name, code, lang) => { lang = lang === 'py' ? 'py' : 'js'; scripts.push({ name, code, lang }); cur = scripts.length - 1; keepLang(lang); saveScripts(scripts); showList(); };
   const show = (R) => {
     out.replaceChildren();
     for (const l of R.logs) out.append(h('div', { class: 'rt-script-log' }, l));
-    if (R.error) out.append(h('div', { class: 'rt-script-err' }, 'Error: ' + R.error));
+    if (R.error) out.append(R.traceback ? h('pre', { class: 'rt-script-err' }, R.traceback) : h('div', { class: 'rt-script-err' }, 'Error: ' + R.error));
     else if (isRows(R.result)) {
       const cols = [...new Set(R.result.flatMap(r => Object.keys(r)))];
       out.append(h('table', null, h('thead', null, h('tr', null, ...cols.map(c => h('th', null, c)))),
@@ -50127,36 +50459,41 @@ function wireScripts() {
     if (why) { toast(why, true); hooks.proFix(); return; }
     keep();
     runBtn.disabled = true;
-    try { show(await runScript(ed.value)); } finally { runBtn.disabled = false; }
+    // Python's first run fetches it: what that is doing, in the output, until the run's own
+    const say = text => out.replaceChildren(h('div', { class: 'rt-script-note', id: 'scriptLoading' }, text));
+    try { show(await runScript(ed.value, langOf(), say)); } finally { runBtn.disabled = false; }
   };
   const build = () => {
     dlg = h('dialog', { class: 'rt-dialog rt-wide rt-scripts', id: 'scriptDialog', 'aria-labelledby': 'scriptTitle' });
     pick = h('select', { 'aria-label': 'Which script', onchange: () => { keep(); cur = Number(pick.value); showList(); } });
-    const exPick = h('select', { 'aria-label': 'Start from an example', onchange: () => { const i = Number(exPick.value); if (i >= 0) { add(EXAMPLE_SCRIPTS[i][0], EXAMPLE_SCRIPTS[i][1]); } exPick.value = '-1'; } },
-      h('option', { value: '-1' }, 'Start from an example…'), ...EXAMPLE_SCRIPTS.map((e, i) => h('option', { value: String(i) }, e[0])));
-    ed = h('textarea', { id: 'scriptCode', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', wrap: 'off', placeholder: 'JavaScript. J is the bench: J.stats(\'Screen\'), J.set(\'Lens\', \'x\', 120), J.sweep(…). log() writes below; what you return is shown.' });
+    langPick = h('select', { id: 'scriptLang', 'aria-label': 'The script’s language', onchange: () => { if (!current()) return; current().lang = langPick.value; keepLang(langPick.value); saveScripts(scripts); showList(); } },
+      ...SCRIPT_LANGS.map(([k, label]) => h('option', { value: k }, label)));
+    const exPick = h('select', { 'aria-label': 'Start from an example', onchange: () => { const i = Number(exPick.value); if (i >= 0) { const [n, c, l] = EXAMPLE_SCRIPTS[i]; add(n, c, l); } exPick.value = '-1'; } },
+      h('option', { value: '-1' }, 'Start from an example…'),
+      ...SCRIPT_LANGS.map(([k, label]) => h('optgroup', { label }, ...EXAMPLE_SCRIPTS.map((e, i) => (e[2] === k ? h('option', { value: String(i) }, e[0]) : null)).filter(Boolean))));
+    ed = h('textarea', { id: 'scriptCode', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', wrap: 'off', placeholder: SCRIPT_HINT.js });
     ed.addEventListener('keydown', e => {
-      if (e.key === 'Tab') { e.preventDefault(); const s = ed.selectionStart, t = ed.selectionEnd; ed.setRangeText('  ', s, t, 'end'); }
+      if (e.key === 'Tab') { e.preventDefault(); const s = ed.selectionStart, t = ed.selectionEnd; ed.setRangeText(langOf() === 'py' ? '    ' : '  ', s, t, 'end'); }
       else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); }
     });
     ed.addEventListener('input', keep);
     out = h('div', { id: 'scriptOut', class: 'rt-script-out', 'aria-live': 'polite' });
     runBtn = h('button', { type: 'button', class: 'rt-btn primary', id: 'scriptRun', title: 'Ctrl+Enter', onclick: run }, 'Run');
-    const fi = h('input', { type: 'file', accept: '.js,.mjs,text/javascript', hidden: true });
-    fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) add(f.name.replace(/\.m?js$/i, ''), await f.text()); });
+    const fi = h('input', { type: 'file', accept: '.js,.mjs,.py,text/javascript,text/x-python', hidden: true });
+    fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) add(f.name.replace(/\.(m?js|py)$/i, ''), await f.text(), /\.py$/i.test(f.name) ? 'py' : 'js'); });
     gate = h('p', { class: 'rt-exppro', hidden: true });
     dlg.append(h('h2', { id: 'scriptTitle' }, 'Scripts'),
-      h('p', null, 'JavaScript run against this bench: read a screen or a detector, move a part and read again, sweep a parameter to a table, or check a figure. The same calls as the ',
-        h('a', { class: 'rt-link', href: '/jek/docs/jekray/scripting/', target: '_blank', rel: 'noopener' }, 'scripting documentation'), ' lists. Scripts are kept in this browser; Undo puts the bench back after a run.'),
+      h('p', null, 'JavaScript or Python run against this bench: read a screen or a detector, move a part and read again, sweep a parameter to a table, or check a figure. The same calls as the ',
+        h('a', { class: 'rt-link', href: '/jek/docs/jekray/scripting/', target: '_blank', rel: 'noopener' }, 'scripting documentation'), ' lists. Python is fetched the first time a Python script runs (' + (PY_BYTES / 1e6).toFixed(1) + ' MB, once; NumPy ' + (NUMPY_BYTES / 1e6).toFixed(1) + ' MB more, if a script imports it). Scripts are kept in this browser; Undo puts the bench back after a run.'),
       gate,
-      h('div', { class: 'rt-script-bar' }, pick,
-        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { const n = prompt('A name for the script', 'Script ' + (scripts.length + 1)); if (n) add(n.trim().slice(0, 60) || 'Script', ''); } }, 'New'),
+      h('div', { class: 'rt-script-bar' }, pick, langPick,
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { const n = prompt('A name for the script', 'Script ' + (scripts.length + 1)); if (n) add(n.trim().slice(0, 60) || 'Script', '', lastLang()); } }, 'New'),
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { if (!current()) return; const n = prompt('Rename the script', current().name); if (n) { current().name = n.trim().slice(0, 60) || current().name; saveScripts(scripts); showList(); } } }, 'Rename'),
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { if (!current() || !confirm('Delete “' + current().name + '”?')) return; scripts.splice(cur, 1); cur = Math.max(0, cur - 1); saveScripts(scripts); showList(); } }, 'Delete'),
         exPick),
       ed,
       h('div', { class: 'rt-script-bar' }, runBtn,
-        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { keep(); if (current()) downloadFile(current().name.replace(/[^\w.-]+/g, '-') + '.js', new Blob([current().code], { type: 'text/javascript' })); } }, 'Save as a file'),
+        h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { keep(); const s = current(); if (s) downloadFile(s.name.replace(/[^\w.-]+/g, '-') + (s.lang === 'py' ? '.py' : '.js'), new Blob([s.code], { type: s.lang === 'py' ? 'text/x-python' : 'text/javascript' })); } }, 'Save as a file'),
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => fi.click() }, 'Open a file…'),
         h('span', { style: 'flex:1' }),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => { keep(); dlg.close(); } }, 'Close')),
@@ -50166,7 +50503,7 @@ function wireScripts() {
   btn.addEventListener('click', () => {
     if (!dlg) build();
     scripts = loadScripts(); if (cur >= scripts.length) cur = 0;
-    if (!scripts.length) { scripts = [{ name: EXAMPLE_SCRIPTS[0][0], code: EXAMPLE_SCRIPTS[0][1] }]; cur = 0; saveScripts(scripts); }
+    if (!scripts.length) { scripts = [{ name: EXAMPLE_SCRIPTS[0][0], code: EXAMPLE_SCRIPTS[0][1], lang: 'js' }]; cur = 0; saveScripts(scripts); }
     showList();
     const why = scriptsWhy();
     gate.hidden = !why;
@@ -51557,8 +51894,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
     typeLabel(name) { return typeLabel(this.byName(name)); },
-    // a script as File › Scripts runs it: { result, logs, error, ms }
-    scriptRun: code => runScript(code),
+    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms }
+    scriptRun: (code, lang) => runScript(code, lang),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),

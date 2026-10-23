@@ -195,6 +195,7 @@ import './io/usage.js';
 import './io/cloud.js';
 import './io/autosave.js';
 import './ui/news.js';
+import './ui/python.js';
 import './ui/scripts.js';
 import './ui/tours.js';
 import './io/mods.js';

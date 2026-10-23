@@ -56,8 +56,10 @@ through `core/hooks.js`.
   `teamSigningSection` in `io/account.js`. Ops (revoke, the reserved-ids flag for `jek`/`jekray`/`jeksys`, a team's
   domain by hand or freed, signing our own packs) `scripts/packs.mjs`. `PACK_PUBLIC_KEY` is the live key (set 22 Oct 2026); the
   TEST key (private half only in `jek-api/vitest.config.js`) is used in TEST_MODE, and on localhost only if passed. Modules install only verified; ids are claimed by their first signer.
-- **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`); Node `headless.mjs`,
-  `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
+- **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`, `makeJ`, `execScript`), in
+  JavaScript or Python: Python is Pyodide (`ui/python.js`: the Python `J` and its glue, everything crossing as JSON text),
+  vendored with NumPy's wheel in `jek/assets/vendor/pyodide/<version>/` (MPL-2.0; CPython PSF, NumPy BSD), loaded on the
+  main thread on first use, never from a CDN; Node `headless.mjs`, `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
   tolerancing, reports, drawings, design export, share links/QR, scripts, My parts. Exports (layout, 3D PNG, plots'
   PNG/CSV, screen CSV, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function

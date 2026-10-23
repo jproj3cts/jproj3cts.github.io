@@ -730,6 +730,9 @@
   .rt-script-err { color: var(--jek-red); }
   .rt-script-out pre.rt-script-err { white-space: pre; overflow-x: auto; }
   .rt-script-note { color: var(--jek-ink-soft); font-family: inherit; font-size: 0.78rem; }
+  #scriptRun { min-width: 4.2rem; }
+  #scriptTimer { font-variant-numeric: tabular-nums; min-width: 7.5rem; }
+  #scriptTimer:empty { display: none; }
   .rt-packlist { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; max-height: 45vh; overflow-y: auto; }
   .rt-packrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.6rem; border: 1px solid var(--jek-line); border-radius: 3px; }
   .rt-packrow small, .rt-pby { color: var(--jek-ink-soft); font-weight: 400; }
@@ -42501,7 +42504,8 @@ function diffraction(el) {
   if (!job) return null;
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return c.D;
-  if (hooks.frames().screens.has(job.key)) return hooks.frames().screens.get(job.key);
+  const F = hooks.frames();          // (none without a page: the script worker, Node)
+  if (F && F.screens.has(job.key)) return F.screens.get(job.key);
   liveScreens++;
   const D = popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }));
   popScreenCache.set(el.id, { key: job.key, D });
@@ -42515,7 +42519,7 @@ function diffractionLater(el) {
   if (!job) return { D: null, busy: false };
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return { D: c.D, busy: false };
-  const fr = hooks.frames().screens.get(job.key);
+  const F = hooks.frames(), fr = F && F.screens.get(job.key);
   if (fr) { popScreenCache.set(el.id, { key: job.key, D: fr }); return { D: fr, busy: false }; }
   if (TEST_MODE) return { D: diffraction(el), busy: false };
   if (hooks.sweepJob()) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
@@ -43913,6 +43917,19 @@ function restore(str) {
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();
+}
+
+/* A bench a script worked on in its worker (page/script-worker.js), taken up as one change that Undo puts back:
+   its parts, fibres, measures, assemblies and tabs, with this page's views of its tabs and the selection kept
+   where they still apply; or, when the script loaded a bench of its own (whole), that bench as loaded */
+function adoptBench(data, whole) {
+  checkpoint();
+  if (whole) { loadProject(data); selectOne(null); }
+  else restore(JSON.stringify({ e: data.elements, b: data.benches, f: data.fibres, m: data.measures, a: data.assemblies || [] }));
+  if (selectedId && !getEl(selectedId)) selectOne(null);
+  for (const id of [...extraSel]) if (!getEl(id)) extraSel.delete(id);
+  renderBenchTabs();
+  changed(true);
 }
 
 function checkpoint() {
@@ -49493,6 +49510,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Scripts run in the background, with Stop</b> (JEKrayPro): File \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',
     '<b>Right-drag pans the bench</b>, as middle-drag and Space-drag do; a right-click that does not drag still opens the menu.',
     '<b>Signed part packs</b>: a pack made in JEKray is signed with your account (a free one is enough), so whoever installs it sees <b>\u2713 Signed by the JEKray account \u2018</b>your name<b>\u2019</b>, and that it has not been changed since (the name is your account\u2019s own, so it is shown plainly, not as checked). A pack edited by hand afterwards reads <b>Unverified: changed after it was signed</b>: sign it again with File \u203a Part packs and modules\u2026 \u203a <b>Sign a pack file\u2026</b>, which also signs a module you wrote. A pack\u2019s id is its maker\u2019s once signed: a pack with that id installs only when its maker signed it, which stops someone else\u2019s pack posing as or replacing yours (ids starting jek., jekray. and jeksys. are JEKray\u2019s own). A <b>module installs only when signed and unchanged</b>, from a file, a link or a bench; one installed before keeps working, labelled Unverified. JEK Systems can revoke a harmful pack (installed packs are checked once a day: a revoked module is turned off), and <b>Report this pack</b> tells us of one. Teams on JEKrayPro can sign as their organisation, shown as <b>\u2713 Verified: </b><i>organisation</i><b> (</b><i>domain</i><b>)</b>, once they have verified their web domain themselves: a DNS record, set up from the team\u2019s settings under <b>Signing packs as the team</b>.',
     '<b>Making a part pack</b> needs a free account, as exports do; installing a pack needs none.',
@@ -50009,10 +50027,11 @@ function wireNews() {
 /* ---------- Python for Scripts: Pyodide, fetched the first time a Python script runs ----------
    Pyodide 314.0.7 (MPL-2.0: CPython 3.14 built for WebAssembly), vendored as it was published under
    jek/assets/vendor/pyodide/, with NumPy's wheel beside it: separate files, replaceable, from this site and
-   nowhere else. It runs on the page's own thread, as a JavaScript script does: the bench's calls are
-   synchronous from Python, and a worker would need SharedArrayBuffer, which needs headers GitHub Pages does
-   not send. Everything crossing between the two languages crosses as JSON text, so no proxy is left behind
-   by a run: the Python J sends its calls to pyBridge as text and gets text back. */
+   nowhere else. It runs in the script worker beside its own copy of the bench (page/script-worker.js), so the
+   bench's calls are synchronous from Python there with no SharedArrayBuffer (which needs headers GitHub Pages
+   does not send), and Stop ends it by ending the worker; or, run on the page, on the page's own thread.
+   Everything crossing between the two languages crosses as JSON text, so no proxy is left behind by a run:
+   the Python J sends its calls to pyBridge as text and gets text back. */
 
 const PY_DIR = '../assets/vendor/pyodide/314.0.7/';
 // what comes down the first time (the loader, the interpreter, its standard library, the package list), and NumPy's wheel
@@ -50130,8 +50149,22 @@ def _imports(code):
     names |= {n.module.split('.')[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module and not n.level}
     return json.dumps(sorted(names))
 
+class _Out(io.StringIO):
+    # what log() and print() write, kept; each line also handed on as it is finished (the script worker streams it)
+    def __init__(self):
+        super().__init__()
+        self._part = ''
+    def write(self, s):
+        n = super().write(s)
+        self._part += s
+        if '\n' in self._part:
+            *done, self._part = self._part.split('\n')
+            for line in done:
+                _jekray.line(line)
+        return n
+
 async def _jekray_run(code, calls):
-    out, shown, err, tb = io.StringIO(), None, None, None
+    out, shown, err, tb = _Out(), None, None, None
     def log(*args):
         out.write(' '.join(_cell(a) for a in args) + '\n')
     ns = {'__name__': '__main__', 'J': _Bench(json.loads(calls)), 'log': log, 'BenchError': BenchError}
@@ -50180,7 +50213,7 @@ function pyParse(text) {
   return JSON.parse(marked, (k, v) => (typeof v === 'string' && /^\u0000(NaN|-?Infinity)$/.test(v) ? Number(v.slice(1)) : v));
 }
 
-let pyodide = null, pyBase = '', pyLoading = null, pyRunFn = null, pyImportsFn = null, pyJ = null, numpyIn = false;
+let pyodide = null, pyBase = '', pyLoading = null, pyRunFn = null, pyImportsFn = null, pyJ = null, numpyIn = false, pyOnLine = null;
 /* the Python J's calls, as JSON text in and out: { value } or { error }; a promise's answer comes later */
 function pyBridge(name, text) {
   const fail = err => pyJson({ error: (err && err.message) || String(err) });
@@ -50228,7 +50261,7 @@ function pyReady(say, dir) {
         const { loadPyodide } = await import(base + 'pyodide.mjs');
         const py = await loadPyodide({ indexURL: base, packageBaseUrl: base, lockFileURL: base + 'pyodide-lock.json', stdin: () => null });
         say('Starting Python…');
-        py.registerJsModule('_jekray', { call: pyBridge });
+        py.registerJsModule('_jekray', { call: pyBridge, line: text => { if (pyOnLine) pyOnLine(String(text)); } });
         py.runPython(PY_GLUE);
         pyRunFn = py.globals.get('_jekray_run'); pyImportsFn = py.globals.get('_imports');
         pyodide = py; pyBase = base;
@@ -50252,26 +50285,64 @@ async function pyNumpy(py, base, say) {
   numpyIn = true;
 }
 
-/* a Python script's text run against J: { result, logs, error, traceback }; Python is loaded first if it is not yet */
-async function pyRun(code, J, say, dir) {
+/* a Python script's text run against J: { result, logs, error, traceback }; Python is loaded first if it is not yet.
+   onLine(text), if given, is told each line log() or print() finishes, as it is written */
+async function pyRun(code, J, say, dir, onLine) {
   say = say || (() => {});
   const py = await pyReady(say, dir);
   if (JSON.parse(pyImportsFn(String(code))).includes('numpy')) await pyNumpy(py, pyBase, say);
-  pyJ = J;
-  try { return pyParse(await pyRunFn(String(code), JSON.stringify(Object.keys(J).filter(k => typeof J[k] === 'function')))); } finally { pyJ = null; }
+  pyJ = J; pyOnLine = onLine || null;
+  try { return pyParse(await pyRunFn(String(code), JSON.stringify(Object.keys(J).filter(k => typeof J[k] === 'function')))); } finally { pyJ = null; pyOnLine = null; }
 }
 
 /* what Python holds, for the tests (a run should leave nothing behind): its objects, and the WebAssembly memory's size */
 const pyHeld = () => (pyodide ? { objects: pyodide.runPython('import gc\ngc.collect()\nlen(gc.get_objects())'), bytes: pyodide._module.HEAP8.length } : null);
-/* ---------- Scripts: JavaScript or Python run against the bench, on the page (JEKrayPro) ----------
+/* ---------- The calls a script is given, as window.JEKray has them ----------
+   The part of window.JEKray (ui/boot.js) that File › Scripts hands a script as J (ui/scripts.js CALLS), kept here so the
+   script worker (page/script-worker.js) makes the same calls over its own copy of the bench: the same code, the same
+   answers. Each reads only the bench and the engines; none needs the page. The page-only ones (load, select, showTab,
+   sweepPlay, sweepPause) stay in boot.js, and the worker has its own (page/script-worker.js workerCalls). */
+function scriptCalls() {
+  return {
+    serialize() { return serialize(); },
+    trace() { setLastTraceKey(null); traceScene(); },
+    benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
+    arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
+    // a receiving horn against frequency, and its link budget (RF)
+    rfSweep(name) { return rfSweep(this.byName(name)); },
+    linkBudget(name) { return linkBudget(this.byName(name)); },
+    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
+    // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
+    lensAntenna(name) {
+      traceScene(); const A = antennaNow(this.byName(name), 'ant');
+      return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed, round: A.round, eng: A.eng };
+    },
+    byName(name) { return project.elements.find(e => e.name === name); },
+    stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
+    metric(name, key) { return metricRaw(this.byName(name), key); },
+    paraxial(name, nm) { return paraxial(this.byName(name), nm); },
+    typeLabel(name) { return typeLabel(this.byName(name)); },
+    setParam(name, path, v) { setParam(this.byName(name), path, v); },
+    getParam(name, path) { return getPath(this.byName(name), path); },
+    diffraction(name) { const el = this.byName(name); return el ? diffraction(el) : null; },
+    asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
+    // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
+    asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },
+    exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
+  };
+}
+/* ---------- Scripts: JavaScript or Python run against the bench, in the background (JEKrayPro) ----------
    File › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
    calls the documentation lists for scripting (a screen's spot, a detector's reading, an
    antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
    (in Python: what it sets result to, or its last line's value) is shown: a table when it is rows,
-   with the rows saved as CSV, else as JSON. A script runs on this page, on your own bench, as typing
-   it into the browser's console would; it is kept in this browser by name with its language, or saved
-   as a .js or .py file. Python is Pyodide (ui/python.js), fetched the first time a Python script runs.
-   The bench is checkpointed before each run, so Undo puts back whatever a script changed. */
+   with the rows saved as CSV, else as JSON. A script runs in the script worker (page/script-worker.js),
+   on its own copy of the bench, so the page carries on meanwhile and Stop ends it at once; its log()
+   lines come as they are written, and when it ends what it changed is applied to the bench as one
+   step Undo puts back. A script that needs the page itself (J.sweepPlay) can be run on the page
+   instead, as typing it into the browser's console would (no Stop then). Scripts are kept in this
+   browser by name with their language, or saved as a .js or .py file. Python is Pyodide
+   (ui/python.js), fetched the first time a Python script runs. */
 
 const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
 const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
@@ -50343,7 +50414,7 @@ J.elements()`, 'py'],
 const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
 
 /* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node) */
-function makeJ(P = window.JEKray) {
+function makeJ(P = window.JEKray) {   // (in the script worker, P is its own: page/script-worker.js)
   const J = {};
   for (const k of CALLS) if (typeof P[k] === 'function') J[k] = (...a) => P[k](...a);
   J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
@@ -50371,15 +50442,16 @@ function toCsv(rows) {
   return [cols.join(','), ...rows.map(r => cols.map(c => esc(cell(r[c]))).join(','))].join('\n') + '\n';
 }
 
-/* a script's text run against J, in its language ('js' or 'py'): { result, logs, error, traceback } */
-async function execScript(code, J, lang, say) {
+/* a script's text run against J, in its language ('js' or 'py'): { result, logs, error, traceback };
+   onLog(line), if given, is told each log() line (and in Python each print() line) as it is written */
+async function execScript(code, J, lang, say, onLog) {
   if (lang === 'py') {
     try {
-      const R = await pyRun(code, J, say);
+      const R = await pyRun(code, J, say, undefined, onLog);
       return { result: R.result === null ? undefined : R.result, logs: R.logs, error: R.error, traceback: R.traceback };
     } catch (err) { return { result: undefined, logs: [], error: (err && err.message) || String(err), traceback: null }; }
   }
-  const logs = [], log = (...a) => { logs.push(a.map(cell).join(' ')); };
+  const logs = [], log = (...a) => { const line = a.map(cell).join(' '); logs.push(line); if (onLog) onLog(line); };
   let result, error = null;
   try {
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -50390,23 +50462,106 @@ async function execScript(code, J, lang, say) {
   }
   return { result, logs, error, traceback: null };
 }
+/* what to say when Python could not be loaded */
+function pyLoadError(err) {
+  const net = /fetch|network|HTTP|import/i.test((err && err.message) || '') || (typeof navigator !== 'undefined' && navigator.onLine === false);
+  return 'Python could not be loaded (' + ((err && err.message) || err) + '). ' + (net ? 'It is fetched the first time a Python script runs: try again when online.' : 'This browser may be too old to run it: try a current Chrome, Edge, Firefox or Safari.');
+}
 
-/* run a script's text: { result, logs, error, traceback, ms }; the bench is checkpointed first so Undo puts it back.
-   Python is fetched and started first, the first time (say(text) is told how that goes): not counted in ms */
-async function runScript(code, lang, say) {
+/* The script worker (page/script-worker.js), kept between runs: one run at a time, ended by Stop */
+const SCRIPT_W = { w: null, failed: false, ok: false, py: false, run: null, seq: 0 };
+const scriptWorkerOk = () => WORKERS_OK && !SCRIPT_W.failed;
+function scriptWorker() {
+  if (SCRIPT_W.w) return SCRIPT_W.w;
+  try { SCRIPT_W.w = newAppWorker(true); } catch (err) { SCRIPT_W.failed = true; return null; }
+  return SCRIPT_W.w;
+}
+const pyDir = () => new URL(PY_DIR, location.href).href;
+/* a worker made ready before it is needed (the Scripts window opening; after a Stop), with Python loading in it
+   if the script is Python and Python has been run on this page already (its files are then in the browser's cache) */
+function scriptWarm(lang) {
+  if (!scriptWorkerOk() || SCRIPT_W.run) return;
+  const w = scriptWorker();
+  if (w && lang === 'py' && SCRIPT_W.py) w.postMessage({ t: 'warm', lang, py: pyDir() });
+}
+/* the script running in the worker stopped now: the worker ended (nothing it did reaches the bench), a fresh one readied */
+function stopScript() {
+  const run = SCRIPT_W.run;
+  if (!run) return false;
+  SCRIPT_W.run = null;
+  if (SCRIPT_W.w) SCRIPT_W.w.terminate();
+  SCRIPT_W.w = null;
+  track('mod', 'script.stop');
+  run.resolve({ result: undefined, logs: run.logs, error: null, traceback: null, ms: performance.now() - run.t0, stopped: true, where: 'worker' });
+  setTimeout(() => scriptWarm(run.lang), 0);
+  return true;
+}
+const scriptRunning = () => !!SCRIPT_W.run;
+
+/* a script run in the worker over a copy of the bench, taken back as one change when it ends (or not at all, stopped) */
+function runInWorker(code, lang, say, onLog) {
+  const w = scriptWorker();
+  if (!w) return null;
+  return new Promise(resolve => {
+    const id = ++SCRIPT_W.seq, run = { id, lang, logs: [], t0: performance.now(), resolve, start: snapshot() };
+    SCRIPT_W.run = run;
+    const end = R => { if (SCRIPT_W.run !== run) return; SCRIPT_W.run = null; resolve(R); };
+    w.onmessage = e => {
+      const m = e.data;
+      if (!m || m.id !== id || SCRIPT_W.run !== run) return;
+      SCRIPT_W.ok = true;
+      if (m.t === 'say') { if (say) say(m.text); }
+      else if (m.t === 'log') { run.logs.push(m.line); if (onLog) onLog(m.line); }
+      else if (m.t === 'done') {
+        if (lang === 'py' && !/^Python could not be loaded/.test(m.R.error || '')) SCRIPT_W.py = true;
+        const R = Object.assign(m.R, { where: 'worker', pageOnly: m.pageOnly || (m.R.error && /\b(window|document)\b/.test(code) ? 'page' : '') });
+        R.note = scriptTakeUp(m, run.start);
+        end(R);
+      }
+    };
+    w.onerror = e => {
+      e.preventDefault();
+      if (SCRIPT_W.w === w) { w.terminate(); SCRIPT_W.w = null; }
+      if (!SCRIPT_W.ok) SCRIPT_W.failed = true;        // a worker that never started: scripts run on the page from now on
+      end({ result: undefined, logs: run.logs, traceback: null, ms: performance.now() - run.t0, where: 'worker', pageOnly: 'worker',
+        error: 'The script’s background worker stopped (' + ((e && e.message) || 'it failed to start') + ')' });
+    };
+    w.postMessage({ t: 'run', id, proj: JSON.stringify(serialize()), mods: modDelta(w), code: String(code), lang, py: pyDir() });
+  });
+}
+/* the end of a run in the worker, on the page: its bench taken up (one change, Undo puts it back) if it changed it
+   and this bench has not been changed meanwhile; then what it asked of the page (a tab shown, a part selected, sweeps paused) */
+function scriptTakeUp(m, start) {
+  const P = window.JEKray;
+  if (m.bench && snapshot() !== start) return 'The bench was changed while the script ran, so what the script changed was not applied: run it again to apply it.';
+  if (m.bench) adoptBench(JSON.parse(m.bench), m.whole);
+  if (m.tab && !m.whole) P.showTab(m.tab);
+  for (const [op, name, tab] of m.ops || []) { if (op === 'select') P.select(name, tab || undefined); else if (op === 'pause') P.sweepPause(); }
+  P.trace(); hooks.renderPanel(); hooks.requestRender();
+  return m.bench ? 'The script’s changes were applied to the bench as one step: Undo puts it back.' : '';
+}
+
+/* run a script's text: { result, logs, error, traceback, ms, where, stopped?, pageOnly?, note? }. It runs in the script
+   worker, on a copy of the bench (Stop ends it: stopScript), with what it changed taken up when it ends; or on the page
+   (o.page, or where there can be no worker), as typing it into the console would, the bench checkpointed first so Undo
+   puts it back. o.onLog(line) is told each log() line as it comes. Python is fetched and started first, the first time
+   (say(text) is told how that goes): not counted in ms */
+async function runScript(code, lang, say, o = {}) {
   const py = lang === 'py';
+  if (SCRIPT_W.run) return { result: undefined, logs: [], traceback: null, ms: 0, error: 'A script is running already: wait for it, or stop it' };
+  if (!o.page && scriptWorkerOk()) {
+    const R = await runInWorker(code, py ? 'py' : 'js', say, o.onLog);
+    if (R) { if (!R.stopped) track('mod', py ? 'script.python' : 'script.js'); return R; }
+  }
   if (py) {
-    try { await pyReady(say); } catch (err) {
-      const net = /fetch|network|HTTP|import/i.test(err.message) || (typeof navigator !== 'undefined' && navigator.onLine === false);
-      return { result: undefined, logs: [], traceback: null, ms: 0, error: 'Python could not be loaded (' + ((err && err.message) || err) + '). ' + (net ? 'It is fetched the first time a Python script runs: try again when online.' : 'This browser may be too old to run it: try a current Chrome, Edge, Firefox or Safari.') };
-    }
+    try { await pyReady(say); } catch (err) { return { result: undefined, logs: [], traceback: null, ms: 0, where: 'page', error: pyLoadError(err) }; }
   }
   const t0 = performance.now();
   checkpoint();
-  const R = await execScript(code, makeJ(), py ? 'py' : 'js', say);
+  const R = await execScript(code, makeJ(), py ? 'py' : 'js', say, o.onLog);
   window.JEKray.trace(); hooks.renderPanel(); hooks.requestRender();
   track('mod', py ? 'script.python' : 'script.js');
-  return Object.assign(R, { ms: performance.now() - t0 });
+  return Object.assign(R, { ms: performance.now() - t0, where: 'page' });
 }
 
 /* the scripts kept in this browser, each with its language (one kept before there was a choice is JavaScript) */
@@ -50428,7 +50583,7 @@ const SCRIPT_HINT = {
 function wireScripts() {
   const btn = document.getElementById('btnScripts');
   if (!btn) return;
-  let scripts = loadScripts(), cur = 0, dlg = null, ed, out, pick, langPick, runBtn, gate;
+  let scripts = loadScripts(), cur = 0, dlg = null, ed, out, pick, langPick, runBtn, clock, gate;
   const current = () => scripts[cur] || null;
   const langOf = () => (current() ? current().lang : lastLang());
   const showList = () => {
@@ -50441,9 +50596,13 @@ function wireScripts() {
   };
   const keep = () => { if (current()) { current().code = ed.value; saveScripts(scripts); } };
   const add = (name, code, lang) => { lang = lang === 'py' ? 'py' : 'js'; scripts.push({ name, code, lang }); cur = scripts.length - 1; keepLang(lang); saveScripts(scripts); showList(); };
+  // a run's output: its log() lines as they come, what Python's loading is doing, and while it runs the time it has taken
+  let logBox = null, status = null, timer = 0;
   const show = (R) => {
     out.replaceChildren();
     for (const l of R.logs) out.append(h('div', { class: 'rt-script-log' }, l));
+    const secs = (R.ms / 1000).toFixed(R.ms < 10000 ? 1 : 0);
+    if (R.stopped) { out.append(h('div', { class: 'rt-script-note', id: 'scriptStopped' }, 'Stopped after ' + secs + ' s: nothing it did was applied, so the bench is as it was.')); return; }
     if (R.error) out.append(R.traceback ? h('pre', { class: 'rt-script-err' }, R.traceback) : h('div', { class: 'rt-script-err' }, 'Error: ' + R.error));
     else if (isRows(R.result)) {
       const cols = [...new Set(R.result.flatMap(r => Object.keys(r)))];
@@ -50452,16 +50611,35 @@ function wireScripts() {
       out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => downloadFile((current() ? current().name : 'script') + '.csv', new Blob([toCsv(R.result)], { type: 'text/csv' })) }, 'Save as CSV'),
         h('span', { class: 'rt-script-note' }, R.result.length + ' row' + (R.result.length === 1 ? '' : 's'))));
     } else if (R.result !== undefined) out.append(h('pre', null, typeof R.result === 'string' ? R.result : JSON.stringify(R.result, null, 1)));
-    out.append(h('div', { class: 'rt-script-note' }, (R.error ? 'Stopped' : 'Done') + ' in ' + Math.round(R.ms) + ' ms' + (R.error ? '; Undo puts the bench back if the script changed it' : '')));
+    // a script that needs the page (sweepPlay, the page's own window or document): run there instead, without Stop
+    if (R.error && R.pageOnly && R.where === 'worker') out.append(h('div', { class: 'rt-script-bar' }, h('button', { type: 'button', class: 'rt-btn', id: 'scriptOnPage', onclick: () => run({ page: true }) }, 'Run on the page (no Stop)'),
+      h('span', { class: 'rt-script-note' }, 'Runs it on this page as the console would: the page waits for it, and it cannot be stopped.')));
+    const took = R.ms < 1000 ? Math.round(R.ms) + ' ms' : secs + ' s';
+    out.append(h('div', { class: 'rt-script-note', id: 'scriptDone' }, (R.error ? 'Failed after ' : 'Done in ') + took + (R.where === 'page' ? ' (on the page)' : '') + '.' + (R.note ? ' ' + R.note : R.where === 'page' && R.error ? ' Undo puts the bench back if the script changed it.' : '')));
   };
-  const run = async () => {
+  // Run becomes Stop while a script runs, with the time it has run beside it
+  const busy = on => {
+    runBtn.textContent = on ? 'Stop' : 'Run';
+    runBtn.classList.toggle('danger', on);
+    runBtn.title = on ? 'Stop the script (its changes are not applied)' : 'Ctrl+Enter';
+    clearInterval(timer);
+    clock.textContent = '';
+    if (on) { const t0 = performance.now(); const tick = () => { clock.textContent = 'Running… ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s'; }; tick(); timer = setInterval(tick, 100); }
+  };
+  const run = async (o = {}) => {
     const why = scriptsWhy();
     if (why) { toast(why, true); hooks.proFix(); return; }
+    if (scriptRunning()) return;
     keep();
-    runBtn.disabled = true;
-    // Python's first run fetches it: what that is doing, in the output, until the run's own
-    const say = text => out.replaceChildren(h('div', { class: 'rt-script-note', id: 'scriptLoading' }, text));
-    try { show(await runScript(ed.value, langOf(), say)); } finally { runBtn.disabled = false; }
+    out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
+    // Python's first run fetches it: what that is doing, below the lines logged so far
+    let seen = false;
+    const into = () => { if (!seen) { seen = true; out.scrollIntoView({ block: 'nearest' }); } };     // on a phone the output is below the fold
+    const say = text => { status.textContent = text; into(); };
+    const onLog = line => { logBox.append(h('div', { class: 'rt-script-log' }, line)); into(); if (out.scrollHeight - out.scrollTop - out.clientHeight < 60) out.scrollTop = out.scrollHeight; };
+    const onPage = o.page || !scriptWorkerOk();
+    if (onPage) runBtn.disabled = true; else busy(true);
+    try { show(await runScript(ed.value, langOf(), say, { page: o.page, onLog })); } finally { runBtn.disabled = false; busy(false); }
   };
   const build = () => {
     dlg = h('dialog', { class: 'rt-dialog rt-wide rt-scripts', id: 'scriptDialog', 'aria-labelledby': 'scriptTitle' });
@@ -50478,13 +50656,14 @@ function wireScripts() {
     });
     ed.addEventListener('input', keep);
     out = h('div', { id: 'scriptOut', class: 'rt-script-out', 'aria-live': 'polite' });
-    runBtn = h('button', { type: 'button', class: 'rt-btn primary', id: 'scriptRun', title: 'Ctrl+Enter', onclick: run }, 'Run');
+    runBtn = h('button', { type: 'button', class: 'rt-btn primary', id: 'scriptRun', title: 'Ctrl+Enter', onclick: () => (scriptRunning() ? stopScript() : run()) }, 'Run');
+    clock = h('span', { class: 'rt-script-note', id: 'scriptTimer', 'aria-live': 'off' });
     const fi = h('input', { type: 'file', accept: '.js,.mjs,.py,text/javascript,text/x-python', hidden: true });
     fi.addEventListener('change', async () => { const f = fi.files[0]; fi.value = ''; if (f) add(f.name.replace(/\.(m?js|py)$/i, ''), await f.text(), /\.py$/i.test(f.name) ? 'py' : 'js'); });
     gate = h('p', { class: 'rt-exppro', hidden: true });
     dlg.append(h('h2', { id: 'scriptTitle' }, 'Scripts'),
       h('p', null, 'JavaScript or Python run against this bench: read a screen or a detector, move a part and read again, sweep a parameter to a table, or check a figure. The same calls as the ',
-        h('a', { class: 'rt-link', href: '/jek/docs/jekray/scripting/', target: '_blank', rel: 'noopener' }, 'scripting documentation'), ' lists. Python is fetched the first time a Python script runs (' + (PY_BYTES / 1e6).toFixed(1) + ' MB, once; NumPy ' + (NUMPY_BYTES / 1e6).toFixed(1) + ' MB more, if a script imports it). Scripts are kept in this browser; Undo puts the bench back after a run.'),
+        h('a', { class: 'rt-link', href: '/jek/docs/jekray/scripting/', target: '_blank', rel: 'noopener' }, 'scripting documentation'), ' lists. Python is fetched the first time a Python script runs (' + (PY_BYTES / 1e6).toFixed(1) + ' MB, once; NumPy ' + (NUMPY_BYTES / 1e6).toFixed(1) + ' MB more, if a script imports it). A script runs in the background on a copy of the bench: Stop ends it at once, and what it changed is applied when it ends, as one step Undo puts back. Scripts are kept in this browser.'),
       gate,
       h('div', { class: 'rt-script-bar' }, pick, langPick,
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { const n = prompt('A name for the script', 'Script ' + (scripts.length + 1)); if (n) add(n.trim().slice(0, 60) || 'Script', '', lastLang()); } }, 'New'),
@@ -50492,7 +50671,7 @@ function wireScripts() {
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { if (!current() || !confirm('Delete “' + current().name + '”?')) return; scripts.splice(cur, 1); cur = Math.max(0, cur - 1); saveScripts(scripts); showList(); } }, 'Delete'),
         exPick),
       ed,
-      h('div', { class: 'rt-script-bar' }, runBtn,
+      h('div', { class: 'rt-script-bar' }, runBtn, clock,
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => { keep(); const s = current(); if (s) downloadFile(s.name.replace(/[^\w.-]+/g, '-') + (s.lang === 'py' ? '.py' : '.js'), new Blob([s.code], { type: s.lang === 'py' ? 'text/x-python' : 'text/javascript' })); } }, 'Save as a file'),
         h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => fi.click() }, 'Open a file…'),
         h('span', { style: 'flex:1' }),
@@ -50509,8 +50688,8 @@ function wireScripts() {
     gate.hidden = !why;
     if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
       h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix() }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
-    runBtn.disabled = !!why;
-    out.replaceChildren();
+    if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
+    if (!why) scriptWarm(langOf());
     dlg.showModal();
     ed.focus();
   });
@@ -51406,12 +51585,14 @@ function workerShim() {
    ========================================================================== */
 
 /* a worker running this app: the page's own script with the shim in front, or on the dev page
-   the modules as a module worker; null where there can be none */
+   the modules as a module worker; null where there can be none. A script worker (script: true,
+   File › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
+   needs one, and is told what it is before the script runs (JEKRAY_SCRIPT_WORKER, or ?script) */
 const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
-function newAppWorker() {
-  if (!APP_SRC) return new Worker(DEV_WORKER, { type: 'module' });
-  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', APP_SRC], { type: 'text/javascript' }));
-  const w = new Worker(url);
+function newAppWorker(script) {
+  if (!APP_SRC) return new Worker(DEV_WORKER + (script ? '?script' : ''), { type: 'module' });
+  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', script ? 'self.JEKRAY_SCRIPT_WORKER = true;\n' : '', APP_SRC], { type: 'text/javascript' }));
+  const w = script ? new Worker(url, { type: 'module' }) : new Worker(url);
   URL.revokeObjectURL(url);
   return w;
 }
@@ -51569,6 +51750,80 @@ function traceLater() {
 }
 
 /* The worker's side: load the bench when it changes, trace it, run the job, answer */
+/* ==========================================================================
+   The script worker: File › Scripts runs a script here, in the background, so a long loop never holds
+   up the page and Stop can end it (by ending the worker) at any moment, in JavaScript or in Python.
+   It is this same app (the page's own script, or on the dev page its modules), started by
+   ui/scripts.js runScript and sent the bench as saved, the script and its language. The bench is
+   loaded into the worker's own copy and traced, as headless.mjs does it in Node; J is made over the
+   same calls window.JEKray gives (ui/script-calls.js), so the answers are the page's. log() lines are
+   sent as they are written. When the script ends, the bench is sent back if the script changed it
+   (J.set, J.load), for the page to take up as one change; the calls that are the page's own (select,
+   showTab, sweepPause) are kept and done there then; sweepPlay, which plays a sweep on the bench in
+   view, is refused, and the page offers to run the script there instead (no Stop).
+   One worker is kept between runs (Python stays loaded in it); Stop ends it, and a fresh one starts.
+   ========================================================================== */
+
+/* what a run gives the page, made fit to post: functions and symbols left out (as JSON leaves them),
+   numbers as they are (NaN and the infinities too), a loop of references cut */
+function scriptPlain(v, seen = new Set()) {
+  if (v === null || typeof v !== 'object') return typeof v === 'function' || typeof v === 'symbol' ? undefined : typeof v === 'bigint' ? String(v) : v;
+  if (ArrayBuffer.isView(v) || v instanceof Date || v instanceof RegExp) return v;
+  if (seen.has(v)) return '[circular]';
+  seen.add(v);
+  let out;
+  if (typeof v.toJSON === 'function') out = scriptPlain(v.toJSON(), seen);
+  else if (Array.isArray(v)) out = v.map(x => { const y = scriptPlain(x, seen); return y === undefined ? null : y; });
+  else { out = {}; for (const k of Object.keys(v)) { const y = scriptPlain(v[k], seen); if (y !== undefined) out[k] = y; } }
+  seen.delete(v);
+  return out;
+}
+
+/* the calls window.JEKray has that are the page's own, as the worker makes them: done on its copy where
+   that is all they are (load, showTab), kept for the page to do when the script ends (select, sweepPause),
+   or refused (sweepPlay). ops and st are the run's: what the page is to do, and whether it loaded a bench */
+function workerCalls(ops, st) {
+  const pageOnly = (name, what) => { st.pageOnly = name; return new Error(name + ' runs on the page: ' + what + ', which a script running in the background cannot. Run on the page (no Stop) to use it'); };
+  return {
+    load(data) { loadProject(JSON.parse(JSON.stringify(data))); setLastTraceKey(null); traceScene(); st.loaded = true; ops.length = 0; },
+    select(name, tab) { if (!this.byName(name)) return false; ops.push(['select', name, tab || null]); traceScene(); return true; },
+    showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) { project.tab = b.id; project.view = curBench().view; } return project.tab; },
+    sweepPause() { ops.push(['pause']); },
+    sweepPlay() { throw pageOnly('sweepPlay', 'it plays a sweep on the bench you see (for a table, use J.sweep)'); },
+  };
+}
+
+/* the worker's side: one run at a time, { t: 'run', id, proj, mods, code, lang, py } in, and back
+   { t: 'say' } (Python's loading), { t: 'log' } (each line as it comes) and once { t: 'done' } */
+function scriptWorkerMain() {
+  self.onmessage = async e => {
+    const m = e.data, post = o => self.postMessage(Object.assign({ id: m.id }, o));
+    if (m.t === 'warm') { if (m.lang === 'py') pyReady(() => {}, m.py).catch(() => {}); return; }
+    if (m.t !== 'run') return;
+    let R, out = {};
+    try {
+      if (m.mods) modAbsorb(m.mods);                       // the mods' results the page has (their code never runs here)
+      loadProject(JSON.parse(m.proj)); setLastTraceKey(null); traceScene();
+      const key0 = snapshot(), tab0 = project.tab, ops = [], st = { loaded: false, pageOnly: '' };
+      const P = Object.assign(scriptCalls(), workerCalls(ops, st));
+      const say = text => post({ t: 'say', text });
+      if (m.lang === 'py') {
+        say('Starting Python…');                     // (still loading after a Stop's warm-up: its own progress is not this run's)
+        try { await pyReady(say, m.py); } catch (err) { post({ t: 'done', R: { result: undefined, logs: [], traceback: null, ms: 0, error: pyLoadError(err) } }); return; }
+      }
+      const t0 = performance.now();
+      R = await execScript(m.code, makeJ(P), m.lang === 'py' ? 'py' : 'js', say, line => post({ t: 'log', line }));
+      R.ms = performance.now() - t0;
+      const moved = st.loaded || snapshot() !== key0;
+      out = { bench: moved ? JSON.stringify(serialize()) : null, whole: st.loaded, tab: project.tab !== tab0 ? project.tab : null, ops, pageOnly: st.pageOnly };
+    } catch (err) {
+      R = { result: undefined, logs: R ? R.logs : [], traceback: null, ms: 0, error: (err && err.message) || String(err) };
+    }
+    let res = R.result;
+    try { res = structuredClone(res); } catch (err) { res = scriptPlain(res); }
+    post(Object.assign({ t: 'done', R: { result: res, logs: R.logs, error: R.error, traceback: R.traceback, ms: R.ms } }, out));
+  };
+}
 /* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
 function volOut(R, key, vol, transfer) {
   const V = volData(R.segs, vol.tab, vol.bb, null);
@@ -51693,7 +51948,7 @@ function fwPackCavities(before) {
   }
   return out;
 }
-if (IN_WORKER) { workerMain(); return; }
+if (IN_WORKER) { (self.JEKRAY_SCRIPT_WORKER ? scriptWorkerMain : workerMain)(); return; }
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
 /* the engines reach the page through these, and nowhere else */
@@ -51739,8 +51994,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray = {
     view3d: V3D.api,
+    ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
     load(data) { loadProject(data); selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
-    trace() { setLastTraceKey(null); traceScene(); },
     // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
     partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
     // sweeps: play one (resolving once any rendering of its field is done), pause them all, and
@@ -51786,8 +52041,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return found / n;
     },
     traceInfo() { return { ms: lastTraceMs, current: lastTraceKey === traceKeyNow(), rays: lastTrace.rays.length, count: traceCount, background: TW.n, stored: traceStore.size, restored: traceStoreHits }; },
-    serialize,
-    benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
     // fibres: join two ports by element name and port number; what a fibre photodiode reads
     connect(a, pa, b, pb, len, loss) { project.fibres = project.fibres || []; project.fibres.push({ id: uid(), a: [this.byName(a).id, pa], b: [this.byName(b).id, pb], len: len ?? 1, loss: loss ?? 0 }); traceScene(); },
     elScreen(name) { const el = this.byName(name); return [sx(el.x), sy(el.y)]; },
@@ -51800,19 +52053,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     arrivalsInfo(name) { return faceArrivals(this.byName(name)).map(A => ({ twisted: !!(A.QM && A.QM.twisted), th: A.QM ? A.QM.th : null, comps: A.comps || null, general: !!(A.Q || A.QM), psi: A.QM ? A.QM.psi : null, Q: A.QM ? A.QM.Q : A.Q || null, qx: A.qx, v0: A.v0, vs: A.vs, ldx: A.ldx, u0: A.u0 })); },
     // a beam segment's event's ray matrices (in and out of the plane, and the full 4x4 when it turns the axes)
     eventABCD(i) { const b = lastTrace.beams[i]; return b && b.ev ? cavEventABCD(b.ev, b.nm * 1e-6) : null; },
-    arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
-    // a receiving horn against frequency, and its link budget (RF)
-    rfSweep(name) { return rfSweep(this.byName(name)); },
-    linkBudget(name) { return linkBudget(this.byName(name)); },
-    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
     /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */
     spectrometer(name) { const r = specReading(this.byName(name)); return { peak: r.peak, fwhm: r.fwhm, resolution: r.R, mw: r.mw, share: r.share, counts: r.counts, saturated: r.sat, snr: r.snr, lines: r.lines.map(L => ({ nm: L.nm, mw: L.mw })) }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
-    // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
-    lensAntenna(name) {
-      traceScene(); const A = antennaNow(this.byName(name), 'ant');
-      return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed, round: A.round, eng: A.eng };
-    },
     // the closed form, to check the bench's against: the traced Gaussian beam leaving a graded-index
     // lens, cut at its rim and weakened by its design's loss
     lensAntennaClosed(name) {
@@ -51844,8 +52087,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     redraw() { requestRender(); },
     shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },
     shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, delta: v.delta, dLock: v.res.dLock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
-    byName(name) { return project.elements.find(e => e.name === name); },
-    stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
     // select an element by name, and optionally which tab of a screen's panel to show
     select(name, tab) { const el = this.byName(name); if (!el) return false; if (tab) vs(el).screenTab = tab; traceScene(); selectOne(el.id); renderPanel(); requestRender(); return true; },
     // vapour cells: a line's transitions, and what a cell does at a frequency (Hz), with pumps { nu, I W/m^2 }
@@ -51874,8 +52115,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     rayPaths() { traceScene(); return lastTrace.rays.map(r => Array.from(r.pts)); },
     pulseSpectrum(name) { traceScene(); const R = pulseReport(this.byName(name)); return R && { nm: R.nm, S: R.S, dur: R.dur, peak: R.peak }; },
     pulse(name) { traceScene(); const R = pulseReport(this.byName(name)); return R && JSON.parse(JSON.stringify({ ...R, t: undefined, I: undefined, nm: undefined, S: undefined, spectralPhase: undefined })); },
-    metric(name, key) { return metricRaw(this.byName(name), key); },
-    paraxial(name, nm) { return paraxial(this.byName(name), nm); },
     index: refIndex,
     version: () => APP_VERSION,
     // experimental features: switch them on or off, and whether one is on
@@ -51893,9 +52132,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modProbe(name, nm) { const el = this.byName(name); return { S: el.type === 'fcomp' ? modS(el, nm) : null, J: el.type === 'waveplate' ? modJonesM(el, nm) : null, keys: [...MODS.results.keys()] }; },
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
-    typeLabel(name) { return typeLabel(this.byName(name)); },
-    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms }
-    scriptRun: (code, lang) => runScript(code, lang),
+    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms, where, stopped };
+    // in the script worker (o.page: on the page; o.onLog(line) told each line as it comes), and the one running stopped
+    scriptRun: (code, lang, o) => runScript(code, lang, undefined, o),
+    scriptStop: () => stopScript(),
+    scriptBusy: () => scriptRunning(),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),
@@ -51946,15 +52187,12 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     beamAt,
     // a photodiode's own Spectrum view: its tones as drawn (f, dB at their rms level)
     pdSpectrum(name) { const el = this.byName(name), cv = document.createElement('canvas'); return INST.spectrum(cv, pdInstSignal(el), vs(el).spec || { scale: 'linear', rbw: 1000 }, el.name).tones; },
-    setParam(name, path, v) { setParam(this.byName(name), path, v); },
-    getParam(name, path) { return getPath(this.byName(name), path); },
     sensitivity(names, targetName, key) {
       const vars = names.map(([n, path]) => [this.byName(n), path]);
       return sensitivity(vars, this.byName(targetName), key);
     },
     stackAmp,
     system() { return lastTrace.system; },
-    diffraction(name) { const el = this.byName(name); return el ? diffraction(el) : null; },
     // several parameters [[name, path]] against goals [{ target, key, goal, targetVal, weight }]
     optimiseMany(vars, terms, opts) { const r = optimiseMany(vars.map(([n, p]) => [this.byName(n), p]), terms.map(q => Object.assign({}, q, { target: this.byName(q.target) })), opts);
       return { best: r.best, start: r.start, improved: r.improved, evals: r.evals, startMerit: r.startMerit, bestMerit: r.bestMerit, raw0: r.raw0, rawBest: r.rawBest }; },
@@ -51974,9 +52212,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     makeAssembly(names) { const a = makeAssembly(names.map(n => this.byName(n))); traceScene(); return a && a.id; },
     splitAssembly(name) { const a = (project.assemblies || []).find(x => x.name === name); if (a) splitAssembly(a); traceScene(); return !!a; },
     assemblies() { return assemblies().map(a => JSON.parse(JSON.stringify(a))); },
-    asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
-    // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
-    asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },
     importZmxAssembly(text, fileName) {
       const Z = parseZmx(text, fileName), el = zmxPart(Z, fileName, 'auto'), A = zmxAssembly(Z, el);
       if (!A) return null;
@@ -52032,7 +52267,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     newRfDesign() { const a = newRfDesign(); traceScene(); return a.name; },
     shareDecode(h) { return readShareHash(h); },
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
-    exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },
     // several at once: the clipboard, turning and lining up, as the menu and panel do them
@@ -52071,7 +52305,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       const name = id => (getEl(id) || {}).name;
       return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name), coarse: [...R.notes.coarse].map(name), polErr: R.notes.polErr || 0 };
     },
-    serialize() { return serialize(); },
     cavityModes(count) { const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null; const c = findCavities().find(c2 => c2.id === k);
       return cavModes(v.res, c ? c.fsr : 1, count).map(md => ({ abs: md.abs, loss: md.loss, offset: md.offset, share: md.share })); },
     setCavityLock(mode) { const c = findCavities()[0]; if (!c) return; project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: mode }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); },

@@ -9,7 +9,7 @@ description: "Drive JEKray from a script: the Scripts editor on the bench (JEKra
 
 ## On the bench: Scripts
 
-**File › Scripts…** opens an editor beside the bench, part of JEKrayPro. A script is JavaScript or [Python](#python), chosen for each script in the menu beside its name, given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below, then what the script returned: rows (an array of objects) as a table with **Save as CSV**, anything else as JSON. The bench is checkpointed before each run, so **Undo** puts back whatever a script moved. Scripts are kept in this browser by name, each with its language; **Save as a file** and **Open a file…** move them as `.js` or `.py` files, and **Start from an example…** gives four to begin with, in either language: read a screen, sweep a part to a table, check a figure, list every part.
+**File › Scripts…** opens an editor beside the bench, part of JEKrayPro. A script is JavaScript or [Python](#python), chosen for each script in the menu beside its name, given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below as the script writes them, then what the script returned: rows (an array of objects) as a table with **Save as CSV**, anything else as JSON. What the script changed is applied to the bench when it ends, as one step, so one **Undo** puts it back. Scripts are kept in this browser by name, each with its language; **Save as a file** and **Open a file…** move them as `.js` or `.py` files, and **Start from an example…** gives four to begin with, in either language: read a screen, sweep a part to a table, check a figure, list every part.
 
 `J` has the calls in the table below, taking parts by name, and these besides:
 
@@ -29,11 +29,21 @@ const x0 = J.get('Lens', 'x');
 return J.sweep('Lens', 'x', J.range(x0 - 20, x0 + 20, 21), () => ({ rms: J.stats('Screen').rms }));
 ```
 
-A script runs on this page, on your own bench, as typing into the browser's console would. It is not a module: nothing in it is shared, carried with the bench or run for anyone else. It runs on the page's own thread, so a long loop holds the page until it ends, in either language: there is no Stop, so try a sweep with a few values before a thousand.
+### In the background, and Stop
+
+A script runs **in the background**, in a worker of its own beside the page, on **a copy of your bench**: the page carries on while it runs (the bench can be looked at, the window moved), and a long loop holds up nothing. While it runs, **Run** becomes **Stop**, with the time it has been running beside it, and its `log()` and `print()` lines come as they are written. **Stop** ends it at once, in either language, a loop that never ends included: the output says *Stopped after … s*, and **nothing the script did is applied**, so the bench is as it was before Run.
+
+**When it ends** (it returns, or it fails), what it changed on its copy is applied to the bench as **one step**: the parts it set with `J.set`, or the bench it opened with `J.load`; one **Undo** puts all of it back, and the output says so. A sweep (`J.sweep`) puts its parameter back, so it changes nothing and there is nothing to undo. Your view, the tab you are on and the selection stay as they were, unless the script asked for them: `J.showTab(name)` and `J.select(name, tab)` are done on the page when the script ends (on the copy, `J.showTab` changes the tab the script reads straight away), and `J.sweepPause()` pauses the sweeps playing on the page then. If you change the bench yourself while a script runs, what the script changed is not applied (the output says so: run it again).
+
+The answers are the page's own: the copy is traced by the same code, and the calls are the ones `window.JEKray` has. A detector or screen whose diffracted field the page would still be working out in the background (`pending` in a reading on the page) is worked out to the end in the script's copy, so a script never reads a field that is not ready.
+
+**Calls that need the page.** `J.sweepPlay(name, path)` plays a sweep on the bench you are looking at, which a script in the background cannot do: it stops the script with *sweepPlay runs on the page: …*. So does a script that reaches past `J` for the page itself (`window`, `document`). The output then offers **Run on the page (no Stop)**: the script runs on the page's own thread, as typing it into the browser's console would, with the page's own `window.JEKray`, the bench checkpointed first so Undo puts back what it changed. There it cannot be stopped, and a long loop holds the page until it ends, so try a sweep with a few values before a thousand. Where a browser cannot start the worker, scripts run on the page this way.
+
+A script runs in this browser, on your own bench. It is not a module: nothing in it is shared, carried with the bench or run for anyone else.
 
 ### Python
 
-Choose **Python** in the menu beside the script's name (a new script starts in the language you last chose; one kept from before there was a choice is JavaScript), or start from one of the Python examples. Python is [Pyodide](https://pyodide.org/), CPython 3.14 built for WebAssembly, running in this browser. It is fetched from this site the first time a Python script runs, 13.5 MB once, with its progress shown below the editor; after that it comes from the browser's cache, and starts in a second or two each time the page is opened. Nothing leaves the browser.
+Choose **Python** in the menu beside the script's name (a new script starts in the language you last chose; one kept from before there was a choice is JavaScript), or start from one of the Python examples. Python is [Pyodide](https://pyodide.org/), CPython 3.14 built for WebAssembly, running in this browser. It is fetched from this site the first time a Python script runs, 13.5 MB once, with its progress shown below the editor; after that it comes from the browser's cache, and starts in a second or two each time the page is opened. It runs in the script's worker, so Stop ends a Python loop as it does a JavaScript one; it stays loaded there between runs, and after a Stop it starts again (a couple of seconds, from the cache). Nothing leaves the browser.
 
 `J` has the same calls as in JavaScript, with Python's shapes: what comes back is dicts, lists, numbers, strings and `None`, and what you pass in (numbers, lists, dicts, NumPy arrays and numbers) is taken as the plain values the bench expects.
 
@@ -68,11 +78,11 @@ Traceback (most recent call last):
 BenchError: No part is called "Lens 2"
 ```
 
-**Each run starts afresh**: the names a script makes are gone when it ends, so nothing from one run is seen by the next (a module it imported stays imported, which only saves time). The bench is checkpointed before each run, as for JavaScript, so **Undo** puts it back.
+**Each run starts afresh**: the names a script makes are gone when it ends, so nothing from one run is seen by the next (a module it imported stays imported, which only saves time). What a run changed is applied when it ends, as for JavaScript, so one **Undo** puts it back.
 
-**NumPy** is there: `import numpy` fetches it from this site the first time a script imports it (3.0 MB, once). Beyond NumPy, **only Python's standard library** is available (math, statistics, json, csv, re, itertools, fractions, datetime and the rest; not tkinter or turtle): an import of anything else stops with *No module named …: only the standard library and NumPy are available on the bench*. There are no threads or subprocesses, no files but the script's own memory, and `input()` reads nothing. `await J.sweepPlay('Lens', 'x')` waits for a sweep's play, the one call that takes time.
+**NumPy** is there: `import numpy` fetches it from this site the first time a script imports it (3.0 MB, once). Beyond NumPy, **only Python's standard library** is available (math, statistics, json, csv, re, itertools, fractions, datetime and the rest; not tkinter or turtle): an import of anything else stops with *No module named …: only the standard library and NumPy are available on the bench*. There are no threads or subprocesses, no files but the script's own memory, and `input()` reads nothing. `J.sweepPlay` needs the page: run the script on the page (no Stop) to use it, and there `await J.sweepPlay('Lens', 'x')` waits for a sweep's play, the one call that takes time.
 
-A Python script is checked against the same JEKrayPro plan as a JavaScript one, and is as much your own code on your own page: through Pyodide's `js` module it can reach the page as a JavaScript one can.
+A Python script is checked against the same JEKrayPro plan as a JavaScript one, and is as much your own code in your own browser: through Pyodide's `js` module it can reach what a JavaScript one can (the worker, or the page when it is run there).
 
 ## In the page
 

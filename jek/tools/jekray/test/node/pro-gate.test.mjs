@@ -162,6 +162,26 @@ test('a script, in JavaScript or Python, runs from the Scripts window only with 
     calls++;
   });
   assert.ok(calls >= 3, 'runScript, execScript and pyRun are called');
+  // in the background: the script worker is sent a script to run only by runInWorker, which only runScript calls,
+  // and it runs only what it is sent (execScript in its message handler); Stop and the warm-up run nothing
+  const posts = [];
+  for (const f of srcFiles(fileURLToPath(srcUrl('')))) {
+    if (f === 'main.js' || f === 'worker-main.js') continue;
+    walk.fullAncestor(astOf(f), (n, st, anc) => {
+      if (n.type !== 'ObjectExpression' || !n.properties.some(p => p.key && (p.key.name || p.key.value) === 't' && p.value.type === 'Literal' && p.value.value === 'run')) return;
+      const call = anc[anc.length - 2];
+      if (!call || call.type !== 'CallExpression' || call.callee.type !== 'MemberExpression' || call.callee.property.name !== 'postMessage') return;
+      posts.push(f + ' ' + (anc.filter(a => a.type === 'FunctionDeclaration').map(a => a.id.name).pop() || '?'));
+    });
+  }
+  assert.deepEqual(posts, ['ui/scripts.js runInWorker'], 'a run is posted to the script worker from runInWorker alone');
+  const callers = [];
+  walk.fullAncestor(astOf('ui/scripts.js'), (n, st, anc) => { if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && n.callee.name === 'runInWorker') callers.push(anc.filter(a => a.type === 'FunctionDeclaration').map(a => a.id.name).pop()); });
+  assert.deepEqual(callers, ['runScript'], 'runInWorker is called from runScript alone');
+  const inWorker = [];
+  walk.fullAncestor(astOf('page/script-worker.js'), (n, st, anc) => { if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && ['execScript', 'pyRun', 'runScript'].includes(n.callee.name)) inWorker.push(n.callee.name + ' in ' + anc.filter(a => a.type === 'FunctionDeclaration').map(a => a.id.name).pop()); });
+  assert.deepEqual(inWorker, ['execScript in scriptWorkerMain'], 'the worker runs a script only as its run message asks');
+  for (const fn of ['stopScript', 'scriptWarm']) assert.ok(!has(fnOf('ui/scripts.js', fn), n => n.type === 'CallExpression' && n.callee.type === 'Identifier' && ['runScript', 'execScript', 'runInWorker', 'pyRun'].includes(n.callee.name)), fn + ' runs no script');
 });
 
 test('experimental features need only a signed-in account, not a plan', () => {

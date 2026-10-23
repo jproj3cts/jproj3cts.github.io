@@ -58,8 +58,15 @@ through `core/hooks.js`.
   TEST key (private half only in `jek-api/vitest.config.js`) is used in TEST_MODE, and on localhost only if passed. Modules install only verified; ids are claimed by their first signer.
 - **Scripting**: `window.JEKray` in `ui/boot.js`; in-page scripts `ui/scripts.js` (`CALLS`, `makeJ`, `execScript`), in
   JavaScript or Python: Python is Pyodide (`ui/python.js`: the Python `J` and its glue, everything crossing as JSON text),
-  vendored with NumPy's wheel in `jek/assets/vendor/pyodide/<version>/` (MPL-2.0; CPython PSF, NumPy BSD), loaded on the
-  main thread on first use, never from a CDN; Node `headless.mjs`, `cli.mjs`; documented in `jek/docs/jekray/scripting.md`.
+  vendored with NumPy's wheel in `jek/assets/vendor/pyodide/<version>/` (MPL-2.0; CPython PSF, NumPy BSD), loaded on first
+  use, never from a CDN. Scripts run in the **script worker** (`page/script-worker.js` `scriptWorkerMain`; a module worker
+  of the page's own script, `newAppWorker(true)`, as Pyodide needs one; the dev page's `worker/entry.js?script`): its own
+  copy of the bench, J over `scriptCalls()` (`ui/script-calls.js`, which `window.JEKray` spreads too, so both answer
+  alike), log lines streamed; Stop (`stopScript`) terminates it; at the end a changed bench comes back and `adoptBench`
+  (`ui/tabs.js`) takes it up as one Undo step; select/showTab/sweepPause are done on the page then, sweepPlay is refused
+  with "Run on the page (no Stop)" (`runScript(…, { page: true })`, the old main-thread path). A new J call goes in
+  `scriptCalls` if it needs only the bench, else in `workerCalls`. Node `headless.mjs`, `cli.mjs`; documented in
+  `jek/docs/jekray/scripting.md`.
 - **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
   tolerancing, reports, drawings, design export, share links/QR, scripts, My parts. Exports (layout, 3D PNG, plots'
   PNG/CSV, screen CSV, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function

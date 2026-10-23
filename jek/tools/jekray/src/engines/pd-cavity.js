@@ -119,7 +119,8 @@ export function diffraction(el) {
   if (!job) return null;
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return c.D;
-  if (hooks.frames().screens.has(job.key)) return hooks.frames().screens.get(job.key);
+  const F = hooks.frames();          // (none without a page: the script worker, Node)
+  if (F && F.screens.has(job.key)) return F.screens.get(job.key);
   liveScreens++;
   const D = popDiffraction(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }));
   popScreenCache.set(el.id, { key: job.key, D });
@@ -133,7 +134,7 @@ export function diffractionLater(el) {
   if (!job) return { D: null, busy: false };
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return { D: c.D, busy: false };
-  const fr = hooks.frames().screens.get(job.key);
+  const F = hooks.frames(), fr = F && F.screens.get(job.key);
   if (fr) { popScreenCache.set(el.id, { key: job.key, D: fr }); return { D: fr, busy: false }; }
   if (TEST_MODE) return { D: diffraction(el), busy: false };
   if (hooks.sweepJob()) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it

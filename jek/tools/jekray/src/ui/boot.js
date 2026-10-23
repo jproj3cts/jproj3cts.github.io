@@ -12,17 +12,14 @@ import { beamAt, lgComps } from '../core/beams-hom.js';
 import { lensAntenna } from '../core/antenna.js';
 import { grinDesign, normGrin } from '../core/grin.js';
 import { TYPE_LABEL } from '../parts/registry.js';
-import { project, selectOne, setFuture, setHistory, setProject, typeLabel, uid } from '../state/project.js';
+import { project, selectOne, setFuture, setHistory, setProject, uid } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { stackAmp } from '../core/coatings.js';
 import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { meshHull, parseSTL } from '../core/stl.js';
 import { compileMaskExpr, maskFns } from '../core/mask.js';
-import {
-  lastTrace, lastTraceKey, lastTraceMs, paraxial, setLastTraceKey, traceCount, traceKeyNow, traceScene,
-  traceStore, traceStoreHits
-} from '../engines/trace.js';
+import { lastTrace, lastTraceKey, lastTraceMs, setLastTraceKey, traceCount, traceKeyNow, traceScene, traceStore, traceStoreHits } from '../engines/trace.js';
 import {
   benchStyleShown, bez, fibreSegs, handlePos, hornShape, requestRender, resize, segPlanes, selection,
   setSelection, sx, sy, toScr, wireRender
@@ -33,12 +30,11 @@ import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playing, renderedPeriod, showActivityNow,
   stepValue, sweepJob, updateActivity
 } from './sweeps.js';
-import { arrivalField, detectorReading, faceArrivals } from '../engines/fibre-face.js';
+import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { modHash, modJonesM, modReadoutResults, modS, modStatus } from '../engines/mods.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '../engines/detector.js';
-import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { antennaNow } from '../engines/antenna-field.js';
 import { specReading } from '../engines/spectrometer.js';
 import { V3D, wireView3d } from './view3d.js';
@@ -58,9 +54,9 @@ import { popGroupCut, popGroups, popKeyOf, popRun, popSources, popStepCache, seg
 import { closeupInfoAt, fieldAlongLine, fieldAtPoint, volData, volDisp } from '../engines/volume.js';
 import { HEAVY_MS, fieldCost } from './heavy.js';
 import { popScreenPrep } from '../engines/diffraction.js';
-import { aberCache, aberrations, diffraction, liveScreens, popScreenCache, viaCavity } from '../engines/pd-cavity.js';
+import { aberCache, aberrations, diffraction, liveScreens, popScreenCache } from '../engines/pd-cavity.js';
 import { pulseReport } from '../engines/pulse.js';
-import { screenStats, trapReport } from '../engines/screen-stats.js';
+import { trapReport } from '../engines/screen-stats.js';
 import {
   addElement, alignEls, changed, clipOf, fitView, measureOpl, measureSnap, pasteClip, rotateEls,
   setStatus, toast, updateUndoButtons, wireActions
@@ -71,9 +67,9 @@ import { AI_ANGLE, AI_FIELDS, AI_WHAT, aiFieldsOf, aiGuideText, docsParams } fro
 import { b64u, embedMode, openShareHash, openShortLink, readShareHash, shareData, shareHash, uiState, unb64u, wireShare } from '../io/share.js';
 import { openProjectData, parseProjectText, wireOpen } from '../io/open.js';
 import { parseZmx, zmxToElement, readZmxFile } from '../io/zmx-import.js';
-import { zmxAssembly, zmxExport, zmxPart } from '../io/zmx-export.js';
+import { zmxAssembly, zmxPart } from '../io/zmx-export.js';
 import { cadSTEP, cadSTL } from '../io/cad-export.js';
-import { asmMembers, asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
+import { asmMembers, asmPrescription, assemblies } from '../core/assembly.js';
 import { lensSystem, pupilRings, spotOf, traceRay } from '../engines/lens-engine.js';
 import { ghostPrescription } from '../engines/lens-ghost.js';
 import { meritReport, optProblem } from '../engines/lens-opt.js';
@@ -89,7 +85,8 @@ import { account, accountLoaded, accountsOn, proLink, returnNudge, wireAccount }
 import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
-import { runScript, wireScripts } from './scripts.js';
+import { scriptCalls } from './script-calls.js';
+import { runScript, scriptRunning, stopScript, wireScripts } from './scripts.js';
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
@@ -150,8 +147,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray = {
     view3d: V3D.api,
+    ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
     load(data) { loadProject(data); selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
-    trace() { setLastTraceKey(null); traceScene(); },
     // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
     partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
     // sweeps: play one (resolving once any rendering of its field is done), pause them all, and
@@ -197,8 +194,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return found / n;
     },
     traceInfo() { return { ms: lastTraceMs, current: lastTraceKey === traceKeyNow(), rays: lastTrace.rays.length, count: traceCount, background: TW.n, stored: traceStore.size, restored: traceStoreHits }; },
-    serialize,
-    benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
     // fibres: join two ports by element name and port number; what a fibre photodiode reads
     connect(a, pa, b, pb, len, loss) { project.fibres = project.fibres || []; project.fibres.push({ id: uid(), a: [this.byName(a).id, pa], b: [this.byName(b).id, pb], len: len ?? 1, loss: loss ?? 0 }); traceScene(); },
     elScreen(name) { const el = this.byName(name); return [sx(el.x), sy(el.y)]; },
@@ -211,19 +206,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     arrivalsInfo(name) { return faceArrivals(this.byName(name)).map(A => ({ twisted: !!(A.QM && A.QM.twisted), th: A.QM ? A.QM.th : null, comps: A.comps || null, general: !!(A.Q || A.QM), psi: A.QM ? A.QM.psi : null, Q: A.QM ? A.QM.Q : A.Q || null, qx: A.qx, v0: A.v0, vs: A.vs, ldx: A.ldx, u0: A.u0 })); },
     // a beam segment's event's ray matrices (in and out of the plane, and the full 4x4 when it turns the axes)
     eventABCD(i) { const b = lastTrace.beams[i]; return b && b.ev ? cavEventABCD(b.ev, b.nm * 1e-6) : null; },
-    arrivals(name) { return faceArrivals(this.byName(name)).map(A => ({ qx: A.qx, qy: A.qy, u0: A.u0, ldx: A.ldx, ldy: A.ldy, J: A.J, coh: A.coh, opl: A.opl, fo: A.fo })); },
-    // a receiving horn against frequency, and its link budget (RF)
-    rfSweep(name) { return rfSweep(this.byName(name)); },
-    linkBudget(name) { return linkBudget(this.byName(name)); },
-    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
     /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */
     spectrometer(name) { const r = specReading(this.byName(name)); return { peak: r.peak, fwhm: r.fwhm, resolution: r.R, mw: r.mw, share: r.share, counts: r.counts, saturated: r.sat, snr: r.snr, lines: r.lines.map(L => ({ nm: L.nm, mw: L.mw })) }; },
     hornModes(kind) { const M = hornComps(kind); return { n: M.comps.length, gauss: M.gauss, carried: M.carried, co: M.co, cross: M.cross, m2: M.m2 }; },
-    // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
-    lensAntenna(name) {
-      traceScene(); const A = antennaNow(this.byName(name), 'ant');
-      return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed, round: A.round, eng: A.eng };
-    },
     // the closed form, to check the bench's against: the traced Gaussian beam leaving a graded-index
     // lens, cut at its rim and weakened by its design's loss
     lensAntennaClosed(name) {
@@ -255,8 +240,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     redraw() { requestRender(); },
     shownDiffraction(name) { const el = this.byName(name), c = el && popScreenCache.get(el.id); return c ? c.D : null; },
     shownCavity() { const [k, v] = [...cavSolved.entries()].pop() || []; return v && v.res ? { k, P: v.res.at(v.delta).P, Plock: v.res.Plock, delta: v.delta, dLock: v.res.dLock, others: (v.others || []).length, current: v.trace === lastTrace } : null; },
-    byName(name) { return project.elements.find(e => e.name === name); },
-    stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
     // select an element by name, and optionally which tab of a screen's panel to show
     select(name, tab) { const el = this.byName(name); if (!el) return false; if (tab) vs(el).screenTab = tab; traceScene(); selectOne(el.id); renderPanel(); requestRender(); return true; },
     // vapour cells: a line's transitions, and what a cell does at a frequency (Hz), with pumps { nu, I W/m^2 }
@@ -285,8 +268,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     rayPaths() { traceScene(); return lastTrace.rays.map(r => Array.from(r.pts)); },
     pulseSpectrum(name) { traceScene(); const R = pulseReport(this.byName(name)); return R && { nm: R.nm, S: R.S, dur: R.dur, peak: R.peak }; },
     pulse(name) { traceScene(); const R = pulseReport(this.byName(name)); return R && JSON.parse(JSON.stringify({ ...R, t: undefined, I: undefined, nm: undefined, S: undefined, spectralPhase: undefined })); },
-    metric(name, key) { return metricRaw(this.byName(name), key); },
-    paraxial(name, nm) { return paraxial(this.byName(name), nm); },
     index: refIndex,
     version: () => APP_VERSION,
     // experimental features: switch them on or off, and whether one is on
@@ -304,9 +285,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modProbe(name, nm) { const el = this.byName(name); return { S: el.type === 'fcomp' ? modS(el, nm) : null, J: el.type === 'waveplate' ? modJonesM(el, nm) : null, keys: [...MODS.results.keys()] }; },
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
-    typeLabel(name) { return typeLabel(this.byName(name)); },
-    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms }
-    scriptRun: (code, lang) => runScript(code, lang),
+    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms, where, stopped };
+    // in the script worker (o.page: on the page; o.onLog(line) told each line as it comes), and the one running stopped
+    scriptRun: (code, lang, o) => runScript(code, lang, undefined, o),
+    scriptStop: () => stopScript(),
+    scriptBusy: () => scriptRunning(),
     hornShape(name) { const H = hornShape(this.byName(name)); return { a: H.a, lam: H.lam, Lf: H.Lf, rg: H.rg, xb: H.xb, back: H.back, D: H.D, square: H.square, grooves: H.grooves ? H.grooves.length : 0 }; },
     experimental(on, picks) { if (on !== undefined || picks) setExperimental(on, picks); return { on: expOn, list: EXPERIMENTAL.map(f => f.key), active: EXPERIMENTAL.map(f => f.key).filter(exp) }; },
     exp: key => exp(key),
@@ -357,15 +340,12 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     beamAt,
     // a photodiode's own Spectrum view: its tones as drawn (f, dB at their rms level)
     pdSpectrum(name) { const el = this.byName(name), cv = document.createElement('canvas'); return INST.spectrum(cv, pdInstSignal(el), vs(el).spec || { scale: 'linear', rbw: 1000 }, el.name).tones; },
-    setParam(name, path, v) { setParam(this.byName(name), path, v); },
-    getParam(name, path) { return getPath(this.byName(name), path); },
     sensitivity(names, targetName, key) {
       const vars = names.map(([n, path]) => [this.byName(n), path]);
       return sensitivity(vars, this.byName(targetName), key);
     },
     stackAmp,
     system() { return lastTrace.system; },
-    diffraction(name) { const el = this.byName(name); return el ? diffraction(el) : null; },
     // several parameters [[name, path]] against goals [{ target, key, goal, targetVal, weight }]
     optimiseMany(vars, terms, opts) { const r = optimiseMany(vars.map(([n, p]) => [this.byName(n), p]), terms.map(q => Object.assign({}, q, { target: this.byName(q.target) })), opts);
       return { best: r.best, start: r.start, improved: r.improved, evals: r.evals, startMerit: r.startMerit, bestMerit: r.bestMerit, raw0: r.raw0, rawBest: r.rawBest }; },
@@ -385,9 +365,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     makeAssembly(names) { const a = makeAssembly(names.map(n => this.byName(n))); traceScene(); return a && a.id; },
     splitAssembly(name) { const a = (project.assemblies || []).find(x => x.name === name); if (a) splitAssembly(a); traceScene(); return !!a; },
     assemblies() { return assemblies().map(a => JSON.parse(JSON.stringify(a))); },
-    asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
-    // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
-    asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },
     importZmxAssembly(text, fileName) {
       const Z = parseZmx(text, fileName), el = zmxPart(Z, fileName, 'auto'), A = zmxAssembly(Z, el);
       if (!A) return null;
@@ -443,7 +420,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     newRfDesign() { const a = newRfDesign(); traceScene(); return a.name; },
     shareDecode(h) { return readShareHash(h); },
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
-    exportZmx(names, nms) { return zmxExport(names.map(n => this.byName(n)), nms || [633]); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },
     // several at once: the clipboard, turning and lining up, as the menu and panel do them
@@ -482,7 +458,6 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       const name = id => (getEl(id) || {}).name;
       return { clipped: [...R.notes.clipped].map(name), steep: [...R.notes.steep].map(name), coarse: [...R.notes.coarse].map(name), polErr: R.notes.polErr || 0 };
     },
-    serialize() { return serialize(); },
     cavityModes(count) { const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null; const c = findCavities().find(c2 => c2.id === k);
       return cavModes(v.res, c ? c.fsr : 1, count).map(md => ({ abs: md.abs, loss: md.loss, offset: md.offset, share: md.share })); },
     setCavityLock(mode) { const c = findCavities()[0]; if (!c) return; project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: mode }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); },

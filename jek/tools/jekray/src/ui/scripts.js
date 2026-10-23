@@ -21,18 +21,19 @@ const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'len
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam'];
 
 export const EXAMPLE_SCRIPTS = [
-  ['Read a screen', `// The spot on the first screen: its rms radius and power.
+  ['Read a screen', `// The spot on the first screen: its rms radius, and the share of the sources' light that reaches it.
+// (A screen counts rays, not milliwatts: for mW, read a photodetector there.)
 const screen = J.elements().find(e => e.type === 'screen');
 if (!screen) throw new Error('Put a screen on the bench first.');
 const S = J.stats(screen.name);
-log('rms', S.rms, 'mm;', 'power', S.power, 'mW');
+log('rms', S.rms, 'mm;', S.powerPct, '% of the light from the sources reaching it');
 return S;`],
   ['Sweep a part to a table', `// Move the first lens along x and read the spot at each place.
 // The result is a table; Save as CSV keeps it for a plot.
 const lens = J.elements().find(e => e.type === 'lens'), screen = J.elements().find(e => e.type === 'screen');
 if (!lens || !screen) throw new Error('This needs a lens and a screen.');
 const x0 = J.get(lens.name, 'x');
-return J.sweep(lens.name, 'x', J.range(x0 - 20, x0 + 20, 21), () => ({ rms: J.stats(screen.name).rms, power: J.stats(screen.name).power }));`],
+return J.sweep(lens.name, 'x', J.range(x0 - 20, x0 + 20, 21), () => { const S = J.stats(screen.name); return { rms: S.rms, powerPct: S.powerPct }; });`],
   ['Check a figure', `// A check that fails loudly when a figure drifts: here a detector's reading.
 const pd = J.elements().find(e => e.type === 'detector');
 if (!pd) throw new Error('This needs a photodetector.');

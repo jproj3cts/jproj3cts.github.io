@@ -5078,7 +5078,7 @@ const TESTS = [
       const get = u => { const x = new XMLHttpRequest(); x.open('GET', u, false); x.send(); return x; };
       const listed = new Set(J.examples()), bad = [];
       for (const m of get('demos/').responseText.matchAll(/href="([a-z0-9-]+)\.jekray"/g)) if (!listed.has(m[1])) bad.push(m[1] + ': not in the gallery');
-      for (const k of listed) if (get('demos/thumbs/' + k + '.webp').status !== 200) bad.push(k + ': no picture');
+      for (const k of listed) for (const d of ['', 'light/']) if (get('demos/thumbs/' + d + k + '.webp').status !== 200) bad.push(k + ': no picture' + (d ? ' for the Light theme' : ''));
       if (bad.length) console.warn(bad.join('\n'));
       return bad.length;
     },
@@ -7395,6 +7395,24 @@ const TESTS = [
       J.closeLensDesign();
       if (!(opened && coatFirst && pngs && noCloud && ran)) console.log('commands', { opened, coat, png, noCloud, ran });
       return opened && coatFirst && pngs && noCloud && ran ? 1 : 0;
+    },
+  },
+  {
+    name: 'View › Theme: Light (warm paper) by default, Dark the breadboard, and the viewer’s theme wins over a colour a bench was saved with',
+    why: 'the page opens Light, the bench #f3eee5; Dark makes it #1f2529 and marks the page dark; a bench saved with a white background opens in the Dark theme still; Light puts the paper back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), stageBg = () => getComputedStyle(D.getElementById('stage')).backgroundColor, pick = v => D.querySelector('#benchColourMenu [data-theme="' + v + '"]').click();
+      const light0 = D.documentElement.dataset.rtTheme === 'light' && stageBg() === 'rgb(243, 238, 229)';
+      pick('dark');
+      const dark = D.documentElement.dataset.rtTheme === 'dark' && stageBg() === 'rgb(31, 37, 41)';
+      J.load({ format: 'jekray', version: 1, style: { bg: '#ffffff' }, elements: [{ type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0 }] });
+      const wins = stageBg() === 'rgb(31, 37, 41)';
+      const ticked = D.querySelector('#benchColourMenu [data-theme="dark"]').getAttribute('aria-checked') === 'true';
+      pick('light');
+      const back = D.documentElement.dataset.rtTheme === 'light' && stageBg() === 'rgb(243, 238, 229)';
+      if (!(light0 && dark && wins && ticked && back)) console.log('theme', { light0, dark, wins, ticked, back, bg: stageBg() });
+      return light0 && dark && wins && ticked && back ? 1 : 0;
     },
   },  { group: 'Scripts' },
   {

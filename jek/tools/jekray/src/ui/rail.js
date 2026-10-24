@@ -102,6 +102,7 @@ export function wireRail() {
   });
 
   benchStyleShown();
+  document.addEventListener('rt-theme', () => fillRail());
 
   document.getElementById('btnNamesUp').addEventListener('click', () => labelSize(1.25));
 

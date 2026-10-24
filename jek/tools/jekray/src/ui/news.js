@@ -10,6 +10,7 @@ import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
 import { API_BASE } from '../io/account.js';
 import { goal } from '../io/usage.js';
+import { themeDark } from './render.js';
 
 /* ---------- Version, what's new, citing ---------- */
 export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
@@ -17,6 +18,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light laid on as ink, deeper where there is more of it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
     '<b>A tidier bar</b>: a menu bar, <b>File, Edit, View, Tools, Sweeps and Help</b>, as a desktop program has, with icons for undo, redo, fit, measure and search beside it, and the bench\u2019s name in the middle. <b>Edit</b> holds cut, copy, paste, duplicate, delete, select all, rotate and grouping; <b>Tools</b> the Optical, RF and coating designers, Scripts and the bench\u2019s settings. <b>Ctrl+K</b> (or the magnifier) searches every command in the menus by its words: type \u201cexport\u201d or \u201c3D\u201d and press Enter.',
     '<b>Export data</b>: <b>File \u203a Export data\u2026</b> writes the numbers behind the bench as files for a spreadsheet, Python or MATLAB: its <b>readouts</b> (every screen, detector, spectrometer and antenna, one table), its <b>plots</b>\u2019 curves, each screen\u2019s <b>ray hits</b> and <b>field map</b>, its <b>Gaussian beams</b> (q, size, waist and divergence along the way), its <b>sweeps</b> and studies, and <b>the bench</b> itself, every part with its settings. Each file says what it holds: the bench, the version, the date, every column\u2019s unit and the settings of the parts the numbers come from. CSV (a zip, with a README) and JSON need a free account, one kind at a time; <b>Excel, NumPy and MATLAB</b> files, several kinds at once and <b>Export everything</b> are JEKrayPro\u2019s. In Scripts, <code>save(name, data, format)</code> keeps what a script makes as a file in any of the five formats, downloaded when the run ends (nothing when it is stopped), and a result\u2019s <b>Save as</b> offers them all.',
     '<b>Scripts run in the background, with Stop</b> (JEKrayPro): Tools \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',
@@ -241,7 +243,7 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray.html';
 const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
 
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
-   gallery shows each with a picture from demos/thumbs/. */
+   gallery shows each with a picture from demos/thumbs/ (demos/thumbs/light/ in the Light theme). */
 export const EXAMPLES = [
   ['Interference and cavities', false, [
     ['michelson', 'Michelson interferometer', 'Move a mirror and watch the fringes at the output port walk.'],
@@ -508,7 +510,7 @@ export function wireNews() {
         if (!hits.length) continue;
         grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
           h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d, x]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
-            h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
+            h('img', { src: 'demos/thumbs/' + (themeDark() ? '' : 'light/') + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
       }
       if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
     };

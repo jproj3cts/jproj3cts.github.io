@@ -1,4 +1,5 @@
 import { TEST_MODE } from '../core/constants.js';
+import { greyInk, inkA } from './render.js';
 import { hooks } from '../core/hooks.js';
 import { normTol } from '../core/assembly.js';
 import { designOf } from '../engines/lens-design.js';
@@ -280,14 +281,14 @@ function histogram(parent, vals, k, u, nominal, p90) {
     const top = Math.max(...bins), l = 8, r = W - 8, t = 10, b = H - 34, bw = (r - l) / nb;
     g.fillStyle = '#2a78d6';
     bins.forEach((n, i) => { const hgt = (b - t) * n / top; if (n) { g.beginPath(); g.roundRect ? g.roundRect(l + i * bw + 1, b - hgt, bw - 2, hgt, [3, 3, 0, 0]) : g.rect(l + i * bw + 1, b - hgt, bw - 2, hgt); g.fill(); } });
-    g.strokeStyle = 'rgba(0,0,0,0.4)'; g.beginPath(); g.moveTo(l, b + 0.5); g.lineTo(r, b + 0.5); g.stroke();
+    g.strokeStyle = inkA(0.4); g.beginPath(); g.moveTo(l, b + 0.5); g.lineTo(r, b + 0.5); g.stroke();
     const X = v => l + (v - lo) / span * (r - l);
-    g.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--jek-mono') || 'monospace'); g.fillStyle = '#555'; g.textAlign = 'left';
+    g.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--jek-mono') || 'monospace'); g.fillStyle = greyInk('#555'); g.textAlign = 'left';
     g.fillText(tolFmt(k * lo, 4) + ' ' + u, l, b + 14); g.textAlign = 'right'; g.fillText(tolFmt(k * hi, 4) + ' ' + u, r, b + 14);
-    const mark = (v, label, dash) => { const x = X(v); g.strokeStyle = '#222'; g.setLineDash(dash ? [4, 3] : []); g.beginPath(); g.moveTo(x + 0.5, t); g.lineTo(x + 0.5, b); g.stroke(); g.setLineDash([]); g.textAlign = x > W / 2 ? 'right' : 'left'; g.fillStyle = '#222'; g.fillText(label, x + (x > W / 2 ? -4 : 4), t + 10); };
+    const mark = (v, label, dash) => { const x = X(v); g.strokeStyle = greyInk('#222'); g.setLineDash(dash ? [4, 3] : []); g.beginPath(); g.moveTo(x + 0.5, t); g.lineTo(x + 0.5, b); g.stroke(); g.setLineDash([]); g.textAlign = x > W / 2 ? 'right' : 'left'; g.fillStyle = '#222'; g.fillText(label, x + (x > W / 2 ? -4 : 4), t + 10); };
     if (nominal !== null) mark(nominal, 'nominal', false);
     mark(p90, '90%', true);
-    g.fillStyle = '#555'; g.textAlign = 'center'; g.fillText('Criterion over the builds (count of builds in each bin, most ' + top + ')', W / 2, H - 6);
+    g.fillStyle = greyInk('#555'); g.textAlign = 'center'; g.fillText('Criterion over the builds (count of builds in each bin, most ' + top + ')', W / 2, H - 6);
   });
   return cv;
 }

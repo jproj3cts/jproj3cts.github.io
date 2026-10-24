@@ -73,8 +73,9 @@ export function requestRender() {
 }
 
 /* ---------- The theme ----------
-   The bench is warm paper (Light, the default) or the dark anodised breadboard (Dark), or as the
-   computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
+   The bench is warm paper (Light, the default) or the dark anodised breadboard (Dark, where the whole
+   page goes dark: style.css's tokens under [data-rt-theme="dark"], and inkA / plotPaper / greyInk for
+   what the page draws itself), or as the computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
    (a colour an older file was saved with is not used). On the light bench the words (names, the
    scale, captions) are drawn dark and the light is laid on as ink rather than glowing, so beams stand
    out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
@@ -86,6 +87,10 @@ export const themeDark = () => themePref === 'dark' || (themePref === 'system' &
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
 export const benchBg = () => themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+// the page's own pictures (plots, the designers' charts) in the theme: their ink at an opacity, their paper, and greys
+export const inkA = a => themeDark() ? 'rgba(231,227,219,' + a + ')' : 'rgba(0,0,0,' + a + ')';
+export const plotPaper = () => themeDark() ? '#242a2e' : '#fff';
+export const greyInk = c => !themeDark() ? c : ({ '#222': '#e7e3db', '#555': '#a29d95', '#888': '#77736d' })[c] || c;
 export function setTheme(v) {
   themePref = v === 'dark' || v === 'system' ? v : 'light';
   try { if (themePref === 'light') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
@@ -95,7 +100,9 @@ export function setTheme(v) {
 export function themeShown() {
   if (typeof document === 'undefined' || !document.documentElement) return;
   document.documentElement.dataset.rtTheme = themeDark() ? 'dark' : 'light';
+  for (const k in cssCache) delete cssCache[k];       // the page's colours read afresh
   benchStyleShown();
+  try { renderPanel(); } catch (err) { /* the panel is not made yet */ }   // its plots and readouts, drawn in the theme's ink
   document.dispatchEvent(new Event('rt-theme'));     // the parts' symbols (the rail, the picker) drawn again
   requestRender();
 }

@@ -25,6 +25,14 @@
     --rt-over-ink:  rgba(26, 26, 26, 0.82);
     --rt-over-mute: rgba(26, 26, 26, 0.55);
     --rt-over-tint: rgba(0, 0, 0, 0.05);
+    /* the page's own surfaces, in either theme: fields and cards, chips, the strong (black) button and the tinted notes */
+    --rt-surface: #fff;
+    --rt-chip: #f4efe9;
+    --rt-strong: #111;
+    --rt-strong-hover: #333;
+    --rt-on-strong: #fff;
+    --rt-warm-bg: #fdf1e6; --rt-warm-ink: #7a3c13; --rt-warm-ink2: #a2501a;
+    --rt-bad-bg: #fdecea; --rt-good-bg: #e5f3ec; --rt-good-ink: #1f5b3c; --rt-violet-bg: #f4f0fb;
     --rt-glass: #73b9ca;
     --rt-metal: #d8dee3;
     --rt-screen: #ffb347;
@@ -39,7 +47,29 @@
     --rt-over-ink:  rgba(255, 255, 255, 0.85);
     --rt-over-mute: rgba(255, 255, 255, 0.6);
     --rt-over-tint: rgba(255, 255, 255, 0.08);
+    /* the whole page dark, not just the bench: the site's own tokens, and the browser's controls and scrollbars */
+    color-scheme: dark;
+    --jek-sand: #121518;
+    --jek-panel: #1c2124;
+    --jek-well: #161a1d;
+    --jek-ink: #e7e3db;
+    --jek-ink-soft: #a29d95;
+    --jek-line: rgba(255, 255, 255, 0.10);
+    --jek-line-2: rgba(255, 255, 255, 0.22);
+    --jek-cyan-dark: #2aa3bf;
+    --jek-accent-ink: #3fb5cf;
+    --jek-focus: 0 0 0 3px rgba(0, 146, 178, 0.45);
+    --jek-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.45);
+    --rt-surface: #242a2e;
+    --rt-chip: #2a3135;
+    --rt-strong: #e7e3db;
+    --rt-strong-hover: #ffffff;
+    --rt-on-strong: #121518;
+    --rt-warm-bg: #3a2a1d; --rt-warm-ink: #f3c39e; --rt-warm-ink2: #f0a874;
+    --rt-bad-bg: #3d2226; --rt-good-bg: #1d3328; --rt-good-ink: #9fd8b8; --rt-violet-bg: #2e2840;
   }
+  /* links in running text: the browser's dark blue cannot be read on the dark page */
+  :root[data-rt-theme="dark"] a:not([role]):not(.rt-btn):not(.rt-link), :root[data-rt-theme="dark"] a:not([role]):not(.rt-btn):not(.rt-link):visited { color: #4fc0d8; }
   .rt-wrap {
     width: 100%;
     max-width: 1440px;
@@ -83,7 +113,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--jek-ink);
-    background: #fff;
+    background: var(--rt-surface);
     border: 1px solid var(--jek-line-2);
     border-radius: 2px;
     cursor: pointer;
@@ -96,8 +126,8 @@
   .rt-btn:disabled { opacity: 0.45; cursor: default; transform: none; }
   /* three kinds of button: primary (solid ink, one per area), secondary (this, outlined), and quiet (words
      or an icon, outlined only under the pointer); orange is kept for ordering (io/order.js) */
-  .rt-btn.primary { color: #fff; background: #111; border-color: #111; }
-  .rt-btn.primary:hover { background: #333; border-color: #333; }
+  .rt-btn.primary { color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); }
+  .rt-btn.primary:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   .rt-btn.quiet { background: none; border-color: transparent; }
   .rt-btn.quiet:hover, .rt-btn.quiet[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
   .rt-btn.quiet:disabled:hover { background: none; border-color: transparent; }
@@ -146,7 +176,7 @@
     color: var(--jek-ink);
   }
   .rt-name:hover { border-color: var(--jek-line-2); }
-  .rt-name:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); background: #fff; }
+  .rt-name:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); background: var(--rt-surface); }
 
   .rt-status { font-size: 0.8125rem; color: var(--jek-ink-soft); text-align: right; }
 
@@ -203,11 +233,11 @@
   .rt-v3dswitch[hidden] { display: none; }
   .rt-v3dswitch .rt-exp { margin-left: 0.3rem; padding: 0 0.25rem; font-size: 0.55rem; }
   .rt-v3dswitch { position: absolute; right: 0; top: 0; z-index: 6; display: flex; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
-  .rt-v3dswitch button { height: 1.75rem; margin: 0; border: 0; padding: 0 0.8rem; font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; cursor: pointer; }
+  .rt-v3dswitch button { height: 1.75rem; margin: 0; border: 0; padding: 0 0.8rem; font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: var(--rt-chip); cursor: pointer; }
   .rt-v3dswitch button:first-child { border-right: 1px solid rgba(0,0,0,0.12); }
   .rt-v3dswitch button:last-child { border-top-right-radius: var(--jek-radius); }
-  .rt-v3dswitch button:hover { background: #fff; color: var(--jek-ink); }
-  .rt-v3dswitch button.on { background: #fff; color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
+  .rt-v3dswitch button:hover { background: var(--rt-surface); color: var(--jek-ink); }
+  .rt-v3dswitch button.on { background: var(--rt-surface); color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
   .rt-v3dswitch button:disabled { opacity: 0.45; cursor: not-allowed; }
   .rt-v3dbar { position: absolute; right: 48px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 8rem); }
   .rt-v3dbar .rt-btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
@@ -216,10 +246,10 @@
   .rt-v3dbar select { font: 0.75rem var(--jek-sans); padding: 0.2rem; border-radius: var(--jek-radius); }
   .rt-stage.rt-flying { position: fixed; inset: 0; z-index: 1000; width: auto; height: auto !important; min-height: 0; margin: 0; border-radius: 0; }
   .rt-stage.rt-flying > :not(.rt-v3d):not(.rt-flyhint):not(.rt-tryme) { display: none !important; }
-  .rt-tryme { position: absolute; right: 16px; bottom: 16px; z-index: 8; background: #fff; border-radius: 8px; padding: 10px 12px 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); text-align: center; pointer-events: none; }
+  .rt-tryme { position: absolute; right: 16px; bottom: 16px; z-index: 8; background: var(--rt-surface); border-radius: 8px; padding: 10px 12px 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); text-align: center; pointer-events: none; }
   .rt-tryme b { display: block; margin-bottom: 6px; color: var(--jek-orange, #f47742); font: 800 1.35rem/1.1 var(--jek-sans); letter-spacing: 0.01em; }
   .rt-tryme svg, .rt-tryme img { display: block; }
-  .rt-tryme small { display: block; max-width: 200px; color: #333; font: 0.75rem/1.3 var(--jek-sans); }
+  .rt-tryme small { display: block; max-width: 200px; color: var(--jek-ink-soft); font: 0.75rem/1.3 var(--jek-sans); }
   .rt-flyhint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 32px); font: 0.78rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.9); background: rgba(10,13,16,0.6); padding: 4px 10px; border-radius: 4px; pointer-events: none; text-align: center; }
   .rt-diffkey { margin: 2px 0 0.4rem; font-size: 0.7rem; }
   .rt-diffkey canvas { display: block; width: 100%; height: 10px; border-radius: 2px; }
@@ -244,17 +274,17 @@
   .rt-benchtabs button, .rt-benchtabs input {
     height: 1.75rem; box-sizing: border-box; margin: 0; flex: none;
     font: 600 0.75rem var(--jek-sans); line-height: 1; color: var(--jek-ink-soft);
-    background: #f4efe9; border: 0; border-right: 1px solid rgba(0,0,0,0.12); border-radius: 0;
+    background: var(--rt-chip); border: 0; border-right: 1px solid rgba(0,0,0,0.12); border-radius: 0;
     padding: 0 0.85rem; cursor: pointer; user-select: none; touch-action: none;
     transition: transform 0.12s ease, background-color 0.12s ease;
   }
   .rt-benchtabs button:first-child { border-top-left-radius: var(--jek-radius); }
-  .rt-benchtabs button:hover { background: #fff; color: var(--jek-ink); }
-  .rt-benchtabs button.on { background: #fff; color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
-  .rt-benchtabs button.dragging { transition: none; z-index: 2; position: relative; background: #fff; color: var(--jek-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 0 var(--jek-orange); cursor: grabbing; }
+  .rt-benchtabs button:hover { background: var(--rt-surface); color: var(--jek-ink); }
+  .rt-benchtabs button.on { background: var(--rt-surface); color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
+  .rt-benchtabs button.dragging { transition: none; z-index: 2; position: relative; background: var(--rt-surface); color: var(--jek-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 -2px 0 var(--jek-orange); cursor: grabbing; }
   .rt-benchtabs button .x { margin-left: 0.45rem; opacity: 0.5; }
   .rt-benchtabs button .x:hover { opacity: 1; color: var(--jek-red); }
-  .rt-benchtabs input { cursor: text; width: 9rem; color: var(--jek-ink); background: #fff; outline: none; box-shadow: inset 0 -2px 0 var(--jek-cyan); }
+  .rt-benchtabs input { cursor: text; width: 9rem; color: var(--jek-ink); background: var(--rt-surface); outline: none; box-shadow: inset 0 -2px 0 var(--jek-cyan); }
   /* the last piece, +, rises to the bench's top edge at 45 degrees */
   .rt-benchtabs .add { padding: 0 2.35rem 0 0.75rem; border-right: 0; font-size: 0.95rem; clip-path: polygon(0 0, 100% 0, calc(100% - 1.75rem) 100%, 0 100%); }
   .rt-list .tabhead { font-size: 0.72rem; font-weight: 600; color: var(--jek-ink-soft); margin: 0.5rem 0 0.15rem; list-style: none; }
@@ -299,7 +329,7 @@
   .rt-pin.on { color: #fff; background: var(--jek-bar); border-color: var(--jek-bar); }
   .rt-pin.rt-padlock { color: var(--jek-ink-soft); }
   .rt-pin.rt-padlock.on { color: #fff; background: #a2501a; border-color: #a2501a; }
-  .rt-locknote { margin: 0.2rem 0 0.6rem; padding: 0.45rem 0.6rem; border-radius: 4px; background: #fdf1e6; color: #7a3c13; font-size: 0.82rem; line-height: 1.4; }
+  .rt-locknote { margin: 0.2rem 0 0.6rem; padding: 0.45rem 0.6rem; border-radius: 4px; background: var(--rt-warm-bg); color: var(--rt-warm-ink); font-size: 0.82rem; line-height: 1.4; }
   /* a locked part's fields: shown, plainly not to be typed in */
   #panel input:disabled, #panel select:disabled, .rt-pinned input:disabled, .rt-pinned select:disabled { opacity: 0.55 !important; background: var(--jek-well) !important; cursor: not-allowed !important; }
   #panel button:disabled, .rt-pinned button:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }
@@ -371,10 +401,10 @@
     border-radius: 2px; background: var(--rt-over); cursor: pointer; touch-action: none; display: block; z-index: 3; }
   .rt-measurebar { position: absolute; left: 50%; bottom: 0.6rem; transform: translateX(-50%); display: flex; z-index: 4;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
-  .rt-measurebar button { font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; border: 0; border-right: 1px solid rgba(0,0,0,0.12);
+  .rt-measurebar button { font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: var(--rt-chip); border: 0; border-right: 1px solid rgba(0,0,0,0.12);
     padding: 0.35rem 0.8rem; cursor: pointer; }
   .rt-measurebar button:first-child { border-radius: 2px 0 0 2px; } .rt-measurebar button:last-child { border-radius: 0 2px 2px 0; border-right: 0; }
-  .rt-measurebar button.on { background: #fff; color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-cyan); }
+  .rt-measurebar button.on { background: var(--rt-surface); color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-cyan); }
   .rt-addrow { flex: 1 1 0; flex-wrap: nowrap; min-width: 13.5rem; }   /* the palette switch and More always fit; Import wraps below on a phone */
   .rt-palette { display: flex; flex-wrap: nowrap; gap: 0.35rem; min-width: 0; overflow: hidden; }
   .rt-btn.palette { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); }
@@ -423,7 +453,7 @@
   .rt-act-text span:first-child { overflow: hidden; text-overflow: ellipsis; }
   .rt-act-pct { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; }
   .rt-act-bar { position: relative; height: 2px; overflow: hidden; background: rgba(255,255,255,0.18); }
-  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: #fff; transition: width 0.15s linear; }
+  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--rt-surface); transition: width 0.15s linear; }
   /* moved by transform, which the browser keeps animating even while a long step holds the page */
   .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
   @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
@@ -485,7 +515,7 @@
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
     color: var(--jek-ink);
-    background: #fff;
+    background: var(--rt-surface);
     border: 1px solid var(--jek-line-2);
     border-radius: 2px;
   }
@@ -494,7 +524,7 @@
   .rt-f > input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .rt-f > select { box-sizing: border-box; height: 2.05rem; }
   .rt-rows > .rt-f > input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .rt-rows > .rt-f > select,
   .rt-pairbox > input { box-sizing: border-box; height: 1.75rem; padding: 0.2rem 0.4rem; width: 100%; min-width: 0; }
-  .rt-pairbox > input { font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: #fff; border: 1px solid var(--jek-line-2); border-radius: 2px; }
+  .rt-pairbox > input { font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
   .rt-pairbox > input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-f input[type=color] { padding: 0.15rem; height: 2.1rem; cursor: pointer; }
   .rt-f input:focus, .rt-f select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
@@ -653,7 +683,7 @@
     font-size: 0.875rem;
     text-align: left;
     color: var(--jek-ink);
-    background: #fff;
+    background: var(--rt-surface);
     border: 1px solid var(--jek-line);
     border-radius: 2px;
     cursor: pointer;
@@ -677,7 +707,7 @@
     border: 1px solid var(--jek-line-2);
     border-bottom-width: 2px;
     border-radius: 2px;
-    background: #fff;
+    background: var(--rt-surface);
     color: var(--jek-ink);
   }
 
@@ -760,7 +790,7 @@
   p.rt-trustline { display: block; margin: 0 0 0.5rem; padding: 0.45rem 0.6rem; font-size: 0.9rem; letter-spacing: 0; white-space: normal; border-width: 0 0 0 3px; }
   .rt-packsign .rt-field { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin: 0 0 0.55rem; font-size: 0.85rem; }
   .rt-packsign .rt-field > span:first-child { flex: 0 0 5.5rem; font-weight: 600; }
-  .rt-packsign .rt-field input, .rt-packsign .rt-field select { flex: 1 1 12rem; min-width: 0; padding: 0.35rem 0.5rem; font: inherit; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink); }
+  .rt-packsign .rt-field input, .rt-packsign .rt-field select { flex: 1 1 12rem; min-width: 0; padding: 0.35rem 0.5rem; font: inherit; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
   .rt-packsign .rt-field small { flex-basis: 100%; padding-left: 6.1rem; }
   @media (max-width: 520px) { .rt-packsign .rt-field small { padding-left: 0; } }
   .rt-packconfirm .rt-actions .rt-link, .rt-packrow .rt-link { margin-right: auto; font-size: 0.8rem; }
@@ -799,11 +829,11 @@
   .rt-hhead { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-hhead h1 { margin: 0; font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rt-hmark { font-weight: 700; letter-spacing: 0.01em; padding-right: 0.5rem; margin-right: 0.25rem; border-right: 1px solid var(--jek-line); }
-  .rt-hmark b { background: #111; color: #fff; padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
+  .rt-hmark b { background: var(--rt-strong); color: var(--rt-on-strong); padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
   .rt-hback { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; line-height: 1.2; }
-  .rt-hhead input[type=search] { flex: 1 1 14rem; max-width: 26rem; min-width: 0; margin-left: auto; padding: 0.42rem 0.6rem; font: inherit; font-size: 0.875rem; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--jek-paper, #fff); color: inherit; }
-  .rt-hhead #homeNew { flex: none; background: #111; border-color: #111; color: #fff; }
-  .rt-hhead #homeNew:hover { background: #333; border-color: #333; }
+  .rt-hhead input[type=search] { flex: 1 1 14rem; max-width: 26rem; min-width: 0; margin-left: auto; padding: 0.42rem 0.6rem; font: inherit; font-size: 0.875rem; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--rt-surface); color: inherit; }
+  .rt-hhead #homeNew { flex: none; background: var(--rt-strong); border-color: var(--rt-strong); color: var(--rt-on-strong); }
+  .rt-hhead #homeNew:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   .rt-hbody { flex: 1; display: flex; min-height: 0; }
   .rt-hrail { flex: none; width: 15rem; overflow-y: auto; padding: 0.75rem 0.5rem; background: var(--jek-panel); border-right: 1px solid var(--jek-line); display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.875rem; }
   .rt-hrail h2 { margin: 0.9rem 0.6rem 0.3rem; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--jek-ink-soft); }
@@ -923,7 +953,7 @@
   .rt-subtabs { display: inline-flex; gap: 0; margin-bottom: 0.8rem; }
   .rt-subtabs .rt-btn { border-radius: 0; }
   .rt-subtabs .rt-btn + .rt-btn { margin-left: -1px; }
-  .rt-subtabs .rt-btn[aria-checked="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-subtabs .rt-btn[aria-checked="true"] { background: var(--rt-strong); border-color: var(--rt-strong); color: var(--rt-on-strong); }
   .rt-subcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.8rem; margin-bottom: 0.6rem; }
   .rt-subcard { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.9rem 1rem; border: 1px solid var(--jek-line); border-radius: 2px; }
   .rt-subcard h3 { margin: 0; font-size: 1rem; }
@@ -937,7 +967,7 @@
   .rt-subcheck p { margin: 0 0 0.45rem !important; }
   .rt-subform { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.35rem 0 0.5rem; font-size: 0.82rem; }
   .rt-subrow { display: flex; gap: 0.35rem; }
-  .rt-subinput { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; font: inherit; font-size: 0.85rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink); }
+  .rt-subinput { flex: 1; min-width: 0; padding: 0.4rem 0.5rem; font: inherit; font-size: 0.85rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
   .rt-subinput:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-subcode { flex: 0 1 8rem; font-family: var(--jek-mono); letter-spacing: 0.2em; }
   .rt-subform .rt-error { margin: 0 !important; font-size: 0.8rem; }
@@ -994,7 +1024,7 @@
     font-family: var(--jek-mono);
     font-size: 0.8125rem;
     color: var(--jek-ink);
-    background: #fff;
+    background: var(--rt-surface);
     border: 1px solid var(--jek-line-2);
     border-radius: 2px;
     resize: vertical;
@@ -1067,8 +1097,8 @@
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
   .rt-tight { gap: 0.2rem; }
   /* black, as the site's bar: the main action, belonging to no palette (their colours mean them) */
-  .rt-btn.rt-addbtn { flex: none; color: #fff; background: #111; border-color: #111; }
-  .rt-btn.rt-addbtn:hover { background: #333; border-color: #333; }
+  .rt-btn.rt-addbtn { flex: none; color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); }
+  .rt-btn.rt-addbtn:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.rt-help { position: relative; }
   .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
@@ -1088,7 +1118,7 @@
   /* Search commands (Ctrl+K, ui/commands.js): a box and the menus' items that hold its words */
   dialog.rt-dialog.rt-cmd { width: min(38rem, calc(100vw - 2rem)); margin-top: 12vh; padding: 0; text-align: left; }
   .rt-cmdbox { padding: 0.6rem; border-bottom: 1px solid var(--jek-line); }
-  .rt-cmdbox input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 3px; font: inherit; font-size: 0.95rem; background: #fff; color: var(--jek-ink); }
+  .rt-cmdbox input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 3px; font: inherit; font-size: 0.95rem; background: var(--rt-surface); color: var(--jek-ink); }
   .rt-cmdbox input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-cmd ul { list-style: none; margin: 0; padding: 0.3rem 0; max-height: min(26rem, 60vh); overflow-y: auto; }
   .rt-cmd li { display: flex; align-items: center; gap: 0.6rem; padding: 0.38rem 0.8rem; font-size: 0.85rem; cursor: pointer; }
@@ -1105,11 +1135,11 @@
   .rt-menu.rt-menu-right { left: auto; right: 0; }
   /* the account button: Sign in, or the person's initials once signed in */
   .rt-btn.rt-acct.in { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 50%; align-self: center; display: inline-grid; place-items: center;
-    font: 700 0.72rem/1 var(--jek-sans); letter-spacing: 0.02em; color: #fff; background: #111; border-color: #111; }
-  .rt-btn.rt-acct.in:hover { background: #333; border-color: #333; }
+    font: 700 0.72rem/1 var(--jek-sans); letter-spacing: 0.02em; color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); }
+  .rt-btn.rt-acct.in:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   .rt-btn.rt-acct.in img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
   /* a person's picture, or their initials */
-  .rt-avatar { flex: none; display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #111; color: #fff; font: 700 0.55rem/1 var(--jek-sans); letter-spacing: 0.02em; overflow: hidden; vertical-align: middle; }
+  .rt-avatar { flex: none; display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--rt-strong); color: var(--rt-on-strong); font: 700 0.55rem/1 var(--jek-sans); letter-spacing: 0.02em; overflow: hidden; vertical-align: middle; }
   .rt-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .rt-avatar.big { width: 5rem; height: 5rem; font-size: 1.6rem; }
   .rt-avatar.small { width: 1.1rem; height: 1.1rem; font-size: 0.42rem; }
@@ -1144,11 +1174,11 @@
   .rt-acctmenu .rt-accthead span { display: block; color: var(--jek-ink-soft); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; }
   .rt-acctmenu .rt-menunote a { color: inherit; }
   .rt-acctmenu .rt-menunote.rt-warn { color: var(--jek-red); font-weight: 600; }
-  .rt-assumed { margin: 0 0 0.6rem; padding: 0.45rem 0.6rem; font-size: 0.8125rem; color: var(--jek-red); background: #fdecea; border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
+  .rt-assumed { margin: 0 0 0.6rem; padding: 0.45rem 0.6rem; font-size: 0.8125rem; color: var(--jek-red); background: var(--rt-bad-bg); border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
   .rt-assumed ul { margin: 0.25rem 0 0.2rem; padding-left: 1.1rem; }
   .rt-assumed li { margin: 0.1rem 0; }
   .rt-assumed .rt-link { font-size: 0.75rem; }
-  .rt-glasswarn { margin: 0; padding: 0.4rem 0.55rem; font-size: 0.8125rem; color: var(--jek-ink); background: #fdecea; border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
+  .rt-glasswarn { margin: 0; padding: 0.4rem 0.55rem; font-size: 0.8125rem; color: var(--jek-ink); background: var(--rt-bad-bg); border-left: 3px solid var(--jek-red); border-radius: 0 2px 2px 0; }
   /* the bar's menus, as a drawing program's: compact rows, an icon column, shortcuts at the right,
      the row lit in the accent colour under the pointer, submenus to the side */
   .rt-imenu { min-width: 15.5rem; padding: 4px 0; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12); }
@@ -1236,7 +1266,7 @@
     background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 12px 34px rgba(0,0,0,0.22); }
   .rt-picker[hidden] { display: none; }
   .rt-phead { display: flex; gap: 0.4rem; padding: 0.6rem 0.6rem 0.4rem; }
-  .rt-psearch { flex: 1; padding: 0.45rem 0.6rem; font: inherit; font-size: 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink); }
+  .rt-psearch { flex: 1; padding: 0.45rem 0.6rem; font: inherit; font-size: 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
   .rt-psearch:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-pclose { width: 2rem; border: 0; background: none; font-size: 1.3rem; color: var(--jek-ink-soft); cursor: pointer; }
   .rt-ptabs { display: flex; gap: 0.25rem; padding: 0 0.6rem; border-bottom: 1px solid var(--jek-line); }
@@ -1258,15 +1288,15 @@
   .rt-ptile.elec:hover, .rt-ptile.elec:focus-visible { border-color: #c08a12; }
   .rt-ptile.rf:hover, .rt-ptile.rf:focus-visible { border-color: var(--jek-amber); }
   .rt-pnone { margin: 1rem 0; color: var(--jek-ink-soft); font-size: 0.875rem; }
-  .rt-ptab.mine { margin-left: auto; color: #111; } .rt-ptab.mine.on { border-color: #111; }
+  .rt-ptab.mine { margin-left: auto; color: var(--rt-strong); } .rt-ptab.mine.on { border-color: var(--rt-strong); }
   .rt-ptile.mine { position: relative; }
   .rt-ptile.mine img { background: var(--rt-bench); }
   .rt-ptile.mine > span:not(.rt-pmore) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .rt-pmore { position: absolute; top: 1px; right: 2px; padding: 0 0.25rem; font-size: 0.9rem; line-height: 1.1; color: var(--jek-ink-soft); border-radius: 2px; }
   .rt-pmore:hover { background: var(--jek-line); color: var(--jek-ink); }
   .rt-pkeeprow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.8rem; margin: 0.6rem 0 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
-  .rt-pkeeprow .rt-btn { color: #fff; background: #111; border-color: #111; font-size: 0.8rem; }
-  .rt-pkeeprow .rt-btn.rt-pzmx { color: var(--jek-ink); background: #fff; border-color: var(--jek-line-2); }
+  .rt-pkeeprow .rt-btn { color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); font-size: 0.8rem; }
+  .rt-pkeeprow .rt-btn.rt-pzmx { color: var(--jek-ink); background: var(--rt-surface); border-color: var(--jek-line-2); }
   .rt-pkeeprow .rt-btn:disabled { color: var(--jek-ink-soft); background: none; border-color: var(--jek-line-2); cursor: default; }
   .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #e0a91c; }
   .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
@@ -1296,11 +1326,11 @@
   .rt-alignrel { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.55rem; font-weight: 600; color: var(--jek-ink-soft); }
   .rt-alignbox h4 { margin: 0.7rem 0 0.3rem; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
   .rt-aligngrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-  .rt-aligngrid button { height: 34px; display: inline-flex; align-items: center; justify-content: center; color: var(--jek-ink); background: #fff; border: 1px solid var(--jek-line-2); cursor: pointer; }
-  .rt-aligngrid button:hover { background: #f4f0fb; border-color: #8b6ee0; }
+  .rt-aligngrid button { height: 34px; display: inline-flex; align-items: center; justify-content: center; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); cursor: pointer; }
+  .rt-aligngrid button:hover { background: var(--rt-violet-bg); border-color: #8b6ee0; }
   .rt-alignbox p { margin: 0.6rem 0 0; color: var(--jek-ink-soft); font-size: 0.74rem; }
   .rt-drawhint { position: absolute; left: 50%; bottom: 2.6rem; transform: translateX(-50%); z-index: 4; max-width: min(46rem, calc(100% - 9rem)); padding: 0.3rem 0.7rem;
-    font: 500 0.75rem/1.35 var(--jek-sans); color: var(--jek-ink); background: #f4efe9; border-left: 3px solid #8b6ee0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); pointer-events: none; }
+    font: 500 0.75rem/1.35 var(--jek-sans); color: var(--jek-ink); background: var(--rt-chip); border-left: 3px solid #8b6ee0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); pointer-events: none; }
   .rt-drawhint[hidden] { display: none; }
   /* a drawing's panel: rows of a label and its controls, buttons of icons */
   .rt-dtabs .rt-tab { display: inline-flex; align-items: center; gap: 0.3rem; }
@@ -1321,10 +1351,10 @@
   .rt-dsw button { aspect-ratio: 1; min-width: 0; padding: 0; border: 1px solid rgba(0,0,0,0.25); cursor: pointer; }
   .rt-dsw button.on { outline: 2px solid #8b6ee0; outline-offset: 1px; }
   .rt-seg { display: inline-flex; flex-wrap: nowrap; }
-  .rt-seg button { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.28rem 0.42rem; white-space: nowrap; font: 600 0.76rem var(--jek-sans); color: var(--jek-ink); background: #fff;
+  .rt-seg button { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.28rem 0.42rem; white-space: nowrap; font: 600 0.76rem var(--jek-sans); color: var(--jek-ink); background: var(--rt-surface);
     border: 1px solid var(--jek-line-2); margin-left: -1px; cursor: pointer; }
   .rt-seg button:first-child { margin-left: 0; }
-  .rt-seg button:hover { background: #f4f0fb; }
+  .rt-seg button:hover { background: var(--rt-violet-bg); }
   .rt-seg button.on { color: #fff; background: #8b6ee0; border-color: #8b6ee0; position: relative; }
   .rt-dashes button { padding: 0.28rem 0.2rem; }
   .rt-dtext { width: 100%; box-sizing: border-box; font: 0.9rem var(--jek-sans); padding: 0.4rem; border: 1px solid var(--jek-line-2); resize: vertical; }
@@ -1387,8 +1417,8 @@
   .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
   .rt-lcrumb .from { color: var(--jek-ink-soft); white-space: nowrap; }
   .rt-lname { font: inherit; font-weight: 600; max-width: 22rem; padding: 0.2rem 0.35rem; border: 1px solid transparent; border-radius: 2px; background: transparent; color: inherit; }
-  .rt-lname:hover, .rt-lname:focus { border-color: var(--jek-line-2); background: #fff; }
-  .rt-lpill { padding: 0.15rem 0.5rem; border-radius: 4px; background: #fdf1e6; color: #a2501a; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+  .rt-lname:hover, .rt-lname:focus { border-color: var(--jek-line-2); background: var(--rt-surface); }
+  .rt-lpill { padding: 0.15rem 0.5rem; border-radius: 4px; background: var(--rt-warm-bg); color: var(--rt-warm-ink2); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
   .rt-lgap { flex: 1; }
   .rt-lbody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem; padding: 1rem; }
   .rt-lcard { background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); padding: 0.9rem 1rem; box-sizing: border-box; min-width: 0; }
@@ -1398,8 +1428,8 @@
   .rt-lcond { flex: 1 1 17rem; max-width: 24rem; display: flex; flex-direction: column; }
   .rt-lmain { flex: 999 1 36rem; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
   .rt-lrow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0; flex-wrap: wrap; }
-  .rt-lrow select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; max-width: 15rem; }
-  .rt-lnum { width: 5.6rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: inherit; text-align: right; box-sizing: border-box; }
+  .rt-lrow select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); max-width: 15rem; }
+  .rt-lnum { width: 5.6rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: inherit; text-align: right; box-sizing: border-box; }
   .rt-lnum.fixed { background: var(--jek-well); color: var(--jek-ink-soft); font-style: italic; }
   .rt-lcond .rt-lnum { width: 5rem; }
   /* the RF designer: its conditions in labelled rows, the spec as a grid, its tables */
@@ -1446,7 +1476,7 @@
   .rt-lens .rt-link { border: 0; background: none; padding: 0.2rem 0; color: var(--jek-cyan-dark, #007790); font: inherit; font-size: 0.85rem; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; margin-right: 0.8rem; align-self: flex-start; }
   .rt-ltake { margin-top: 0.9rem; white-space: normal; text-align: center; border-color: var(--jek-cyan); color: var(--jek-cyan-dark, #007790); font-weight: 600; min-height: 2.5rem; }
   .rt-lnote { margin-top: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 4px; background: var(--jek-well); font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
-  .rt-lnote.good { background: #e5f3ec; color: #1f5b3c; }
+  .rt-lnote.good { background: var(--rt-good-bg); color: var(--rt-good-ink); }
   .rt-llayout { background: #1e2227; border-color: #1e2227; padding: 0.6rem; }
   .rt-lltop { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; color: #c9cfd6; font-size: 0.8rem; margin: 0 0.2rem 0.4rem; }
   .rt-llayout canvas { display: block; width: 100%; border-radius: 4px; }
@@ -1456,20 +1486,20 @@
   .rt-lfig b { font-weight: 500; overflow-wrap: anywhere; }
   .rt-ltabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
   .rt-ltab { font: inherit; font-size: 0.875rem; font-weight: 600; padding: 0.45rem 0.9rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--jek-panel); color: var(--jek-ink-soft); cursor: pointer; }
-  .rt-ltab[aria-selected="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-ltab[aria-selected="true"] { background: var(--rt-strong); border-color: var(--rt-strong); color: var(--rt-on-strong); }
   .rt-ltabs[role="tablist"] { gap: 0.15rem; border-bottom: 1px solid var(--jek-line-2); }
   .rt-ltabs[role="tablist"] .rt-ltab { margin-bottom: -1px; padding: 0.55rem 0.85rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; }
   .rt-ltabs[role="tablist"] .rt-ltab:hover { color: var(--jek-ink); }
-  .rt-ltabs[role="tablist"] .rt-ltab[aria-selected="true"] { color: var(--jek-ink); background: none; border-bottom-color: #111; }
+  .rt-ltabs[role="tablist"] .rt-ltab[aria-selected="true"] { color: var(--jek-ink); background: none; border-bottom-color: var(--rt-strong); }
   /* the RF designer: the system down the left, the one chosen edited beside the beam */
   .rt-rfsys { gap: 0.1rem; padding: 0.8rem 0; }
   .rt-rfsys h2 { margin: 0 1rem 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
   .rt-rfsi { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.65rem; align-items: center; width: 100%; padding: 0.5rem 1rem; font: inherit; text-align: left; color: var(--jek-ink);
     background: none; border: 0; border-left: 3px solid transparent; cursor: pointer; }
   .rt-rfsi:hover { background: var(--jek-well); }
-  .rt-rfsi.on { background: #fff; border-left-color: #111; }
-  .rt-rfsi .ic { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid var(--jek-line-2); border-radius: 3px; background: #fff; color: var(--jek-ink-soft); font-weight: 700; font-size: 0.8rem; }
-  .rt-rfsi.on .ic { color: var(--jek-ink); border-color: #111; }
+  .rt-rfsi.on { background: var(--rt-surface); border-left-color: var(--rt-strong); }
+  .rt-rfsi .ic { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid var(--jek-line-2); border-radius: 3px; background: var(--rt-surface); color: var(--jek-ink-soft); font-weight: 700; font-size: 0.8rem; }
+  .rt-rfsi.on .ic { color: var(--jek-ink); border-color: var(--rt-strong); }
   .rt-rfsi .tx { min-width: 0; }
   .rt-rfsi b { display: block; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-rfsi small { display: block; font-size: 0.72rem; color: var(--jek-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1517,7 +1547,7 @@
   .rt-imenu > .rt-sub.rt-acctneed::after, .rt-imenu > .rt-sub.rt-proneed::after { content: '\25b8'; order: 2; margin-left: 0; padding: 0 0 0 0.6rem; border-radius: 0; background: none; color: inherit; font: inherit; font-size: 0.7rem; opacity: 0.7; }
   .rt-sub > .rt-menu { order: 3; }
   /* the account's badge on the menu's lit row: light on the accent */
-  .rt-imenu > button.rt-acctneed:hover::after, .rt-imenu > button.rt-acctneed:focus-visible::after, .rt-imenu > .rt-sub.rt-acctneed:hover::before, .rt-imenu > .rt-sub.rt-acctneed:focus-within::before { background: #fff; color: var(--jek-cyan-dark, #007893); }
+  .rt-imenu > button.rt-acctneed:hover::after, .rt-imenu > button.rt-acctneed:focus-visible::after, .rt-imenu > .rt-sub.rt-acctneed:hover::before, .rt-imenu > .rt-sub.rt-acctneed:focus-within::before { background: var(--rt-surface); color: var(--jek-cyan-dark, #007893); }
   /* a plot's PNG and CSV share one */
   .rt-save.rt-acctneed { align-items: center; }
   .rt-save.rt-acctneed::after { margin-left: 0.1em; font-size: 0.66rem; }
@@ -1542,7 +1572,7 @@
   .rt-lpose .rt-lnum { width: 4.2rem; }
   .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
-  .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: #fff; }
+  .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: var(--rt-surface); }
   .rt-lsheet { display: block; }
   .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
   .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
@@ -1570,16 +1600,16 @@
   .rt-lcell { display: flex; align-items: center; gap: 0.2rem; }
   .rt-lmirrow { margin-top: 0.2rem; }
   .rt-lmir { font-size: 0.78rem; padding: 0.1rem 0.2rem; }
-  .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .rt-lv, .rt-ls { flex: none; min-width: 1.6rem; height: 1.6rem; padding: 0 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink-soft); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
   .rt-lv[aria-pressed="true"] { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
   .rt-lv:disabled { opacity: 0.35; cursor: default; }
   .rt-ls.on { background: #e8f1f8; border-color: #a9cde0; color: #0b5f7a; }
-  .rt-lglass { width: 8rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; box-sizing: border-box; }
+  .rt-lglass { width: 8rem; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); box-sizing: border-box; }
   .rt-lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.7rem; }
   .rt-lkey { font-size: 0.8rem; color: var(--jek-ink-soft); margin-left: 0.3rem; }
   .rt-lkey b { font-family: var(--jek-mono); }
   .rt-lpop { position: fixed; z-index: 76; width: 17rem; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); font-size: 0.85rem; }
-  .rt-lpop select { font: inherit; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lpop select { font: inherit; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); }
   .rt-lpopb { display: flex; flex-direction: column; gap: 0.35rem; }
   .rt-lpopb label { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .rt-lpopb p { margin: 0; color: var(--jek-ink-soft); line-height: 1.4; }
@@ -1587,30 +1617,30 @@
   .rt-lmerit { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.6rem; }
   .rt-lmerit b { font-size: 1.4rem; font-weight: 600; }
   .rt-lmrow { font-size: 0.85rem; margin-bottom: 0.6rem; }
-  .rt-lmrow select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lmrow select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); }
   .rt-lmtable { min-width: 40rem; }
   .rt-lnum.mc { border-color: #c38bff; box-shadow: inset 3px 0 0 #8a4fd1; }
-  .rt-lcfgsel { font: inherit; font-size: 0.85rem; padding: 0.35rem 0.4rem; border: 1px solid #8a4fd1; border-radius: 2px; background: #fff; max-width: 14rem; }
+  .rt-lcfgsel { font: inherit; font-size: 0.85rem; padding: 0.35rem 0.4rem; border: 1px solid #8a4fd1; border-radius: 2px; background: var(--rt-surface); max-width: 14rem; }
   .rt-lcfgt td.nm { text-align: left; font-weight: 600; font-size: 0.85rem; white-space: normal; min-width: 13rem; }
   .rt-lcfgt th.on { background: #f3ecfb; }
   .rt-lcfgt tr.ro td.nm { font-weight: 400; color: var(--jek-ink-soft); }
   .rt-lcfgh { display: flex; align-items: center; gap: 0.3rem; }
   .rt-lcfgh .rt-link { margin-right: 0; }
-  .rt-lcfgname { width: 8.5rem; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lcfgname { width: 8.5rem; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.3rem 0.4rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); }
   .rt-lshare { display: flex; align-items: center; gap: 0.5rem; }
   .rt-lshare .bar { width: 7rem; height: 0.5rem; background: var(--jek-well); border-radius: 4px; overflow: hidden; flex: none; }
   .rt-lshare .bar span { display: block; height: 100%; background: var(--jek-orange); }
   .rt-lshare .mono { font-size: 0.8rem; }
-  .rt-lbar select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-lbar select { font: inherit; font-size: 0.85rem; padding: 0.3rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); }
   .rt-lbnds { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.4rem 1rem; margin-bottom: 0.6rem; }
   .rt-lbnd { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; }
   .rt-lopt > p { margin: 0 0 0.6rem; }
   .rt-lopt .rt-readout { margin-top: 0.7rem; max-width: 28rem; }
   .rt-lchips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-bottom: 0.5rem; }
   .rt-lchips .rt-lsub { margin-right: 0.3rem; }
-  .rt-lchip { font: inherit; font-size: 0.8rem; padding: 0.3rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 999px; background: #fff; color: var(--jek-ink); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .rt-lchip { font: inherit; font-size: 0.8rem; padding: 0.3rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 999px; background: var(--rt-surface); color: var(--jek-ink); cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
   .rt-lchip[style]::before { content: ''; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--sw); }
-  .rt-lchip[aria-pressed="true"] { background: #111; border-color: #111; color: #fff; }
+  .rt-lchip[aria-pressed="true"] { background: var(--rt-strong); border-color: var(--rt-strong); color: var(--rt-on-strong); }
   .rt-lanabody { margin-top: 0.4rem; }
   .rt-lplot { position: relative; min-width: 0; }
   .rt-lplot canvas { display: block; width: 100%; }
@@ -1631,13 +1661,13 @@
   .rt-ltolset { min-width: 36rem; }
   .rt-ltolset td:first-child { width: 1.5rem; }
   .rt-ltolopts { gap: 0.5rem 1.5rem; font-size: 0.85rem; margin: 0.6rem 0; }
-  .rt-ltolopts select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: #fff; }
+  .rt-ltolopts select { font: inherit; padding: 0.25rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); }
   .rt-ltolopts .rt-lnum { width: 4.5rem; }
   .rt-ltolsens { min-width: 36rem; }
   .rt-ltol .rt-readout { max-width: 30rem; margin: 0.4rem 0; }
   .rt-asmnote { margin: 0.6rem 0 0; padding: 0.55rem 0.7rem; border-radius: 4px; font-size: 0.82rem; line-height: 1.45; }
   .rt-asmnote.bad { background: #fbeadb; color: #6b3a10; }
-  .rt-asmnote.good { background: #e5f3ec; color: #1f5b3c; }
+  .rt-asmnote.good { background: var(--rt-good-bg); color: var(--rt-good-ink); }
   @media (max-width: 640px) {
     .rt-lbody { padding: 0.6rem; }
     .rt-lcond { max-width: none; }
@@ -1657,7 +1687,7 @@
 /* A phone (or a phone on its side): the bench is the whole window under the bar, and the panel of what is selected a sheet
    over the bench's lower half, made taller or shorter with its arrow, closed with its ×; pinning is for wide screens */
 .rt-sheetbtn, .rt-narrownote { display: none !important; }
-.rt-welcome .rt-wdesk { margin: 0 0 0.5rem; padding: 0.4rem 0.55rem; background: #fdf1e6; color: #7a3c13; border-radius: 2px; }
+.rt-welcome .rt-wdesk { margin: 0 0 0.5rem; padding: 0.4rem 0.55rem; background: var(--rt-warm-bg); color: var(--rt-warm-ink); border-radius: 2px; }
 @media (max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse) {
   html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
   html.rt-noscroll body > footer { display: none; }
@@ -13524,8 +13554,9 @@ function requestRender() {
 }
 
 /* ---------- The theme ----------
-   The bench is warm paper (Light, the default) or the dark anodised breadboard (Dark), or as the
-   computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
+   The bench is warm paper (Light, the default) or the dark anodised breadboard (Dark, where the whole
+   page goes dark: style.css's tokens under [data-rt-theme="dark"], and inkA / plotPaper / greyInk for
+   what the page draws itself), or as the computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
    (a colour an older file was saved with is not used). On the light bench the words (names, the
    scale, captions) are drawn dark and the light is laid on as ink rather than glowing, so beams stand
    out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
@@ -13537,6 +13568,10 @@ const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDa
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
 const benchBg = () => themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+// the page's own pictures (plots, the designers' charts) in the theme: their ink at an opacity, their paper, and greys
+const inkA = a => themeDark() ? 'rgba(231,227,219,' + a + ')' : 'rgba(0,0,0,' + a + ')';
+const plotPaper = () => themeDark() ? '#242a2e' : '#fff';
+const greyInk = c => !themeDark() ? c : ({ '#222': '#e7e3db', '#555': '#a29d95', '#888': '#77736d' })[c] || c;
 function setTheme(v) {
   themePref = v === 'dark' || v === 'system' ? v : 'light';
   try { if (themePref === 'light') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
@@ -13546,7 +13581,9 @@ function setTheme(v) {
 function themeShown() {
   if (typeof document === 'undefined' || !document.documentElement) return;
   document.documentElement.dataset.rtTheme = themeDark() ? 'dark' : 'light';
+  for (const k in cssCache) delete cssCache[k];       // the page's colours read afresh
   benchStyleShown();
+  try { renderPanel(); } catch (err) { /* the panel is not made yet */ }   // its plots and readouts, drawn in the theme's ink
   document.dispatchEvent(new Event('rt-theme'));     // the parts' symbols (the rail, the picker) drawn again
   requestRender();
 }
@@ -21807,7 +21844,7 @@ const INST = (() => {
     const A = plotArea(c, w, hgt, [lo, hi], sy);
     const X = t => A.l + t / span * A.w;
     // the graticule: ten divisions across, eight up
-    c.strokeStyle = 'rgba(0,0,0,0.07)'; c.lineWidth = 1; c.beginPath();
+    c.strokeStyle = inkA(0.07); c.lineWidth = 1; c.beginPath();
     for (let i = 1; i < DIV_X; i++) { const x = Math.round(A.l + A.w * i / DIV_X) + 0.5; c.moveTo(x, A.t); c.lineTo(x, A.t + A.h); }
     for (let i = 1; i < DIV_Y; i++) { const y = Math.round(A.t + A.h * i / DIV_Y) + 0.5; c.moveTo(A.l, y); c.lineTo(A.l + A.w, y); }
     c.stroke();
@@ -24934,7 +24971,7 @@ function drawScan(cv, scan, key, best) {
   c.beginPath();
   pts.forEach((q, i) => i ? c.lineTo(X(q.v), Y(q.raw)) : c.moveTo(X(q.v), Y(q.raw)));
   c.stroke();
-  c.strokeStyle = 'rgba(0,0,0,0.4)';
+  c.strokeStyle = inkA(0.4);
   c.setLineDash([3, 3]);
   c.beginPath(); c.moveTo(X(best), A.t); c.lineTo(X(best), A.t + A.h); c.stroke();
   c.setLineDash([]);
@@ -26131,7 +26168,7 @@ function drawAberPlot(cv, note, el) {
   cv._area = Ar; cv._full = { x: [x0, x1], y: [y0, y1] };
   const X = v => Ar.l + (v - xa) / (xb - xa) * Ar.w, Y = v => Ar.t + Ar.h - (v - ya) / (yb - ya) * Ar.h;
   c.save(); c.beginPath(); c.rect(Ar.l, Ar.t - 3, Ar.w + 3, Ar.h + 6); c.clip();
-  if (ya < 0 && yb > 0) { c.strokeStyle = 'rgba(0,0,0,0.15)'; c.beginPath(); c.moveTo(Ar.l, Y(0)); c.lineTo(Ar.l + Ar.w, Y(0)); c.stroke(); }
+  if (ya < 0 && yb > 0) { c.strokeStyle = inkA(0.15); c.beginPath(); c.moveTo(Ar.l, Y(0)); c.lineTo(Ar.l + Ar.w, Y(0)); c.stroke(); }
   for (const S of series) {
     const cS = series.length === 1 ? getCss('--jek-cyan') : col(S.H);
     c.strokeStyle = cS; c.fillStyle = cS; c.lineWidth = 1.4;
@@ -26198,7 +26235,7 @@ function drawRayPlot(cv, note, el) {
   const Y = v => A.t + A.h - (v - ya) / (yb - ya) * A.h;
   c.save(); c.beginPath(); c.rect(A.l, A.t - 3, A.w + 3, A.h + 6); c.clip();
   if (ya < 0 && yb > 0) {
-    c.strokeStyle = 'rgba(0,0,0,0.15)';
+    c.strokeStyle = inkA(0.15);
     c.beginPath(); c.moveTo(A.l, Y(0)); c.lineTo(A.l + A.w, Y(0)); c.stroke();
   }
   c.fillStyle = getCss('--jek-cyan');
@@ -27059,7 +27096,7 @@ function linePlot(parent, o) {
     const X = v => Ar.l + (v - xr[0]) / (xr[1] - xr[0]) * Ar.w, Y = v => Ar.t + Ar.h - (v - yr[0]) / (yr[1] - yr[0]) * Ar.h;
     g.save(); g.beginPath(); g.rect(Ar.l, Ar.t, Ar.w, Ar.h); g.clip();
     // the zero lines, recessive
-    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1;
+    g.strokeStyle = inkA(0.25); g.lineWidth = 1;
     if (xr[0] < 0 && xr[1] > 0) { g.beginPath(); g.moveTo(Math.round(X(0)) + 0.5, Ar.t); g.lineTo(Math.round(X(0)) + 0.5, Ar.t + Ar.h); g.stroke(); }
     if (yr[0] < 0 && yr[1] > 0) { g.beginPath(); g.moveTo(Ar.l, Math.round(Y(0)) + 0.5); g.lineTo(Ar.l + Ar.w, Math.round(Y(0)) + 0.5); g.stroke(); }
     for (const s of o.series) {
@@ -27069,7 +27106,7 @@ function linePlot(parent, o) {
       g.stroke();
     }
     g.setLineDash([]);
-    if (hover) { g.strokeStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); if (o.hoverY) { g.moveTo(Ar.l, Y(hover.v) + 0.5); g.lineTo(Ar.l + Ar.w, Y(hover.v) + 0.5); } else { g.moveTo(X(hover.v) + 0.5, Ar.t); g.lineTo(X(hover.v) + 0.5, Ar.t + Ar.h); } g.stroke(); }
+    if (hover) { g.strokeStyle = inkA(0.35); g.beginPath(); if (o.hoverY) { g.moveTo(Ar.l, Y(hover.v) + 0.5); g.lineTo(Ar.l + Ar.w, Y(hover.v) + 0.5); } else { g.moveTo(X(hover.v) + 0.5, Ar.t); g.lineTo(X(hover.v) + 0.5, Ar.t + Ar.h); } g.stroke(); }
     g.restore();
     cv._area = Ar; cv._X = X; cv._Y = Y;
   };
@@ -27108,16 +27145,16 @@ function spotView(body, A, spots) {
       const dpr = window.devicePixelRatio || 1, S = Math.max(140, Math.min(260, cell.clientWidth || 200));
       cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
       const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      g.fillStyle = '#fff'; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(0,0,0,0.15)'; g.strokeRect(0.5, 0.5, S - 1, S - 1);
+      g.fillStyle = plotPaper(); g.fillRect(0, 0, S, S); g.strokeStyle = inkA(0.15); g.strokeRect(0.5, 0.5, S - 1, S - 1);
       const k = (S / 2 - 6) / ext, X = x => S / 2 + (x - s.centroid[0]) * k, Y = y => S / 2 - (y - s.centroid[1]) * k;
       // the Airy disc, about the centroid
-      g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
+      g.strokeStyle = inkA(0.55); g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
       s.waves.forEach((w, wi) => { g.fillStyle = waveColour(wi); for (const [x, y] of w.pts) { g.beginPath(); g.arc(X(x), Y(y), 1.6, 0, 2 * Math.PI); g.fill(); } });
     });
     if (!fi) plotCsv(cv, 'spot diagram', ['field (' + FU_CSV + ')', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
     if (!fi) cell.append(plotSaveRow(cv));
   });
-  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', '#555']])));
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', greyInk('#555')]])));
   body.append(h('p', { class: 'rt-lsub' }, 'Each box ' + um(2 * ext) + ' across, about the centroid; ' + spots[0].rays + ' rays a wavelength across the pupil. RMS and largest radius about the centroid of all the wavelengths, weighted.'));
 }
 function fanView(body, A, F, opd) {
@@ -27143,7 +27180,7 @@ function fieldView(body, A, C) {
     csv: { name: 'field curvature', cols: ['field (' + FU_CSV + ')'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
   linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, ' + FU_WORD }, yr: [0, Math.max(...ys) || 1], symX: true,
     series: [{ label: 'Distortion %', colour: waveColour(c.primary), xs: C.dist, ys }], hoverY: true, yName: 'field', H: 260 });
-  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', greyInk('#555')], ['sagittal', greyInk('#555'), true]])));
   const k = ys.length - 1;
   body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + FU + ': tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
 }
@@ -27296,26 +27333,26 @@ function footView(body, A, P, F, st, redraw) {
   const cell = h('div', { class: 'rt-lspot rt-lfootcell' }), cv = h('canvas', { role: 'img', 'aria-label': 'The footprint on surface ' + name(st.surf) + ': beam radius ' + anFmt(u.beam, 4) + ' mm' + (fin(u.semi) ? ', clear radius ' + anFmt(u.semi, 4) + ' mm' : '') });
   cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, 'Surface ' + name(st.surf)), fin(u.semi) ? ', its clear radius dashed' : '', '; x across, y up, from its vertex'));
   body.append(h('div', { class: 'rt-lfootwrap' }, cell));
-  body.append(legend(u.fields.map((f, fi) => [anFmt(f.deg, 4) + FU, col(fi)]).concat(u.stopped ? [['stopped here', '#888']] : [])));
+  body.append(legend(u.fields.map((f, fi) => [anFmt(f.deg, 4) + FU, col(fi)]).concat(u.stopped ? [['stopped here', greyInk('#888')]] : [])));
   plotCsv(cv, 'footprint surface ' + name(st.surf), ['field (' + FU_CSV + ')', 'x (mm)', 'y (mm)', 'stopped'], () => u.fields.flatMap(f => f.pts.map(p => [f.deg, p[0], p[1], 0]).concat(f.cut.map(p => [f.deg, p[0], p[1], 1]))));
   cell.append(plotSaveRow(cv));
   requestAnimationFrame(() => {
     const dpr = window.devicePixelRatio || 1, S = Math.max(220, Math.min(380, cell.clientWidth || 340));
     cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    x.fillStyle = plotPaper(); x.fillRect(0, 0, S, S); x.strokeStyle = inkA(0.15); x.strokeRect(0.5, 0.5, S - 1, S - 1);
     let ext = Math.max(fin(u.semi) ? u.semi : 0, u.beam, 1e-6) * 1.08;
     const k = (S / 2 - 8) / ext, X = v => S / 2 + v * k, Y = v => S / 2 - v * k;
     // the axes through the vertex, recessive
-    x.strokeStyle = 'rgba(0,0,0,0.12)'; x.beginPath(); x.moveTo(S / 2 + 0.5, 4); x.lineTo(S / 2 + 0.5, S - 4); x.moveTo(4, S / 2 + 0.5); x.lineTo(S - 4, S / 2 + 0.5); x.stroke();
-    if (fin(u.semi)) { x.setLineDash([5, 4]); x.strokeStyle = '#555'; x.lineWidth = 1.5; x.beginPath(); x.arc(S / 2, S / 2, u.semi * k, 0, 2 * Math.PI); x.stroke(); x.setLineDash([]); }
+    x.strokeStyle = inkA(0.12); x.beginPath(); x.moveTo(S / 2 + 0.5, 4); x.lineTo(S / 2 + 0.5, S - 4); x.moveTo(4, S / 2 + 0.5); x.lineTo(S - 4, S / 2 + 0.5); x.stroke();
+    if (fin(u.semi)) { x.setLineDash([5, 4]); x.strokeStyle = greyInk('#555'); x.lineWidth = 1.5; x.beginPath(); x.arc(S / 2, S / 2, u.semi * k, 0, 2 * Math.PI); x.stroke(); x.setLineDash([]); }
     u.fields.forEach((f, fi) => {
       x.fillStyle = col(fi);
       for (const p of f.pts) { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 1.6, 0, 2 * Math.PI); x.fill(); }
-      x.strokeStyle = '#888'; x.lineWidth = 1;
+      x.strokeStyle = greyInk('#888'); x.lineWidth = 1;
       for (const p of f.cut) { const a = X(p[0]), b = Y(p[1]); x.beginPath(); x.moveTo(a - 2.5, b - 2.5); x.lineTo(a + 2.5, b + 2.5); x.moveTo(a + 2.5, b - 2.5); x.lineTo(a - 2.5, b + 2.5); x.stroke(); }
     });
-    x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
+    x.fillStyle = greyInk('#555'); x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
   });
 }
 /* ---------- Through-focus MTF ---------- */
@@ -27333,7 +27370,7 @@ function tfmView(body, A, asm, P, key, st, redraw) {
   T.fields.forEach((f, i) => { series.push({ label: anFmt(f.deg, 4) + FU + ' T', colour: waveColour(i), xs, ys: f.tan }); series.push({ label: anFmt(f.deg, 4) + FU + ' S', colour: waveColour(i), dash: true, xs, ys: f.sag }); });
   linePlot(body, { label: 'Through-focus MTF', x: { kind: 'len', title: 'Image plane moved from where the design has it' }, y: { kind: 'plain', title: 'Modulation at ' + anFmt(T.nu, 4) + ' cycles/mm' }, xr: [-T.span, T.span], yr: [0, 1.02],
     series, xName: 'focus', H: 280, csv: { name: 'through-focus MTF', cols: ['focus shift (mm)'].concat(T.fields.flatMap(f => [f.deg + ' ' + FU_CSV + ' T', f.deg + ' ' + FU_CSV + ' S'])), rows: () => xs.map((d, i) => [d, ...T.fields.flatMap(f => [f.tan[i], f.sag[i]])]) } });
-  body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
+  body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', greyInk('#555')], ['sagittal', greyInk('#555'), true]])));
   const fb = T.fields.map(f => anFmt(f.deg, 4) + FU + ' ' + ghLen(f.best.at)).join(', ');
   body.append(helpLine('Best focus ' + ghLen(T.best.at) + ' from the design’s image plane.', ['The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
     'Best focus, the mean over the fields of tangential and sagittal at its peak (' + anFmt(T.best.v, 3) + '): ' + ghLen(T.best.at) + ' from the design’s image plane' +
@@ -27427,8 +27464,8 @@ function polView(body, A, P, st, R, redraw) {
     requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1, S = size;
       cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
-      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
-      g.strokeStyle = 'rgba(0,0,0,0.15)'; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, 2 * Math.PI); g.stroke();
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = plotPaper(); g.fillRect(0, 0, S, S);
+      g.strokeStyle = inkA(0.15); g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, 2 * Math.PI); g.stroke();
       g.strokeStyle = WAVE_COLOURS[0]; g.lineWidth = 1.2;
       const step = 2, cellPx = (S - 4) / n;
       R.grid.forEach((q, k) => {
@@ -27645,13 +27682,13 @@ function ghostView(body, A, P, G, st, redraw) {
     const dpr = window.devicePixelRatio || 1, S = Math.max(160, Math.min(280, cell.clientWidth || 220));
     cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    x.fillStyle = plotPaper(); x.fillRect(0, 0, S, S); x.strokeStyle = inkA(0.15); x.strokeRect(0.5, 0.5, S - 1, S - 1);
     const c0 = G.main.c[0] || 0, c1 = G.main.c[1] || 0;
     let ext = Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * 1.2;
     for (const [px, py] of g.pts) ext = Math.max(ext, Math.abs(px - c0), Math.abs(py - c1));
     ext *= 1.1;
     const k = (S / 2 - 6) / ext, X = v => S / 2 + (v - c0) * k, Y = v => S / 2 - (v - c1) * k;
-    x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(S / 2, S / 2, Math.max(1.5, Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * k), 0, 2 * Math.PI); x.fill();
+    x.fillStyle = inkA(0.25); x.beginPath(); x.arc(S / 2, S / 2, Math.max(1.5, Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * k), 0, 2 * Math.PI); x.fill();
     x.fillStyle = WAVE_COLOURS[6];
     for (const [px, py] of g.pts) { x.beginPath(); x.arc(X(px), Y(py), 1.6, 0, 2 * Math.PI); x.fill(); }
   });
@@ -28158,14 +28195,14 @@ function histogram(parent, vals, k, u, nominal, p90) {
     const top = Math.max(...bins), l = 8, r = W - 8, t = 10, b = H - 34, bw = (r - l) / nb;
     g.fillStyle = '#2a78d6';
     bins.forEach((n, i) => { const hgt = (b - t) * n / top; if (n) { g.beginPath(); g.roundRect ? g.roundRect(l + i * bw + 1, b - hgt, bw - 2, hgt, [3, 3, 0, 0]) : g.rect(l + i * bw + 1, b - hgt, bw - 2, hgt); g.fill(); } });
-    g.strokeStyle = 'rgba(0,0,0,0.4)'; g.beginPath(); g.moveTo(l, b + 0.5); g.lineTo(r, b + 0.5); g.stroke();
+    g.strokeStyle = inkA(0.4); g.beginPath(); g.moveTo(l, b + 0.5); g.lineTo(r, b + 0.5); g.stroke();
     const X = v => l + (v - lo) / span * (r - l);
-    g.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--jek-mono') || 'monospace'); g.fillStyle = '#555'; g.textAlign = 'left';
+    g.font = '10px ' + (getComputedStyle(document.body).getPropertyValue('--jek-mono') || 'monospace'); g.fillStyle = greyInk('#555'); g.textAlign = 'left';
     g.fillText(tolFmt(k * lo, 4) + ' ' + u, l, b + 14); g.textAlign = 'right'; g.fillText(tolFmt(k * hi, 4) + ' ' + u, r, b + 14);
-    const mark = (v, label, dash) => { const x = X(v); g.strokeStyle = '#222'; g.setLineDash(dash ? [4, 3] : []); g.beginPath(); g.moveTo(x + 0.5, t); g.lineTo(x + 0.5, b); g.stroke(); g.setLineDash([]); g.textAlign = x > W / 2 ? 'right' : 'left'; g.fillStyle = '#222'; g.fillText(label, x + (x > W / 2 ? -4 : 4), t + 10); };
+    const mark = (v, label, dash) => { const x = X(v); g.strokeStyle = greyInk('#222'); g.setLineDash(dash ? [4, 3] : []); g.beginPath(); g.moveTo(x + 0.5, t); g.lineTo(x + 0.5, b); g.stroke(); g.setLineDash([]); g.textAlign = x > W / 2 ? 'right' : 'left'; g.fillStyle = '#222'; g.fillText(label, x + (x > W / 2 ? -4 : 4), t + 10); };
     if (nominal !== null) mark(nominal, 'nominal', false);
     mark(p90, '90%', true);
-    g.fillStyle = '#555'; g.textAlign = 'center'; g.fillText('Criterion over the builds (count of builds in each bin, most ' + top + ')', W / 2, H - 6);
+    g.fillStyle = greyInk('#555'); g.textAlign = 'center'; g.fillText('Criterion over the builds (count of builds in each bin, most ' + top + ')', W / 2, H - 6);
   });
   return cv;
 }
@@ -30143,8 +30180,8 @@ function rwHist(parent, xs, spec, unit) {
     const nb = 24, bins = new Array(nb).fill(0); for (const x of xs) bins[Math.min(nb - 1, Math.floor((x - lo) / (hi - lo) * nb))]++;
     const top = Math.max(...bins), L = 36, B = 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 8), bw = (W - L - 8) / nb;
     g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 26); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
-    g.strokeStyle = '#888'; g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
-    g.fillStyle = '#555'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
+    g.strokeStyle = greyInk('#888'); g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
+    g.fillStyle = greyInk('#555'); g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
     for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g.textAlign = k === 0 ? 'left' : k === 4 ? 'right' : 'center'; g.fillText(v.toFixed(2), X(v), H - 6); }
     g.textAlign = 'right'; g.fillText('builds by their worst ' + unit + ' over the band', W - 8, 12);
     if (spec !== null) { g.strokeStyle = '#b42318'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(spec) + 0.5, 18); g.lineTo(X(spec) + 0.5, H - B); g.stroke(); g.setLineDash([]); g.fillStyle = '#b42318'; g.textAlign = 'left'; g.fillText('specification', X(spec) + 4, 30); }
@@ -31625,13 +31662,13 @@ function drawAxes(c, A, xr, yr, sx, sy, opt = {}) {
   const ty = axisTicks(yr[0], yr[1], sy, Math.max(4, Math.floor(A.h / 20)));
   // faint grid at the ticks, then the axis lines and the ticks themselves
   if (!opt.noGrid) {
-    c.strokeStyle = 'rgba(0,0,0,0.06)'; c.beginPath();
+    c.strokeStyle = inkA(0.06); c.beginPath();
     for (const t of tx.ticks) { const p = Math.round(X(t.at)) + 0.5; if (p > A.l + 1 && p < right - 1) { c.moveTo(p, A.t); c.lineTo(p, bottom); } }
     for (const t of ty.ticks) { const p = Math.round(Y(t.at)) + 0.5; if (p > A.t + 1 && p < bottom - 1) { c.moveTo(A.l, p); c.lineTo(right, p); } }
     c.stroke();
   }
   const x0 = Math.round(A.l) - 0.5, yB = Math.round(bottom) + 0.5;
-  c.strokeStyle = 'rgba(0,0,0,0.4)'; c.beginPath();
+  c.strokeStyle = inkA(0.4); c.beginPath();
   c.moveTo(x0, A.t); c.lineTo(x0, yB); c.lineTo(right, yB);
   for (const t of tx.ticks) { const p = Math.round(X(t.at)) + 0.5; if (p >= A.l - 1 && p <= right + 1) { c.moveTo(p, yB); c.lineTo(p, yB + 4); } }
   for (const t of ty.ticks) { const p = Math.round(Y(t.at)) + 0.5; if (p >= A.t - 1 && p <= bottom + 1) { c.moveTo(x0, p); c.lineTo(x0 - 4, p); } }
@@ -32100,7 +32137,7 @@ function drawDiff(cv, D, el) {
   c.save();
   c.beginPath(); c.rect(A.l, A.t - 2, A.w + 2, A.h + 4); c.clip();
   if (marker) {
-    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.setLineDash([3, 3]); c.beginPath();
+    c.strokeStyle = inkA(0.18); c.setLineDash([3, 3]); c.beginPath();
     c.moveTo(X(marker), A.t); c.lineTo(X(marker), A.t + A.h); c.stroke(); c.setLineDash([]);
   }
   for (const S of series) {
@@ -32454,7 +32491,7 @@ function drawCavityScan(cv, c, pseudo) {
     curve(d => all.reduce((a, r, k) => a + (lines[k] ? lines[k].avg(d) : r.res.at(d).P), 0), getCss('--jek-cyan'), 1.6);
   } else curve(centre, getCss('--jek-cyan'), 1.3);
   // where the laser is as built (0) and where the lock puts it
-  const mark = (f, dash) => { const X = A.l + (f - xa) / (xb - xa) * A.w; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.setLineDash(dash); g.beginPath(); g.moveTo(X, A.t); g.lineTo(X, A.t + A.h); g.stroke(); g.setLineDash([]); };
+  const mark = (f, dash) => { const X = A.l + (f - xa) / (xb - xa) * A.w; g.strokeStyle = inkA(0.35); g.setLineDash(dash); g.beginPath(); g.moveTo(X, A.t); g.lineTo(X, A.t + A.h); g.stroke(); g.setLineDash([]); };
   mark(0, [3, 3]);
   let fl = -P.dLock / (2 * Math.PI); fl -= Math.round(fl); mark(fl, []);
   g.restore();
@@ -50691,6 +50728,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light laid on as ink, deeper where there is more of it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
+    '<b>A full dark mode</b>: in the <b>Dark</b> theme the whole page is dark, not just the bench: the bar and its menus, the panels, the plots, the dialogs, and the Optical, RF and coating designers, with the browser\u2019s own fields and scrollbars to match.',
     '<b>A tidier bar</b>: a menu bar, <b>File, Edit, View, Tools, Sweeps and Help</b>, as a desktop program has, with icons for undo, redo, fit, measure and search beside it, and the bench\u2019s name in the middle. <b>Edit</b> holds cut, copy, paste, duplicate, delete, select all, rotate and grouping; <b>Tools</b> the Optical, RF and coating designers, Scripts and the bench\u2019s settings. <b>Ctrl+K</b> (or the magnifier) searches every command in the menus by its words: type \u201cexport\u201d or \u201c3D\u201d and press Enter.',
     '<b>Export data</b>: <b>File \u203a Export data\u2026</b> writes the numbers behind the bench as files for a spreadsheet, Python or MATLAB: its <b>readouts</b> (every screen, detector, spectrometer and antenna, one table), its <b>plots</b>\u2019 curves, each screen\u2019s <b>ray hits</b> and <b>field map</b>, its <b>Gaussian beams</b> (q, size, waist and divergence along the way), its <b>sweeps</b> and studies, and <b>the bench</b> itself, every part with its settings. Each file says what it holds: the bench, the version, the date, every column\u2019s unit and the settings of the parts the numbers come from. CSV (a zip, with a README) and JSON need a free account, one kind at a time; <b>Excel, NumPy and MATLAB</b> files, several kinds at once and <b>Export everything</b> are JEKrayPro\u2019s. In Scripts, <code>save(name, data, format)</code> keeps what a script makes as a file in any of the five formats, downloaded when the run ends (nothing when it is stopped), and a result\u2019s <b>Save as</b> offers them all.',
     '<b>Scripts run in the background, with Stop</b> (JEKrayPro): Tools \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',

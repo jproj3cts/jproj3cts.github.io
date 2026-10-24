@@ -3,7 +3,7 @@ import { fmtFs, fmtFs2, fmtLen } from '../core/format.js';
 import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { paraxial, traceScene, traceStoreOn } from '../engines/trace.js';
-import { getCss, requestRender } from './render.js';
+import { getCss, inkA, requestRender } from './render.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
@@ -341,7 +341,7 @@ export function drawScan(cv, scan, key, best) {
   c.beginPath();
   pts.forEach((q, i) => i ? c.lineTo(X(q.v), Y(q.raw)) : c.moveTo(X(q.v), Y(q.raw)));
   c.stroke();
-  c.strokeStyle = 'rgba(0,0,0,0.4)';
+  c.strokeStyle = inkA(0.4);
   c.setLineDash([3, 3]);
   c.beginPath(); c.moveTo(X(best), A.t); c.lineTo(X(best), A.t + A.h); c.stroke();
   c.setLineDash([]);

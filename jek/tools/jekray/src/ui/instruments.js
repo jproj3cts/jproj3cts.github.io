@@ -1,4 +1,5 @@
 import { fmtHz, fmtMw, fmtTime } from '../core/format.js';
+import { inkA } from './render.js';
 import { deg } from '../state/project.js';
 import { loadGen } from '../engines/trace.js';
 import { spectrum } from '../engines/pic.js';
@@ -144,7 +145,7 @@ export const INST = (() => {
     const A = plotArea(c, w, hgt, [lo, hi], sy);
     const X = t => A.l + t / span * A.w;
     // the graticule: ten divisions across, eight up
-    c.strokeStyle = 'rgba(0,0,0,0.07)'; c.lineWidth = 1; c.beginPath();
+    c.strokeStyle = inkA(0.07); c.lineWidth = 1; c.beginPath();
     for (let i = 1; i < DIV_X; i++) { const x = Math.round(A.l + A.w * i / DIV_X) + 0.5; c.moveTo(x, A.t); c.lineTo(x, A.t + A.h); }
     for (let i = 1; i < DIV_Y; i++) { const y = Math.round(A.t + A.h * i / DIV_Y) + 0.5; c.moveTo(A.l, y); c.lineTo(A.l + A.w, y); }
     c.stroke();

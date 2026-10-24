@@ -5,7 +5,7 @@ import { deg, project, selectOne, typeLabel } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { curBench } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
-import { getCss, requestRender } from './render.js';
+import { getCss, inkA, requestRender } from './render.js';
 import { V3D } from './view3d.js';
 import { updateReadouts } from './readouts.js';
 import { BENCH_PIN, bindSync, fid, h, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
@@ -217,7 +217,7 @@ function drawCavityScan(cv, c, pseudo) {
     curve(d => all.reduce((a, r, k) => a + (lines[k] ? lines[k].avg(d) : r.res.at(d).P), 0), getCss('--jek-cyan'), 1.6);
   } else curve(centre, getCss('--jek-cyan'), 1.3);
   // where the laser is as built (0) and where the lock puts it
-  const mark = (f, dash) => { const X = A.l + (f - xa) / (xb - xa) * A.w; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.setLineDash(dash); g.beginPath(); g.moveTo(X, A.t); g.lineTo(X, A.t + A.h); g.stroke(); g.setLineDash([]); };
+  const mark = (f, dash) => { const X = A.l + (f - xa) / (xb - xa) * A.w; g.strokeStyle = inkA(0.35); g.setLineDash(dash); g.beginPath(); g.moveTo(X, A.t); g.lineTo(X, A.t + A.h); g.stroke(); g.setLineDash([]); };
   mark(0, [3, 3]);
   let fl = -P.dLock / (2 * Math.PI); fl -= Math.round(fl); mark(fl, []);
   g.restore();

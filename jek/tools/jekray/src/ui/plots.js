@@ -5,7 +5,7 @@ import { RF_MAT } from '../core/rf.js';
 import { normMat, project } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { benchNms, getEl } from '../state/elements.js';
-import { getCss, niceStep } from './render.js';
+import { getCss, inkA, niceStep } from './render.js';
 import { playing } from './sweeps.js';
 import { pctTxt, stopSweepsFor } from './optimise.js';
 import { bindSync, h, panel, selectField, vs } from './panel.js';
@@ -67,13 +67,13 @@ export function drawAxes(c, A, xr, yr, sx, sy, opt = {}) {
   const ty = axisTicks(yr[0], yr[1], sy, Math.max(4, Math.floor(A.h / 20)));
   // faint grid at the ticks, then the axis lines and the ticks themselves
   if (!opt.noGrid) {
-    c.strokeStyle = 'rgba(0,0,0,0.06)'; c.beginPath();
+    c.strokeStyle = inkA(0.06); c.beginPath();
     for (const t of tx.ticks) { const p = Math.round(X(t.at)) + 0.5; if (p > A.l + 1 && p < right - 1) { c.moveTo(p, A.t); c.lineTo(p, bottom); } }
     for (const t of ty.ticks) { const p = Math.round(Y(t.at)) + 0.5; if (p > A.t + 1 && p < bottom - 1) { c.moveTo(A.l, p); c.lineTo(right, p); } }
     c.stroke();
   }
   const x0 = Math.round(A.l) - 0.5, yB = Math.round(bottom) + 0.5;
-  c.strokeStyle = 'rgba(0,0,0,0.4)'; c.beginPath();
+  c.strokeStyle = inkA(0.4); c.beginPath();
   c.moveTo(x0, A.t); c.lineTo(x0, yB); c.lineTo(right, yB);
   for (const t of tx.ticks) { const p = Math.round(X(t.at)) + 0.5; if (p >= A.l - 1 && p <= right + 1) { c.moveTo(p, yB); c.lineTo(p, yB + 4); } }
   for (const t of ty.ticks) { const p = Math.round(Y(t.at)) + 0.5; if (p >= A.t - 1 && p <= bottom + 1) { c.moveTo(x0, p); c.lineTo(x0 - 4, p); } }
@@ -542,7 +542,7 @@ function drawDiff(cv, D, el) {
   c.save();
   c.beginPath(); c.rect(A.l, A.t - 2, A.w + 2, A.h + 4); c.clip();
   if (marker) {
-    c.strokeStyle = 'rgba(0,0,0,0.18)'; c.setLineDash([3, 3]); c.beginPath();
+    c.strokeStyle = inkA(0.18); c.setLineDash([3, 3]); c.beginPath();
     c.moveTo(X(marker), A.t); c.lineTo(X(marker), A.t + A.h); c.stroke(); c.setLineDash([]);
   }
   for (const S of series) {

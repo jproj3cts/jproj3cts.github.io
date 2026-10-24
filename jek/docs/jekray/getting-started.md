@@ -21,7 +21,7 @@ Every bench in the **Examples** gallery works. Open one, change it, and press **
 
 ## The window
 
-**The bench** is the large area under the bar: warm paper in the Light theme, the dark anodised breadboard in Dark (**View › Theme**, which also has *As the computer is set*; it is yours, kept in this browser, so a bench opens in your theme whoever made it). Drag a part to move it, drag its round handle to turn it, and scroll to zoom. Drag on empty bench to select several parts with a box. Right-click for a menu of what you can do with what is under the pointer.
+**The bench** is the large area under the bar: warm paper in the Light theme, the dark anodised breadboard in Dark, where the whole page, its menus, panels, plots and designers, goes dark too (**View › Theme**, which also has *As the computer is set*; it is yours, kept in this browser, so a bench opens in your theme whoever made it). Drag a part to move it, drag its round handle to turn it, and scroll to zoom. Drag on empty bench to select several parts with a box. Right-click for a menu of what you can do with what is under the pointer.
 
 **The parts rail** runs down the left edge. Its coloured buttons choose a palette: **Free space** (orange), **Fibre** (red), **Electronics** (amber), **RF** (yellow, millimetre-wave horns, lenses and mesh filters) and **Draw** (purple, drawing tools for figures). The buttons below open the palette's groups of parts.
 

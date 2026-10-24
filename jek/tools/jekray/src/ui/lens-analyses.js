@@ -1,4 +1,5 @@
 import { primaryNm, surfaceParts } from '../engines/lens-design.js';
+import { greyInk, inkA, plotPaper } from './render.js';
 import { ZERNIKE_NAMES, anaSystems, fieldCurves, paraxHeight, footprints, huygensFinish, huygensPlan, huygensRows, longitudinal, throughFocusPlan, mtfAnalysis, opdFans, psfAnalysis, rayFans, relIllum, spotDiagram, wavefrontMap } from '../engines/lens-analysis.js';
 import { ghostAnalysis, ghostsTraceable } from '../engines/lens-ghost.js';
 import { imsimPlan, imsimTraceable } from '../engines/lens-imsim.js';
@@ -120,7 +121,7 @@ export function linePlot(parent, o) {
     const X = v => Ar.l + (v - xr[0]) / (xr[1] - xr[0]) * Ar.w, Y = v => Ar.t + Ar.h - (v - yr[0]) / (yr[1] - yr[0]) * Ar.h;
     g.save(); g.beginPath(); g.rect(Ar.l, Ar.t, Ar.w, Ar.h); g.clip();
     // the zero lines, recessive
-    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1;
+    g.strokeStyle = inkA(0.25); g.lineWidth = 1;
     if (xr[0] < 0 && xr[1] > 0) { g.beginPath(); g.moveTo(Math.round(X(0)) + 0.5, Ar.t); g.lineTo(Math.round(X(0)) + 0.5, Ar.t + Ar.h); g.stroke(); }
     if (yr[0] < 0 && yr[1] > 0) { g.beginPath(); g.moveTo(Ar.l, Math.round(Y(0)) + 0.5); g.lineTo(Ar.l + Ar.w, Math.round(Y(0)) + 0.5); g.stroke(); }
     for (const s of o.series) {
@@ -130,7 +131,7 @@ export function linePlot(parent, o) {
       g.stroke();
     }
     g.setLineDash([]);
-    if (hover) { g.strokeStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); if (o.hoverY) { g.moveTo(Ar.l, Y(hover.v) + 0.5); g.lineTo(Ar.l + Ar.w, Y(hover.v) + 0.5); } else { g.moveTo(X(hover.v) + 0.5, Ar.t); g.lineTo(X(hover.v) + 0.5, Ar.t + Ar.h); } g.stroke(); }
+    if (hover) { g.strokeStyle = inkA(0.35); g.beginPath(); if (o.hoverY) { g.moveTo(Ar.l, Y(hover.v) + 0.5); g.lineTo(Ar.l + Ar.w, Y(hover.v) + 0.5); } else { g.moveTo(X(hover.v) + 0.5, Ar.t); g.lineTo(X(hover.v) + 0.5, Ar.t + Ar.h); } g.stroke(); }
     g.restore();
     cv._area = Ar; cv._X = X; cv._Y = Y;
   };
@@ -169,16 +170,16 @@ function spotView(body, A, spots) {
       const dpr = window.devicePixelRatio || 1, S = Math.max(140, Math.min(260, cell.clientWidth || 200));
       cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
       const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      g.fillStyle = '#fff'; g.fillRect(0, 0, S, S); g.strokeStyle = 'rgba(0,0,0,0.15)'; g.strokeRect(0.5, 0.5, S - 1, S - 1);
+      g.fillStyle = plotPaper(); g.fillRect(0, 0, S, S); g.strokeStyle = inkA(0.15); g.strokeRect(0.5, 0.5, S - 1, S - 1);
       const k = (S / 2 - 6) / ext, X = x => S / 2 + (x - s.centroid[0]) * k, Y = y => S / 2 - (y - s.centroid[1]) * k;
       // the Airy disc, about the centroid
-      g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
+      g.strokeStyle = inkA(0.55); g.lineWidth = 1; g.beginPath(); g.arc(S / 2, S / 2, s.airy * k, 0, 2 * Math.PI); g.stroke();
       s.waves.forEach((w, wi) => { g.fillStyle = waveColour(wi); for (const [x, y] of w.pts) { g.beginPath(); g.arc(X(x), Y(y), 1.6, 0, 2 * Math.PI); g.fill(); } });
     });
     if (!fi) plotCsv(cv, 'spot diagram', ['field (' + FU_CSV + ')', 'wavelength (nm)', 'x (mm)', 'y (mm)'], () => spots.flatMap(sp => sp.waves.flatMap(w => w.pts.map(([x, y]) => [sp.deg, w.nm, x, y]))));
     if (!fi) cell.append(plotSaveRow(cv));
   });
-  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', '#555']])));
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['Airy disc (' + um(spots[0].airy) + ' radius)', greyInk('#555')]])));
   body.append(h('p', { class: 'rt-lsub' }, 'Each box ' + um(2 * ext) + ' across, about the centroid; ' + spots[0].rays + ' rays a wavelength across the pupil. RMS and largest radius about the centroid of all the wavelengths, weighted.'));
 }
 function fanView(body, A, F, opd) {
@@ -204,7 +205,7 @@ function fieldView(body, A, C) {
     csv: { name: 'field curvature', cols: ['field (' + FU_CSV + ')'].concat(C.waves.flatMap(w => [w.nm + ' nm T (mm)', w.nm + ' nm S (mm)']), ['distortion (%)']), rows: () => ys.map((g, k) => [g, ...C.waves.flatMap(w => [w.tan[k], w.sag[k]]), C.dist[k]]) } });
   linePlot(b, { label: 'Distortion', x: { kind: 'plain', title: 'Distortion, %' }, y: { kind: 'plain', title: 'Field, ' + FU_WORD }, yr: [0, Math.max(...ys) || 1], symX: true,
     series: [{ label: 'Distortion %', colour: waveColour(c.primary), xs: C.dist, ys }], hoverY: true, yName: 'field', H: 260 });
-  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
+  body.append(legend(c.waves.map((w, i) => [anFmt(w.nm, 5) + ' nm', waveColour(i)]).concat([['tangential', greyInk('#555')], ['sagittal', greyInk('#555'), true]])));
   const k = ys.length - 1;
   body.append(h('p', { class: 'rt-lsub' }, 'At ' + anFmt(ys[k], 4) + FU + ': tangential focus ' + um(C.waves[c.primary].tan[k]) + ', sagittal ' + um(C.waves[c.primary].sag[k]) + ' from the image plane (astigmatism ' + um(C.waves[c.primary].tan[k] - C.waves[c.primary].sag[k]) + '); distortion ' + anFmt(C.dist[k], 4) + '%, the real chief ray against the paraxial.'));
 }
@@ -357,26 +358,26 @@ function footView(body, A, P, F, st, redraw) {
   const cell = h('div', { class: 'rt-lspot rt-lfootcell' }), cv = h('canvas', { role: 'img', 'aria-label': 'The footprint on surface ' + name(st.surf) + ': beam radius ' + anFmt(u.beam, 4) + ' mm' + (fin(u.semi) ? ', clear radius ' + anFmt(u.semi, 4) + ' mm' : '') });
   cell.append(cv, h('div', { class: 'rt-lsub' }, h('b', null, 'Surface ' + name(st.surf)), fin(u.semi) ? ', its clear radius dashed' : '', '; x across, y up, from its vertex'));
   body.append(h('div', { class: 'rt-lfootwrap' }, cell));
-  body.append(legend(u.fields.map((f, fi) => [anFmt(f.deg, 4) + FU, col(fi)]).concat(u.stopped ? [['stopped here', '#888']] : [])));
+  body.append(legend(u.fields.map((f, fi) => [anFmt(f.deg, 4) + FU, col(fi)]).concat(u.stopped ? [['stopped here', greyInk('#888')]] : [])));
   plotCsv(cv, 'footprint surface ' + name(st.surf), ['field (' + FU_CSV + ')', 'x (mm)', 'y (mm)', 'stopped'], () => u.fields.flatMap(f => f.pts.map(p => [f.deg, p[0], p[1], 0]).concat(f.cut.map(p => [f.deg, p[0], p[1], 1]))));
   cell.append(plotSaveRow(cv));
   requestAnimationFrame(() => {
     const dpr = window.devicePixelRatio || 1, S = Math.max(220, Math.min(380, cell.clientWidth || 340));
     cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    x.fillStyle = plotPaper(); x.fillRect(0, 0, S, S); x.strokeStyle = inkA(0.15); x.strokeRect(0.5, 0.5, S - 1, S - 1);
     let ext = Math.max(fin(u.semi) ? u.semi : 0, u.beam, 1e-6) * 1.08;
     const k = (S / 2 - 8) / ext, X = v => S / 2 + v * k, Y = v => S / 2 - v * k;
     // the axes through the vertex, recessive
-    x.strokeStyle = 'rgba(0,0,0,0.12)'; x.beginPath(); x.moveTo(S / 2 + 0.5, 4); x.lineTo(S / 2 + 0.5, S - 4); x.moveTo(4, S / 2 + 0.5); x.lineTo(S - 4, S / 2 + 0.5); x.stroke();
-    if (fin(u.semi)) { x.setLineDash([5, 4]); x.strokeStyle = '#555'; x.lineWidth = 1.5; x.beginPath(); x.arc(S / 2, S / 2, u.semi * k, 0, 2 * Math.PI); x.stroke(); x.setLineDash([]); }
+    x.strokeStyle = inkA(0.12); x.beginPath(); x.moveTo(S / 2 + 0.5, 4); x.lineTo(S / 2 + 0.5, S - 4); x.moveTo(4, S / 2 + 0.5); x.lineTo(S - 4, S / 2 + 0.5); x.stroke();
+    if (fin(u.semi)) { x.setLineDash([5, 4]); x.strokeStyle = greyInk('#555'); x.lineWidth = 1.5; x.beginPath(); x.arc(S / 2, S / 2, u.semi * k, 0, 2 * Math.PI); x.stroke(); x.setLineDash([]); }
     u.fields.forEach((f, fi) => {
       x.fillStyle = col(fi);
       for (const p of f.pts) { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 1.6, 0, 2 * Math.PI); x.fill(); }
-      x.strokeStyle = '#888'; x.lineWidth = 1;
+      x.strokeStyle = greyInk('#888'); x.lineWidth = 1;
       for (const p of f.cut) { const a = X(p[0]), b = Y(p[1]); x.beginPath(); x.moveTo(a - 2.5, b - 2.5); x.lineTo(a + 2.5, b + 2.5); x.moveTo(a + 2.5, b - 2.5); x.lineTo(a - 2.5, b + 2.5); x.stroke(); }
     });
-    x.fillStyle = '#555'; x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
+    x.fillStyle = greyInk('#555'); x.font = '11px ui-monospace, monospace'; x.fillText('±' + anFmt(ext, 3) + ' mm', 8, S - 8);
   });
 }
 /* ---------- Through-focus MTF ---------- */
@@ -394,7 +395,7 @@ function tfmView(body, A, asm, P, key, st, redraw) {
   T.fields.forEach((f, i) => { series.push({ label: anFmt(f.deg, 4) + FU + ' T', colour: waveColour(i), xs, ys: f.tan }); series.push({ label: anFmt(f.deg, 4) + FU + ' S', colour: waveColour(i), dash: true, xs, ys: f.sag }); });
   linePlot(body, { label: 'Through-focus MTF', x: { kind: 'len', title: 'Image plane moved from where the design has it' }, y: { kind: 'plain', title: 'Modulation at ' + anFmt(T.nu, 4) + ' cycles/mm' }, xr: [-T.span, T.span], yr: [0, 1.02],
     series, xName: 'focus', H: 280, csv: { name: 'through-focus MTF', cols: ['focus shift (mm)'].concat(T.fields.flatMap(f => [f.deg + ' ' + FU_CSV + ' T', f.deg + ' ' + FU_CSV + ' S'])), rows: () => xs.map((d, i) => [d, ...T.fields.flatMap(f => [f.tan[i], f.sag[i]])]) } });
-  body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', '#555'], ['sagittal', '#555', true]])));
+  body.append(legend(T.fields.map((f, i) => [anFmt(f.deg, 4) + FU, waveColour(i)]).concat([['tangential', greyInk('#555')], ['sagittal', greyInk('#555'), true]])));
   const fb = T.fields.map(f => anFmt(f.deg, 4) + FU + ' ' + ghLen(f.best.at)).join(', ');
   body.append(helpLine('Best focus ' + ghLen(T.best.at) + ' from the design’s image plane.', ['The diffraction MTF at ' + anFmt(T.nu, 4) + ' cycles/mm (cutoff ' + anFmt(T.cutoff, 4) + '), over the wavelengths, weighted, as the image plane is moved along the axis. ' +
     'Best focus, the mean over the fields of tangential and sagittal at its peak (' + anFmt(T.best.v, 3) + '): ' + ghLen(T.best.at) + ' from the design’s image plane' +
@@ -488,8 +489,8 @@ function polView(body, A, P, st, R, redraw) {
     requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1, S = size;
       cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
-      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
-      g.strokeStyle = 'rgba(0,0,0,0.15)'; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, 2 * Math.PI); g.stroke();
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = plotPaper(); g.fillRect(0, 0, S, S);
+      g.strokeStyle = inkA(0.15); g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 2, 0, 2 * Math.PI); g.stroke();
       g.strokeStyle = WAVE_COLOURS[0]; g.lineWidth = 1.2;
       const step = 2, cellPx = (S - 4) / n;
       R.grid.forEach((q, k) => {
@@ -706,13 +707,13 @@ function ghostView(body, A, P, G, st, redraw) {
     const dpr = window.devicePixelRatio || 1, S = Math.max(160, Math.min(280, cell.clientWidth || 220));
     cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + 'px'; cv.style.height = S + 'px';
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    x.fillStyle = '#fff'; x.fillRect(0, 0, S, S); x.strokeStyle = 'rgba(0,0,0,0.15)'; x.strokeRect(0.5, 0.5, S - 1, S - 1);
+    x.fillStyle = plotPaper(); x.fillRect(0, 0, S, S); x.strokeStyle = inkA(0.15); x.strokeRect(0.5, 0.5, S - 1, S - 1);
     const c0 = G.main.c[0] || 0, c1 = G.main.c[1] || 0;
     let ext = Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * 1.2;
     for (const [px, py] of g.pts) ext = Math.max(ext, Math.abs(px - c0), Math.abs(py - c1));
     ext *= 1.1;
     const k = (S / 2 - 6) / ext, X = v => S / 2 + (v - c0) * k, Y = v => S / 2 - (v - c1) * k;
-    x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(S / 2, S / 2, Math.max(1.5, Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * k), 0, 2 * Math.PI); x.fill();
+    x.fillStyle = inkA(0.25); x.beginPath(); x.arc(S / 2, S / 2, Math.max(1.5, Math.max(G.main.airy, Math.SQRT2 * G.main.rms) * k), 0, 2 * Math.PI); x.fill();
     x.fillStyle = WAVE_COLOURS[6];
     for (const [px, py] of g.pts) { x.beginPath(); x.arc(X(px), Y(py), 1.6, 0, 2 * Math.PI); x.fill(); }
   });

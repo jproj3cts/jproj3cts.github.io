@@ -18,7 +18,7 @@ import { hooks } from '../core/hooks.js';
 import { benchNms, getEl, normElement } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
 import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
-import { getCss, removeFibre } from './render.js';
+import { getCss, inkA, removeFibre } from './render.js';
 import { groupEls, ungroupEls } from './drawings.js';
 import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
@@ -450,7 +450,7 @@ function drawAberPlot(cv, note, el) {
   cv._area = Ar; cv._full = { x: [x0, x1], y: [y0, y1] };
   const X = v => Ar.l + (v - xa) / (xb - xa) * Ar.w, Y = v => Ar.t + Ar.h - (v - ya) / (yb - ya) * Ar.h;
   c.save(); c.beginPath(); c.rect(Ar.l, Ar.t - 3, Ar.w + 3, Ar.h + 6); c.clip();
-  if (ya < 0 && yb > 0) { c.strokeStyle = 'rgba(0,0,0,0.15)'; c.beginPath(); c.moveTo(Ar.l, Y(0)); c.lineTo(Ar.l + Ar.w, Y(0)); c.stroke(); }
+  if (ya < 0 && yb > 0) { c.strokeStyle = inkA(0.15); c.beginPath(); c.moveTo(Ar.l, Y(0)); c.lineTo(Ar.l + Ar.w, Y(0)); c.stroke(); }
   for (const S of series) {
     const cS = series.length === 1 ? getCss('--jek-cyan') : col(S.H);
     c.strokeStyle = cS; c.fillStyle = cS; c.lineWidth = 1.4;
@@ -517,7 +517,7 @@ function drawRayPlot(cv, note, el) {
   const Y = v => A.t + A.h - (v - ya) / (yb - ya) * A.h;
   c.save(); c.beginPath(); c.rect(A.l, A.t - 3, A.w + 3, A.h + 6); c.clip();
   if (ya < 0 && yb > 0) {
-    c.strokeStyle = 'rgba(0,0,0,0.15)';
+    c.strokeStyle = inkA(0.15);
     c.beginPath(); c.moveTo(A.l, Y(0)); c.lineTo(A.l + A.w, Y(0)); c.stroke();
   }
   c.fillStyle = getCss('--jek-cyan');

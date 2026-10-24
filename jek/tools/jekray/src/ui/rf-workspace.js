@@ -17,7 +17,7 @@ import { HOUSINGS } from '../engines/lens-thermal.js';
 import { magma } from './plots.js';
 import { helpLine, h, justStopped, stopButton, throttle } from './panel.js';
 import { matchLayer } from './panels.js';
-import { setSelection } from './render.js';
+import { greyInk, setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
 import { openLensDesign } from './lens-workspace.js';
@@ -1268,8 +1268,8 @@ function rwHist(parent, xs, spec, unit) {
     const nb = 24, bins = new Array(nb).fill(0); for (const x of xs) bins[Math.min(nb - 1, Math.floor((x - lo) / (hi - lo) * nb))]++;
     const top = Math.max(...bins), L = 36, B = 22, X = v => L + (v - lo) / (hi - lo) * (W - L - 8), bw = (W - L - 8) / nb;
     g.fillStyle = '#e0a030'; bins.forEach((c, i) => { const hh = c / top * (H - B - 26); g.fillRect(L + i * bw + 1, H - B - hh, bw - 2, hh); });
-    g.strokeStyle = '#888'; g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
-    g.fillStyle = '#555'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
+    g.strokeStyle = greyInk('#888'); g.beginPath(); g.moveTo(L, H - B + 0.5); g.lineTo(W - 8, H - B + 0.5); g.stroke();
+    g.fillStyle = greyInk('#555'); g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
     for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g.textAlign = k === 0 ? 'left' : k === 4 ? 'right' : 'center'; g.fillText(v.toFixed(2), X(v), H - 6); }
     g.textAlign = 'right'; g.fillText('builds by their worst ' + unit + ' over the band', W - 8, 12);
     if (spec !== null) { g.strokeStyle = '#b42318'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(spec) + 0.5, 18); g.lineTo(X(spec) + 0.5, H - B); g.stroke(); g.setLineDash([]); g.fillStyle = '#b42318'; g.textAlign = 'left'; g.fillText('specification', X(spec) + 4, 30); }

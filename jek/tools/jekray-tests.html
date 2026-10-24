@@ -7416,6 +7416,26 @@ const TESTS = [
       if (!(light0 && dark && wins && ticked && back)) console.log('theme', { light0, dark, wins, ticked, back, bg: stageBg() });
       return light0 && dark && wins && ticked && back ? 1 : 0;
     },
+  },
+  {
+    name: 'On the paper bench, white light is drawn grey where its colours run together, and one colour in its own colour',
+    why: 'a source of three wavelengths sends them along one line: on the Light bench that line is a neutral mid grey (not black, as colours multiplied together would be, nor the colour drawn last); a source of one yellow wavelength is drawn yellow (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), frames = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      const src = lines => ({ type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 587.6, colourAuto: true, colour: '#ffe700', width: 0, rays: 1, gauss: false, lines });
+      // the darkest pixel across the line where it crosses the middle of the bench
+      const across = () => { const cv = D.getElementById('bench'), g = cv.getContext('2d'), x = Math.round(cv.width / 2), y0 = Math.round(cv.height / 2) - 4;
+        const d = g.getImageData(x, y0, 1, 9).data; let best = null; for (let i = 0; i < 9; i++) { const c = [d[4 * i], d[4 * i + 1], d[4 * i + 2]]; if (!best || c[0] + c[1] + c[2] < best[0] + best[1] + best[2]) best = c; } return best; };
+      J.load({ format: 'jekray', version: 1, view: { cx: 0, cy: 0, scale: 6 }, elements: [src([486.1, 656.3])] }); J.select(null);
+      await frames(); await frames();
+      const w = across(), grey = Math.max(...w) - Math.min(...w) < 30 && Math.min(...w) > 70 && Math.max(...w) < 215;
+      J.load({ format: 'jekray', version: 1, view: { cx: 0, cy: 0, scale: 6 }, elements: [src([])] }); J.select(null);
+      await frames(); await frames();
+      const y = across(), yellow = y[0] - y[2] > 60 && y[1] - y[2] > 40;
+      if (!(grey && yellow)) console.log('white light', { w, y });
+      return grey && yellow ? 1 : 0;
+    },
   },  { group: 'Scripts' },
   {
     name: 'A script runs against the bench with the documented calls: a sweep to rows, a read, and an error reported rather than thrown',

@@ -29,7 +29,7 @@ Every bench in the **Examples** gallery works. Open one, change it, and press **
 
 **The bar** along the top holds the menus, **File**, **Edit**, **View**, **Tools** (the Optical, RF and coating designers, Scripts and the bench's settings), **Sweeps** and **Help**, then icons for Undo, Redo, Fit view, Measure and Search, the bench's name in the middle, and **+ Add part**, **Share**, **Save**, Examples, the quote cart and your account at the right. **Save** shows a dot when the bench has changed since it was opened or saved. **Ctrl+K** (or the magnifier) searches every command in the menus by its words: type *export* or *3D* and press Enter. On a phone the bar is one row: the name, **+**, **Save** and **⋯**, a menu holding the rest.
 
-**How the light is drawn** is set for the whole bench under **Light** in the Bench panel (the gear at the bench's bottom right): ticks for the rays, the Gaussian beams' envelope and their diffracted field. The field's intensity scale is linear, or logarithmic over 30 or 60 dB. With both on, the envelope marks the field's 1/e² edge. Rays and envelopes are drawn as bright as the power they carry.
+**How the light is drawn** is set for the whole bench under **Light** in the Bench panel (the tab half way up the bench's right edge, or **Tools › Bench settings**): ticks for the rays, the Gaussian beams' envelope and their diffracted field. The field's intensity scale is linear, or logarithmic over 30 or 60 dB. With both on, the envelope marks the field's 1/e² edge. Rays and envelopes are drawn as bright as the power they carry.
 
 ## The 3D view
 

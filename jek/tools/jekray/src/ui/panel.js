@@ -332,9 +332,10 @@ export function pinTitle(title, id, onSelect) {
     onclick: () => togglePinId(id) });
   pinBtn.innerHTML = PIN_SVG;
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
-  // something is selected again (or View › Show the side panel)
+  // something is selected again (or View › Show the side panel). On a wide screen the main one's
+  // × is not shown: the tab on the bench's right edge (benchGear) closes it
   const main = panel === mainPanel;
-  const closeBtn = h('button', { class: 'rt-pin rt-close', type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
+  const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
@@ -428,8 +429,8 @@ export function renderPanel() {
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
   // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
-  // the bench takes the page: the Bench panel opens only from the gear (or View › Show the
-  // side panel), and stays until something is selected or the gear closes it
+  // the bench takes the page: the Bench panel opens only from the tab on the bench's right edge (or View › Show the
+  // side panel), and stays until something is selected or the tab puts it away
   const picked = !!(sel || selFibre());
   if (picked) panelClosed = true;
   const mainShows = picked ? !(sel && pins.includes(sel.id)) : !panelClosed && !pins.includes(BENCH_PIN);
@@ -456,15 +457,20 @@ export function renderPanel() {
   stackLongSelects(document);
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
-  const gear = document.getElementById('btnBenchGear');
-  if (gear) { const on = mainShows && !sel && !selFibre(); gear.classList.toggle('on', on); gear.setAttribute('aria-pressed', on ? 'true' : 'false'); gear.title = on ? 'Close the Bench panel' : 'Bench settings: light, snapping, notes and the parts list'; }
+  // the tab on the bench's right edge: pointing out (open the Bench panel) or in (put the panel away)
+  const tab = document.getElementById('btnBenchGear');
+  if (tab) {
+    const what = mainShows ? 'Hide the panel' : 'Bench settings: light, snapping, notes and the parts list';
+    tab.classList.toggle('open', mainShows); tab.setAttribute('aria-pressed', mainShows && !sel && !selFibre() ? 'true' : 'false');
+    tab.title = what; tab.setAttribute('aria-label', mainShows ? 'Hide the panel' : 'Bench settings');
+  }
 }
-/* the gear at the bench's bottom right: the Bench panel, opened (whatever was selected put
-   down) or, open already, closed */
+/* the tab on the bench's right edge: the panel, put away (whatever was selected put down, as its × does), or,
+   with none shown, the Bench panel brought out */
 export function benchGear() {
-  const showing = !panelClosed && !selected() && !selFibre() && !pins.includes(BENCH_PIN);
-  if (showing) panelClosed = true;
-  else { selectOne(null); setSelFibreId(null); panelClosed = false; }
+  const sel = selected(), shown = mainPanel.style.display !== 'none' && (!!(sel || selFibre()) || !panelClosed);
+  selectOne(null); setSelFibreId(null);
+  panelClosed = shown;
   renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as

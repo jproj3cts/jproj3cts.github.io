@@ -6611,21 +6611,30 @@ const TESTS = [
     },
   },
   {
-    name: 'A panel closes with its \u00d7',
-    why: 'the Bench panel\u2019s \u00d7 hides the panel, the bench taking its width; selecting a part opens it again; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
+    name: 'The tab on the bench\u2019s right edge puts the panel away and brings the Bench panel out; a pinned panel closes with its \u00d7',
+    why: 'with the Bench panel out, the tab (turned in) hides it, the bench taking its width; the tab again brings the Bench panel out; a part selected opens its panel, and the tab puts that away too, the part put down; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const doc = document.getElementById('rig').contentDocument, P = doc.getElementById('panel');
       J.load(JSON.parse(getDemo('michelson'))); J.select(null);
-      P.querySelector('.rt-close').click();
-      const shut = getComputedStyle(P).display === 'none' && P.parentElement.classList.contains('rt-nopanel');
+      const tab = doc.getElementById('btnBenchGear');
+      if (getComputedStyle(P).display === 'none') tab.click();
+      const out = getComputedStyle(P).display !== 'none' && tab.classList.contains('open') && /Bench/.test(P.querySelector('h2').textContent);
+      tab.click();
+      const shut = getComputedStyle(P).display === 'none' && P.parentElement.classList.contains('rt-nopanel') && !tab.classList.contains('open');
+      tab.click();
+      const again = getComputedStyle(P).display !== 'none';
       J.select('Laser');
-      const back = getComputedStyle(P).display !== 'none' && !P.parentElement.classList.contains('rt-nopanel');
+      const back = getComputedStyle(P).display !== 'none' && !P.parentElement.classList.contains('rt-nopanel') && tab.classList.contains('open');
+      tab.click();
+      const putDown = getComputedStyle(P).display === 'none' && !J.sel().length;
+      J.select('Laser');
       P.querySelector('.rt-pin:not(.rt-close)').click();                   // pin the Laser
       const pinned = doc.querySelectorAll('.rt-pinned').length === 1;
       doc.querySelector('.rt-pinned .rt-close').click();
       const unpinned = doc.querySelectorAll('.rt-pinned').length === 0;
-      return shut && back && pinned && unpinned ? 1 : 0;
+      if (!(out && shut && again && back && putDown && pinned && unpinned)) console.log('side tab', { out, shut, again, back, putDown, pinned, unpinned });
+      return out && shut && again && back && putDown && pinned && unpinned ? 1 : 0;
     },
   },
   {

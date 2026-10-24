@@ -208,15 +208,21 @@
   .rt-stage canvas.rotate { cursor: crosshair; }
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
-  .rt-gear { position: absolute; right: 0.5rem; bottom: 0.45rem; z-index: 7; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-    color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 50%; cursor: pointer; }
-  .rt-gear:hover { color: #fff; background: rgba(0, 146, 178, 0.9); }
-  .rt-gear.on { color: #fff; background: var(--jek-cyan); border-color: transparent; }
-  .rt-gear:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 2px; }
-  body.rt-embed .rt-gear { display: none; }
+  /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
+     chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
+  .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    width: 18px; height: 64px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
+    box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
+  .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
+  .rt-sidetab .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+  .rt-sidetab .chev { width: 8px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
+  .rt-sidetab.open .chev { transform: scaleX(-1); }
+  /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
+  .rt-pin.rt-mainclose { display: none; }
+  body.rt-embed .rt-sidetab { display: none; }
   .rt-coords {
     position: absolute;
-    right: 3rem;
+    right: 0.7rem;
     bottom: 0.5rem;
     font-family: var(--jek-mono);
     font-size: 0.75rem;
@@ -239,7 +245,7 @@
   .rt-v3dswitch button:hover { background: var(--rt-surface); color: var(--jek-ink); }
   .rt-v3dswitch button.on { background: var(--rt-surface); color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
   .rt-v3dswitch button:disabled { opacity: 0.45; cursor: not-allowed; }
-  .rt-v3dbar { position: absolute; right: 48px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 8rem); }
+  .rt-v3dbar { position: absolute; right: 8px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 8rem); }
   .rt-v3dbar .rt-btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
   .rt-v3dbar .rt-btn.off { opacity: 0.55; }
   .rt-v3dbar .rt-flybird { display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; }
@@ -1704,10 +1710,15 @@
   .rt-minimap { display: none !important; }
   .rt-bar .rt-menu, .rt-picker { max-height: calc(100vh - 4rem); max-height: calc(100dvh - 4rem); overflow-y: auto; }
   .rt-app .rt-welcome { left: calc(52px + 0.5rem); right: 0.5rem; bottom: 0.6rem; max-width: none; max-height: calc(100% - 1.2rem); overflow-y: auto; }
-  /* a sign-up note stands clear of the bench's settings button in the corner */
+  /* a sign-up note stands clear of the bench's settings handle at the bottom */
   .rt-app .rt-welcome.rt-coach { bottom: auto; width: auto; }       /* between the rail and the edge, as the note is: its own 24rem would overflow a phone, and the stage would scroll sideways to show its buttons */
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
+  /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
+  .rt-pin.rt-mainclose { display: inline-grid; }
+  .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 64px; height: 20px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
+  .rt-sidetab .chev { transform: rotate(90deg); }
+  .rt-sidetab.open { display: none; }
   /* touch: buttons and fields big enough for a finger */
   .rt-panel input, .rt-panel select { min-height: 2.25rem; font-size: 16px; }
   .rt-pin { width: 2.2rem; height: 2.2rem; }
@@ -1941,7 +1952,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
-        <button type="button" class="rt-gear" id="btnBenchGear" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.3 2.5h3.4l.5 2.6a7.6 7.6 0 0 1 2 1.2l2.5-.9 1.7 2.9-2 1.7a7.6 7.6 0 0 1 0 2.3l2 1.7-1.7 2.9-2.5-.9a7.6 7.6 0 0 1-2 1.2l-.5 2.6h-3.4l-.5-2.6a7.6 7.6 0 0 1-2-1.2l-2.5.9-1.7-2.9 2-1.7a7.6 7.6 0 0 1 0-2.3l-2-1.7 1.7-2.9 2.5.9a7.6 7.6 0 0 1 2-1.2Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <button type="button" class="rt-sidetab" id="btnBenchGear" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5"/></svg><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
         <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
@@ -25481,9 +25492,10 @@ function pinTitle(title, id, onSelect) {
     onclick: () => togglePinId(id) });
   pinBtn.innerHTML = PIN_SVG;
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
-  // something is selected again (or View › Show the side panel)
+  // something is selected again (or View › Show the side panel). On a wide screen the main one's
+  // × is not shown: the tab on the bench's right edge (benchGear) closes it
   const main = panel === mainPanel;
-  const closeBtn = h('button', { class: 'rt-pin rt-close', type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
+  const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
@@ -25577,8 +25589,8 @@ function renderPanel() {
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
   // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
-  // the bench takes the page: the Bench panel opens only from the gear (or View › Show the
-  // side panel), and stays until something is selected or the gear closes it
+  // the bench takes the page: the Bench panel opens only from the tab on the bench's right edge (or View › Show the
+  // side panel), and stays until something is selected or the tab puts it away
   const picked = !!(sel || selFibre());
   if (picked) panelClosed = true;
   const mainShows = picked ? !(sel && pins.includes(sel.id)) : !panelClosed && !pins.includes(BENCH_PIN);
@@ -25605,15 +25617,20 @@ function renderPanel() {
   stackLongSelects(document);
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
-  const gear = document.getElementById('btnBenchGear');
-  if (gear) { const on = mainShows && !sel && !selFibre(); gear.classList.toggle('on', on); gear.setAttribute('aria-pressed', on ? 'true' : 'false'); gear.title = on ? 'Close the Bench panel' : 'Bench settings: light, snapping, notes and the parts list'; }
+  // the tab on the bench's right edge: pointing out (open the Bench panel) or in (put the panel away)
+  const tab = document.getElementById('btnBenchGear');
+  if (tab) {
+    const what = mainShows ? 'Hide the panel' : 'Bench settings: light, snapping, notes and the parts list';
+    tab.classList.toggle('open', mainShows); tab.setAttribute('aria-pressed', mainShows && !sel && !selFibre() ? 'true' : 'false');
+    tab.title = what; tab.setAttribute('aria-label', mainShows ? 'Hide the panel' : 'Bench settings');
+  }
 }
-/* the gear at the bench's bottom right: the Bench panel, opened (whatever was selected put
-   down) or, open already, closed */
+/* the tab on the bench's right edge: the panel, put away (whatever was selected put down, as its × does), or,
+   with none shown, the Bench panel brought out */
 function benchGear() {
-  const showing = !panelClosed && !selected() && !selFibre() && !pins.includes(BENCH_PIN);
-  if (showing) panelClosed = true;
-  else { selectOne(null); setSelFibreId(null); panelClosed = false; }
+  const sel = selected(), shown = mainPanel.style.display !== 'none' && (!!(sel || selFibre()) || !panelClosed);
+  selectOne(null); setSelFibreId(null);
+  panelClosed = shown;
   renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
@@ -50772,6 +50789,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>The Bench panel pulls out from the side</b>: a small tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
     '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light drawn in clear, vivid colours that never muddy to black where they cross; white light is drawn grey until a prism or a grating parts its colours, as a book draws it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
     '<b>A full dark mode</b>: in the <b>Dark</b> theme the whole page is dark, not just the bench: the bar and its menus, the panels, the plots, the dialogs, and the Optical, RF and coating designers, with the browser\u2019s own fields and scrollbars to match.',
     '<b>A tidier bar</b>: a menu bar, <b>File, Edit, View, Tools, Sweeps and Help</b>, as a desktop program has, with icons for undo, redo, fit, measure and search beside it, and the bench\u2019s name in the middle. <b>Edit</b> holds cut, copy, paste, duplicate, delete, select all, rotate and grouping; <b>Tools</b> the Optical, RF and coating designers, Scripts and the bench\u2019s settings. <b>Ctrl+K</b> (or the magnifier) searches every command in the menus by its words: type \u201cexport\u201d or \u201c3D\u201d and press Enter.',

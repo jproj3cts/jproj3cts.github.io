@@ -537,35 +537,39 @@ function drawRays(stale) {
 }
 /* White light on paper: a source of several colours sends each colour along the same line until something
    disperses them (a prism, a grating, a lens's glass). Laid on, the colour drawn last would hide the rest, so
-   where two or more of a source's colours share a segment it is drawn once, grey, as white light is drawn in a
-   book, and each colour shows only from where it parts from the others. Gives, for each such ray, its runs:
-   { pts, colour }, the shared ones grey (each shared segment kept by one ray only) */
+   while a launch's colours run together, closer than a pixel and a bit on the screen, they are drawn once, grey,
+   as white light is drawn in a book, and each colour shows only from where it visibly parts from the others
+   (inside a prism they are still a fraction of a pixel apart: grey there too). Gives, for each such ray, its
+   runs: { pts, colour }, the shared ones grey and kept by one ray of the launch only */
 function whiteRuns(rays) {
   const cols = new Map();
   for (const r of rays) if (r.bench === project.tab) { let c = cols.get(r.src); if (!c) cols.set(r.src, c = new Set()); c.add(r.colour); }
   const multi = new Set([...cols].filter(([, c]) => c.size > 1).map(([s]) => s));
   if (!multi.size) return null;
-  const segKey = (r, p, i) => r.src + '|' + p[i - 2].toFixed(4) + ',' + p[i - 1].toFixed(4) + ',' + p[i].toFixed(4) + ',' + p[i + 1].toFixed(4);
-  const seen = new Map();                 // a segment: the colours along it
+  // a launch: the rays of one source leaving from one point, one for each colour
+  const launches = new Map();
   for (const r of rays) {
-    if (r.bench !== project.tab || !multi.has(r.src)) continue;
-    const p = r.pts;
-    for (let i = 2; i < p.length; i += 2) { const k = segKey(r, p, i); let c = seen.get(k); if (!c) seen.set(k, c = new Set()); c.add(r.colour); }
+    if (r.bench !== project.tab || !multi.has(r.src) || r.pts.length < 4) continue;
+    const k = r.src + '|' + r.pts[0].toFixed(4) + ',' + r.pts[1].toFixed(4) + ',' + r.pts[2].toFixed(3) + ',' + r.pts[3].toFixed(3);
+    let L = launches.get(k); if (!L) launches.set(k, L = []); L.push(r);
   }
-  const out = new Map(), drawn = new Set();
-  for (const r of rays) {
-    if (r.bench !== project.tab || !multi.has(r.src)) continue;
-    const p = r.pts, runs = [];
-    let cur = null;
-    for (let i = 2; i < p.length; i += 2) {
-      const k = segKey(r, p, i), white = seen.get(k).size > 1;
-      if (white && drawn.has(k)) { cur = null; continue; }      // drawn already, by a ray of another colour
-      if (white) drawn.add(k);
-      const colour = white ? PAPER_WHITE_LIGHT : r.colour;
-      if (!cur || cur.colour !== colour) { cur = { pts: [p[i - 2], p[i - 1]], colour }; runs.push(cur); }
-      cur.pts.push(p[i], p[i + 1]);
+  const tol = 1.3 / V().scale, near = (p, q, i) => Math.abs(p[i] - q[i]) <= tol && Math.abs(p[i + 1] - q[i + 1]) <= tol;
+  const out = new Map();
+  for (const L of launches.values()) {
+    const many = new Set(L.map(r => r.colour)).size > 1;
+    // how many segments from the start every colour of the launch still runs together
+    let together = 0;
+    if (many) {
+      const n = Math.min(...L.map(r => r.pts.length));
+      for (let i = 2; i < n; i += 2) { if (L.every(r => near(r.pts, L[0].pts, i - 2) && near(r.pts, L[0].pts, i))) together = i; else break; }
     }
-    out.set(r, runs);
+    L.forEach((r, ri) => {
+      const p = r.pts, runs = [];
+      if (together && ri === 0) runs.push({ pts: p.slice(0, together + 2), colour: PAPER_WHITE_LIGHT });
+      const from = together;                      // the colour's own line from where it parts (the point it leaves the bundle)
+      if (p.length - from >= 4) runs.push({ pts: p.slice(from), colour: r.colour });
+      out.set(r, runs);
+    });
   }
   return out;
 }

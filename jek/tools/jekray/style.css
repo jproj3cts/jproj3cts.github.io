@@ -196,11 +196,10 @@
   /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
      chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
   .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    width: 18px; height: 64px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
+    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
     box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
-  .rt-sidetab .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-  .rt-sidetab .chev { width: 8px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
+  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
   .rt-sidetab.open .chev { transform: scaleX(-1); }
   /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
   .rt-pin.rt-mainclose { display: none; }
@@ -1701,7 +1700,7 @@
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
   .rt-pin.rt-mainclose { display: inline-grid; }
-  .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 64px; height: 20px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
+  .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 48px; height: 18px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
   .rt-sidetab .chev { transform: rotate(90deg); }
   .rt-sidetab.open { display: none; }
   /* touch: buttons and fields big enough for a finger */

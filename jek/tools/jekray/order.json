@@ -202,6 +202,7 @@
   "ui/script-calls.js",
   "ui/scripts.js",
   "ui/tours.js",
+  "ui/commands.js",
   "io/mods.js",
   "worker/shim.js",
   "page/workers.js",

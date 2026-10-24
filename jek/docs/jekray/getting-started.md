@@ -27,7 +27,7 @@ Every bench in the **Examples** gallery works. Open one, change it, and press **
 
 **The panel** on the right shows whatever is selected. With nothing selected it shows the whole bench: its parts, notes and settings. A panel's sections fold under their headings, and the longer explanations sit under **About this part** at the foot. The pin at its top keeps it open while you select other things; **×** closes it (**View › Show the side panel** brings it back).
 
-**The bar** along the top holds the File menu (under the bench's name), **+ Add part**, Undo and Redo, and the View, Sweeps and Help menus. **Save** shows a dot when the bench has changed since it was opened or saved. On a phone the bar is one row: the name, **+**, **Save** and **⋯**, a menu holding the rest.
+**The bar** along the top holds the menus, **File**, **Edit**, **View**, **Tools** (the Optical, RF and coating designers, Scripts and the bench's settings), **Sweeps** and **Help**, then icons for Undo, Redo, Fit view, Measure and Search, the bench's name in the middle, and **+ Add part**, **Share**, **Save**, Examples, the quote cart and your account at the right. **Save** shows a dot when the bench has changed since it was opened or saved. **Ctrl+K** (or the magnifier) searches every command in the menus by its words: type *export* or *3D* and press Enter. On a phone the bar is one row: the name, **+**, **Save** and **⋯**, a menu holding the rest.
 
 **How the light is drawn** is set for the whole bench under **Light** in the Bench panel (the gear at the bench's bottom right): ticks for the rays, the Gaussian beams' envelope and their diffracted field. The field's intensity scale is linear, or logarithmic over 30 or 60 dB. With both on, the envelope marks the field's 1/e² edge. Rays and envelopes are drawn as bright as the power they carry.
 
@@ -71,7 +71,7 @@ Every number in a panel can be typed or dragged. Beside most is the sweep button
 
 - **Autosave.** Your bench is kept in this browser as you work, so closing the tab loses nothing.
 - **File › Save as .jekray** saves a file you can open again anywhere.
-- **Share link** (on the bar, or **File › Copy a share link**) makes a short link to the bench as it is now, with JEKrayPro, and an embed code for a web page. Anyone who opens the link sees your bench, with no account needed. The link is a snapshot: changing the bench afterwards does not change what it opens, so share again for a new one. A copy is kept with your account until you delete the link, from the same dialog or from **My links** in My benches, where your links are listed with how often each has been opened.
+- **Share** (on the bar, or **File › Copy a share link**) makes a short link to the bench as it is now, with JEKrayPro, and an embed code for a web page. Anyone who opens the link sees your bench, with no account needed. The link is a snapshot: changing the bench afterwards does not change what it opens, so share again for a new one. A copy is kept with your account until you delete the link, from the same dialog or from **My links** in My benches, where your links are listed with how often each has been opened.
 - **File › Export layout** saves a PNG, SVG or PDF of the bench for a paper or a talk; **Export layout (current view)** saves just what is on screen. Exports (these, the 3D view's picture, plots' PNG and CSV, a screen's data, .zmx and CAD files) need a free account; saving the bench as a .jekray file does not.
 - With JEKrayPro, benches can be saved to your account, with version history, forks and team workspaces.
 

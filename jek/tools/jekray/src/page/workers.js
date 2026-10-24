@@ -33,7 +33,7 @@ import { workerShim } from '../worker/shim.js';
 
 /* a worker running this app: the page's own script with the shim in front, or on the dev page
    the modules as a module worker; null where there can be none. A script worker (script: true,
-   File › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
+   Tools › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
    needs one, and is told what it is before the script runs (JEKRAY_SCRIPT_WORKER, or ?script) */
 export const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
 export function newAppWorker(script) {

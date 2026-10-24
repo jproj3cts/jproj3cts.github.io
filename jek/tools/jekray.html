@@ -1037,8 +1037,9 @@
   .rt-pinned h2 { touch-action: none; user-select: none; -webkit-user-select: none; }
   .rt-pinned.moving { position: relative; z-index: 6; box-shadow: 0 10px 28px rgba(0,0,0,0.28); cursor: grabbing; }
 
-  /* one bar: the bench's name and its File menu, the title, + Add part, undo and redo, Measure,
-     View and Sweeps; Examples, Share, Save and Help at its right */
+  /* one bar: the logo, the menu bar (File, Edit, View, Tools, Sweeps, Help), the one-click icons (undo, redo,
+     fit, measure, search), the bench's name in the middle; + Add part, Share, Save, Examples, the cart and the
+     account at its right */
   .rt-app .rt-toolbar { padding: 0.45rem 0.75rem; gap: 0; }
   .rt-bar { flex-wrap: wrap; gap: 0.4rem 0.5rem; }
   .rt-file { display: flex; align-items: center; gap: 0.1rem; }
@@ -1056,6 +1057,36 @@
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.rt-help { position: relative; }
   .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
+  .rt-menubar { display: flex; align-items: center; gap: 0.05rem; flex: none; }
+  .rt-menubar .rt-btn.rt-mbar { padding: 0.4rem 0.6rem; font-weight: 500; }
+  #btnHelpMenu { position: relative; }
+  #btnHelpMenu .rt-dot { position: absolute; top: 2px; right: 0; margin: 0; }
+  .rt-quick { flex: none; gap: 0.05rem; }
+  .rt-qsep { width: 1px; height: 1.3rem; margin: 0 0.25rem; background: var(--jek-line-2); }
+  .rt-btn.rt-tbi { display: inline-grid; place-items: center; position: relative; min-width: 2.1rem; height: 2.1rem; padding: 0; color: var(--jek-ink); }
+  .rt-tbi .ic, .rt-tbl .ic { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .rt-tbl .ic { width: 15px; height: 15px; }
+  .rt-bar .rt-file { margin: 0 auto; }
+  .rt-bar .rt-right { margin-left: 0; }
+  .rt-cartbtn .rt-cartcount { position: absolute; top: -2px; right: -3px; min-width: 1rem; line-height: 1rem; padding: 0 0.25rem; font-size: 0.66rem; }
+  /* Search commands (Ctrl+K, ui/commands.js): a box and the menus' items that hold its words */
+  dialog.rt-dialog.rt-cmd { width: min(38rem, calc(100vw - 2rem)); margin-top: 12vh; padding: 0; text-align: left; }
+  .rt-cmdbox { padding: 0.6rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-cmdbox input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 3px; font: inherit; font-size: 0.95rem; background: #fff; color: var(--jek-ink); }
+  .rt-cmdbox input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-cmd ul { list-style: none; margin: 0; padding: 0.3rem 0; max-height: min(26rem, 60vh); overflow-y: auto; }
+  .rt-cmd li { display: flex; align-items: center; gap: 0.6rem; padding: 0.38rem 0.8rem; font-size: 0.85rem; cursor: pointer; }
+  .rt-cmd li.at { background: var(--jek-cyan); color: #fff; }
+  .rt-cmd li.off { opacity: 0.45; cursor: default; }
+  .rt-cmd li.off.at { background: var(--jek-well); color: var(--jek-ink); }
+  .rt-cmdpath { flex: none; min-width: 7.5rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-cmdname { flex: 1; min-width: 0; }
+  .rt-cmd .k { flex: none; font: 0.75rem var(--jek-mono); color: var(--jek-ink-soft); }
+  .rt-cmd li.at .rt-cmdpath, .rt-cmd li.at .k { color: rgba(255,255,255,0.85); }
+  .rt-cmdneed { flex: none; padding: 0 0.4em; border-radius: 0.6em; font: 700 0.66rem/1.5 var(--jek-sans); color: #fff; background: var(--jek-orange, #f47742); }
+  .rt-cmdneed.acct { background: var(--jek-cyan-dark, #007893); }
+  .rt-cmd li.rt-cmdnone { color: var(--jek-ink-soft); cursor: default; }
   .rt-menu.rt-menu-right { left: auto; right: 0; }
   /* the account button: Sign in, or the person's initials once signed in */
   .rt-btn.rt-acct.in { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 50%; align-self: center; display: inline-grid; place-items: center;
@@ -1133,35 +1164,23 @@
   /* the menu bar's own items: flat words, lit on hover, as a menu bar's */
   .rt-btn.rt-mbar { background: none; border-color: transparent; font-weight: 600; }
   .rt-btn.rt-mbar:hover, .rt-btn.rt-mbar[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
-  .rt-barlink { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 500; color: var(--jek-ink-soft); }
-  .rt-barlink:hover { color: var(--jek-ink); }
-  .rt-barlink .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-  /* on a desktop the bar stays one row, giving way as the window narrows so the bench's name keeps
-     room to be read (its box is as wide as the name): Cite and Report a bug's words go first (their
-     icons stay), then they and Save's ".jekray", then Measure (in the View menu), then Examples and
-     Share (to the File menu); the JEKray logo always stays, and the name gives way last */
+  /* on a desktop the bar stays one row, giving way as the window narrows so the bench's name keeps room to be
+     read (its box is as wide as the name): Save's ".jekray" goes first, then the beta pill's "Open", then Share
+     and Examples (both in the File menu), then the fit and measure icons (in the View menu); the logo, the menus
+     and the name always stay */
   @media (min-width: 961px) {
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 8rem; max-width: 26rem; }
   }
-  @media (max-width: 1800px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
-  @media (max-width: 1440px) {
-    .rt-barlink { display: none; }
-    .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray" */
-  }
-  @media (max-width: 1240px) {
-    #btnExamples, #btnShare { display: none; }
-    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: flex; }
-  }
-  @media (max-width: 1100px) { .rt-pillopen { display: none; } }   /* "Beta" */
+  @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
+  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
+  @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
+  @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
-  /* on a phone, Examples, Share and Measure go into the File and View menus */
-  .rt-menu button.rt-narrow { display: none; }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
-    .rt-menu button.rt-narrow { display: flex; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
@@ -1169,9 +1188,8 @@
     .rt-imenu > .rt-sub.rt-acctneed::before, .rt-imenu > .rt-sub.rt-proneed::before { content: none; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
-  /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, View, Sweeps, Examples,
-     Share, the cart, the account and Help in the ⋯ menu, whose View, Sweeps, account and Help open their own
-     menus under the bar's right end */
+  /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, the six menus, Search
+     commands, Examples, Share, the cart and the account in the ⋯ menu, whose menus open under the bar's right end */
   .rt-moremenu { display: none; }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     .rt-app .rt-toolbar { position: relative; padding: 0.4rem 0.5rem; }
@@ -1187,7 +1205,6 @@
     .rt-bar .rt-phonegone { position: static; }
     .rt-bar .rt-phonegone > .rt-btn { position: absolute; width: 1px; height: 1px; min-width: 0; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
     .rt-bar .rt-phonegone > .rt-menu { top: 100%; left: auto; right: 0.5rem; }
-    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: none; }
   }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
   .rt-swatch { flex: none; width: 14px; height: 14px; border: 1px solid var(--jek-line-2); border-radius: 2px; box-sizing: border-box; }
@@ -1671,39 +1688,31 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
+      <!-- the bar: the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
+           bench's name, then Add part, Share, Save, Examples, the cart and the account. On a phone: the name,
+           + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
         <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
-        <div class="rt-more rt-file">
-          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
-          <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
+        <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
+        <div class="rt-menubar" role="group" aria-label="Menus">
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
-            <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
-            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
-              <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optical designer">Optical designer, new…</button>
-                <button type="button" role="menuitem" id="btnLensOfSel" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optical designer">Optical designer, of the selection</button>
-                <div class="sep"></div>
-                <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
-                <button type="button" role="menuitem" id="btnRfOfSel" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
-                <div class="sep"></div>
-                <button type="button" role="menuitem" id="btnCoatDesign" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
-              </div>
-            </div>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
+            <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
-            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
-            <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
+            <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
+            <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
+            <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl, .step)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
-            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export" data-need="account" data-what="export the layout">Export layout
               <div class="rt-menu rt-imenu" role="menu">
                 <button type="button" role="menuitem" data-export="png" data-icon="image" data-need="account" data-what="export the layout">PNG image</button>
@@ -1718,15 +1727,29 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
                 <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnExportData" data-icon="export" data-need="account" data-what="export data" title="The numbers behind the bench (readouts, plots, screens’ rays and fields, beams, sweeps, the parts) as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
             <div class="sep"></div>
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
         </div>
-        <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
-        <div class="rt-group rt-tight">
-          <button class="rt-btn rt-icon quiet" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-          <button class="rt-btn rt-icon quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnEdit" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="editMenu">Edit</button>
+          <div class="rt-menu rt-imenu" id="editMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="editUndo">Undo<span class="k">Ctrl+Z</span></button>
+            <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="editRedo">Redo<span class="k">Ctrl+Shift+Z</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-edit="cut" data-icon="cut">Cut<span class="k">Ctrl+X</span></button>
+            <button type="button" role="menuitem" data-edit="copy" data-icon="copy">Copy<span class="k">Ctrl+C</span></button>
+            <button type="button" role="menuitem" data-edit="paste" data-icon="paste">Paste<span class="k">Ctrl+V</span></button>
+            <button type="button" role="menuitem" data-edit="dup" data-icon="dup">Duplicate<span class="k">Ctrl+D</span></button>
+            <button type="button" role="menuitem" data-edit="del" data-icon="trash">Delete<span class="k">Del</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-edit="all">Select all<span class="k">Ctrl+A</span></button>
+            <button type="button" role="menuitem" data-edit="rot">Rotate 90° anticlockwise<span class="k">R</span></button>
+            <button type="button" role="menuitem" data-edit="group">Group<span class="k">Ctrl+G</span></button>
+            <button type="button" role="menuitem" data-edit="ungroup">Ungroup<span class="k">Ctrl+Shift+G</span></button>
+          </div>
         </div>
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
@@ -1735,7 +1758,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
-            <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its \u00d7 closed it">Show the side panel</button>
+            <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="image" id="benchColourItem">Bench colour
               <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
@@ -1746,6 +1769,21 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
             <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
+          </div>
+        </div>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu" title="The designers, scripts and the bench's settings">Tools</button>
+          <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnNewLens" data-ws="lens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optical designer">Optical designer, new…</button>
+            <button type="button" role="menuitem" id="btnLensOfSel" data-ws="lens" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optical designer">Optical designer, of the selection</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnNewRf" data-ws="rf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
+            <button type="button" role="menuitem" id="btnRfOfSel" data-ws="rf" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <button type="button" role="menuitem" data-click="btnBenchGear" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
           </div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -1761,40 +1799,52 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <span class="rt-menunote">Sweep a value from its field in the panel (Sweep), then play it here.</span>
           </div>
         </div>
-        <div class="rt-group rt-right">
-          <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
-          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
-          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
-          <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
-          <button class="rt-btn" id="btnShare" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
-          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
-          <div class="rt-more rt-phonegone">
-            <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
-            <div class="rt-menu rt-menu-right rt-imenu" id="helpMenu" role="menu" hidden>
-              <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
-              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
-                <div class="rt-menu rt-imenu" role="menu">
-                  <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
-                  <button type="button" role="menuitem" data-tour="michelson" data-icon="split">Build a Michelson</button>
-                  <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
-                </div>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu">Help<span class="rt-dot" id="helpDot" hidden></span></button>
+          <div class="rt-menu rt-imenu" id="helpMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-click="btnCmd" data-icon="search">Search commands…<span class="k">Ctrl+K</span></button>
+            <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
+                <button type="button" role="menuitem" data-tour="michelson" data-icon="split">Build a Michelson</button>
+                <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
               </div>
-              <div class="sep"></div>
-              <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
-              <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
-              <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
-              <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
-              <div class="sep"></div>
-              <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
-              <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
-              <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
-              <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
-              <div class="sep"></div>
-              <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
             </div>
-            <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
+            <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
+            <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
+            <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
+            <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+            <div class="sep"></div>
+            <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
+            <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
+            <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
+            <div class="sep"></div>
+            <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
           </div>
-          <a class="rt-btn rt-cartbtn quiet" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
+          <div class="rt-menu rt-expmenu" id="expMenu" hidden></div>
+        </div>
+        </div>
+        <div class="rt-group rt-tight rt-quick">
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnUndo" type="button" data-icon="undo" title="Undo (Ctrl+Z)" aria-label="Undo"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnRedo" type="button" data-icon="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"></button>
+          <span class="rt-qsep" aria-hidden="true"></span>
+          <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Fit the view to the bench" aria-label="Fit view"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnMeasure" data-icon="ruler" title="Measure distances, angles and optical paths (M)" aria-label="Measure"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnCmd" type="button" data-icon="search" title="Search commands (Ctrl+K)" aria-label="Search commands" aria-haspopup="dialog"></button>
+        </div>
+        <div class="rt-more rt-file">
+          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
+          <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+        </div>
+        <div class="rt-group rt-right">
+          <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
+          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
+          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
+          <a class="rt-btn rt-icon rt-cartbtn quiet rt-tbi" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart"><span class="rt-cartcount" id="cartCount" hidden>0</span></a>
           <div class="rt-more rt-phonegone" id="acct" hidden>
             <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -1806,21 +1856,15 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="moreUndo">Undo</button>
               <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="moreRedo">Redo</button>
               <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnFile" data-icon="open">File…</button>
+              <button type="button" role="menuitem" data-click="btnEdit" data-icon="paste">Edit…</button>
               <button type="button" role="menuitem" data-click="btnView" data-icon="eye">View…</button>
+              <button type="button" role="menuitem" data-click="btnTools" data-icon="flask">Tools…</button>
               <button type="button" role="menuitem" data-click="btnSweeps" data-icon="wave">Sweeps…</button>
               <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnCmd" data-icon="search">Search commands…</button>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
               <button type="button" role="menuitem" data-click="btnShare" data-icon="link" data-need="pro" data-what="share a link">Copy a share link</button>
-              <div class="sep"></div>
-              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
-                <div class="rt-menu rt-imenu" role="menu">
-                  <button type="button" role="menuitem" data-click="btnNewLens" data-icon="new">Optical designer, new…</button>
-                  <button type="button" role="menuitem" data-click="btnLensOfSel" data-icon="open">Optical designer, of the selection</button>
-                  <button type="button" role="menuitem" data-click="btnNewRf" data-icon="new">RF designer, new…</button>
-                  <button type="button" role="menuitem" data-click="btnRfOfSel" data-icon="open">RF designer, of the selection</button>
-                  <button type="button" role="menuitem" data-click="btnCoatDesign" data-icon="new">Coating design</button>
-                </div>
-              </div>
               <div class="sep"></div>
               <a role="menuitem" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart">Quote cart<span class="k" id="moreCart"></span></a>
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
@@ -1935,7 +1979,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
-    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Right-drag, middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen); a right-click that does not drag opens the menu</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Drag a part</dt><dd>move it on the table (snapped)</dd><dt>Click a part</dt><dd>its arrows, out of both sides: orange along x, green along y, blue up (snapped; up in 0.5 mm steps, Shift: 0.1 mm)</dd><dt>Click it again</dt><dd>its rings, crossing: drag a ring or its dot; blue turns it (facing), green tips it, orange rolls it about its own axis; Shift: 15° steps, Alt: a tenth as fast</dd><dt>Click it a third time</dt><dd>its arrows again</dd><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View › Parts rail</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Right-drag, middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen); a right-click that does not drag opens the menu</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Drag a part</dt><dd>move it on the table (snapped)</dd><dt>Click a part</dt><dd>its arrows, out of both sides: orange along x, green along y, blue up (snapped; up in 0.5 mm steps, Shift: 0.1 mm)</dd><dt>Click it again</dt><dd>its rings, crossing: drag a ring or its dot; blue turns it (facing), green tips it, orange rolls it about its own axis; Shift: 15° steps, Alt: a tenth as fast</dd><dt>Click it a third time</dt><dd>its arrows again</dd><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>Ctrl+K</dt><dd>search every command in the menus</dd><dt>?</dt><dd>this list</dd></dl></div>
     <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray-ai-guide.md" download>the JEKray guide for AI assistants</a>, ask for a .jekray file, and paste its answer onto the bench with Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
@@ -27556,7 +27600,7 @@ function ghostView(body, A, P, G, st, redraw) {
    The coating design workspace
    A thin-film stack designed against what it is for (core/coatdesign.js), on its own page over the bench as the lens
    and RF designers are. Opened from a face's Coating setting (Design a coating…), from the lens designer's face table,
-   from the RF designer's matching layers, or from File › Open a workspace with no face at all. Use this coating writes
+   from the RF designer's matching layers, or from Tools › Coating design with no face at all. Use this coating writes
    the stack to the face it came from; Keep as a coating keeps it by name in this browser, for any face's Coating list.
    ========================================================================== */
 let CW = null;                       // { spec, layers, from: { el, holder, label, onUse } | null, names }
@@ -44187,6 +44231,29 @@ function pasteClip(clip, at) {
   return true;
 }
 function duplicateSel() { const list = selection(); if (list.length) pasteClip(clipOf(list)); }
+/* the Edit menu's commands: what their keys do, to the selection on this tab */
+function editCommand(k) {
+  if (LOCKED) return;
+  const list = selection();
+  if (k === 'copy' || k === 'cut') {
+    if (!list.length) return;
+    clipMem = clipOf(list);
+    try { navigator.clipboard.writeText(JSON.stringify(clipMem)).catch(() => {}); } catch (err) { /* kept here */ }
+    if (k === 'cut') removeEls(list); else toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
+  } else if (k === 'paste') { if (clipMem) pasteClip(clipMem); }
+  else if (k === 'dup') duplicateSel();
+  else if (k === 'del') removeEls(list);
+  else if (k === 'all') setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw')));
+  else if (k === 'rot') { if (list.every(x => x.locked)) toast((list.length === 1 ? list[0].name + ' is' : 'They are') + ' locked in place'); else rotateEls(list, 90); }
+  else if (k === 'group') groupEls(list);
+  else if (k === 'ungroup') ungroupEls(list);
+}
+// which of them can be done now: none on a locked page, paste with something copied, the rest with a selection
+function editCan(k) {
+  if (LOCKED) return false;
+  const list = selection();
+  return k === 'paste' ? !!clipMem : k === 'all' ? true : k === 'group' ? list.length > 1 : k === 'ungroup' ? list.some(e => e.group) : list.length > 0;
+}
 const typingIn = t => t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
 /* Browsers that do not raise copy/cut/paste with nothing selected (Safari) still get them:
    the keys set a flag, and if the event has not come in a moment the copy here is used. One
@@ -44590,6 +44657,14 @@ function wireActions() {
   document.addEventListener('pointerdown', e => { const m = document.getElementById('ctxMenu'); if (m && !m.hidden && !m.contains(e.target)) hideCtxMenu(); }, true);
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+  // the Edit menu, set as it opens (this runs before the menu's own opening, which focuses its first enabled item)
+  const editMenu = document.getElementById('editMenu');
+  document.getElementById('btnEdit').addEventListener('click', () => {
+    for (const b of editMenu.querySelectorAll('[data-edit]')) b.disabled = !editCan(b.dataset.edit);
+    for (const k of ['Undo', 'Redo']) document.getElementById('edit' + k).disabled = document.getElementById('btn' + k).disabled;
+  });
+  editMenu.addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if (b && !b.disabled) editCommand(b.dataset.edit); });
 
   {
     const mc = document.getElementById('minimap');
@@ -48146,7 +48221,7 @@ function packDialogFill() {
       L.cls !== 'ok' ? h('div', null, packReportLink(pk)) : null), rm));
   }
 }
-/* the menus: File (by the bench's name), View, Sweeps and Help */
+/* the menus: File, Edit, View, Tools, Sweeps and Help, on the bar's menu bar */
 /* the menus' icons: small line drawings on a 16 px square, in the text's colour, as a drawing
    program's menus have them; and a tick for an option that is on */
 const MENU_ICONS = {
@@ -48177,9 +48252,13 @@ const MENU_ICONS = {
   info: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 7V11.5 M8 4.6V4.7', home: 'M2 7.5L8 2.5L14 7.5 M3.5 6.5V13.5H12.5V6.5 M6.5 13.5V9.5H9.5V13.5',
   fork: 'M4.5 1.5A1.5 1.5 0 1 1 4.49 1.5 M11.5 1.5A1.5 1.5 0 1 1 11.49 1.5 M4.5 11.5A1.5 1.5 0 1 1 4.49 11.5 M4.5 4.5V11.5 M11.5 4.5V6A2 2 0 0 1 9.5 8H6.5A2 2 0 0 0 4.5 10',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
+  search: 'M7 2.5A4.5 4.5 0 1 1 6.99 2.5 M10.3 10.3L14 14', copy: 'M5.5 5.5H13.5V14.5H5.5Z M3.5 11.5H2.5V2.5H10.5V3.5',
+  cut: 'M4.5 10.5A2 2 0 1 1 4.49 10.5 M11.5 10.5A2 2 0 1 1 11.49 10.5 M5.7 11L12 1.5 M10.3 11L4 1.5', dup: 'M2.5 2.5H10.5V10.5H2.5Z M5.5 13.5H13.5V5.5',
+  share: 'M4 6.2A1.8 1.8 0 1 1 3.99 6.2 M12 2.2A1.8 1.8 0 1 1 11.99 2.2 M12 10.2A1.8 1.8 0 1 1 11.99 10.2 M5.6 7.1L10.4 4.9 M5.6 8.9L10.4 11.1',
+  sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5',
 };
 function menuIcons(root) {
-  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
+  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
     if (n.querySelector(':scope > svg.ic')) continue;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -48328,11 +48407,15 @@ function wirePacks() {
     const acct = document.getElementById('acct'), ab = document.getElementById('btnAcct'), mi = document.getElementById('moreAcct');
     mi.hidden = acct.hidden; mi.querySelector('.lbl').textContent = ab.classList.contains('in') ? 'Your account…' : 'Sign in…';
   });
-  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu']]) {
+  // one open at a time; with one of the menu bar's open, pointing at another opens that one instead, as a desktop menu bar does
+  const shows = new Map();
+  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnEdit', 'editMenu'], ['btnView', 'viewMenu'], ['btnTools', 'toolsMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu']]) {
     const btn = document.getElementById(bId), menu = document.getElementById(mId);
     const show = on => {
       menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
       if (!on) return;
+      // the others shut (the phone's ⋯ menu has closed already, as its item was clicked)
+      for (const [b, sh] of shows) if (b !== btn && b.getAttribute('aria-expanded') === 'true') sh(false);
       // kept on the screen: a menu set against its button's right edge would run off a phone's left
       menu.style.translate = '';
       const r = menu.getBoundingClientRect(), vw = document.documentElement.clientWidth, pad = 8;
@@ -48341,6 +48424,12 @@ function wirePacks() {
       const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus();
     };
     btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
+    shows.set(btn, show);
+    if (btn.closest('.rt-menubar')) btn.addEventListener('pointerenter', e => {
+      if (e.pointerType !== 'mouse' || !menu.hidden) return;
+      const open = [...document.querySelectorAll('.rt-menubar .rt-mbar[aria-expanded="true"]')];
+      if (open.length) btn.click();    // as a click opens it: the Edit menu sets its items then
+    });
     menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
     document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
@@ -48349,10 +48438,10 @@ function wirePacks() {
   document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
 
   // the menus' stand-ins for the bar's own buttons (a phone hides those)
-  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu', 'moreMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
+  for (const m of ['fileMenu', 'editMenu', 'viewMenu', 'toolsMenu', 'sweepsMenu', 'helpMenu', 'moreMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
 
-  // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
-  for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
+  // the bar's own stand-ins (the beta pill, the fit and measure icons): they do what their menu items do
+  for (const b of document.querySelectorAll('.rt-bar > [data-click], .rt-quick [data-click]')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
 
   menuIcons(document);
 
@@ -50534,8 +50623,9 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A tidier bar</b>: a menu bar, <b>File, Edit, View, Tools, Sweeps and Help</b>, as a desktop program has, with icons for undo, redo, fit, measure and search beside it, and the bench\u2019s name in the middle. <b>Edit</b> holds cut, copy, paste, duplicate, delete, select all, rotate and grouping; <b>Tools</b> the Optical, RF and coating designers, Scripts and the bench\u2019s settings. <b>Ctrl+K</b> (or the magnifier) searches every command in the menus by its words: type \u201cexport\u201d or \u201c3D\u201d and press Enter.',
     '<b>Export data</b>: <b>File \u203a Export data\u2026</b> writes the numbers behind the bench as files for a spreadsheet, Python or MATLAB: its <b>readouts</b> (every screen, detector, spectrometer and antenna, one table), its <b>plots</b>\u2019 curves, each screen\u2019s <b>ray hits</b> and <b>field map</b>, its <b>Gaussian beams</b> (q, size, waist and divergence along the way), its <b>sweeps</b> and studies, and <b>the bench</b> itself, every part with its settings. Each file says what it holds: the bench, the version, the date, every column\u2019s unit and the settings of the parts the numbers come from. CSV (a zip, with a README) and JSON need a free account, one kind at a time; <b>Excel, NumPy and MATLAB</b> files, several kinds at once and <b>Export everything</b> are JEKrayPro\u2019s. In Scripts, <code>save(name, data, format)</code> keeps what a script makes as a file in any of the five formats, downloaded when the run ends (nothing when it is stopped), and a result\u2019s <b>Save as</b> offers them all.',
-    '<b>Scripts run in the background, with Stop</b> (JEKrayPro): File \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',
+    '<b>Scripts run in the background, with Stop</b> (JEKrayPro): Tools \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',
     '<b>Right-drag pans the bench</b>, as middle-drag and Space-drag do; a right-click that does not drag still opens the menu.',
     '<b>Signed part packs</b>: a pack made in JEKray is signed with your account (a free one is enough), so whoever installs it sees <b>\u2713 Signed by the JEKray account \u2018</b>your name<b>\u2019</b>, and that it has not been changed since (the name is your account\u2019s own, so it is shown plainly, not as checked). A pack edited by hand afterwards reads <b>Unverified: changed after it was signed</b>: sign it again with File \u203a Part packs and modules\u2026 \u203a <b>Sign a pack file\u2026</b>, which also signs a module you wrote. A pack\u2019s id is its maker\u2019s once signed: a pack with that id installs only when its maker signed it, which stops someone else\u2019s pack posing as or replacing yours (ids starting jek., jekray. and jeksys. are JEKray\u2019s own). A <b>module installs only when signed and unchanged</b>, from a file, a link or a bench; one installed before keeps working, labelled Unverified. JEK Systems can revoke a harmful pack (installed packs are checked once a day: a revoked module is turned off), and <b>Report this pack</b> tells us of one. Teams on JEKrayPro can sign as their organisation, shown as <b>\u2713 Verified: </b><i>organisation</i><b> (</b><i>domain</i><b>)</b>, once they have verified their web domain themselves: a DNS record, set up from the team\u2019s settings under <b>Signing packs as the team</b>.',
     '<b>Making a part pack</b> needs a free account, as exports do; installing a pack needs none.',
@@ -51345,7 +51435,7 @@ async function pyRun(code, J, say, dir, onLine) {
 /* what Python holds, for the tests (a run should leave nothing behind): its objects, and the WebAssembly memory's size */
 const pyHeld = () => (pyodide ? { objects: pyodide.runPython('import gc\ngc.collect()\nlen(gc.get_objects())'), bytes: pyodide._module.HEAP8.length } : null);
 /* ---------- The calls a script is given, as window.JEKray has them ----------
-   The part of window.JEKray (ui/boot.js) that File › Scripts hands a script as J (ui/scripts.js CALLS), kept here so the
+   The part of window.JEKray (ui/boot.js) that Tools › Scripts hands a script as J (ui/scripts.js CALLS), kept here so the
    script worker (page/script-worker.js) makes the same calls over its own copy of the bench: the same code, the same
    answers. Each reads only the bench and the engines; none needs the page. The page-only ones (load, select, showTab,
    sweepPlay, sweepPause) stay in boot.js, and the worker has its own (page/script-worker.js workerCalls). */
@@ -51379,7 +51469,7 @@ function scriptCalls() {
   };
 }
 /* ---------- Scripts: JavaScript or Python run against the bench, in the background (JEKrayPro) ----------
-   File › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
+   Tools › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
    calls the documentation lists for scripting (a screen's spot, a detector's reading, an
    antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
    (in Python: what it sets result to, or its last line's value) is shown: a table when it is rows,
@@ -52378,6 +52468,108 @@ function wireTours() {
   });
 
 }
+/* ---------- Search commands (Ctrl+K) ----------
+   Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay
+   the one place a command lives, and this reads them as they stand (an item hidden there is left out, one
+   greyed there is shown greyed, a gated one carries its badge and asks as the menu's does). */
+const CMD_MENUS = ['fileMenu', 'editMenu', 'viewMenu', 'toolsMenu', 'sweepsMenu', 'helpMenu'];
+let cmdDlg = null, cmdHits = [], cmdAt = 0;
+
+// an item's own words: without its shortcut, its dot, its icon or a submenu's items
+function cmdWords(n) {
+  const c = n.cloneNode(true);
+  for (const x of c.querySelectorAll('.k, .rt-dot, svg, .rt-menu')) x.remove();
+  return c.textContent.replace(/\s+/g, ' ').trim();
+}
+function commandList() {
+  // the Edit menu's items as it would show them now
+  for (const b of document.querySelectorAll('#editMenu [data-edit]')) b.disabled = !editCan(b.dataset.edit);
+  for (const k of ['Undo', 'Redo']) document.getElementById('edit' + k).disabled = document.getElementById('btn' + k).disabled;
+  const out = [];
+  const walk = (menu, path) => {
+    for (const n of menu.children) {
+      if (n.hidden) continue;
+      if (n.classList.contains('rt-sub')) { walk(n.querySelector(':scope > .rt-menu'), path.concat(cmdWords(n))); continue; }
+      if (!n.matches('button, a') || n.dataset.click === 'btnCmd') continue;
+      const k = n.querySelector('.k');
+      out.push({ node: n, label: cmdWords(n), path, key: k ? k.textContent : '', off: !!n.disabled,
+        need: n.classList.contains('rt-proneed') ? 'Pro' : n.classList.contains('rt-acctneed') ? 'Free account' : '' });
+    }
+  };
+  for (const id of CMD_MENUS) {
+    const menu = document.getElementById(id), top = document.querySelector('[aria-controls="' + id + '"]');
+    if (menu) walk(menu, [top ? cmdWords(top) : '']);
+  }
+  return out;
+}
+// the commands holding every word typed, those whose name starts with it first
+function commandFind(q, list) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean), Q = words.join(' ');
+  if (!words.length) return list.slice();
+  const hits = list.filter(c => { const t = (c.path.join(' ') + ' ' + c.label).toLowerCase(); return words.every(w => t.includes(w)); });
+  const rank = c => { const l = c.label.toLowerCase(); return l.startsWith(Q) ? 0 : l.includes(Q) ? 1 : 2; };
+  return hits.map((c, i) => [rank(c), i, c]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]);
+}
+
+function cmdFill() {
+  const input = cmdDlg.querySelector('input'), ul = cmdDlg.querySelector('ul');
+  cmdHits = commandFind(input.value, commandList());
+  cmdAt = Math.max(0, cmdHits.findIndex(c => !c.off));
+  ul.replaceChildren(...cmdHits.map((c, i) => h('li', { role: 'option', id: 'cmd' + i, class: (c.off ? 'off' : '') + (i === cmdAt ? ' at' : ''), 'aria-selected': i === cmdAt ? 'true' : 'false', 'aria-disabled': c.off ? 'true' : null,
+    onclick: () => cmdRun(i), onmousemove: () => cmdMark(i) },
+    h('span', { class: 'rt-cmdpath' }, c.path.join(' › ')), h('span', { class: 'rt-cmdname' }, c.label),
+    c.need ? h('span', { class: 'rt-cmdneed ' + (c.need === 'Pro' ? 'pro' : 'acct') }, c.need) : null,
+    c.key ? h('span', { class: 'k' }, c.key) : null)));
+  if (!cmdHits.length) ul.append(h('li', { class: 'rt-cmdnone' }, 'Nothing matches. Try “export”, “sweep” or “designer”.'));
+  input.setAttribute('aria-activedescendant', cmdHits.length ? 'cmd' + cmdAt : '');
+}
+function cmdMark(i) {
+  if (i === cmdAt) return;
+  const ul = cmdDlg.querySelector('ul'), was = ul.children[cmdAt], now = ul.children[i];
+  if (was) { was.classList.remove('at'); was.setAttribute('aria-selected', 'false'); }
+  if (now) { now.classList.add('at'); now.setAttribute('aria-selected', 'true'); now.scrollIntoView({ block: 'nearest' }); }
+  cmdAt = i; cmdDlg.querySelector('input').setAttribute('aria-activedescendant', 'cmd' + i);
+}
+function cmdRun(i) {
+  const c = cmdHits[i];
+  if (!c || c.off) return;
+  cmdDlg.close();
+  // after the dialog has gone, so what it opens (a menu's dialog, a submenu's export) is not shut with it
+  setTimeout(() => c.node.click());
+}
+function openCommands(q) {
+  if (!cmdDlg) {
+    const input = h('input', { type: 'search', placeholder: 'Search commands: export, 3D, scripts…', 'aria-label': 'Search commands', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdList', autocomplete: 'off', spellcheck: 'false' });
+    input.addEventListener('input', cmdFill);
+    input.addEventListener('keydown', e => {
+      const step = d => { for (let j = cmdAt + d; j >= 0 && j < cmdHits.length; j += d) if (!cmdHits[j].off) return cmdMark(j); };
+      if (e.key === 'ArrowDown') { e.preventDefault(); step(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); cmdRun(cmdAt); }
+    });
+    cmdDlg = h('dialog', { class: 'rt-dialog rt-cmd', id: 'cmdDialog', 'aria-label': 'Search commands' },
+      h('div', { class: 'rt-cmdbox' }, input), h('ul', { id: 'cmdList', role: 'listbox', 'aria-label': 'Commands' }));
+    cmdDlg.addEventListener('click', e => { if (e.target === cmdDlg) cmdDlg.close(); });   // a click outside the box
+    document.body.append(cmdDlg);
+  }
+  const input = cmdDlg.querySelector('input');
+  input.value = q || '';
+  cmdFill();
+  if (!cmdDlg.open) cmdDlg.showModal();
+  input.focus(); input.select();
+}
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+function wireCommands() {
+  document.getElementById('btnCmd').addEventListener('click', () => openCommands(''));
+  document.addEventListener('keydown', e => {
+    if (EMBED || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return;
+    const open = document.querySelector('dialog[open]');
+    if (open && open !== cmdDlg) return;
+    e.preventDefault();
+    openCommands('');
+  });
+}
 /* ==========================================================================
    Mods: parts whose behaviour is code, written by anyone, run in a sandbox
    A mod comes in a part pack (version 2) as "code": a script that defines parts through the
@@ -52722,7 +52914,7 @@ function workerShim() {
 
 /* a worker running this app: the page's own script with the shim in front, or on the dev page
    the modules as a module worker; null where there can be none. A script worker (script: true,
-   File › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
+   Tools › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
    needs one, and is told what it is before the script runs (JEKRAY_SCRIPT_WORKER, or ?script) */
 const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
 function newAppWorker(script) {
@@ -52887,7 +53079,7 @@ function traceLater() {
 
 /* The worker's side: load the bench when it changes, trace it, run the job, answer */
 /* ==========================================================================
-   The script worker: File › Scripts runs a script here, in the background, so a long loop never holds
+   The script worker: Tools › Scripts runs a script here, in the background, so a long loop never holds
    up the page and Stop can end it (by ending the worker) at any moment, in JavaScript or in Python.
    It is this same app (the page's own script, or on the dev page its modules), started by
    ui/scripts.js runScript and sent the bench as saved, the script and its language. The bench is
@@ -53099,7 +53291,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -53271,7 +53463,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modProbe(name, nm) { const el = this.byName(name); return { S: el.type === 'fcomp' ? modS(el, nm) : null, J: el.type === 'waveplate' ? modJonesM(el, nm) : null, keys: [...MODS.results.keys()] }; },
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
-    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms, where, stopped };
+    // a script as Tools › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms, where, stopped };
     // in the script worker (o.page: on the page; o.onLog(line) told each line as it comes), and the one running stopped
     scriptRun: (code, lang, o) => runScript(code, lang, undefined, o),
     scriptStop: () => stopScript(),

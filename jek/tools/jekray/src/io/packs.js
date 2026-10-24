@@ -335,7 +335,7 @@ function packDialogFill() {
       L.cls !== 'ok' ? h('div', null, packReportLink(pk)) : null), rm));
   }
 }
-/* the menus: File (by the bench's name), View, Sweeps and Help */
+/* the menus: File, Edit, View, Tools, Sweeps and Help, on the bar's menu bar */
 /* the menus' icons: small line drawings on a 16 px square, in the text's colour, as a drawing
    program's menus have them; and a tick for an option that is on */
 export const MENU_ICONS = {
@@ -366,9 +366,13 @@ export const MENU_ICONS = {
   info: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 7V11.5 M8 4.6V4.7', home: 'M2 7.5L8 2.5L14 7.5 M3.5 6.5V13.5H12.5V6.5 M6.5 13.5V9.5H9.5V13.5',
   fork: 'M4.5 1.5A1.5 1.5 0 1 1 4.49 1.5 M11.5 1.5A1.5 1.5 0 1 1 11.49 1.5 M4.5 11.5A1.5 1.5 0 1 1 4.49 11.5 M4.5 4.5V11.5 M11.5 4.5V6A2 2 0 0 1 9.5 8H6.5A2 2 0 0 0 4.5 10',
   cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z', upload: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5 M8 11V6.5 M6 8.5L8 6.5L10 8.5', devices: 'M1.5 3H11.5V10H1.5Z M4 13H9 M6.5 10V13 M12.5 6H14.5V13H12.5Z',
+  search: 'M7 2.5A4.5 4.5 0 1 1 6.99 2.5 M10.3 10.3L14 14', copy: 'M5.5 5.5H13.5V14.5H5.5Z M3.5 11.5H2.5V2.5H10.5V3.5',
+  cut: 'M4.5 10.5A2 2 0 1 1 4.49 10.5 M11.5 10.5A2 2 0 1 1 11.49 10.5 M5.7 11L12 1.5 M10.3 11L4 1.5', dup: 'M2.5 2.5H10.5V10.5H2.5Z M5.5 13.5H13.5V5.5',
+  share: 'M4 6.2A1.8 1.8 0 1 1 3.99 6.2 M12 2.2A1.8 1.8 0 1 1 11.99 2.2 M12 10.2A1.8 1.8 0 1 1 11.99 10.2 M5.6 7.1L10.4 4.9 M5.6 8.9L10.4 11.1',
+  sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5',
 };
 export function menuIcons(root) {
-  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon]')) {
+  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
     if (n.querySelector(':scope > svg.ic')) continue;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -517,11 +521,15 @@ export function wirePacks() {
     const acct = document.getElementById('acct'), ab = document.getElementById('btnAcct'), mi = document.getElementById('moreAcct');
     mi.hidden = acct.hidden; mi.querySelector('.lbl').textContent = ab.classList.contains('in') ? 'Your account…' : 'Sign in…';
   });
-  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnView', 'viewMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu']]) {
+  // one open at a time; with one of the menu bar's open, pointing at another opens that one instead, as a desktop menu bar does
+  const shows = new Map();
+  for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnEdit', 'editMenu'], ['btnView', 'viewMenu'], ['btnTools', 'toolsMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu']]) {
     const btn = document.getElementById(bId), menu = document.getElementById(mId);
     const show = on => {
       menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false');
       if (!on) return;
+      // the others shut (the phone's ⋯ menu has closed already, as its item was clicked)
+      for (const [b, sh] of shows) if (b !== btn && b.getAttribute('aria-expanded') === 'true') sh(false);
       // kept on the screen: a menu set against its button's right edge would run off a phone's left
       menu.style.translate = '';
       const r = menu.getBoundingClientRect(), vw = document.documentElement.clientWidth, pad = 8;
@@ -530,6 +538,12 @@ export function wirePacks() {
       const f = menu.querySelector('button:not(:disabled)'); if (f) f.focus();
     };
     btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
+    shows.set(btn, show);
+    if (btn.closest('.rt-menubar')) btn.addEventListener('pointerenter', e => {
+      if (e.pointerType !== 'mouse' || !menu.hidden) return;
+      const open = [...document.querySelectorAll('.rt-menubar .rt-mbar[aria-expanded="true"]')];
+      if (open.length) btn.click();    // as a click opens it: the Edit menu sets its items then
+    });
     menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
     document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
@@ -538,10 +552,10 @@ export function wirePacks() {
   document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
 
   // the menus' stand-ins for the bar's own buttons (a phone hides those)
-  for (const m of ['fileMenu', 'viewMenu', 'sweepsMenu', 'helpMenu', 'moreMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
+  for (const m of ['fileMenu', 'editMenu', 'viewMenu', 'toolsMenu', 'sweepsMenu', 'helpMenu', 'moreMenu']) document.getElementById(m).addEventListener('click', e => { const b = e.target.closest('[data-click]'); if (b) setTimeout(() => document.getElementById(b.dataset.click).click()); });
 
-  // Cite and Report a bug on the bar too, where there is room: they open what the Help menu's do
-  for (const b of document.querySelectorAll('.rt-barlink, .rt-beta-pill')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
+  // the bar's own stand-ins (the beta pill, the fit and measure icons): they do what their menu items do
+  for (const b of document.querySelectorAll('.rt-bar > [data-click], .rt-quick [data-click]')) b.addEventListener('click', e => { e.stopPropagation(); document.getElementById(b.dataset.click).click(); });
 
   menuIcons(document);
 

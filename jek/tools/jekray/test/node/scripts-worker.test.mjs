@@ -1,4 +1,4 @@
-/* File › Scripts in the background: the script worker's side (page/script-worker.js scriptWorkerMain) run here in Node
+/* Tools › Scripts in the background: the script worker's side (page/script-worker.js scriptWorkerMain) run here in Node
    over its own copy of a demo bench, as the page's worker runs it, against the page's J (ui/scripts.js makeJ over the
    calls window.JEKray gives, ui/script-calls.js). The four JavaScript and four Python examples give the same answers in
    the worker as on the page; log() lines are sent as they come; a bench the script changed comes back, and the page

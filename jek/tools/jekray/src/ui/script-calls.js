@@ -13,7 +13,7 @@ import { asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
 import { lensSystem } from '../engines/lens-engine.js';
 
 /* ---------- The calls a script is given, as window.JEKray has them ----------
-   The part of window.JEKray (ui/boot.js) that File › Scripts hands a script as J (ui/scripts.js CALLS), kept here so the
+   The part of window.JEKray (ui/boot.js) that Tools › Scripts hands a script as J (ui/scripts.js CALLS), kept here so the
    script worker (page/script-worker.js) makes the same calls over its own copy of the bench: the same code, the same
    answers. Each reads only the bench and the engines; none needs the page. The page-only ones (load, select, showTab,
    sweepPlay, sweepPause) stay in boot.js, and the worker has its own (page/script-worker.js workerCalls). */

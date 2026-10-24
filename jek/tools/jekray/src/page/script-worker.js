@@ -9,7 +9,7 @@ import { pyReady } from '../ui/python.js';
 import { snapshot } from '../ui/tabs.js';
 
 /* ==========================================================================
-   The script worker: File › Scripts runs a script here, in the background, so a long loop never holds
+   The script worker: Tools › Scripts runs a script here, in the background, so a long loop never holds
    up the page and Stop can end it (by ending the worker) at any moment, in JavaScript or in Python.
    It is this same app (the page's own script, or on the dev page its modules), started by
    ui/scripts.js runScript and sent the bench as saved, the script and its language. The bench is

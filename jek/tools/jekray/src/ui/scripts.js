@@ -14,7 +14,7 @@ import { DATA_FORMATS, dfArrayCsv, dfItemsOf, dfTableCsv, dfUtf8, dfWrite, dfZip
 import { dataMeta } from '../io/data-export.js';
 
 /* ---------- Scripts: JavaScript or Python run against the bench, in the background (JEKrayPro) ----------
-   File › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
+   Tools › Scripts… opens an editor beside the bench. A script is JavaScript or Python given J, the same
    calls the documentation lists for scripting (a screen's spot, a detector's reading, an
    antenna's gain, a part moved and read again, a sweep to a table), and log(). What it returns
    (in Python: what it sets result to, or its last line's value) is shown: a table when it is rows,

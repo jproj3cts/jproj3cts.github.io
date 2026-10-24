@@ -76,6 +76,7 @@ import { meritReport, optProblem } from '../engines/lens-opt.js';
 import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
 import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
 import { stepElements, stepImportBytes, wireStep } from '../io/step.js';
+import { wireCommands } from './commands.js';
 import { wirePicker } from './picker.js';
 import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
@@ -115,7 +116,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -287,7 +288,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modProbe(name, nm) { const el = this.byName(name); return { S: el.type === 'fcomp' ? modS(el, nm) : null, J: el.type === 'waveplate' ? modJonesM(el, nm) : null, keys: [...MODS.results.keys()] }; },
     async modRaw(code, def, fn, args) { const pk = { id: 'raw.test', code, hash: await modHash(code + Math.random()) }; try { const defs = await modLoad(pk); return def ? { out: await modAsk(pk, def, fn, args) } : { defs }; } catch (err) { return { err: err.message }; } },
     modReset: why => modReset(why || 'reset'),
-    // a script as File › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms, where, stopped };
+    // a script as Tools › Scripts runs it, in JavaScript or Python ('py'): { result, logs, error, traceback, ms, where, stopped };
     // in the script worker (o.page: on the page; o.onLog(line) told each line as it comes), and the one running stopped
     scriptRun: (code, lang, o) => runScript(code, lang, undefined, o),
     scriptStop: () => stopScript(),

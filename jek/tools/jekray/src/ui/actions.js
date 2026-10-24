@@ -154,6 +154,29 @@ export function pasteClip(clip, at) {
   return true;
 }
 export function duplicateSel() { const list = selection(); if (list.length) pasteClip(clipOf(list)); }
+/* the Edit menu's commands: what their keys do, to the selection on this tab */
+export function editCommand(k) {
+  if (LOCKED) return;
+  const list = selection();
+  if (k === 'copy' || k === 'cut') {
+    if (!list.length) return;
+    clipMem = clipOf(list);
+    try { navigator.clipboard.writeText(JSON.stringify(clipMem)).catch(() => {}); } catch (err) { /* kept here */ }
+    if (k === 'cut') removeEls(list); else toast('Copied ' + list.length + ' element' + (list.length === 1 ? '' : 's'));
+  } else if (k === 'paste') { if (clipMem) pasteClip(clipMem); }
+  else if (k === 'dup') duplicateSel();
+  else if (k === 'del') removeEls(list);
+  else if (k === 'all') setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw')));
+  else if (k === 'rot') { if (list.every(x => x.locked)) toast((list.length === 1 ? list[0].name + ' is' : 'They are') + ' locked in place'); else rotateEls(list, 90); }
+  else if (k === 'group') groupEls(list);
+  else if (k === 'ungroup') ungroupEls(list);
+}
+// which of them can be done now: none on a locked page, paste with something copied, the rest with a selection
+export function editCan(k) {
+  if (LOCKED) return false;
+  const list = selection();
+  return k === 'paste' ? !!clipMem : k === 'all' ? true : k === 'group' ? list.length > 1 : k === 'ungroup' ? list.some(e => e.group) : list.length > 0;
+}
 export const typingIn = t => t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA');
 /* Browsers that do not raise copy/cut/paste with nothing selected (Safari) still get them:
    the keys set a flag, and if the event has not come in a moment the copy here is used. One
@@ -557,6 +580,14 @@ export function wireActions() {
   document.addEventListener('pointerdown', e => { const m = document.getElementById('ctxMenu'); if (m && !m.hidden && !m.contains(e.target)) hideCtxMenu(); }, true);
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+  // the Edit menu, set as it opens (this runs before the menu's own opening, which focuses its first enabled item)
+  const editMenu = document.getElementById('editMenu');
+  document.getElementById('btnEdit').addEventListener('click', () => {
+    for (const b of editMenu.querySelectorAll('[data-edit]')) b.disabled = !editCan(b.dataset.edit);
+    for (const k of ['Undo', 'Redo']) document.getElementById('edit' + k).disabled = document.getElementById('btn' + k).disabled;
+  });
+  editMenu.addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if (b && !b.disabled) editCommand(b.dataset.edit); });
 
   {
     const mc = document.getElementById('minimap');

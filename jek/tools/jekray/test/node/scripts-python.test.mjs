@@ -1,4 +1,4 @@
-/* Python in File › Scripts: Pyodide (the vendored copy) run in Node against a demo bench, through the same J the
+/* Python in Tools › Scripts: Pyodide (the vendored copy) run in Node against a demo bench, through the same J the
    page gives a script (ui/scripts.js makeJ over the page's calls, made here from the engine). The four Python
    examples give what the four JavaScript ones give; NumPy loads from our own folder; an error comes back as a
    traceback of the script's own lines; and fifty runs leave nothing behind. */

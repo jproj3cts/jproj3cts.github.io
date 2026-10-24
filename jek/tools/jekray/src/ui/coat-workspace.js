@@ -16,7 +16,7 @@ import { track } from '../io/usage.js';
    The coating design workspace
    A thin-film stack designed against what it is for (core/coatdesign.js), on its own page over the bench as the lens
    and RF designers are. Opened from a face's Coating setting (Design a coating…), from the lens designer's face table,
-   from the RF designer's matching layers, or from File › Open a workspace with no face at all. Use this coating writes
+   from the RF designer's matching layers, or from Tools › Coating design with no face at all. Use this coating writes
    the stack to the face it came from; Keep as a coating keeps it by name in this browser, for any face's Coating list.
    ========================================================================== */
 let CW = null;                       // { spec, layers, from: { el, holder, label, onUse } | null, names }

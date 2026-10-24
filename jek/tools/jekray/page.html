@@ -22,39 +22,31 @@
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
+      <!-- the bar: the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
+           bench's name, then Add part, Share, Save, Examples, the cart and the account. On a phone: the name,
+           + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
         <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
-        <div class="rt-more rt-file">
-          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
-          <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, import and export" aria-label="File">▾</button>
+        <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
+        <div class="rt-menubar" role="group" aria-label="Menus">
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
-            <button type="button" role="menuitem" class="rt-narrow" data-icon="gallery" data-click="btnExamples">Examples…</button>
-            <button type="button" role="menuitem" class="rt-narrow" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new" id="wsMenu">Open a workspace
-              <div class="rt-menu rt-imenu" role="menu">
-                <button type="button" role="menuitem" id="btnNewLens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optical designer">Optical designer, new…</button>
-                <button type="button" role="menuitem" id="btnLensOfSel" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optical designer">Optical designer, of the selection</button>
-                <div class="sep"></div>
-                <button type="button" role="menuitem" id="btnNewRf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
-                <button type="button" role="menuitem" id="btnRfOfSel" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
-                <div class="sep"></div>
-                <button type="button" role="menuitem" id="btnCoatDesign" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
-              </div>
-            </div>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
+            <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
-            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
-            <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
+            <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
+            <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
+            <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImport" data-icon="import">Import an element (.zmx)…</button>
-            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnImportStl" data-icon="cube">Import an object (.stl, .step)…</button>
             <button type="button" role="menuitem" id="btnPacks" data-icon="parts" title="Sets of parts and glasses made by others, and modules (parts with code): a maker's catalogue, a course's kit">Part packs and modules…</button>
-            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="export" data-need="account" data-what="export the layout">Export layout
               <div class="rt-menu rt-imenu" role="menu">
                 <button type="button" role="menuitem" data-export="png" data-icon="image" data-need="account" data-what="export the layout">PNG image</button>
@@ -69,15 +61,29 @@
                 <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
+            <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnExportData" data-icon="export" data-need="account" data-what="export data" title="The numbers behind the bench (readouts, plots, screens’ rays and fields, beams, sweeps, the parts) as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
             <div class="sep"></div>
             <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
           </div>
         </div>
-        <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
-        <div class="rt-group rt-tight">
-          <button class="rt-btn rt-icon quiet" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-          <button class="rt-btn rt-icon quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnEdit" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="editMenu">Edit</button>
+          <div class="rt-menu rt-imenu" id="editMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="editUndo">Undo<span class="k">Ctrl+Z</span></button>
+            <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="editRedo">Redo<span class="k">Ctrl+Shift+Z</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-edit="cut" data-icon="cut">Cut<span class="k">Ctrl+X</span></button>
+            <button type="button" role="menuitem" data-edit="copy" data-icon="copy">Copy<span class="k">Ctrl+C</span></button>
+            <button type="button" role="menuitem" data-edit="paste" data-icon="paste">Paste<span class="k">Ctrl+V</span></button>
+            <button type="button" role="menuitem" data-edit="dup" data-icon="dup">Duplicate<span class="k">Ctrl+D</span></button>
+            <button type="button" role="menuitem" data-edit="del" data-icon="trash">Delete<span class="k">Del</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-edit="all">Select all<span class="k">Ctrl+A</span></button>
+            <button type="button" role="menuitem" data-edit="rot">Rotate 90° anticlockwise<span class="k">R</span></button>
+            <button type="button" role="menuitem" data-edit="group">Group<span class="k">Ctrl+G</span></button>
+            <button type="button" role="menuitem" data-edit="ungroup">Ungroup<span class="k">Ctrl+Shift+G</span></button>
+          </div>
         </div>
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnView" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
@@ -86,7 +92,7 @@
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
-            <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its \u00d7 closed it">Show the side panel</button>
+            <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="image" id="benchColourItem">Bench colour
               <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
@@ -97,6 +103,21 @@
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
             <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
+          </div>
+        </div>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu" title="The designers, scripts and the bench's settings">Tools</button>
+          <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnNewLens" data-ws="lens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optical designer">Optical designer, new…</button>
+            <button type="button" role="menuitem" id="btnLensOfSel" data-ws="lens" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optical designer">Optical designer, of the selection</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnNewRf" data-ws="rf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
+            <button type="button" role="menuitem" id="btnRfOfSel" data-ws="rf" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <button type="button" role="menuitem" data-click="btnBenchGear" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
           </div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -112,40 +133,52 @@
             <span class="rt-menunote">Sweep a value from its field in the panel (Sweep), then play it here.</span>
           </div>
         </div>
-        <div class="rt-group rt-right">
-          <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
-          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnCite" data-icon="quote" title="Cite JEKray in a paper or thesis"><span class="lbl">Cite</span></button>
-          <button class="rt-btn rt-mbar rt-barlink" type="button" data-click="btnBug" data-icon="bug" title="Report a bug: it goes straight to us"><span class="lbl">Report a bug</span></button>
-          <button class="rt-btn quiet" id="btnExamples" type="button" aria-haspopup="dialog">Examples</button>
-          <button class="rt-btn" id="btnShare" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share link</button>
-          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
-          <div class="rt-more rt-phonegone">
-            <button class="rt-btn rt-help quiet" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu" aria-label="Help">?<span class="rt-dot" id="helpDot" hidden></span></button>
-            <div class="rt-menu rt-menu-right rt-imenu" id="helpMenu" role="menu" hidden>
-              <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
-              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
-                <div class="rt-menu rt-imenu" role="menu">
-                  <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
-                  <button type="button" role="menuitem" data-tour="michelson" data-icon="split">Build a Michelson</button>
-                  <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
-                </div>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu">Help<span class="rt-dot" id="helpDot" hidden></span></button>
+          <div class="rt-menu rt-imenu" id="helpMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-click="btnCmd" data-icon="search">Search commands…<span class="k">Ctrl+K</span></button>
+            <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
+                <button type="button" role="menuitem" data-tour="michelson" data-icon="split">Build a Michelson</button>
+                <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
               </div>
-              <div class="sep"></div>
-              <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
-              <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
-              <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
-              <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
-              <div class="sep"></div>
-              <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
-              <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
-              <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
-              <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
-              <div class="sep"></div>
-              <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
             </div>
-            <div class="rt-menu rt-menu-right rt-expmenu" id="expMenu" hidden></div>
+            <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
+            <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
+            <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
+            <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+            <div class="sep"></div>
+            <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
+            <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
+            <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
+            <div class="sep"></div>
+            <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
           </div>
-          <a class="rt-btn rt-cartbtn quiet" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart">Cart <span class="rt-cartcount" id="cartCount" hidden>0</span></a>
+          <div class="rt-menu rt-expmenu" id="expMenu" hidden></div>
+        </div>
+        </div>
+        <div class="rt-group rt-tight rt-quick">
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnUndo" type="button" data-icon="undo" title="Undo (Ctrl+Z)" aria-label="Undo"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnRedo" type="button" data-icon="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"></button>
+          <span class="rt-qsep" aria-hidden="true"></span>
+          <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Fit the view to the bench" aria-label="Fit view"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnMeasure" data-icon="ruler" title="Measure distances, angles and optical paths (M)" aria-label="Measure"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnCmd" type="button" data-icon="search" title="Search commands (Ctrl+K)" aria-label="Search commands" aria-haspopup="dialog"></button>
+        </div>
+        <div class="rt-more rt-file">
+          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
+          <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+        </div>
+        <div class="rt-group rt-right">
+          <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
+          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
+          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
+          <a class="rt-btn rt-icon rt-cartbtn quiet rt-tbi" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart"><span class="rt-cartcount" id="cartCount" hidden>0</span></a>
           <div class="rt-more rt-phonegone" id="acct" hidden>
             <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -157,21 +190,15 @@
               <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="moreUndo">Undo</button>
               <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="moreRedo">Redo</button>
               <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnFile" data-icon="open">File…</button>
+              <button type="button" role="menuitem" data-click="btnEdit" data-icon="paste">Edit…</button>
               <button type="button" role="menuitem" data-click="btnView" data-icon="eye">View…</button>
+              <button type="button" role="menuitem" data-click="btnTools" data-icon="flask">Tools…</button>
               <button type="button" role="menuitem" data-click="btnSweeps" data-icon="wave">Sweeps…</button>
               <div class="sep"></div>
+              <button type="button" role="menuitem" data-click="btnCmd" data-icon="search">Search commands…</button>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
               <button type="button" role="menuitem" data-click="btnShare" data-icon="link" data-need="pro" data-what="share a link">Copy a share link</button>
-              <div class="sep"></div>
-              <div class="rt-sub rt-subleft" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="new">Open a workspace
-                <div class="rt-menu rt-imenu" role="menu">
-                  <button type="button" role="menuitem" data-click="btnNewLens" data-icon="new">Optical designer, new…</button>
-                  <button type="button" role="menuitem" data-click="btnLensOfSel" data-icon="open">Optical designer, of the selection</button>
-                  <button type="button" role="menuitem" data-click="btnNewRf" data-icon="new">RF designer, new…</button>
-                  <button type="button" role="menuitem" data-click="btnRfOfSel" data-icon="open">RF designer, of the selection</button>
-                  <button type="button" role="menuitem" data-click="btnCoatDesign" data-icon="new">Coating design</button>
-                </div>
-              </div>
               <div class="sep"></div>
               <a role="menuitem" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart">Quote cart<span class="k" id="moreCart"></span></a>
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
@@ -286,7 +313,7 @@
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
-    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View \u25be</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Right-drag, middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen); a right-click that does not drag opens the menu</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Drag a part</dt><dd>move it on the table (snapped)</dd><dt>Click a part</dt><dd>its arrows, out of both sides: orange along x, green along y, blue up (snapped; up in 0.5 mm steps, Shift: 0.1 mm)</dd><dt>Click it again</dt><dd>its rings, crossing: drag a ring or its dot; blue turns it (facing), green tips it, orange rolls it about its own axis; Shift: 15° steps, Alt: a tenth as fast</dd><dt>Click it a third time</dt><dd>its arrows again</dd><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>
+    <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an element, a fibre or a tab</dd><dt>Shift- or Ctrl-click</dt><dd>add to the selection, or take out</dd><dt>Drag on empty bench</dt><dd>select a boxful (Shift adds)</dd><dt>Ctrl+A</dt><dd>everything on this tab</dd><dt>Esc</dt><dd>select nothing</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A or /</dt><dd>add a part: search, or pick from the tabs</dd><dt>Shift-click a part</dt><dd>add several, the list staying open</dd><dt>Drag a part</dt><dd>from the list or the rail onto the bench, to put it there</dd><dt>View › Parts rail</dt><dd>show or hide the parts rail</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move (the whole selection); the handle turns one</dd><dt>Arrow keys</dt><dd>nudge by the snap step; Shift: 10 mm</dd><dt>Ctrl+C, Ctrl+X, Ctrl+V</dt><dd>copy, cut, paste, between tabs too</dd><dt>R, Shift+R</dt><dd>turn 90° anticlockwise, clockwise</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Right-click</dt><dd>rotate, turn round, lock, move to a tab and more</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Right-drag, middle-drag, or Space and drag</dt><dd>pan (one finger on a touch screen); a right-click that does not drag opens the menu</dd><dt>Z</dt><dd>zoom to the selection</dd><dt>Minimap</dt><dd>click or drag it to move about</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Drag a part</dt><dd>move it on the table (snapped)</dd><dt>Click a part</dt><dd>its arrows, out of both sides: orange along x, green along y, blue up (snapped; up in 0.5 mm steps, Shift: 0.1 mm)</dd><dt>Click it again</dt><dd>its rings, crossing: drag a ring or its dot; blue turns it (facing), green tips it, orange rolls it about its own axis; Shift: 15° steps, Alt: a tenth as fast</dd><dt>Click it a third time</dt><dd>its arrows again</dd><dt>Right-drag</dt><dd>turn (or drag, set to Trackpad)</dd><dt>Middle-drag, Ctrl+right-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>F, Z</dt><dd>fit, zoom to the selection</dd><dt>Shift+1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd></dl><h3>Measuring</h3><dl class="rt-shortcuts"><dt>M</dt><dd>measure: drag a ruler, or pick Angle and click three points</dd><dt>On a beam</dt><dd>the ruler gives the optical path too</dd><dt>Shift</dt><dd>place a point freely, not snapped</dd><dt>Delete, Esc</dt><dd>remove the last one, stop measuring</dd></dl><h3>Plots</h3><dl class="rt-shortcuts"><dt>Scroll, drag</dt><dd>zoom and pan (Shift: across only, Alt: up only)</dd><dt>Double-click</dt><dd>back to the whole plot</dd><dt>PNG, CSV</dt><dd>save the plot, or the numbers behind it</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekray file</dd><dt>Drop a .zmx or .jekray</dt><dd>onto the bench to open it</dd><dt>Ctrl+K</dt><dd>search every command in the menus</dd><dt>?</dt><dd>this list</dd></dl></div>
     <p class="rt-aihint">Want an AI assistant to design a bench, or rebuild one from a paper? Give it <a href="jekray-ai-guide.md" download>the JEKray guide for AI assistants</a>, ask for a .jekray file, and paste its answer onto the bench with Ctrl+V.</p>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>

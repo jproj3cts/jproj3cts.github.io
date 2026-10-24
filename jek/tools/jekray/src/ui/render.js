@@ -119,6 +119,16 @@ export const glowOp = () => lightLayer ? 'source-over' : 'lighter';
 export const glowA = a => lightLayer ? Math.min(1, a * 1.25) : a;
 // light with no colour of its own (white light where its colours run together, a grey), on paper
 export const PAPER_WHITE_LIGHT = 'rgb(128,120,110)';
+// a colour at a strength t (0 to 1) as a solid tint on the paper
+const tintMemo = new Map();
+function paperTint(c, t) {
+  const k = c + '|' + t.toFixed(3);
+  if (tintMemo.has(k)) return tintMemo.get(k);
+  const q = cssColour(c), P = hexRgb(BENCH_PAPER), a = Math.min(1, t) * (q.a === undefined ? 1 : q.a);
+  const out = 'rgb(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * a)).join(',') + ')';
+  tintMemo.set(k, out);
+  return out;
+}
 // the light's colour on paper: its hue kept and made vivid (saturation raised), at a mid tone; yellows
 // and greens, bright for their lightness, a little deeper still; a grey, the warm grey above
 const inkMemo2 = new Map();
@@ -596,9 +606,14 @@ function drawRaysOn(ctx, rays, shared) {
   // is, joined to the one before where they meet: only those crossing the margin are clipped
   const v = V(), k = v.scale, ox = W / 2 - v.cx * k, oy = H / 2 + v.cy * k;
   const lo = -CLIP_M, hiX = W + CLIP_M, hiY = H + CLIP_M;
-  for (const g of groups.values()) {
-    ctx.globalAlpha = glowA(g.alpha);
-    ctx.strokeStyle = lightInk(g.colour);
+  // on paper the rays are solid, a ray's strength the depth of its tint (its colour mixed with the paper)
+  // rather than see-through: see-through rays of two colours crossing mix to a muddy grey, and a stack of
+  // them to blotches. The weakest are drawn first, the strongest over them. On the dark bench they glow
+  const order = [...groups.values()];
+  if (lightLayer) order.sort((a, b) => a.alpha - b.alpha);
+  for (const g of order) {
+    if (lightLayer) { ctx.globalAlpha = 1; ctx.strokeStyle = paperTint(lightInk(g.colour), glowA(g.alpha)); }
+    else { ctx.globalAlpha = glowA(g.alpha); ctx.strokeStyle = g.colour; }
     ctx.beginPath();
     for (const r of g.rays) {
       const p = r.pts;

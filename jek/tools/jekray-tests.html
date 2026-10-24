@@ -7334,6 +7334,68 @@ const TESTS = [
       if (!(okConv && okRays && okStack)) throw new Error(JSON.stringify({ okConv, okRays, okStack, gaps: T.gaps, st: st && { count: st.count, rms: st.rms }, L: L.surfaces.map(s => [s.R, s.semi, s.hole]), from: P.surfaces.map(s => s.from.i), vars: D.vars, rows }));
       return 1;
     },
+  },  { group: 'The bar: menus and command search' },
+  {
+    name: 'The menu bar: File, Edit, View, Tools, Sweeps and Help, each opening its own menu; Edit’s items do what their keys do',
+    why: 'six menu buttons in that order, each opening its menu and closing the others; with nothing selected, Edit’s Cut, Copy and Delete are greyed and Select all is not; with a lens selected, Duplicate makes a second lens, Copy then Paste a third, Delete removes the selection, and Undo puts it back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), wait = async (f, n = 80) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
+      const names = [...D.querySelectorAll('.rt-menubar .rt-mbar')].map(b => b.textContent.trim());
+      const order = names.join() === 'File,Edit,View,Tools,Sweeps,Help';
+      let opens = true;
+      for (const [b, m] of [['btnFile', 'fileMenu'], ['btnEdit', 'editMenu'], ['btnView', 'viewMenu'], ['btnTools', 'toolsMenu'], ['btnSweeps', 'sweepsMenu'], ['btnHelpMenu', 'helpMenu']]) {
+        D.getElementById(b).click();
+        const shown = [...D.querySelectorAll('.rt-menubar .rt-imenu[role="menu"]')].filter(x => !x.hidden && !x.closest('.rt-sub')).map(x => x.id);
+        opens = opens && shown.join() === m;
+      }
+      D.body.click();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0 }] });
+      J.select(null);
+      const item = k => D.querySelector('#editMenu [data-edit="' + k + '"]');
+      D.getElementById('btnEdit').click();
+      const greyed = item('cut').disabled && item('copy').disabled && item('del').disabled && !item('all').disabled;
+      D.body.click();
+      J.select('Lens');
+      const lenses = () => J.serialize().elements.filter(e => e.type === 'lens').length;
+      D.getElementById('btnEdit').click(); item('dup').click();
+      const dup = await wait(() => lenses() === 2);
+      J.select('Lens');
+      D.getElementById('btnEdit').click(); item('copy').click();
+      D.getElementById('btnEdit').click(); const canPaste = !item('paste').disabled; item('paste').click();
+      const pasted = await wait(() => lenses() === 3);
+      D.getElementById('btnEdit').click(); item('all').click();
+      D.getElementById('btnEdit').click(); item('del').click();
+      const gone = await wait(() => lenses() === 0);
+      D.getElementById('btnUndo').click();
+      const back = lenses() === 3;
+      D.body.click();
+      if (!(order && opens && greyed && dup && canPaste && pasted && gone && back)) console.log('menu bar', { names, opens, greyed, dup, canPaste, pasted, gone, back });
+      return order && opens && greyed && dup && canPaste && pasted && gone && back ? 1 : 0;
+    },
+  },
+  {
+    name: 'Search commands (Ctrl+K) finds the menus’ items by their words and runs the one chosen',
+    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating design first, and Enter opens the coating workspace; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), wait = async (f, n = 80) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
+      D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+      const dlg = D.getElementById('cmdDialog'), input = dlg && dlg.querySelector('input');
+      const opened = !!dlg && dlg.open;
+      const find = q => { input.value = q; input.dispatchEvent(new W.Event('input')); return [...dlg.querySelectorAll('li[role="option"]')].map(li => li.querySelector('.rt-cmdpath').textContent + ' | ' + li.querySelector('.rt-cmdname').textContent); };
+      const coat = find('coating');
+      const coatFirst = coat[0] === 'Tools | Coating design';
+      const png = find('png');
+      const pngs = png.length === 2 && png.every(x => /^File › Export layout/.test(x));
+      const noCloud = !find('my benches').length && !!dlg.querySelector('.rt-cmdnone');
+      find('coating');
+      input.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const ran = !dlg.open && await wait(() => J.coatDesignOpen());
+      J.closeLensDesign();
+      if (!(opened && coatFirst && pngs && noCloud && ran)) console.log('commands', { opened, coat, png, noCloud, ran });
+      return opened && coatFirst && pngs && noCloud && ran ? 1 : 0;
+    },
   },  { group: 'Scripts' },
   {
     name: 'A script runs against the bench with the documented calls: a sweep to rows, a read, and an error reported rather than thrown',
@@ -10047,14 +10109,14 @@ const TESTS = [
     },
   },
   {
-    name: 'File › Open a workspace: a submenu of the designers, with lens design of the selection, RF design of the selection and coating design',
-    why: 'the File menu’s Open a workspace holds five items (lens design new and of the selection, RF design new and of the selection, coating design); with a lens selected, Lens design of the selection makes it an assembly and opens the lens workspace; RF design of the selection refuses an optical lens and opens the RF designer on an RF lens; Coating design opens the coating workspace on its own (1 when all hold)',
+    name: 'Tools: the designers, with lens design of the selection, RF design of the selection and coating design',
+    why: 'the Tools menu holds the five designer items (lens design new and of the selection, RF design new and of the selection, coating design); with a lens selected, Lens design of the selection makes it an assembly and opens the lens workspace; RF design of the selection refuses an optical lens and opens the RF designer on an RF lens; Coating design opens the coating workspace on its own (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const D = rigDoc(), ws = id => { const el = D.getElementById(id); return !!el && !el.hidden; };
       const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
       try {
-        const items = [...D.querySelectorAll('#wsMenu button')].map(b => b.textContent);
+        const items = [...D.querySelectorAll('#toolsMenu [data-ws]')].map(b => b.textContent);
         const five = items.length === 5 && items[0] === 'Optical designer, new…' && items[4] === 'Coating design' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
         lens(); J.select('Lens');
         D.getElementById('btnLensOfSel').click();

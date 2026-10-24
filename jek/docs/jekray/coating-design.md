@@ -14,7 +14,7 @@ The workspace opens in four ways:
 - **From a face.** Any coated face's **Coating** setting (a lens face, a window, a beamsplitter cube, a mirror) offers **Design a coating…** at the bottom of its list. The workspace opens on that face, with its glass as the substrate and its coating as the starting stack, and **Use this coating** writes the stack back.
 - **From the lens designer.** On the **Polarisation** analysis, each face's coating can be chosen in the table; **Design a coating…** opens the workspace on that face.
 - **From the RF designer.** Beside a lens's **Matching layers**, **Design…** opens the workspace on its faces, as an RF matching layer on its plastic, at the system's frequency and over its band; **Use this coating** puts the stack on both faces.
-- **On its own.** **File › Open a workspace › Coating design** opens it with nothing to write to, on N-BK7 at 550 nm. **Keep as a coating…** then saves the stack by name.
+- **On its own.** **Tools › Coating design** opens it with nothing to write to, on N-BK7 at 550 nm. **Keep as a coating…** then saves the stack by name.
 
 **Back to the bench** (or Esc) leaves without writing anything.
 

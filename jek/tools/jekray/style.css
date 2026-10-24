@@ -1022,8 +1022,9 @@
   .rt-pinned h2 { touch-action: none; user-select: none; -webkit-user-select: none; }
   .rt-pinned.moving { position: relative; z-index: 6; box-shadow: 0 10px 28px rgba(0,0,0,0.28); cursor: grabbing; }
 
-  /* one bar: the bench's name and its File menu, the title, + Add part, undo and redo, Measure,
-     View and Sweeps; Examples, Share, Save and Help at its right */
+  /* one bar: the logo, the menu bar (File, Edit, View, Tools, Sweeps, Help), the one-click icons (undo, redo,
+     fit, measure, search), the bench's name in the middle; + Add part, Share, Save, Examples, the cart and the
+     account at its right */
   .rt-app .rt-toolbar { padding: 0.45rem 0.75rem; gap: 0; }
   .rt-bar { flex-wrap: wrap; gap: 0.4rem 0.5rem; }
   .rt-file { display: flex; align-items: center; gap: 0.1rem; }
@@ -1041,6 +1042,36 @@
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-btn.rt-help { position: relative; }
   .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
+  .rt-menubar { display: flex; align-items: center; gap: 0.05rem; flex: none; }
+  .rt-menubar .rt-btn.rt-mbar { padding: 0.4rem 0.6rem; font-weight: 500; }
+  #btnHelpMenu { position: relative; }
+  #btnHelpMenu .rt-dot { position: absolute; top: 2px; right: 0; margin: 0; }
+  .rt-quick { flex: none; gap: 0.05rem; }
+  .rt-qsep { width: 1px; height: 1.3rem; margin: 0 0.25rem; background: var(--jek-line-2); }
+  .rt-btn.rt-tbi { display: inline-grid; place-items: center; position: relative; min-width: 2.1rem; height: 2.1rem; padding: 0; color: var(--jek-ink); }
+  .rt-tbi .ic, .rt-tbl .ic { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .rt-tbl .ic { width: 15px; height: 15px; }
+  .rt-bar .rt-file { margin: 0 auto; }
+  .rt-bar .rt-right { margin-left: 0; }
+  .rt-cartbtn .rt-cartcount { position: absolute; top: -2px; right: -3px; min-width: 1rem; line-height: 1rem; padding: 0 0.25rem; font-size: 0.66rem; }
+  /* Search commands (Ctrl+K, ui/commands.js): a box and the menus' items that hold its words */
+  dialog.rt-dialog.rt-cmd { width: min(38rem, calc(100vw - 2rem)); margin-top: 12vh; padding: 0; text-align: left; }
+  .rt-cmdbox { padding: 0.6rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-cmdbox input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.65rem; border: 1px solid var(--jek-line-2); border-radius: 3px; font: inherit; font-size: 0.95rem; background: #fff; color: var(--jek-ink); }
+  .rt-cmdbox input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-cmd ul { list-style: none; margin: 0; padding: 0.3rem 0; max-height: min(26rem, 60vh); overflow-y: auto; }
+  .rt-cmd li { display: flex; align-items: center; gap: 0.6rem; padding: 0.38rem 0.8rem; font-size: 0.85rem; cursor: pointer; }
+  .rt-cmd li.at { background: var(--jek-cyan); color: #fff; }
+  .rt-cmd li.off { opacity: 0.45; cursor: default; }
+  .rt-cmd li.off.at { background: var(--jek-well); color: var(--jek-ink); }
+  .rt-cmdpath { flex: none; min-width: 7.5rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-cmdname { flex: 1; min-width: 0; }
+  .rt-cmd .k { flex: none; font: 0.75rem var(--jek-mono); color: var(--jek-ink-soft); }
+  .rt-cmd li.at .rt-cmdpath, .rt-cmd li.at .k { color: rgba(255,255,255,0.85); }
+  .rt-cmdneed { flex: none; padding: 0 0.4em; border-radius: 0.6em; font: 700 0.66rem/1.5 var(--jek-sans); color: #fff; background: var(--jek-orange, #f47742); }
+  .rt-cmdneed.acct { background: var(--jek-cyan-dark, #007893); }
+  .rt-cmd li.rt-cmdnone { color: var(--jek-ink-soft); cursor: default; }
   .rt-menu.rt-menu-right { left: auto; right: 0; }
   /* the account button: Sign in, or the person's initials once signed in */
   .rt-btn.rt-acct.in { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 50%; align-self: center; display: inline-grid; place-items: center;
@@ -1118,35 +1149,23 @@
   /* the menu bar's own items: flat words, lit on hover, as a menu bar's */
   .rt-btn.rt-mbar { background: none; border-color: transparent; font-weight: 600; }
   .rt-btn.rt-mbar:hover, .rt-btn.rt-mbar[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); }
-  .rt-barlink { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 500; color: var(--jek-ink-soft); }
-  .rt-barlink:hover { color: var(--jek-ink); }
-  .rt-barlink .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-  /* on a desktop the bar stays one row, giving way as the window narrows so the bench's name keeps
-     room to be read (its box is as wide as the name): Cite and Report a bug's words go first (their
-     icons stay), then they and Save's ".jekray", then Measure (in the View menu), then Examples and
-     Share (to the File menu); the JEKray logo always stays, and the name gives way last */
+  /* on a desktop the bar stays one row, giving way as the window narrows so the bench's name keeps room to be
+     read (its box is as wide as the name): Save's ".jekray" goes first, then the beta pill's "Open", then Share
+     and Examples (both in the File menu), then the fit and measure icons (in the View menu); the logo, the menus
+     and the name always stay */
   @media (min-width: 961px) {
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 8rem; max-width: 26rem; }
   }
-  @media (max-width: 1800px) { .rt-barlink .lbl { display: none; } .rt-barlink { padding-left: 0.5rem; padding-right: 0.5rem; } }
-  @media (max-width: 1440px) {
-    .rt-barlink { display: none; }
-    .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray" */
-  }
-  @media (max-width: 1240px) {
-    #btnExamples, #btnShare { display: none; }
-    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: flex; }
-  }
-  @media (max-width: 1100px) { .rt-pillopen { display: none; } }   /* "Beta" */
+  @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
+  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
+  @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
+  @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
-  /* on a phone, Examples, Share and Measure go into the File and View menus */
-  .rt-menu button.rt-narrow { display: none; }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
-    .rt-menu button.rt-narrow { display: flex; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
@@ -1154,9 +1173,8 @@
     .rt-imenu > .rt-sub.rt-acctneed::before, .rt-imenu > .rt-sub.rt-proneed::before { content: none; }
   }
   .rt-menu button:disabled { opacity: 0.45; cursor: default; background: none; }
-  /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, View, Sweeps, Examples,
-     Share, the cart, the account and Help in the ⋯ menu, whose View, Sweeps, account and Help open their own
-     menus under the bar's right end */
+  /* a phone: the bar on one row (the name, + Add part, Save and ⋯); undo and redo, the six menus, Search
+     commands, Examples, Share, the cart and the account in the ⋯ menu, whose menus open under the bar's right end */
   .rt-moremenu { display: none; }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
     .rt-app .rt-toolbar { position: relative; padding: 0.4rem 0.5rem; }
@@ -1172,7 +1190,6 @@
     .rt-bar .rt-phonegone { position: static; }
     .rt-bar .rt-phonegone > .rt-btn { position: absolute; width: 1px; height: 1px; min-width: 0; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
     .rt-bar .rt-phonegone > .rt-menu { top: 100%; left: auto; right: 0.5rem; }
-    .rt-menu button.rt-narrow[data-click="btnExamples"], .rt-menu button.rt-narrow[data-click="btnShare"] { display: none; }
   }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
   .rt-swatch { flex: none; width: 14px; height: 14px; border: 1px solid var(--jek-line-2); border-radius: 2px; box-sizing: border-box; }

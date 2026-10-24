@@ -76,7 +76,7 @@ Yes. Give it the [guide for AI assistants](/jek/tools/jekray-ai-guide.md), ask f
 
 ### How do I cite JEKray?
 
-**Help › Cite JEKray**, or **Cite** on the bar, gives a reference to copy with the version you used, and a BibTeX entry.
+**Help › Cite JEKray** gives a reference to copy with the version you used, and a BibTeX entry.
 
 ### I found something wrong.
 

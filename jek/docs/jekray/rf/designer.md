@@ -11,7 +11,7 @@ description: "The RF designer: a feed horn's beam through a system of RF lenses 
 
 ## Opening it
 
-Open it with **Design as an RF assembly…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, with **File › Open a workspace › RF designer, of the selection**, or from **My benches › Open a workspace**, which makes a new cloud bench and opens it in the designer; **Keep as a part…** in its header saves the whole system in My parts or a team's parts. **File › Open a workspace › RF designer, new…** starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [Optical designer](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
+Open it with **Design as an RF assembly…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, with **Tools › RF designer, of the selection**, or from **My benches › Open a workspace**, which makes a new cloud bench and opens it in the designer; **Keep as a part…** in its header saves the whole system in My parts or a team's parts. **Tools › RF designer, new…** starts from a made-to-order lens for 24 GHz. **Optical designer** in its bar opens the same parts in the [Optical designer](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
 
 ## Its conditions
 

@@ -202,6 +202,7 @@ import './ui/python.js';
 import './ui/script-calls.js';
 import './ui/scripts.js';
 import './ui/tours.js';
+import './ui/commands.js';
 import './io/mods.js';
 import './worker/shim.js';
 import './page/workers.js';

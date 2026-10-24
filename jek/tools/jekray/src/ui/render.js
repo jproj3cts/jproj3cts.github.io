@@ -77,7 +77,7 @@ export function requestRender() {
    page goes dark: style.css's tokens under [data-rt-theme="dark"], and inkA / plotPaper / greyInk for
    what the page draws itself), or as the computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
    (a colour an older file was saved with is not used). On the light bench the words (names, the
-   scale, captions) are drawn dark and the light is laid on as ink rather than glowing, so beams stand
+   scale, captions) are drawn dark and the light is laid on in clear colours rather than glowing (white light grey: whiteRuns), so beams stand
    out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
 const BENCH_DEFAULT = '#1f2529', BENCH_PAPER = '#f3eee5';
 const THEME_KEY = 'jekray-theme';
@@ -113,24 +113,27 @@ export function benchLight(bg = benchBg()) {
 }
 // while a light bench is drawn
 export let lightLayer = false;
-// the light glowing (added) over the dark bench, laid on as ink (multiplied) over paper, where more light is deeper; and stronger there
-export const glowOp = () => lightLayer ? 'multiply' : 'lighter';
-export const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
-// the light's colour as ink on paper: no lighter than a mid tone, so yellow, cyan and white light still show
+// the light glowing (added) over the dark bench, and laid on over paper: never multiplied, as colours
+// multiplied go to black where they cross (blue over yellow, white light's every colour on one line)
+export const glowOp = () => lightLayer ? 'source-over' : 'lighter';
+export const glowA = a => lightLayer ? Math.min(1, a * 1.25) : a;
+// light with no colour of its own (white light where its colours run together, a grey), on paper
+export const PAPER_WHITE_LIGHT = 'rgb(128,120,110)';
+// the light's colour on paper: its hue kept and made vivid (saturation raised), at a mid tone; yellows
+// and greens, bright for their lightness, a little deeper still; a grey, the warm grey above
 const inkMemo2 = new Map();
 export function lightInk(c) {
   if (!lightLayer || typeof c !== 'string') return c;
   if (inkMemo2.has(c)) return inkMemo2.get(c);
   const q = cssColour(c), r = q.r / 255, g = q.g / 255, b = q.b / 255, hi = Math.max(r, g, b), lo = Math.min(r, g, b);
-  let l = (hi + lo) / 2, out = c;
-  const top = 0.42;
-  if (l > top) {
-    // the same hue and saturation, at that lightness (HSL)
-    const d = hi - lo, sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
-    let hh = 0;
-    if (d) hh = hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
-    l = top;
-    const C = (1 - Math.abs(2 * l - 1)) * sat, X = C * (1 - Math.abs((hh % 2 + 2) % 2 - 1)), m = l - C / 2;
+  const l = (hi + lo) / 2, d = hi - lo, sat0 = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let out;
+  if (sat0 < 0.15) out = PAPER_WHITE_LIGHT.replace('rgb(', 'rgba(').replace(')', ',' + q.a + ')');
+  else {
+    let hh = hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hh = (hh + 6) % 6;
+    const sat = Math.max(sat0, 0.9), L = hh >= 0.75 && hh <= 2.85 ? 0.4 : Math.min(l, 0.5);   // 45° to 170°: the yellows and greens
+    const C = (1 - Math.abs(2 * L - 1)) * sat, X = C * (1 - Math.abs(hh % 2 - 1)), m = L - C / 2;
     const [R, G, B] = hh < 1 ? [C, X, 0] : hh < 2 ? [X, C, 0] : hh < 3 ? [0, C, X] : hh < 4 ? [0, X, C] : hh < 5 ? [X, 0, C] : [C, 0, X];
     out = 'rgba(' + [R, G, B].map(v => Math.round((v + m) * 255)).join(',') + ',' + q.a + ')';
   }
@@ -512,6 +515,7 @@ function drawRays(stale) {
     if (cv.width !== canvas.width * ss || cv.height !== canvas.height * ss) { cv.width = canvas.width * ss; cv.height = canvas.height * ss; }
     const c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
+    rayLayer.shared = lightLayer ? whiteRuns(rays) : null;    // over all the rays, though they are drawn a chunk at a time
     rayLayer.rays = rays; rayLayer.key = key; rayLayer.frame = frameKey; rayLayer.view = { cx: V().cx, cy: V().cy, scale: V().scale };
     rayLayer.settled = false; rayLayer.done = 0;
   }
@@ -520,7 +524,7 @@ function drawRays(stale) {
     while (j < rays.length && n < RAY_CHUNK) { if (rays[j].bench === project.tab) n += rays[j].pts.length >> 1; j++; }
     const c = rayLayer.cv.getContext('2d'), k = DPR * (rayLayer.ss || 1);
     c.setTransform(k, 0, 0, k, 0, 0);
-    drawRaysOn(c, j - rayLayer.done === rays.length ? rays : rays.slice(rayLayer.done, j));
+    drawRaysOn(c, j - rayLayer.done === rays.length ? rays : rays.slice(rayLayer.done, j), rayLayer.shared);
     rayLayer.done = j;
     if (j < rays.length) requestRender();
   }
@@ -531,7 +535,41 @@ function drawRays(stale) {
   ctx.drawImage(rayLayer.cv, 0, 0, canvas.width, canvas.height);
   ctx.restore();
 }
-function drawRaysOn(ctx, rays) {
+/* White light on paper: a source of several colours sends each colour along the same line until something
+   disperses them (a prism, a grating, a lens's glass). Laid on, the colour drawn last would hide the rest, so
+   where two or more of a source's colours share a segment it is drawn once, grey, as white light is drawn in a
+   book, and each colour shows only from where it parts from the others. Gives, for each such ray, its runs:
+   { pts, colour }, the shared ones grey (each shared segment kept by one ray only) */
+function whiteRuns(rays) {
+  const cols = new Map();
+  for (const r of rays) if (r.bench === project.tab) { let c = cols.get(r.src); if (!c) cols.set(r.src, c = new Set()); c.add(r.colour); }
+  const multi = new Set([...cols].filter(([, c]) => c.size > 1).map(([s]) => s));
+  if (!multi.size) return null;
+  const segKey = (r, p, i) => r.src + '|' + p[i - 2].toFixed(4) + ',' + p[i - 1].toFixed(4) + ',' + p[i].toFixed(4) + ',' + p[i + 1].toFixed(4);
+  const seen = new Map();                 // a segment: the colours along it
+  for (const r of rays) {
+    if (r.bench !== project.tab || !multi.has(r.src)) continue;
+    const p = r.pts;
+    for (let i = 2; i < p.length; i += 2) { const k = segKey(r, p, i); let c = seen.get(k); if (!c) seen.set(k, c = new Set()); c.add(r.colour); }
+  }
+  const out = new Map(), drawn = new Set();
+  for (const r of rays) {
+    if (r.bench !== project.tab || !multi.has(r.src)) continue;
+    const p = r.pts, runs = [];
+    let cur = null;
+    for (let i = 2; i < p.length; i += 2) {
+      const k = segKey(r, p, i), white = seen.get(k).size > 1;
+      if (white && drawn.has(k)) { cur = null; continue; }      // drawn already, by a ray of another colour
+      if (white) drawn.add(k);
+      const colour = white ? PAPER_WHITE_LIGHT : r.colour;
+      if (!cur || cur.colour !== colour) { cur = { pts: [p[i - 2], p[i - 1]], colour }; runs.push(cur); }
+      cur.pts.push(p[i], p[i + 1]);
+    }
+    out.set(r, runs);
+  }
+  return out;
+}
+function drawRaysOn(ctx, rays, shared) {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
   // brightness follows each branch's power; one path per colour and brightness keeps it fast
@@ -540,12 +578,15 @@ function drawRaysOn(ctx, rays) {
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
   ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
+  if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
     const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
-    const key = r.colour + '|' + lvl;
-    if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, rays: [] });
-    groups.get(key).rays.push(r);
+    for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
+      const key = part.colour + '|' + lvl;
+      if (!groups.has(key)) groups.set(key, { colour: part.colour, alpha: lvl / 12, rays: [] });
+      groups.get(key).rays.push(part);
+    }
   }
   // the view's transform written out, and a segment wholly inside the clip margin drawn as it
   // is, joined to the one before where they meet: only those crossing the margin are clipped

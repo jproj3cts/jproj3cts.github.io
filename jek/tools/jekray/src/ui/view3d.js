@@ -186,7 +186,8 @@ export const V3D = (() => {
     camera.up.set(0, 0, 1);
     const sun = new T.DirectionalLight(0xffffff, 1.6);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005;
-    scene.add(sun, sun.target, new T.HemisphereLight(0xffffff, 0x404850, 0.5));
+    const hemi = new T.HemisphereLight(0xffffff, 0x404850, 0.5);
+    scene.add(sun, sun.target, hemi);
     const groups = { board: new T.Group(), parts: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
     for (const g of Object.values(groups)) scene.add(g);
     // a beam that is never rebuilt, too small to see, for each way beams are blended: it keeps the
@@ -214,7 +215,7 @@ export const V3D = (() => {
       axes.add(new T.Line(g, new T.LineBasicMaterial({ color: c })));
     }
     cube.add(axes);
-    R = { gl, scene, camera, sun, groups, cube, cubeCam, box, target: new T.Vector3(), key: null, trace: null, selKey: null, camTab: null, w: 0, h: 0, anim: null, queued: false };
+    R = { gl, scene, camera, sun, hemi, groups, cube, cubeCam, box, target: new T.Vector3(), key: null, trace: null, selKey: null, camTab: null, w: 0, h: 0, anim: null, queued: false };
     return R;
   }
   const CUBE_PX = 104, CUBE_M = 8;
@@ -306,10 +307,18 @@ export const V3D = (() => {
   const shapeKey = el => { if (el.type === 'screen' && el.faceMap) return null; const o = {}; for (const k in el) if (!POSE.has(k)) o[k] = el[k]; return JSON.stringify(o) + (el.mmw && el.type === 'detector' ? '|' + hornLam(el) : ''); };   // a receiving horn is built for the bench's frequency
   const disposeAll = g => { for (const o of [...g.children]) { g.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.userData.texs) for (const t of x.userData.texs) { phosphorForget(t); t.dispose(); } const ms = Array.isArray(x.material) ? x.material : x.material ? [x.material] : []; for (const m of ms) if (m.map) m.map.dispose(); }); } };
   const col = c => new T.Color(c);
+  /* In the Light theme the parts are seen as in a bright lab: a black-anodised housing (a laser, a photodiode, a
+     mount) a mid anodised grey that still shades, not a black hole; metal reflecting a brighter room (mat.metal) */
+  const paperBody3 = c => {
+    const k = new T.Color(c);
+    if (!benchLight()) return k;
+    const hsl = k.getHSL({});
+    return k.setHSL(hsl.h, hsl.s * 0.35, 0.27 + hsl.l * 0.5);
+  };
   const mat = {
     glass: (c = 0xa9d8e6, o = 0.3) => new T.MeshStandardMaterial({ color: col(c), transparent: true, opacity: o, roughness: 0.05, metalness: 0, side: T.DoubleSide, depthWrite: false }),
-    metal: (c = 0xe6eaee, r = 0.12) => new T.MeshStandardMaterial({ color: col(c), metalness: 1, roughness: r, side: T.DoubleSide }),
-    body: (c = 0x262b30) => new T.MeshStandardMaterial({ color: col(c), metalness: 0.35, roughness: 0.55, side: T.DoubleSide }),
+    metal: (c = 0xe6eaee, r = 0.12) => new T.MeshStandardMaterial({ color: col(c), metalness: 1, roughness: benchLight() ? Math.max(r, 0.35) : r, side: T.DoubleSide, envMapIntensity: benchLight() ? 2.6 : 1 }),   // satin on paper: a sharp mirror shows the dark it faces
+    body: (c = 0x262b30) => new T.MeshStandardMaterial({ color: paperBody3(c), metalness: 0.35, roughness: benchLight() ? 0.45 : 0.55, side: T.DoubleSide }),
     matte: c => new T.MeshStandardMaterial({ color: col(c), metalness: 0, roughness: 0.8, side: T.DoubleSide }),
     glow: c => new T.MeshStandardMaterial({ color: col(c), emissive: col(c), emissiveIntensity: 0.7, roughness: 0.4, side: T.DoubleSide }),
   };
@@ -644,7 +653,7 @@ export const V3D = (() => {
     const parts = R.partCache || (R.partCache = new Map()), labels = R.labelCache || (R.labelCache = new Map()), used = new Set(), usedL = new Set();
     const els = project.elements.filter(e => e.bench === project.tab && FREE_3D.has(e.type) && e.type !== 'draw' && !e.hide3d), box = new T.Box3();
     for (const el of els) {
-      const k = shapeKey(el), c = parts.get(el.id);
+      const k0 = shapeKey(el), k = k0 === null ? null : k0 + '|' + benchLight(), c = parts.get(el.id);   // a part made again in the other theme
       let p = null;
       if (c && k !== null && c.k === k) p = c.obj;
       else {
@@ -700,6 +709,10 @@ export const V3D = (() => {
     (box.isEmpty() ? new T.Vector3(200, 200, 100) : box.getSize(s));
     const rad = Math.max(150, Math.hypot(s.x, s.y) / 2 + 60);
     R.sun.position.set(c.x - 0.45 * rad, c.y - 0.75 * rad, 2.2 * rad); R.sun.target.position.copy(c);
+    // the lab's light: brighter, from a warm sky and a pale floor, in the Light theme
+    const paper = benchLight();
+    R.sun.intensity = paper ? 1.8 : 1.6;
+    R.hemi.intensity = paper ? 1.0 : 0.5; R.hemi.color.set(paper ? 0xfffaf4 : 0xffffff); R.hemi.groundColor.set(paper ? 0xb9b0a2 : 0x404850);
     const sc = R.sun.shadow.camera; sc.left = -rad * 1.2; sc.right = rad * 1.2; sc.top = rad * 1.2; sc.bottom = -rad * 1.2; sc.near = 1; sc.far = 6 * rad; sc.updateProjectionMatrix();
     R.content = box;
     R.selKey = null;
@@ -1010,7 +1023,7 @@ export const V3D = (() => {
     if (bk === R.boardKey && R.groups.board.children.length) return;
     R.boardKey = bk; R.boardBelow = false;               // (a new board is opaque: draw fades it again if need be)
     disposeAll(R.groups.board);
-    const paper = new T.Color(benchBg()).getHSL({}).l > 0.5, bg = paper ? '#d6ccbb' : benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: paper ? 0.9 : 0.7, metalness: paper ? 0.05 : 0.25 });   // paper is matt, and a shade deeper, as the lights wash it out
+    const paper = new T.Color(benchBg()).getHSL({}).l > 0.5, bg = paper ? '#cbc0ac' : benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: paper ? 0.9 : 0.7, metalness: paper ? 0.05 : 0.25 });   // paper is matt, and a shade deeper, as the lights wash it out
     let top = side;
     if (benchHoles()) {
       const c = document.createElement('canvas'); c.width = c.height = 64;

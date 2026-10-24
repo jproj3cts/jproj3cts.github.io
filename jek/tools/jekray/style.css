@@ -193,15 +193,21 @@
   .rt-stage canvas.rotate { cursor: crosshair; }
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
-  .rt-gear { position: absolute; right: 0.5rem; bottom: 0.45rem; z-index: 7; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-    color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 50%; cursor: pointer; }
-  .rt-gear:hover { color: #fff; background: rgba(0, 146, 178, 0.9); }
-  .rt-gear.on { color: #fff; background: var(--jek-cyan); border-color: transparent; }
-  .rt-gear:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 2px; }
-  body.rt-embed .rt-gear { display: none; }
+  /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
+     chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
+  .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    width: 18px; height: 64px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
+    box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
+  .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
+  .rt-sidetab .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+  .rt-sidetab .chev { width: 8px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
+  .rt-sidetab.open .chev { transform: scaleX(-1); }
+  /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
+  .rt-pin.rt-mainclose { display: none; }
+  body.rt-embed .rt-sidetab { display: none; }
   .rt-coords {
     position: absolute;
-    right: 3rem;
+    right: 0.7rem;
     bottom: 0.5rem;
     font-family: var(--jek-mono);
     font-size: 0.75rem;
@@ -224,7 +230,7 @@
   .rt-v3dswitch button:hover { background: var(--rt-surface); color: var(--jek-ink); }
   .rt-v3dswitch button.on { background: var(--rt-surface); color: var(--jek-ink); box-shadow: inset 0 -2px 0 var(--jek-orange); }
   .rt-v3dswitch button:disabled { opacity: 0.45; cursor: not-allowed; }
-  .rt-v3dbar { position: absolute; right: 48px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 8rem); }
+  .rt-v3dbar { position: absolute; right: 8px; bottom: 8px; z-index: 6; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 8rem); }
   .rt-v3dbar .rt-btn { padding: 0.25rem 0.55rem; font-size: 0.75rem; }
   .rt-v3dbar .rt-btn.off { opacity: 0.55; }
   .rt-v3dbar .rt-flybird { display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; }
@@ -1689,10 +1695,15 @@
   .rt-minimap { display: none !important; }
   .rt-bar .rt-menu, .rt-picker { max-height: calc(100vh - 4rem); max-height: calc(100dvh - 4rem); overflow-y: auto; }
   .rt-app .rt-welcome { left: calc(52px + 0.5rem); right: 0.5rem; bottom: 0.6rem; max-width: none; max-height: calc(100% - 1.2rem); overflow-y: auto; }
-  /* a sign-up note stands clear of the bench's settings button in the corner */
+  /* a sign-up note stands clear of the bench's settings handle at the bottom */
   .rt-app .rt-welcome.rt-coach { bottom: auto; width: auto; }       /* between the rail and the edge, as the note is: its own 24rem would overflow a phone, and the stage would scroll sideways to show its buttons */
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
+  /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
+  .rt-pin.rt-mainclose { display: inline-grid; }
+  .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 64px; height: 20px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
+  .rt-sidetab .chev { transform: rotate(90deg); }
+  .rt-sidetab.open { display: none; }
   /* touch: buttons and fields big enough for a finger */
   .rt-panel input, .rt-panel select { min-height: 2.25rem; font-size: 16px; }
   .rt-pin { width: 2.2rem; height: 2.2rem; }

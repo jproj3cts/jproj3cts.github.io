@@ -211,11 +211,10 @@
   /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
      chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
   .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    width: 18px; height: 64px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
+    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
     box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
-  .rt-sidetab .ic { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-  .rt-sidetab .chev { width: 8px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
+  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
   .rt-sidetab.open .chev { transform: scaleX(-1); }
   /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
   .rt-pin.rt-mainclose { display: none; }
@@ -1716,7 +1715,7 @@
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
   .rt-pin.rt-mainclose { display: inline-grid; }
-  .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 64px; height: 20px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
+  .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 48px; height: 18px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
   .rt-sidetab .chev { transform: rotate(90deg); }
   .rt-sidetab.open { display: none; }
   /* touch: buttons and fields big enough for a finger */
@@ -1952,7 +1951,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
-        <button type="button" class="rt-sidetab" id="btnBenchGear" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5"/></svg><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
+        <button type="button" class="rt-sidetab" id="btnBenchGear" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
         <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
@@ -50789,7 +50788,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>The Bench panel pulls out from the side</b>: a small tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
+    '<b>The Bench panel pulls out from the side</b>: a small arrow tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
     '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light drawn in clear, vivid colours that never muddy to black where they cross; white light is drawn grey until a prism or a grating parts its colours, as a book draws it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
     '<b>A full dark mode</b>: in the <b>Dark</b> theme the whole page is dark, not just the bench: the bar and its menus, the panels, the plots, the dialogs, and the Optical, RF and coating designers, with the browser\u2019s own fields and scrollbars to match.',
     '<b>A tidier bar</b>: a menu bar, <b>File, Edit, View, Tools, Sweeps and Help</b>, as a desktop program has, with icons for undo, redo, fit, measure and search beside it, and the bench\u2019s name in the middle. <b>Edit</b> holds cut, copy, paste, duplicate, delete, select all, rotate and grouping; <b>Tools</b> the Optical, RF and coating designers, Scripts and the bench\u2019s settings. <b>Ctrl+K</b> (or the magnifier) searches every command in the menus by its words: type \u201cexport\u201d or \u201c3D\u201d and press Enter.',

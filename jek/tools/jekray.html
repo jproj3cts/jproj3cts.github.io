@@ -17,14 +17,29 @@
   :root {
     /* the site is flat (no shadows); here menus, popovers and the bench's overlays still float */
     --jek-shadow: 0 1px 2px rgba(60, 40, 25, 0.06), 0 6px 18px rgba(60, 40, 25, 0.09);
-    --rt-bench: #1f2529;      /* anodised breadboard */
-    --rt-hole:  #343d44;      /* M6 tapped holes, 25 mm pitch */
+    /* the theme (View › Theme, ui/render.js): warm paper by default, the anodised breadboard in Dark */
+    --rt-bench: #f3eee5;      /* the bench */
+    --rt-hole:  rgba(95, 75, 45, 0.16);   /* M6 tapped holes, 25 mm pitch */
+    --rt-over:  rgba(255, 253, 250, 0.92); /* what floats on the bench: the rail, the minimap, the gear */
+    --rt-over-line: rgba(0, 0, 0, 0.13);
+    --rt-over-ink:  rgba(26, 26, 26, 0.82);
+    --rt-over-mute: rgba(26, 26, 26, 0.55);
+    --rt-over-tint: rgba(0, 0, 0, 0.05);
     --rt-glass: #73b9ca;
     --rt-metal: #d8dee3;
     --rt-screen: #ffb347;
     --rt-source: #f47742;
   }
 
+  :root[data-rt-theme="dark"] {
+    --rt-bench: #1f2529;
+    --rt-hole:  #343d44;
+    --rt-over:  rgba(16, 21, 24, 0.82);
+    --rt-over-line: rgba(255, 255, 255, 0.14);
+    --rt-over-ink:  rgba(255, 255, 255, 0.85);
+    --rt-over-mute: rgba(255, 255, 255, 0.6);
+    --rt-over-tint: rgba(255, 255, 255, 0.08);
+  }
   .rt-wrap {
     width: 100%;
     max-width: 1440px;
@@ -164,7 +179,7 @@
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
   .rt-gear { position: absolute; right: 0.5rem; bottom: 0.45rem; z-index: 7; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-    color: rgba(255,255,255,0.78); background: rgba(20, 25, 28, 0.72); border: 1px solid rgba(255,255,255,0.22); border-radius: 50%; cursor: pointer; }
+    color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 50%; cursor: pointer; }
   .rt-gear:hover { color: #fff; background: rgba(0, 146, 178, 0.9); }
   .rt-gear.on { color: #fff; background: var(--jek-cyan); border-color: transparent; }
   .rt-gear:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 2px; }
@@ -176,7 +191,7 @@
     font-family: var(--jek-mono);
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
-    color: rgba(255,255,255,0.6);
+    color: var(--rt-over-mute);
     pointer-events: none;
   }
 
@@ -352,8 +367,8 @@
   .rt-menu button .k { float: right; margin-left: 1.5rem; color: var(--jek-ink-soft); font-size: 0.78rem; }
   .rt-menu.rt-ctx { position: fixed; top: 0; left: 0; min-width: 13rem; z-index: 65; }   /* over the picker and the rail's flyout, whose parts it can act on */
   .rt-btn[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
-  .rt-stage canvas.rt-minimap { position: absolute; right: 0.6rem; bottom: 2.9rem; width: 180px; height: 120px; border: 1px solid rgba(255,255,255,0.22);
-    border-radius: 2px; background: rgba(12,16,18,0.72); cursor: pointer; touch-action: none; display: block; z-index: 3; }
+  .rt-stage canvas.rt-minimap { position: absolute; right: 0.6rem; bottom: 2.9rem; width: 180px; height: 120px; border: 1px solid var(--rt-over-line);
+    border-radius: 2px; background: var(--rt-over); cursor: pointer; touch-action: none; display: block; z-index: 3; }
   .rt-measurebar { position: absolute; left: 50%; bottom: 0.6rem; transform: translateX(-50%); display: flex; z-index: 4;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
   .rt-measurebar button { font: 600 0.75rem var(--jek-sans); color: var(--jek-ink-soft); background: #f4efe9; border: 0; border-right: 1px solid rgba(0,0,0,0.12);
@@ -1207,6 +1222,7 @@
     .rt-bar .rt-phonegone > .rt-menu { top: 100%; left: auto; right: 0.5rem; }
   }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
+  .rt-swatch.auto { background: linear-gradient(135deg, #f3eee5 0 50%, #1f2529 50% 100%); }
   .rt-swatch { flex: none; width: 14px; height: 14px; border: 1px solid var(--jek-line-2); border-radius: 2px; box-sizing: border-box; }
   .rt-imenu .rt-swatchrow { display: flex; align-items: center; gap: 0.55rem; padding: 0.3rem 0.9rem 0.3rem 0.6rem; font: 400 0.8125rem/1.35 var(--jek-sans); color: var(--jek-ink); cursor: pointer; white-space: nowrap; }
   .rt-imenu .rt-swatchrow:hover { background: var(--jek-cyan); color: #fff; }
@@ -1252,28 +1268,28 @@
   .rt-pkeeprow .rt-btn { color: #fff; background: #111; border-color: #111; font-size: 0.8rem; }
   .rt-pkeeprow .rt-btn.rt-pzmx { color: var(--jek-ink); background: #fff; border-color: var(--jek-line-2); }
   .rt-pkeeprow .rt-btn:disabled { color: var(--jek-ink-soft); background: none; border-color: var(--jek-line-2); cursor: default; }
-  .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #ffd36b; }
+  .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #e0a91c; }
   .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
   /* the parts rail, down the bench's left edge below its tabs */
   .rt-rail { position: absolute; left: 0; top: 2.1rem; bottom: 2.4rem; z-index: 4; width: 52px; box-sizing: border-box; padding: 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
-    overflow-y: auto; scrollbar-width: none; background: rgba(16,21,24,0.82); border: 1px solid rgba(255,255,255,0.12); border-left: 0; border-radius: 0 2px 2px 0; }
+    overflow-y: auto; scrollbar-width: none; background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 2px 2px 0; }
   .rt-rail[hidden] { display: none; }
-  .rt-rpals { display: grid; grid-template-columns: 1fr; gap: 3px; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid rgba(255,255,255,0.14); }
-  .rt-rpal { min-height: 18px; padding: 2px 1px; font: 700 0.56rem/1.1 var(--jek-sans); letter-spacing: 0.01em; hyphens: manual; overflow-wrap: normal; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
+  .rt-rpals { display: grid; grid-template-columns: 1fr; gap: 3px; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid var(--rt-over-line); }
+  .rt-rpal { min-height: 18px; padding: 2px 1px; font: 700 0.56rem/1.1 var(--jek-sans); letter-spacing: 0.01em; hyphens: manual; overflow-wrap: normal; color: var(--rt-over-ink); background: var(--rt-over-tint); border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
   .rt-rpal.free { border-color: var(--jek-orange); } .rt-rpal.fibre { border-color: var(--jek-red); } .rt-rpal.pic { border-color: #3a9d5d; } .rt-rpal.elec { border-color: #c08a12; } .rt-rpal.rf { border-color: var(--jek-amber); }
   .rt-rpal.on.free { background: var(--jek-orange); color: #fff; } .rt-rpal.on.fibre { background: var(--jek-red); color: #fff; }
   .rt-rpal.on.pic { background: #3a9d5d; color: #fff; } .rt-rpal.on.elec { background: #c08a12; color: #fff; } .rt-rpal.on.rf { background: var(--jek-amber); color: #1a1a1a; }
   .rt-rpal.draw { border-color: #8b6ee0; } .rt-rpal.on.draw { background: #8b6ee0; color: #fff; }
-  .rt-rtool { color: rgba(255,255,255,0.85); display: flex; align-items: center; justify-content: center; }
-  .rt-rtool.on { border-color: #8b6ee0; background: rgba(139,110,224,0.3); color: #fff; }
+  .rt-rtool { color: var(--rt-over-ink); display: flex; align-items: center; justify-content: center; }
+  .rt-rtool.on { border-color: #8b6ee0; background: rgba(139,110,224,0.3); color: var(--rt-over-ink); }
   .rt-dicon { display: inline-flex; pointer-events: none; }
   .rt-drawbar { position: absolute; left: 50%; top: 2.45rem; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 1px; padding: 3px;
-    background: rgba(16,21,24,0.88); border: 1px solid rgba(255,255,255,0.14); }
+    background: var(--rt-over); border: 1px solid var(--rt-over-line); }
   .rt-drawbar[hidden] { display: none; }
-  .rt-drawbar button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px; padding: 0; color: rgba(255,255,255,0.88); background: none; border: 1px solid transparent; cursor: pointer; }
-  .rt-drawbar button:hover:not(:disabled), .rt-drawbar button.on { background: rgba(139,110,224,0.35); border-color: #8b6ee0; color: #fff; }
+  .rt-drawbar button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px; padding: 0; color: var(--rt-over-ink); background: none; border: 1px solid transparent; cursor: pointer; }
+  .rt-drawbar button:hover:not(:disabled), .rt-drawbar button.on { background: rgba(139,110,224,0.35); border-color: #8b6ee0; color: var(--rt-over-ink); }
   .rt-drawbar button:disabled { opacity: 0.3; cursor: default; }
-  .rt-drawbar .sep { width: 1px; height: 20px; margin: 0 4px; background: rgba(255,255,255,0.2); }
+  .rt-drawbar .sep { width: 1px; height: 20px; margin: 0 4px; background: var(--rt-over-line); }
   .rt-alignbox { position: absolute; right: 0.6rem; top: 2.45rem; z-index: 6; width: 15.5rem; padding: 0 0.7rem 0.6rem; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line-2); box-shadow: 0 10px 28px rgba(0,0,0,0.3); font-size: 0.8rem; }
   .rt-alignbox[hidden] { display: none; }
   .rt-alignhead { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0 0.3rem; border-bottom: 1px solid var(--jek-line); }
@@ -1318,10 +1334,10 @@
     line-height: 1.25; color: #1b2328; background: rgba(255,255,255,0.94); border: 1px dashed #8b6ee0; border-radius: 0; outline: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
   .rt-rgroup { flex: none; width: 42px; height: 42px; padding: 2px; background: none; border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
   .rt-rgroup img { display: block; width: 36px; height: 36px; border-radius: 2px; pointer-events: none; }
-  .rt-rgroup:hover, .rt-rgroup.on, .rt-rgroup:focus-visible { outline: none; border-color: rgba(255,255,255,0.65); }
+  .rt-rgroup:hover, .rt-rgroup.on, .rt-rgroup:focus-visible { outline: none; border-color: var(--rt-over-mute); }
   .rt-rgroup.free.on { border-color: var(--jek-orange); } .rt-rgroup.fibre.on { border-color: var(--jek-red); }
   .rt-rgroup.pic.on { border-color: #3a9d5d; } .rt-rgroup.elec.on { border-color: #c08a12; } .rt-rgroup.rf.on { border-color: var(--jek-amber); }
-  .rt-rall { margin-top: 2px; font: 300 1.5rem/1 var(--jek-sans); color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.22); }
+  .rt-rall { margin-top: 2px; font: 300 1.5rem/1 var(--jek-sans); color: var(--rt-over-ink); border-color: var(--rt-over-line); }
   .rt-flyout { position: absolute; left: 56px; z-index: 6; width: min(19rem, calc(100% - 64px)); max-height: calc(100% - 1rem); overflow-y: auto; box-sizing: border-box; padding: 0 0.55rem 0.55rem;
     background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
   .rt-flyout[hidden] { display: none; }
@@ -1760,7 +1776,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
             <div class="sep"></div>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="image" id="benchColourItem">Bench colour
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="benchColourItem">Theme
               <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
             </div>
             <button type="button" role="menuitemcheckbox" id="btnHoles" aria-checked="true" data-icon="check">Grid holes on the bench</button>
@@ -13507,17 +13523,33 @@ function requestRender() {
   requestAnimationFrame(() => { renderQueued = false; render(); });
 }
 
-/* ---------- The bench's colour ----------
-   The bench is the dark anodised breadboard, or a colour of your own (View › Bench colour,
-   kept in the project). Parts, beams and fibres are drawn the same on any colour; on a light
-   one the words (names, the scale, captions) are drawn dark to be read, and the light is
-   drawn stronger, laid on rather than glowing, so beams stand out as they do on the dark.
-   Exports (PNG, SVG, PDF) come out the same. */
-const BENCH_DEFAULT = '#1f2529';
-const BENCH_COLOURS = [['Breadboard', '#1f2529'], ['Black', '#000000'], ['Navy', '#0f1b2d'], ['Paper', '#f7f3ec'], ['White', '#ffffff']];
+/* ---------- The theme ----------
+   The bench is warm paper (Light, the default) or the dark anodised breadboard (Dark), or as the
+   computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
+   (a colour an older file was saved with is not used). On the light bench the words (names, the
+   scale, captions) are drawn dark and the light is laid on as ink rather than glowing, so beams stand
+   out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
+const BENCH_DEFAULT = '#1f2529', BENCH_PAPER = '#f3eee5';
+const THEME_KEY = 'jekray-theme';
+let themePref = (() => { try { const v = localStorage.getItem(THEME_KEY); return v === 'dark' || v === 'system' ? v : 'light'; } catch (err) { return 'light'; } })();
+const sysDark = () => { try { return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches; } catch (err) { return false; } };
+const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDark());
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
-const benchBg = () => /^#[0-9a-f]{6}$/i.test(benchStyle().bg || '') ? benchStyle().bg.toLowerCase() : BENCH_DEFAULT;
+const benchBg = () => themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+function setTheme(v) {
+  themePref = v === 'dark' || v === 'system' ? v : 'light';
+  try { if (themePref === 'light') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
+  themeShown();
+}
+// the page in the theme: its colours (style.css, under [data-rt-theme]), the menu's tick, the bench and the 3D view drawn again
+function themeShown() {
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  document.documentElement.dataset.rtTheme = themeDark() ? 'dark' : 'light';
+  benchStyleShown();
+  document.dispatchEvent(new Event('rt-theme'));     // the parts' symbols (the rail, the picker) drawn again
+  requestRender();
+}
 const benchHoles = () => benchStyle().holes !== false;
 function benchLight(bg = benchBg()) {
   const [r, g, b] = hexRgb(bg).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
@@ -13525,16 +13557,46 @@ function benchLight(bg = benchBg()) {
 }
 // while a light bench is drawn
 let lightLayer = false;
-// the light laid on (over a light bench) rather than glowing (over the dark), and stronger
-const glowOp = () => lightLayer ? 'source-over' : 'lighter';
+// the light glowing (added) over the dark bench, laid on as ink (multiplied) over paper, where more light is deeper; and stronger there
+const glowOp = () => lightLayer ? 'multiply' : 'lighter';
 const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
+// the light's colour as ink on paper: no lighter than a mid tone, so yellow, cyan and white light still show
+const inkMemo2 = new Map();
+function lightInk(c) {
+  if (!lightLayer || typeof c !== 'string') return c;
+  if (inkMemo2.has(c)) return inkMemo2.get(c);
+  const q = cssColour(c), r = q.r / 255, g = q.g / 255, b = q.b / 255, hi = Math.max(r, g, b), lo = Math.min(r, g, b);
+  let l = (hi + lo) / 2, out = c;
+  const top = 0.42;
+  if (l > top) {
+    // the same hue and saturation, at that lightness (HSL)
+    const d = hi - lo, sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    let hh = 0;
+    if (d) hh = hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    l = top;
+    const C = (1 - Math.abs(2 * l - 1)) * sat, X = C * (1 - Math.abs((hh % 2 + 2) % 2 - 1)), m = l - C / 2;
+    const [R, G, B] = hh < 1 ? [C, X, 0] : hh < 2 ? [X, C, 0] : hh < 3 ? [0, C, X] : hh < 4 ? [0, X, C] : hh < 5 ? [X, 0, C] : [C, 0, X];
+    out = 'rgba(' + [R, G, B].map(v => Math.round((v + m) * 255)).join(',') + ',' + q.a + ')';
+  }
+  inkMemo2.set(c, out);
+  return out;
+}
 // what is selected is picked out in white on the dark bench, and in near-black on a light one
 const selInk = (a = 1) => lightLayer ? (a === 1 ? '#1b2328' : 'rgba(27,35,40,' + a + ')') : (a === 1 ? '#ffffff' : 'rgba(255,255,255,' + a + ')');
-// while the bench itself is drawn (not a part's icon in the picker, on the standard dark tile)
+// while the bench itself is drawn, or a part's symbol as the bench would draw it (asOnBench)
 let inBench = false;
-// a part's dark body, and an open port, take the bench's own colour on any bench colour but the
-// standard breadboard, where they keep their own (an open port is the breadboard's colour anyway)
-const bodyFill = c => inBench && benchBg() !== BENCH_DEFAULT ? benchBg() : c;
+// a part's dark body keeps its colour on the dark bench and is washed light on paper; an open port is the bench's colour
+const bodyFill = c => inBench && lightLayer ? paperBody(c) : c;
+// on paper, a part's dark body is a light wash of its colour, so the part reads as a solid without a black block
+const bodyMemo = new Map();
+function paperBody(c) {
+  if (typeof c !== 'string') return c;
+  if (bodyMemo.has(c)) return bodyMemo.get(c);
+  const q = cssColour(c), P = hexRgb(BENCH_PAPER), t = 0.16;
+  const out = 'rgba(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * t)).join(',') + ',' + q.a + ')';
+  bodyMemo.set(c, out);
+  return out;
+}
 const portFill = () => inBench ? benchBg() : '#1b2327';
 // mirrors' metal, a darker grey on a light bench so it shows
 const metal = (a = 1) => lightLayer ? 'rgba(98,109,117,' + a + ')' : 'rgba(216,222,227,' + a + ')';
@@ -13561,23 +13623,20 @@ function inkedText(t, x, y, w) {
 function benchStyleShown() {
   const menu = document.getElementById('benchColourMenu');
   if (!menu) return;
-  const bg = benchBg(), known = BENCH_COLOURS.some(([, c]) => c === bg);
-  const pick = (c, e) => {
-    if (e) e.stopPropagation();
-    project.style = Object.assign({}, project.style, { bg: c });
-    if (c === BENCH_DEFAULT) delete project.style.bg;
-    benchStyleShown(); scheduleSave(); requestRender();
-  };
-  const custom = h('input', { type: 'color', value: bg, 'aria-label': 'A colour of your own', class: 'rt-swatchpick' });
-  custom.addEventListener('input', () => { project.style = Object.assign({}, project.style, { bg: custom.value.toLowerCase() }); requestRender(); stage.style.background = custom.value; });
-  custom.addEventListener('change', () => pick(custom.value.toLowerCase()));
-  menu.replaceChildren(...BENCH_COLOURS.map(([name, c]) => h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': c === bg ? 'true' : 'false', onclick: e => pick(c, e) },
-      h('span', { class: 'rt-swatch', style: 'background:' + c }), name, c === bg ? h('span', { class: 'k' }, '✓') : null)),
-    h('label', { class: 'rt-swatchrow', role: 'menuitemradio', 'aria-checked': known ? 'false' : 'true' },
-      h('span', { class: 'rt-swatch', style: 'background:' + bg }), 'Your own…', custom, known ? null : h('span', { class: 'k' }, '✓')),
-    h('span', { class: 'rt-menunote' }, 'Kept with the bench, and used for exported pictures. Parts, beams and fibres are drawn the same on any colour; on a light one, the words are drawn dark.'));
+  const pick = (v, e) => { if (e) e.stopPropagation(); setTheme(v); };
+  menu.replaceChildren(...[['light', 'Light', BENCH_PAPER], ['dark', 'Dark', BENCH_DEFAULT], ['system', 'As the computer is set', null]].map(([v, name, c]) =>
+    h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': v === themePref ? 'true' : 'false', 'data-theme': v, onclick: e => pick(v, e) },
+      h('span', { class: 'rt-swatch' + (c ? '' : ' auto'), style: c ? 'background:' + c : null }), name, v === themePref ? h('span', { class: 'k' }, '✓') : null)),
+    h('span', { class: 'rt-menunote' }, 'Yours, kept in this browser: a bench opens in your theme, whoever made it. Exported pictures come out in it too.'));
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
-  stage.style.background = bg;
+  stage.style.background = benchBg();
+}
+// a part drawn off the bench (its symbol in the rail or the picker), in the ink the bench draws it in
+function asOnBench(fn) {
+  const keepL = lightLayer, keepB = inBench, c = ctx;
+  lightLayer = benchLight(); inBench = true;
+  if (lightLayer) c.fillText = inkedText;
+  try { return fn(); } finally { if (c.fillText === inkedText) delete c.fillText; lightLayer = keepL; inBench = keepB; }
 }
 function drawBench() {
   const light = benchLight();
@@ -13599,8 +13658,9 @@ function drawBench() {
       for (let y = Math.floor(wy(H) / sub) * sub; y <= y1; y += sub) { const Y = Math.round(sy(y)) + 0.5; ctx.moveTo(0, Y); ctx.lineTo(W, Y); }
       ctx.stroke();
     }
-    ctx.fillStyle = benchBg() === BENCH_DEFAULT ? getCss('--rt-hole') : light ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.11)';
-    const r = Math.min(5, Math.max(1, 3 * V().scale));
+    // the holes: darker anodising on the dark bench, a faint warm grey (smaller) on paper
+    ctx.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
+    const r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * V().scale));
     for (let x = x0; x <= x1; x += pitch) {
       for (let y = y0; y <= y1; y += pitch) {
         ctx.beginPath(); ctx.arc(sx(x), sy(y), r, 0, Math.PI * 2); ctx.fill();
@@ -13846,13 +13906,13 @@ function drawBeams(fieldShown) {
       for (let i = dn.length - 1; i >= 0; i--) ctx.lineTo(dn[i][0], dn[i][1]);
       ctx.closePath();
     }
-    ctx.fillStyle = seg.colour;
+    ctx.fillStyle = lightInk(seg.colour);
     ctx.globalAlpha = outline ? 0 : glowA(0.16 * faint * faint);
     ctx.fill();
     // stroke the two edges only: closing the path would draw a bar at every surface
     ctx.globalAlpha = glowA((outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55) * faint);
     ctx.setLineDash(outline ? [3, 4] : []);
-    ctx.strokeStyle = seg.colour;
+    ctx.strokeStyle = lightInk(seg.colour);
     ctx.lineWidth = 1;
     for (const side of [up, dn]) {
       ctx.beginPath();
@@ -13937,7 +13997,7 @@ function drawRaysOn(ctx, rays) {
   const lo = -CLIP_M, hiX = W + CLIP_M, hiY = H + CLIP_M;
   for (const g of groups.values()) {
     ctx.globalAlpha = glowA(g.alpha);
-    ctx.strokeStyle = g.colour;
+    ctx.strokeStyle = lightInk(g.colour);
     ctx.beginPath();
     for (const r of g.rays) {
       const p = r.pts;
@@ -14719,6 +14779,10 @@ function wireRender() {
   new ResizeObserver(resize).observe(stage);
 
   document.documentElement.classList.add('rt-noscroll');
+
+  // the theme: the page's colours set now, and followed as the computer's changes while it is chosen
+  document.documentElement.dataset.rtTheme = themeDark() ? 'dark' : 'light';
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (themePref === 'system') themeShown(); }); } catch (err) { /* an older browser: as it was set on loading */ }
 
 }
 const DRAW_STYLE_KEYS = ['fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'dash', 'cap', 'join', 'opacity', 'layer'];
@@ -20104,7 +20168,7 @@ const V3D = (() => {
     R.cubeCam.position.copy(dir.multiplyScalar(3)); R.cubeCam.quaternion.copy(R.camera.quaternion); R.cubeCam.updateMatrixWorld();
   }
   function need() { if (!R || R.queued) return; R.queued = true; requestAnimationFrame(() => { R.queued = false; draw(); }); }
-  const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9ecef' : '#101417'; };
+  const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9e3d8' : '#101417'; };   // a warm grey room round the paper bench, near-black round the dark
 
   /* ---------- keeping up with the bench ---------- */
   function sync() {
@@ -20857,17 +20921,17 @@ const V3D = (() => {
     if (bk === R.boardKey && R.groups.board.children.length) return;
     R.boardKey = bk; R.boardBelow = false;               // (a new board is opaque: draw fades it again if need be)
     disposeAll(R.groups.board);
-    const bg = benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: 0.7, metalness: 0.25 });
+    const paper = new T.Color(benchBg()).getHSL({}).l > 0.5, bg = paper ? '#d6ccbb' : benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: paper ? 0.9 : 0.7, metalness: paper ? 0.05 : 0.25 });   // paper is matt, and a shade deeper, as the lights wash it out
     let top = side;
     if (benchHoles()) {
       const c = document.createElement('canvas'); c.width = c.height = 64;
       const g = c.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, 64, 64);
       const L0 = new T.Color(bg).getHSL({}).l > 0.5;
-      g.fillStyle = L0 ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(32, 32, 8, 0, 2 * Math.PI); g.fill();
+      g.fillStyle = L0 ? 'rgba(70,50,25,0.16)' : 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(32, 32, 8, 0, 2 * Math.PI); g.fill();
       g.strokeStyle = L0 ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)'; g.lineWidth = 1.5; g.stroke();
       const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping;
       t.repeat.set((x1 - x0) / PITCH, (y1 - y0) / PITCH); t.anisotropy = 8;
-      top = new T.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: 0.7, metalness: 0.25 });
+      top = new T.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: paper ? 0.9 : 0.7, metalness: paper ? 0.05 : 0.25 });
     }
     const m = new T.Mesh(boxG(x0, x1, y0, y1, -BOARD_T, 0), [side, side, side, side, top, side]);
     m.receiveShadow = true;
@@ -44350,7 +44414,8 @@ function drawMinimap() {
   const g = mc.getContext('2d');
   g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, mw, mh);
   // beams, faint; then the elements as short strokes along their faces
-  g.strokeStyle = 'rgba(255,120,80,0.45)'; g.lineWidth = 1; g.beginPath();
+  const dark = themeDark();               // drawn in the theme: light strokes over the dark, dark over paper
+  g.strokeStyle = dark ? 'rgba(255,120,80,0.45)' : 'rgba(225,85,40,0.55)'; g.lineWidth = 1; g.beginPath();
   for (const b of lastTrace.beams || []) {
     if (b.bench !== project.tab || b.fan || b.pol) continue;
     const L = Math.min(b.len, 4 * (x1 - x0 + y1 - y0));
@@ -44359,10 +44424,10 @@ function drawMinimap() {
   g.stroke();
   for (const e of els) {
     const r = Math.max(halfSize(e), 1.5 / k), a = e.angle * deg, sel = e.id === selectedId || extraSel.has(e.id);
-    g.strokeStyle = sel ? selInk() : e.type === 'source' ? (e.colour || '#ff6040') : 'rgba(210,225,232,0.85)'; g.lineWidth = sel ? 2 : 1.5;
+    g.strokeStyle = sel ? (dark ? '#ffffff' : '#1b2328') : e.type === 'source' ? (e.colour || '#ff6040') : dark ? 'rgba(210,225,232,0.85)' : 'rgba(70,80,88,0.8)'; g.lineWidth = sel ? 2 : 1.5;
     g.beginPath(); g.moveTo(MX(e.x - Math.sin(a) * r), MY(e.y + Math.cos(a) * r)); g.lineTo(MX(e.x + Math.sin(a) * r), MY(e.y - Math.cos(a) * r)); g.stroke();
   }
-  g.strokeStyle = 'rgba(127,220,255,0.95)'; g.lineWidth = 1.2;
+  g.strokeStyle = dark ? 'rgba(127,220,255,0.95)' : 'rgba(0,120,147,0.9)'; g.lineWidth = 1.2;
   g.strokeRect(MX(vx0), MY(vy1), (vx1 - vx0) * k, (vy1 - vy0) * k);
 }
 
@@ -47299,7 +47364,7 @@ function partGroups(pal) {
 /* a part's symbol, drawn as the bench draws it (on the bench's own colour), once per part and theme */
 const partIcons = new Map();
 function partIcon(key) {
-  const theme = getCss('--rt-bench'), ck = key + '|' + theme;
+  const theme = benchBg(), ck = key + '|' + theme;
   if (partIcons.has(ck)) return partIcons.get(ck);
   if (!project) return '';
   const N = 48, cv = document.createElement('canvas');
@@ -47313,7 +47378,7 @@ function partIcon(key) {
     if (el) {
       const r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4);
       setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
-      draw(el);
+      asOnBench(() => draw(el));
       url = cv.toDataURL();
     }
   } catch (err) { url = ''; } finally { setCtx(keep.ctx); setW(keep.W); setH(keep.H); setDPR(keep.DPR); project.view = keep.view; }
@@ -47691,6 +47756,7 @@ function wireRail() {
   });
 
   benchStyleShown();
+  document.addEventListener('rt-theme', () => fillRail());
 
   document.getElementById('btnNamesUp').addEventListener('click', () => labelSize(1.25));
 
@@ -48255,6 +48321,7 @@ const MENU_ICONS = {
   search: 'M7 2.5A4.5 4.5 0 1 1 6.99 2.5 M10.3 10.3L14 14', copy: 'M5.5 5.5H13.5V14.5H5.5Z M3.5 11.5H2.5V2.5H10.5V3.5',
   cut: 'M4.5 10.5A2 2 0 1 1 4.49 10.5 M11.5 10.5A2 2 0 1 1 11.49 10.5 M5.7 11L12 1.5 M10.3 11L4 1.5', dup: 'M2.5 2.5H10.5V10.5H2.5Z M5.5 13.5H13.5V5.5',
   share: 'M4 6.2A1.8 1.8 0 1 1 3.99 6.2 M12 2.2A1.8 1.8 0 1 1 11.99 2.2 M12 10.2A1.8 1.8 0 1 1 11.99 10.2 M5.6 7.1L10.4 4.9 M5.6 8.9L10.4 11.1',
+  theme: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 1.5V14.5 M8 4H12.5 M8 7H14 M8 10H13.5',
   sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5',
 };
 function menuIcons(root) {
@@ -50623,6 +50690,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light laid on as ink, deeper where there is more of it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
     '<b>A tidier bar</b>: a menu bar, <b>File, Edit, View, Tools, Sweeps and Help</b>, as a desktop program has, with icons for undo, redo, fit, measure and search beside it, and the bench\u2019s name in the middle. <b>Edit</b> holds cut, copy, paste, duplicate, delete, select all, rotate and grouping; <b>Tools</b> the Optical, RF and coating designers, Scripts and the bench\u2019s settings. <b>Ctrl+K</b> (or the magnifier) searches every command in the menus by its words: type \u201cexport\u201d or \u201c3D\u201d and press Enter.',
     '<b>Export data</b>: <b>File \u203a Export data\u2026</b> writes the numbers behind the bench as files for a spreadsheet, Python or MATLAB: its <b>readouts</b> (every screen, detector, spectrometer and antenna, one table), its <b>plots</b>\u2019 curves, each screen\u2019s <b>ray hits</b> and <b>field map</b>, its <b>Gaussian beams</b> (q, size, waist and divergence along the way), its <b>sweeps</b> and studies, and <b>the bench</b> itself, every part with its settings. Each file says what it holds: the bench, the version, the date, every column\u2019s unit and the settings of the parts the numbers come from. CSV (a zip, with a README) and JSON need a free account, one kind at a time; <b>Excel, NumPy and MATLAB</b> files, several kinds at once and <b>Export everything</b> are JEKrayPro\u2019s. In Scripts, <code>save(name, data, format)</code> keeps what a script makes as a file in any of the five formats, downloaded when the run ends (nothing when it is stopped), and a result\u2019s <b>Save as</b> offers them all.',
     '<b>Scripts run in the background, with Stop</b> (JEKrayPro): Tools \u203a Scripts\u2026 runs a script, JavaScript or Python, beside the page on a copy of the bench, so a long loop no longer holds the page. While it runs, Run becomes <b>Stop</b>, with the time it has run, and its <code>log()</code> and <code>print()</code> lines come as they are written; Stop ends it at once and applies nothing. When it ends, what it changed is applied as one step, which one Undo puts back. <code>J.sweepPlay</code>, which plays a sweep on the bench in view, needs the page: such a script can be run there instead (no Stop).',
@@ -50847,7 +50915,7 @@ const CITE_URL = 'https://jeksys.net/jek/tools/jekray.html';
 const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
 
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
-   gallery shows each with a picture from demos/thumbs/. */
+   gallery shows each with a picture from demos/thumbs/ (demos/thumbs/light/ in the Light theme). */
 const EXAMPLES = [
   ['Interference and cavities', false, [
     ['michelson', 'Michelson interferometer', 'Move a mirror and watch the fringes at the output port walk.'],
@@ -51114,7 +51182,7 @@ function wireNews() {
         if (!hits.length) continue;
         grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
           h('div', { class: 'rt-gcards' }, ...hits.map(([id, t, d, x]) => h('button', { class: 'rt-card', type: 'button', 'data-demo': id },
-            h('img', { src: 'demos/thumbs/' + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
+            h('img', { src: 'demos/thumbs/' + (themeDark() ? '' : 'light/') + id + '.webp', alt: '', loading: 'lazy', width: 320, height: 200 }), h('b', null, t, x ? h('span', { class: 'rt-exp' }, 'Experimental') : !beta && BETA_EXAMPLES.has(id) ? h('span', { class: 'rt-beta' }, 'Beta') : null), h('span', null, d)))));
       }
       if (!grid.children.length) grid.append(h('p', { class: 'rt-gempty' }, 'No example matches “' + search.value.trim() + '”.'));
     };

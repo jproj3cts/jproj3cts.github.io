@@ -4,7 +4,7 @@ import { FREE_GROUPS, FREE_PARTS, pickerRows } from '../parts/registry.js';
 import { V, project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
 import { STL_UNITS, meshCache, meshEncode, meshHullCache, parseSTL } from '../core/stl.js';
-import { DPR, H, W, canvas, ctx, draw, getCss, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
+import { DPR, H, W, asOnBench, benchBg, canvas, ctx, draw, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
 import { snapVal } from './pointer.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
@@ -103,7 +103,7 @@ export function partGroups(pal) {
 /* a part's symbol, drawn as the bench draws it (on the bench's own colour), once per part and theme */
 const partIcons = new Map();
 export function partIcon(key) {
-  const theme = getCss('--rt-bench'), ck = key + '|' + theme;
+  const theme = benchBg(), ck = key + '|' + theme;
   if (partIcons.has(ck)) return partIcons.get(ck);
   if (!project) return '';
   const N = 48, cv = document.createElement('canvas');
@@ -117,7 +117,7 @@ export function partIcon(key) {
     if (el) {
       const r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4);
       setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
-      draw(el);
+      asOnBench(() => draw(el));
       url = cv.toDataURL();
     }
   } catch (err) { url = ''; } finally { setCtx(keep.ctx); setW(keep.W); setH(keep.H); setDPR(keep.DPR); project.view = keep.view; }

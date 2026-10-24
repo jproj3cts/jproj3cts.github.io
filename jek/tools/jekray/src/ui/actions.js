@@ -9,7 +9,7 @@ import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
 import {
   H, W, canvas, ctx, fibreAtPx, getCss, halfSize, hornShape, lightLayer, removeFibre, requestRender,
-  selInk, selection, setSelFibreId, setSelection, sx, sy, worldBox, wx, wy
+  selection, setSelFibreId, setSelection, sx, sy, themeDark, worldBox, wx, wy
 } from './render.js';
 import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
 import { RIGHT, drag, hitTest, setDrag, snapVal } from './pointer.js';
@@ -273,7 +273,8 @@ export function drawMinimap() {
   const g = mc.getContext('2d');
   g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, mw, mh);
   // beams, faint; then the elements as short strokes along their faces
-  g.strokeStyle = 'rgba(255,120,80,0.45)'; g.lineWidth = 1; g.beginPath();
+  const dark = themeDark();               // drawn in the theme: light strokes over the dark, dark over paper
+  g.strokeStyle = dark ? 'rgba(255,120,80,0.45)' : 'rgba(225,85,40,0.55)'; g.lineWidth = 1; g.beginPath();
   for (const b of lastTrace.beams || []) {
     if (b.bench !== project.tab || b.fan || b.pol) continue;
     const L = Math.min(b.len, 4 * (x1 - x0 + y1 - y0));
@@ -282,10 +283,10 @@ export function drawMinimap() {
   g.stroke();
   for (const e of els) {
     const r = Math.max(halfSize(e), 1.5 / k), a = e.angle * deg, sel = e.id === selectedId || extraSel.has(e.id);
-    g.strokeStyle = sel ? selInk() : e.type === 'source' ? (e.colour || '#ff6040') : 'rgba(210,225,232,0.85)'; g.lineWidth = sel ? 2 : 1.5;
+    g.strokeStyle = sel ? (dark ? '#ffffff' : '#1b2328') : e.type === 'source' ? (e.colour || '#ff6040') : dark ? 'rgba(210,225,232,0.85)' : 'rgba(70,80,88,0.8)'; g.lineWidth = sel ? 2 : 1.5;
     g.beginPath(); g.moveTo(MX(e.x - Math.sin(a) * r), MY(e.y + Math.cos(a) * r)); g.lineTo(MX(e.x + Math.sin(a) * r), MY(e.y - Math.cos(a) * r)); g.stroke();
   }
-  g.strokeStyle = 'rgba(127,220,255,0.95)'; g.lineWidth = 1.2;
+  g.strokeStyle = dark ? 'rgba(127,220,255,0.95)' : 'rgba(0,120,147,0.9)'; g.lineWidth = 1.2;
   g.strokeRect(MX(vx0), MY(vy1), (vx1 - vx0) * k, (vy1 - vy0) * k);
 }
 

@@ -72,17 +72,33 @@ export function requestRender() {
   requestAnimationFrame(() => { renderQueued = false; render(); });
 }
 
-/* ---------- The bench's colour ----------
-   The bench is the dark anodised breadboard, or a colour of your own (View › Bench colour,
-   kept in the project). Parts, beams and fibres are drawn the same on any colour; on a light
-   one the words (names, the scale, captions) are drawn dark to be read, and the light is
-   drawn stronger, laid on rather than glowing, so beams stand out as they do on the dark.
-   Exports (PNG, SVG, PDF) come out the same. */
-const BENCH_DEFAULT = '#1f2529';
-const BENCH_COLOURS = [['Breadboard', '#1f2529'], ['Black', '#000000'], ['Navy', '#0f1b2d'], ['Paper', '#f7f3ec'], ['White', '#ffffff']];
+/* ---------- The theme ----------
+   The bench is warm paper (Light, the default) or the dark anodised breadboard (Dark), or as the
+   computer is set (View › Theme): the viewer's own choice, kept in this browser, never the bench's
+   (a colour an older file was saved with is not used). On the light bench the words (names, the
+   scale, captions) are drawn dark and the light is laid on as ink rather than glowing, so beams stand
+   out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
+const BENCH_DEFAULT = '#1f2529', BENCH_PAPER = '#f3eee5';
+const THEME_KEY = 'jekray-theme';
+export let themePref = (() => { try { const v = localStorage.getItem(THEME_KEY); return v === 'dark' || v === 'system' ? v : 'light'; } catch (err) { return 'light'; } })();
+const sysDark = () => { try { return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches; } catch (err) { return false; } };
+export const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDark());
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
-export const benchBg = () => /^#[0-9a-f]{6}$/i.test(benchStyle().bg || '') ? benchStyle().bg.toLowerCase() : BENCH_DEFAULT;
+export const benchBg = () => themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+export function setTheme(v) {
+  themePref = v === 'dark' || v === 'system' ? v : 'light';
+  try { if (themePref === 'light') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
+  themeShown();
+}
+// the page in the theme: its colours (style.css, under [data-rt-theme]), the menu's tick, the bench and the 3D view drawn again
+export function themeShown() {
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  document.documentElement.dataset.rtTheme = themeDark() ? 'dark' : 'light';
+  benchStyleShown();
+  document.dispatchEvent(new Event('rt-theme'));     // the parts' symbols (the rail, the picker) drawn again
+  requestRender();
+}
 export const benchHoles = () => benchStyle().holes !== false;
 export function benchLight(bg = benchBg()) {
   const [r, g, b] = hexRgb(bg).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
@@ -90,16 +106,46 @@ export function benchLight(bg = benchBg()) {
 }
 // while a light bench is drawn
 export let lightLayer = false;
-// the light laid on (over a light bench) rather than glowing (over the dark), and stronger
-export const glowOp = () => lightLayer ? 'source-over' : 'lighter';
+// the light glowing (added) over the dark bench, laid on as ink (multiplied) over paper, where more light is deeper; and stronger there
+export const glowOp = () => lightLayer ? 'multiply' : 'lighter';
 export const glowA = a => lightLayer ? Math.min(1, a * 1.6) : a;
+// the light's colour as ink on paper: no lighter than a mid tone, so yellow, cyan and white light still show
+const inkMemo2 = new Map();
+export function lightInk(c) {
+  if (!lightLayer || typeof c !== 'string') return c;
+  if (inkMemo2.has(c)) return inkMemo2.get(c);
+  const q = cssColour(c), r = q.r / 255, g = q.g / 255, b = q.b / 255, hi = Math.max(r, g, b), lo = Math.min(r, g, b);
+  let l = (hi + lo) / 2, out = c;
+  const top = 0.42;
+  if (l > top) {
+    // the same hue and saturation, at that lightness (HSL)
+    const d = hi - lo, sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    let hh = 0;
+    if (d) hh = hi === r ? ((g - b) / d) % 6 : hi === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    l = top;
+    const C = (1 - Math.abs(2 * l - 1)) * sat, X = C * (1 - Math.abs((hh % 2 + 2) % 2 - 1)), m = l - C / 2;
+    const [R, G, B] = hh < 1 ? [C, X, 0] : hh < 2 ? [X, C, 0] : hh < 3 ? [0, C, X] : hh < 4 ? [0, X, C] : hh < 5 ? [X, 0, C] : [C, 0, X];
+    out = 'rgba(' + [R, G, B].map(v => Math.round((v + m) * 255)).join(',') + ',' + q.a + ')';
+  }
+  inkMemo2.set(c, out);
+  return out;
+}
 // what is selected is picked out in white on the dark bench, and in near-black on a light one
 export const selInk = (a = 1) => lightLayer ? (a === 1 ? '#1b2328' : 'rgba(27,35,40,' + a + ')') : (a === 1 ? '#ffffff' : 'rgba(255,255,255,' + a + ')');
-// while the bench itself is drawn (not a part's icon in the picker, on the standard dark tile)
+// while the bench itself is drawn, or a part's symbol as the bench would draw it (asOnBench)
 let inBench = false;
-// a part's dark body, and an open port, take the bench's own colour on any bench colour but the
-// standard breadboard, where they keep their own (an open port is the breadboard's colour anyway)
-export const bodyFill = c => inBench && benchBg() !== BENCH_DEFAULT ? benchBg() : c;
+// a part's dark body keeps its colour on the dark bench and is washed light on paper; an open port is the bench's colour
+export const bodyFill = c => inBench && lightLayer ? paperBody(c) : c;
+// on paper, a part's dark body is a light wash of its colour, so the part reads as a solid without a black block
+const bodyMemo = new Map();
+function paperBody(c) {
+  if (typeof c !== 'string') return c;
+  if (bodyMemo.has(c)) return bodyMemo.get(c);
+  const q = cssColour(c), P = hexRgb(BENCH_PAPER), t = 0.16;
+  const out = 'rgba(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * t)).join(',') + ',' + q.a + ')';
+  bodyMemo.set(c, out);
+  return out;
+}
 export const portFill = () => inBench ? benchBg() : '#1b2327';
 // mirrors' metal, a darker grey on a light bench so it shows
 export const metal = (a = 1) => lightLayer ? 'rgba(98,109,117,' + a + ')' : 'rgba(216,222,227,' + a + ')';
@@ -126,23 +172,20 @@ function inkedText(t, x, y, w) {
 export function benchStyleShown() {
   const menu = document.getElementById('benchColourMenu');
   if (!menu) return;
-  const bg = benchBg(), known = BENCH_COLOURS.some(([, c]) => c === bg);
-  const pick = (c, e) => {
-    if (e) e.stopPropagation();
-    project.style = Object.assign({}, project.style, { bg: c });
-    if (c === BENCH_DEFAULT) delete project.style.bg;
-    benchStyleShown(); scheduleSave(); requestRender();
-  };
-  const custom = h('input', { type: 'color', value: bg, 'aria-label': 'A colour of your own', class: 'rt-swatchpick' });
-  custom.addEventListener('input', () => { project.style = Object.assign({}, project.style, { bg: custom.value.toLowerCase() }); requestRender(); stage.style.background = custom.value; });
-  custom.addEventListener('change', () => pick(custom.value.toLowerCase()));
-  menu.replaceChildren(...BENCH_COLOURS.map(([name, c]) => h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': c === bg ? 'true' : 'false', onclick: e => pick(c, e) },
-      h('span', { class: 'rt-swatch', style: 'background:' + c }), name, c === bg ? h('span', { class: 'k' }, '✓') : null)),
-    h('label', { class: 'rt-swatchrow', role: 'menuitemradio', 'aria-checked': known ? 'false' : 'true' },
-      h('span', { class: 'rt-swatch', style: 'background:' + bg }), 'Your own…', custom, known ? null : h('span', { class: 'k' }, '✓')),
-    h('span', { class: 'rt-menunote' }, 'Kept with the bench, and used for exported pictures. Parts, beams and fibres are drawn the same on any colour; on a light one, the words are drawn dark.'));
+  const pick = (v, e) => { if (e) e.stopPropagation(); setTheme(v); };
+  menu.replaceChildren(...[['light', 'Light', BENCH_PAPER], ['dark', 'Dark', BENCH_DEFAULT], ['system', 'As the computer is set', null]].map(([v, name, c]) =>
+    h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': v === themePref ? 'true' : 'false', 'data-theme': v, onclick: e => pick(v, e) },
+      h('span', { class: 'rt-swatch' + (c ? '' : ' auto'), style: c ? 'background:' + c : null }), name, v === themePref ? h('span', { class: 'k' }, '✓') : null)),
+    h('span', { class: 'rt-menunote' }, 'Yours, kept in this browser: a bench opens in your theme, whoever made it. Exported pictures come out in it too.'));
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
-  stage.style.background = bg;
+  stage.style.background = benchBg();
+}
+// a part drawn off the bench (its symbol in the rail or the picker), in the ink the bench draws it in
+export function asOnBench(fn) {
+  const keepL = lightLayer, keepB = inBench, c = ctx;
+  lightLayer = benchLight(); inBench = true;
+  if (lightLayer) c.fillText = inkedText;
+  try { return fn(); } finally { if (c.fillText === inkedText) delete c.fillText; lightLayer = keepL; inBench = keepB; }
 }
 function drawBench() {
   const light = benchLight();
@@ -164,8 +207,9 @@ function drawBench() {
       for (let y = Math.floor(wy(H) / sub) * sub; y <= y1; y += sub) { const Y = Math.round(sy(y)) + 0.5; ctx.moveTo(0, Y); ctx.lineTo(W, Y); }
       ctx.stroke();
     }
-    ctx.fillStyle = benchBg() === BENCH_DEFAULT ? getCss('--rt-hole') : light ? 'rgba(0,0,0,0.13)' : 'rgba(255,255,255,0.11)';
-    const r = Math.min(5, Math.max(1, 3 * V().scale));
+    // the holes: darker anodising on the dark bench, a faint warm grey (smaller) on paper
+    ctx.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
+    const r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * V().scale));
     for (let x = x0; x <= x1; x += pitch) {
       for (let y = y0; y <= y1; y += pitch) {
         ctx.beginPath(); ctx.arc(sx(x), sy(y), r, 0, Math.PI * 2); ctx.fill();
@@ -411,13 +455,13 @@ function drawBeams(fieldShown) {
       for (let i = dn.length - 1; i >= 0; i--) ctx.lineTo(dn[i][0], dn[i][1]);
       ctx.closePath();
     }
-    ctx.fillStyle = seg.colour;
+    ctx.fillStyle = lightInk(seg.colour);
     ctx.globalAlpha = outline ? 0 : glowA(0.16 * faint * faint);
     ctx.fill();
     // stroke the two edges only: closing the path would draw a bar at every surface
     ctx.globalAlpha = glowA((outline ? 0.35 * Math.min(1, seg.w || 1) : 0.55) * faint);
     ctx.setLineDash(outline ? [3, 4] : []);
-    ctx.strokeStyle = seg.colour;
+    ctx.strokeStyle = lightInk(seg.colour);
     ctx.lineWidth = 1;
     for (const side of [up, dn]) {
       ctx.beginPath();
@@ -502,7 +546,7 @@ function drawRaysOn(ctx, rays) {
   const lo = -CLIP_M, hiX = W + CLIP_M, hiY = H + CLIP_M;
   for (const g of groups.values()) {
     ctx.globalAlpha = glowA(g.alpha);
-    ctx.strokeStyle = g.colour;
+    ctx.strokeStyle = lightInk(g.colour);
     ctx.beginPath();
     for (const r of g.rays) {
       const p = r.pts;
@@ -1284,5 +1328,9 @@ export function wireRender() {
   new ResizeObserver(resize).observe(stage);
 
   document.documentElement.classList.add('rt-noscroll');
+
+  // the theme: the page's colours set now, and followed as the computer's changes while it is chosen
+  document.documentElement.dataset.rtTheme = themeDark() ? 'dark' : 'light';
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (themePref === 'system') themeShown(); }); } catch (err) { /* an older browser: as it was set on loading */ }
 
 }

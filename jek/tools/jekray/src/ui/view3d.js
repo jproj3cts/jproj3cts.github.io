@@ -257,7 +257,7 @@ export const V3D = (() => {
     R.cubeCam.position.copy(dir.multiplyScalar(3)); R.cubeCam.quaternion.copy(R.camera.quaternion); R.cubeCam.updateMatrixWorld();
   }
   function need() { if (!R || R.queued) return; R.queued = true; requestAnimationFrame(() => { R.queued = false; draw(); }); }
-  const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9ecef' : '#101417'; };
+  const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9e3d8' : '#101417'; };   // a warm grey room round the paper bench, near-black round the dark
 
   /* ---------- keeping up with the bench ---------- */
   function sync() {
@@ -1010,17 +1010,17 @@ export const V3D = (() => {
     if (bk === R.boardKey && R.groups.board.children.length) return;
     R.boardKey = bk; R.boardBelow = false;               // (a new board is opaque: draw fades it again if need be)
     disposeAll(R.groups.board);
-    const bg = benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: 0.7, metalness: 0.25 });
+    const paper = new T.Color(benchBg()).getHSL({}).l > 0.5, bg = paper ? '#d6ccbb' : benchBg(), side = new T.MeshStandardMaterial({ color: col(bg), roughness: paper ? 0.9 : 0.7, metalness: paper ? 0.05 : 0.25 });   // paper is matt, and a shade deeper, as the lights wash it out
     let top = side;
     if (benchHoles()) {
       const c = document.createElement('canvas'); c.width = c.height = 64;
       const g = c.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, 64, 64);
       const L0 = new T.Color(bg).getHSL({}).l > 0.5;
-      g.fillStyle = L0 ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(32, 32, 8, 0, 2 * Math.PI); g.fill();
+      g.fillStyle = L0 ? 'rgba(70,50,25,0.16)' : 'rgba(0,0,0,0.55)'; g.beginPath(); g.arc(32, 32, 8, 0, 2 * Math.PI); g.fill();
       g.strokeStyle = L0 ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)'; g.lineWidth = 1.5; g.stroke();
       const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.wrapS = t.wrapT = T.RepeatWrapping;
       t.repeat.set((x1 - x0) / PITCH, (y1 - y0) / PITCH); t.anisotropy = 8;
-      top = new T.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: 0.7, metalness: 0.25 });
+      top = new T.MeshStandardMaterial({ color: 0xffffff, map: t, roughness: paper ? 0.9 : 0.7, metalness: paper ? 0.05 : 0.25 });
     }
     const m = new T.Mesh(boxG(x0, x1, y0, y1, -BOARD_T, 0), [side, side, side, side, top, side]);
     m.receiveShadow = true;

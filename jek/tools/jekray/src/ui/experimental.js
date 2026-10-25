@@ -78,7 +78,7 @@ export function assignPalette(v) { return (palette = v); }
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
-export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
+export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
 export const PART_GROUPS = {
   get free() { return FREE_GROUPS; },
   fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],

@@ -1309,12 +1309,22 @@
   .rt-rail { position: absolute; left: 0; top: 2.1rem; bottom: 2.4rem; z-index: 4; width: 52px; box-sizing: border-box; padding: 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
     overflow-y: auto; scrollbar-width: none; background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 2px 2px 0; }
   .rt-rail[hidden] { display: none; }
-  .rt-rpals { display: grid; grid-template-columns: 1fr; gap: 3px; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid var(--rt-over-line); }
-  .rt-rpal { min-height: 18px; padding: 2px 1px; font: 700 0.56rem/1.1 var(--jek-sans); letter-spacing: 0.01em; hyphens: manual; overflow-wrap: normal; color: var(--rt-over-ink); background: var(--rt-over-tint); border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
-  .rt-rpal.free { border-color: var(--jek-orange); } .rt-rpal.fibre { border-color: var(--jek-red); } .rt-rpal.pic { border-color: #3a9d5d; } .rt-rpal.elec { border-color: #c08a12; } .rt-rpal.rf { border-color: var(--jek-amber); }
-  .rt-rpal.on.free { background: var(--jek-orange); color: #fff; } .rt-rpal.on.fibre { background: var(--jek-red); color: #fff; }
-  .rt-rpal.on.pic { background: #3a9d5d; color: #fff; } .rt-rpal.on.elec { background: #c08a12; color: #fff; } .rt-rpal.on.rf { background: var(--jek-amber); color: #1a1a1a; }
-  .rt-rpal.draw { border-color: #8b6ee0; } .rt-rpal.on.draw { background: #8b6ee0; color: #fff; }
+  .rt-rpals { display: flex; justify-content: center; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid var(--rt-over-line); }
+  /* the palette switcher: the palette in use, its icon in its colour over its name; it opens the list beside the rail */
+  .rt-rswitch { --c: var(--jek-orange); position: relative; width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 1px 6px;
+    font: 700 0.56rem/1.05 var(--jek-sans); color: var(--rt-over-ink); background: var(--rt-surface); border: 1px solid var(--rt-over-line); border-radius: 5px; cursor: pointer; text-align: center; }
+  .rt-rswitch:hover, .rt-rswitch[aria-expanded="true"], .rt-rswitch:focus-visible { border-color: var(--c); outline: none; }
+  .rt-rswitch .ic, .rt-palmenu .ic { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--c); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .rt-rswitch::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-top-color: var(--rt-over-mute); border-bottom: 0; }
+  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; }
+  .rt-palmenu { position: absolute; left: 56px; z-index: 7; width: 15rem; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
+  .rt-palmenu[hidden] { display: none; }
+  .rt-palmenu button { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.45rem 0.75rem; border: 0; background: none; text-align: left; font: inherit; color: var(--jek-ink); cursor: pointer; }
+  .rt-palmenu button:hover, .rt-palmenu button:focus-visible { background: var(--jek-well); outline: none; }
+  .rt-palmenu button.on { box-shadow: inset 3px 0 0 var(--c); background: var(--jek-well); }
+  .rt-palmenu b { display: block; font-size: 0.85rem; }
+  .rt-palmenu small { display: block; font-size: 0.72rem; color: var(--jek-ink-soft); }
+  body.rt-embed .rt-palmenu { display: none !important; }
   .rt-rtool { color: var(--rt-over-ink); display: flex; align-items: center; justify-content: center; }
   .rt-rtool.on { border-color: #8b6ee0; background: rgba(139,110,224,0.3); color: var(--rt-over-ink); }
   .rt-dicon { display: inline-flex; pointer-events: none; }
@@ -47590,7 +47600,7 @@ function assignPalette(v) { return (palette = v); }
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
-const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Electronics', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
+const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
 const PART_GROUPS = {
   get free() { return FREE_GROUPS; },
   fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
@@ -47939,6 +47949,35 @@ function flyShown(btn, g) {
   flyout.hidden = false;
   flyout.style.top = Math.max(4, Math.min(br.top - sr.top, sr.height - flyout.offsetHeight - 8)) + 'px';
 }
+/* the palettes: an icon and a line of what each holds, for the switcher and its list */
+const PAL_ABOUT = { free: 'lenses, mirrors, lasers, screens', fibre: 'fibres, couplers, amplifiers, detectors', elec: 'sources, amplifiers, filters, scopes',
+  rf: 'horns, RF lenses, reflectors', pic: 'waveguides, rings, couplers on a chip', draw: 'shapes, arrows and text' };
+const PAL_ICON = { free: 'M2 10H18 M10 4C12 6 12 14 10 16C8 14 8 6 10 4Z', fibre: 'M2 14C6 14 6 6 10 6S14 14 18 14 M2.5 12.8A1.2 1.2 0 1 0 2.51 12.8 M17.5 12.8A1.2 1.2 0 1 0 17.51 12.8',
+  elec: 'M2 10H5L7 6L10 14L13 6L15 10H18', rf: 'M3 7L9 10L3 13Z M12 6.5A5 5 0 0 1 12 13.5 M15 4.5A8 8 0 0 1 15 15.5',
+  pic: 'M4 4H16V16H4Z M4 10H8A2 2 0 0 1 12 10H16 M10 8V4', draw: 'M4 16L5 12L13 4L16 7L8 15Z M11 6L14 9' };
+function palIcon(pal) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  svg.setAttribute('viewBox', '0 0 20 20'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
+  p.setAttribute('d', PAL_ICON[pal] || ''); svg.append(p);
+  return svg;
+}
+const palMenu = h('div', { class: 'rt-palmenu', role: 'menu', 'aria-label': 'Palettes', hidden: '' });
+function palMenuShown(on) {
+  const sw = document.getElementById('palSwitch');
+  if (!on || !sw) { palMenu.hidden = true; if (sw) sw.setAttribute('aria-expanded', 'false'); return; }
+  flyShown(null);
+  const list = [...palettesOn(), ...(V3D.active() ? [] : ['draw'])];
+  palMenu.replaceChildren(...list.map(pal => {
+    const b = h('button', { type: 'button', role: 'menuitemradio', class: pal + (pal === palette ? ' on' : ''), 'aria-checked': pal === palette ? 'true' : 'false' },
+      palIcon(pal), h('span', null, h('b', null, PALETTE_NAMES[pal]), h('small', null, PAL_ABOUT[pal])));
+    b.addEventListener('click', e => { e.stopPropagation(); palMenuShown(false); setPalette(pal); const n = document.getElementById('palSwitch'); if (n) n.focus(); });
+    return b;
+  }));
+  const sr = stage.getBoundingClientRect(), br = sw.getBoundingClientRect();
+  palMenu.style.top = Math.max(4, br.top - sr.top) + 'px';
+  palMenu.hidden = false; sw.setAttribute('aria-expanded', 'true');
+  const cur = palMenu.querySelector('.on') || palMenu.querySelector('button'); if (cur) cur.focus();
+}
 function railRecent() { /* the rail's recent part, kept current as parts are added */ if (railOn) fillRail(); }
 function fillRail() {
   if (!project) { requestAnimationFrame(fillRail); return; }          // the bench is not loaded yet: its symbols are drawn once it is
@@ -47948,11 +47987,11 @@ function fillRail() {
   stage.classList.toggle('rail', railOn);
   if (!railOn) return;
   // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
-  const pals = h('div', { class: 'rt-rpals' }, ...[...palettesOn(), ...(V3D.active() ? [] : ['draw'])].map(pal => {   // drawings are 2D only
-    const b = h('button', { type: 'button', class: 'rt-rpal ' + pal + (pal === palette ? ' on' : ''), title: PALETTE_NAMES[pal], 'aria-label': PALETTE_NAMES[pal] + ' parts', 'aria-pressed': pal === palette ? 'true' : 'false' }, PALETTE_NAMES[pal].replace('Electronics', 'Elec\u00adtronics'));   // the picker's names, two lines where they need them
-    b.addEventListener('click', e => { e.stopPropagation(); setPalette(pal); });
-    return b;
-  }));
+  // its palette: one switcher showing the one in use, opening a list of them, each with a line of what it holds
+  const sw = h('button', { type: 'button', class: 'rt-rswitch ' + palette, id: 'palSwitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
+    title: PALETTE_NAMES[palette] + ': ' + PAL_ABOUT[palette] + ' (change the palette)', 'aria-label': 'Palette: ' + PALETTE_NAMES[palette] + '. Change it' }, palIcon(palette), h('span', null, PALETTE_NAMES[palette]));
+  sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
+  const pals = h('div', { class: 'rt-rpals' }, sw);
   // the Draw palette: its tools instead of groups of parts
   const groups = palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
@@ -47997,6 +48036,15 @@ function wireRail() {
   stage.append(rail);
 
   stage.append(flyout);
+
+  // the palettes' list: closed by a click elsewhere or Escape; Up and Down walk it
+  stage.append(palMenu);
+  document.addEventListener('click', e => { if (!palMenu.hidden && !palMenu.contains(e.target)) palMenuShown(false); });
+  palMenu.addEventListener('keydown', e => {
+    const items = [...palMenu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); palMenuShown(false); const n = document.getElementById('palSwitch'); if (n) n.focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+  });
 
   document.addEventListener('click', e => { if (!flyout.hidden && !flyout.contains(e.target) && !e.target.closest('#ctxMenu')) flyShown(null); });
 
@@ -50975,6 +51023,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>One palette switcher</b>: the parts rail\u2019s five coloured buttons become one switcher at its top, showing the palette in use with its icon; it opens a list of the palettes, each with a line of what it holds. Electronics is now called <b>Circuits</b>.',
     '<b>Smaller things</b>: the menus answer the keyboard (Down opens one and walks it, Left and Right move between them); <b>Ctrl+K</b> finds parts and examples as well as commands; Undo and Redo say what they would do (\u201cUndo move Laser\u201d); <b>File \u203a Open recent</b> lists the files, examples and cloud benches opened lately; with several parts selected, <b>Set them all</b> sets a height, a facing, a diameter or a wavelength on every one; a part dragged near another lines up with it, or with a beam, a faint guide showing it (Shift drags freely); opening something over unsaved changes says where they were kept, and leaving the page with them asks first; in 3D, the names, the hint and the colour key follow the theme.',
     '<b>Parts in 3D look as they do in a lab</b> in the Light theme: brighter light from a warm sky, black-anodised housings (lasers, photodiodes, mounts) a mid grey that shades, and mirrors and other metal a satin silver rather than dark discs.',
     '<b>The Bench panel pulls out from the side</b>: a small arrow tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
@@ -51319,7 +51368,7 @@ function showWelcome() {
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
       h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
     : h('ul', null,
-      h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
+      h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; the switcher at its top changes the palette: free space, fibre, circuits, RF or drawing.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),

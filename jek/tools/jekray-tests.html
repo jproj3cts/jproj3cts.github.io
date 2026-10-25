@@ -7568,6 +7568,24 @@ const TESTS = [
       if (!(lined && free)) console.log('guides', { y1, y2 });
       return lined && free ? 1 : 0;
     },
+  },
+  {
+    name: 'The palette switcher shows the palette in use and changes it from its list',
+    why: 'the rail’s switcher names the palette in use; its list holds every palette with a line of what each holds; choosing Fibre makes the switcher show Fibre and the rail show fibre parts; Free space goes back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), sw = () => D.getElementById('palSwitch');
+      const start = sw() && /Free space/.test(sw().textContent);
+      sw().click();
+      const menu = D.querySelector('.rt-palmenu'), items = [...menu.querySelectorAll('button')];
+      const listed = !menu.hidden && items.some(b => /Circuits/.test(b.textContent)) && items.every(b => b.querySelector('small') && b.querySelector('small').textContent.length > 5);
+      items.find(b => /^Fibre/.test(b.textContent)).click();
+      const fibre = menu.hidden && /Fibre/.test(sw().textContent) && D.querySelectorAll('#rail .rt-rgroup.fibre').length > 0;
+      sw().click(); [...D.querySelectorAll('.rt-palmenu button')].find(b => /^Free space/.test(b.textContent)).click();
+      const back = /Free space/.test(sw().textContent);
+      if (!(start && listed && fibre && back)) console.log('palette switcher', { start, listed, fibre, back });
+      return start && listed && fibre && back ? 1 : 0;
+    },
   },  { group: 'Scripts' },
   {
     name: 'A script runs against the bench with the documented calls: a sweep to rows, a read, and an error reported rather than thrown',

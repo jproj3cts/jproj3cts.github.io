@@ -2,6 +2,8 @@ import { h, helpLine } from './panel.js';
 import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { linePlot } from './lens-analyses.js';
+import { wsRetheme } from './lens-workspace.js';
+import { rwRender } from './rf-workspace.js';
 import { COAT_MATERIALS, coatPreset, qwot } from '../core/coatings.js';
 import { COAT_TARGETS, coatAngles, coatCurve, coatOptimise, coatSpec, coatSummary, coatToStack } from '../core/coatdesign.js';
 import { normCoat } from '../state/project.js';
@@ -240,4 +242,8 @@ function cwLayers(layers, spec) {
   return card;
 }
 /* the page's wiring (from boot.js): a face's Coating setting and the lens designer's face table reach the workspace through the hooks */
-export function wireCoatDesign() { hooks.openCoatDesign = openCoatDesign; hooks.keptCoatings = keptCoatings; }
+export function wireCoatDesign() {
+  hooks.openCoatDesign = openCoatDesign; hooks.keptCoatings = keptCoatings;
+  // the designers drawn again when the theme changes, their charts in the new ink: this one, the Optical and the RF
+  document.addEventListener('rt-theme', () => { cwRender(); wsRetheme(); rwRender(); });
+}

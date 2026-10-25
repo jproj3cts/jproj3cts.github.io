@@ -154,6 +154,39 @@ export function adoptBench(data, whole) {
   changed(true);
 }
 
+/* What an Undo or a Redo would do, in a few words ("move Laser", "delete 3 parts"), worked out when it is
+   asked for by comparing the step kept with the bench as it is (so no change needs to name itself) */
+const POSE_KEYS = new Set(['x', 'y', 'z', 'tip', 'roll']);
+function stepWords(beforeStr, afterStr) {
+  let A, B;
+  try { A = JSON.parse(beforeStr); B = JSON.parse(afterStr); } catch (err) { return ''; }
+  const a = new Map((A.e || []).map(e => [e.id, e])), b = new Map((B.e || []).map(e => [e.id, e]));
+  const added = [...b.keys()].filter(id => !a.has(id)), gone = [...a.keys()].filter(id => !b.has(id));
+  let moved = [], turned = [], edited = [];
+  for (const [id, e] of b) {
+    const o = a.get(id);
+    if (!o || JSON.stringify(o) === JSON.stringify(e)) continue;
+    const keys = new Set([...Object.keys(o), ...Object.keys(e)].filter(k => JSON.stringify(o[k]) !== JSON.stringify(e[k])));
+    if ([...keys].every(k => POSE_KEYS.has(k))) moved.push(id);
+    else if ([...keys].every(k => k === 'angle' || POSE_KEYS.has(k))) turned.push(id);
+    else edited.push(id);
+  }
+  const who = (ids, from) => ids.length === 1 ? (from.get(ids[0]).name || 'a part') : ids.length + ' parts';
+  if (added.length && !gone.length && !moved.length && !turned.length && !edited.length) return 'add ' + who(added, b);
+  if (gone.length && !added.length && !moved.length && !turned.length && !edited.length) return 'delete ' + who(gone, a);
+  if (added.length || gone.length) return 'changes to the parts';
+  if (edited.length) return edited.length + moved.length + turned.length === 1 ? 'change ' + who(edited, b) : 'change ' + (edited.length + moved.length + turned.length) + ' parts';
+  if (turned.length) return 'turn ' + who(turned.concat(moved), b);
+  if (moved.length) return 'move ' + who(moved, b);
+  if (JSON.stringify(A.f || []) !== JSON.stringify(B.f || [])) return 'change a fibre';
+  if (JSON.stringify(A.m || []) !== JSON.stringify(B.m || [])) return 'change the measurements';
+  if (JSON.stringify(A.b || []) !== JSON.stringify(B.b || [])) return 'change the tabs';
+  if (JSON.stringify(A.a || []) !== JSON.stringify(B.a || [])) return 'change an assembly';
+  return '';
+}
+export const undoWords = () => history.length ? stepWords(history[history.length - 1], snapshot()) : '';
+export const redoWords = () => future.length ? stepWords(snapshot(), future[future.length - 1]) : '';
+
 export function checkpoint() {
   history.push(snapshot());
   if (history.length > 150) history.shift();

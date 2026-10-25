@@ -1,4 +1,4 @@
-import { LOCKED, clamp } from '../core/constants.js';
+import { EMBED, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { asmCheck, asmKind, asmOf, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
 import { designOne, makeAssembly, splitAssembly } from './assembly.js';
 import { openLensDesign } from './lens-workspace.js';
@@ -17,7 +17,7 @@ import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
 import { stopSweepsFor, updateSweepButtons } from './optimise.js';
 import { h, renderPanel, syncPanel } from './panel.js';
-import { checkpoint, switchTab } from './tabs.js';
+import { checkpoint, redoWords, switchTab, undoWords } from './tabs.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
 import { accountsOn, saveNudge } from '../io/account.js';
@@ -489,7 +489,9 @@ export function safeFileName(name) {
   return (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'bench';
 }
 /* Save's dot: an edit since the bench was opened or saved (a cloud bench is saved as it goes) */
+export let unsaved = false;
 export function markUnsaved(on) {
+  unsaved = !!on;
   const d = document.getElementById('saveDot');
   if (d) d.hidden = !on;
 }
@@ -582,6 +584,13 @@ export function wireActions() {
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
 
+  // leaving the page with changes not saved to a file (or the cloud): the browser asks first. This browser keeps
+  // the bench anyway (it opens again next time, and File › Earlier versions), so the question is only a reminder
+  window.addEventListener('beforeunload', e => {
+    if (TEST_MODE || EMBED || !unsaved || !project.elements.length || (cloud && !cloud.dirty)) return;
+    e.preventDefault(); e.returnValue = '';
+  });
+
   // the Edit menu, set as it opens (this runs before the menu's own opening, which focuses its first enabled item)
   const editMenu = document.getElementById('editMenu');
   document.getElementById('btnEdit').addEventListener('click', () => {
@@ -589,6 +598,16 @@ export function wireActions() {
     for (const k of ['Undo', 'Redo']) document.getElementById('edit' + k).disabled = document.getElementById('btn' + k).disabled;
   });
   editMenu.addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if (b && !b.disabled) editCommand(b.dataset.edit); });
+  // Undo and Redo say what they would do: on the bar as they are pointed at, in the Edit menu as it opens
+  const say = (k, words) => {
+    const b = document.getElementById('btn' + k), w = words(), key = k === 'Undo' ? 'Ctrl+Z' : 'Ctrl+Shift+Z';
+    b.title = (w ? k + ' ' + w : k) + ' (' + key + ')';
+    const item = document.getElementById('edit' + k), t = item && [...item.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (t) t.textContent = w ? k + ' ' + w : k;
+  };
+  const sayBoth = () => { say('Undo', undoWords); say('Redo', redoWords); };
+  for (const k of ['Undo', 'Redo']) for (const ev of ['pointerenter', 'focus']) document.getElementById('btn' + k).addEventListener(ev, sayBoth);
+  document.getElementById('btnEdit').addEventListener('click', sayBoth);
 
   {
     const mc = document.getElementById('minimap');

@@ -18,6 +18,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Smaller things</b>: the menus answer the keyboard (Down opens one and walks it, Left and Right move between them); <b>Ctrl+K</b> finds parts and examples as well as commands; Undo and Redo say what they would do (\u201cUndo move Laser\u201d); <b>File \u203a Open recent</b> lists the files, examples and cloud benches opened lately; with several parts selected, <b>Set them all</b> sets a height, a facing, a diameter or a wavelength on every one; a part dragged near another lines up with it, or with a beam, a faint guide showing it (Shift drags freely); opening something over unsaved changes says where they were kept, and leaving the page with them asks first; in 3D, the names, the hint and the colour key follow the theme.',
     '<b>Parts in 3D look as they do in a lab</b> in the Light theme: brighter light from a warm sky, black-anodised housings (lasers, photodiodes, mounts) a mid grey that shades, and mirrors and other metal a satin silver rather than dark discs.',
     '<b>The Bench panel pulls out from the side</b>: a small arrow tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
     '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light drawn in clear, vivid colours that never muddy to black where they cross; white light is drawn grey until a prism or a grating parts its colours, as a book draws it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
@@ -363,8 +364,8 @@ export function showWelcome() {
     : h('ul', null,
       h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
-      h('li', null, 'Click anything for its settings and readings; right-click for more.'),
-      h('li', null, 'Press ? for every shortcut.')),
+      h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
+      h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
 }

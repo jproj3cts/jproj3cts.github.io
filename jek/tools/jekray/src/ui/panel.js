@@ -333,7 +333,7 @@ export function pinTitle(title, id, onSelect) {
   pinBtn.innerHTML = PIN_SVG;
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
   // something is selected again (or View › Show the side panel). On a wide screen the main one's
-  // × is not shown: the tab on the bench's right edge (benchGear) closes it
+  // × is not shown: the tab on the bench's right edge (sideTab) closes it
   const main = panel === mainPanel;
   const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
@@ -458,7 +458,7 @@ export function renderPanel() {
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
   // the tab on the bench's right edge: pointing out (open the Bench panel) or in (put the panel away)
-  const tab = document.getElementById('btnBenchGear');
+  const tab = document.getElementById('btnSideTab');
   if (tab) {
     const what = mainShows ? 'Hide the panel' : 'Bench settings: light, snapping, notes and the parts list';
     tab.classList.toggle('open', mainShows); tab.setAttribute('aria-pressed', mainShows && !sel && !selFibre() ? 'true' : 'false');
@@ -467,7 +467,7 @@ export function renderPanel() {
 }
 /* the tab on the bench's right edge: the panel, put away (whatever was selected put down, as its × does), or,
    with none shown, the Bench panel brought out */
-export function benchGear() {
+export function sideTab() {
   const sel = selected(), shown = mainPanel.style.display !== 'none' && (!!(sel || selFibre()) || !panelClosed);
   selectOne(null); setSelFibreId(null);
   panelClosed = shown;

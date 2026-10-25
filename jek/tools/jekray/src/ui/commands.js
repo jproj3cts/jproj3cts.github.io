@@ -1,11 +1,15 @@
 import { EMBED } from '../core/constants.js';
 import { h } from './panel.js';
 import { editCan } from './actions.js';
+import { PALETTE_NAMES, addPart, exp, palettesOn, partsOf } from './experimental.js';
+import { EXAMPLES } from './news.js';
+import { openDemo } from './tours.js';
 
 /* ---------- Search commands (Ctrl+K) ----------
    Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay
    the one place a command lives, and this reads them as they stand (an item hidden there is left out, one
-   greyed there is shown greyed, a gated one carries its badge and asks as the menu's does). */
+   greyed there is shown greyed, a gated one carries its badge and asks as the menu's does). Typed words
+   find the parts too (added as the picker adds them) and the examples (opened as the gallery opens them). */
 const CMD_MENUS = ['fileMenu', 'editMenu', 'viewMenu', 'toolsMenu', 'sweepsMenu', 'helpMenu'];
 let cmdDlg = null, cmdHits = [], cmdAt = 0;
 
@@ -36,6 +40,13 @@ export function commandList() {
   }
   return out;
 }
+// the parts and the examples, found only by what is typed (not listed with nothing typed)
+export function findList() {
+  const out = [];
+  for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', run: () => addPart(p.key) });
+  for (const [group, , list] of EXAMPLES) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
+  return out;
+}
 // the commands holding every word typed, those whose name starts with it first
 export function commandFind(q, list) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean), Q = words.join(' ');
@@ -48,6 +59,7 @@ export function commandFind(q, list) {
 function cmdFill() {
   const input = cmdDlg.querySelector('input'), ul = cmdDlg.querySelector('ul');
   cmdHits = commandFind(input.value, commandList());
+  if (input.value.trim()) cmdHits = cmdHits.concat(commandFind(input.value, findList())).slice(0, 80);
   cmdAt = Math.max(0, cmdHits.findIndex(c => !c.off));
   ul.replaceChildren(...cmdHits.map((c, i) => h('li', { role: 'option', id: 'cmd' + i, class: (c.off ? 'off' : '') + (i === cmdAt ? ' at' : ''), 'aria-selected': i === cmdAt ? 'true' : 'false', 'aria-disabled': c.off ? 'true' : null,
     onclick: () => cmdRun(i), onmousemove: () => cmdMark(i) },
@@ -69,11 +81,11 @@ function cmdRun(i) {
   if (!c || c.off) return;
   cmdDlg.close();
   // after the dialog has gone, so what it opens (a menu's dialog, a submenu's export) is not shut with it
-  setTimeout(() => c.node.click());
+  setTimeout(() => c.run ? c.run() : c.node.click());
 }
 export function openCommands(q) {
   if (!cmdDlg) {
-    const input = h('input', { type: 'search', placeholder: 'Search commands: export, 3D, scripts…', 'aria-label': 'Search commands', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdList', autocomplete: 'off', spellcheck: 'false' });
+    const input = h('input', { type: 'search', placeholder: 'Search commands, parts and examples: export, lens, Michelson…', 'aria-label': 'Search commands', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdList', autocomplete: 'off', spellcheck: 'false' });
     input.addEventListener('input', cmdFill);
     input.addEventListener('keydown', e => {
       const step = d => { for (let j = cmdAt + d; j >= 0 && j < cmdHits.length; j += d) if (!cmdHits[j].off) return cmdMark(j); };

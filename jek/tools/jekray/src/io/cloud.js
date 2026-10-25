@@ -24,6 +24,7 @@ import { newProject, openZmx } from '../ui/tours.js';
 import { newLensDesign } from '../ui/assembly.js';
 import { newRfDesign } from '../ui/rf-workspace.js';
 import { openCoatDesign } from '../ui/coat-workspace.js';
+import { noteRecent } from './recent.js';
 
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
@@ -319,8 +320,10 @@ async function cloudOpen(id, version) {
   finally { setCloudOpening(false); }
   // an old version opens as a copy: Save to cloud makes it a new bench
   if (version) cloudLink(null);
-  else cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false });
+  else { cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false }); noteRecent({ kind: 'cloud', id: meta.id, label: meta.name || 'Cloud bench' }); }
 }
+// a cloud bench opened by its id (File › Open recent)
+export const openCloudBench = id => cloudOpen(id);
 /* the conflict: someone saved this bench elsewhere since this copy was opened */
 function cloudConflict(theirs, by, at) {
   const dlg = document.getElementById('cloudConflict'), link = cloud;

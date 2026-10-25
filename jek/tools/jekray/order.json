@@ -203,6 +203,7 @@
   "ui/scripts.js",
   "ui/tours.js",
   "ui/commands.js",
+  "io/recent.js",
   "io/mods.js",
   "worker/shim.js",
   "page/workers.js",

@@ -116,6 +116,8 @@ function leave() {
 /* A value typed in is committed when its field loses focus, often to the next field: the page is
    drawn again just after, focus kept on the field (by its label) the person moved to. */
 let rendering = false, deferRender = false, renderTimer = 0;
+// the theme changed: the workspace drawn again, its charts in the new ink (the coating workspace's wiring calls it)
+export function wsRetheme() { if (WS) renderWs(); }
 function renderSoon() {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {

@@ -581,8 +581,10 @@ export const V3D = (() => {
     g.font = '600 ' + fs + 'px system-ui, sans-serif';
     const w = Math.ceil(g.measureText(text).width) + 16;
     c.width = w; c.height = fs + 14;
-    g.font = '600 ' + fs + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(16,20,23,0.6)'; g.fillRect(0, 0, c.width, c.height);
-    g.fillStyle = colour || '#e8edf0'; g.textBaseline = 'middle'; g.fillText(text, 8, c.height / 2 + 1);
+    // a dark tag on the dark bench, a light one on paper
+    const paper = benchLight();
+    g.font = '600 ' + fs + 'px system-ui, sans-serif'; g.fillStyle = paper ? 'rgba(255,253,250,0.86)' : 'rgba(16,20,23,0.6)'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = colour ? (paper ? '#007893' : colour) : paper ? '#1c1d1f' : '#e8edf0'; g.textBaseline = 'middle'; g.fillText(text, 8, c.height / 2 + 1);
     const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
     const sp = new T.Sprite(new T.SpriteMaterial({ map: t, sizeAttenuation: false, depthTest: false, transparent: true }));
     const k = 2 * Math.tan(R.camera.fov * deg / 2) / Math.max(1, R.h) * 0.5;      // css px to the sprite's units, at half the canvas's resolution
@@ -668,7 +670,7 @@ export const V3D = (() => {
       G.parts.add(p);
       if (names) {
         const P = el.type === 'link' ? linkPartner(el) : null;
-        const text = el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), lk = el.id + '|' + text + '|' + R.h;
+        const text = el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), lk = el.id + '|' + text + '|' + R.h + '|' + benchLight();
         let sp = labels.get(lk);
         if (!sp) { sp = label(text, el.type === 'link' ? '#7fdcff' : null); labels.set(lk, sp); }
         usedL.add(lk);

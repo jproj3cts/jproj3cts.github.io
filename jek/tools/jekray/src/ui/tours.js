@@ -16,7 +16,7 @@ import {
   GOAL_LABEL, METRIC_FAMS, drawConvergence, drawHistogram, drawScan, measurable, metricByKey,
   metricKind, metricRaw, metricText, metricsFor, monteCarlo, optimiseGen, sensitivity
 } from './optimise.js';
-import { benchGear, h, renderPanel, setPanelClosed } from './panel.js';
+import { h, renderPanel, setPanelClosed, sideTab } from './panel.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
 import { screenStats } from '../engines/screen-stats.js';
 import { keepStudy } from '../engines/data-export.js';
@@ -35,6 +35,7 @@ import { keepSnapshot, scheduleSave } from '../io/autosave.js';
 import { hideWelcome } from './news.js';
 import { track } from '../io/usage.js';
 import { account, accountsOn } from '../io/account.js';
+import { noteRecent } from '../io/recent.js';
 
 /* ---------- Guided tours ----------
    A tour builds a small bench step by step on a tab of its own, so the user's own work is
@@ -200,6 +201,7 @@ export async function openDemo(name, undoable) {
       data = await res.json();
     }
     openProjectData(data, data.name || name); track('example', name);
+    noteRecent({ kind: 'example', id: name, label: data.name || name });
     if (!undoable) { setHistory([]); setFuture([]); updateUndoButtons(); }
     if (!data.keepView) fitView();          // an example set up on a detail opens on it
   } catch (err) {
@@ -274,7 +276,7 @@ export function wireTours() {
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
 
-  document.getElementById('btnBenchGear').addEventListener('click', () => { benchGear(); requestRender(); });
+  document.getElementById('btnSideTab').addEventListener('click', () => { sideTab(); requestRender(); });
 
   document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 

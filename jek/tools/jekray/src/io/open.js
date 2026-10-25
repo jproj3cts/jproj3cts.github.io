@@ -12,12 +12,13 @@ import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { V3D } from '../ui/view3d.js';
 import { updateSweepButtons } from '../ui/optimise.js';
-import { changed, fitView, markUnsaved, toast, updateUndoButtons } from '../ui/actions.js';
+import { changed, fitView, markUnsaved, toast, unsaved, updateUndoButtons } from '../ui/actions.js';
 import { checkpoint, renderBenchTabs } from '../ui/tabs.js';
 import { applyUi } from './share.js';
 import { cloudLink } from './cloud.js';
 import { keepSnapshot } from './autosave.js';
 import { modsOffer } from './mods.js';
+import { noteRecent } from './recent.js';
 
 /* ---------- Opening a project someone (or something) else wrote ----------
    A file from outside the tool, an AI assistant's above all, is read as leniently as it
@@ -187,6 +188,7 @@ export function openProjectData(data, label) {
   data = JSON.parse(JSON.stringify(data));
   prepImport(data, notes);
   const raw = JSON.parse(JSON.stringify(data)), prev = project, hist = history.length;
+  const dropped = unsaved && prev && prev.elements.length > 0;     // a bench with changes not saved, replaced: said so, and how to get it back
   pauseAll();
   keepSnapshot('Before opening ' + label, true);
   if (prev && prev.elements.length) checkpoint();
@@ -199,7 +201,7 @@ export function openProjectData(data, label) {
   renderBenchTabs();
   changed(true);
   if (!raw.view || W < 600) fitView();                 // a phone: a view kept from a desk does not fit
-  toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
+  toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : '') + (dropped ? '. The bench you had, not saved, is kept in File \u203a Earlier versions' : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
   // a link (or an example) may say which panels to show and how
@@ -224,6 +226,7 @@ export function openJekray(file) {
       let data;
       try { data = JSON.parse(r.result); } catch (err) { data = parseProjectText(r.result); }
       openProjectData(data, file.name);
+      noteRecent({ kind: 'file', label: file.name, json: JSON.stringify(data) });
     } catch (err) {
       toast(file.name + ' could not be opened: ' + err.message, true);
     }

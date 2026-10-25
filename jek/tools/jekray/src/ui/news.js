@@ -18,6 +18,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>One palette switcher</b>: the parts rail\u2019s five coloured buttons become one switcher at its top, showing the palette in use with its icon; it opens a list of the palettes, each with a line of what it holds. Electronics is now called <b>Circuits</b>.',
     '<b>Smaller things</b>: the menus answer the keyboard (Down opens one and walks it, Left and Right move between them); <b>Ctrl+K</b> finds parts and examples as well as commands; Undo and Redo say what they would do (\u201cUndo move Laser\u201d); <b>File \u203a Open recent</b> lists the files, examples and cloud benches opened lately; with several parts selected, <b>Set them all</b> sets a height, a facing, a diameter or a wavelength on every one; a part dragged near another lines up with it, or with a beam, a faint guide showing it (Shift drags freely); opening something over unsaved changes says where they were kept, and leaving the page with them asks first; in 3D, the names, the hint and the colour key follow the theme.',
     '<b>Parts in 3D look as they do in a lab</b> in the Light theme: brighter light from a warm sky, black-anodised housings (lasers, photodiodes, mounts) a mid grey that shades, and mirrors and other metal a satin silver rather than dark discs.',
     '<b>The Bench panel pulls out from the side</b>: a small arrow tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
@@ -362,7 +363,7 @@ export function showWelcome() {
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
       h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
     : h('ul', null,
-      h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
+      h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; the switcher at its top changes the palette: free space, fibre, circuits, RF or drawing.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),

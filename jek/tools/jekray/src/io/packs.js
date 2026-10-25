@@ -373,7 +373,7 @@ export const MENU_ICONS = {
   sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5',
 };
 export function menuIcons(root) {
-  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
+  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
     if (n.querySelector(':scope > svg.ic')) continue;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -548,6 +548,38 @@ export function wirePacks() {
     menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
     document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+  }
+
+  /* the keyboard, as a desktop menu bar has it: in a menu, Up and Down (and Home, End) move between its items,
+     Right opens a submenu and Left comes back out of one; Left and Right from a menu bar's menu open the menu
+     beside it; on the bar itself Left and Right move between the menus and Down opens one */
+  const barBtns = [...document.querySelectorAll('.rt-menubar .rt-mbar')];
+  const itemsOf = m => [...m.children].filter(n => n.matches('button, a, .rt-sub') && !n.hidden && !n.disabled && n.getClientRects().length);
+  const openBeside = (btn, d) => {
+    const i = barBtns.indexOf(btn); if (i < 0) return false;
+    const next = barBtns[(i + d + barBtns.length) % barBtns.length];
+    next.click(); next.setAttribute('aria-expanded', 'true');
+    return true;
+  };
+  for (const btn of barBtns) btn.addEventListener('keydown', e => {
+    const i = barBtns.indexOf(btn);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); barBtns[(i + (e.key === 'ArrowRight' ? 1 : -1) + barBtns.length) % barBtns.length].focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); if (btn.getAttribute('aria-expanded') !== 'true') btn.click(); }
+  });
+  for (const [, mId] of [['', 'fileMenu'], ['', 'editMenu'], ['', 'viewMenu'], ['', 'toolsMenu'], ['', 'sweepsMenu'], ['', 'helpMenu'], ['', 'acctMenu'], ['', 'moreMenu']]) {
+    const top = document.getElementById(mId), btn = document.querySelector('[aria-controls="' + mId + '"]');
+    top.addEventListener('keydown', e => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+      const cur = document.activeElement, menu = cur && cur.parentElement && cur.parentElement.closest('.rt-menu') || top;
+      const items = itemsOf(menu), i = items.indexOf(cur);
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (items.length) items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+      else if (e.key === 'Home') { if (items[0]) items[0].focus(); }
+      else if (e.key === 'End') { if (items.length) items[items.length - 1].focus(); }
+      else if (e.key === 'ArrowRight' && cur && cur.classList.contains('rt-sub')) { const sub = cur.querySelector(':scope > .rt-menu'), f = sub && itemsOf(sub)[0]; if (f) f.focus(); }
+      else if (e.key === 'ArrowLeft' && menu !== top) { const up = menu.closest('.rt-sub'); if (up) up.focus(); }
+      else if (!openBeside(btn, e.key === 'ArrowRight' ? 1 : -1) && e.key === 'ArrowLeft' && btn) btn.focus();
+    });
   }
 
   document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });

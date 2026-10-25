@@ -5,7 +5,7 @@ import { onTab } from '../state/tabs.js';
 import { frame, toLocal } from '../core/mask.js';
 import {
   H, W, canvas, fibreAtPx, fibreGrip, fibreNearest, fibreSplit, handlePos, moveGrip, portAt,
-  removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, sx, sy, wx,
+  halfSize, removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, sx, sy, wx,
   wy
 } from './render.js';
 import {
@@ -14,6 +14,8 @@ import {
   setPenEnded, setXformMode, snap15, ungroupEls, xformMode
 } from './drawings.js';
 import { pkey } from '../engines/fibre.js';
+import { lastTrace } from '../engines/trace.js';
+import { getEl } from '../state/elements.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { hitSurface } from './parts/hits.js';
@@ -73,6 +75,41 @@ export function setDrag(v) { return (drag = v); }
    (the browser's contextmenu comes on the press on some systems, on the release on others), never after a pan */
 export const RIGHT = { on: false, moved: false, menu: null, panned: 0 };
 
+/* Alignment guides: a part being dragged lines up with another part's middle, across or up, or comes to lie on a
+   beam's line, once within a few pixels of it; a faint line shows what it has lined up with. Shift (no snapping)
+   turns them off. guides: what render draws, as lines on the bench (mm), while the drag lasts */
+export let guides = null;
+export function setGuides(v) { return (guides = v); }
+function alignDrag(el, nx, ny, skip, e) {
+  guides = null;
+  if (e && e.shiftKey) return [nx, ny];
+  const tol = 6 / V().scale;
+  let gx = null, gy = null, bx = tol, by = tol;
+  for (const o of project.elements) {
+    if (skip.has(o.id) || !onTab(o) || o.type === 'draw') continue;
+    const ax = Math.abs(o.x - nx), ay = Math.abs(o.y - ny);
+    if (ax < bx) { bx = ax; gx = o; }
+    if (ay < by) { by = ay; gy = o; }
+  }
+  const G = [];
+  if (gx) { nx = gx.x; G.push([nx, Math.min(ny, gx.y) - 15, nx, Math.max(ny, gx.y) + 15]); }
+  if (gy) { ny = gy.y; G.push([Math.min(nx, gy.x) - 15, ny, Math.max(nx, gy.x) + 15, ny]); }
+  if (!gx && !gy) {
+    // a beam's line: one that does not start at what is being dragged (the light it sends would move with it)
+    let best = null, bd = tol;
+    for (const b of lastTrace.beams || []) {
+      if (b.bench !== project.tab || !(b.len > 0) || !isFinite(b.dx)) continue;
+      if ([...skip].some(id => { const o = getEl(id); return o && Math.hypot(b.x0 - o.x, b.y0 - o.y) < 1.5 * Math.max(1, halfSize(o)); })) continue;
+      const t = (nx - b.x0) * b.dx + (ny - b.y0) * b.dy;
+      if (t < 0 || t > b.len) continue;
+      const d = Math.abs((nx - b.x0) * b.dy - (ny - b.y0) * b.dx);
+      if (d < bd) { bd = d; best = { b, t }; }
+    }
+    if (best) { const { b, t } = best; nx = b.x0 + b.dx * t; ny = b.y0 + b.dy * t; G.push([b.x0, b.y0, b.x0 + b.dx * Math.min(b.len, t + 40), b.y0 + b.dy * Math.min(b.len, t + 40)]); }
+  }
+  if (G.length) guides = G;
+  return [nx, ny];
+}
 export function snapVal(v, e) {
   const st = project.snap;
   if (!st || (e && e.shiftKey)) return +v.toFixed(4);
@@ -81,6 +118,7 @@ export function snapVal(v, e) {
 
 function endPointer(e) {
   pointers.delete(e.pointerId);
+  if (guides) { guides = null; requestRender(); }
   if (!drag) return;
   setTimeout(() => { if (!midDrag()) fwPump(); }, 0);    // what the drag held back
   if (drag.mode === 'pinch') { if (pointers.size === 0) { drag = null; scheduleSave(); } return; }
@@ -165,7 +203,7 @@ let spaceDown = false;
 export function wirePointer() {
   canvas.addEventListener('pointerdown', e => {
     canvas.focus({ preventScroll: true });
-    canvas.setPointerCapture(e.pointerId);
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* a pointer the browser no longer tracks (a synthetic one) */ }
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
     pointers.set(e.pointerId, { px, py });
@@ -318,7 +356,7 @@ export function wirePointer() {
         checkpoint(); drag.started = true;
       }
       // the grabbed element snaps; the rest keep their places against it
-      const nx = snapVal(wx(px) - drag.ox, e), ny = snapVal(wy(py) - drag.oy, e), dx = nx - drag.x0, dy = ny - drag.y0;
+      const [nx, ny] = alignDrag(drag.el, snapVal(wx(px) - drag.ox, e), snapVal(wy(py) - drag.oy, e), new Set(drag.group.map(g => g.id)), e), dx = nx - drag.x0, dy = ny - drag.y0;
       drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + dx; g.y = drag.starts[i][1] + dy; });
       for (const [n, x0, y0] of drag.nodes) { n.x = x0 + dx; n.y = y0 + dy; }
       syncPanel(); requestRender();

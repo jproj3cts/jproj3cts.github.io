@@ -261,14 +261,14 @@
   .rt-diffkey .tk { position: relative; height: 1.2em; font-family: var(--jek-mono); font-size: 0.64rem; color: var(--jek-ink-soft); }
   .rt-diffkey .tk span { position: absolute; top: 1px; white-space: nowrap; transform: translateX(-50%); }
   .rt-diffkey .tk span:first-child { transform: none; } .rt-diffkey .tk span:last-child { transform: translateX(-100%); }
-  .rt-v3dkey { position: absolute; left: 60px; bottom: 8px; z-index: 6; width: 15rem; font: 0.7rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.85); background: rgba(10,13,16,0.72); padding: 5px 8px 6px; border-radius: 4px; pointer-events: none; }
+  .rt-v3dkey { position: absolute; left: 60px; bottom: 8px; z-index: 6; width: 15rem; font: 0.7rem/1.35 var(--jek-sans); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); padding: 5px 8px 6px; border-radius: 4px; pointer-events: none; }
   .rt-v3dkey b { font-weight: 600; }
   .rt-v3dkey canvas { display: block; width: 100%; height: 10px; margin: 4px 0 2px; border-radius: 2px; }
   .rt-v3dkey .tk { position: relative; height: 1.1em; font-family: var(--jek-mono); font-size: 0.64rem; }
   .rt-v3dkey .tk span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
   .rt-v3dkey .tk span:first-child { transform: none; } .rt-v3dkey .tk span:last-child { transform: translateX(-100%); }
-  .rt-v3dkey .rd { margin-top: 3px; color: #fff; min-height: 1.35em; }
-  .rt-v3dhint { position: absolute; left: 60px; top: 2.2rem; z-index: 6; max-width: calc(100% - 200px); font: 0.72rem/1.35 var(--jek-sans); color: rgba(255,255,255,0.78); background: rgba(10,13,16,0.55); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
+  .rt-v3dkey .rd { margin-top: 3px; color: var(--rt-over-ink); font-weight: 600; min-height: 1.35em; }
+  .rt-v3dhint { position: absolute; left: 60px; top: 2.2rem; z-index: 6; max-width: calc(100% - 200px); font: 0.72rem/1.35 var(--jek-sans); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); padding: 3px 8px; border-radius: 4px; pointer-events: none; }
   .rt-v3dhint[hidden] { display: none; }
   .rt-v3dhint.faded { opacity: 0; transition: opacity 0.6s ease 1.5s; }
   .rt-benchtabs {
@@ -998,7 +998,6 @@
   .rt-shortcuts dt { font-family: var(--jek-mono); font-size: 0.8rem; color: var(--jek-ink); max-width: 14rem; text-align: left; }
   .rt-keycols h3 { text-align: left; }
   .rt-shortcuts dd { margin: 0; color: var(--jek-ink-soft); }
-  .rt-btn.rt-help { width: 2rem; height: 2rem; min-width: 0; padding: 0; border-radius: 2px; font-weight: 700; display: inline-grid; place-items: center; align-self: center; line-height: 1; }
   /* first visit: a few words on the bench, once */
   .rt-welcome { position: absolute; left: 0.8rem; bottom: 2.2rem; z-index: 5; max-width: min(24rem, calc(100% - 1.6rem)); padding: 0.8rem 0.95rem;
     background: var(--jek-panel); color: var(--jek-ink); border-radius: 2px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font-size: 0.85rem; line-height: 1.45; }
@@ -1105,8 +1104,6 @@
   .rt-btn.rt-addbtn { flex: none; color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); }
   .rt-btn.rt-addbtn:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
-  .rt-btn.rt-help { position: relative; }
-  .rt-btn.rt-help .rt-dot { position: absolute; top: -3px; right: -3px; margin: 0; }
   .rt-menubar { display: flex; align-items: center; gap: 0.05rem; flex: none; }
   .rt-menubar .rt-btn.rt-mbar { padding: 0.4rem 0.6rem; font-weight: 500; }
   #btnHelpMenu { position: relative; }
@@ -1257,13 +1254,16 @@
     .rt-bar .rt-phonegone > .rt-menu { top: 100%; left: auto; right: 0.5rem; }
   }
   .rt-ptile small { display: block; font-weight: 500; font-size: 0.66rem; color: var(--jek-ink-soft); }
+  #recentMenu { min-width: 16rem; max-width: 24rem; }
+  #recentMenu .rt-recentname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #recentMenu .rt-menunote { max-width: 18rem; white-space: normal; }
   .rt-swatch.auto { background: linear-gradient(135deg, #f3eee5 0 50%, #1f2529 50% 100%); }
   .rt-swatch { flex: none; width: 14px; height: 14px; border: 1px solid var(--jek-line-2); border-radius: 2px; box-sizing: border-box; }
   .rt-imenu .rt-swatchrow { display: flex; align-items: center; gap: 0.55rem; padding: 0.3rem 0.9rem 0.3rem 0.6rem; font: 400 0.8125rem/1.35 var(--jek-sans); color: var(--jek-ink); cursor: pointer; white-space: nowrap; }
   .rt-imenu .rt-swatchrow:hover { background: var(--jek-cyan); color: #fff; }
   .rt-swatchpick { width: 1.8rem; height: 1.3rem; padding: 0; border: 1px solid var(--jek-line-2); border-radius: 2px; background: none; cursor: pointer; }
-  #benchColourMenu { min-width: 17rem; }
-  #benchColourMenu .rt-menunote { max-width: 16rem; white-space: normal; }
+  #themeMenu { min-width: 17rem; }
+  #themeMenu .rt-menunote { max-width: 16rem; white-space: normal; }
   .rt-menunote { display: block; padding: 0.3rem 0.65rem 0.25rem; font-size: 0.78rem; line-height: 1.4; color: var(--jek-ink-soft); text-align: left; }
   #fileMenu .rt-status:empty, #fileMenu .rt-status:empty + * { display: none; }
   /* the parts picker, under + Add part */
@@ -1756,6 +1756,9 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="history" id="recentItem">Open recent
+              <div class="rt-menu rt-imenu" role="menu" id="recentMenu"></div>
+            </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
@@ -1816,8 +1819,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
             <div class="sep"></div>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="benchColourItem">Theme
-              <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
+              <div class="rt-menu rt-imenu" role="menu" id="themeMenu"></div>
             </div>
             <button type="button" role="menuitemcheckbox" id="btnHoles" aria-checked="true" data-icon="check">Grid holes on the bench</button>
             <button type="button" role="menuitem" id="btnNamesUp" title="Parts' names bigger on the bench, at every zoom">Larger names</button>
@@ -1839,7 +1842,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
-            <button type="button" role="menuitem" data-click="btnBenchGear" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
+            <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
           </div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -1951,7 +1954,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
-        <button type="button" class="rt-sidetab" id="btnBenchGear" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
+        <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
         <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
@@ -13681,7 +13684,7 @@ function inkedText(t, x, y, w) {
 }
 // the View menu's colours and holes, and the bench's own background, as the project has them
 function benchStyleShown() {
-  const menu = document.getElementById('benchColourMenu');
+  const menu = document.getElementById('themeMenu');
   if (!menu) return;
   const pick = (v, e) => { if (e) e.stopPropagation(); setTheme(v); };
   menu.replaceChildren(...[['light', 'Light', BENCH_PAPER], ['dark', 'Dark', BENCH_DEFAULT], ['system', 'As the computer is set', null]].map(([v, name, c]) =>
@@ -14466,6 +14469,11 @@ function renderAll(stale) {
     ctx.save(); ctx.fillStyle = 'rgba(127,220,255,0.08)'; ctx.strokeStyle = 'rgba(127,220,255,0.8)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
     ctx.fillRect(x0, y0, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0));
     ctx.strokeRect(x0 + 0.5, y0 + 0.5, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0)); ctx.restore();
+  }
+  if (!exporting && guides) {
+    // the alignment guides of a part being dragged (ui/pointer.js alignDrag)
+    ctx.save(); ctx.strokeStyle = lightLayer ? 'rgba(0,120,147,0.85)' : 'rgba(127,220,255,0.85)'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); for (const [x0, y0, x1, y1] of guides) { ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); } ctx.stroke(); ctx.restore();
   }
   if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
   drawScaleBar();
@@ -15903,6 +15911,41 @@ function setDrag(v) { return (drag = v); }
    (the browser's contextmenu comes on the press on some systems, on the release on others), never after a pan */
 const RIGHT = { on: false, moved: false, menu: null, panned: 0 };
 
+/* Alignment guides: a part being dragged lines up with another part's middle, across or up, or comes to lie on a
+   beam's line, once within a few pixels of it; a faint line shows what it has lined up with. Shift (no snapping)
+   turns them off. guides: what render draws, as lines on the bench (mm), while the drag lasts */
+let guides = null;
+function setGuides(v) { return (guides = v); }
+function alignDrag(el, nx, ny, skip, e) {
+  guides = null;
+  if (e && e.shiftKey) return [nx, ny];
+  const tol = 6 / V().scale;
+  let gx = null, gy = null, bx = tol, by = tol;
+  for (const o of project.elements) {
+    if (skip.has(o.id) || !onTab(o) || o.type === 'draw') continue;
+    const ax = Math.abs(o.x - nx), ay = Math.abs(o.y - ny);
+    if (ax < bx) { bx = ax; gx = o; }
+    if (ay < by) { by = ay; gy = o; }
+  }
+  const G = [];
+  if (gx) { nx = gx.x; G.push([nx, Math.min(ny, gx.y) - 15, nx, Math.max(ny, gx.y) + 15]); }
+  if (gy) { ny = gy.y; G.push([Math.min(nx, gy.x) - 15, ny, Math.max(nx, gy.x) + 15, ny]); }
+  if (!gx && !gy) {
+    // a beam's line: one that does not start at what is being dragged (the light it sends would move with it)
+    let best = null, bd = tol;
+    for (const b of lastTrace.beams || []) {
+      if (b.bench !== project.tab || !(b.len > 0) || !isFinite(b.dx)) continue;
+      if ([...skip].some(id => { const o = getEl(id); return o && Math.hypot(b.x0 - o.x, b.y0 - o.y) < 1.5 * Math.max(1, halfSize(o)); })) continue;
+      const t = (nx - b.x0) * b.dx + (ny - b.y0) * b.dy;
+      if (t < 0 || t > b.len) continue;
+      const d = Math.abs((nx - b.x0) * b.dy - (ny - b.y0) * b.dx);
+      if (d < bd) { bd = d; best = { b, t }; }
+    }
+    if (best) { const { b, t } = best; nx = b.x0 + b.dx * t; ny = b.y0 + b.dy * t; G.push([b.x0, b.y0, b.x0 + b.dx * Math.min(b.len, t + 40), b.y0 + b.dy * Math.min(b.len, t + 40)]); }
+  }
+  if (G.length) guides = G;
+  return [nx, ny];
+}
 function snapVal(v, e) {
   const st = project.snap;
   if (!st || (e && e.shiftKey)) return +v.toFixed(4);
@@ -15911,6 +15954,7 @@ function snapVal(v, e) {
 
 function endPointer(e) {
   pointers.delete(e.pointerId);
+  if (guides) { guides = null; requestRender(); }
   if (!drag) return;
   setTimeout(() => { if (!midDrag()) fwPump(); }, 0);    // what the drag held back
   if (drag.mode === 'pinch') { if (pointers.size === 0) { drag = null; scheduleSave(); } return; }
@@ -15995,7 +16039,7 @@ let spaceDown = false;
 function wirePointer() {
   canvas.addEventListener('pointerdown', e => {
     canvas.focus({ preventScroll: true });
-    canvas.setPointerCapture(e.pointerId);
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* a pointer the browser no longer tracks (a synthetic one) */ }
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
     pointers.set(e.pointerId, { px, py });
@@ -16148,7 +16192,7 @@ function wirePointer() {
         checkpoint(); drag.started = true;
       }
       // the grabbed element snaps; the rest keep their places against it
-      const nx = snapVal(wx(px) - drag.ox, e), ny = snapVal(wy(py) - drag.oy, e), dx = nx - drag.x0, dy = ny - drag.y0;
+      const [nx, ny] = alignDrag(drag.el, snapVal(wx(px) - drag.ox, e), snapVal(wy(py) - drag.oy, e), new Set(drag.group.map(g => g.id)), e), dx = nx - drag.x0, dy = ny - drag.y0;
       drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + dx; g.y = drag.starts[i][1] + dy; });
       for (const [n, x0, y0] of drag.nodes) { n.x = x0 + dx; n.y = y0 + dy; }
       syncPanel(); requestRender();
@@ -20599,8 +20643,10 @@ const V3D = (() => {
     g.font = '600 ' + fs + 'px system-ui, sans-serif';
     const w = Math.ceil(g.measureText(text).width) + 16;
     c.width = w; c.height = fs + 14;
-    g.font = '600 ' + fs + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(16,20,23,0.6)'; g.fillRect(0, 0, c.width, c.height);
-    g.fillStyle = colour || '#e8edf0'; g.textBaseline = 'middle'; g.fillText(text, 8, c.height / 2 + 1);
+    // a dark tag on the dark bench, a light one on paper
+    const paper = benchLight();
+    g.font = '600 ' + fs + 'px system-ui, sans-serif'; g.fillStyle = paper ? 'rgba(255,253,250,0.86)' : 'rgba(16,20,23,0.6)'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = colour ? (paper ? '#007893' : colour) : paper ? '#1c1d1f' : '#e8edf0'; g.textBaseline = 'middle'; g.fillText(text, 8, c.height / 2 + 1);
     const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
     const sp = new T.Sprite(new T.SpriteMaterial({ map: t, sizeAttenuation: false, depthTest: false, transparent: true }));
     const k = 2 * Math.tan(R.camera.fov * deg / 2) / Math.max(1, R.h) * 0.5;      // css px to the sprite's units, at half the canvas's resolution
@@ -20686,7 +20732,7 @@ const V3D = (() => {
       G.parts.add(p);
       if (names) {
         const P = el.type === 'link' ? linkPartner(el) : null;
-        const text = el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), lk = el.id + '|' + text + '|' + R.h;
+        const text = el.name + (el.type === 'link' ? (P ? ' → ' + benchName(P.bench) : ' (no partner)') : ''), lk = el.id + '|' + text + '|' + R.h + '|' + benchLight();
         let sp = labels.get(lk);
         if (!sp) { sp = label(text, el.type === 'link' ? '#7fdcff' : null); labels.set(lk, sp); }
         usedL.add(lk);
@@ -25520,7 +25566,7 @@ function pinTitle(title, id, onSelect) {
   pinBtn.innerHTML = PIN_SVG;
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
   // something is selected again (or View › Show the side panel). On a wide screen the main one's
-  // × is not shown: the tab on the bench's right edge (benchGear) closes it
+  // × is not shown: the tab on the bench's right edge (sideTab) closes it
   const main = panel === mainPanel;
   const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
@@ -25645,7 +25691,7 @@ function renderPanel() {
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
   // the tab on the bench's right edge: pointing out (open the Bench panel) or in (put the panel away)
-  const tab = document.getElementById('btnBenchGear');
+  const tab = document.getElementById('btnSideTab');
   if (tab) {
     const what = mainShows ? 'Hide the panel' : 'Bench settings: light, snapping, notes and the parts list';
     tab.classList.toggle('open', mainShows); tab.setAttribute('aria-pressed', mainShows && !sel && !selFibre() ? 'true' : 'false');
@@ -25654,7 +25700,7 @@ function renderPanel() {
 }
 /* the tab on the bench's right edge: the panel, put away (whatever was selected put down, as its × does), or,
    with none shown, the Bench panel brought out */
-function benchGear() {
+function sideTab() {
   const sel = selected(), shown = mainPanel.style.display !== 'none' && (!!(sel || selFibre()) || !panelClosed);
   selectOne(null); setSelFibreId(null);
   panelClosed = shown;
@@ -26755,6 +26801,23 @@ function fibreLinkPanel(F) {
       onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete fibre')));
 }
+/* several selected: the settings they all have, one field for each, showing the value they share (blank where
+   they differ) and setting it on every one; a part locked in place keeps its place (height, facing, tip) */
+const SHARED = [['z', 'Height above the table (mm)', true], ['angle', 'Facing (\u00b0)', true], ['tip', 'Tip (\u00b0)', true],
+  ['diameter', 'Diameter (mm)'], ['length', 'Length (mm)'], ['wavelength', 'Wavelength (nm)'], ['power', 'Power (mW)'], ['width', 'Beam width (mm)']];
+function sharedFields(list) {
+  const rows = [];
+  for (const [key, label, pose] of SHARED) {
+    if (!list.every(e => typeof getPath(e, key) === 'number')) continue;
+    if ((key === 'z' || key === 'tip') && list.some(e => ['fcomp', 'elec', 'pic', 'draw', 'link'].includes(e.type))) continue;   // a height in 3D: free-space parts only
+    const id = 'multi-' + key;
+    const get = () => { const v = list.map(e => getPath(e, key)); return v.every(x => Math.abs(x - v[0]) < 1e-9) ? v[0] : null; };
+    const inp = numInput(id, get, v => { for (const e of list) if (!(pose && e.locked)) setParam(e, key, v); },
+      { commit: true, fmt: v => v === null ? '' : fmtNum(v), placeholder: 'mixed' });
+    rows.push(h('div', { class: 'rt-f' }, h('div', { class: 'rt-lab' }, h('label', { for: id }, label)), inp));
+  }
+  return rows.length ? h('div', { class: 'rt-rows' }, ...rows) : null;
+}
 /* several selected: what can be done to them together */
 function groupPanel(list) {
   panel.append(h('h2', null, h('span', null, list.length + ' elements'), h('span', { class: 'kind' }, 'selected')));
@@ -26767,6 +26830,8 @@ function groupPanel(list) {
     B('Align on a vertical line', () => alignEls(list, 'x')), B('Align on a horizontal line', () => alignEls(list, 'y')),
     B('Space evenly across', () => alignEls(list, 'dx')), B('Space evenly up', () => alignEls(list, 'dy')),
     B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
+  const shared = sharedFields(list);
+  if (shared) panel.append(h('h3', null, 'Set them all'), shared);
   panel.append(h('h3', null, 'Selection'));
   const locked = list.every(e => e.locked);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' },
@@ -28014,7 +28079,11 @@ function cwLayers(layers, spec) {
   return card;
 }
 /* the page's wiring (from boot.js): a face's Coating setting and the lens designer's face table reach the workspace through the hooks */
-function wireCoatDesign() { hooks.openCoatDesign = openCoatDesign; hooks.keptCoatings = keptCoatings; }
+function wireCoatDesign() {
+  hooks.openCoatDesign = openCoatDesign; hooks.keptCoatings = keptCoatings;
+  // the designers drawn again when the theme changes, their charts in the new ink: this one, the Optical and the RF
+  document.addEventListener('rt-theme', () => { cwRender(); wsRetheme(); rwRender(); });
+}
 /* ==========================================================================
    Tolerance the design: the workspace's tab for how the design holds up as it is made
    The tolerances by kind, the compensator and Monte Carlo's settings (kept with the design), and
@@ -30563,6 +30632,8 @@ function leave() {
 /* A value typed in is committed when its field loses focus, often to the next field: the page is
    drawn again just after, focus kept on the field (by its label) the person moved to. */
 let rendering = false, deferRender = false, renderTimer = 0;
+// the theme changed: the workspace drawn again, its charts in the new ink (the coating workspace's wiring calls it)
+function wsRetheme() { if (WS) renderWs(); }
 function renderSoon() {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
@@ -44756,7 +44827,9 @@ function safeFileName(name) {
   return (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'bench';
 }
 /* Save's dot: an edit since the bench was opened or saved (a cloud bench is saved as it goes) */
+let unsaved = false;
 function markUnsaved(on) {
+  unsaved = !!on;
   const d = document.getElementById('saveDot');
   if (d) d.hidden = !on;
 }
@@ -44849,6 +44922,13 @@ function wireActions() {
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
 
+  // leaving the page with changes not saved to a file (or the cloud): the browser asks first. This browser keeps
+  // the bench anyway (it opens again next time, and File › Earlier versions), so the question is only a reminder
+  window.addEventListener('beforeunload', e => {
+    if (TEST_MODE || EMBED || !unsaved || !project.elements.length || (cloud && !cloud.dirty)) return;
+    e.preventDefault(); e.returnValue = '';
+  });
+
   // the Edit menu, set as it opens (this runs before the menu's own opening, which focuses its first enabled item)
   const editMenu = document.getElementById('editMenu');
   document.getElementById('btnEdit').addEventListener('click', () => {
@@ -44856,6 +44936,16 @@ function wireActions() {
     for (const k of ['Undo', 'Redo']) document.getElementById('edit' + k).disabled = document.getElementById('btn' + k).disabled;
   });
   editMenu.addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if (b && !b.disabled) editCommand(b.dataset.edit); });
+  // Undo and Redo say what they would do: on the bar as they are pointed at, in the Edit menu as it opens
+  const say = (k, words) => {
+    const b = document.getElementById('btn' + k), w = words(), key = k === 'Undo' ? 'Ctrl+Z' : 'Ctrl+Shift+Z';
+    b.title = (w ? k + ' ' + w : k) + ' (' + key + ')';
+    const item = document.getElementById('edit' + k), t = item && [...item.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (t) t.textContent = w ? k + ' ' + w : k;
+  };
+  const sayBoth = () => { say('Undo', undoWords); say('Redo', redoWords); };
+  for (const k of ['Undo', 'Redo']) for (const ev of ['pointerenter', 'focus']) document.getElementById('btn' + k).addEventListener(ev, sayBoth);
+  document.getElementById('btnEdit').addEventListener('click', sayBoth);
 
   {
     const mc = document.getElementById('minimap');
@@ -45032,6 +45122,39 @@ function adoptBench(data, whole) {
   renderBenchTabs();
   changed(true);
 }
+
+/* What an Undo or a Redo would do, in a few words ("move Laser", "delete 3 parts"), worked out when it is
+   asked for by comparing the step kept with the bench as it is (so no change needs to name itself) */
+const POSE_KEYS = new Set(['x', 'y', 'z', 'tip', 'roll']);
+function stepWords(beforeStr, afterStr) {
+  let A, B;
+  try { A = JSON.parse(beforeStr); B = JSON.parse(afterStr); } catch (err) { return ''; }
+  const a = new Map((A.e || []).map(e => [e.id, e])), b = new Map((B.e || []).map(e => [e.id, e]));
+  const added = [...b.keys()].filter(id => !a.has(id)), gone = [...a.keys()].filter(id => !b.has(id));
+  let moved = [], turned = [], edited = [];
+  for (const [id, e] of b) {
+    const o = a.get(id);
+    if (!o || JSON.stringify(o) === JSON.stringify(e)) continue;
+    const keys = new Set([...Object.keys(o), ...Object.keys(e)].filter(k => JSON.stringify(o[k]) !== JSON.stringify(e[k])));
+    if ([...keys].every(k => POSE_KEYS.has(k))) moved.push(id);
+    else if ([...keys].every(k => k === 'angle' || POSE_KEYS.has(k))) turned.push(id);
+    else edited.push(id);
+  }
+  const who = (ids, from) => ids.length === 1 ? (from.get(ids[0]).name || 'a part') : ids.length + ' parts';
+  if (added.length && !gone.length && !moved.length && !turned.length && !edited.length) return 'add ' + who(added, b);
+  if (gone.length && !added.length && !moved.length && !turned.length && !edited.length) return 'delete ' + who(gone, a);
+  if (added.length || gone.length) return 'changes to the parts';
+  if (edited.length) return edited.length + moved.length + turned.length === 1 ? 'change ' + who(edited, b) : 'change ' + (edited.length + moved.length + turned.length) + ' parts';
+  if (turned.length) return 'turn ' + who(turned.concat(moved), b);
+  if (moved.length) return 'move ' + who(moved, b);
+  if (JSON.stringify(A.f || []) !== JSON.stringify(B.f || [])) return 'change a fibre';
+  if (JSON.stringify(A.m || []) !== JSON.stringify(B.m || [])) return 'change the measurements';
+  if (JSON.stringify(A.b || []) !== JSON.stringify(B.b || [])) return 'change the tabs';
+  if (JSON.stringify(A.a || []) !== JSON.stringify(B.a || [])) return 'change an assembly';
+  return '';
+}
+const undoWords = () => history.length ? stepWords(history[history.length - 1], snapshot()) : '';
+const redoWords = () => future.length ? stepWords(snapshot(), future[future.length - 1]) : '';
 
 function checkpoint() {
   history.push(snapshot());
@@ -46345,6 +46468,7 @@ function openProjectData(data, label) {
   data = JSON.parse(JSON.stringify(data));
   prepImport(data, notes);
   const raw = JSON.parse(JSON.stringify(data)), prev = project, hist = history.length;
+  const dropped = unsaved && prev && prev.elements.length > 0;     // a bench with changes not saved, replaced: said so, and how to get it back
   pauseAll();
   keepSnapshot('Before opening ' + label, true);
   if (prev && prev.elements.length) checkpoint();
@@ -46357,7 +46481,7 @@ function openProjectData(data, label) {
   renderBenchTabs();
   changed(true);
   if (!raw.view || W < 600) fitView();                 // a phone: a view kept from a desk does not fit
-  toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : ''));
+  toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : '') + (dropped ? '. The bench you had, not saved, is kept in File \u203a Earlier versions' : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
   // a link (or an example) may say which panels to show and how
@@ -46382,6 +46506,7 @@ function openJekray(file) {
       let data;
       try { data = JSON.parse(r.result); } catch (err) { data = parseProjectText(r.result); }
       openProjectData(data, file.name);
+      noteRecent({ kind: 'file', label: file.name, json: JSON.stringify(data) });
     } catch (err) {
       toast(file.name + ' could not be opened: ' + err.message, true);
     }
@@ -48451,7 +48576,7 @@ const MENU_ICONS = {
   sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5',
 };
 function menuIcons(root) {
-  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-barlink[data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
+  for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
     if (n.querySelector(':scope > svg.ic')) continue;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -48626,6 +48751,38 @@ function wirePacks() {
     menu.addEventListener('click', e => { if (e.target.closest('button')) show(false); });
     document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+  }
+
+  /* the keyboard, as a desktop menu bar has it: in a menu, Up and Down (and Home, End) move between its items,
+     Right opens a submenu and Left comes back out of one; Left and Right from a menu bar's menu open the menu
+     beside it; on the bar itself Left and Right move between the menus and Down opens one */
+  const barBtns = [...document.querySelectorAll('.rt-menubar .rt-mbar')];
+  const itemsOf = m => [...m.children].filter(n => n.matches('button, a, .rt-sub') && !n.hidden && !n.disabled && n.getClientRects().length);
+  const openBeside = (btn, d) => {
+    const i = barBtns.indexOf(btn); if (i < 0) return false;
+    const next = barBtns[(i + d + barBtns.length) % barBtns.length];
+    next.click(); next.setAttribute('aria-expanded', 'true');
+    return true;
+  };
+  for (const btn of barBtns) btn.addEventListener('keydown', e => {
+    const i = barBtns.indexOf(btn);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); barBtns[(i + (e.key === 'ArrowRight' ? 1 : -1) + barBtns.length) % barBtns.length].focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); if (btn.getAttribute('aria-expanded') !== 'true') btn.click(); }
+  });
+  for (const [, mId] of [['', 'fileMenu'], ['', 'editMenu'], ['', 'viewMenu'], ['', 'toolsMenu'], ['', 'sweepsMenu'], ['', 'helpMenu'], ['', 'acctMenu'], ['', 'moreMenu']]) {
+    const top = document.getElementById(mId), btn = document.querySelector('[aria-controls="' + mId + '"]');
+    top.addEventListener('keydown', e => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+      const cur = document.activeElement, menu = cur && cur.parentElement && cur.parentElement.closest('.rt-menu') || top;
+      const items = itemsOf(menu), i = items.indexOf(cur);
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (items.length) items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+      else if (e.key === 'Home') { if (items[0]) items[0].focus(); }
+      else if (e.key === 'End') { if (items.length) items[items.length - 1].focus(); }
+      else if (e.key === 'ArrowRight' && cur && cur.classList.contains('rt-sub')) { const sub = cur.querySelector(':scope > .rt-menu'), f = sub && itemsOf(sub)[0]; if (f) f.focus(); }
+      else if (e.key === 'ArrowLeft' && menu !== top) { const up = menu.closest('.rt-sub'); if (up) up.focus(); }
+      else if (!openBeside(btn, e.key === 'ArrowRight' ? 1 : -1) && e.key === 'ArrowLeft' && btn) btn.focus();
+    });
   }
 
   document.getElementById('helpMenu').addEventListener('click', e => { const b = e.target.closest('[data-tour]'); if (b) startTour(b.dataset.tour); });
@@ -50061,8 +50218,10 @@ async function cloudOpen(id, version) {
   finally { setCloudOpening(false); }
   // an old version opens as a copy: Save to cloud makes it a new bench
   if (version) cloudLink(null);
-  else cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false });
+  else { cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false }); noteRecent({ kind: 'cloud', id: meta.id, label: meta.name || 'Cloud bench' }); }
 }
+// a cloud bench opened by its id (File › Open recent)
+const openCloudBench = id => cloudOpen(id);
 /* the conflict: someone saved this bench elsewhere since this copy was opened */
 function cloudConflict(theirs, by, at) {
   const dlg = document.getElementById('cloudConflict'), link = cloud;
@@ -50816,6 +50975,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Smaller things</b>: the menus answer the keyboard (Down opens one and walks it, Left and Right move between them); <b>Ctrl+K</b> finds parts and examples as well as commands; Undo and Redo say what they would do (\u201cUndo move Laser\u201d); <b>File \u203a Open recent</b> lists the files, examples and cloud benches opened lately; with several parts selected, <b>Set them all</b> sets a height, a facing, a diameter or a wavelength on every one; a part dragged near another lines up with it, or with a beam, a faint guide showing it (Shift drags freely); opening something over unsaved changes says where they were kept, and leaving the page with them asks first; in 3D, the names, the hint and the colour key follow the theme.',
     '<b>Parts in 3D look as they do in a lab</b> in the Light theme: brighter light from a warm sky, black-anodised housings (lasers, photodiodes, mounts) a mid grey that shades, and mirrors and other metal a satin silver rather than dark discs.',
     '<b>The Bench panel pulls out from the side</b>: a small arrow tab half way up the bench\u2019s right edge brings out the bench\u2019s settings (light, snapping, notes and the parts list), and, with any panel out, puts it away again; it rides on the panel\u2019s edge, its arrow turned. It takes the place of the gear in the corner. On a phone it is a handle at the bottom that pulls the sheet up.',
     '<b>A light theme, and it is the default</b>: the bench is warm paper, with the rail, the minimap and the 3D view to match, and the light drawn in clear, vivid colours that never muddy to black where they cross; white light is drawn grey until a prism or a grating parts its colours, as a book draws it. The dark breadboard is the <b>Dark</b> theme. <b>View \u203a Theme</b> picks Light, Dark or as the computer is set; the choice is yours, kept in this browser, so a bench opens in your theme whoever made it (a colour a bench was saved with is no longer used). Exported pictures come out in your theme.',
@@ -51161,8 +51321,8 @@ function showWelcome() {
     : h('ul', null,
       h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; its coloured buttons switch between free space, fibre and the experimental palettes.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
-      h('li', null, 'Click anything for its settings and readings; right-click for more.'),
-      h('li', null, 'Press ? for every shortcut.')),
+      h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
+      h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
 }
@@ -52274,6 +52434,7 @@ async function openDemo(name, undoable) {
       data = await res.json();
     }
     openProjectData(data, data.name || name); track('example', name);
+    noteRecent({ kind: 'example', id: name, label: data.name || name });
     if (!undoable) { setHistory([]); setFuture([]); updateUndoButtons(); }
     if (!data.keepView) fitView();          // an example set up on a detail opens on it
   } catch (err) {
@@ -52348,7 +52509,7 @@ function wireTours() {
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
 
-  document.getElementById('btnBenchGear').addEventListener('click', () => { benchGear(); requestRender(); });
+  document.getElementById('btnSideTab').addEventListener('click', () => { sideTab(); requestRender(); });
 
   document.getElementById('btnImportStl').addEventListener('click', () => document.getElementById('fileStl').click());
 
@@ -52668,7 +52829,8 @@ function wireTours() {
 /* ---------- Search commands (Ctrl+K) ----------
    Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay
    the one place a command lives, and this reads them as they stand (an item hidden there is left out, one
-   greyed there is shown greyed, a gated one carries its badge and asks as the menu's does). */
+   greyed there is shown greyed, a gated one carries its badge and asks as the menu's does). Typed words
+   find the parts too (added as the picker adds them) and the examples (opened as the gallery opens them). */
 const CMD_MENUS = ['fileMenu', 'editMenu', 'viewMenu', 'toolsMenu', 'sweepsMenu', 'helpMenu'];
 let cmdDlg = null, cmdHits = [], cmdAt = 0;
 
@@ -52699,6 +52861,13 @@ function commandList() {
   }
   return out;
 }
+// the parts and the examples, found only by what is typed (not listed with nothing typed)
+function findList() {
+  const out = [];
+  for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', run: () => addPart(p.key) });
+  for (const [group, , list] of EXAMPLES) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
+  return out;
+}
 // the commands holding every word typed, those whose name starts with it first
 function commandFind(q, list) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean), Q = words.join(' ');
@@ -52711,6 +52880,7 @@ function commandFind(q, list) {
 function cmdFill() {
   const input = cmdDlg.querySelector('input'), ul = cmdDlg.querySelector('ul');
   cmdHits = commandFind(input.value, commandList());
+  if (input.value.trim()) cmdHits = cmdHits.concat(commandFind(input.value, findList())).slice(0, 80);
   cmdAt = Math.max(0, cmdHits.findIndex(c => !c.off));
   ul.replaceChildren(...cmdHits.map((c, i) => h('li', { role: 'option', id: 'cmd' + i, class: (c.off ? 'off' : '') + (i === cmdAt ? ' at' : ''), 'aria-selected': i === cmdAt ? 'true' : 'false', 'aria-disabled': c.off ? 'true' : null,
     onclick: () => cmdRun(i), onmousemove: () => cmdMark(i) },
@@ -52732,11 +52902,11 @@ function cmdRun(i) {
   if (!c || c.off) return;
   cmdDlg.close();
   // after the dialog has gone, so what it opens (a menu's dialog, a submenu's export) is not shut with it
-  setTimeout(() => c.node.click());
+  setTimeout(() => c.run ? c.run() : c.node.click());
 }
 function openCommands(q) {
   if (!cmdDlg) {
-    const input = h('input', { type: 'search', placeholder: 'Search commands: export, 3D, scripts…', 'aria-label': 'Search commands', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdList', autocomplete: 'off', spellcheck: 'false' });
+    const input = h('input', { type: 'search', placeholder: 'Search commands, parts and examples: export, lens, Michelson…', 'aria-label': 'Search commands', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdList', autocomplete: 'off', spellcheck: 'false' });
     input.addEventListener('input', cmdFill);
     input.addEventListener('keydown', e => {
       const step = d => { for (let j = cmdAt + d; j >= 0 && j < cmdHits.length; j += d) if (!cmdHits[j].off) return cmdMark(j); };
@@ -52766,6 +52936,47 @@ function wireCommands() {
     e.preventDefault();
     openCommands('');
   });
+}
+/* ---------- Open recent (File › Open recent) ----------
+   The last few things opened, newest first: a .jekray file (its text kept here, as a page cannot open a file
+   on the disk again by itself; a large one is let go first when the browser's store is full), an example (by
+   its name) and a cloud bench (by its id, fetched afresh). Kept in this browser. */
+const OPENED_KEY = 'jekray-recent', OPENED_MAX = 8;
+function readRecent() {
+  try { const v = JSON.parse(localStorage.getItem(OPENED_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
+}
+function noteRecent(item) {
+  if (EMBED) return;
+  const same = r => r.kind === item.kind && (item.kind === 'file' ? r.label === item.label : r.id === item.id);
+  const list = [Object.assign({ t: Date.now() }, item), ...readRecent().filter(r => !same(r))].slice(0, OPENED_MAX);
+  // a full store: the files' kept text let go, the oldest first, then the entries themselves
+  for (;;) {
+    try { localStorage.setItem(OPENED_KEY, JSON.stringify(list)); return; } catch (err) {
+      const i = list.map(r => !!r.json).lastIndexOf(true);
+      if (i > 0) list.splice(i, 1); else if (list.length > 1) list.pop(); else return;
+    }
+  }
+}
+function openRecent(r) {
+  if (r.kind === 'example') return openDemo(r.id, true);
+  if (r.kind === 'cloud') return openCloudBench(r.id).catch(err => toast('Could not open ' + r.label + ': ' + err.message, true));
+  try { openProjectData(JSON.parse(r.json), r.label); noteRecent(r); }
+  catch (err) { toast(r.label + ' could not be opened: ' + err.message, true); }
+}
+const KIND = { file: 'file', example: 'example', cloud: 'cloud' };
+function fillRecent() {
+  const menu = document.getElementById('recentMenu');
+  if (!menu) return;
+  const list = readRecent();
+  menu.replaceChildren(...(list.length ? list.map(r => h('button', { type: 'button', role: 'menuitem', title: r.label, onclick: () => openRecent(r) },
+    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
+    ...(list.length ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
+}
+
+/* the page's wiring for this module: done once, from boot.js, after every module is loaded */
+function wireRecent() {
+  document.getElementById('btnFile').addEventListener('click', fillRecent);
+  fillRecent();
 }
 /* ==========================================================================
    Mods: parts whose behaviour is code, written by anyone, run in a sandbox
@@ -53488,7 +53699,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

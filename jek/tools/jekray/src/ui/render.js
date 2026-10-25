@@ -13,7 +13,7 @@ import { frame, toLocal, toWorld } from '../core/mask.js';
 import { asmCheck, asmMembers, assemblies } from '../core/assembly.js';
 import { exporting, lastTrace } from '../engines/trace.js';
 import { drawHalf, drawToolOverlay, labelBoxes, partsLocked, textEdit } from './drawings.js';
-import { drag } from './pointer.js';
+import { drag, guides } from './pointer.js';
 import { FC_W, SPLIT_P, fcH, netPower, pkey, portName, portWorld, portsOf, thruPartner } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
@@ -190,7 +190,7 @@ function inkedText(t, x, y, w) {
 }
 // the View menu's colours and holes, and the bench's own background, as the project has them
 export function benchStyleShown() {
-  const menu = document.getElementById('benchColourMenu');
+  const menu = document.getElementById('themeMenu');
   if (!menu) return;
   const pick = (v, e) => { if (e) e.stopPropagation(); setTheme(v); };
   menu.replaceChildren(...[['light', 'Light', BENCH_PAPER], ['dark', 'Dark', BENCH_DEFAULT], ['system', 'As the computer is set', null]].map(([v, name, c]) =>
@@ -975,6 +975,11 @@ function renderAll(stale) {
     ctx.save(); ctx.fillStyle = 'rgba(127,220,255,0.08)'; ctx.strokeStyle = 'rgba(127,220,255,0.8)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
     ctx.fillRect(x0, y0, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0));
     ctx.strokeRect(x0 + 0.5, y0 + 0.5, Math.abs(drag.cur[0] - drag.px0), Math.abs(drag.cur[1] - drag.py0)); ctx.restore();
+  }
+  if (!exporting && guides) {
+    // the alignment guides of a part being dragged (ui/pointer.js alignDrag)
+    ctx.save(); ctx.strokeStyle = lightLayer ? 'rgba(0,120,147,0.85)' : 'rgba(127,220,255,0.85)'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); for (const [x0, y0, x1, y1] of guides) { ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); } ctx.stroke(); ctx.restore();
   }
   if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
   drawScaleBar();

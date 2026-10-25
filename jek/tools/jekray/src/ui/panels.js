@@ -19,6 +19,7 @@ import { benchNms, getEl, normElement } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
 import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { getCss, inkA, removeFibre } from './render.js';
+import { getPath, setParam } from '../state/params.js';
 import { groupEls, ungroupEls } from './drawings.js';
 import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
@@ -948,6 +949,23 @@ export function fibreLinkPanel(F) {
       onclick: () => { checkpoint(); F.path = []; F.ta = null; F.tb = null; changed(true); } }, 'Straighten: remove its nodes')));
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete fibre')));
 }
+/* several selected: the settings they all have, one field for each, showing the value they share (blank where
+   they differ) and setting it on every one; a part locked in place keeps its place (height, facing, tip) */
+const SHARED = [['z', 'Height above the table (mm)', true], ['angle', 'Facing (\u00b0)', true], ['tip', 'Tip (\u00b0)', true],
+  ['diameter', 'Diameter (mm)'], ['length', 'Length (mm)'], ['wavelength', 'Wavelength (nm)'], ['power', 'Power (mW)'], ['width', 'Beam width (mm)']];
+function sharedFields(list) {
+  const rows = [];
+  for (const [key, label, pose] of SHARED) {
+    if (!list.every(e => typeof getPath(e, key) === 'number')) continue;
+    if ((key === 'z' || key === 'tip') && list.some(e => ['fcomp', 'elec', 'pic', 'draw', 'link'].includes(e.type))) continue;   // a height in 3D: free-space parts only
+    const id = 'multi-' + key;
+    const get = () => { const v = list.map(e => getPath(e, key)); return v.every(x => Math.abs(x - v[0]) < 1e-9) ? v[0] : null; };
+    const inp = numInput(id, get, v => { for (const e of list) if (!(pose && e.locked)) setParam(e, key, v); },
+      { commit: true, fmt: v => v === null ? '' : fmtNum(v), placeholder: 'mixed' });
+    rows.push(h('div', { class: 'rt-f' }, h('div', { class: 'rt-lab' }, h('label', { for: id }, label)), inp));
+  }
+  return rows.length ? h('div', { class: 'rt-rows' }, ...rows) : null;
+}
 /* several selected: what can be done to them together */
 export function groupPanel(list) {
   panel.append(h('h2', null, h('span', null, list.length + ' elements'), h('span', { class: 'kind' }, 'selected')));
@@ -960,6 +978,8 @@ export function groupPanel(list) {
     B('Align on a vertical line', () => alignEls(list, 'x')), B('Align on a horizontal line', () => alignEls(list, 'y')),
     B('Space evenly across', () => alignEls(list, 'dx')), B('Space evenly up', () => alignEls(list, 'dy')),
     B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
+  const shared = sharedFields(list);
+  if (shared) panel.append(h('h3', null, 'Set them all'), shared);
   panel.append(h('h3', null, 'Selection'));
   const locked = list.every(e => e.locked);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' },

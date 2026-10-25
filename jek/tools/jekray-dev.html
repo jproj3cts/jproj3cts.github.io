@@ -32,6 +32,9 @@
           <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnNew" data-icon="new">New bench</button>
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekray file…</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="history" id="recentItem">Open recent
+              <div class="rt-menu rt-imenu" role="menu" id="recentMenu"></div>
+            </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
@@ -92,8 +95,8 @@
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
             <div class="sep"></div>
-            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="benchColourItem">Theme
-              <div class="rt-menu rt-imenu" role="menu" id="benchColourMenu"></div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
+              <div class="rt-menu rt-imenu" role="menu" id="themeMenu"></div>
             </div>
             <button type="button" role="menuitemcheckbox" id="btnHoles" aria-checked="true" data-icon="check">Grid holes on the bench</button>
             <button type="button" role="menuitem" id="btnNamesUp" title="Parts' names bigger on the bench, at every zoom">Larger names</button>
@@ -115,7 +118,7 @@
             <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
-            <button type="button" role="menuitem" data-click="btnBenchGear" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
+            <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
           </div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -227,7 +230,7 @@
         <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
-        <button type="button" class="rt-sidetab" id="btnBenchGear" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
+        <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
         <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>

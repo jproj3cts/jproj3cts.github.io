@@ -15,7 +15,7 @@ export const AREAS = {
       'src/core/geometry.js', 'src/core/sag.js', 'src/core/coatings.js', 'src/core/coatdesign.js', 'src/core/face-pol.js', 'src/core/glass.js', 'src/core/glass-catalog.js', 'src/core/glass-thermal.js',
       'src/core/maths.js', 'src/core/numeric.js', 'src/core/special.js', 'src/core/format.js', 'src/core/colour.js', 'src/core/freeform.js', 'src/core/diffractive.js', 'src/core/gradient.js', 'src/core/mask.js', 'src/core/traps.js',
       'src/parts/', 'src/ui/parts/', 'src/ui/render.js', 'src/ui/panel.js', 'src/ui/panels.js', 'src/ui/pointer.js', 'src/ui/picker.js', 'src/ui/rail.js', 'src/ui/actions.js', 'src/ui/readouts.js',
-      'src/ui/plots.js', 'src/ui/sweeps.js', 'src/ui/instruments.js', 'src/ui/optimise.js', 'src/ui/heavy.js', 'src/ui/tours.js', 'src/ui/commands.js', 'src/ui/news.js', 'src/ui/experimental.js', 'src/ui/coat-workspace.js'],
+      'src/ui/plots.js', 'src/ui/sweeps.js', 'src/ui/instruments.js', 'src/ui/optimise.js', 'src/ui/heavy.js', 'src/ui/tours.js', 'src/ui/commands.js', 'src/io/recent.js', 'src/ui/news.js', 'src/ui/experimental.js', 'src/ui/coat-workspace.js'],
     node: ['engines.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'numeric.test.mjs', 'face-pol.test.mjs', 'coatdesign.test.mjs', 'zoned.test.mjs', 'grin.test.mjs', 'cyl-roll.test.mjs', 'phosphor.test.mjs', 'phosphor-line.test.mjs', 'pro-gate.test.mjs'],
     demos: true,
     browser: ['Materials and dispersion', 'Paraxial optics', 'Geometric tracing', 'Fresnel, coatings and polarisation', 'Thin-film coatings', 'Optical path and interference', 'Gaussian beams',

@@ -6617,7 +6617,7 @@ const TESTS = [
     run: J => {
       const doc = document.getElementById('rig').contentDocument, P = doc.getElementById('panel');
       J.load(JSON.parse(getDemo('michelson'))); J.select(null);
-      const tab = doc.getElementById('btnBenchGear');
+      const tab = doc.getElementById('btnSideTab');
       if (getComputedStyle(P).display === 'none') tab.click();
       const out = getComputedStyle(P).display !== 'none' && tab.classList.contains('open') && /Bench/.test(P.querySelector('h2').textContent);
       tab.click();
@@ -6647,7 +6647,7 @@ const TESTS = [
         J.experimental(true); await J.view3d.set(true);
         J.select(null);
         const doc = document.getElementById('rig').contentDocument;
-        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnBenchGear').click();   // the Bench panel, from the gear
+        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
         const tick = i => doc.querySelectorAll('#panel .rt-check input')[i].click();
         const s0 = J.view3d.stats();
         tick(0); const s1 = J.view3d.stats();
@@ -6786,7 +6786,7 @@ const TESTS = [
       const V = J.view3d, doc = document.getElementById('rig').contentDocument;
       try {
         await V.set(true); J.select(null);
-        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnBenchGear').click();   // the Bench panel, from the gear
+        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
         const s0 = V.stats(), n0 = J.traceInfo().count;
         const li = [...doc.querySelectorAll('#panel .rt-list li')].find(l => l.textContent.includes('Fixed mirror'));
         li.querySelector('.rt-eye').click();
@@ -7411,7 +7411,7 @@ const TESTS = [
     why: 'the page opens Light, the bench #f3eee5; Dark makes it #1f2529 and the whole page dark (its ink, its fields, the browser’s controls); a bench saved with a white background opens in the Dark theme still; Light puts the paper back (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
-      const D = rigDoc(), stageBg = () => getComputedStyle(D.getElementById('stage')).backgroundColor, pick = v => D.querySelector('#benchColourMenu [data-theme="' + v + '"]').click();
+      const D = rigDoc(), stageBg = () => getComputedStyle(D.getElementById('stage')).backgroundColor, pick = v => D.querySelector('#themeMenu [data-theme="' + v + '"]').click();
       const light0 = D.documentElement.dataset.rtTheme === 'light' && stageBg() === 'rgb(243, 238, 229)';
       pick('dark');
       const tok = v => getComputedStyle(D.documentElement).getPropertyValue(v).trim();
@@ -7419,7 +7419,7 @@ const TESTS = [
         && tok('--jek-ink') === '#e7e3db' && tok('--rt-surface') === '#242a2e' && getComputedStyle(D.documentElement).colorScheme === 'dark';   // the whole page dark, not just the bench
       J.load({ format: 'jekray', version: 1, style: { bg: '#ffffff' }, elements: [{ type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0 }] });
       const wins = stageBg() === 'rgb(31, 37, 41)';
-      const ticked = D.querySelector('#benchColourMenu [data-theme="dark"]').getAttribute('aria-checked') === 'true';
+      const ticked = D.querySelector('#themeMenu [data-theme="dark"]').getAttribute('aria-checked') === 'true';
       pick('light');
       const back = D.documentElement.dataset.rtTheme === 'light' && stageBg() === 'rgb(243, 238, 229)' && tok('--rt-surface') === '#fff';
       if (!(light0 && dark && wins && ticked && back)) console.log('theme', { light0, dark, wins, ticked, back, bg: stageBg() });
@@ -7444,6 +7444,129 @@ const TESTS = [
       const y = across(), yellow = y[0] - y[2] > 60 && y[1] - y[2] > 40;
       if (!(grey && yellow)) console.log('white light', { w, y });
       return grey && yellow ? 1 : 0;
+    },
+  },
+  {
+    name: 'The menus answer the keyboard: Down opens and walks a menu, Right and Left move to the menu beside it, Escape closes',
+    why: 'on File, Down opens it with New bench focused, Down moves to the next item, Right opens Edit (File closed), Left goes back to File, Escape closes it with focus back on File (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), key = k => D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+      const open = id => !D.getElementById(id).hidden;
+      D.getElementById('btnFile').focus(); key('ArrowDown');
+      const a = open('fileMenu') && D.activeElement.id === 'btnNew';
+      key('ArrowDown'); const b = D.activeElement !== D.getElementById('btnNew') && D.getElementById('fileMenu').contains(D.activeElement);
+      key('ArrowRight'); const c = open('editMenu') && !open('fileMenu') && D.getElementById('editMenu').contains(D.activeElement);
+      key('ArrowLeft'); const d = open('fileMenu') && !open('editMenu');
+      key('Escape'); const e = !open('fileMenu') && D.activeElement.id === 'btnFile';
+      if (!(a && b && c && d && e)) console.log('menu keys', { a, b, c, d, e });
+      return a && b && c && d && e ? 1 : 0;
+    },
+  },
+  {
+    name: 'Search commands finds parts and examples too, and adds or opens the one chosen',
+    why: '“michelson” offers the Michelson example; “beam splitter” offers the part under Add a part, and Enter adds one to the bench (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), wait = async (f, n = 80) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+      const dlg = D.getElementById('cmdDialog'), input = dlg.querySelector('input');
+      const find = q => { input.value = q; input.dispatchEvent(new W.Event('input')); return [...dlg.querySelectorAll('li[role="option"]')].map(li => li.querySelector('.rt-cmdpath').textContent + ' | ' + li.querySelector('.rt-cmdname').textContent); };
+      const ex = find('michelson').some(x => /^Example/.test(x) && /Michelson interferometer/.test(x));
+      const bs = find('beam splitter');
+      const part = bs.some(x => /^Add a part/.test(x));
+      const at = bs.findIndex(x => /^Add a part/.test(x));
+      for (let i = 0; i < at; i++) input.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      input.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const added = await wait(() => J.serialize().elements.length === 1);
+      if (!(ex && part && added)) console.log('find parts', { ex, bs, added });
+      return ex && part && added ? 1 : 0;
+    },
+  },
+  {
+    name: 'Undo and Redo say what they would do',
+    why: 'a lens turned from the Edit menu: Undo reads “Undo turn Lens” on the bar’s button and in the Edit menu; after an Undo, Redo reads “Redo turn Lens” (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0 }] }); J.select('Lens');
+      D.getElementById('btnEdit').click(); D.querySelector('#editMenu [data-edit="rot"]').click();
+      D.getElementById('btnUndo').dispatchEvent(new W.Event('pointerenter'));
+      const bar = /^Undo turn Lens/.test(D.getElementById('btnUndo').title);
+      D.getElementById('btnEdit').click();
+      const menu = /Undo turn Lens/.test(D.getElementById('editUndo').textContent);
+      D.body.click();
+      D.getElementById('btnUndo').click();
+      D.getElementById('btnRedo').dispatchEvent(new W.Event('pointerenter'));
+      const redo = /^Redo turn Lens/.test(D.getElementById('btnRedo').title);
+      if (!(bar && menu && redo)) console.log('undo words', D.getElementById('btnUndo').title, D.getElementById('editUndo').textContent, D.getElementById('btnRedo').title);
+      return bar && menu && redo ? 1 : 0;
+    },
+  },
+  {
+    name: 'File › Open recent lists what was opened, and opening over unsaved changes says where they went',
+    why: 'with the bench changed and not saved, the Michelson example opened from the gallery says the bench is kept in Earlier versions; File › Open recent then lists the Michelson first, and choosing it opens it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), wait = async (f, n = 120) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
+      rigWin().localStorage.removeItem('jekray-recent');
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0 }] }); J.select('Lens');
+      D.getElementById('btnEdit').click(); D.querySelector('#editMenu [data-edit="rot"]').click();    // an edit: not saved
+      D.getElementById('btnExamples').click(); D.querySelector('#galleryDialog [data-demo="michelson"]').click();
+      const opened = await wait(() => J.byName('Fixed mirror'));
+      const said = /Earlier versions/.test(D.getElementById('toast').textContent);
+      D.getElementById('btnFile').click();
+      const first = D.querySelector('#recentMenu button');
+      const listed = !!first && /Michelson/.test(first.textContent) && /example/.test(first.textContent);
+      D.body.click();
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      if (first) first.click();
+      const again = await wait(() => J.byName('Fixed mirror'));
+      rigWin().localStorage.removeItem('jekray-recent');
+      if (!(opened && said && listed && again)) console.log('recent', { opened, said, listed, again, toast: D.getElementById('toast').textContent });
+      return opened && said && listed && again ? 1 : 0;
+    },
+  },
+  {
+    name: 'Several parts selected: Set them all sets a shared setting on every one',
+    why: 'two lenses of different heights selected: the height field is blank (mixed) and the diameter field shows their shared 25; typing 90 in the height sets both to 90 mm; a part locked in place keeps its height (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', id: 'A', name: 'A', x: 0, y: 0, angle: 0, diameter: 25, z: 75 }, { type: 'lens', id: 'B', name: 'B', x: 30, y: 0, angle: 0, diameter: 25, z: 60 },
+        { type: 'lens', id: 'C', name: 'C', x: 60, y: 0, angle: 0, diameter: 25, z: 50, locked: true }] });
+      J.select('A'); D.getElementById('btnEdit').click(); D.querySelector('#editMenu [data-edit="all"]').click();
+      const z = D.getElementById('multi-z'), dia = D.getElementById('multi-diameter');
+      const shown = !!z && z.value === '' && !!dia && dia.value === '25';
+      z.value = '90'; z.dispatchEvent(new W.Event('change'));
+      const set = J.getParam('A', 'z') === 90 && J.getParam('B', 'z') === 90 && J.getParam('C', 'z') === 50;
+      if (!(shown && set)) console.log('multi', { shown, z: z && z.value, dia: dia && dia.value, A: J.getParam('A', 'z'), B: J.getParam('B', 'z'), C: J.getParam('C', 'z') });
+      return shown && set ? 1 : 0;
+    },
+  },
+  {
+    name: 'A part dragged near another’s line lines up with it, a guide showing it; Shift drags freely',
+    why: 'with grid snapping off, a mirror dragged to 1 mm off the lens’s horizontal lands exactly on it (y 0); dragged the same way with Shift it stays 1 mm off (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), cv = D.getElementById('bench');
+      const bench = () => J.load({ format: 'jekray', version: 1, snap: 0, view: { cx: 0, cy: 0, scale: 4 }, elements: [{ type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0 }, { type: 'mirror', id: 'M', name: 'Mirror', x: 40, y: 12, angle: 0 }] });
+      const at = (x, y) => { const r = cv.getBoundingClientRect(); return [r.left + r.width / 2 + x * 4, r.top + r.height / 2 - y * 4]; };
+      const drag = (shift) => {
+        J.select(null);
+        // Shift held while moving (on the press it would add to the selection instead)
+        const P = (type, x, y, b, sh) => { const [cx, cy] = at(x, y); cv.dispatchEvent(new W.PointerEvent(type, { clientX: cx, clientY: cy, pointerId: 7, button: 0, buttons: b, shiftKey: sh, bubbles: true, isPrimary: true, pointerType: 'mouse' })); };
+        P('pointerdown', 40, 12, 1, false);
+        for (let i = 1; i <= 11; i++) P('pointermove', 40, 12 - i, 1, shift);
+        P('pointerup', 40, 1, 0, shift);
+        return J.byName('Mirror').y;
+      };
+      bench(); const y1 = drag(false);
+      bench(); const y2 = drag(true);
+      const lined = Math.abs(y1) < 1e-9, free = Math.abs(y2 - 1) < 0.3;
+      if (!(lined && free)) console.log('guides', { y1, y2 });
+      return lined && free ? 1 : 0;
     },
   },  { group: 'Scripts' },
   {

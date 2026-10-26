@@ -74,10 +74,13 @@ export function isoWeek(day) {
   return t.getUTCFullYear() + '-W' + String(Math.ceil(((t - y0) / 864e5 + 1) / 7)).padStart(2, '0');
 }
 export function people(r) {
-  const V = r.visitors || [], days = {}, fresh = {}, weeks = {}, months = {};
+  const V = r.visitors || [], days = {}, fresh = {}, weeks = {}, months = {}, byTier = { anon: {}, free: {}, pro: {} }, freshAnon = {};
   let newcomers = 0;
   for (const x of V) {
-    if (x.prop === 'day') days[x.day] = (days[x.day] || 0) + x.n;
+    const tier = byTier[x.tier] ? x.tier : 'anon';           // an older API: no tier, taken as signed out
+    if (x.prop === 'day') { days[x.day] = (days[x.day] || 0) + x.n; byTier[tier][x.day] = (byTier[tier][x.day] || 0) + x.n; }
+    if (x.prop === 'new' && tier === 'anon') freshAnon[x.day] = (freshAnon[x.day] || 0) + x.n;
+    if (x.prop === 'day') continue;
     else if (x.prop === 'week') weeks[isoWeek(x.day)] = (weeks[isoWeek(x.day)] || 0) + x.n;
     else if (x.prop === 'month') months[x.day.slice(0, 7)] = (months[x.day.slice(0, 7)] || 0) + x.n;
     else if (x.prop === 'new') { newcomers += x.n; fresh[x.day] = (fresh[x.day] || 0) + x.n; }
@@ -86,10 +89,14 @@ export function people(r) {
   const all = [];
   for (let t = Date.parse(r.from); t <= Date.parse(r.to); t += 864e5) all.push(new Date(t).toISOString().slice(0, 10));
   const part = (key, of) => { const ds = all.filter((d) => of(d) === key); const want = of === isoWeek ? 7 : new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7), 0)).getUTCDate(); return ds.length < want; };
-  const perDay = all.length ? Object.values(days).reduce((a, b) => a + b, 0) / all.length : 0;
+  const avg = (m) => (all.length ? Object.values(m).reduce((a, b) => a + b, 0) / all.length : 0);
+  const perDay = avg(days);
+  // a day's people in four: signed out, new to JEKray or back again; signed in, on the free plan or JEKrayPro
+  const newOf = (d) => Math.min(freshAnon[d] || 0, byTier.anon[d] || 0);
+  const kinds = { new: newOf, back: (d) => (byTier.anon[d] || 0) - newOf(d), free: (d) => byTier.free[d] || 0, pro: (d) => byTier.pro[d] || 0 };
   // in all: every browser seen since counting began (the API's sum of 'new' over all time; an older API: those new in this report)
   const total = typeof r.peopleEver === 'number' ? r.peopleEver : newcomers, ever = typeof r.peopleEver === 'number';
-  return { days, fresh, perDay, newcomers, total, ever, any: V.length > 0,
+  return { days, fresh, perDay, newcomers, total, ever, kinds, freeDay: avg(byTier.free), proDay: avg(byTier.pro), any: V.length > 0,
     weeks: Object.entries(weeks).sort().map(([k, n]) => ({ k, n, part: part(k, isoWeek) })),
     months: Object.entries(months).sort().map(([k, n]) => ({ k, n, part: part(k, (d) => d.slice(0, 7)) })) };
 }
@@ -146,7 +153,7 @@ export function text(r) {
   }
   const pp = people(r);
   if (pp.any) {
-    console.log(`\nPeople (browsers, counted without an id)  ${pp.total} in all${pp.ever ? ' since counting began' : ' (new in this report)'}, ${pp.perDay.toFixed(1)} a day on average, ${pp.newcomers} new in this report`);
+    console.log(`\nPeople (browsers, counted without an id)  ${pp.total} in all${pp.ever ? ' since counting began' : ' (new in this report)'}, ${pp.perDay.toFixed(1)} a day on average (free ${pp.freeDay.toFixed(1)}, JEKrayPro ${pp.proDay.toFixed(1)}), ${pp.newcomers} new in this report`);
     for (const x of pp.weeks) console.log(`  week  ${x.k}${x.part ? ' (part)' : ''}  ${String(x.n).padStart(6)}`);
     for (const x of pp.months) console.log(`  month ${x.k}${x.part ? ' (part)' : ''}    ${String(x.n).padStart(6)}`);
   }
@@ -192,15 +199,15 @@ function promptTable(r) {
 }
 function peopleHero(r) {
   const pp = people(r);
-  return pp.any ? `<div><b>${pp.total}</b>people in all${pp.ever ? '' : ' (new here)'}</div><div><b>${pp.perDay.toFixed(1)}</b>people a day</div><div><b>${pp.newcomers}</b>new people</div>` : '';
+  return pp.any ? `<div><b>${pp.total}</b>people in all${pp.ever ? '' : ' (new here)'}</div><div><b>${pp.perDay.toFixed(1)}</b>people a day</div><div><b>${pp.newcomers}</b>new people</div><div><b>${pp.freeDay.toFixed(1)}</b>free accounts a day</div><div><b>${pp.proDay.toFixed(1)}</b>JEKrayPro a day</div>` : '';
 }
-// people a day: those back again, and those new to JEKray, stacked
+// people a day, stacked: signed out and new to JEKray, signed out and back again, signed in on the free plan, JEKrayPro
 function peopleBars(r, days) {
   const pp = people(r);
   if (!pp.any) return '';
-  const fresh = (d) => Math.min(pp.fresh[d] || 0, pp.days[d] || 0);
-  return `<div class="hero" style="margin-top:28px">${peopleHero(r)}</div><h3>People a day <span>browsers, each counted once a day with no id</span></h3>${dayBars(days, [
-    { key: 'back', name: 'returning', of: (d) => (pp.days[d] || 0) - fresh(d) }, { key: 'new', name: 'new', of: fresh }], 'People a day')}`;
+  const K = pp.kinds;
+  return `<div class="hero" style="margin-top:28px">${peopleHero(r)}</div><h3>People a day <span>browsers, each counted once a day with no id; signed in, by plan</span></h3>${dayBars(days, [
+    { key: 'new', name: 'new', of: K.new }, { key: 'back', name: 'returning', of: K.back }, { key: 'free', name: 'free', of: K.free }, { key: 'pro', name: 'JEKrayPro', of: K.pro }], 'People a day')}`;
 }
 function peopleTable(r) {
   const pp = people(r);

@@ -73,7 +73,7 @@ export async function report(req, env) {
     q('SELECT event, prop, tier, SUM(n) AS n FROM usage_daily WHERE day BETWEEN ? AND ? GROUP BY event, prop, tier ORDER BY event, n DESC'),
     q('SELECT msg, src, SUM(n) AS n, MIN(day) AS first, MAX(day) AS last FROM usage_errors WHERE day BETWEEN ? AND ? GROUP BY msg, src ORDER BY n DESC LIMIT 100'),
     // people: each day's first-of-the-day, -week and -month visits by browsers, and those never seen before
-    q("SELECT day, prop, SUM(n) AS n FROM usage_daily WHERE day BETWEEN ? AND ? AND event = 'visitor' GROUP BY day, prop ORDER BY day"),
+    q("SELECT day, prop, tier, SUM(n) AS n FROM usage_daily WHERE day BETWEEN ? AND ? AND event = 'visitor' GROUP BY day, prop, tier ORDER BY day"),
     // people in all: every browser counts 'new' once, on its first visit ever (as far back as the counts are kept)
     env.DB.prepare("SELECT COALESCE(SUM(n), 0) AS n FROM usage_daily WHERE event = 'visitor' AND prop = 'new'").first(),
   ]);

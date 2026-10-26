@@ -7619,6 +7619,8 @@ const TESTS = [
       const both = ['Add a note here', 'Add an arrow here'].every(t => items.some(b => b.textContent.includes(t)));
       const add = items.find(b => b.textContent.includes('Add an arrow here')); if (add) add.click();
       const last = draws()[draws().length - 1], added = draws().length === n0 + 1 && last.endMark === 'arrow';
+      // the palette as it was: the drawing keys turned to Draw
+      D.getElementById('palSwitch').click(); [...D.querySelectorAll('.rt-palmenu button')].find(b => /^Free space/.test(b.textContent)).click();
       if (!(lineOk && arrowOk && both && added)) console.log('line tools', { ln, ar, both, added, items: items.map(b => b.textContent) });
       return lineOk && arrowOk && both && added ? 1 : 0;
     },

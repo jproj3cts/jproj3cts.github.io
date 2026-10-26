@@ -826,9 +826,9 @@ export function returnNudge(again, arrived) {
 }
 /* ---------- A bench worked on, signed out ----------
    Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
-   the account, once a session and never mid-drag, and the bench is kept across the sign-in. Back signed in, it goes
-   to the cloud when their plan saves there (Save to cloud's dialog, named already); on the free plan it stays here,
-   and they are told so. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
+   a free account for what it gives (exports, part packs, the experimental features), once a session and never
+   mid-drag, and the bench is kept across the sign-in. Back signed in, it goes to the cloud when their plan saves
+   there (Save to cloud's dialog, named already); on the free plan it stays here, and they are told what is theirs. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
    ('goal' edit), the note shown (ask) and a way in chosen (ask-yes). */
 const WORK_KEY = 'jek-work-ask';             // in this tab's store: 'shown' once asked, 'signin' while signing in from it
 const WORK_QUIET = 2000;                     // still this long after an edit before it is looked at
@@ -859,8 +859,8 @@ export function workNudge() {
   // a way in: the bench comes back as it is, and is saved for them when it can be
   const yes = (p, fn) => () => { track('prompt', 'work.' + p); goal('ask-yes'); setWork('signin'); close(); fn(); };
   card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
-    h('h3', null, 'Save this bench? Free account, one click'),
-    h('p', null, 'Your bench stays as it is while you sign in. With JEKrayPro or a university licence it then saves to the cloud, with its history; on the free plan it stays in this browser, and you can export its images and data.'),
+    h('h3', null, 'Export this bench\u2019s images and data? Free account, one click'),
+    freeLead('One click with Google, Microsoft or your email.', 'Your bench stays as it is while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
@@ -878,7 +878,7 @@ function workSignedIn() {
   if (!account) return;                               // cancelled, or it failed: nothing more
   if (cloud) return;                                  // already a cloud bench, saving as it goes
   if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
-  setTimeout(() => toast('Signed in. Your bench is here as you left it, kept in this browser: Save .jekray keeps a copy as a file, and JEKrayPro saves it to the cloud.'), 900);
+  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */

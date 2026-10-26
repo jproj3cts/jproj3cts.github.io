@@ -50524,9 +50524,9 @@ function returnNudge(again, arrived) {
 }
 /* ---------- A bench worked on, signed out ----------
    Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
-   the account, once a session and never mid-drag, and the bench is kept across the sign-in. Back signed in, it goes
-   to the cloud when their plan saves there (Save to cloud's dialog, named already); on the free plan it stays here,
-   and they are told so. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
+   a free account for what it gives (exports, part packs, the experimental features), once a session and never
+   mid-drag, and the bench is kept across the sign-in. Back signed in, it goes to the cloud when their plan saves
+   there (Save to cloud's dialog, named already); on the free plan it stays here, and they are told what is theirs. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
    ('goal' edit), the note shown (ask) and a way in chosen (ask-yes). */
 const WORK_KEY = 'jek-work-ask';             // in this tab's store: 'shown' once asked, 'signin' while signing in from it
 const WORK_QUIET = 2000;                     // still this long after an edit before it is looked at
@@ -50557,8 +50557,8 @@ function workNudge() {
   // a way in: the bench comes back as it is, and is saved for them when it can be
   const yes = (p, fn) => () => { track('prompt', 'work.' + p); goal('ask-yes'); setWork('signin'); close(); fn(); };
   card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
-    h('h3', null, 'Save this bench? Free account, one click'),
-    h('p', null, 'Your bench stays as it is while you sign in. With JEKrayPro or a university licence it then saves to the cloud, with its history; on the free plan it stays in this browser, and you can export its images and data.'),
+    h('h3', null, 'Export this bench\u2019s images and data? Free account, one click'),
+    freeLead('One click with Google, Microsoft or your email.', 'Your bench stays as it is while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
@@ -50576,7 +50576,7 @@ function workSignedIn() {
   if (!account) return;                               // cancelled, or it failed: nothing more
   if (cloud) return;                                  // already a cloud bench, saving as it goes
   if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
-  setTimeout(() => toast('Signed in. Your bench is here as you left it, kept in this browser: Save .jekray keeps a copy as a file, and JEKrayPro saves it to the cloud.'), 900);
+  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */
@@ -51807,7 +51807,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit: your bench stays as it is while you sign in, and with JEKrayPro or a university licence it then goes straight to the cloud.',
+    '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit, for what it gives: exporting the bench\u2019s images and data, making part packs and the experimental features. Your bench stays as it is while you sign in.',
     '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
     '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
     '<b>Find a part by what it does</b>: Add part\u2019s search and Ctrl+K know what each part is for, so \u201cfocus\u201d finds the lenses, \u201cmeasure power\u201d the photodetectors and \u201cfrequency doubling\u201d the nonlinear crystal; parts named for what was typed come first.',
@@ -53685,12 +53685,13 @@ function wireTours() {
    line, and either `demo`, an example's id from EXAMPLES in ui/news.js (its picture comes from demos/thumbs/), or
    `bench`, a whole bench as a .jekray file's JSON (File › Save, then paste the file's text here). `id` is short and
    new for each reel: the note shows again to someone who closed it once a reel with a new first id is added.
-   To add a reel: copy the line below to the top of the list and fill it in.
-     { id: 'ig-slug', title: 'What the reel shows', line: 'One short line on what to try.', demo: 'example-id' }, */
+   Every new reel adds its bench here, at the top, the day it is posted (.claude/commands/instagram-conversion.md): a
+   copy of the bench as the reel shows it, as `bench`; `demo` only when the reel shows an example exactly as it ships.
+     { id: 'ig-slug', title: 'What the reel shows', line: 'One short line on what to try.', bench: { ...the .jekray file... } }, */
 const REELS = [
   { id: 'michelson', title: 'Michelson interferometer', line: 'Move a mirror and watch the fringes walk.', demo: 'michelson' },
-  { id: 'czerny-turner', title: 'Czerny–Turner spectrometer', line: 'A slit, two mirrors and a grating spread out the lines.', demo: 'czerny-turner' },
-  { id: 'poisson-spot', title: 'Poisson’s spot', line: 'The bright spot in the shadow of a disc.', demo: 'poissons-spot' },
+  { id: 'czerny-turner', title: 'Czerny\u2013Turner spectrometer', line: 'A slit, two mirrors and a grating spread out the lines.', demo: 'czerny-turner' },
+  { id: 'poisson-spot', title: 'Poisson\u2019s spot', line: 'The bright spot in the shadow of a disc.', demo: 'poissons-spot' },
 ];
 /* ---------- From Instagram ----------
    A visit that came from one of our Instagram posts (a tag starting "ig" on its link, or Instagram as the referrer)

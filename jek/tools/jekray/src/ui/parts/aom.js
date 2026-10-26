@@ -1,17 +1,19 @@
 import { ctx, drawPlate, pathLocal } from '../render.js';
-import { hitPlate } from './hits.js';
+import { hitSlab } from './hits.js';
 import { h, panel, param, selectField } from '../panel.js';
 import { readoutBox } from '../panels.js';
 
 /* Acousto-optic modulator on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/aom.js */
 
+/* a modulator's crystal, half its thickness along the beam (mm), as its 3D model has it: an AOM's 8 mm, an EOM's 12 */
+export const modHalf = el => el.type === 'aom' ? 4 : 6;
 /* a modulator: a crystal block; an AOM's transducer along one side with its sound waves, an EOM's electrodes above and below */
 export function drawModulator(el, sel) {
-  const aom = el.type === 'aom', { f, L, k } = drawPlate(el, sel, aom ? '#9ad0ff' : '#c6a8ff', aom ? 'rgba(154,208,255,0.16)' : 'rgba(198,168,255,0.16)', 5);
-  const t = 5 * k;
+  const aom = el.type === 'aom', { f, L } = drawPlate(el, sel, aom ? '#9ad0ff' : '#c6a8ff', aom ? 'rgba(154,208,255,0.16)' : 'rgba(198,168,255,0.16)', modHalf(el));
+  const t = modHalf(el);
   ctx.save();
   if (aom) {
-    pathLocal(f, [[-t, L], [t, L], [t, L + 4 * k], [-t, L + 4 * k]], true); ctx.fillStyle = '#9ad0ff'; ctx.fill();
+    pathLocal(f, [[-3, L], [3, L], [3, L + 3], [-3, L + 3]], true); ctx.fillStyle = '#9ad0ff'; ctx.fill();
     ctx.strokeStyle = 'rgba(154,208,255,0.45)'; ctx.lineWidth = 1;
     for (let i = 1; i < 5; i++) { const y = L - i * 2 * L / 5; pathLocal(f, [[-t, y], [t, y]]); ctx.stroke(); }
   } else {
@@ -44,5 +46,5 @@ export function modulatorPanel(el) {
 }
 
 export const AOM_UI = {
-  draw: drawModulator, hit: hitPlate, panel: modulatorPanel, rank: 1,
+  draw: drawModulator, hit: hitSlab(modHalf), panel: modulatorPanel, rank: 1,
 };

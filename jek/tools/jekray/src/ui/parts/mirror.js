@@ -22,7 +22,7 @@ function drawMirror(el, sel) {
   // hatching on the back
   ctx.strokeStyle = metal(0.45);
   ctx.lineWidth = 1;
-  const hat = Math.min(3, 8 / V().scale + 0.6);
+  const hat = Math.min(3, Math.max(0.8, el.length * 0.08));   // the hatch strokes a set length (mm) for the mirror, at any zoom; how many, by the zoom
   const nH = Math.max(4, Math.round(el.length * V().scale / 7));
   ctx.beginPath();
   for (let i = 0; i <= nH; i++) {

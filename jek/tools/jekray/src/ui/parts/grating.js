@@ -10,7 +10,7 @@ import { readoutBox } from '../panels.js';
 function drawGrating(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, refl = el.mode === 'reflect';
   // substrate behind a reflection grating, thin plate for a transmission one
-  const back = refl ? -Math.max(2, 6 * k) : -1.2 * k;
+  const back = refl ? -6 : -Math.max(1.5, 1.2 * k);   // its blank, as in 3D: 6 mm behind a reflective one, 1.5 mm a transmissive
   pathLocal(f, [[back, -L], [0, -L], [0, L], [back, L]], true);
   ctx.fillStyle = refl ? 'rgba(216,222,227,0.14)' : 'rgba(115,185,202,0.14)'; ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#d8dee3'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
@@ -31,7 +31,7 @@ function gratingPanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
 }
 
-const hitGrating = (el, lx, ly, tol) => hitPlate(el, lx, ly, tol, el.mode === 'reflect' ? Math.max(2, 6 / V().scale) : 0.4);
+const hitGrating = (el, lx, ly, tol) => hitPlate(el, lx, ly, tol, el.mode === 'reflect' ? 6 : 1.5);
 
 export const GRATING_UI = {
   draw: drawGrating, hit: hitGrating, panel: gratingPanel, rank: 2,

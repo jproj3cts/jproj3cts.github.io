@@ -15,7 +15,9 @@ test('every counted event is on the API’s list, and every button counted is on
   for (const f of files(src)) for (const m of readFileSync(f, 'utf8').matchAll(/\btrack\('([a-z]+)'/g)) used.add(m[1]);
   const usage = readFileSync(join(src, 'io/usage.js'), 'utf8'), page = readFileSync(join(here, '../../page.html'), 'utf8');
   const clicks = usage.match(/USAGE_CLICKS = \{([\s\S]*?)\};/)[1];
-  for (const m of clicks.matchAll(/(\w+): \['([a-z]+)'/g)) { used.add(m[2]); assert.ok(page.includes(`id="${m[1]}"`), `${m[1]} is not on the page`); }
+  // a button in the page's markup, or one the page makes (the rail's Add part: id: 'btnAddPart' in its module)
+  const made = files(src).map(f => readFileSync(f, 'utf8')).join('\n');
+  for (const m of clicks.matchAll(/(\w+): \['([a-z]+)'/g)) { used.add(m[2]); assert.ok(page.includes(`id="${m[1]}"`) || made.includes(`id: '${m[1]}'`), `${m[1]} is not on the page`); }
   for (const e of used) assert.ok(allowed.has(e), `the API does not take '${e}'`);
   assert.ok(used.size >= 20);
 });

@@ -105,7 +105,7 @@
             <button type="button" role="menuitem" id="btnNamesDown" title="Parts' names smaller on the bench, at every zoom">Smaller names</button>
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
-            <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
+            <button type="button" role="menuitem" data-icon="parts" id="viewAddPart">Add a part…<span class="k">A</span></button>
           </div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -177,7 +177,6 @@
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>

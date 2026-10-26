@@ -1086,8 +1086,6 @@
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
   .rt-tight { gap: 0.2rem; }
   /* black, as the site's bar: the main action, belonging to no palette (their colours mean them) */
-  .rt-btn.rt-addbtn { flex: none; color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); }
-  .rt-btn.rt-addbtn:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-menubar { display: flex; align-items: center; gap: 0.05rem; flex: none; }
   .rt-menubar .rt-btn.rt-mbar { padding: 0.4rem 0.6rem; font-weight: 500; }
@@ -1229,8 +1227,6 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-addlbl { display: none; }
-    #btnAddPart { min-width: 2.1rem; padding-left: 0.55rem; padding-right: 0.55rem; }
     .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
@@ -1294,6 +1290,12 @@
   .rt-rail { position: absolute; left: 0; top: 2.1rem; bottom: 2.4rem; z-index: 4; width: 52px; box-sizing: border-box; padding: 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
     overflow-y: auto; scrollbar-width: none; background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 2px 2px 0; }
   .rt-rail[hidden] { display: none; }
+  /* Add part, the rail's topmost button: the strong (black) one, as the main action */
+  .rt-radd { flex: none; width: 44px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
+    color: var(--rt-on-strong); background: var(--rt-strong); border: 0; border-radius: 5px; font: 700 0.58rem/1 var(--jek-sans); cursor: pointer; }
+  .rt-radd:hover, .rt-radd[aria-expanded="true"] { background: var(--rt-strong-hover); }
+  .rt-radd:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .rt-radd svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   .rt-rpals { display: flex; justify-content: center; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid var(--rt-over-line); }
   /* the palette switcher: the palette in use, its icon in its colour over its name; it opens the list beside the rail */
   .rt-rswitch { --c: var(--jek-orange); position: relative; width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 1px 6px;

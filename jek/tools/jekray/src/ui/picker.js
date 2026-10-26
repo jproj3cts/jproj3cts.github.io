@@ -9,16 +9,20 @@ import { packHits, packTile, packsBody } from '../io/packs.js';
 
 /* ---------- the picker ---------- */
 export const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
+// Add part: the topmost button of the parts rail (ui/rail.js puts it there), the picker opening beside it
+export const addBtn = h('button', { type: 'button', class: 'rt-radd', id: 'btnAddPart', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', title: 'Add a part (A): every part, with a search', 'aria-label': 'Add part' });
 export let pickTab = 'free';
 export function setPickTab(v) { return (pickTab = v); }
 export function pickerShown(on) {
-  if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
+  if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
   if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
-  const r = document.getElementById('btnAddPart').getBoundingClientRect();
-  picker.style.top = Math.round(r.bottom + 4) + 'px';
-  picker.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - Math.min(660, window.innerWidth - 16) - 8))) + 'px';
-  picker.hidden = false; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'true');
+  // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
+  const r = addBtn.isConnected && addBtn.getClientRects().length ? addBtn.getBoundingClientRect() : (() => { const s = document.getElementById('stage').getBoundingClientRect(); return { top: s.top + 8, right: s.left }; })();
+  const w = Math.min(660, window.innerWidth - 16), ph = Math.min(window.innerHeight * 0.72, 640);
+  picker.style.top = Math.round(Math.max(8, Math.min(r.top, window.innerHeight - ph - 8))) + 'px';
+  picker.style.left = Math.round(Math.max(8, Math.min(r.right + 8, window.innerWidth - w - 8))) + 'px';
+  picker.hidden = false; addBtn.setAttribute('aria-expanded', 'true');
   fillPicker('');
 }
 export function fillPicker(q) {
@@ -54,7 +58,7 @@ export function fillPicker(q) {
   search.addEventListener('input', show);
   search.addEventListener('keydown', e => {
     if (e.key === 'Enter') { const b = body.querySelector('[data-add], [data-mine]'); if (b && b.dataset.mine) { const p = MINE.list.find(q => q.id === b.dataset.mine); if (p) { placeMine(p); if (!e.shiftKey) pickerShown(false); } } else if (b) add(b.dataset.add, e); }
-    if (e.key === 'Escape') { pickerShown(false); document.getElementById('btnAddPart').focus(); }
+    if (e.key === 'Escape') { pickerShown(false); if (addBtn.isConnected) addBtn.focus(); }
     e.stopPropagation();
   });
   const tabs = h('div', { class: 'rt-ptabs', role: 'tablist' }, ...palettesOn().map(pal => {
@@ -80,7 +84,9 @@ export function wirePicker() {
 
   pickTab = palette;                     // the palette the bench shows (settled once every module is loaded)
 
-  document.getElementById('btnAddPart').addEventListener('click', e => { e.stopPropagation(); pickerShown(picker.hidden); });
+  addBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3V13 M3 8H13"/></svg><span>Add</span>';
+  addBtn.addEventListener('click', e => { e.stopPropagation(); if (picker.hidden) setPickTab(palette); pickerShown(picker.hidden); });
+  document.getElementById('viewAddPart').addEventListener('click', () => setTimeout(() => { setPickTab(palette); pickerShown(true); }));
 
   document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('#ctxMenu')) pickerShown(false); });
 

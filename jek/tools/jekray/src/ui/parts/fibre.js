@@ -11,8 +11,10 @@ import { anyPulse, pulseSection, pulseSectionEmpty, readoutBox } from '../panels
 
 /* Fibre on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fibre.js */
 
+/* the ferrule (or a collimator's barrel) behind the face, mm, as its 3D model has it: the same at every zoom */
+const fibreBody = el => el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10;
 function drawFibre(el, sel) {
-  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = el.coll > 0 ? Math.max(el.coll * 1.4, 8) : Math.max(8, 30 * k);
+  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = fibreBody(el);
   pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
   ctx.fillStyle = bodyFill('#39454c'); ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
@@ -22,7 +24,7 @@ function drawFibre(el, sel) {
     pathLocal(f, pts); ctx.strokeStyle = '#8fd3e8'; ctx.lineWidth = 1.6; ctx.stroke();
   }
   // the jacketed fibre leaving the back of the ferrule
-  pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
+  pathLocal(f, [[-body, 0], [-body - 10, 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
   // the core on the face
   pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
@@ -74,7 +76,7 @@ function fibrePanel(el) {
 }
 
 function hitFibre(el, lx, ly, tol) {
-  const H = Math.max(el.length / 2, 0.6), body = Math.max(8, 30 / V().scale);
+  const H = Math.max(el.length / 2, 0.6), body = fibreBody(el);
   return lx <= tol && lx >= -body - tol && Math.abs(ly) <= H + tol;
 }
 

@@ -14869,8 +14869,10 @@ function removeFibre(F) {
   if (selFibreId === F.id) selFibreId = null;
   changed(true);
 }
+/* a plate across the beam: a thin one (a filter, a waveplate) a couple of pixels thick at any zoom, as a line
+   is; a block (half: its half-thickness, mm, as its 3D model has it) its real size, never under that */
 function drawPlate(el, sel, stroke, fill, half) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = half ? Math.max(half, 1.2 * k) : 1.2 * k;
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
   ctx.fillStyle = fill; ctx.fill();
   ctx.strokeStyle = sel ? selInk() : stroke; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();
@@ -22720,6 +22722,8 @@ const PIC_UI = {
 };
 /* Hit tests shared by several parts, in the part's own frame (lx, ly), tol the pointer's reach in mm */
 /* a flat part across the beam: a grating, a rotator, a filter, a link plane, a modulator; back: how far behind its face */
+// a block centred on the part's line, half (mm) either side of it
+const hitSlab = half => (el, lx, ly, tol) => Math.abs(lx) <= half(el) + tol && Math.abs(ly) <= el.length / 2 + tol;
 const hitPlate = (el, lx, ly, tol, back = 0.4) => lx <= tol + 0.4 && lx >= -back - tol && Math.abs(ly) <= el.length / 2 + tol;
 /* a part met on its first surface: a mirror, a screen */
 function hitSurface(el, lx, ly, tol) {
@@ -22978,7 +22982,7 @@ function drawMirror(el, sel) {
   // hatching on the back
   ctx.strokeStyle = metal(0.45);
   ctx.lineWidth = 1;
-  const hat = Math.min(3, 8 / V().scale + 0.6);
+  const hat = Math.min(3, Math.max(0.8, el.length * 0.08));   // the hatch strokes a set length (mm) for the mirror, at any zoom; how many, by the zoom
   const nH = Math.max(4, Math.round(el.length * V().scale / 7));
   ctx.beginPath();
   for (let i = 0; i <= nH; i++) {
@@ -23594,7 +23598,7 @@ const MASK_UI = {
 function drawGrating(el, sel) {
   const f = frame(el), L = el.length / 2, k = 1 / V().scale, refl = el.mode === 'reflect';
   // substrate behind a reflection grating, thin plate for a transmission one
-  const back = refl ? -Math.max(2, 6 * k) : -1.2 * k;
+  const back = refl ? -6 : -Math.max(1.5, 1.2 * k);   // its blank, as in 3D: 6 mm behind a reflective one, 1.5 mm a transmissive
   pathLocal(f, [[back, -L], [0, -L], [0, L], [back, L]], true);
   ctx.fillStyle = refl ? 'rgba(216,222,227,0.14)' : 'rgba(115,185,202,0.14)'; ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#d8dee3'; ctx.lineWidth = sel ? 2.2 : 1.4; ctx.stroke();
@@ -23615,15 +23619,17 @@ function gratingPanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
 }
 
-const hitGrating = (el, lx, ly, tol) => hitPlate(el, lx, ly, tol, el.mode === 'reflect' ? Math.max(2, 6 / V().scale) : 0.4);
+const hitGrating = (el, lx, ly, tol) => hitPlate(el, lx, ly, tol, el.mode === 'reflect' ? 6 : 1.5);
 
 const GRATING_UI = {
   draw: drawGrating, hit: hitGrating, panel: gratingPanel, rank: 2,
 };
 /* Fibre on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fibre.js */
 
+/* the ferrule (or a collimator's barrel) behind the face, mm, as its 3D model has it: the same at every zoom */
+const fibreBody = el => el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10;
 function drawFibre(el, sel) {
-  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = el.coll > 0 ? Math.max(el.coll * 1.4, 8) : Math.max(8, 30 * k);
+  const f = frame(el), L = Math.max(el.length / 2, 0.6), k = 1 / V().scale, body = fibreBody(el);
   pathLocal(f, [[-body, -L], [0, -L], [0, L], [-body, L]], true);
   ctx.fillStyle = bodyFill('#39454c'); ctx.fill();
   ctx.strokeStyle = sel ? selInk() : '#cfd8dc'; ctx.lineWidth = sel ? 2.2 : 1.3; ctx.stroke();
@@ -23633,7 +23639,7 @@ function drawFibre(el, sel) {
     pathLocal(f, pts); ctx.strokeStyle = '#8fd3e8'; ctx.lineWidth = 1.6; ctx.stroke();
   }
   // the jacketed fibre leaving the back of the ferrule
-  pathLocal(f, [[-body, 0], [-body - Math.max(10, 40 * k), 0]]);
+  pathLocal(f, [[-body, 0], [-body - 10, 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
   // the core on the face
   pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
@@ -23685,7 +23691,7 @@ function fibrePanel(el) {
 }
 
 function hitFibre(el, lx, ly, tol) {
-  const H = Math.max(el.length / 2, 0.6), body = Math.max(8, 30 / V().scale);
+  const H = Math.max(el.length / 2, 0.6), body = fibreBody(el);
   return lx <= tol && lx >= -body - tol && Math.abs(ly) <= H + tol;
 }
 
@@ -23854,19 +23860,21 @@ function faradayPanel(el) {
     : 'Turns the polarisation by its rotation, the same way in the lab whichever way the light goes, so a double pass turns it twice as far rather than undoing it. That is what an isolator and a Faraday mirror are built on. The arrow is the direction of its magnetic field.'));
 }
 
+/* the rotator's body, half its length (mm): max(8 mm, 1.4 x its aperture) long, as its 3D model has it */
+const faradayHalf = el => Math.max(4, el.length * 0.35);
 /* a Faraday rotator or an isolator: a plate with the arrow of its rotation */
 function drawFaraday(el, sel) {
-  const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', 2);
+  const { f, L, k } = drawPlate(el, sel, '#ff9f6b', 'rgba(255,159,107,0.18)', faradayHalf(el));
   drawAxisArrow(f, L, k, '#ff9f6b', el.type === 'isolator');
 }
 
 const FARADAY_UI = {
-  draw: drawFaraday, hit: hitPlate, panel: faradayPanel, rank: 1,
+  draw: drawFaraday, hit: hitSlab(faradayHalf), panel: faradayPanel, rank: 1,
 };
 /* Optical isolator on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/isolator.js */
 
 const ISOLATOR_UI = {
-  draw: drawFaraday, hit: hitPlate, panel: faradayPanel, rank: 1,
+  draw: drawFaraday, hit: hitSlab(faradayHalf), panel: faradayPanel, rank: 1,
 };
 /* STL object on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/stl.js */
 
@@ -24002,10 +24010,10 @@ function gainPanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it: the gain a pass is the small-signal gain, which the pump sets. In a cavity, the cavity card (on each of its elements) shows whether the round trip gains more than it loses. Above threshold it lases, and the gain saturates until the round trip is exactly one: the card gives the circulating power, the power leaving through each partly transmitting mirror and the best output coupler, and the output leaves those mirrors as a beam on the bench. Saturation is that of a homogeneous line, every beam through the gain saturating it together (Rigrod\u2019s analysis, exact at any gain and coupling), with the power set by the saturation intensity over the cavity mode\u2019s area at the gain (Nd:YAG 2.9 kW/cm\u00b2, Ti:sapphire 200, Yb:YAG 10); 0 turns it off. The laser runs on one mode at the seed\u2019s wavelength: put the seed on the gain line.'));
 }
 
-function drawGain(el, sel) { drawPlate(el, sel, '#ff6a3d', 'rgba(255,106,61,0.28)', 2.2); }
+function drawGain(el, sel) { drawPlate(el, sel, '#ff6a3d', 'rgba(255,106,61,0.28)', 2); }   // a 4 mm disc, as in 3D
 
 const GAIN_UI = {
-  draw: drawGain, hit: hitPlate, panel: gainPanel, rank: 1,
+  draw: drawGain, hit: hitSlab(() => 2), panel: gainPanel, rank: 1,
 };
 /* Vapour cell on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/cell.js */
 
@@ -24143,13 +24151,15 @@ const LINK_UI = {
 };
 /* Acousto-optic modulator on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/aom.js */
 
+/* a modulator's crystal, half its thickness along the beam (mm), as its 3D model has it: an AOM's 8 mm, an EOM's 12 */
+const modHalf = el => el.type === 'aom' ? 4 : 6;
 /* a modulator: a crystal block; an AOM's transducer along one side with its sound waves, an EOM's electrodes above and below */
 function drawModulator(el, sel) {
-  const aom = el.type === 'aom', { f, L, k } = drawPlate(el, sel, aom ? '#9ad0ff' : '#c6a8ff', aom ? 'rgba(154,208,255,0.16)' : 'rgba(198,168,255,0.16)', 5);
-  const t = 5 * k;
+  const aom = el.type === 'aom', { f, L } = drawPlate(el, sel, aom ? '#9ad0ff' : '#c6a8ff', aom ? 'rgba(154,208,255,0.16)' : 'rgba(198,168,255,0.16)', modHalf(el));
+  const t = modHalf(el);
   ctx.save();
   if (aom) {
-    pathLocal(f, [[-t, L], [t, L], [t, L + 4 * k], [-t, L + 4 * k]], true); ctx.fillStyle = '#9ad0ff'; ctx.fill();
+    pathLocal(f, [[-3, L], [3, L], [3, L + 3], [-3, L + 3]], true); ctx.fillStyle = '#9ad0ff'; ctx.fill();
     ctx.strokeStyle = 'rgba(154,208,255,0.45)'; ctx.lineWidth = 1;
     for (let i = 1; i < 5; i++) { const y = L - i * 2 * L / 5; pathLocal(f, [[-t, y], [t, y]]); ctx.stroke(); }
   } else {
@@ -24182,12 +24192,12 @@ function modulatorPanel(el) {
 }
 
 const AOM_UI = {
-  draw: drawModulator, hit: hitPlate, panel: modulatorPanel, rank: 1,
+  draw: drawModulator, hit: hitSlab(modHalf), panel: modulatorPanel, rank: 1,
 };
 /* Electro-optic modulator on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/eom.js */
 
 const EOM_UI = {
-  draw: drawModulator, hit: hitPlate, panel: modulatorPanel, rank: 1,
+  draw: drawModulator, hit: hitSlab(modHalf), panel: modulatorPanel, rank: 1,
 };
 /* Optical chopper on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/chopper.js */
 

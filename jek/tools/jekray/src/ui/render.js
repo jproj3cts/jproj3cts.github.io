@@ -1364,8 +1364,10 @@ export function removeFibre(F) {
   if (selFibreId === F.id) selFibreId = null;
   changed(true);
 }
+/* a plate across the beam: a thin one (a filter, a waveplate) a couple of pixels thick at any zoom, as a line
+   is; a block (half: its half-thickness, mm, as its 3D model has it) its real size, never under that */
 export function drawPlate(el, sel, stroke, fill, half) {
-  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = (half || 1.2) * k;
+  const f = frame(el), L = el.length / 2, k = 1 / V().scale, t = half ? Math.max(half, 1.2 * k) : 1.2 * k;
   pathLocal(f, [[-t, -L], [t, -L], [t, L], [-t, L]], true);
   ctx.fillStyle = fill; ctx.fill();
   ctx.strokeStyle = sel ? selInk() : stroke; ctx.lineWidth = sel ? 2.5 : 1.6; ctx.stroke();

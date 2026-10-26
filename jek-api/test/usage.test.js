@@ -44,6 +44,9 @@ describe('usage counts', () => {
     expect(p.newcomers - before.newcomers).toBe(1);
     expect(r.peopleEver - (before.total || 0)).toBe(1);
     expect(p.total).toBe(r.peopleEver);
+    // today's people in four: the signed-out one new, the free one on its own
+    expect(p.kinds.free(today) - (before.kinds ? before.kinds.free(today) : 0)).toBe(1);
+    expect(p.kinds.new(today) - (before.kinds ? before.kinds.new(today) : 0)).toBe(1);
     expect(p.weeks.find((x) => x.k === isoWeek(today)).n).toBeGreaterThan(0);
     expect(isoWeek('2026-10-26')).toBe('2026-W44');
     expect(isoWeek('2027-01-01')).toBe('2026-W53');

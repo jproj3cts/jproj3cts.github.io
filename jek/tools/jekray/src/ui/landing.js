@@ -41,13 +41,33 @@ export async function showLanding(opened) {
   const reel = r => h('li', null, h('button', { class: 'rt-reel' + (r.demo && r.demo === opened ? ' on' : ''), type: 'button', onclick: () => openReel(r) },
     r.demo ? h('img', { src: 'demos/thumbs/' + (dark ? '' : 'light/') + r.demo + '.webp', alt: '', loading: 'lazy', width: 96, height: 60 }) : h('i', { 'aria-hidden': 'true' }),
     h('span', null, h('b', null, r.title), h('small', null, r.demo && r.demo === opened ? 'On the bench now' : r.line))));
+  const list = h('ul', { class: 'rt-reels', tabindex: '0', 'aria-label': 'Benches from our reels, newest first' }, ...REELS.map(reel));
   document.getElementById('stage').append(h('div', { class: 'rt-welcome rt-landing', id: 'igLanding', role: 'note' },
     h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: () => hideLanding(true) }, '\u00d7'),
     h('h3', null, 'From Instagram'),
     h('p', null, 'The benches from our latest reels. Open one and change it yourself: free, in the browser, nothing to install.'),
     phoneSheet() ? remindForm() : null,
-    h('ul', { class: 'rt-reels' }, ...REELS.map(reel)),
+    list,
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { hideLanding(false); window.openGallery(); } }, 'All examples'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => hideLanding(true) }, 'Close'))));
+  reelsFit(list);
   goal('landing');
+}
+/* the three newest reels in view, the rest a scroll away: the list as tall as its first three rows and the top of the fourth */
+export const REELS_SHOWN = 3;
+function reelsFit(list) {
+  const fit = () => {
+    if (!list.isConnected) { removeEventListener('resize', fit); return; }
+    const rows = list.children;
+    if (rows.length <= REELS_SHOWN) { list.style.maxHeight = ''; return; }
+    list.style.maxHeight = '';
+    list.style.maxHeight = (rows[REELS_SHOWN - 1].getBoundingClientRect().bottom - rows[0].getBoundingClientRect().top + 18) + 'px';   // and a glimpse of the next
+    list.classList.add('more');
+    end();
+  };
+  // faded at its foot while there are more below
+  const end = () => list.classList.toggle('end', list.scrollTop + list.clientHeight >= list.scrollHeight - 2);
+  list.addEventListener('scroll', end, { passive: true });
+  fit();
+  addEventListener('resize', fit);
 }

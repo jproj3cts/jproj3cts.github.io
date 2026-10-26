@@ -1752,6 +1752,9 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 /* the note for a visit from Instagram (landing.js): the reels' benches, a row each, its picture then its words */
 .rt-welcome.rt-landing p { margin: 0 0 0.5rem; color: var(--jek-ink-soft); }
 .rt-welcome .rt-reels { margin: 0 0 0.6rem; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+/* more than three: the three newest in view, the rest scrolled to (ui/landing.js reelsFit) */
+.rt-welcome .rt-reels.more { overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-width: thin; }
+.rt-welcome .rt-reels.more:not(.end) { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
 .rt-reel { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.3rem; text-align: left; font: inherit; color: var(--jek-ink); background: var(--jek-panel);
   border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; transition: border-color 0.15s; }
 .rt-reel:hover, .rt-reel:focus-visible { border-color: var(--jek-cyan); outline: none; }

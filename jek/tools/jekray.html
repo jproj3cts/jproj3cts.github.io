@@ -1767,6 +1767,9 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 /* the note for a visit from Instagram (landing.js): the reels' benches, a row each, its picture then its words */
 .rt-welcome.rt-landing p { margin: 0 0 0.5rem; color: var(--jek-ink-soft); }
 .rt-welcome .rt-reels { margin: 0 0 0.6rem; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+/* more than three: the three newest in view, the rest scrolled to (ui/landing.js reelsFit) */
+.rt-welcome .rt-reels.more { overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-width: thin; }
+.rt-welcome .rt-reels.more:not(.end) { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
 .rt-reel { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.3rem; text-align: left; font: inherit; color: var(--jek-ink); background: var(--jek-panel);
   border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; transition: border-color 0.15s; }
 .rt-reel:hover, .rt-reel:focus-visible { border-color: var(--jek-cyan); outline: none; }
@@ -53729,15 +53732,35 @@ async function showLanding(opened) {
   const reel = r => h('li', null, h('button', { class: 'rt-reel' + (r.demo && r.demo === opened ? ' on' : ''), type: 'button', onclick: () => openReel(r) },
     r.demo ? h('img', { src: 'demos/thumbs/' + (dark ? '' : 'light/') + r.demo + '.webp', alt: '', loading: 'lazy', width: 96, height: 60 }) : h('i', { 'aria-hidden': 'true' }),
     h('span', null, h('b', null, r.title), h('small', null, r.demo && r.demo === opened ? 'On the bench now' : r.line))));
+  const list = h('ul', { class: 'rt-reels', tabindex: '0', 'aria-label': 'Benches from our reels, newest first' }, ...REELS.map(reel));
   document.getElementById('stage').append(h('div', { class: 'rt-welcome rt-landing', id: 'igLanding', role: 'note' },
     h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: () => hideLanding(true) }, '\u00d7'),
     h('h3', null, 'From Instagram'),
     h('p', null, 'The benches from our latest reels. Open one and change it yourself: free, in the browser, nothing to install.'),
     phoneSheet() ? remindForm() : null,
-    h('ul', { class: 'rt-reels' }, ...REELS.map(reel)),
+    list,
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { hideLanding(false); window.openGallery(); } }, 'All examples'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => hideLanding(true) }, 'Close'))));
+  reelsFit(list);
   goal('landing');
+}
+/* the three newest reels in view, the rest a scroll away: the list as tall as its first three rows and the top of the fourth */
+const REELS_SHOWN = 3;
+function reelsFit(list) {
+  const fit = () => {
+    if (!list.isConnected) { removeEventListener('resize', fit); return; }
+    const rows = list.children;
+    if (rows.length <= REELS_SHOWN) { list.style.maxHeight = ''; return; }
+    list.style.maxHeight = '';
+    list.style.maxHeight = (rows[REELS_SHOWN - 1].getBoundingClientRect().bottom - rows[0].getBoundingClientRect().top + 18) + 'px';   // and a glimpse of the next
+    list.classList.add('more');
+    end();
+  };
+  // faded at its foot while there are more below
+  const end = () => list.classList.toggle('end', list.scrollTop + list.clientHeight >= list.scrollHeight - 2);
+  list.addEventListener('scroll', end, { passive: true });
+  fit();
+  addEventListener('resize', fit);
 }
 /* ---------- Search commands (Ctrl+K) ----------
    Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay

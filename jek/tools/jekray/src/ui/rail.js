@@ -13,7 +13,7 @@ import {
   PALETTE_NAMES, PART_DRAG, addPart, assignPalette, exp, palette, palettesOn,
   partGroups, partIcon, partTile
 } from './experimental.js';
-import { fillPicker, picker, pickerShown, setPickTab } from './picker.js';
+import { addBtn, fillPicker, picker, pickerShown } from './picker.js';
 import { MINE, loadMine, mineBody, mineOn, placeMine } from './myparts.js';
 import { placePackPart } from '../io/packs.js';
 import { scheduleSave } from '../io/autosave.js';
@@ -87,15 +87,13 @@ export function fillRail() {
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(b, g); });
     return b;
   });
-  const more = h('button', { type: 'button', class: 'rt-rgroup rt-rall', title: 'All parts, with a search (A)', 'aria-label': 'All parts' }, '+');
-  more.addEventListener('click', e => { e.stopPropagation(); setPickTab(palette); pickerShown(true); });
   // My parts, for the signed in
   let star = null;
   if (mineOn()) {
     star = h('button', { type: 'button', class: 'rt-rgroup rt-rall rt-rmine', title: 'My parts: the parts you have kept', 'aria-label': 'My parts' }, '★');
     star.addEventListener('click', e => { e.stopPropagation(); const open = flyFor !== star; flyShown(star, { mine: true }); if (open && MINE.list === null) loadMine().then(() => { if (flyFor === star) { flyFor = null; flyShown(star, { mine: true }); } }); });
   }
-  rail.replaceChildren(pals, ...groups, ...[star, more].filter(Boolean));
+  rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
   drawToolsShown();
 }
 export function setPalette(pal) {

@@ -170,7 +170,7 @@ export function updateEmpty() {
   if (!empty) { if (c) c.remove(); return; }
   if (c) return;
   document.getElementById('stage').append(h('div', { class: 'rt-empty', id: 'emptyHint' },
-    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part with + Add part above (or press A), from the rail at the left, or:'),
+    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part with Add, at the top of the parts rail on the left (or press A), or:'),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples'))));

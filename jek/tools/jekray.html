@@ -1101,8 +1101,6 @@
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
   .rt-tight { gap: 0.2rem; }
   /* black, as the site's bar: the main action, belonging to no palette (their colours mean them) */
-  .rt-btn.rt-addbtn { flex: none; color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); }
-  .rt-btn.rt-addbtn:hover { background: var(--rt-strong-hover); border-color: var(--rt-strong-hover); }
   #btnSweeps.playing { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   .rt-menubar { display: flex; align-items: center; gap: 0.05rem; flex: none; }
   .rt-menubar .rt-btn.rt-mbar { padding: 0.4rem 0.6rem; font-weight: 500; }
@@ -1244,8 +1242,6 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-addlbl { display: none; }
-    #btnAddPart { min-width: 2.1rem; padding-left: 0.55rem; padding-right: 0.55rem; }
     .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
@@ -1309,6 +1305,12 @@
   .rt-rail { position: absolute; left: 0; top: 2.1rem; bottom: 2.4rem; z-index: 4; width: 52px; box-sizing: border-box; padding: 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
     overflow-y: auto; scrollbar-width: none; background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 2px 2px 0; }
   .rt-rail[hidden] { display: none; }
+  /* Add part, the rail's topmost button: the strong (black) one, as the main action */
+  .rt-radd { flex: none; width: 44px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
+    color: var(--rt-on-strong); background: var(--rt-strong); border: 0; border-radius: 5px; font: 700 0.58rem/1 var(--jek-sans); cursor: pointer; }
+  .rt-radd:hover, .rt-radd[aria-expanded="true"] { background: var(--rt-strong-hover); }
+  .rt-radd:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .rt-radd svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   .rt-rpals { display: flex; justify-content: center; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid var(--rt-over-line); }
   /* the palette switcher: the palette in use, its icon in its colour over its name; it opens the list beside the rail */
   .rt-rswitch { --c: var(--jek-orange); position: relative; width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 1px 6px;
@@ -1837,7 +1839,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnNamesDown" title="Parts' names smaller on the bench, at every zoom">Smaller names</button>
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
-            <button type="button" role="menuitem" data-icon="parts" data-click="btnAddPart">Add a part…<span class="k">A</span></button>
+            <button type="button" role="menuitem" data-icon="parts" id="viewAddPart">Add a part…<span class="k">A</span></button>
           </div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -1909,7 +1911,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <button class="rt-btn primary rt-addbtn" id="btnAddPart" type="button" aria-haspopup="dialog" title="Add a part (A)" aria-label="Add part">+<span class="rt-addlbl"> Add part</span></button>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
@@ -47851,16 +47852,20 @@ async function importStep(file, at) {
 }
 /* ---------- the picker ---------- */
 const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
+// Add part: the topmost button of the parts rail (ui/rail.js puts it there), the picker opening beside it
+const addBtn = h('button', { type: 'button', class: 'rt-radd', id: 'btnAddPart', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', title: 'Add a part (A): every part, with a search', 'aria-label': 'Add part' });
 let pickTab = 'free';
 function setPickTab(v) { return (pickTab = v); }
 function pickerShown(on) {
-  if (!on) { picker.hidden = true; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'false'); return; }
+  if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
   if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
-  const r = document.getElementById('btnAddPart').getBoundingClientRect();
-  picker.style.top = Math.round(r.bottom + 4) + 'px';
-  picker.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - Math.min(660, window.innerWidth - 16) - 8))) + 'px';
-  picker.hidden = false; document.getElementById('btnAddPart').setAttribute('aria-expanded', 'true');
+  // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
+  const r = addBtn.isConnected && addBtn.getClientRects().length ? addBtn.getBoundingClientRect() : (() => { const s = document.getElementById('stage').getBoundingClientRect(); return { top: s.top + 8, right: s.left }; })();
+  const w = Math.min(660, window.innerWidth - 16), ph = Math.min(window.innerHeight * 0.72, 640);
+  picker.style.top = Math.round(Math.max(8, Math.min(r.top, window.innerHeight - ph - 8))) + 'px';
+  picker.style.left = Math.round(Math.max(8, Math.min(r.right + 8, window.innerWidth - w - 8))) + 'px';
+  picker.hidden = false; addBtn.setAttribute('aria-expanded', 'true');
   fillPicker('');
 }
 function fillPicker(q) {
@@ -47896,7 +47901,7 @@ function fillPicker(q) {
   search.addEventListener('input', show);
   search.addEventListener('keydown', e => {
     if (e.key === 'Enter') { const b = body.querySelector('[data-add], [data-mine]'); if (b && b.dataset.mine) { const p = MINE.list.find(q => q.id === b.dataset.mine); if (p) { placeMine(p); if (!e.shiftKey) pickerShown(false); } } else if (b) add(b.dataset.add, e); }
-    if (e.key === 'Escape') { pickerShown(false); document.getElementById('btnAddPart').focus(); }
+    if (e.key === 'Escape') { pickerShown(false); if (addBtn.isConnected) addBtn.focus(); }
     e.stopPropagation();
   });
   const tabs = h('div', { class: 'rt-ptabs', role: 'tablist' }, ...palettesOn().map(pal => {
@@ -47922,7 +47927,9 @@ function wirePicker() {
 
   pickTab = palette;                     // the palette the bench shows (settled once every module is loaded)
 
-  document.getElementById('btnAddPart').addEventListener('click', e => { e.stopPropagation(); pickerShown(picker.hidden); });
+  addBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3V13 M3 8H13"/></svg><span>Add</span>';
+  addBtn.addEventListener('click', e => { e.stopPropagation(); if (picker.hidden) setPickTab(palette); pickerShown(picker.hidden); });
+  document.getElementById('viewAddPart').addEventListener('click', () => setTimeout(() => { setPickTab(palette); pickerShown(true); }));
 
   document.addEventListener('click', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('#ctxMenu')) pickerShown(false); });
 
@@ -48002,15 +48009,13 @@ function fillRail() {
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(b, g); });
     return b;
   });
-  const more = h('button', { type: 'button', class: 'rt-rgroup rt-rall', title: 'All parts, with a search (A)', 'aria-label': 'All parts' }, '+');
-  more.addEventListener('click', e => { e.stopPropagation(); setPickTab(palette); pickerShown(true); });
   // My parts, for the signed in
   let star = null;
   if (mineOn()) {
     star = h('button', { type: 'button', class: 'rt-rgroup rt-rall rt-rmine', title: 'My parts: the parts you have kept', 'aria-label': 'My parts' }, '★');
     star.addEventListener('click', e => { e.stopPropagation(); const open = flyFor !== star; flyShown(star, { mine: true }); if (open && MINE.list === null) loadMine().then(() => { if (flyFor === star) { flyFor = null; flyShown(star, { mine: true }); } }); });
   }
-  rail.replaceChildren(pals, ...groups, ...[star, more].filter(Boolean));
+  rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
   drawToolsShown();
 }
 function setPalette(pal) {
@@ -51023,6 +51028,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Add part moves to the parts rail</b>, as its topmost button: the picker opens beside it, every part with a search (A still opens it, and View \u203a Add a part). The bar keeps the menus, the bench\u2019s name, Share and Save.',
     '<b>One palette switcher</b>: the parts rail\u2019s five coloured buttons become one switcher at its top, showing the palette in use with its icon; it opens a list of the palettes, each with a line of what it holds. Electronics is now called <b>Circuits</b>.',
     '<b>Smaller things</b>: the menus answer the keyboard (Down opens one and walks it, Left and Right move between them); <b>Ctrl+K</b> finds parts and examples as well as commands; Undo and Redo say what they would do (\u201cUndo move Laser\u201d); <b>File \u203a Open recent</b> lists the files, examples and cloud benches opened lately; with several parts selected, <b>Set them all</b> sets a height, a facing, a diameter or a wavelength on every one; a part dragged near another lines up with it, or with a beam, a faint guide showing it (Shift drags freely); opening something over unsaved changes says where they were kept, and leaving the page with them asks first; in 3D, the names, the hint and the colour key follow the theme.',
     '<b>Parts in 3D look as they do in a lab</b> in the Light theme: brighter light from a warm sky, black-anodised housings (lasers, photodiodes, mounts) a mid grey that shades, and mirrors and other metal a satin silver rather than dark discs.',
@@ -51368,7 +51374,7 @@ function showWelcome() {
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
       h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
     : h('ul', null,
-      h('li', null, 'Add parts with + Add part (or A), or from the parts rail at the bench\u2019s left; the switcher at its top changes the palette: free space, fibre, circuits, RF or drawing.'),
+      h('li', null, 'Add parts with Add, the top button of the parts rail at the bench\u2019s left (or press A), or from the rail\u2019s own buttons; its switcher changes the palette: free space, fibre, circuits, RF or drawing.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
@@ -52452,7 +52458,7 @@ function updateEmpty() {
   if (!empty) { if (c) c.remove(); return; }
   if (c) return;
   document.getElementById('stage').append(h('div', { class: 'rt-empty', id: 'emptyHint' },
-    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part with + Add part above (or press A), from the rail at the left, or:'),
+    h('p', null, h('b', null, 'This bench is empty.'), ' Add a part with Add, at the top of the parts rail on the left (or press A), or:'),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => openGallery() }, 'Browse examples'))));

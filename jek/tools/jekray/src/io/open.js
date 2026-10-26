@@ -191,7 +191,7 @@ export function openProjectData(data, label) {
   const dropped = unsaved && prev && prev.elements.length > 0;     // a bench with changes not saved, replaced: said so, and how to get it back
   pauseAll();
   keepSnapshot('Before opening ' + label, true);
-  if (prev && prev.elements.length) checkpoint();
+  if (prev && prev.elements.length) checkpoint(true);
   try { loadProject(data); } catch (err) { setProject(prev); history.length = hist; updateUndoButtons(); throw err; }
   checkImport(raw, project, notes);
   lastImport = notes;

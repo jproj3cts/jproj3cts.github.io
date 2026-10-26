@@ -1,14 +1,15 @@
 import { EMBED, STORE_KEY, TEST_MODE, cloud } from '../core/constants.js';
 import { serialize } from '../state/elements.js';
-import { h } from '../ui/panel.js';
+import { h, phoneSheet } from '../ui/panel.js';
 import { saveFile, toast } from '../ui/actions.js';
 import { menuIcons } from './packs.js';
-import { cloudLink, cloudMenuShown, cloudPush } from './cloud.js';
+import { cloudLink, cloudMenuShown, cloudPush, newCloudBench, personalWs, proWhy } from './cloud.js';
 import { saveTimer } from './autosave.js';
 import { goal, setUsageOff, track, usageBrowserSaysNo, usageFlush, usageOff } from './usage.js';
-import { nudgeCapOk, returnDue } from '../core/nudge.js';
+import { WORK_EDITS, WORK_MS, nudgeCapOk, returnDue, workDue } from '../core/nudge.js';
 import { project } from '../state/project.js';
 import { hooks } from '../core/hooks.js';
+import { drag } from '../ui/pointer.js';
 
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
@@ -736,6 +737,7 @@ async function loadAccount() {
   } catch (err) { /* not counted */ }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
+  workSignedIn();
   handleInvite();
 }
 /* ---------- Sign-in, offered where it helps ----------
@@ -802,7 +804,7 @@ function nudgeCard(id, where, title, body, acts) {
   track('prompt', where + '.shown');
   document.getElementById('stage').append(card);
 }
-const nudgeUp = () => ['saveNudge', 'returnNudge', 'welcome', 'coach'].some(id => document.getElementById(id));
+const nudgeUp = () => ['saveNudge', 'returnNudge', 'workNudge', 'igLanding', 'welcome', 'coach'].some(id => document.getElementById(id));
 export function saveNudge() {
   if (!accountsOn() || account !== null || !accountKnown || nudgeUp() || !nudgeAllowed()) return;     // signed out, once that is known
   nudgeTaken();
@@ -821,6 +823,62 @@ export function returnNudge(again, arrived) {
     h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
     freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
+}
+/* ---------- A bench worked on, signed out ----------
+   Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
+   the account, once a session and never mid-drag, and the bench is kept across the sign-in. Back signed in, it goes
+   to the cloud when their plan saves there (Save to cloud's dialog, named already); on the free plan it stays here,
+   and they are told so. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
+   ('goal' edit), the note shown (ask) and a way in chosen (ask-yes). */
+const WORK_KEY = 'jek-work-ask';             // in this tab's store: 'shown' once asked, 'signin' while signing in from it
+const WORK_QUIET = 2000;                     // still this long after an edit before it is looked at
+const work = { n: 0, t0: 0, timer: 0 };
+const workState = () => { try { return sessionStorage.getItem(WORK_KEY) || ''; } catch (err) { return 'shown'; } };
+const setWork = v => { try { if (v) sessionStorage.setItem(WORK_KEY, v); else sessionStorage.removeItem(WORK_KEY); } catch (err) { /* asked again next visit: fine */ } };
+// on a phone, the settings sheet over the bench's lower half, where the note would go: it waits for the sheet to close
+const sheetUp = () => phoneSheet() && document.getElementById('panel').style.display !== 'none';
+/* an edit of the bench (tabs.js checkpoint): counted, and the note looked at once the bench has been still a moment */
+export function benchEdited() {
+  if (!work.n++) { work.t0 = Date.now(); goal('edit'); }
+  if (!accountsOn() || account || workState()) return;
+  clearTimeout(work.timer);
+  work.timer = setTimeout(workNudge, WORK_QUIET);
+}
+export function workNudge() {
+  work.timer = 0;
+  const since = Date.now() - work.t0, notes = ['welcome', 'igLanding'].map(id => document.getElementById(id)).filter(Boolean);
+  // not mid-drag, nor over a dialog, a tour or another prompt: looked at again shortly (the welcome and Instagram notes give way)
+  const due = workDue({ on: accountsOn(), signedOut: account === null && accountKnown, asked: !!workState(), parts: project ? project.elements.length : 0, edits: work.n, since,
+    busy: !!drag || ['saveNudge', 'returnNudge', 'coach'].some(id => document.getElementById(id)) || !!document.querySelector('dialog[open]') || sheetUp() });
+  if (due === 'later') { work.timer = setTimeout(workNudge, work.n < WORK_EDITS && since < WORK_MS ? WORK_MS - since : 5000); return; }
+  if (due !== 'now') return;
+  for (const n of notes) n.remove();
+  setWork('shown'); nudgeTaken(); goal('ask');
+  const card = h('div', { class: 'rt-welcome rt-nudge', id: 'workNudge', role: 'status' });
+  const close = () => card.remove(), no = () => { track('prompt', 'work.no'); close(); };
+  // a way in: the bench comes back as it is, and is saved for them when it can be
+  const yes = (p, fn) => () => { track('prompt', 'work.' + p); goal('ask-yes'); setWork('signin'); close(); fn(); };
+  card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
+    h('h3', null, 'Save this bench? Free account, one click'),
+    h('p', null, 'Your bench stays as it is while you sign in. With JEKrayPro or a university licence it then saves to the cloud, with its history; on the free plan it stays in this browser, and you can export its images and data.'),
+    uniNote(),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
+  track('prompt', 'work.shown');
+  document.getElementById('stage').append(card);
+}
+/* back from a sign-in begun at that note: the bench into the cloud where the plan allows, else said where it is */
+function workSignedIn() {
+  if (workState() !== 'signin' || !accountKnown) return;
+  setWork('shown');
+  if (!account) return;                               // cancelled, or it failed: nothing more
+  if (cloud) return;                                  // already a cloud bench, saving as it goes
+  if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
+  setTimeout(() => toast('Signed in. Your bench is here as you left it, kept in this browser: Save .jekray keeps a copy as a file, and JEKrayPro saves it to the cloud.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */

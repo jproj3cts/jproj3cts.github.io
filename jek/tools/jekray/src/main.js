@@ -204,6 +204,8 @@ import './ui/python.js';
 import './ui/script-calls.js';
 import './ui/scripts.js';
 import './ui/tours.js';
+import './ui/reels.js';
+import './ui/landing.js';
 import './ui/commands.js';
 import './io/recent.js';
 import './io/mods.js';

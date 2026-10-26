@@ -1764,6 +1764,18 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 /* the university line under a prompt's account offer, and the tour's last step, whose buttons wrap */
 .rt-welcome.rt-nudge p.rt-uni, dialog.rt-dialog p.rt-uni { font-size: 0.8rem; }
 .rt-welcome.rt-coach .rt-actions { flex-wrap: wrap; }
+/* the note for a visit from Instagram (landing.js): the reels' benches, a row each, its picture then its words */
+.rt-welcome.rt-landing p { margin: 0 0 0.5rem; color: var(--jek-ink-soft); }
+.rt-welcome .rt-reels { margin: 0 0 0.6rem; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+.rt-reel { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.3rem; text-align: left; font: inherit; color: var(--jek-ink); background: var(--jek-panel);
+  border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; transition: border-color 0.15s; }
+.rt-reel:hover, .rt-reel:focus-visible { border-color: var(--jek-cyan); outline: none; }
+.rt-reel.on { border-color: var(--jek-cyan); }
+.rt-reel img, .rt-reel i { flex: none; display: block; width: 4.8rem; height: 3rem; object-fit: cover; border-radius: 2px; background: #1f2529; }
+.rt-reel span { min-width: 0; }
+.rt-reel b { display: block; font-size: 0.85rem; line-height: 1.3; }
+.rt-reel small { display: block; font-size: 0.78rem; line-height: 1.35; color: var(--jek-ink-soft); }
+.rt-welcome.rt-landing .rt-actions { flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -8766,6 +8778,8 @@ function srcTag(search, referrer) {
     : /(^|\.)linkedin\.com$|^lnkd\.in$/.test(host) ? 'linkedin' : /(^|\.)(t\.co|x\.com|twitter\.com)$/.test(host) ? 'x'
     : /(^|\.)(youtube\.com|youtu\.be)$/.test(host) ? 'youtube' : /(^|\.)reddit\.com$/.test(host) ? 'reddit' : /(^|\.)tiktok\.com$/.test(host) ? 'tiktok' : '';
 }
+/* a visit from one of our Instagram posts: a tag starting "ig" (ig-bio, ig-michelson), or Instagram as the referrer */
+const fromIgTag = tag => /^(ig|instagram$)/.test(tag || '');
 /* ---------- Sign-up prompts: whether one may show ----------
    One cap for them all (io/account.js): once the share dialog, the note after a file save or the return-visit card
    has shown, none of them shows again for a week. */
@@ -8780,6 +8794,17 @@ const OWN_LINK = /[#?&](p=|s=|demo=|tour=|examples|pro\b|benches|pack=|jekinvite
    s: { on, restored, again, signedOut, parts, busy, arrived, last, now } */
 function returnDue(s) {
   return !!(s.on && s.restored && !s.again && s.signedOut && s.parts > 0 && !s.busy && !OWN_LINK.test(s.arrived || '') && nudgeCapOk(s.last, s.now));
+}
+/* The note on a bench worked on (io/account.js workNudge): the person is known to be signed out, has not been asked
+   this session, the bench has parts, and it has had WORK_EDITS edits or WORK_MS since the first; held back (not
+   dropped) while something is being dragged or something else is up.
+   s: { on, signedOut, asked, parts, edits, since, busy }; 'now', 'later' (looked at again) or '' (not this time) */
+const WORK_EDITS = 3, WORK_MS = 60e3;
+function workDue(s) {
+  if (!s.on || !s.signedOut || s.asked || !(s.edits > 0)) return '';
+  if (s.edits < WORK_EDITS && s.since < WORK_MS) return 'later';
+  if (!(s.parts > 0)) return '';
+  return s.busy ? 'later' : 'now';
 }
 /* ==========================================================================
    Drawings: the shapes of the Draw palette as elements, normalised. How they are drawn and
@@ -45373,12 +45398,14 @@ function stepWords(beforeStr, afterStr) {
 const undoWords = () => history.length ? stepWords(history[history.length - 1], snapshot()) : '';
 const redoWords = () => future.length ? stepWords(snapshot(), future[future.length - 1]) : '';
 
-function checkpoint() {
+/* opening: the step before another bench is opened over this one, which is no edit of it */
+function checkpoint(opening) {
   history.push(snapshot());
   if (history.length > 150) history.shift();
   setFuture([]);
   updateUndoButtons();
   markUnsaved(true);
+  if (!opening) benchEdited();
 }
 
 function undo() {
@@ -47054,7 +47081,7 @@ function openProjectData(data, label) {
   const dropped = unsaved && prev && prev.elements.length > 0;     // a bench with changes not saved, replaced: said so, and how to get it back
   pauseAll();
   keepSnapshot('Before opening ' + label, true);
-  if (prev && prev.elements.length) checkpoint();
+  if (prev && prev.elements.length) checkpoint(true);
   try { loadProject(data); } catch (err) { setProject(prev); history.length = hist; updateUndoButtons(); throw err; }
   checkImport(raw, project, notes);
   lastImport = notes;
@@ -50408,6 +50435,7 @@ async function loadAccount() {
   } catch (err) { /* not counted */ }
   fillAccount();
   if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
+  workSignedIn();
   handleInvite();
 }
 /* ---------- Sign-in, offered where it helps ----------
@@ -50474,7 +50502,7 @@ function nudgeCard(id, where, title, body, acts) {
   track('prompt', where + '.shown');
   document.getElementById('stage').append(card);
 }
-const nudgeUp = () => ['saveNudge', 'returnNudge', 'welcome', 'coach'].some(id => document.getElementById(id));
+const nudgeUp = () => ['saveNudge', 'returnNudge', 'workNudge', 'igLanding', 'welcome', 'coach'].some(id => document.getElementById(id));
 function saveNudge() {
   if (!accountsOn() || account !== null || !accountKnown || nudgeUp() || !nudgeAllowed()) return;     // signed out, once that is known
   nudgeTaken();
@@ -50493,6 +50521,62 @@ function returnNudge(again, arrived) {
     h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
     freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
+}
+/* ---------- A bench worked on, signed out ----------
+   Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
+   the account, once a session and never mid-drag, and the bench is kept across the sign-in. Back signed in, it goes
+   to the cloud when their plan saves there (Save to cloud's dialog, named already); on the free plan it stays here,
+   and they are told so. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
+   ('goal' edit), the note shown (ask) and a way in chosen (ask-yes). */
+const WORK_KEY = 'jek-work-ask';             // in this tab's store: 'shown' once asked, 'signin' while signing in from it
+const WORK_QUIET = 2000;                     // still this long after an edit before it is looked at
+const work = { n: 0, t0: 0, timer: 0 };
+const workState = () => { try { return sessionStorage.getItem(WORK_KEY) || ''; } catch (err) { return 'shown'; } };
+const setWork = v => { try { if (v) sessionStorage.setItem(WORK_KEY, v); else sessionStorage.removeItem(WORK_KEY); } catch (err) { /* asked again next visit: fine */ } };
+// on a phone, the settings sheet over the bench's lower half, where the note would go: it waits for the sheet to close
+const sheetUp = () => phoneSheet() && document.getElementById('panel').style.display !== 'none';
+/* an edit of the bench (tabs.js checkpoint): counted, and the note looked at once the bench has been still a moment */
+function benchEdited() {
+  if (!work.n++) { work.t0 = Date.now(); goal('edit'); }
+  if (!accountsOn() || account || workState()) return;
+  clearTimeout(work.timer);
+  work.timer = setTimeout(workNudge, WORK_QUIET);
+}
+function workNudge() {
+  work.timer = 0;
+  const since = Date.now() - work.t0, notes = ['welcome', 'igLanding'].map(id => document.getElementById(id)).filter(Boolean);
+  // not mid-drag, nor over a dialog, a tour or another prompt: looked at again shortly (the welcome and Instagram notes give way)
+  const due = workDue({ on: accountsOn(), signedOut: account === null && accountKnown, asked: !!workState(), parts: project ? project.elements.length : 0, edits: work.n, since,
+    busy: !!drag || ['saveNudge', 'returnNudge', 'coach'].some(id => document.getElementById(id)) || !!document.querySelector('dialog[open]') || sheetUp() });
+  if (due === 'later') { work.timer = setTimeout(workNudge, work.n < WORK_EDITS && since < WORK_MS ? WORK_MS - since : 5000); return; }
+  if (due !== 'now') return;
+  for (const n of notes) n.remove();
+  setWork('shown'); nudgeTaken(); goal('ask');
+  const card = h('div', { class: 'rt-welcome rt-nudge', id: 'workNudge', role: 'status' });
+  const close = () => card.remove(), no = () => { track('prompt', 'work.no'); close(); };
+  // a way in: the bench comes back as it is, and is saved for them when it can be
+  const yes = (p, fn) => () => { track('prompt', 'work.' + p); goal('ask-yes'); setWork('signin'); close(); fn(); };
+  card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
+    h('h3', null, 'Save this bench? Free account, one click'),
+    h('p', null, 'Your bench stays as it is while you sign in. With JEKrayPro or a university licence it then saves to the cloud, with its history; on the free plan it stays in this browser, and you can export its images and data.'),
+    uniNote(),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
+  track('prompt', 'work.shown');
+  document.getElementById('stage').append(card);
+}
+/* back from a sign-in begun at that note: the bench into the cloud where the plan allows, else said where it is */
+function workSignedIn() {
+  if (workState() !== 'signin' || !accountKnown) return;
+  setWork('shown');
+  if (!account) return;                               // cancelled, or it failed: nothing more
+  if (cloud) return;                                  // already a cloud bench, saving as it goes
+  if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
+  setTimeout(() => toast('Signed in. Your bench is here as you left it, kept in this browser: Save .jekray keeps a copy as a file, and JEKrayPro saves it to the cloud.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */
@@ -50644,7 +50728,8 @@ function readSrc() {
   } catch (err) { /* not kept: this visit only */ }
   return { tag, now: !!tag };
 }
-/* something a visit led to (save, share, signin, account, subscribe, pro, remind), counted against where it came from */
+/* something a visit led to (landing, landing-open, edit, ask, ask-yes, save, share, signin, account, subscribe, pro, remind),
+   counted against where it came from */
 function goal(step) { track('goal', (usageSrc || 'none') + '.' + step); }
 /* a visit's start: how it began (fresh, restored, a shared bench, an example), on what, and from where */
 function usageStart(how) {
@@ -51722,6 +51807,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit: your bench stays as it is while you sign in, and with JEKrayPro or a university licence it then goes straight to the cloud.',
     '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
     '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
     '<b>Find a part by what it does</b>: Add part\u2019s search and Ctrl+K know what each part is for, so \u201cfocus\u201d finds the lenses, \u201cmeasure power\u201d the photodetectors and \u201cfrequency doubling\u201d the nonlinear crystal; parts named for what was typed come first.',
@@ -53594,6 +53680,59 @@ function wireTours() {
   });
 
 }
+/* ---------- The benches from our Instagram reels ----------
+   What the "From Instagram" note lists (ui/landing.js), newest first: one line a reel. Each has a title, a short
+   line, and either `demo`, an example's id from EXAMPLES in ui/news.js (its picture comes from demos/thumbs/), or
+   `bench`, a whole bench as a .jekray file's JSON (File › Save, then paste the file's text here). `id` is short and
+   new for each reel: the note shows again to someone who closed it once a reel with a new first id is added.
+   To add a reel: copy the line below to the top of the list and fill it in.
+     { id: 'ig-slug', title: 'What the reel shows', line: 'One short line on what to try.', demo: 'example-id' }, */
+const REELS = [
+  { id: 'michelson', title: 'Michelson interferometer', line: 'Move a mirror and watch the fringes walk.', demo: 'michelson' },
+  { id: 'czerny-turner', title: 'Czerny–Turner spectrometer', line: 'A slit, two mirrors and a grating spread out the lines.', demo: 'czerny-turner' },
+  { id: 'poisson-spot', title: 'Poisson’s spot', line: 'The bright spot in the shadow of a disc.', demo: 'poissons-spot' },
+];
+/* ---------- From Instagram ----------
+   A visit that came from one of our Instagram posts (a tag starting "ig" on its link, or Instagram as the referrer)
+   is shown the benches from the latest reels (ui/reels.js), each a click away, in place of the welcome note. Not to
+   someone signed in; once closed, not again in this browser until a newer reel is listed. Counted against the post
+   as it shows and as a bench is opened from it ('goal' landing, landing-open). */
+const LANDING_KEY = 'jek-ig-landing';       // the newest reel's id when the note was closed
+const fromInstagram = () => !TEST_MODE && !EMBED && fromIgTag(srcTag(location.search, document.referrer));
+function landingClosed() { try { return localStorage.getItem(LANDING_KEY) === REELS[0].id; } catch (err) { return false; } }
+// read before the address is tidied (io/usage.js takes the tag off it)
+const landingDue = () => fromInstagram() && REELS.length > 0 && !landingClosed();
+function hideLanding(keep) {
+  const n = document.getElementById('igLanding');
+  if (n) n.remove();
+  if (keep) try { localStorage.setItem(LANDING_KEY, REELS[0].id); } catch (err) { /* shown again next time: fine */ }
+}
+async function openReel(r) {
+  goal('landing-open');
+  hideLanding(false);
+  if (r.demo) { await openDemo(r.demo, true); return; }
+  const data = JSON.parse(JSON.stringify(r.bench));
+  openProjectData(data, data.name || r.title);
+  if (!data.keepView) fitView();
+}
+/* opened: the example the post's own link opened (#demo=), marked as on the bench */
+async function showLanding(opened) {
+  await accountLoaded;
+  if (account || ['igLanding', 'welcome', 'coach'].some(id => document.getElementById(id)) || document.querySelector('dialog[open]')) return;
+  const dark = themeDark();
+  const reel = r => h('li', null, h('button', { class: 'rt-reel' + (r.demo && r.demo === opened ? ' on' : ''), type: 'button', onclick: () => openReel(r) },
+    r.demo ? h('img', { src: 'demos/thumbs/' + (dark ? '' : 'light/') + r.demo + '.webp', alt: '', loading: 'lazy', width: 96, height: 60 }) : h('i', { 'aria-hidden': 'true' }),
+    h('span', null, h('b', null, r.title), h('small', null, r.demo && r.demo === opened ? 'On the bench now' : r.line))));
+  document.getElementById('stage').append(h('div', { class: 'rt-welcome rt-landing', id: 'igLanding', role: 'note' },
+    h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: () => hideLanding(true) }, '\u00d7'),
+    h('h3', null, 'From Instagram'),
+    h('p', null, 'The benches from our latest reels. Open one and change it yourself: free, in the browser, nothing to install.'),
+    phoneSheet() ? remindForm() : null,
+    h('ul', { class: 'rt-reels' }, ...REELS.map(reel)),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { hideLanding(false); window.openGallery(); } }, 'All examples'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => hideLanding(true) }, 'Close'))));
+  goal('landing');
+}
 /* ---------- Search commands (Ctrl+K) ----------
    Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay
    the one place a command lives, and this reads them as they stand (an item hidden there is left out, one
@@ -54478,6 +54617,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a later visit, or a reload in this session (a tab's own store survives a reload and a sign-in's round trip)
   try { again = !!sessionStorage.getItem('jek-visit'); sessionStorage.setItem('jek-visit', '1'); } catch (err) { /* not told apart: taken as a reload */ }
   const arrived = location.hash + '&' + location.search;
+  const ig = landingDue();
   try {
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
@@ -54489,6 +54629,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   if (EMBED) embedMode();
   const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
   if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
+  // from an Instagram post: the reels' benches, in place of the welcome note
+  else if (ig) { const dm = arrived.match(/[#?&]demo=([a-z0-9-]+)/); setTimeout(() => showLanding(dm && dm[1]), 400); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));

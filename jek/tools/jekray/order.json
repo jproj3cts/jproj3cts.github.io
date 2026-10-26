@@ -204,6 +204,8 @@
   "ui/script-calls.js",
   "ui/scripts.js",
   "ui/tours.js",
+  "ui/reels.js",
+  "ui/landing.js",
   "ui/commands.js",
   "io/recent.js",
   "io/mods.js",

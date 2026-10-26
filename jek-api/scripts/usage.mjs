@@ -76,7 +76,7 @@ export function funnel(r) {
 // the sign-in prompts (the app's track('prompt', '<where>.<answer>')): a row for each, with how often it was shown,
 // each answer, the sign-in clicks among them (a way in chosen: Google, Microsoft or email) and those as a share of shown
 export const WAYS_IN = ['google', 'microsoft', 'email'];
-export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out' };
+export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out', landing: 'From Instagram note, signed out' };
 export function prompts(r) {
   const rows = {};
   for (const e of r.events) {

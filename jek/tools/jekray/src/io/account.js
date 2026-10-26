@@ -754,7 +754,7 @@ const UNI_LINE = 'University email? If your university has a JEKray licence, sig
 export let accountKnown = false;
 const nudgeAllowed = () => { try { return nudgeCapOk(localStorage.getItem(NUDGE_KEY), Date.now()); } catch (err) { return false; } };
 const nudgeTaken = () => { try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch (err) { /* may show again: fine */ } };
-function signInRow(where, close) {
+export function signInRow(where, close) {
   const go = (p, fn) => () => { track('prompt', where + '.' + p); close(); fn(); };
   return [h('button', { class: 'rt-btn primary', type: 'button', onclick: go('google', () => signIn('google')) }, 'Continue with Google'),
     h('button', { class: 'rt-btn', type: 'button', onclick: go('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
@@ -793,6 +793,27 @@ export function exportSignIn(what) {
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'export.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
+/* something that needs more than being signed out, asked for signed out: a JEKrayPro feature (the optimiser, scripts,
+   the cloud, My parts…) or the experimental features (a free account is enough). In place of a toast and the account
+   menu, what it needs and the ways in, as for an export; counted as 'prompt' pro.<answer>, acct.<answer> (an account is enough: My benches) or exp.<answer>. */
+export function gateSignIn(kind, what) {
+  if (!accountsOn()) { toast('Accounts are not available here', true); return; }
+  const exp = kind === 'exp', acct = kind === 'acct', where = exp ? 'exp' : acct ? 'acct' : 'pro';
+  track('prompt', where + '.shown');
+  nudgeTaken();
+  const dlg = promptDialog('gateSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'gateSignInTitle' }, exp ? 'Experimental features need a free account' : 'Sign in first'),
+    h('p', null, exp ? 'Sign in to try the experimental features: a free account is enough.'
+      : acct ? 'Sign in to ' + (what || 'use that') + ': a free account is enough.'
+      : (what ? 'To ' + what + ', JEKrayPro is needed' : 'That is part of JEKrayPro') + ': sign in first (a free account), then choose a plan, or use a team\u2019s or your university\u2019s.'),
+    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(where, close)),
+    h('div', { class: 'rt-actions' },
+      exp || acct ? null : h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'pro.plans'); close(); showSubscribe(); } }, 'See JEKrayPro'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', where + '.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
 /* a note on the bench, in the welcome note's style, with its × in the corner (counted as Not now) */
 function nudgeCard(id, where, title, body, acts) {
   const card = h('div', { class: 'rt-welcome rt-nudge', id, role: 'status' });
@@ -824,18 +845,16 @@ export function returnNudge(again, arrived) {
     freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
 }
-/* ---------- From Instagram's way in ----------
-   The From Instagram note (ui/landing.js) offers a free account with its reels, one click each way, to anyone signed
-   out: a visit from a reel may only look, and never edit enough to be asked after its work. Counted as 'prompt'
-   landing.<answer>. */
-export function landingAccount() {
+/* ---------- A free account offered in a note ----------
+   The first-visit welcome note (where 'welcome') and the From Instagram note (ui/landing.js, 'landing') offer a free
+   account, one click each way, to anyone signed out: a first visit may only look, and never edit enough to be asked
+   after its work. Counted as 'prompt' <where>.<answer>. */
+export function accountOffer(where) {
   if (!accountsOn() || account) return null;
-  const way = (p, label, fn, cls) => h('button', { class: 'rt-btn' + (cls ? ' ' + cls : ''), type: 'button', onclick: () => { track('prompt', 'landing.' + p); fn(); } }, label);
-  track('prompt', 'landing.shown');
+  track('prompt', where + '.shown');
   return h('div', { class: 'rt-landacct' },
     h('p', null, h('b', null, 'Free account, one click:'), ' export images and data, part packs and the experimental features. Your bench stays as it is.'),
-    h('div', { class: 'rt-actions' }, way('google', 'Continue with Google', () => signIn('google'), 'primary'),
-      way('microsoft', 'Microsoft', () => signIn('microsoft')), way('email', 'Email', () => showEmailSignIn(false))));
+    h('div', { class: 'rt-actions' }, ...signInRow(where, () => {})));
 }
 /* ---------- A bench worked on, signed out ----------
    Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers

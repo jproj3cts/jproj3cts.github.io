@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { call, signedIn } from './helpers.js';
 import { MAX_ERRORS, purgeUsage } from '../src/usage.js';
-import { html, prompts, promptAnswers, text } from '../scripts/usage.mjs';
+import { html, isoWeek, people, prompts, promptAnswers, text } from '../scripts/usage.mjs';
 
 const OPS = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const post = (body, opts = {}) => call('/v1/events', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'text/plain' }, ...opts });
@@ -32,6 +32,19 @@ describe('usage counts', () => {
     expect(count(r, 'from', 'ig-spectrometer')).toBe(1);
     expect(count(r, 'goal', 'ig-spectrometer.save')).toBe(1);
     expect(count(r, 'prompt', 'save.shown')).toBe(1);
+  });
+
+  it('counts people without an id: each browser\'s first visit of the day, week and month, and new ones', async () => {
+    const before = people(await report());
+    expect((await post({ tier: 'anon', ev: [['visitor', 'new'], ['visitor', 'day'], ['visitor', 'week'], ['visitor', 'month']] })).status).toBe(200);
+    expect((await post({ tier: 'free', ev: [['visitor', 'day']] })).status).toBe(200);
+    const r = await report(), p = people(r), today = new Date().toISOString().slice(0, 10);
+    expect(r.visitors.length).toBeGreaterThan(0);
+    expect(p.days[today] - (before.days[today] || 0)).toBe(2);
+    expect(p.newcomers - before.newcomers).toBe(1);
+    expect(p.weeks.find((x) => x.k === isoWeek(today)).n).toBeGreaterThan(0);
+    expect(isoWeek('2026-10-26')).toBe('2026-W44');
+    expect(isoWeek('2027-01-01')).toBe('2026-W53');
   });
 
   it('report a funnel for each sign-in prompt: shown, each answer, sign-in clicks and the click-through', async () => {

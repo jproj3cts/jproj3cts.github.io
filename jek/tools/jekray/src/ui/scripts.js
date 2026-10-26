@@ -384,7 +384,7 @@ export function wireScripts() {
   };
   const run = async (o = {}) => {
     const why = scriptsWhy();
-    if (why) { toast(why, true); hooks.proFix(); return; }
+    if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('run scripts'); return; }
     if (scriptRunning()) return;
     keep();
     out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
@@ -451,7 +451,7 @@ export function wireScripts() {
     const why = scriptsWhy();
     gate.hidden = !why;
     if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
-      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix() }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
+      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix('run scripts') }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
     if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
     if (!why) scriptWarm(langOf());
     dlg.showModal();

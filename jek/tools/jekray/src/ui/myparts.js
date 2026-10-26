@@ -11,6 +11,7 @@ import { V3D } from './view3d.js';
 import { helpLine, h } from './panel.js';
 import { clipOf, pasteClip, showCtxMenu, toast } from './actions.js';
 import { proMark } from './pro.js';
+import { hooks } from '../core/hooks.js';
 import { PALETTE_NAMES, PART_DRAG } from './experimental.js';
 import { fillPicker, picker, pickerShown } from './picker.js';
 import { fillRail, flyShown } from './rail.js';
@@ -85,7 +86,7 @@ const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Tea
    opts: { ws: the workspace to keep it in, chosen already; name: its name, given already } */
 export async function saveToMine(list, opts) {
   if (!list.length) return;
-  if (!mineOn()) { toast('Sign in, top right, to keep parts in My parts, with JEKrayPro', true); return; }
+  if (!mineOn()) { hooks.proFix('keep parts in My parts'); return; }
   const places = partPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
   if (!(mine && mine.active) && places.length < 2) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
   const one = list.length === 1, asm = asmOfSelection(list);

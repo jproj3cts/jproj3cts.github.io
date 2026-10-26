@@ -30,6 +30,7 @@ export const LABELS = {
   mod: ['Mods', 'action'], experimental: ['Experimental features', 'switched'], cloud: ['Cloud', 'action'],
   from: ['Where visits came from', 'post tag or site'], goal: ['What visits led to', 'source.step'],
   prompt: ['Sign-in prompts', 'where.answer'], remind: ['Links emailed from a phone', ''],
+  visitor: ['People (browsers)', 'first visit of the day, week, month, or ever'],
 };
 // what a visit can lead to, in the order it usually goes (the app's goal() calls): the Instagram note shown and a
 // bench opened from it, the first edit, the note on a bench worked on shown and a way in chosen from it, then the rest
@@ -62,6 +63,35 @@ export function summarise(r) {
   return { ev, days, visits };
 }
 
+/* People, not visits: the app counts a browser once on its first visit of a day, of an ISO week and of a month
+   (and 'new' on its first visit ever), with no id. So a day's 'day' count is the people who came that day, a week's
+   'week' counts those who came that week, a month's 'month' counts those who came that month; a week or month the
+   report only partly covers is marked as part. */
+export function isoWeek(day) {
+  const t = new Date(day + 'T00:00:00Z'), dow = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - dow);
+  const y0 = Date.UTC(t.getUTCFullYear(), 0, 1);
+  return t.getUTCFullYear() + '-W' + String(Math.ceil(((t - y0) / 864e5 + 1) / 7)).padStart(2, '0');
+}
+export function people(r) {
+  const V = r.visitors || [], days = {}, weeks = {}, months = {};
+  let newcomers = 0;
+  for (const x of V) {
+    if (x.prop === 'day') days[x.day] = (days[x.day] || 0) + x.n;
+    else if (x.prop === 'week') weeks[isoWeek(x.day)] = (weeks[isoWeek(x.day)] || 0) + x.n;
+    else if (x.prop === 'month') months[x.day.slice(0, 7)] = (months[x.day.slice(0, 7)] || 0) + x.n;
+    else if (x.prop === 'new') newcomers += x.n;
+  }
+  // whole periods only are whole counts: the first and last of the range may be cut
+  const all = [];
+  for (let t = Date.parse(r.from); t <= Date.parse(r.to); t += 864e5) all.push(new Date(t).toISOString().slice(0, 10));
+  const part = (key, of) => { const ds = all.filter((d) => of(d) === key); const want = of === isoWeek ? 7 : new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7), 0)).getUTCDate(); return ds.length < want; };
+  const perDay = all.length ? Object.values(days).reduce((a, b) => a + b, 0) / all.length : 0;
+  return { days, perDay, newcomers, any: V.length > 0,
+    weeks: Object.entries(weeks).sort().map(([k, n]) => ({ k, n, part: part(k, isoWeek) })),
+    months: Object.entries(months).sort().map(([k, n]) => ({ k, n, part: part(k, (d) => d.slice(0, 7)) })) };
+}
+
 // a row for each source: visits that came by its link (first), those back within 30 days, and each step
 export function funnel(r) {
   const rows = {};
@@ -76,7 +106,7 @@ export function funnel(r) {
 // the sign-in prompts (the app's track('prompt', '<where>.<answer>')): a row for each, with how often it was shown,
 // each answer, the sign-in clicks among them (a way in chosen: Google, Microsoft or email) and those as a share of shown
 export const WAYS_IN = ['google', 'microsoft', 'email'];
-export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out', landing: 'From Instagram note, signed out' };
+export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out', landing: 'From Instagram note, signed out', welcome: 'First-visit welcome note', pro: 'A JEKrayPro feature, signed out', acct: 'An account feature (My benches), signed out', exp: 'Experimental features, signed out' };
 export function prompts(r) {
   const rows = {};
   for (const e of r.events) {
@@ -112,9 +142,15 @@ export function text(r) {
     const n = TIERS.reduce((a, t) => a + visits[d][t], 0);
     console.log(`  ${d}  ${String(n).padStart(6)}  ${'#'.repeat(Math.round((40 * n) / max))}`);
   }
+  const pp = people(r);
+  if (pp.any) {
+    console.log(`\nPeople (browsers, counted without an id)  ${pp.perDay.toFixed(1)} a day on average, ${pp.newcomers} new`);
+    for (const x of pp.weeks) console.log(`  week  ${x.k}${x.part ? ' (part)' : ''}  ${String(x.n).padStart(6)}`);
+    for (const x of pp.months) console.log(`  month ${x.k}${x.part ? ' (part)' : ''}    ${String(x.n).padStart(6)}`);
+  }
   console.log('');
   for (const [k, [label, what]] of Object.entries(LABELS)) {
-    if (k === 'open' || !ev[k]) continue;
+    if (k === 'open' || k === 'visitor' || !ev[k]) continue;
     const x = ev[k];
     console.log(`${label.padEnd(26)} ${String(x.total).padStart(7)}${v.total ? `   ${(x.total / v.total).toFixed(2)} a visit` : ''}`);
     if (what) for (const [p, n] of top(x.props)) console.log(`    ${p.padEnd(30)} ${String(n).padStart(7)}  ${pct(n, x.total)}`);
@@ -151,6 +187,16 @@ function promptTable(r) {
   if (!p.length) return '';
   const cols = promptAnswers(p);
   return `<h3 style="margin-top:24px">Sign-in prompts <span>where an account is offered: shown, each answer, and the sign-in clicks (${WAYS_IN.join(', ')}) as a share of shown</span></h3><div style="overflow-x:auto"><table><tr><th>where</th><th>shown</th>${cols.map((k) => `<th>${esc(k)}</th>`).join('')}<th>sign-ins</th><th>click-through</th></tr>${p.map((x) => `<tr><td title="${esc(PROMPT_NAMES[x.where] || '')}">${esc(x.where)}</td><td>${x.shown}</td>${cols.map((k) => `<td>${x.answers[k] || 0}</td>`).join('')}<td>${x.signins}</td><td>${pct(x.signins, x.shown)}</td></tr>`).join('')}</table></div>`;
+}
+function peopleHero(r) {
+  const pp = people(r);
+  return pp.any ? `<div><b>${pp.perDay.toFixed(1)}</b>people a day</div><div><b>${pp.newcomers}</b>new people</div>` : '';
+}
+function peopleTable(r) {
+  const pp = people(r);
+  if (!pp.any) return '';
+  const rows = [...pp.weeks.map((x) => ['week', x]), ...pp.months.map((x) => ['month', x])];
+  return `<h3 style="margin-top:24px">People <span>browsers, each counted once a week or a month with no id; a period the report only partly covers is marked part</span></h3><table><tr><th>period</th><th></th><th>people</th></tr>${rows.map(([w, x]) => `<tr><td>${w}</td><td>${esc(x.k)}${x.part ? ' <small>part</small>' : ''}</td><td>${x.n}</td></tr>`).join('')}</table>`;
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 export function html(r) {
@@ -192,13 +238,14 @@ h1{font-size:22px;margin:0 0 4px}h3{font-size:15px;margin:0 0 2px}h3 span{color:
 .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}.cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px;margin-top:24px}
 table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowrap;text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:500}
 .bar{display:inline-block;height:8px;background:var(--free);border-radius:2px;vertical-align:middle}code{font-size:12px;word-break:break-word;white-space:normal}td:last-child{white-space:normal}td:nth-child(3){white-space:nowrap}</style></head><body><main>
-<h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} ${r.days === 1 ? "day" : "days"}. Counts, not people: a visit is one opening of the app.</p>
-<div class="hero"><div><b>${v.total}</b>visits</div>${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
+<h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} ${r.days === 1 ? "day" : "days"}. A visit is one opening of the app; people are browsers, each counted once a day, week or month with no id.</p>
+<div class="hero"><div><b>${v.total}</b>visits</div>${peopleHero(r)}${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
 <h3>Visits a day</h3><div class="key">${TIERS.map((t) => `<span><i class="t-${t}" style="background:var(--${t})"></i>${TIER_NAMES[t]}</span>`).join('')}</div>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visits a day">${grid}${bars}${labels}</svg>
+${peopleTable(r)}
 ${funnelTable(r)}
 ${promptTable(r)}
-<div class="cols">${Object.keys(LABELS).filter((k) => ev[k]).map(section).join('')}</div>
+<div class="cols">${Object.keys(LABELS).filter((k) => ev[k] && k !== 'visitor').map(section).join('')}</div>
 <h3 style="margin-top:28px">Errors <span>${r.errors.length} ${r.errors.length === 1 ? 'kind' : 'kinds'}</span></h3>${errs ? `<table><tr><th>count</th><th>message</th></tr>${errs}</table>` : '<p class="sub">None.</p>'}
 </main></body></html>`;
 }

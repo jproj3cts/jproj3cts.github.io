@@ -8,7 +8,7 @@ import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './
 import { hooks } from '../core/hooks.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
-import { API_BASE } from '../io/account.js';
+import { API_BASE, accountOffer } from '../io/account.js';
 import { goal } from '../io/usage.js';
 import { themeDark } from './render.js';
 
@@ -18,6 +18,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Signing in, where it helps</b>: signed out, asking for something that needs an account (My benches, the experimental features) or JEKrayPro (the optimiser, scripts, the cloud, My parts) now says what it needs, with one-click ways in, rather than just opening the account menu; and the end of a tour and the first-visit welcome note offer a free account too.',
     '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit, for what it gives: exporting the bench\u2019s images and data, making part packs and the experimental features. Your bench stays as it is while you sign in.',
     '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
     '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
@@ -373,6 +374,7 @@ export function showWelcome() {
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
+    accountOffer('welcome'),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
 }
@@ -444,7 +446,7 @@ export function wireNews() {
       const why = expWhy();
       cb.disabled = !!why;
       menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
-        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix(); } }, 'Sign in…')) : null,
+        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix('', 'exp'); } }, 'Sign in…')) : null,
         h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
         EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
           : h('p', { style: 'margin:0' }, 'There are none at the moment.'));

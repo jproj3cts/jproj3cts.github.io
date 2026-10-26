@@ -1,6 +1,6 @@
 import { EMBED, TEST_MODE } from '../core/constants.js';
 import { API_BASE, account } from './account.js';
-import { srcTag } from '../core/src-tag.js';
+import { srcTag, visitorMarks } from '../core/src-tag.js';
 
 /* ---------- Usage counts ----------
    How the tool is used, so it can be made better: which parts are added, which designers and analyses are
@@ -18,7 +18,7 @@ export const usageBrowserSaysNo = () => typeof navigator !== 'undefined' && (nav
 export function usageOff() { try { return localStorage.getItem(USAGE_OFF) === '1'; } catch (err) { return false; } }
 export function setUsageOff(off) {
   try { if (off) localStorage.setItem(USAGE_OFF, '1'); else localStorage.removeItem(USAGE_OFF); } catch (err) { /* not kept: none sent this visit */ }
-  if (off) { usageQ.clear(); usageErrs.length = 0; }
+  if (off) { usageQ.clear(); usageErrs.length = 0; try { localStorage.removeItem('jek-seen'); } catch (err) { /* fine */ } }
   else usageSent = true;                   // not a visit's start: nothing about how it began
 }
 const usageOn = () => !TEST_MODE && !EMBED && !usageBrowserSaysNo() && !usageOff();
@@ -97,6 +97,20 @@ export function usageStart(how) {
   usageSrc = src.tag;
   track('open', how); track('screen', usageScreen()); track('browser', usageBrowser());
   track('from', src.now ? src.tag : src.tag ? src.tag + '.again' : 'none');
+  usageVisitor();
+}
+/* People, not visits, with no id: this browser keeps only the day, week and month it last counted itself in (UTC),
+   and a visit says just which of those are new to it ('visitor' day, week, month; new: never before). Summed, a
+   day's 'day' counts are the browsers that came that day, a week's 'week' counts those that came that week, and so
+   on; nothing sent can tie one count to another. */
+const SEEN_KEY = 'jek-seen';
+function usageVisitor() {
+  if (!usageOn()) return;
+  let was = null;
+  try { was = JSON.parse(localStorage.getItem(SEEN_KEY) || 'null'); } catch (err) { return; }    // no store: not counted, rather than counted again each visit
+  const V = visitorMarks(Date.now(), was);
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(V.seen)); } catch (err) { return; }
+  for (const m of V.marks) track('visitor', m);
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

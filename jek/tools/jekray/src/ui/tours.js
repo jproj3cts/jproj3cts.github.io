@@ -34,7 +34,7 @@ import { cloudLink } from '../io/cloud.js';
 import { keepSnapshot, scheduleSave } from '../io/autosave.js';
 import { hideWelcome } from './news.js';
 import { track } from '../io/usage.js';
-import { account, accountsOn } from '../io/account.js';
+import { account, accountsOn, signInRow } from '../io/account.js';
 import { noteRecent } from '../io/recent.js';
 
 /* ---------- Guided tours ----------
@@ -140,9 +140,12 @@ function tourShow() {
        i > 0 ? h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i--; tourShow(); } }, 'Back') : null,
        h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i++; tourShow(); } }, 'Skip step')];
   if (out) track('prompt', 'tour.shown');
+  // signed out, the end of a tour offers a free account too, one click each way (counted as 'prompt' tour.<way>)
+  const join = out ? h('div', { class: 'rt-landacct' }, h('p', null, h('b', null, 'Keep going with a free account:'), ' export images and data, part packs and the experimental features. One click.'),
+    h('div', { class: 'rt-actions' }, ...signInRow('tour', endTour))) : null;
   c.replaceChildren(h('button', { class: 'rt-wx', type: 'button', title: 'End the tour', 'aria-label': 'End the tour', onclick: endTour }, '\u00d7'),
     h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
-    p, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
+    p, join, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
   for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
   const tg = st.target && tourTarget(st.target);
   if (tg) tg.classList.add('rt-pulse');

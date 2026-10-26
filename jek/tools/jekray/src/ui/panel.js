@@ -306,6 +306,12 @@ export function selectField(label, options, get, set, opts = {}) {
   return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), sel);
 }
 
+/* a link's way across the bench (a fibre, wire or waveguide): curved, or square as in a schematic (render.js
+   squarePts); changed, it starts afresh, its own corners or bends let go */
+export function routeField(F) {
+  return selectField('Route', [['curved', 'Curved'], ['square', 'Square (as in a schematic)']], () => F.route === 'square' ? 'square' : 'curved',
+    v => { if (v === 'square') F.route = 'square'; else delete F.route; F.path = []; delete F.ta; delete F.tb; }, { wide: true });
+}
 export function syncPanel() {
   // skip the input the person is typing in or dragging; buttons always refresh
   for (const box of [mainPanel, ...pinBoxes.values()])
@@ -579,7 +585,12 @@ function renderPanelBody(el) {
     if (A) { assemblyPanel(A); sectionise(panel, 'assembly'); return; }
     groupPanel(selection()); return;
   }
-  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
+  if (!el) {
+    const F = selFibre();
+    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); }   // PIC hook
+    else { renderOverview(); sectionise(panel, 'bench'); }
+    return;
+  }
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   // a part of a designed assembly: locked against a stray edit, the padlock beside the title opening it

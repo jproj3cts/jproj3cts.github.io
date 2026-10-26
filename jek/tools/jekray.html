@@ -1852,6 +1852,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <div class="rt-menu rt-imenu" role="menu" id="themeMenu"></div>
             </div>
             <button type="button" role="menuitemcheckbox" id="btnHoles" aria-checked="true" data-icon="check">Grid holes on the bench</button>
+            <button type="button" role="menuitemcheckbox" id="btnSquare" aria-checked="false" data-icon="check" title="New fibres, wires and waveguides laid square, as in a schematic: click for each corner. Links already laid keep their own way; a link’s panel changes it">Lay new links square</button>
             <button type="button" role="menuitem" id="btnNamesUp" title="Parts' names bigger on the bench, at every zoom">Larger names</button>
             <button type="button" role="menuitem" id="btnNamesDown" title="Parts' names smaller on the bench, at every zoom">Smaller names</button>
             <div class="sep"></div>
@@ -10395,7 +10396,7 @@ function normFibres(list, els) {
       used.add(pkey(...b));
       const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
       const path = Array.isArray(F.path) ? F.path.filter(n => n && isFinite(n.x) && isFinite(n.y)).map(n => ({ x: +n.x, y: +n.y, h1: pt(n.h1), h2: pt(n.h2) })) : [];
-      out.push({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path });
+      out.push(Object.assign({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path }, F.route === 'square' ? { route: 'square' } : {}));
       continue;
     }
     if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
@@ -10414,7 +10415,8 @@ function normFibres(list, els) {
       conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
-      wg: F.wg ? PIC.normWg(F.wg) : undefined });                                            // PIC hook: a waveguide on a chip
+      wg: F.wg ? PIC.normWg(F.wg) : undefined,                                               // PIC hook: a waveguide on a chip
+      route: F.route === 'square' ? 'square' : undefined });                                  // laid square (render.js squarePts)
   }
   return out;
 }
@@ -14738,6 +14740,7 @@ function fibreSegs(F, endB) {
   const pa = portWorld(A, F.a[1]);
   let pb = null;
   if (!endB) { const B = getEl(F.b[0]); if (!B) return null; pb = portWorld(B, F.b[1]); }
+  if (F.route === 'square') return squareSegs(F, pa, pb, endB);
   const nodes = F.path || [], s0 = V().scale;
   const P = [[pa.x, pa.y], ...nodes.map(n => [n.x, n.y]), endB || [pb.x, pb.y]];
   const auto = i => Math.max(24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
@@ -14751,6 +14754,64 @@ function fibreSegs(F, endB) {
     else c2 = [(c1[0] + P[i + 1][0]) / 2, (c1[1] + P[i + 1][1]) / 2];
     segs.push([P[i], c1, c2, P[i + 1]]);
   }
+  return segs;
+}
+/* Square routing (a fibre, wire or waveguide with route 'square', laid as in a schematic program): a
+   short straight stub out of each port along its direction, then only horizontal and vertical runs
+   through its corners (its path's nodes, put down by hand), turning where it must. Each run leaves a
+   corner across the run that came in; the last one meets the far port along its own axis (a Z
+   where it must). Written as straight cubic segments, each knowing the span (between corners) it is in. */
+const SQUARE_STUB = 4;                                  // mm
+let squareMode = (() => { try { return localStorage.getItem('jekray-square-links') === '1'; } catch (err) { return false; } })();
+const squareOn = () => squareMode;
+function setSquareMode(v) {
+  squareMode = !!v;
+  try { if (squareMode) localStorage.setItem('jekray-square-links', '1'); else localStorage.removeItem('jekray-square-links'); } catch (err) { /* this visit only */ }
+  const b = typeof document !== 'undefined' && document.getElementById('btnSquare');
+  if (b) b.setAttribute('aria-checked', squareMode ? 'true' : 'false');
+  return squareMode;
+}
+const axisOf = (dx, dy) => Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+// the corners of one run from p to q: leaving along axis a0, arriving along a1 (or as it likes, null)
+function elbows(p, q, a0, a1) {
+  const ex = 1e-9;
+  if (Math.abs(p[1] - q[1]) < ex || Math.abs(p[0] - q[0]) < ex) return [q];
+  if (!a1 || a0 !== a1) return [a0 === 'h' ? [q[0], p[1]] : [p[0], q[1]], q];
+  if (a0 === 'h') { const m = (p[0] + q[0]) / 2; return [[m, p[1]], [m, q[1]], q]; }
+  const m = (p[1] + q[1]) / 2; return [[p[0], m], [q[0], m], q];
+}
+function squarePts(F, pa, pb, endB) {
+  const nodes = F.path || [], st = SQUARE_STUB;
+  const dirA = Math.hypot(pa.dx, pa.dy) > 1e-9, dirB = pb && Math.hypot(pb.dx, pb.dy) > 1e-9;
+  const s0 = dirA ? [pa.x + pa.dx * st, pa.y + pa.dy * st] : [pa.x, pa.y];
+  const end = pb ? [pb.x, pb.y] : endB, e0 = dirB ? [pb.x + pb.dx * st, pb.y + pb.dy * st] : end;
+  const out = [{ p: [pa.x, pa.y], span: 0 }];
+  if (dirA) out.push({ p: s0, span: 0 });
+  const way = [...nodes.map(n => [n.x, n.y]), e0];
+  let at = s0, ax = dirA ? axisOf(pa.dx, pa.dy) : 'h';
+  way.forEach((q, i) => {
+    const last = i === way.length - 1, a1 = last && dirB ? axisOf(pb.dx, pb.dy) : null;
+    const pts = elbows(at, q, ax, a1);
+    let prev = at;
+    for (const c of pts) {
+      const d = [c[0] - prev[0], c[1] - prev[1]];
+      if (Math.hypot(...d) > 1e-9) { ax = axisOf(...d) === 'h' ? 'v' : 'h'; out.push({ p: c, span: i }); }
+      prev = c;
+    }
+    at = q;
+  });
+  if (dirB) out.push({ p: end, span: way.length - 1 });
+  return out;
+}
+function squareSegs(F, pa, pb, endB) {
+  const P = squarePts(F, pa, pb, endB), segs = [];
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1].p, b = P[i].p, d = [b[0] - a[0], b[1] - a[1]];
+    if (Math.hypot(...d) < 1e-9) continue;
+    const C = [a, [a[0] + d[0] / 3, a[1] + d[1] / 3], [a[0] + 2 * d[0] / 3, a[1] + 2 * d[1] / 3], b];
+    C.span = P[i].span; segs.push(C);
+  }
+  if (!segs.length) { const a = [pa.x, pa.y], C = [a, a, a, a]; C.span = 0; segs.push(C); }
   return segs;
 }
 const toScr = q => [sx(q[0]), sy(q[1])];
@@ -14772,6 +14833,12 @@ function fibreNearest(F, px, py) {
    split there (de Casteljau), the neighbours' handles shortened to match */
 function fibreSplit(F, k, t) {
   const segs = fibreSegs(F), [P0, P1, P2, P3] = segs[k];
+  if (F.route === 'square') {                    // a corner put in where it was taken
+    const M = bez(segs[k], t), i = segs[k].span;
+    F.path = F.path || [];
+    F.path.splice(i, 0, { x: M[0], y: M[1], h1: [0, 0], h2: [0, 0] });
+    return i;
+  }
   const L = (a, b) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   const P01 = L(P0, P1), P12 = L(P1, P2), P23 = L(P2, P3), P012 = L(P01, P12), P123 = L(P12, P23), M = L(P012, P123);
   F.path = F.path || [];
@@ -14789,6 +14856,7 @@ function fibreGrip(F, px, py) {
   if (!segs) return null;
   const near = (q, r) => Math.hypot(sx(q[0]) - px, sy(q[1]) - py) <= (r || 7);
   const nodes = F.path || [];
+  if (F.route === 'square') { for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i }; return null; }   // corners only
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (near([n.x + n.h1[0], n.y + n.h1[1]])) return { type: 'h1', i };
@@ -14846,7 +14914,7 @@ function drawFibres() {
   });
   if (drag && drag.mode === 'fibre' && drag.cur) {
     const el = getEl(drag.from[0]);
-    const segs = el && fibreSegs({ a: drag.from }, [wx(drag.cur[0]), wy(drag.cur[1])]);
+    const segs = el && fibreSegs(drag.square ? { a: drag.from, route: 'square', path: drag.corners } : { a: drag.from }, [wx(drag.cur[0]), wy(drag.cur[1])]);
     const wire = !!ELEC.dirOf(drag.from);                                                   // ELEC hook: a wire being drawn
     if (segs) { tracePath(segs); ctx.setLineDash([6, 4]); ctx.strokeStyle = wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = wire ? 1.8 : 2.5; ctx.stroke(); ctx.setLineDash([]); }
   }
@@ -14858,12 +14926,14 @@ function drawFibreNodes(F, segs) {
     ctx.beginPath(); ctx.moveTo(X0, Y0); ctx.lineTo(X, Y); ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.beginPath(); ctx.arc(X, Y, 3.5, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#0092b2'; ctx.lineWidth = 1.2; ctx.stroke();
   };
-  knob(segs[0][1], segs[0][0]);
-  const last = segs[segs.length - 1];
-  knob(last[2], last[3]);
-  for (const n of F.path || []) {
-    knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
-    knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+  if (F.route !== 'square') {                   // a square route has corners, no handles
+    knob(segs[0][1], segs[0][0]);
+    const last = segs[segs.length - 1];
+    knob(last[2], last[3]);
+    for (const n of F.path || []) {
+      knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
+      knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+    }
   }
   for (const n of F.path || []) {
     const [X, Y] = toScr([n.x, n.y]);
@@ -16064,6 +16134,14 @@ function endPointer(e) {
     const rect = canvas.getBoundingClientRect(), to = drag.cur ? portAt(e.clientX - rect.left, e.clientY - rect.top) : null;
     const d = drag, F = d.fib;
     drag = null; canvas.classList.remove('dragging');
+    // laying a new link square: let go (or clicked) off a port, a corner there, and on to the next click
+    if (d.square && !F && (!to || pkey(...to) === pkey(...d.from))) {
+      if (to && d.laying) { requestRender(); return; }                      // back on its own port: given up
+      if (d.cur && !to) d.corners.push({ x: snapVal(wx(d.cur[0])), y: snapVal(wy(d.cur[1])), h1: [0, 0], h2: [0, 0] });
+      if (!d.laying) toast('Square: click for each corner, then on a port to join it; Backspace takes the last corner back, Esc stops');
+      drag = Object.assign(d, { laying: true });
+      requestRender(); return;
+    }
     if (!d.cur) {                              // a click on a port: select its fibre
       if (F) { setSelFibreId(F.id); selectOne(null); renderPanel(); }
       requestRender(); return;
@@ -16080,7 +16158,12 @@ function endPointer(e) {
       if (taken) { toast('That input already has a wire: an input takes one', true); requestRender(); return; }
       checkpoint();
       if (F) { F.a = a; F.b = b; }
-      else { project.fibres = project.fibres || []; const G = { id: uid(), a, b, wire: true, path: [] }; project.fibres.push(G); setSelFibreId(G.id); selectOne(null); }
+      else {
+        project.fibres = project.fibres || [];
+        const G = { id: uid(), a, b, wire: true, path: [] };
+        if (d.square) Object.assign(G, { route: 'square', path: pkey(...a) === pkey(...d.from) ? d.corners : d.corners.slice().reverse() });   // its corners from its output
+        project.fibres.push(G); setSelFibreId(G.id); selectOne(null);
+      }
       changed(true);
       return;
     }
@@ -16093,7 +16176,13 @@ function endPointer(e) {
     if (to && !busy && pkey(...to) !== pkey(...d.from)) {
       checkpoint();
       if (F) { if (pkey(...F.a) === pkey(...d.from)) F.b = to; else F.a = to; }
-      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; if (lk === 'wg') G.wg = PIC.normWg({}); project.fibres.push(G); setSelFibreId(G.id); selectOne(null); }
+      else {
+        project.fibres = project.fibres || [];
+        const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 };
+        if (lk === 'wg') G.wg = PIC.normWg({});
+        if (d.square) Object.assign(G, { route: 'square', path: d.corners });
+        project.fibres.push(G); setSelFibreId(G.id); selectOne(null);
+      }
       changed(true);
     } else if (F && !to) removeFibre(F);        // pulled off its port: the fibre goes
     else requestRender();
@@ -16132,6 +16221,8 @@ let spaceDown = false;
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 function wirePointer() {
+  const sq = document.getElementById('btnSquare');
+  if (sq) { setSquareMode(squareOn()); sq.addEventListener('click', () => { const on = setSquareMode(!squareOn()); toast(on ? 'New fibres, wires and waveguides are laid square: click for each corner' : 'New fibres, wires and waveguides are drawn curved'); }); }
   canvas.addEventListener('pointerdown', e => {
     canvas.focus({ preventScroll: true });
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* a pointer the browser no longer tracks (a synthetic one) */ }
@@ -16145,6 +16236,11 @@ function wirePointer() {
       return;
     }
     hideCtxMenu();
+    // laying a square link: a click is its next corner (or the port it ends on: endPointer); the right button stops
+    if (drag && drag.mode === 'fibre' && drag.laying) {
+      if (e.button === 2) { drag = null; setPenEnded(performance.now()); requestRender(); return; }
+      drag.cur = [px, py]; return;
+    }
     if (e.button === 2 && penDraft) { finishPen(); setPenEnded(performance.now()); return; }   // the pen's right-click ends its path
     // the right button: a pan if it drags, the menu if it does not
     if (e.button === 2) { drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: false, right: true }; Object.assign(RIGHT, { on: true, moved: false, menu: null }); return; }
@@ -16172,7 +16268,8 @@ function wirePointer() {
     if (port) {
       // ELEC hook: an electrical output feeds any number of wires, so a drag from it always draws a new one
       const F = ELEC.dirOf(port) === 'out' || ELEC.dirOf(port) === 'io' ? null : (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
-      drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null };
+      drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null,
+        square: F ? F.route === 'square' : squareOn(), corners: [] };          // a new link laid square in square mode; a link taken up keeps its own way
       return;
     }
     const hit = hitTest(px, py);
@@ -16349,6 +16446,10 @@ function wirePointer() {
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); return; }
     if (typing) return;
     if (LOCKED && e.key !== ' ') return;                                  // a locked embed: Space pans, nothing else
+    if (drag && drag.mode === 'fibre' && drag.laying) {                    // laying a square link
+      if (e.key === 'Escape') { e.preventDefault(); drag = null; requestRender(); return; }
+      if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); drag.corners.pop(); requestRender(); return; }
+    }
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw'))); return; }
@@ -25642,6 +25743,12 @@ function selectField(label, options, get, set, opts = {}) {
   return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), sel);
 }
 
+/* a link's way across the bench (a fibre, wire or waveguide): curved, or square as in a schematic (render.js
+   squarePts); changed, it starts afresh, its own corners or bends let go */
+function routeField(F) {
+  return selectField('Route', [['curved', 'Curved'], ['square', 'Square (as in a schematic)']], () => F.route === 'square' ? 'square' : 'curved',
+    v => { if (v === 'square') F.route = 'square'; else delete F.route; F.path = []; delete F.ta; delete F.tb; }, { wide: true });
+}
 function syncPanel() {
   // skip the input the person is typing in or dragging; buttons always refresh
   for (const box of [mainPanel, ...pinBoxes.values()])
@@ -25915,7 +26022,12 @@ function renderPanelBody(el) {
     if (A) { assemblyPanel(A); sectionise(panel, 'assembly'); return; }
     groupPanel(selection()); return;
   }
-  if (!el) { const F = selFibre(); if (F && panel === mainPanel) (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); else { renderOverview(); sectionise(panel, 'bench'); } return; }   // PIC hook
+  if (!el) {
+    const F = selFibre();
+    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); }   // PIC hook
+    else { renderOverview(); sectionise(panel, 'bench'); }
+    return;
+  }
 
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   // a part of a designed assembly: locked against a stray edit, the padlock beside the title opening it
@@ -51610,6 +51722,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
     '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
     '<b>Find a part by what it does</b>: Add part\u2019s search and Ctrl+K know what each part is for, so \u201cfocus\u201d finds the lenses, \u201cmeasure power\u201d the photodetectors and \u201cfrequency doubling\u201d the nonlinear crystal; parts named for what was typed come first.',
     '<b>Lines and arrows</b>: the Draw palette gains <b>Line</b> (L) and <b>Arrow</b> (W), straight at a drag (Ctrl for steps of 15\u00b0), and any open path can end in an arrowhead, a dot or a bar; right-click on empty bench for <b>Add a note here</b> and <b>Add an arrow here</b>. The bench\u2019s name sits in the middle of the page when the bar has room.',

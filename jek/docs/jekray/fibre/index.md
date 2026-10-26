@@ -14,6 +14,8 @@ A single-mode fibre carries one spatial mode, so the light in it is two complex 
 
 Fibres drawn on the bench are splines for clarity. Their lengths are settings, not what the drawing shows.
 
+**Square links.** With **View › Lay new links square** ticked, a new fibre, wire or waveguide is laid as in a schematic program (KiCad and the like): click its port, click the bench for each corner, and click the port it ends on (Backspace takes the last corner back; Esc or a right-click stops). It runs only across and up the bench, out of each port a short straight stub, turning at its corners and where it must to meet the far port square on. Links already laid keep their own way when the setting changes; a link's panel has **Route** (Curved or Square) to change that one, starting it afresh. A square link's corners can be dragged when it is selected, pulled out of a run, or double-clicked away.
+
 ## Along a fibre
 
 A fibre of length $$L$$ and loss $$\alpha$$ (dB/km) takes a wave from one end to the other as

@@ -197,7 +197,7 @@ export function normFibres(list, els) {
       used.add(pkey(...b));
       const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
       const path = Array.isArray(F.path) ? F.path.filter(n => n && isFinite(n.x) && isFinite(n.y)).map(n => ({ x: +n.x, y: +n.y, h1: pt(n.h1), h2: pt(n.h2) })) : [];
-      out.push({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path });
+      out.push(Object.assign({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path }, F.route === 'square' ? { route: 'square' } : {}));
       continue;
     }
     if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
@@ -216,7 +216,8 @@ export function normFibres(list, els) {
       conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
-      wg: F.wg ? PIC.normWg(F.wg) : undefined });                                            // PIC hook: a waveguide on a chip
+      wg: F.wg ? PIC.normWg(F.wg) : undefined,                                               // PIC hook: a waveguide on a chip
+      route: F.route === 'square' ? 'square' : undefined });                                  // laid square (render.js squarePts)
   }
   return out;
 }

@@ -1212,6 +1212,7 @@ export function fibreSegs(F, endB) {
   const pa = portWorld(A, F.a[1]);
   let pb = null;
   if (!endB) { const B = getEl(F.b[0]); if (!B) return null; pb = portWorld(B, F.b[1]); }
+  if (F.route === 'square') return squareSegs(F, pa, pb, endB);
   const nodes = F.path || [], s0 = V().scale;
   const P = [[pa.x, pa.y], ...nodes.map(n => [n.x, n.y]), endB || [pb.x, pb.y]];
   const auto = i => Math.max(24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
@@ -1225,6 +1226,64 @@ export function fibreSegs(F, endB) {
     else c2 = [(c1[0] + P[i + 1][0]) / 2, (c1[1] + P[i + 1][1]) / 2];
     segs.push([P[i], c1, c2, P[i + 1]]);
   }
+  return segs;
+}
+/* Square routing (a fibre, wire or waveguide with route 'square', laid as in a schematic program): a
+   short straight stub out of each port along its direction, then only horizontal and vertical runs
+   through its corners (its path's nodes, put down by hand), turning where it must. Each run leaves a
+   corner across the run that came in; the last one meets the far port along its own axis (a Z
+   where it must). Written as straight cubic segments, each knowing the span (between corners) it is in. */
+export const SQUARE_STUB = 4;                                  // mm
+let squareMode = (() => { try { return localStorage.getItem('jekray-square-links') === '1'; } catch (err) { return false; } })();
+export const squareOn = () => squareMode;
+export function setSquareMode(v) {
+  squareMode = !!v;
+  try { if (squareMode) localStorage.setItem('jekray-square-links', '1'); else localStorage.removeItem('jekray-square-links'); } catch (err) { /* this visit only */ }
+  const b = typeof document !== 'undefined' && document.getElementById('btnSquare');
+  if (b) b.setAttribute('aria-checked', squareMode ? 'true' : 'false');
+  return squareMode;
+}
+const axisOf = (dx, dy) => Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+// the corners of one run from p to q: leaving along axis a0, arriving along a1 (or as it likes, null)
+function elbows(p, q, a0, a1) {
+  const ex = 1e-9;
+  if (Math.abs(p[1] - q[1]) < ex || Math.abs(p[0] - q[0]) < ex) return [q];
+  if (!a1 || a0 !== a1) return [a0 === 'h' ? [q[0], p[1]] : [p[0], q[1]], q];
+  if (a0 === 'h') { const m = (p[0] + q[0]) / 2; return [[m, p[1]], [m, q[1]], q]; }
+  const m = (p[1] + q[1]) / 2; return [[p[0], m], [q[0], m], q];
+}
+export function squarePts(F, pa, pb, endB) {
+  const nodes = F.path || [], st = SQUARE_STUB;
+  const dirA = Math.hypot(pa.dx, pa.dy) > 1e-9, dirB = pb && Math.hypot(pb.dx, pb.dy) > 1e-9;
+  const s0 = dirA ? [pa.x + pa.dx * st, pa.y + pa.dy * st] : [pa.x, pa.y];
+  const end = pb ? [pb.x, pb.y] : endB, e0 = dirB ? [pb.x + pb.dx * st, pb.y + pb.dy * st] : end;
+  const out = [{ p: [pa.x, pa.y], span: 0 }];
+  if (dirA) out.push({ p: s0, span: 0 });
+  const way = [...nodes.map(n => [n.x, n.y]), e0];
+  let at = s0, ax = dirA ? axisOf(pa.dx, pa.dy) : 'h';
+  way.forEach((q, i) => {
+    const last = i === way.length - 1, a1 = last && dirB ? axisOf(pb.dx, pb.dy) : null;
+    const pts = elbows(at, q, ax, a1);
+    let prev = at;
+    for (const c of pts) {
+      const d = [c[0] - prev[0], c[1] - prev[1]];
+      if (Math.hypot(...d) > 1e-9) { ax = axisOf(...d) === 'h' ? 'v' : 'h'; out.push({ p: c, span: i }); }
+      prev = c;
+    }
+    at = q;
+  });
+  if (dirB) out.push({ p: end, span: way.length - 1 });
+  return out;
+}
+function squareSegs(F, pa, pb, endB) {
+  const P = squarePts(F, pa, pb, endB), segs = [];
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1].p, b = P[i].p, d = [b[0] - a[0], b[1] - a[1]];
+    if (Math.hypot(...d) < 1e-9) continue;
+    const C = [a, [a[0] + d[0] / 3, a[1] + d[1] / 3], [a[0] + 2 * d[0] / 3, a[1] + 2 * d[1] / 3], b];
+    C.span = P[i].span; segs.push(C);
+  }
+  if (!segs.length) { const a = [pa.x, pa.y], C = [a, a, a, a]; C.span = 0; segs.push(C); }
   return segs;
 }
 export const toScr = q => [sx(q[0]), sy(q[1])];
@@ -1246,6 +1305,12 @@ export function fibreNearest(F, px, py) {
    split there (de Casteljau), the neighbours' handles shortened to match */
 export function fibreSplit(F, k, t) {
   const segs = fibreSegs(F), [P0, P1, P2, P3] = segs[k];
+  if (F.route === 'square') {                    // a corner put in where it was taken
+    const M = bez(segs[k], t), i = segs[k].span;
+    F.path = F.path || [];
+    F.path.splice(i, 0, { x: M[0], y: M[1], h1: [0, 0], h2: [0, 0] });
+    return i;
+  }
   const L = (a, b) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   const P01 = L(P0, P1), P12 = L(P1, P2), P23 = L(P2, P3), P012 = L(P01, P12), P123 = L(P12, P23), M = L(P012, P123);
   F.path = F.path || [];
@@ -1263,6 +1328,7 @@ export function fibreGrip(F, px, py) {
   if (!segs) return null;
   const near = (q, r) => Math.hypot(sx(q[0]) - px, sy(q[1]) - py) <= (r || 7);
   const nodes = F.path || [];
+  if (F.route === 'square') { for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i }; return null; }   // corners only
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     if (near([n.x + n.h1[0], n.y + n.h1[1]])) return { type: 'h1', i };
@@ -1320,7 +1386,7 @@ function drawFibres() {
   });
   if (drag && drag.mode === 'fibre' && drag.cur) {
     const el = getEl(drag.from[0]);
-    const segs = el && fibreSegs({ a: drag.from }, [wx(drag.cur[0]), wy(drag.cur[1])]);
+    const segs = el && fibreSegs(drag.square ? { a: drag.from, route: 'square', path: drag.corners } : { a: drag.from }, [wx(drag.cur[0]), wy(drag.cur[1])]);
     const wire = !!ELEC.dirOf(drag.from);                                                   // ELEC hook: a wire being drawn
     if (segs) { tracePath(segs); ctx.setLineDash([6, 4]); ctx.strokeStyle = wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = wire ? 1.8 : 2.5; ctx.stroke(); ctx.setLineDash([]); }
   }
@@ -1332,12 +1398,14 @@ function drawFibreNodes(F, segs) {
     ctx.beginPath(); ctx.moveTo(X0, Y0); ctx.lineTo(X, Y); ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.beginPath(); ctx.arc(X, Y, 3.5, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = '#0092b2'; ctx.lineWidth = 1.2; ctx.stroke();
   };
-  knob(segs[0][1], segs[0][0]);
-  const last = segs[segs.length - 1];
-  knob(last[2], last[3]);
-  for (const n of F.path || []) {
-    knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
-    knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+  if (F.route !== 'square') {                   // a square route has corners, no handles
+    knob(segs[0][1], segs[0][0]);
+    const last = segs[segs.length - 1];
+    knob(last[2], last[3]);
+    for (const n of F.path || []) {
+      knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
+      knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+    }
   }
   for (const n of F.path || []) {
     const [X, Y] = toScr([n.x, n.y]);

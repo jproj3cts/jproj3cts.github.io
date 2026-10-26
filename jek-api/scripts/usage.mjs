@@ -199,13 +199,14 @@ function peopleBars(r, days) {
   const pp = people(r);
   if (!pp.any) return '';
   const fresh = (d) => Math.min(pp.fresh[d] || 0, pp.days[d] || 0);
-  return `<h3 style="margin-top:20px">People a day <span>browsers, each counted once a day with no id</span></h3>${dayBars(days, [
+  return `<div class="hero" style="margin-top:28px">${peopleHero(r)}</div><h3>People a day <span>browsers, each counted once a day with no id</span></h3>${dayBars(days, [
     { key: 'back', name: 'returning', of: (d) => (pp.days[d] || 0) - fresh(d) }, { key: 'new', name: 'new', of: fresh }], 'People a day')}`;
 }
 function peopleTable(r) {
   const pp = people(r);
   if (!pp.any) return '';
   const rows = [...pp.weeks.map((x) => ['week', x]), ...pp.months.map((x) => ['month', x])];
+  if (!rows.length) return '';
   return `<h3 style="margin-top:24px">People <span>browsers, each counted once a week or a month with no id; a period the report only partly covers is marked part</span></h3><table><tr><th>period</th><th></th><th>people</th></tr>${rows.map(([w, x]) => `<tr><td>${w}</td><td>${esc(x.k)}${x.part ? ' <small>part</small>' : ''}</td><td>${x.n}</td></tr>`).join('')}</table>`;
 }
 /* a bar a day, stacked by series ({ key, name, of(day) }), each series filled by its CSS class t-<key>; a tip on each */
@@ -256,7 +257,7 @@ h1{font-size:22px;margin:0 0 4px}h3{font-size:15px;margin:0 0 2px}h3 span{color:
 table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowrap;text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:500}
 .bar{display:inline-block;height:8px;background:var(--free);border-radius:2px;vertical-align:middle}code{font-size:12px;word-break:break-word;white-space:normal}td:last-child{white-space:normal}td:nth-child(3){white-space:nowrap}</style></head><body><main>
 <h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} ${r.days === 1 ? "day" : "days"}. A visit is one opening of the app; people are browsers, each counted once a day, week or month with no id.</p>
-<div class="hero"><div><b>${v.total}</b>visits</div>${peopleHero(r)}${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
+<div class="hero"><div><b>${v.total}</b>visits</div>${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
 <h3>Visits a day</h3>${dayBars(days, TIERS.map((t) => ({ key: t, name: TIER_NAMES[t], of: (d) => visits[d][t] })), 'Visits a day')}
 ${peopleBars(r, days)}
 ${peopleTable(r)}

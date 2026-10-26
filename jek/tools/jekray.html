@@ -1779,7 +1779,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-reel b { display: block; font-size: 0.85rem; line-height: 1.3; }
 .rt-reel small { display: block; font-size: 0.78rem; line-height: 1.35; color: var(--jek-ink-soft); }
 .rt-welcome.rt-landing .rt-actions { flex-wrap: wrap; }
-.rt-welcome.rt-landing { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
+.rt-welcome.rt-landing, #welcome, .rt-coach { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
 .rt-landacct { border-top: 1px solid var(--jek-line, #ddd5c6); padding-top: 0.55rem; margin-bottom: 0.4rem; }
 .rt-landacct p { font-size: 0.85rem; }
 </style>
@@ -2384,7 +2384,7 @@ const hooks = {
   // the account's parts library, when the page has one: keep a selection as a part (ui/myparts.js saveToMine)
   saveParts: null,
   // the cloud: why a saving, forking or keeping action is not possible now ('' when it is), and the way to make it so (sign in, or subscribe)
-  proWhy: () => '', proFix() {},
+  proWhy: () => '', proFix(what, kind) {},
   // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // mods run in their sandbox on the page
@@ -8786,6 +8786,21 @@ function srcTag(search, referrer) {
 }
 /* a visit from one of our Instagram posts: a tag starting "ig" (ig-bio, ig-michelson), or Instagram as the referrer */
 const fromIgTag = tag => /^(ig|instagram$)/.test(tag || '');
+/* a visit's 'visitor' marks (io/usage.js usageVisitor): which of the day, ISO week and month (UTC) are new to this
+   browser, from what it kept last time (seen: { d, w, m } or nothing: 'new'), and what to keep now */
+function visitorMarks(now, seen) {
+  const d = new Date(now), day = d.toISOString().slice(0, 10), month = day.slice(0, 7);
+  // the ISO week (Monday first), as 2026-W44
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())), dow = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - dow);
+  const y0 = Date.UTC(t.getUTCFullYear(), 0, 1), week = t.getUTCFullYear() + '-W' + String(Math.ceil(((t - y0) / 864e5 + 1) / 7)).padStart(2, '0');
+  const was = seen && typeof seen === 'object' ? seen : null, marks = [];
+  if (!was) marks.push('new');
+  if (!was || was.d !== day) marks.push('day');
+  if (!was || was.w !== week) marks.push('week');
+  if (!was || was.m !== month) marks.push('month');
+  return { marks, seen: { d: day, w: week, m: month } };
+}
 /* ---------- Sign-up prompts: whether one may show ----------
    One cap for them all (io/account.js): once the share dialog, the note after a file save or the return-visit card
    has shown, none of them shows again for a week. */
@@ -27203,8 +27218,9 @@ const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhy
 function designPro(what) {
   const why = designWhy(what);
   if (!why) return true;
-  toast(why, true);
-  if (hooks.proFix) hooks.proFix();
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans
+  if (!/^Sign in/.test(why)) toast(why, true);
+  if (hooks.proFix) hooks.proFix(what);
   return false;
 }
 
@@ -29514,7 +29530,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optical designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
-    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
+    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -30925,7 +30941,7 @@ function drawWs() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
     ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
-    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { toast(why, true); hooks.proFix(); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
+    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveReport(asm); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -44788,7 +44804,7 @@ function showCtxMenu(x, y, items) {
   const m = document.getElementById('ctxMenu');
   m.replaceChildren(...items.map(it => it === '-' ? h('div', { class: 'sep' }) :
     h('button', { type: 'button', role: 'menuitem', disabled: it.off && !it.why ? '' : null, class: it.off && it.why ? 'rt-off rt-proneed' : null, 'aria-disabled': it.off && it.why ? 'true' : null, title: it.off && it.why ? it.why : null,
-      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { toast(it.why, true); hooks.proFix(); } } else it.fn(); } }, it.label, it.key && !(it.off && it.why) ? h('span', { class: 'k' }, it.key) : null)));
+      onclick: () => { hideCtxMenu(); if (it.off) { if (it.why) { if (!/^Sign in/.test(it.why)) toast(it.why, true); hooks.proFix(it.label.toLowerCase()); } } else it.fn(); } }, it.label, it.key && !(it.off && it.why) ? h('span', { class: 'k' }, it.key) : null)));
   m.hidden = false;
   // placed, then moved by however far off it landed: whatever box it is fixed to
   m.style.left = '0px'; m.style.top = '0px';
@@ -48891,7 +48907,7 @@ const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Tea
    opts: { ws: the workspace to keep it in, chosen already; name: its name, given already } */
 async function saveToMine(list, opts) {
   if (!list.length) return;
-  if (!mineOn()) { toast('Sign in, top right, to keep parts in My parts, with JEKrayPro', true); return; }
+  if (!mineOn()) { hooks.proFix('keep parts in My parts'); return; }
   const places = partPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
   if (!(mine && mine.active) && places.length < 2) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
   const one = list.length === 1, asm = asmOfSelection(list);
@@ -50506,6 +50522,27 @@ function exportSignIn(what) {
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'export.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
+/* something that needs more than being signed out, asked for signed out: a JEKrayPro feature (the optimiser, scripts,
+   the cloud, My parts…) or the experimental features (a free account is enough). In place of a toast and the account
+   menu, what it needs and the ways in, as for an export; counted as 'prompt' pro.<answer>, acct.<answer> (an account is enough: My benches) or exp.<answer>. */
+function gateSignIn(kind, what) {
+  if (!accountsOn()) { toast('Accounts are not available here', true); return; }
+  const exp = kind === 'exp', acct = kind === 'acct', where = exp ? 'exp' : acct ? 'acct' : 'pro';
+  track('prompt', where + '.shown');
+  nudgeTaken();
+  const dlg = promptDialog('gateSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'gateSignInTitle' }, exp ? 'Experimental features need a free account' : 'Sign in first'),
+    h('p', null, exp ? 'Sign in to try the experimental features: a free account is enough.'
+      : acct ? 'Sign in to ' + (what || 'use that') + ': a free account is enough.'
+      : (what ? 'To ' + what + ', JEKrayPro is needed' : 'That is part of JEKrayPro') + ': sign in first (a free account), then choose a plan, or use a team\u2019s or your university\u2019s.'),
+    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(where, close)),
+    h('div', { class: 'rt-actions' },
+      exp || acct ? null : h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'pro.plans'); close(); showSubscribe(); } }, 'See JEKrayPro'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', where + '.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
 /* a note on the bench, in the welcome note's style, with its × in the corner (counted as Not now) */
 function nudgeCard(id, where, title, body, acts) {
   const card = h('div', { class: 'rt-welcome rt-nudge', id, role: 'status' });
@@ -50537,18 +50574,16 @@ function returnNudge(again, arrived) {
     freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
 }
-/* ---------- From Instagram's way in ----------
-   The From Instagram note (ui/landing.js) offers a free account with its reels, one click each way, to anyone signed
-   out: a visit from a reel may only look, and never edit enough to be asked after its work. Counted as 'prompt'
-   landing.<answer>. */
-function landingAccount() {
+/* ---------- A free account offered in a note ----------
+   The first-visit welcome note (where 'welcome') and the From Instagram note (ui/landing.js, 'landing') offer a free
+   account, one click each way, to anyone signed out: a first visit may only look, and never edit enough to be asked
+   after its work. Counted as 'prompt' <where>.<answer>. */
+function accountOffer(where) {
   if (!accountsOn() || account) return null;
-  const way = (p, label, fn, cls) => h('button', { class: 'rt-btn' + (cls ? ' ' + cls : ''), type: 'button', onclick: () => { track('prompt', 'landing.' + p); fn(); } }, label);
-  track('prompt', 'landing.shown');
+  track('prompt', where + '.shown');
   return h('div', { class: 'rt-landacct' },
     h('p', null, h('b', null, 'Free account, one click:'), ' export images and data, part packs and the experimental features. Your bench stays as it is.'),
-    h('div', { class: 'rt-actions' }, way('google', 'Continue with Google', () => signIn('google'), 'primary'),
-      way('microsoft', 'Microsoft', () => signIn('microsoft')), way('email', 'Email', () => showEmailSignIn(false))));
+    h('div', { class: 'rt-actions' }, ...signInRow(where, () => {})));
 }
 /* ---------- A bench worked on, signed out ----------
    Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
@@ -50688,7 +50723,7 @@ const usageBrowserSaysNo = () => typeof navigator !== 'undefined' && (navigator.
 function usageOff() { try { return localStorage.getItem(USAGE_OFF) === '1'; } catch (err) { return false; } }
 function setUsageOff(off) {
   try { if (off) localStorage.setItem(USAGE_OFF, '1'); else localStorage.removeItem(USAGE_OFF); } catch (err) { /* not kept: none sent this visit */ }
-  if (off) { usageQ.clear(); usageErrs.length = 0; }
+  if (off) { usageQ.clear(); usageErrs.length = 0; try { localStorage.removeItem('jek-seen'); } catch (err) { /* fine */ } }
   else usageSent = true;                   // not a visit's start: nothing about how it began
 }
 const usageOn = () => !TEST_MODE && !EMBED && !usageBrowserSaysNo() && !usageOff();
@@ -50767,6 +50802,20 @@ function usageStart(how) {
   usageSrc = src.tag;
   track('open', how); track('screen', usageScreen()); track('browser', usageBrowser());
   track('from', src.now ? src.tag : src.tag ? src.tag + '.again' : 'none');
+  usageVisitor();
+}
+/* People, not visits, with no id: this browser keeps only the day, week and month it last counted itself in (UTC),
+   and a visit says just which of those are new to it ('visitor' day, week, month; new: never before). Summed, a
+   day's 'day' counts are the browsers that came that day, a week's 'week' counts those that came that week, and so
+   on; nothing sent can tie one count to another. */
+const SEEN_KEY = 'jek-seen';
+function usageVisitor() {
+  if (!usageOn()) return;
+  let was = null;
+  try { was = JSON.parse(localStorage.getItem(SEEN_KEY) || 'null'); } catch (err) { return; }    // no store: not counted, rather than counted again each visit
+  const V = visitorMarks(Date.now(), was);
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(V.seen)); } catch (err) { return; }
+  for (const m of V.marks) track('visitor', m);
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
@@ -50869,10 +50918,11 @@ const cloudOn = () => accountsOn() && !!account;
 /* why saving to the cloud, forking and keeping parts are not possible now: not signed in, or no plan anywhere the
    person can save (their own JEKrayPro, or a team with a plan); '' when they are */
 const proWhy = () => (!account ? 'Sign in, top right, to use the cloud' : newPlaces().some(w => w.active) ? '' : 'Needs JEKrayPro: subscribe from the account menu, or join a team with a plan');
-/* the way to make it possible: the sign-in menu, or the subscribe dialog */
-function proFix() {
+/* the way to make it possible: signed out, what it needs and the ways in (gateSignIn; kind 'exp' for the experimental
+   features, which an account is enough for); signed in, the subscribe dialog. what: what was asked for, as 'optimise a design' */
+function proFix(what, kind) {
   // after the menu the click came from has closed
-  setTimeout(() => { if (!account) { const b = document.getElementById('btnAcct'); if (b && document.getElementById('acctMenu').hidden) b.click(); } else showSubscribe(); });
+  setTimeout(() => { if (!account) gateSignIn(kind === 'exp' || kind === 'acct' ? kind : 'pro', typeof what === 'string' ? what : ''); else if (kind !== 'exp' && kind !== 'acct') showSubscribe(); });
 }
 /* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix.
    badge: 'pro' (the Pro badge, the default) or 'account' (Free account) for what is missing, or a word of its own */
@@ -50893,8 +50943,10 @@ function gateItem(el, why, badge) {
 /* a gated item's click: true when it was off (explained, and the fix offered), so the handler stops */
 function gated(el) {
   if (!el.dataset.why) return false;
-  toast(el.dataset.why, true);
-  if (el.dataset.why.startsWith('Sign in') || account) proFix();
+  // signed out, the card says it all; signed in, why it is off, and the plans
+  if (account) toast(el.dataset.why, true);
+  if (el.dataset.why.startsWith('Sign in') || account) proFix(el.dataset.what || (el.textContent || '').replace(/\s*(Pro|Free account)\s*$/, '').replace(/…$/, '').trim().replace(/^My /, 'open your ').toLowerCase(), el.classList.contains('rt-acctneed') ? 'acct' : 'pro');
+  else toast(el.dataset.why, true);
   return true;
 }
 function cloudChanged() {
@@ -51646,7 +51698,7 @@ function homeInert(on) {
   }
 }
 function openHome(push = true) {
-  if (!cloudOn()) { toast(accountsOn() ? 'Sign in, top right, to see your benches' : 'Cloud benches are not available here', true); return; }
+  if (!cloudOn()) { if (accountsOn()) proFix('see your benches', 'acct'); else toast('Cloud benches are not available here', true); return; }
   const home = document.getElementById('home');
   Object.assign(cloudPlace, { q: '' });
   if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') Object.assign(cloudPlace, { view: 'folder', history: null });
@@ -51835,6 +51887,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Signing in, where it helps</b>: signed out, asking for something that needs an account (My benches, the experimental features) or JEKrayPro (the optimiser, scripts, the cloud, My parts) now says what it needs, with one-click ways in, rather than just opening the account menu; and the end of a tour and the first-visit welcome note offer a free account too.',
     '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit, for what it gives: exporting the bench\u2019s images and data, making part packs and the experimental features. Your bench stays as it is while you sign in.',
     '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
     '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
@@ -52190,6 +52243,7 @@ function showWelcome() {
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
+    accountOffer('welcome'),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
 }
@@ -52261,7 +52315,7 @@ function wireNews() {
       const why = expWhy();
       cb.disabled = !!why;
       menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
-        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix(); } }, 'Sign in…')) : null,
+        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix('', 'exp'); } }, 'Sign in…')) : null,
         h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
         EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
           : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
@@ -53063,7 +53117,7 @@ function wireScripts() {
   };
   const run = async (o = {}) => {
     const why = scriptsWhy();
-    if (why) { toast(why, true); hooks.proFix(); return; }
+    if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('run scripts'); return; }
     if (scriptRunning()) return;
     keep();
     out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
@@ -53130,7 +53184,7 @@ function wireScripts() {
     const why = scriptsWhy();
     gate.hidden = !why;
     if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
-      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix() }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
+      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix('run scripts') }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
     if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
     if (!why) scriptWarm(langOf());
     dlg.showModal();
@@ -53240,9 +53294,12 @@ function tourShow() {
        i > 0 ? h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i--; tourShow(); } }, 'Back') : null,
        h('button', { class: 'rt-btn', type: 'button', onclick: () => { tour.i++; tourShow(); } }, 'Skip step')];
   if (out) track('prompt', 'tour.shown');
+  // signed out, the end of a tour offers a free account too, one click each way (counted as 'prompt' tour.<way>)
+  const join = out ? h('div', { class: 'rt-landacct' }, h('p', null, h('b', null, 'Keep going with a free account:'), ' export images and data, part packs and the experimental features. One click.'),
+    h('div', { class: 'rt-actions' }, ...signInRow('tour', endTour))) : null;
   c.replaceChildren(h('button', { class: 'rt-wx', type: 'button', title: 'End the tour', 'aria-label': 'End the tour', onclick: endTour }, '\u00d7'),
     h('div', { class: 'rt-coachhead' }, h('h3', null, T.title), h('span', null, st.final ? 'Done' : 'Step ' + (i + 1) + ' of ' + (T.steps.length - 1))),
-    p, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
+    p, join, h('div', { class: 'rt-actions' }, ...acts.filter(Boolean)));
   for (const e of document.querySelectorAll('.rt-pulse')) e.classList.remove('rt-pulse');
   const tg = st.target && tourTarget(st.target);
   if (tg) tg.classList.add('rt-pulse');
@@ -53764,7 +53821,7 @@ async function showLanding(opened) {
     h('p', null, 'The benches from our latest reels. Open one and change it yourself: free, in the browser, nothing to install.'),
     phoneSheet() ? remindForm() : null,
     list,
-    landingAccount(),
+    accountOffer('landing'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { hideLanding(false); window.openGallery(); } }, 'All examples'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => hideLanding(true) }, 'Close'))));
   reelsFit(list);

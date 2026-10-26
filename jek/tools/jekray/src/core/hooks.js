@@ -18,7 +18,7 @@ export const hooks = {
   // the account's parts library, when the page has one: keep a selection as a part (ui/myparts.js saveToMine)
   saveParts: null,
   // the cloud: why a saving, forking or keeping action is not possible now ('' when it is), and the way to make it so (sign in, or subscribe)
-  proWhy: () => '', proFix() {},
+  proWhy: () => '', proFix(what, kind) {},
   // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // mods run in their sandbox on the page

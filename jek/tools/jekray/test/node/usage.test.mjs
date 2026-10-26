@@ -31,3 +31,16 @@ test('the counts go without credentials, as plain text, and not from an embed, t
   assert.match(u, /doNotTrack === '1'/);
   assert.doesNotMatch(u, /document\.cookie|crypto\.randomUUID|getRandomValues/);
 });
+
+test('people are counted without an id: a browser marks only the first visit of its day, week and month, and its first ever', async () => {
+  const { visitorMarks } = await import('../../src/core/src-tag.js');
+  const t = Date.parse('2026-10-26T10:00:00Z'), a = visitorMarks(t, null);
+  assert.deepEqual(a.marks, ['new', 'day', 'week', 'month']);
+  assert.deepEqual(a.seen, { d: '2026-10-26', w: '2026-W44', m: '2026-10' });
+  assert.deepEqual(visitorMarks(t + 3600e3, a.seen).marks, [], 'again the same day: nothing');
+  assert.deepEqual(visitorMarks(Date.parse('2026-10-27T09:00:00Z'), a.seen).marks, ['day'], 'the next day, same week and month');
+  assert.deepEqual(visitorMarks(Date.parse('2026-11-02T09:00:00Z'), a.seen).marks, ['day', 'week', 'month']);
+  assert.equal(visitorMarks(Date.parse('2027-01-01T00:00:00Z'), null).seen.w, '2026-W53');
+  // what is kept and sent holds no id: dates only
+  assert.deepEqual(Object.keys(a.seen).sort(), ['d', 'm', 'w']);
+});

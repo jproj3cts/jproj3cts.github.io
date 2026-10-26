@@ -7,7 +7,7 @@ import { remindForm } from './news.js';
 import { themeDark } from './render.js';
 import { REELS } from './reels.js';
 import { openProjectData } from '../io/open.js';
-import { account, accountLoaded, landingAccount } from '../io/account.js';
+import { account, accountLoaded, accountOffer } from '../io/account.js';
 import { goal } from '../io/usage.js';
 
 /* ---------- From Instagram ----------
@@ -48,7 +48,7 @@ export async function showLanding(opened) {
     h('p', null, 'The benches from our latest reels. Open one and change it yourself: free, in the browser, nothing to install.'),
     phoneSheet() ? remindForm() : null,
     list,
-    landingAccount(),
+    accountOffer('landing'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { hideLanding(false); window.openGallery(); } }, 'All examples'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => hideLanding(true) }, 'Close'))));
   reelsFit(list);

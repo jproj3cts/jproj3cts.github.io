@@ -18,8 +18,9 @@ export const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : de
 export function designPro(what) {
   const why = designWhy(what);
   if (!why) return true;
-  toast(why, true);
-  if (hooks.proFix) hooks.proFix();
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans
+  if (!/^Sign in/.test(why)) toast(why, true);
+  if (hooks.proFix) hooks.proFix(what);
   return false;
 }
 

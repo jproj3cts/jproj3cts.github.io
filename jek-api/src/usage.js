@@ -16,6 +16,7 @@ import { ApiError } from './util.js';
 export const EVENTS = new Set([
   'open', 'leave', 'screen', 'browser',                 // a visit: how it began, how long, on what
   'from', 'goal', 'prompt', 'remind',                   // where a visit came from (a post's tag), what it led to, sign-in prompts, links emailed
+  'visitor',                                            // a browser's first visit of the day, week or month, or ever (no id: see the app's usageVisitor)
   'part', 'example', 'import', 'export', 'save', 'share', 'view', 'beam', 'sweep', 'field',
   'designer', 'optimise', 'analysis', 'tolerance', 'report', 'search',
   'tour', 'help', 'news', 'signin', 'subscribe', 'quote', 'mod', 'experimental', 'cloud',
@@ -67,12 +68,14 @@ export async function report(req, env) {
   const days = Math.max(1, Math.min(KEEP_DAYS, Number(new URL(req.url).searchParams.get('days')) || 30));
   const from = daysAgo(days - 1), to = today();
   const q = (sql) => env.DB.prepare(sql).bind(from, to).all().then((r) => r.results);
-  const [daily, events, errors] = await Promise.all([
+  const [daily, events, errors, visitors] = await Promise.all([
     q('SELECT day, event, tier, SUM(n) AS n FROM usage_daily WHERE day BETWEEN ? AND ? GROUP BY day, event, tier ORDER BY day'),
     q('SELECT event, prop, tier, SUM(n) AS n FROM usage_daily WHERE day BETWEEN ? AND ? GROUP BY event, prop, tier ORDER BY event, n DESC'),
     q('SELECT msg, src, SUM(n) AS n, MIN(day) AS first, MAX(day) AS last FROM usage_errors WHERE day BETWEEN ? AND ? GROUP BY msg, src ORDER BY n DESC LIMIT 100'),
+    // people: each day's first-of-the-day, -week and -month visits by browsers, and those never seen before
+    q("SELECT day, prop, SUM(n) AS n FROM usage_daily WHERE day BETWEEN ? AND ? AND event = 'visitor' GROUP BY day, prop ORDER BY day"),
   ]);
-  return { from, to, days, daily, events, errors };
+  return { from, to, days, daily, events, errors, visitors };
 }
 
 // daily: counts older than 25 months, and errors older than 90 days, go

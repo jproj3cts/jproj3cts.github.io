@@ -17,7 +17,7 @@ import { MENU_ICONS } from './packs.js';
 import { openShortLink, shortUrl } from './share.js';
 import {
   API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, avatarNode, awaitPlan, fillAccount, setAccount,
-  showSubscribe
+  gateSignIn, showSubscribe
 } from './account.js';
 import { keepSnapshot, scheduleSave } from './autosave.js';
 import { newProject, openZmx } from '../ui/tours.js';
@@ -111,10 +111,11 @@ export const cloudOn = () => accountsOn() && !!account;
 /* why saving to the cloud, forking and keeping parts are not possible now: not signed in, or no plan anywhere the
    person can save (their own JEKrayPro, or a team with a plan); '' when they are */
 export const proWhy = () => (!account ? 'Sign in, top right, to use the cloud' : newPlaces().some(w => w.active) ? '' : 'Needs JEKrayPro: subscribe from the account menu, or join a team with a plan');
-/* the way to make it possible: the sign-in menu, or the subscribe dialog */
-export function proFix() {
+/* the way to make it possible: signed out, what it needs and the ways in (gateSignIn; kind 'exp' for the experimental
+   features, which an account is enough for); signed in, the subscribe dialog. what: what was asked for, as 'optimise a design' */
+export function proFix(what, kind) {
   // after the menu the click came from has closed
-  setTimeout(() => { if (!account) { const b = document.getElementById('btnAcct'); if (b && document.getElementById('acctMenu').hidden) b.click(); } else showSubscribe(); });
+  setTimeout(() => { if (!account) gateSignIn(kind === 'exp' || kind === 'acct' ? kind : 'pro', typeof what === 'string' ? what : ''); else if (kind !== 'exp' && kind !== 'acct') showSubscribe(); });
 }
 /* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix.
    badge: 'pro' (the Pro badge, the default) or 'account' (Free account) for what is missing, or a word of its own */
@@ -135,8 +136,10 @@ export function gateItem(el, why, badge) {
 /* a gated item's click: true when it was off (explained, and the fix offered), so the handler stops */
 export function gated(el) {
   if (!el.dataset.why) return false;
-  toast(el.dataset.why, true);
-  if (el.dataset.why.startsWith('Sign in') || account) proFix();
+  // signed out, the card says it all; signed in, why it is off, and the plans
+  if (account) toast(el.dataset.why, true);
+  if (el.dataset.why.startsWith('Sign in') || account) proFix(el.dataset.what || (el.textContent || '').replace(/\s*(Pro|Free account)\s*$/, '').replace(/…$/, '').trim().replace(/^My /, 'open your ').toLowerCase(), el.classList.contains('rt-acctneed') ? 'acct' : 'pro');
+  else toast(el.dataset.why, true);
   return true;
 }
 export function cloudChanged() {
@@ -888,7 +891,7 @@ function homeInert(on) {
   }
 }
 export function openHome(push = true) {
-  if (!cloudOn()) { toast(accountsOn() ? 'Sign in, top right, to see your benches' : 'Cloud benches are not available here', true); return; }
+  if (!cloudOn()) { if (accountsOn()) proFix('see your benches', 'acct'); else toast('Cloud benches are not available here', true); return; }
   const home = document.getElementById('home');
   Object.assign(cloudPlace, { q: '' });
   if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') Object.assign(cloudPlace, { view: 'folder', history: null });

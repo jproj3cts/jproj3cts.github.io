@@ -105,6 +105,7 @@ import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
 import { usageStart, wireUsage } from '../io/usage.js';
+import { landingDue, showLanding } from './landing.js';
 import { phosphorRead } from './phosphor.js';
 
 
@@ -128,6 +129,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a later visit, or a reload in this session (a tab's own store survives a reload and a sign-in's round trip)
   try { again = !!sessionStorage.getItem('jek-visit'); sessionStorage.setItem('jek-visit', '1'); } catch (err) { /* not told apart: taken as a reload */ }
   const arrived = location.hash + '&' + location.search;
+  const ig = landingDue();
   try {
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
@@ -139,6 +141,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   if (EMBED) embedMode();
   const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
   if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
+  // from an Instagram post: the reels' benches, in place of the welcome note
+  else if (ig) { const dm = arrived.match(/[#?&]demo=([a-z0-9-]+)/); setTimeout(() => showLanding(dm && dm[1]), 400); }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));

@@ -31,8 +31,9 @@ export const LABELS = {
   from: ['Where visits came from', 'post tag or site'], goal: ['What visits led to', 'source.step'],
   prompt: ['Sign-in prompts', 'where.answer'], remind: ['Links emailed from a phone', ''],
 };
-// what a visit can lead to, in the order it usually goes (the app's goal() calls)
-export const STEPS = ['save', 'share', 'remind', 'signin', 'account', 'subscribe', 'pro'];
+// what a visit can lead to, in the order it usually goes (the app's goal() calls): the Instagram note shown and a
+// bench opened from it, the first edit, the note on a bench worked on shown and a way in chosen from it, then the rest
+export const STEPS = ['landing', 'landing-open', 'edit', 'ask', 'ask-yes', 'save', 'share', 'remind', 'signin', 'account', 'subscribe', 'pro'];
 const TIERS = ['anon', 'free', 'pro'], TIER_NAMES = { anon: 'signed out', free: 'free', pro: 'JEKrayPro' };
 
 async function get(days) {
@@ -75,7 +76,7 @@ export function funnel(r) {
 // the sign-in prompts (the app's track('prompt', '<where>.<answer>')): a row for each, with how often it was shown,
 // each answer, the sign-in clicks among them (a way in chosen: Google, Microsoft or email) and those as a share of shown
 export const WAYS_IN = ['google', 'microsoft', 'email'];
-export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out' };
+export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out' };
 export function prompts(r) {
   const rows = {};
   for (const e of r.events) {
@@ -125,8 +126,8 @@ export function text(r) {
   const f = funnel(r);
   if (f.length) {
     console.log('\nBy source (none: no tag and no social site)');
-    console.log(`    ${'source'.padEnd(24)} ${'visits'.padStart(7)} ${'back'.padStart(6)} ${STEPS.map((k) => k.padStart(9)).join(' ')}`);
-    for (const x of f) console.log(`    ${x.src.padEnd(24)} ${String(x.visits).padStart(7)} ${String(x.again).padStart(6)} ${STEPS.map((k) => String(x.steps[k]).padStart(9)).join(' ')}`);
+    console.log(`    ${'source'.padEnd(24)} ${'visits'.padStart(7)} ${'back'.padStart(6)} ${STEPS.map((k) => k.padStart(12)).join(' ')}`);
+    for (const x of f) console.log(`    ${x.src.padEnd(24)} ${String(x.visits).padStart(7)} ${String(x.again).padStart(6)} ${STEPS.map((k) => String(x.steps[k]).padStart(12)).join(' ')}`);
   }
   const p = prompts(r);
   if (p.length) {

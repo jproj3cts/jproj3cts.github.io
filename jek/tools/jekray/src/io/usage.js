@@ -86,7 +86,8 @@ function readSrc() {
   } catch (err) { /* not kept: this visit only */ }
   return { tag, now: !!tag };
 }
-/* something a visit led to (save, share, signin, account, subscribe, pro, remind), counted against where it came from */
+/* something a visit led to (landing, landing-open, edit, ask, ask-yes, save, share, signin, account, subscribe, pro, remind),
+   counted against where it came from */
 export function goal(step) { track('goal', (usageSrc || 'none') + '.' + step); }
 /* a visit's start: how it began (fresh, restored, a shared bench, an example), on what, and from where */
 export function usageStart(how) {

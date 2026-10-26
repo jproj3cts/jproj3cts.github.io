@@ -18,6 +18,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit: your bench stays as it is while you sign in, and with JEKrayPro or a university licence it then goes straight to the cloud.',
     '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
     '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
     '<b>Find a part by what it does</b>: Add part\u2019s search and Ctrl+K know what each part is for, so \u201cfocus\u201d finds the lenses, \u201cmeasure power\u201d the photodetectors and \u201cfrequency doubling\u201d the nonlinear crystal; parts named for what was typed come first.',
@@ -327,7 +328,7 @@ const BETA_EXAMPLES = new Set(['polarisation-spectroscopy', 'optical-lattice', '
 const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
 /* on a phone: the link emailed, to open on a computer later. The address goes to the API, which sends one fixed
    email and keeps no copy of it (jek-api src/remind.js) */
-function remindForm() {
+export function remindForm() {
   const input = h('input', { type: 'email', id: 'remindAddr', autocomplete: 'email', placeholder: 'you@example.com', spellcheck: 'false', 'aria-label': 'Your email address' });
   const btn = h('button', { class: 'rt-btn primary', type: 'submit' }, 'Send');
   const say = h('p', { class: 'rt-wsay', hidden: '', role: 'status' });

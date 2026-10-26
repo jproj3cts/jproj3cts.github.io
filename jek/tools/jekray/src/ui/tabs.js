@@ -8,6 +8,7 @@ import { stopSweepsFor } from './optimise.js';
 import { h, renderPanel } from './panel.js';
 import { changed, markUnsaved, updateUndoButtons } from './actions.js';
 import { scheduleSave } from '../io/autosave.js';
+import { benchEdited } from '../io/account.js';
 
 /* ==========================================================================
    Bench tabs: switching, adding and removing benches, the tab row, and the undo history.
@@ -187,12 +188,14 @@ function stepWords(beforeStr, afterStr) {
 export const undoWords = () => history.length ? stepWords(history[history.length - 1], snapshot()) : '';
 export const redoWords = () => future.length ? stepWords(snapshot(), future[future.length - 1]) : '';
 
-export function checkpoint() {
+/* opening: the step before another bench is opened over this one, which is no edit of it */
+export function checkpoint(opening) {
   history.push(snapshot());
   if (history.length > 150) history.shift();
   setFuture([]);
   updateUndoButtons();
   markUnsaved(true);
+  if (!opening) benchEdited();
 }
 
 export function undo() {

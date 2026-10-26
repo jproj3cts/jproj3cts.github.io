@@ -11,7 +11,7 @@ import {
   H, W, canvas, ctx, fibreAtPx, getCss, halfSize, hornShape, lightLayer, removeFibre, requestRender,
   selection, setSelFibreId, setSelection, sx, sy, themeDark, worldBox, wx, wy
 } from './render.js';
-import { editText, flipEls, groupEls, groupOf, labelAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
+import { arrowAt, editText, flipEls, groupEls, groupOf, labelAt, noteAt, partsLocked, penEnded, restack, ungroupEls } from './drawings.js';
 import { RIGHT, drag, hitTest, setDrag, snapVal } from './pointer.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
@@ -209,7 +209,9 @@ export function benchMenu(X, Y, hit, at, in3d) {
   if (!hit) {
     showCtxMenu(X, Y, [paste, '-',
       { label: 'Select all on this tab', key: 'Ctrl+A', fn: () => setSelection(project.elements.filter(onTab)) },
-      { label: 'Zoom to fit', key: in3d ? 'F' : null, fn: in3d ? () => V3D.fit(null, true) : fitView }, ...(in3d ? [] : [{ label: measureMode ? 'Stop measuring' : 'Measure', key: 'M', fn: () => setMeasure(!measureMode) }])]);
+      { label: 'Zoom to fit', key: in3d ? 'F' : null, fn: in3d ? () => V3D.fit(null, true) : fitView }, ...(in3d ? [] : [{ label: measureMode ? 'Stop measuring' : 'Measure', key: 'M', fn: () => setMeasure(!measureMode) },
+        // a figure's notes, without going to the Draw palette (drawings are 2D only)
+        '-', { label: 'Add a note here', fn: () => noteAt(snapVal(at[0]), snapVal(at[1])) }, { label: 'Add an arrow here', fn: () => arrowAt(snapVal(at[0]), snapVal(at[1])) }])]);
     return;
   }
   if (!(hit.id === selectedId || extraSel.has(hit.id))) { setSelection(groupOf(hit).sort((a, b) => (b === hit) - (a === hit))); }
@@ -423,7 +425,7 @@ export function removeEl(el) {
   changed(true);
 }
 
-export function fitView() {
+export function fitView(quiet) {                // quiet === true: framed for a moment (a figure drawn), not kept
   const els = project.elements.filter(onTab);
   if (!els.length) { Object.assign(V(), { cx: 0, cy: 0, scale: 4 }); requestRender(); return; }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -449,7 +451,7 @@ export function fitView() {
   const pad = 1.2, vw = Math.max(80, W - mL - mR), vh = Math.max(80, H - mT - mB);
   const s = Math.min(200, Math.max(0.05, Math.min(vw / ((x1 - x0) * pad || 1), vh / ((y1 - y0) * pad || 1))));
   Object.assign(V(), { cx: (x0 + x1) / 2 - (mL - mR) / (2 * s), cy: (y0 + y1) / 2 + (mT - mB) / (2 * s), scale: s });
-  scheduleSave();
+  if (quiet !== true) scheduleSave();
   requestRender();
 }
 

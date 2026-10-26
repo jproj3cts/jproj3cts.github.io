@@ -565,7 +565,22 @@ export function wireTours() {
       const w = cv.measureText(nameInput.value || nameInput.placeholder || '').width;
       const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
       nameInput.style.setProperty('--name-w', Math.ceil(w + pad + 6) + 'px');
+      centreName();
     };
+    /* the bench's name centred on the page (not just in the gap between the bar's two sides, which differ in
+       width), wherever it then clears both sides; else back in the gap */
+    const centreName = () => {
+      const file = nameInput.closest('.rt-file'), bar = file && file.parentElement;
+      if (!bar || window.innerWidth <= 960) { if (file) file.classList.remove('rt-centred'); return; }
+      file.classList.remove('rt-centred');
+      const B = bar.getBoundingClientRect(), F = file.getBoundingClientRect();
+      const before = [...bar.children].slice(0, [...bar.children].indexOf(file)).filter(n => n.getClientRects().length);
+      const leftEnd = Math.max(B.left, ...before.map(n => n.getBoundingClientRect().right));
+      const right = bar.querySelector('.rt-right'), rightStart = right ? right.getBoundingClientRect().left : B.right;
+      const l = B.left + B.width / 2 - F.width / 2;
+      if (l > leftEnd + 12 && l + F.width < rightStart - 12) file.classList.add('rt-centred');
+    };
+    new ResizeObserver(centreName).observe(document.querySelector('.rt-bar'));
     const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
     Object.defineProperty(nameInput, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); fit(); } });
     nameInput.addEventListener('input', fit);

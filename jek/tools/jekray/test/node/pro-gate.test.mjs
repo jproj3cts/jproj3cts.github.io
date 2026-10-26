@@ -200,7 +200,7 @@ const EXPORTS = [['io/layout.js', 'exportLayout', 'export the layout'], ['io/lay
   ['io/cad-export.js', 'exportCad', 'export for CAD'], ['io/zmx-export.js', 'exportZmx', 'export an element'],
   ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view'], ['io/packs.js', 'makePack', 'make a part pack'],
   ['io/packs.js', 'packSave', 'make a part pack'], ['io/packs.js', 'packSignFile', 'make a part pack'],
-  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data']];
+  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data'], ['io/figure.js', 'exportFigure', 'export a figure']];
 // downloads that are not exports of images or data: the bench's .jekray file, and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
 // the designers' reports, whose every call is behind designPro (checked above)
 const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);

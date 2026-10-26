@@ -86,7 +86,12 @@ const sysDark = () => { try { return typeof matchMedia === 'function' && matchMe
 export const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDark());
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
-export const benchBg = () => themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+/* A figure being drawn (io/figure.js): plain (no bench colour or holes; the paper white), its labels at a size,
+   in a font, or none, its light in black (mono), no scale bar or credit of the bench's own */
+export let figure = null;
+export function setFigure(f) { return (figure = f); }
+export const benchBg = () => figure && figure.bg ? figure.bg : themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+const paperHex = () => figure && figure.bg || BENCH_PAPER;
 // the page's own pictures (plots, the designers' charts) in the theme: their ink at an opacity, their paper, and greys
 export const inkA = a => themeDark() ? 'rgba(231,227,219,' + a + ')' : 'rgba(0,0,0,' + a + ')';
 export const plotPaper = () => themeDark() ? '#242a2e' : '#fff';
@@ -122,9 +127,9 @@ export const PAPER_WHITE_LIGHT = 'rgb(128,120,110)';
 // a colour at a strength t (0 to 1) as a solid tint on the paper
 const tintMemo = new Map();
 function paperTint(c, t) {
-  const k = c + '|' + t.toFixed(3);
+  const k = c + '|' + t.toFixed(3) + '|' + paperHex();
   if (tintMemo.has(k)) return tintMemo.get(k);
-  const q = cssColour(c), P = hexRgb(BENCH_PAPER), a = Math.min(1, t) * (q.a === undefined ? 1 : q.a);
+  const q = cssColour(c), P = hexRgb(paperHex()), a = Math.min(1, t) * (q.a === undefined ? 1 : q.a);
   const out = 'rgb(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * a)).join(',') + ')';
   tintMemo.set(k, out);
   return out;
@@ -134,6 +139,7 @@ function paperTint(c, t) {
 const inkMemo2 = new Map();
 export function lightInk(c) {
   if (!lightLayer || typeof c !== 'string') return c;
+  if (figure && figure.mono) { const m = cssColour(figure.mono); return 'rgba(' + m.r + ',' + m.g + ',' + m.b + ',' + cssColour(c).a + ')'; }     // a figure's light in one ink
   if (inkMemo2.has(c)) return inkMemo2.get(c);
   const q = cssColour(c), r = q.r / 255, g = q.g / 255, b = q.b / 255, hi = Math.max(r, g, b), lo = Math.min(r, g, b);
   const l = (hi + lo) / 2, d = hi - lo, sat0 = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
@@ -160,10 +166,11 @@ export const bodyFill = c => inBench && lightLayer ? paperBody(c) : c;
 const bodyMemo = new Map();
 function paperBody(c) {
   if (typeof c !== 'string') return c;
-  if (bodyMemo.has(c)) return bodyMemo.get(c);
-  const q = cssColour(c), P = hexRgb(BENCH_PAPER), t = 0.16;
+  const k = c + '|' + paperHex();
+  if (bodyMemo.has(k)) return bodyMemo.get(k);
+  const q = cssColour(c), P = hexRgb(paperHex()), t = 0.16;
   const out = 'rgba(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * t)).join(',') + ',' + q.a + ')';
-  bodyMemo.set(c, out);
+  bodyMemo.set(k, out);
   return out;
 }
 export const portFill = () => inBench ? benchBg() : '#1b2327';
@@ -208,6 +215,7 @@ export function asOnBench(fn) {
   try { return fn(); } finally { if (c.fillText === inkedText) delete c.fillText; lightLayer = keepL; inBench = keepB; }
 }
 function drawBench() {
+  if (figure && figure.plain) return;                 // a figure's paper is its own (io/figure.js)
   const light = benchLight();
   ctx.fillStyle = benchBg();
   ctx.fillRect(0, 0, W, H);
@@ -744,7 +752,7 @@ function drawAssumed(els) {
   }
 }
 function drawLabels() {
-  const sans = getCss('--jek-sans');
+  const sans = figure && figure.font || getCss('--jek-sans');
   ctx.textAlign = 'center';
   labelBoxes.clear();
   const taken = portLabelBoxes.splice(0);
@@ -756,6 +764,7 @@ function drawLabels() {
     const k = el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
+    if (figure && figure.labelPx) fs = figure.labelPx * k;                // a figure's labels at its own size
     const u = fs / 11;
     // below the part's body, whichever way it is turned, centred under it
     const B = worldBox(el);
@@ -765,10 +774,11 @@ function drawLabels() {
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
     // two names in the same place: the later one steps down until clear
     const w = ctx.measureText(el.name).width;
-    if (!el.label) for (let step = 0; step < 4; step++) {
-      const box = { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u };
-      if (![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
-      Y += 13 * u;
+    // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
+    if (!el.label) {
+      const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
+      const clear = y => { const box = { x: X - w / 2, y: y - 10 * u, w, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
+      Y = tries.find(clear) ?? (figure ? tries[tries.length - 1] : Y + 52 * u);
     }
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
@@ -777,7 +787,7 @@ function drawLabels() {
     ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
     ctx.fill(); ctx.restore();
-    ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
+    ctx.fillStyle = figure && figure.bg ? '#000' : el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
     ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
@@ -967,7 +977,7 @@ function renderAll(stale) {
   for (const el of els) if (el.type === 'draw' && el.layer === 'over') draw(el);
   drawAssemblies();
   drawAssumed(els);
-  drawLabels();
+  if (!(figure && figure.labels === false)) drawLabels();
   drawMeasures();
   updateEmpty();
   if (!exporting && drag && drag.mode === 'box' && drag.cur) {
@@ -982,8 +992,8 @@ function renderAll(stale) {
     ctx.beginPath(); for (const [x0, y0, x1, y1] of guides) { ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); } ctx.stroke(); ctx.restore();
   }
   if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
-  drawScaleBar();
-  if (exporting && !thumbing) drawCredit();
+  if (!figure) drawScaleBar();
+  if (exporting && !thumbing && !figure) drawCredit();
 }
 /* on an exported picture: where it was made */
 export let thumbing = false;                 // drawing My benches' picture of the bench: no credit line

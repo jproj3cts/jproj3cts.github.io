@@ -25,14 +25,14 @@ export const cssColour = (() => {
 })();
 export class VecCtx {
   constructor(w, h, opts) {
-    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.ops = []; this.path = []; this.stack = [];
+    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.res = opts && opts.res || 2; this.ops = []; this.path = []; this.stack = [];
     this.M = [1, 0, 0, 1, 0, 0];
     this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
     this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
     this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.dash = [];
     this.shadowColor = 'transparent'; this.shadowBlur = 0; this.imageSmoothingEnabled = true; this.miterLimit = 10;
     this.meas = document.createElement('canvas').getContext('2d');
-    this.layer = null;                     // what drawImage paints, at twice the size
+    this.layer = null;                     // what drawImage paints, at res times the size (twice unless asked)
   }
   static KEYS = ['M', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha', 'globalCompositeOperation',
     'font', 'textAlign', 'textBaseline', 'dash', 'shadowColor', 'shadowBlur', 'imageSmoothingEnabled', 'miterLimit'];
@@ -115,11 +115,11 @@ export class VecCtx {
   strokeText() { }
   drawImage(img, ...a) {
     if (!this.layer) {
-      const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
+      const c = document.createElement('canvas'); c.width = Math.round(this.w * this.res); c.height = Math.round(this.h * this.res);
       this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer || this.plain ? null : 'screen', alpha: 1 });
     }
-    const g = this.layer.getContext('2d'), M = this.M;
-    g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
+    const g = this.layer.getContext('2d'), M = this.M, r = this.res;
+    g.setTransform(r * M[0], r * M[1], r * M[2], r * M[3], r * M[4], r * M[5]);
     g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : this.globalCompositeOperation === 'multiply' ? 'multiply' : 'lighter';
     g.imageSmoothingEnabled = this.imageSmoothingEnabled;
     g.drawImage(img, ...a);
@@ -137,11 +137,11 @@ export function recordLayout() {
 const svgNum = v => +v.toFixed(2);
 const segsD = segs => segs.map(s => s[0] + (s.length > 1 ? s.slice(1).map(svgNum).join(' ') : '')).join('');
 const xmlEsc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-export function layoutSvg(rec, title) {
+export function layoutSvg(rec, title, unit = '') {     // unit: 'pt' for a figure of a size on paper
   const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   const op = (c, a) => { const o = c.a * a; return o < 0.999 ? ' ' + o.toFixed(3).replace(/0+$/, '') : ''; };
   const out = ['<?xml version="1.0" encoding="UTF-8"?>',
-    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + '" height="' + svgNum(rec.h) +
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + unit + '" height="' + svgNum(rec.h) + unit +
     '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(title || project.name) + '</title>'];
   for (const o of rec.ops) {
     const bl = o.blend ? ' style="mix-blend-mode:' + o.blend + '"' : '';

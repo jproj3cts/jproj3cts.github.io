@@ -812,6 +812,16 @@
   .rt-datafmts { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; margin-bottom: 0.6rem; }
   .rt-datafmts .rt-check { align-items: center; font-weight: 500; }
   @media (pointer: coarse) { .rt-datakinds .rt-check, .rt-datafmts .rt-check { min-height: 2.2rem; align-items: center; } }
+  /* File › Export figure: the kinds as tabs, the choices beside a preview of the figure */
+  .rt-figtabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0 0.7rem; }
+  .rt-figtabs .rt-btn.on { background: var(--jek-ink); color: var(--rt-surface); border-color: var(--jek-ink); }
+  .rt-figbody { display: grid; grid-template-columns: minmax(12rem, 15rem) 1fr; gap: 1rem; align-items: start; }
+  .rt-figopts { display: grid; gap: 0.45rem; }
+  .rt-figrow { display: grid; gap: 0.15rem; font-size: 0.82rem; font-weight: 600; }
+  .rt-figrow select, .rt-figrow input { font: inherit; font-weight: 400; font-size: 0.88rem; padding: 0.3rem 0.4rem; border: 1px solid var(--rt-line, #c9c0b0); border-radius: 4px; background: var(--rt-surface); color: inherit; }
+  .rt-figprev { min-height: 14rem; display: grid; place-items: center; background: repeating-conic-gradient(#e9e5de 0% 25%, #f6f3ee 0% 50%) 0 0 / 16px 16px; border-radius: 6px; padding: 0.6rem; }
+  .rt-figprev img { max-width: 100%; max-height: 22rem; box-shadow: 0 2px 10px rgba(0,0,0,0.18); background: #fff; }
+  @media (max-width: 640px) { .rt-figbody { grid-template-columns: 1fr; } }
   /* the parts' panels made out of sight, for their plots' numbers: laid out at a panel's width, never seen */
   .rt-dataprobe { position: fixed; left: -10000px; top: 0; width: 360px; max-height: none; visibility: hidden; pointer-events: none; overflow: hidden; }
   .rt-dataprobe .rt-sec.shut > .rt-secbody { display: block; }
@@ -1113,6 +1123,12 @@
   .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
   .rt-tbl .ic { width: 15px; height: 15px; }
   .rt-bar .rt-file { margin: 0 auto; }
+  /* centred on the page when it clears both sides (ui/tours.js centreName) */
+  @media (min-width: 961px) {
+    .rt-bar { position: relative; }
+    .rt-bar .rt-file.rt-centred { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; }
+    .rt-bar .rt-file.rt-centred ~ .rt-right { margin-left: auto; }
+  }
   .rt-bar .rt-right { margin-left: 0; }
   .rt-cartbtn .rt-cartcount { position: absolute; top: -2px; right: -3px; min-width: 1rem; line-height: 1rem; padding: 0 0.25rem; font-size: 0.66rem; }
   /* Search commands (Ctrl+K, ui/commands.js): a box and the menus' items that hold its words */
@@ -1798,6 +1814,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
                 <button type="button" role="menuitem" data-export="pdf" data-view="1" data-icon="pdf" data-need="account" data-what="export the layout">PDF (vector)</button>
               </div>
             </div>
+            <button type="button" role="menuitem" id="btnExportFigure" data-icon="image" data-need="account" data-what="export a figure" title="The bench as a figure for a journal (85 or 174 mm, line art), a technical drawing (dimensions, callouts, parts list, title block) or a slide">Export figure…</button>
             <button type="button" role="menuitem" id="btnExportZmx" data-icon="export" data-need="account" data-what="export an element" title="The lenses, windows or mirrors selected, as a prescription other optical design programs read">Export an element (.zmx)</button>
             <button type="button" role="menuitem" id="btnExportData" data-icon="export" data-need="account" data-what="export data" title="The numbers behind the bench (readouts, plots, screens’ rays and fields, beams, sweeps, the parts) as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
             <div class="sep"></div>
@@ -8776,6 +8793,7 @@ function returnDue(s) {
    ========================================================================== */
 const DRAW_SHAPES = { rect: 'Rectangle', ellipse: 'Ellipse', path: 'Path', text: 'Text' };
 
+const DRAW_MARKS = ['arrow', 'dot', 'bar'];
 const DRAW_DASH = { solid: [], dash: [4, 2], dot: [1, 1.5], dashdot: [4, 1.5, 1, 1.5], long: [8, 3] };   // in stroke widths
 
 const hexColour = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
@@ -8822,6 +8840,8 @@ function normDraw(e, base) {
       .map(n => Object.assign({ x: +n.x, y: +n.y, h1: hd(n.h1), h2: hd(n.h2) }, n.smooth === true ? { smooth: true } : {}));
     if (o.nodes.length < 2) o.nodes = [{ x: -10, y: 0, h1: null, h2: null }, { x: 10, y: 0, h1: null, h2: null }];
     o.closed = e.closed === true;
+    // a mark at an open path's first and last node: an arrowhead, a dot or a bar across it (left out, none)
+    if (!o.closed) for (const k of ['startMark', 'endMark']) if (DRAW_MARKS.includes(e[k])) o[k] = e[k];
   }
   return o;
 }
@@ -9620,6 +9640,7 @@ const DRAW = {
     rx: 'mm, an ellipse’s radius along x.', ry: 'mm, an ellipse’s radius along y.',
     nodes: 'a path’s nodes, [{"x": mm, "y": mm, "h1": [dx, dy] or null, "h2": [dx, dy] or null}], from x, y; h1 and h2 are the Bézier handles into and out of the node, from it (null: a straight piece). "smooth": true keeps a node’s handles in line when one is dragged.',
     closed: 'true joins a path’s last node to its first.',
+    startMark: 'an open path’s mark at its first node: "arrow", "dot" or "bar"; left out, none.', endMark: 'the same at its last node (an arrow: "endMark": "arrow").',
     text: 'a text’s words; \\n starts a new line. x, y is where its first line starts, is centred or ends (align), on its baseline.', size: 'mm, a text’s font size.',
     m: 'optional [a, b, c, d]: a skew (or scale) on the shape before its angle, x\u2032 = a x + c y, y\u2032 = b x + d y; left out, none.',
     font: '"sans", "serif" or "mono".', bold: 'true for bold text.', italic: 'true for italic text.', align: '"left", "center" or "right".' },
@@ -13591,7 +13612,12 @@ const sysDark = () => { try { return typeof matchMedia === 'function' && matchMe
 const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDark());
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
-const benchBg = () => themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+/* A figure being drawn (io/figure.js): plain (no bench colour or holes; the paper white), its labels at a size,
+   in a font, or none, its light in black (mono), no scale bar or credit of the bench's own */
+let figure = null;
+function setFigure(f) { return (figure = f); }
+const benchBg = () => figure && figure.bg ? figure.bg : themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
+const paperHex = () => figure && figure.bg || BENCH_PAPER;
 // the page's own pictures (plots, the designers' charts) in the theme: their ink at an opacity, their paper, and greys
 const inkA = a => themeDark() ? 'rgba(231,227,219,' + a + ')' : 'rgba(0,0,0,' + a + ')';
 const plotPaper = () => themeDark() ? '#242a2e' : '#fff';
@@ -13627,9 +13653,9 @@ const PAPER_WHITE_LIGHT = 'rgb(128,120,110)';
 // a colour at a strength t (0 to 1) as a solid tint on the paper
 const tintMemo = new Map();
 function paperTint(c, t) {
-  const k = c + '|' + t.toFixed(3);
+  const k = c + '|' + t.toFixed(3) + '|' + paperHex();
   if (tintMemo.has(k)) return tintMemo.get(k);
-  const q = cssColour(c), P = hexRgb(BENCH_PAPER), a = Math.min(1, t) * (q.a === undefined ? 1 : q.a);
+  const q = cssColour(c), P = hexRgb(paperHex()), a = Math.min(1, t) * (q.a === undefined ? 1 : q.a);
   const out = 'rgb(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * a)).join(',') + ')';
   tintMemo.set(k, out);
   return out;
@@ -13639,6 +13665,7 @@ function paperTint(c, t) {
 const inkMemo2 = new Map();
 function lightInk(c) {
   if (!lightLayer || typeof c !== 'string') return c;
+  if (figure && figure.mono) { const m = cssColour(figure.mono); return 'rgba(' + m.r + ',' + m.g + ',' + m.b + ',' + cssColour(c).a + ')'; }     // a figure's light in one ink
   if (inkMemo2.has(c)) return inkMemo2.get(c);
   const q = cssColour(c), r = q.r / 255, g = q.g / 255, b = q.b / 255, hi = Math.max(r, g, b), lo = Math.min(r, g, b);
   const l = (hi + lo) / 2, d = hi - lo, sat0 = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
@@ -13665,10 +13692,11 @@ const bodyFill = c => inBench && lightLayer ? paperBody(c) : c;
 const bodyMemo = new Map();
 function paperBody(c) {
   if (typeof c !== 'string') return c;
-  if (bodyMemo.has(c)) return bodyMemo.get(c);
-  const q = cssColour(c), P = hexRgb(BENCH_PAPER), t = 0.16;
+  const k = c + '|' + paperHex();
+  if (bodyMemo.has(k)) return bodyMemo.get(k);
+  const q = cssColour(c), P = hexRgb(paperHex()), t = 0.16;
   const out = 'rgba(' + [q.r, q.g, q.b].map((v, i) => Math.round(P[i] + (v - P[i]) * t)).join(',') + ',' + q.a + ')';
-  bodyMemo.set(c, out);
+  bodyMemo.set(k, out);
   return out;
 }
 const portFill = () => inBench ? benchBg() : '#1b2327';
@@ -13713,6 +13741,7 @@ function asOnBench(fn) {
   try { return fn(); } finally { if (c.fillText === inkedText) delete c.fillText; lightLayer = keepL; inBench = keepB; }
 }
 function drawBench() {
+  if (figure && figure.plain) return;                 // a figure's paper is its own (io/figure.js)
   const light = benchLight();
   ctx.fillStyle = benchBg();
   ctx.fillRect(0, 0, W, H);
@@ -14249,7 +14278,7 @@ function drawAssumed(els) {
   }
 }
 function drawLabels() {
-  const sans = getCss('--jek-sans');
+  const sans = figure && figure.font || getCss('--jek-sans');
   ctx.textAlign = 'center';
   labelBoxes.clear();
   const taken = portLabelBoxes.splice(0);
@@ -14261,6 +14290,7 @@ function drawLabels() {
     const k = el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
+    if (figure && figure.labelPx) fs = figure.labelPx * k;                // a figure's labels at its own size
     const u = fs / 11;
     // below the part's body, whichever way it is turned, centred under it
     const B = worldBox(el);
@@ -14270,10 +14300,11 @@ function drawLabels() {
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
     // two names in the same place: the later one steps down until clear
     const w = ctx.measureText(el.name).width;
-    if (!el.label) for (let step = 0; step < 4; step++) {
-      const box = { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u };
-      if (![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h)) break;
-      Y += 13 * u;
+    // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
+    if (!el.label) {
+      const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
+      const clear = y => { const box = { x: X - w / 2, y: y - 10 * u, w, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
+      Y = tries.find(clear) ?? (figure ? tries[tries.length - 1] : Y + 52 * u);
     }
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
@@ -14282,7 +14313,7 @@ function drawLabels() {
     ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
     ctx.fill(); ctx.restore();
-    ctx.fillStyle = el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
+    ctx.fillStyle = figure && figure.bg ? '#000' : el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
     ctx.fillText(el.name, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
@@ -14472,7 +14503,7 @@ function renderAll(stale) {
   for (const el of els) if (el.type === 'draw' && el.layer === 'over') draw(el);
   drawAssemblies();
   drawAssumed(els);
-  drawLabels();
+  if (!(figure && figure.labels === false)) drawLabels();
   drawMeasures();
   updateEmpty();
   if (!exporting && drag && drag.mode === 'box' && drag.cur) {
@@ -14487,8 +14518,8 @@ function renderAll(stale) {
     ctx.beginPath(); for (const [x0, y0, x1, y1] of guides) { ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); } ctx.stroke(); ctx.restore();
   }
   if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
-  drawScaleBar();
-  if (exporting && !thumbing) drawCredit();
+  if (!figure) drawScaleBar();
+  if (exporting && !thumbing && !figure) drawCredit();
 }
 /* on an exported picture: where it was made */
 let thumbing = false;                 // drawing My benches' picture of the bench: no credit line
@@ -15024,8 +15055,29 @@ function drawShape(el) {
     ctx.strokeStyle = rgbaHex(el.stroke, el.strokeOpacity * el.opacity); ctx.lineWidth = lw;
     ctx.lineCap = el.cap; ctx.lineJoin = el.join; ctx.setLineDash(DRAW_DASH[el.dash].map(v => v * lw));
     ctx.stroke(); ctx.setLineDash([]);
+    if (el.shape === 'path' && !el.closed && (el.startMark || el.endMark)) drawMarks(el, lw);
   }
   ctx.restore();
+}
+/* an open path's end marks, in the stroke's colour, sized from its width in mm (so they scale with the bench):
+   an arrowhead with its point on the node, a dot on it, a bar across it */
+function drawMarks(el, lw) {
+  const f = frame(el), P = p => { const q = el.m ? mApply(el.m, p) : p, [x, y] = toWorld(f, q[0], q[1]); return [sx(x), sy(y)]; };
+  const N = el.nodes, s = V().scale, len = Math.max(3, Math.max(1.5, el.strokeWidth * 4.5) * s);
+  const end = (k, at, prev) => {
+    const mark = el[k]; if (!mark) return;
+    const A = P([at.x, at.y]);
+    let B = P(prev); if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 1e-6) return;
+    const ux = (A[0] - B[0]) / Math.hypot(B[0] - A[0], B[1] - A[1]), uy = (A[1] - B[1]) / Math.hypot(B[0] - A[0], B[1] - A[1]), nx = -uy, ny = ux;
+    ctx.fillStyle = ctx.strokeStyle; ctx.setLineDash([]);
+    if (mark === 'arrow') { const w = len * 0.42; ctx.beginPath(); ctx.moveTo(A[0] + ux * lw * 0.5, A[1] + uy * lw * 0.5); ctx.lineTo(A[0] - ux * len + nx * w, A[1] - uy * len + ny * w); ctx.lineTo(A[0] - ux * len - nx * w, A[1] - uy * len - ny * w); ctx.closePath(); ctx.fill(); }
+    else if (mark === 'dot') { ctx.beginPath(); ctx.arc(A[0], A[1], Math.max(lw * 1.6, len * 0.28), 0, 2 * Math.PI); ctx.fill(); }
+    else { const w = len * 0.45; ctx.beginPath(); ctx.moveTo(A[0] + nx * w, A[1] + ny * w); ctx.lineTo(A[0] - nx * w, A[1] - ny * w); ctx.stroke(); }
+  };
+  // the way the path leaves its first node (its handle, else the next node) and comes into its last
+  const a = N[0], b = N[1], y = N[N.length - 1], z = N[N.length - 2];
+  end('startMark', a, a.h2 ? [a.x + a.h2[0], a.y + a.h2[1]] : b.h1 ? [b.x + b.h1[0], b.y + b.h1[1]] : [b.x, b.y]);
+  end('endMark', y, y.h1 ? [y.x + y.h1[0], y.y + y.h1[1]] : z.h2 ? [z.x + z.h2[0], z.y + z.h2[1]] : [z.x, z.y]);
 }
 function hitDrawing(el, lx, ly, tol) {
   const P = drawPoly(el, 16), t = tol + el.strokeWidth / 2;
@@ -15051,6 +15103,10 @@ const DRAW_TOOLS = [
     '<rect x="3.5" y="6" width="17" height="12" fill="none" stroke="currentColor" stroke-width="1.8"/>'],
   ['ellipse', 'Ellipse', 'E', 'Ellipse: drag to draw one. Ctrl: a circle. Shift: from its middle.',
     '<ellipse cx="12" cy="12" rx="8.5" ry="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>'],
+  ['line', 'Line', 'L', 'Line: drag to draw a straight line. Ctrl: at 15\u00b0 steps. Its panel puts an arrowhead, a dot or a bar at either end.',
+    '<path d="M4 19 20 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['arrow', 'Arrow', 'W', 'Arrow: drag from the tail to the point. Ctrl: at 15\u00b0 steps. Its panel changes either end.',
+    '<path d="M4 19 18 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 4 11.5 6.5 17.5 12.5Z" fill="currentColor"/>'],
   ['text', 'Text', 'T', 'Text: click on the bench to write, or on a text or a part\u2019s name to change it. Enter starts a new line (a name has one); Escape or a click elsewhere finishes.',
     '<path d="M5 5h14v3.5M5 5v3.5M12 5v14M9 19h6" fill="none" stroke="currentColor" stroke-width="2"/>'],
   ['pen', 'Pen', 'B', 'Pen: click for a corner, drag for a curve. Click the first node to close the path; Enter, a double-click or a right-click ends it, Backspace takes the last node off, Escape drops it.',
@@ -15082,7 +15138,7 @@ function setDrawTool(t) {
   if (t !== 'select' && palette !== 'draw') setPalette('draw');
   if (t !== 'node') drawNodeSel = null;
   if (t !== 'text') closeTextEdit();
-  canvas.classList.toggle('drawing', t === 'rect' || t === 'ellipse' || t === 'pen');
+  canvas.classList.toggle('drawing', t === 'rect' || t === 'ellipse' || t === 'pen' || t === 'line' || t === 'arrow');
   canvas.classList.toggle('texting', t === 'text');
   drawToolsShown();
   requestRender();
@@ -15097,6 +15153,20 @@ function drawToolsShown() {
   bar.textContent = T[3];
 }
 /* a new drawing from what the tool made, in world mm, on this tab, and selected */
+/* a text started at a point (mm) and opened to be typed: the Text tool's click, and the bench's right-click Add a note here */
+function noteAt(x, y) {
+  const st = drawStyleNow();
+  const el = addDrawing({ shape: 'text', x, y, text: '', stroke: 'none',
+    fill: st.textFill || (st.stroke !== 'none' ? st.stroke : '#e8edf0'), size: st.textSize || +(14 / V().scale).toPrecision(2), font: st.textFont, bold: st.textBold, italic: st.textItalic });
+  editText(el, 'text', true);
+  return el;
+}
+/* an arrow from a point (mm), 60 px long up and to the right, selected to drag or edit: the right-click Add an arrow here */
+function arrowAt(x, y) {
+  const L = 30 / V().scale;
+  return addDrawing({ shape: 'path', x: x + L, y: y + L, closed: false, fill: 'none', endMark: 'arrow',
+    nodes: [{ x: -L, y: -L, h1: null, h2: null }, { x: L, y: L, h1: null, h2: null }] });
+}
 function addDrawing(props) {
   checkpoint();
   const el = normElement(Object.assign({ type: 'draw', name: nextName(DRAW_SHAPES[props.shape]), angle: 0 }, drawStyleNow(), props));
@@ -15163,13 +15233,10 @@ function drawDown(px, py, e) {
     const hit = hitTest(px, py);
     if (hit && hit.type === 'draw' && hit.shape === 'text') { selectOne(hit.id); renderPanel(); editText(hit, 'text'); return true; }
     if (textEdit) { closeTextEdit(); return true; }            // a click away finishes the one being typed
-    const st = drawStyleNow();
-    const el = addDrawing({ shape: 'text', x: snapVal(wx(px), e), y: snapVal(wy(py), e), text: '', stroke: 'none',
-      fill: st.textFill || (st.stroke !== 'none' ? st.stroke : '#e8edf0'), size: st.textSize || +(14 / V().scale).toPrecision(2), font: st.textFont, bold: st.textBold, italic: st.textItalic });
-    editText(el, 'text', true);
+    noteAt(snapVal(wx(px), e), snapVal(wy(py), e));
     return true;
   }
-  if (drawTool === 'rect' || drawTool === 'ellipse') {
+  if (drawTool === 'rect' || drawTool === 'ellipse' || drawTool === 'line' || drawTool === 'arrow') {
     setDrag({ mode: 'drawshape', kind: drawTool, px0: px, py0: py, cur: null });
     return true;
   }
@@ -15277,8 +15344,19 @@ function drawUp(e) {
     selectOne(hit ? hit.id : null); setSelFibreId(null); renderPanel(); requestRender();
     return;
   }
+  if (d.kind === 'line' || d.kind === 'arrow') { addDrawing(lineOf(d)); return; }
   const b = shapeBox(d, { shiftKey: false });
   addDrawing(d.kind === 'rect' ? { shape: 'rect', x: b.cx, y: b.cy, w: b.w, h: b.h } : { shape: 'ellipse', x: b.cx, y: b.cy, rx: b.w / 2, ry: b.h / 2 });
+}
+/* a line or an arrow dragged out: a path of two straight nodes about its middle; Ctrl at 15 degree steps */
+function lineOf(d) {
+  const ax = snapVal(wx(d.px0)), ay = snapVal(wy(d.py0));
+  let [bx, by] = [snapVal(wx(d.cur[0])), snapVal(wy(d.cur[1]))];
+  if (d.sq) [bx, by] = snap15(ax, ay, wx(d.cur[0]), wy(d.cur[1]));
+  const cx = +((ax + bx) / 2).toFixed(4), cy = +((ay + by) / 2).toFixed(4);
+  return Object.assign({ shape: 'path', x: cx, y: cy, closed: false, fill: 'none',
+    nodes: [{ x: +(ax - cx).toFixed(4), y: +(ay - cy).toFixed(4), h1: null, h2: null }, { x: +(bx - cx).toFixed(4), y: +(by - cy).toFixed(4), h1: null, h2: null }] },
+    d.kind === 'arrow' ? { endMark: 'arrow' } : {});
 }
 /* the box a rectangle or ellipse drag spans, in world mm: Ctrl square, Shift from its middle */
 function shapeBox(d, e) {
@@ -15293,8 +15371,9 @@ function drawToolOverlay() {
   ctx.save();
   const ink = getCss('--jek-cyan');
   if (drag && drag.mode === 'drawshape' && drag.cur) {
-    const b = shapeBox(drag, { shiftKey: false }), st = drawStyleNow();
-    const ghost = normDraw(Object.assign({}, st, drag.kind === 'rect' ? { shape: 'rect', w: b.w, h: b.h } : { shape: 'ellipse', rx: b.w / 2, ry: b.h / 2 }), { type: 'draw', x: b.cx, y: b.cy, angle: 0 });
+    const b = shapeBox(drag, { shiftKey: false }), st = drawStyleNow(), L = drag.kind === 'line' || drag.kind === 'arrow' ? lineOf(drag) : null;
+    const ghost = L ? normDraw(Object.assign({}, st, L), { type: 'draw', x: L.x, y: L.y, angle: 0 })
+      : normDraw(Object.assign({}, st, drag.kind === 'rect' ? { shape: 'rect', w: b.w, h: b.h } : { shape: 'ellipse', rx: b.w / 2, ry: b.h / 2 }), { type: 'draw', x: b.cx, y: b.cy, angle: 0 });
     drawDrawing(ghost, false);
     drawTrace(ctx, ghost); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
   }
@@ -15746,7 +15825,7 @@ function drawKey(e) {
   if ((e.key === 'h' || e.key === 'v') && selection().some(x => x.type === 'draw')) { e.preventDefault(); flipEls(selection(), e.key); return true; }
   const st = { Home: 'top', End: 'bottom', PageUp: 'up', PageDown: 'down' }[e.key];
   if (st && selection().some(x => x.type === 'draw')) { e.preventDefault(); restack(selection(), st); return true; }
-  const k = { s: 'select', n: 'node', e: 'ellipse', b: 'pen', t: 'text', F1: 'select', F2: 'node', F4: 'rect', F5: 'ellipse', F8: 'text' }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  const k = { s: 'select', n: 'node', e: 'ellipse', b: 'pen', t: 'text', l: 'line', w: 'arrow', F1: 'select', F2: 'node', F4: 'rect', F5: 'ellipse', F8: 'text' }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
   if (!k || e.shiftKey || (e.key.startsWith('F') && e.key.length > 1 && palette !== 'draw')) return false;
   e.preventDefault();
   setDrawTool(k);
@@ -15830,6 +15909,9 @@ function drawPanel(el) {
       cl.addEventListener('change', () => { checkpoint(); el.closed = cl.checked; changed(false); });
       const ni = drawNodeSel && drawNodeSel.id === el.id ? drawNodeSel.i : -1, n = el.nodes[ni];
       const b = box(h('label', { class: 'rt-check' }, cl, 'Closed path'));
+      // an open path's ends: an arrowhead, a dot or a bar at either
+      if (!el.closed) for (const [k, label] of [['startMark', 'Start'], ['endMark', 'End']]) b.append(row(label, seg([['', null, 'None', 'No mark'], ['arrow', null, 'Arrow', 'An arrowhead'], ['dot', null, 'Dot', 'A dot'], ['bar', null, 'Bar', 'A bar across it']],
+        () => el[k] || '', v => { if (v) el[k] = v; else delete el[k]; })));
       if (n) b.append(head('Node ' + (ni + 1) + ' of ' + el.nodes.length),
         row('x', ...num(() => n.x, v => { n.x = v; }, 'mm')), row('y', ...num(() => n.y, v => { n.y = v; }, 'mm')),
         row('Type', seg([['straight', '<path d="M4 18 20 6" stroke="currentColor" stroke-width="2"/><rect x="9" y="9" width="6" height="6" fill="currentColor"/>', null, 'Straight: no handles'],
@@ -44568,7 +44650,9 @@ function benchMenu(X, Y, hit, at, in3d) {
   if (!hit) {
     showCtxMenu(X, Y, [paste, '-',
       { label: 'Select all on this tab', key: 'Ctrl+A', fn: () => setSelection(project.elements.filter(onTab)) },
-      { label: 'Zoom to fit', key: in3d ? 'F' : null, fn: in3d ? () => V3D.fit(null, true) : fitView }, ...(in3d ? [] : [{ label: measureMode ? 'Stop measuring' : 'Measure', key: 'M', fn: () => setMeasure(!measureMode) }])]);
+      { label: 'Zoom to fit', key: in3d ? 'F' : null, fn: in3d ? () => V3D.fit(null, true) : fitView }, ...(in3d ? [] : [{ label: measureMode ? 'Stop measuring' : 'Measure', key: 'M', fn: () => setMeasure(!measureMode) },
+        // a figure's notes, without going to the Draw palette (drawings are 2D only)
+        '-', { label: 'Add a note here', fn: () => noteAt(snapVal(at[0]), snapVal(at[1])) }, { label: 'Add an arrow here', fn: () => arrowAt(snapVal(at[0]), snapVal(at[1])) }])]);
     return;
   }
   if (!(hit.id === selectedId || extraSel.has(hit.id))) { setSelection(groupOf(hit).sort((a, b) => (b === hit) - (a === hit))); }
@@ -44782,7 +44866,7 @@ function removeEl(el) {
   changed(true);
 }
 
-function fitView() {
+function fitView(quiet) {                // quiet === true: framed for a moment (a figure drawn), not kept
   const els = project.elements.filter(onTab);
   if (!els.length) { Object.assign(V(), { cx: 0, cy: 0, scale: 4 }); requestRender(); return; }
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -44808,7 +44892,7 @@ function fitView() {
   const pad = 1.2, vw = Math.max(80, W - mL - mR), vh = Math.max(80, H - mT - mB);
   const s = Math.min(200, Math.max(0.05, Math.min(vw / ((x1 - x0) * pad || 1), vh / ((y1 - y0) * pad || 1))));
   Object.assign(V(), { cx: (x0 + x1) / 2 - (mL - mR) / (2 * s), cy: (y0 + y1) / 2 + (mT - mB) / (2 * s), scale: s });
-  scheduleSave();
+  if (quiet !== true) scheduleSave();
   requestRender();
 }
 
@@ -45220,14 +45304,14 @@ const cssColour = (() => {
 })();
 class VecCtx {
   constructor(w, h, opts) {
-    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.ops = []; this.path = []; this.stack = [];
+    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.res = opts && opts.res || 2; this.ops = []; this.path = []; this.stack = [];
     this.M = [1, 0, 0, 1, 0, 0];
     this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
     this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
     this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.dash = [];
     this.shadowColor = 'transparent'; this.shadowBlur = 0; this.imageSmoothingEnabled = true; this.miterLimit = 10;
     this.meas = document.createElement('canvas').getContext('2d');
-    this.layer = null;                     // what drawImage paints, at twice the size
+    this.layer = null;                     // what drawImage paints, at res times the size (twice unless asked)
   }
   static KEYS = ['M', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha', 'globalCompositeOperation',
     'font', 'textAlign', 'textBaseline', 'dash', 'shadowColor', 'shadowBlur', 'imageSmoothingEnabled', 'miterLimit'];
@@ -45310,11 +45394,11 @@ class VecCtx {
   strokeText() { }
   drawImage(img, ...a) {
     if (!this.layer) {
-      const c = document.createElement('canvas'); c.width = Math.round(this.w * 2); c.height = Math.round(this.h * 2);
+      const c = document.createElement('canvas'); c.width = Math.round(this.w * this.res); c.height = Math.round(this.h * this.res);
       this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer || this.plain ? null : 'screen', alpha: 1 });
     }
-    const g = this.layer.getContext('2d'), M = this.M;
-    g.setTransform(2 * M[0], 2 * M[1], 2 * M[2], 2 * M[3], 2 * M[4], 2 * M[5]);
+    const g = this.layer.getContext('2d'), M = this.M, r = this.res;
+    g.setTransform(r * M[0], r * M[1], r * M[2], r * M[3], r * M[4], r * M[5]);
     g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : this.globalCompositeOperation === 'multiply' ? 'multiply' : 'lighter';
     g.imageSmoothingEnabled = this.imageSmoothingEnabled;
     g.drawImage(img, ...a);
@@ -45332,11 +45416,11 @@ function recordLayout() {
 const svgNum = v => +v.toFixed(2);
 const segsD = segs => segs.map(s => s[0] + (s.length > 1 ? s.slice(1).map(svgNum).join(' ') : '')).join('');
 const xmlEsc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-function layoutSvg(rec, title) {
+function layoutSvg(rec, title, unit = '') {     // unit: 'pt' for a figure of a size on paper
   const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
   const op = (c, a) => { const o = c.a * a; return o < 0.999 ? ' ' + o.toFixed(3).replace(/0+$/, '') : ''; };
   const out = ['<?xml version="1.0" encoding="UTF-8"?>',
-    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + '" height="' + svgNum(rec.h) +
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + svgNum(rec.w) + unit + '" height="' + svgNum(rec.h) + unit +
     '" viewBox="0 0 ' + svgNum(rec.w) + ' ' + svgNum(rec.h) + '">', '<title>' + xmlEsc(title || project.name) + '</title>'];
   for (const o of rec.ops) {
     const bl = o.blend ? ' style="mix-blend-mode:' + o.blend + '"' : '';
@@ -45747,6 +45831,372 @@ function wireDataExport() {
   go.addEventListener('click', () => busy(go, () => exportData(kindsNow(), fmtNow())));
   all.addEventListener('click', () => busy(all, () => exportEverything(fmtNow())));
   document.getElementById('dataClose').addEventListener('click', () => dlg.close());
+}
+/* ==========================================================================
+   File › Export figure…: the bench as a figure made for where it is going.
+   - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
+     Helvetica at a size in points; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
+     0.5 pt, a scale bar; PDF or SVG (vector), or PNG at 600 dpi.
+   - Technical drawing: an A4 or A3 sheet, the bench to a standard scale, the parts' centres dimensioned
+     (along and across), numbered callouts and a parts list, and a title block.
+   - Presentation: the bench as it looks, on a 16:9 or 4:3 slide.
+   The bench is drawn into a VecCtx (io/layout.js) with the figure's look (render.js `figure`), cut to
+   what is on it, and placed on the figure's page in points (or a slide's pixels).
+   ========================================================================== */
+const FIG_MM = 72 / 25.4;                                              // points in a millimetre
+const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
+const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
+const FIGURE_DEFAULTS = {
+  journal: { width: 85, mono: false, pt: 8, scaleBar: true, fmt: 'pdf' },
+  technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
+  slides: { size: '169', fmt: 'png' },
+};
+
+/* the bench drawn once with a figure's look, the view as it stands */
+function figRecord(fig) {
+  setFigure(fig);
+  try { return recordLayout(); } finally { setFigure(null); requestRender(); }
+}
+// the parts on this tab (not drawings' own nodes), each with where it is on the canvas
+const figParts = () => project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node'));
+/* what the figure shows, on the canvas: every part, the fibres' routes, every word drawn; cut to the canvas */
+function figBox(rec) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const add = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+  const els = project.elements.filter(onTab), ids = new Set(els.map(e => e.id));
+  for (const e of els) { const B = worldBox(e); add(sx(B.x0), sy(B.y0)); add(sx(B.x1), sy(B.y1)); }
+  for (const F of project.fibres || []) if (ids.has(F.a[0]) && ids.has(F.b[0])) for (const n of F.path || []) add(sx(n.x), sy(n.y));
+  for (const o of rec.ops) if (o.k === 'text') { add(o.x, o.y - o.size); add(o.x + o.w, o.y + 0.3 * o.size); }
+  if (!isFinite(x0)) return { x: 0, y: 0, w: W, h: H };
+  const pad = Math.max(8, 0.04 * Math.max(x1 - x0, y1 - y0));
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad);
+  return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+}
+/* the bench's record put on the figure: its box at (ox, oy), s figure units to a canvas pixel; lines no
+   thinner than minLw; noField: the diffracted field's glow (a coloured picture) left out, as for light in one ink */
+function figPlace(dst, src, box, ox, oy, s, minLw = 0, noField = false) {
+  const X = x => ox + (x - box.x) * s, Y = y => oy + (y - box.y) * s;
+  for (const o of src.ops) {
+    if (o.k === 'path') {
+      const q = Object.assign({}, o, { segs: o.segs.map(g => g.length === 1 ? g : [g[0], ...g.slice(1).map((v, i) => i % 2 ? Y(v) : X(v))]) });
+      if (o.stroke) { q.lw = Math.max(minLw, o.lw * s); q.dash = o.dash.map(v => v * s); }
+      dst.ops.push(q);
+    } else if (o.k === 'text') dst.ops.push(Object.assign({}, o, { x: X(o.x), y: Y(o.y), size: o.size * s, w: o.w * s }));
+    else if (o.k === 'layer' && src.layer && !noField) {
+      // the field's glow: the part of it in the box, at the figure's own resolution
+      const r = src.layer.width / src.w, c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(box.w * r)); c.height = Math.max(1, Math.round(box.h * r));
+      c.getContext('2d').drawImage(src.layer, -box.x * r, -box.y * r);
+      dst.resetTransform(); dst.globalAlpha = 1; dst.globalCompositeOperation = 'source-over';
+      dst.drawImage(c, X(box.x), Y(box.y), box.w * s, box.h * s);
+      const L = dst.ops.find(p => p.k === 'layer'); if (L) L.blend = o.blend;
+    }
+  }
+}
+// words on the figure, in its font, at a size in its units
+function figSay(g, t, x, y, o = {}) {
+  g.save(); g.font = (o.bold ? '600 ' : '') + (o.size || 7) + 'px ' + FIG_FONT; g.fillStyle = o.ink || FIG_INK;
+  g.textAlign = o.align || 'left'; g.textBaseline = o.base || 'alphabetic'; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.fillText(t, x, y); g.restore();
+}
+function figLine(g, pts, lw = 0.5, ink = FIG_INK, dash) {
+  g.save(); g.strokeStyle = ink; g.lineWidth = lw; g.setLineDash(dash || []); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.lineCap = 'butt';
+  g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.restore();
+}
+const figFit = (g, t, w, size) => { g.font = size + 'px ' + FIG_FONT; if (g.measureText(t).width <= w) return t; while (t.length > 1 && g.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; };
+/* the bench recorded at the label size that comes out at pt once it is scaled to the figure: the scale
+   depends on the box, the box a little on the labels, so a few rounds */
+function figFitted(fig, pt, scaleOf) {
+  let rec = null, box = null, s = 1;
+  fig.labelPx = pt / scaleOf({ w: W * 0.8, h: H * 0.8 });
+  for (let i = 0; i < 4; i++) {
+    rec = figRecord(fig); box = figBox(rec); s = scaleOf(box);
+    const px = pt / s;
+    if (Math.abs(px / fig.labelPx - 1) < 0.03) break;
+    fig.labelPx = px;
+  }
+  return { rec, box, s };
+}
+
+/* ---- Journal ---- */
+function journalFigure(o) {
+  const Wpt = o.width * FIG_MM, maxH = 230 * FIG_MM, bar = o.scaleBar ? o.pt * 2.2 : 0;
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT };
+  const { rec, box, s } = figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - bar) / b.h));
+  const g = new VecCtx(Wpt, box.h * s + bar, { plain: true, res: 4 });
+  figPlace(g, rec, box, (Wpt - box.w * s) / 2, 0, s, 0.5, !!o.mono);
+  if (o.scaleBar) {
+    const mmPerPt = 1 / (V().scale * s), L = niceStep(0.18 * Wpt * mmPerPt), len = L / mmPerPt, y = box.h * s + bar * 0.45, x = 2;
+    figLine(g, [[x, y - 2.5], [x, y], [x + len, y], [x + len, y - 2.5]], 0.75);
+    figSay(g, fmtLen(L), x + len + 3, y + o.pt * 0.35, { size: o.pt });
+  }
+  return { g, unit: 'pt', dpi: 600, note: o.width + ' × ' + Math.round(g.h / FIG_MM) + ' mm, names in Helvetica ' + o.pt + ' pt, lines at least 0.5 pt' };
+}
+
+/* ---- Technical drawing ---- */
+const FIG_SCALES = [[5, '5:1'], [2, '2:1'], [1, '1:1'], [0.5, '1:2'], [0.4, '1:2.5'], [0.2, '1:5'], [0.1, '1:10'], [0.05, '1:20'], [0.04, '1:25'], [0.02, '1:50'], [0.01, '1:100']];
+const FIG_PART_NAMES = () => Object.fromEntries(Object.keys(PALETTES).flatMap(p => PALETTES[p].map(r => [r[0], r[2] || r[1]])));
+function partKindName(e, names = FIG_PART_NAMES()) {
+  const k = e.type === 'fcomp' ? e.kind : (e.type === 'elec' || e.type === 'pic') ? e.type + ':' + e.kind : null;
+  return (k && names[k]) || (e.mmw && e.type === 'source' ? 'Feed horn' : '') || TYPE_LABEL[e.type] || e.type;
+}
+function technicalFigure(o) {
+  const [SW, SH] = o.sheet === 'A3' ? [1191, 842] : [842, 595], M = 20, RC = o.sheet === 'A3' ? 320 : 250;
+  const parts = figParts().slice().sort((a, b) => a.x - b.x || b.y - a.y);
+  const callouts = o.callouts && parts.length > 0;
+  // the drawing's area, less room for the callouts above and below and the dimensions below and at the right
+  const A = { x: M + 12, y: M + 12, w: SW - 2 * M - RC - 30, h: SH - 2 * M - 24 };
+  const top = callouts ? 26 : 0, under = (callouts ? 26 : 0) + (o.dims ? 30 : 0), right = o.dims ? 40 : 0;
+  const D = { x: A.x + 4, y: A.y + top, w: A.w - right - 8, h: A.h - top - under };
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, labels: callouts ? false : undefined };   // the light grey, the parts black
+  const per = () => V().scale;                                        // canvas pixels a millimetre
+  let ratio = FIG_SCALES[FIG_SCALES.length - 1];
+  const scaleOf = b => {
+    const k = Math.min(D.w / b.w, D.h / b.h) * per() / FIG_MM;            // paper mm to a bench mm, to fill the area
+    ratio = FIG_SCALES.find(r => r[0] <= k * 1.0001) || [k, '1:' + (+(1 / k).toPrecision(2))];
+    return ratio[0] * FIG_MM / per();
+  };
+  const { rec, box, s } = figFitted(fig, 7, scaleOf);
+  const g = new VecCtx(SW, SH, { plain: true, res: 3 });
+  const ox = D.x + (D.w - box.w * s) / 2, oy = D.y + (D.h - box.h * s) / 2;
+  figPlace(g, rec, box, ox, oy, s, 0.35, !!o.mono);
+  const dBot = oy + box.h * s, dRight = ox + box.w * s;            // the drawing's own edges: the callouts and dimensions kept close to it
+  // the sheet round the drawing white again (a ray running off the bench stops at the drawing's edge)
+  g.fillStyle = '#fff';
+  for (const [x, y, w, hh] of [[0, 0, SW, A.y], [0, A.y + A.h, SW, SH - A.y - A.h], [0, 0, A.x, SH], [A.x + A.w, 0, SW - A.x - A.w, SH]]) g.fillRect(x, y, w, hh);
+  const P = e => [ox + (sx(e.x) - box.x) * s, oy + (sy(e.y) - box.y) * s];
+  // ---- dimensions: the parts' centres, along (below) and across (at the right), a chain of steps in mm ----
+  if (o.dims && parts.length > 1) {
+    const chain = (vals, along) => {
+      const u = [];
+      for (const v of vals.slice().sort((a, b) => a - b)) if (!u.length || v - u[u.length - 1] > 0.05) u.push(v);
+      if (u.length < 2) return;
+      const at = along ? Math.min(A.y + A.h - 12, dBot + (callouts ? 30 : 0) + 12) : Math.min(A.x + A.w - 14, dRight + 14);
+      const pos = v => along ? ox + (sx(v) - box.x) * s : oy + (sy(v) - box.y) * s;
+      // extension lines from each part's centre to the dimension line
+      for (const e of parts) {
+        const [px, py] = P(e), v = along ? e.x : e.y;
+        if (!u.some(w => Math.abs(w - v) <= 0.05)) continue;
+        if (along) figLine(g, [[px, py + 3], [px, at + 3]], 0.25, FIG_SOFT, [2, 1.5]); else figLine(g, [[px + 3, py], [at + 3, py]], 0.25, FIG_SOFT, [2, 1.5]);
+      }
+      for (let i = 1; i < u.length; i++) {
+        const a = pos(u[i - 1]), b = pos(u[i]), d = u[i] - u[i - 1], t = String(+d.toFixed(d < 10 ? 2 : 1));
+        if (along) figLine(g, [[a, at], [b, at]], 0.4); else figLine(g, [[at, a], [at, b]], 0.4);
+        // arrowheads, in at each end
+        const hd = Math.min(3.5, Math.abs(b - a) / 3);
+        g.fillStyle = FIG_INK;
+        for (const [p, dir] of [[a, Math.sign(b - a)], [b, -Math.sign(b - a)]]) {
+          g.beginPath();
+          if (along) { g.moveTo(p, at); g.lineTo(p + dir * hd, at - hd * 0.35); g.lineTo(p + dir * hd, at + hd * 0.35); }
+          else { g.moveTo(at, p); g.lineTo(at - hd * 0.35, p + dir * hd); g.lineTo(at + hd * 0.35, p + dir * hd); }
+          g.closePath(); g.fill();
+        }
+        g.font = '6.5px ' + FIG_FONT;
+        const tw = g.measureText(t).width, room = Math.abs(b - a) > tw + 4, off = room || i % 2 ? -2 : 8;
+        if (along) figSay(g, t, (a + b) / 2, at + off, { size: 6.5, align: 'center' });
+        else { g.save(); g.translate(at + (room || i % 2 ? -2 : 8), (a + b) / 2); g.rotate(-Math.PI / 2); figSay(g, t, 0, 0, { size: 6.5, align: 'center' }); g.restore(); }
+      }
+    };
+    chain(parts.map(e => e.x), true);
+    chain(parts.map(e => e.y), false);
+  }
+  // ---- callouts: a numbered balloon for each part, in a row above (the parts in the upper half) or below ----
+  if (callouts) {
+    const mid = D.y + D.h / 2, R = 6, gap = 2 * R + 2;
+    const rows = [[parts.filter(e => P(e)[1] < mid), Math.max(A.y + 10, oy - 14)], [parts.filter(e => P(e)[1] >= mid), Math.min(A.y + A.h - (o.dims ? 30 : 0) - 10, dBot + 14)]];
+    for (const [list, y] of rows) {
+      const it = list.map(e => ({ e, n: parts.indexOf(e) + 1, p: P(e), x: P(e)[0] })).sort((a, b) => a.x - b.x);
+      for (let i = 0; i < it.length; i++) it[i].x = Math.max(it[i].x, A.x + R + 2, i ? it[i - 1].x + gap : -Infinity);
+      for (let i = it.length - 1; i >= 0; i--) it[i].x = Math.min(it[i].x, D.x + D.w + R, i < it.length - 1 ? it[i + 1].x - gap : Infinity);
+      for (const c of it) {
+        const dx = c.p[0] - c.x, dy = c.p[1] - y, d = Math.hypot(dx, dy) || 1;
+        figLine(g, [[c.x + dx / d * R, y + dy / d * R], c.p], 0.35);
+        g.fillStyle = FIG_INK; g.beginPath(); g.arc(c.p[0], c.p[1], 0.9, 0, 2 * Math.PI); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(c.x, y, R, 0, 2 * Math.PI); g.fill();
+        g.strokeStyle = FIG_INK; g.lineWidth = 0.6; g.setLineDash([]); g.stroke();
+        figSay(g, String(c.n), c.x, y + 2.4, { size: 6.5, align: 'center', bold: true });
+      }
+    }
+  }
+  // ---- the frame, the parts list and the title block ----
+  g.strokeStyle = FIG_INK; g.lineWidth = 0.8; g.setLineDash([]); g.strokeRect(M, M, SW - 2 * M, SH - 2 * M);
+  figLine(g, [[SW - M - RC - 12, M], [SW - M - RC - 12, SH - M]], 0.5);
+  const tx = SW - M - RC, bh = 92, by = SH - M - bh;
+  if (callouts) {
+    const cols = [['No.', 16], ['Name', RC * 0.27], ['Part', RC * 0.28], ['x (mm)', RC * 0.13], ['y (mm)', RC * 0.13], ['Angle (°)', 0]];
+    cols[5][1] = RC - cols.slice(0, 5).reduce((t, c) => t + c[1], 0);
+    let y = M + 8;
+    figSay(g, 'Parts', tx, y + 8, { size: 9, bold: true }); y += 16;
+    const row = (vals, bold) => {
+      let x = tx;
+      vals.forEach((v, i) => { const w = cols[i][1], num = i >= 3; figSay(g, figFit(g, v, w - 4, 6.5), num ? x + w - 3 : x + 2, y + 7.5, { size: 6.5, bold, align: num ? 'right' : 'left' }); x += w; });
+      y += 10; figLine(g, [[tx, y], [tx + RC, y]], bold ? 0.5 : 0.2, bold ? FIG_INK : '#9aa3ab');
+    };
+    row(cols.map(c => c[0]), true);
+    const names = FIG_PART_NAMES(), fits = Math.floor((by - 10 - y) / 10);
+    const shown = parts.length > fits ? parts.slice(0, fits - 1) : parts;
+    shown.forEach(e => row([String(parts.indexOf(e) + 1), e.name || '', partKindName(e, names), (+e.x.toFixed(2)).toString(), (+e.y.toFixed(2)).toString(), (+(e.angle || 0).toFixed(2)).toString()]));
+    if (shown.length < parts.length) figSay(g, '… and ' + (parts.length - shown.length) + ' more', tx + 2, y + 8, { size: 6.5, ink: FIG_SOFT });
+  }
+  g.strokeStyle = FIG_INK; g.lineWidth = 0.8; g.strokeRect(tx, by, RC, bh);
+  figLine(g, [[tx, by + 40], [tx + RC, by + 40]]); figLine(g, [[tx, by + 66], [tx + RC, by + 66]]);
+  for (const f of [1 / 3, 2 / 3]) figLine(g, [[tx + RC * f, by + 40], [tx + RC * f, by + bh]]);
+  const bench = project.benches.length > 1 ? (project.benches.find(b => b.id === project.tab) || {}).name || '' : '';
+  figSay(g, figFit(g, o.title || project.name || 'Bench', RC - 16, 13), tx + 8, by + 18, { size: 13, bold: true });
+  figSay(g, figFit(g, 'Optical layout' + (bench ? ', ' + bench : ''), RC - 16, 8), tx + 8, by + 32, { size: 8, ink: FIG_SOFT });
+  const cell = (x, y, label, v) => { figSay(g, label, x + 5, y + 9, { size: 6, ink: FIG_SOFT }); figSay(g, figFit(g, v, RC / 3 - 10, 8), x + 5, y + 20, { size: 8 }); };
+  cell(tx, by + 40, 'Scale', ratio[1]); cell(tx + RC / 3, by + 40, 'Units', 'mm, degrees'); cell(tx + 2 * RC / 3, by + 40, 'Sheet', o.sheet + ', 1 of 1');
+  cell(tx, by + 66, 'Date', new Date().toISOString().slice(0, 10)); cell(tx + RC / 3, by + 66, 'Drawn by', o.by || '—'); cell(tx + 2 * RC / 3, by + 66, 'Drawn with', 'JEKray');
+  return { g, unit: 'pt', dpi: 300, note: o.sheet + ' landscape, scale ' + ratio[1] + (callouts ? ', ' + parts.length + ' parts listed' : '') };
+}
+
+/* ---- Presentation ---- */
+function slidesFigure(o) {
+  const [SW, SH] = o.size === '43' ? [1600, 1200] : [1920, 1080];
+  const fig = { plain: true };
+  const { rec, box, s } = figFitted(fig, Math.round(SH / 40), b => Math.min(SW * 0.9 / b.w, SH * 0.86 / b.h));
+  const g = new VecCtx(SW, SH, { res: 1 });
+  const ox = (SW - box.w * s) / 2, oy = (SH - box.h * s) / 2, light = benchLight();
+  g.fillStyle = benchBg(); g.fillRect(0, 0, SW, SH);
+  if (benchHoles()) {
+    // the breadboard's 25 mm holes, as the bench draws them, over the whole slide
+    const k = V().scale * s, r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * k)) * SH / 800;   // as on a screen, a little larger for a slide's pixels
+    const wxOf = X => (X - ox) / s + box.x, wyOf = Y => (Y - oy) / s + box.y;           // slide to canvas pixels
+    const toW = (px, py) => [V().cx + (px - W / 2) / V().scale, V().cy - (py - H / 2) / V().scale];
+    const [a0, b1] = toW(wxOf(0), wyOf(0)), [a1, b0] = toW(wxOf(SW), wyOf(SH));
+    g.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
+    if (25 * k > 6) for (let x = Math.floor(a0 / 25) * 25; x <= a1; x += 25) for (let y = Math.floor(b0 / 25) * 25; y <= b1; y += 25) {
+      g.beginPath(); g.arc(ox + (sx(x) - box.x) * s, oy + (sy(y) - box.y) * s, r, 0, 2 * Math.PI); g.fill();
+    }
+  }
+  figPlace(g, rec, box, ox, oy, s, 1);
+  figSay(g, 'Made with JEKray · jeksys.net', SW - 24, SH - 20, { size: Math.round(SH / 70), align: 'right', ink: light ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)' });
+  return { g, unit: '', dpi: 72, note: SW + ' × ' + SH + ' pixels, the bench as it looks' };
+}
+
+/* the figure for a preset and its choices; the view framed to fit while it is drawn, then put back */
+function makeFigure(preset, o) {
+  let in3d = false;
+  try { in3d = V3D.active(); } catch (err) { in3d = false; }
+  if (in3d) throw new Error('switch to the 2D view first');
+  const keep = Object.assign({}, V());
+  fitView(true);
+  try {
+    const opts = Object.assign({}, FIGURE_DEFAULTS[preset], o);
+    return Object.assign(preset === 'technical' ? technicalFigure(opts) : preset === 'slides' ? slidesFigure(opts) : journalFigure(opts), { opts });
+  } finally { Object.assign(V(), keep); requestRender(); }
+}
+const figureSvg = (F, title) => layoutSvg(F.g, title || project.name, F.unit);
+/* the figure as a picture: its SVG drawn at the dpi asked, on white (or the slide's own colour) */
+function figurePng(F) {
+  const k = F.dpi / 72, svg = figureSvg(F), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  return new Promise((ok, no) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = Math.round(F.g.w * k); c.height = Math.round(F.g.h * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? ok(b) : no(new Error('the picture could not be made here')), 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error('the picture could not be made here')); };
+    img.src = url;
+  });
+}
+async function figureBlob(F) {
+  const f = F.opts.fmt;
+  if (f === 'svg') return new Blob([figureSvg(F)], { type: 'image/svg+xml' });
+  if (f === 'pdf') return pdfDoc([F.g], project.name);
+  return figurePng(F);
+}
+/* File › Export figure…'s Export */
+async function exportFigure(preset, o) {
+  if (!accountGate('export a figure')) return null;
+  try {
+    const F = makeFigure(preset, o), ext = F.opts.fmt === 'svg' ? 'svg' : F.opts.fmt === 'pdf' ? 'pdf' : 'png';
+    const name = safeFileName(project.name) + ' - ' + (FIGURE_PRESETS.find(p => p[0] === preset) || [0, 'figure'])[1].toLowerCase() + '.' + ext;
+    downloadFile(name, await figureBlob(F));
+    track('export', 'figure.' + preset);
+    toast('Saved ' + name);
+    return name;
+  } catch (err) { toast('The figure could not be made: ' + err.message, true); return null; }
+}
+
+/* ---- the dialog ---- */
+const FIG_KEY = 'jek-rt-figure';
+const FIG_FIELDS = {
+  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
+    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
+    ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
+  technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
+    ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],
+    ['title', 'Title', 'text'], ['by', 'Drawn by', 'text'], ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 300 dpi']]]],
+  slides: [['size', 'Slide', [['169', '16:9, 1920 × 1080'], ['43', '4:3, 1600 × 1200']]], ['fmt', 'As', [['png', 'PNG'], ['svg', 'SVG (vector)'], ['pdf', 'PDF (vector)']]]],
+};
+let figDlg = null, figUrl = null;
+const figKept = () => { try { return JSON.parse(localStorage.getItem(FIG_KEY)) || {}; } catch (err) { return {}; } };
+function figState() {
+  const k = figKept(), preset = FIGURE_DEFAULTS[k.preset] ? k.preset : 'journal';
+  return { preset, o: Object.assign({}, FIGURE_DEFAULTS[preset], k[preset] || {}) };
+}
+function figKeep(st) { try { const k = figKept(); k.preset = st.preset; k[st.preset] = st.o; localStorage.setItem(FIG_KEY, JSON.stringify(k)); } catch (err) { /* this visit only */ } }
+function figFill() {
+  const st = figState(), opts = figDlg.querySelector('.rt-figopts'), tabs = figDlg.querySelector('.rt-figtabs');
+  tabs.replaceChildren(...FIGURE_PRESETS.map(([k, label]) => h('button', { type: 'button', class: 'rt-btn' + (k === st.preset ? ' on' : ''), role: 'tab', 'aria-selected': k === st.preset ? 'true' : 'false', 'data-preset': k,
+    onclick: () => { const s2 = figState(); s2.preset = k; s2.o = Object.assign({}, FIGURE_DEFAULTS[k], figKept()[k] || {}); figKeep(s2); figFill(); } }, label)));
+  opts.replaceChildren();
+  for (const [key, label, choices] of FIG_FIELDS[st.preset]) {
+    let field;
+    if (choices === 'text') {
+      field = h('input', { type: 'text', value: st.o[key] || '', placeholder: key === 'title' ? project.name : 'Optional', 'data-key': key });
+      field.addEventListener('change', () => { const s2 = figState(); s2.o[key] = field.value.trim(); figKeep(s2); figPreview(); });
+    } else {
+      field = h('select', { 'data-key': key, 'aria-label': label });
+      for (const [v, t] of choices) field.append(h('option', { value: String(v), selected: String(st.o[key]) === String(v) }, t));
+      field.addEventListener('change', () => {
+        const s2 = figState(), v = choices.find(c => String(c[0]) === field.value)[0];
+        s2.o[key] = v; figKeep(s2); figPreview();
+      });
+    }
+    opts.append(h('label', { class: 'rt-figrow' }, h('span', null, label), field));
+  }
+  figPreview();
+}
+function figPreview() {
+  const st = figState(), img = figDlg.querySelector('.rt-figprev img'), note = figDlg.querySelector('.rt-fignote');
+  try {
+    const F = makeFigure(st.preset, st.o);
+    if (figUrl) URL.revokeObjectURL(figUrl);
+    const svg = figureSvg(F);
+    figDlg.figSvg = svg;                                             // the preview's text (the tests read it)
+    figUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    img.src = figUrl; img.hidden = false;
+    note.textContent = F.note + '.';
+  } catch (err) { img.hidden = true; note.textContent = 'No preview: ' + err.message + '.'; }
+}
+function openFigure() {
+  if (!figDlg) {
+    figDlg = h('dialog', { class: 'rt-dialog rt-wide rt-figure', id: 'figureDialog', 'aria-labelledby': 'figureTitle' },
+      h('h2', { id: 'figureTitle' }, 'Export figure'),
+      h('p', null, 'The bench as a figure for a paper, a drawing to build from, or a slide. ', h('a', { class: 'rt-link', href: '/jek/docs/jekray/figures/', target: '_blank', rel: 'noopener' }, 'What each one is')),
+      h('div', { class: 'rt-figtabs', role: 'tablist', 'aria-label': 'The kind of figure' }),
+      h('div', { class: 'rt-figbody' }, h('div', { class: 'rt-figopts' }), h('div', { class: 'rt-figprev' }, h('img', { alt: 'Preview of the figure' }))),
+      h('p', { class: 'note rt-fignote', 'aria-live': 'polite' }),
+      h('div', { class: 'rt-actions' },
+        h('button', { class: 'rt-btn', type: 'button', onclick: () => figDlg.close() }, 'Close'),
+        h('button', { class: 'rt-btn primary', type: 'button', id: 'figureGo', onclick: async e => {
+          const b = e.currentTarget, st = figState(); b.disabled = true;
+          try { if (await exportFigure(st.preset, st.o)) figDlg.close(); } finally { b.disabled = false; }
+        } }, 'Export')));
+    needMark(figDlg.querySelector('#figureGo'), 'account', 'export a figure');
+    document.body.append(figDlg);
+  }
+  figDlg.showModal();
+  figFill();
+}
+/* the page's wiring for this module: done once, from boot.js */
+function wireFigure() {
+  const b = document.getElementById('btnExportFigure');
+  if (b) b.addEventListener('click', () => openFigure());
 }
 /* ==========================================================================
    The guide for AI assistants
@@ -47550,6 +48000,126 @@ function exportCad(asm, kind) {
     return out;
   } catch (err) { toast(err.message, true); return null; }
 }
+/* What each part is for, in plain words: the picker's search and Ctrl+K find a part by what it does
+   ("focus", "split", "measure power") as well as by its name. Not shown, only searched. Every part in
+   every palette has an entry (test/node/part-uses.test.mjs checks). */
+const USE_LASER = 'light source laser emit beam illuminate pump';
+const USE_DETECT = 'detector measure power intensity signal sensor photodiode photocurrent readout';
+const USE_SPLIT = 'split divide combine merge tap interferometer beamsplitter';
+const USE_POL = 'polarisation polarization linear analyser analyzer extinction';
+const USE_AMP = 'amplify amplifier gain boost';
+const USE_FILTER = 'filter select wavelength colour color band pass block';
+const USE_LINK = 'link connect another tab feedthrough continue';
+const PART_USES = {
+  // free space
+  source: USE_LASER + ' laser diode led lamp gaussian collimated point',
+  mirror: 'reflect steer fold bounce turn mirror retroreflector curved concave focusing cavity',
+  lens: 'focus collimate image converge diverge magnify expand telescope relay objective',
+  asphere: 'focus collimate aspheric lens aberration free high na',
+  diffractive: 'focus diffractive fresnel zone plate doe lens',
+  grinrod: 'focus collimate gradient index graded grin lens fibre coupling',
+  cylinder: 'focus line one axis astigmatic anamorphic correct elliptical beam',
+  axicon: 'bessel beam ring cone line focus long focus',
+  cube: USE_SPLIT + ' cube plate pbs polarising',
+  prism: 'disperse refract bend deviate spectrum rainbow wavelength separate',
+  waveplate: 'rotate polarisation retarder half wave quarter wave circular',
+  polariser: USE_POL + ' polarizer polariser block',
+  stop: 'aperture iris block limit stop pinhole spatial filter clip',
+  mask: 'aperture slit double slit pattern block diffraction mask',
+  screen: 'view see image spot profile camera beam profile observe pattern ccd',
+  phosphor: 'view trail persistence glow card ir viewer see beam',
+  grating: 'diffract disperse spectrum wavelength separate order ruled echelle',
+  crystal: 'birefringent split polarisation displacer wollaston glan calcite double refraction',
+  filter: USE_FILTER + ' attenuate neutral density nd dichroic',
+  faraday: 'rotate polarisation magneto optic nonreciprocal',
+  isolator: 'block back reflection one way protect laser nonreciprocal',
+  gain: USE_AMP + ' laser medium crystal rod pump cavity lasing',
+  cell: 'atoms vapour vapor absorption spectroscopy rubidium caesium cesium potassium resonance saturated',
+  nlc: 'frequency doubling second harmonic shg nonlinear convert colour green ppln ppktp',
+  fibre: 'fibre fiber coupling launch end face tip connect free space',
+  collimator: 'fibre fiber collimate launch couple out to free space connect',
+  detector: USE_DETECT,
+  spectrometer: 'spectrum measure wavelength colour spectral analyse analyze',
+  'elec:chopper': 'chop modulate on off pulse lock in reference wheel',
+  aom: 'modulate shift frequency deflect switch acousto optic diffract pulse',
+  eom: 'modulate phase sidebands electro optic pockels pdh',
+  link: USE_LINK + ' plane',
+  // fibre
+  laser: USE_LASER + ' fibre fiber dfb',
+  led: 'light source broadband incoherent emit',
+  coupler: USE_SPLIT + ' 50 50 tap fused 2x2',
+  splitter: USE_SPLIT + ' fan out 1xn distribute',
+  combiner: 'combine merge join nx1 add',
+  pd: USE_DETECT,
+  bpd: USE_DETECT + ' balanced differential subtract noise cancel heterodyne',
+  pbs: USE_SPLIT + ' ' + USE_POL,
+  fmir: 'reflect mirror partial reflector end loop back',
+  osa: 'spectrum measure wavelength spectral analyse analyze',
+  circ: 'route direct port three port separate return reflection',
+  iso: 'block back reflection one way protect laser',
+  wdm: USE_FILTER + ' multiplex demultiplex combine separate channels',
+  voa: 'attenuate reduce power dim variable',
+  pc: 'polarisation adjust paddles control rotate',
+  pol: USE_POL + ' polarizer',
+  amp: USE_AMP + ' edfa erbium',
+  fm: 'reflect rotate polarisation compensate faraday mirror michelson',
+  fbg: USE_FILTER + ' reflect notch bragg sensor strain',
+  tbf: USE_FILTER + ' tunable',
+  switch: 'route switch select path toggle',
+  delay: 'delay path length time optical delay line adjust',
+  stretch: 'phase modulate stretch piezo length',
+  star: USE_SPLIT + ' distribute many ports mxn',
+  depol: 'scramble unpolarised unpolarized depolarise depolarize',
+  soa: USE_AMP + ' semiconductor',
+  term: 'end absorb terminate dump stop reflection',
+  faom: 'modulate shift frequency switch acousto optic pulse',
+  feom: 'modulate phase intensity sidebands electro optic',
+  thru: USE_LINK,
+  // circuits
+  'elec:node': 'wire junction route fan out split connect',
+  'elec:dc': 'voltage bias supply power dc constant',
+  'elec:sig': 'signal generator function sine square ramp oscillator drive waveform',
+  'elec:noise': 'noise random white gaussian',
+  'elec:amp': USE_AMP + ' voltage op amp',
+  'elec:tia': 'current to voltage photodiode amplifier transimpedance tia',
+  'elec:lpf': 'filter smooth low pass integrate remove noise',
+  'elec:hpf': 'filter high pass ac couple block dc',
+  'elec:bpf': 'filter band pass select frequency',
+  'elec:att': 'attenuate reduce signal divide',
+  'elec:mixer': 'multiply mix demodulate downconvert heterodyne error signal pdh',
+  'elec:sum': 'add sum combine subtract',
+  'elec:biastee': 'bias dc rf combine',
+  'elec:comp': 'compare threshold trigger digital',
+  'elec:scope': 'measure view signal time trace oscilloscope waveform',
+  'elec:spec': 'spectrum frequency fft measure analyse analyze',
+  'elec:lockin': 'lock in demodulate phase sensitive detect weak signal',
+  'elec:daq': 'record digitise digitize sample adc acquire data',
+  'elec:thru': USE_LINK,
+  // RF
+  'rf:horn': 'antenna source emit transmit millimetre microwave terahertz',
+  'rf:rx': 'antenna detector receive measure power',
+  'rf:lens': 'focus collimate dielectric hdpe teflon',
+  'rf:mirror': 'reflect steer fold flat',
+  'rf:fmirror': 'focus reflect curved',
+  'rf:reflector': 'focus reflect dish parabolic antenna offset',
+  'rf:radome': 'window cover dielectric protect transmit',
+  'rf:grid': 'polarisation polarization wire grid split reflect',
+  'rf:bs': 'split combine interferometer film mylar',
+  'rf:grin': 'focus gradient index printed lens',
+  'rf:mesh': 'filter low pass frequency select mesh',
+  'rf:load': 'absorb terminate dump block',
+  // photonic chips
+  'pic:gc': 'couple fibre to chip input output grating',
+  'pic:dc': USE_SPLIT + ' evanescent',
+  'pic:mmi12': USE_SPLIT + ' 1x2 multimode interference',
+  'pic:mmi22': USE_SPLIT + ' 2x2 multimode interference',
+  'pic:ring': USE_FILTER + ' resonator notch cavity',
+  'pic:ringad': USE_FILTER + ' resonator add drop multiplex',
+  'pic:ps': 'phase shift tune heater thermo optic modulate',
+  'pic:pd': USE_DETECT,
+};
+// the words a part is found by: its names, its palette and what it is for
+const partWords = (p, palName) => (p.short + ' ' + p.long + ' ' + (palName || '') + ' ' + (PART_USES[p.key] || '')).toLowerCase();
 /* ==========================================================================
    Wiring
    ========================================================================== */
@@ -47887,7 +48457,9 @@ function fillPicker(q) {
     body.replaceChildren();
     if (t) {
       // every palette's parts whose name has each word typed
-      const words = t.split(/\s+/), hits = palettesOn().flatMap(pal => partsOf(pal)).filter(p => words.every(w => (p.short + ' ' + p.long + ' ' + PALETTE_NAMES[p.pal]).toLowerCase().includes(w)));
+      const words = t.split(/\s+/), named = p => words.every(w => (p.short + ' ' + p.long + ' ' + PALETTE_NAMES[p.pal]).toLowerCase().includes(w));
+      // by name first, then by what a part is for (“focus”, “split”, “measure power”)
+      const all = palettesOn().flatMap(pal => partsOf(pal)), hits = [...all.filter(named), ...all.filter(p => !named(p) && words.every(w => partWords(p, PALETTE_NAMES[p.pal]).includes(w)))];
       const mine = mineOn() && MINE.list ? MINE.list.filter(p => words.every(w => (p.name + ' ' + p.summary).toLowerCase().includes(w))) : [];
       if (mine.length) body.append(h('h4', null, 'My parts'), h('div', { class: 'rt-pgrid' }, ...mine.map(p => mineTile(p, e => { if (!e.shiftKey) pickerShown(false); }))), hits.length ? h('h4', null, 'Parts') : null);
       const ph = packHits(words);
@@ -51038,6 +51610,9 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Export figure</b>: <b>File \u203a Export figure\u2026</b> makes the bench a figure for where it is going. <b>Journal</b>: white, no holes, line art, the light in its colour or black, the names in Helvetica at a size in points, 85 mm (one column) or 174 mm (two) wide, no line under 0.5 pt, a scale bar; PDF, SVG or a 600 dpi PNG. <b>Technical drawing</b>: an A4 or A3 sheet to a standard scale, the parts\u2019 centres dimensioned, numbered callouts, a parts list and a title block. <b>Presentation</b>: the bench as it looks on a 16:9 or 4:3 slide. A preview shows each before it comes down.',
+    '<b>Find a part by what it does</b>: Add part\u2019s search and Ctrl+K know what each part is for, so \u201cfocus\u201d finds the lenses, \u201cmeasure power\u201d the photodetectors and \u201cfrequency doubling\u201d the nonlinear crystal; parts named for what was typed come first.',
+    '<b>Lines and arrows</b>: the Draw palette gains <b>Line</b> (L) and <b>Arrow</b> (W), straight at a drag (Ctrl for steps of 15\u00b0), and any open path can end in an arrowhead, a dot or a bar; right-click on empty bench for <b>Add a note here</b> and <b>Add an arrow here</b>. The bench\u2019s name sits in the middle of the page when the bar has room.',
     '<b>Add part moves to the parts rail</b>, as its topmost button: the picker opens beside it, every part with a search (A still opens it, and View \u203a Add a part). The bar keeps the menus, the bench\u2019s name, Share and Save.',
     '<b>One palette switcher</b>: the parts rail\u2019s five coloured buttons become one switcher at its top, showing the palette in use with its icon; it opens a list of the palettes, each with a line of what it holds. Electronics is now called <b>Circuits</b>.',
     '<b>Smaller things</b>: the menus answer the keyboard (Down opens one and walks it, Left and Right move between them); <b>Ctrl+K</b> finds parts and examples as well as commands; Undo and Redo say what they would do (\u201cUndo move Laser\u201d); <b>File \u203a Open recent</b> lists the files, examples and cloud benches opened lately; with several parts selected, <b>Set them all</b> sets a height, a facing, a diameter or a wavelength on every one; a part dragged near another lines up with it, or with a beam, a faint guide showing it (Shift drags freely); opening something over unsaved changes says where they were kept, and leaving the page with them asks first; in 3D, the names, the hint and the colour key follow the theme.',
@@ -52863,7 +53438,22 @@ function wireTours() {
       const w = cv.measureText(nameInput.value || nameInput.placeholder || '').width;
       const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
       nameInput.style.setProperty('--name-w', Math.ceil(w + pad + 6) + 'px');
+      centreName();
     };
+    /* the bench's name centred on the page (not just in the gap between the bar's two sides, which differ in
+       width), wherever it then clears both sides; else back in the gap */
+    const centreName = () => {
+      const file = nameInput.closest('.rt-file'), bar = file && file.parentElement;
+      if (!bar || window.innerWidth <= 960) { if (file) file.classList.remove('rt-centred'); return; }
+      file.classList.remove('rt-centred');
+      const B = bar.getBoundingClientRect(), F = file.getBoundingClientRect();
+      const before = [...bar.children].slice(0, [...bar.children].indexOf(file)).filter(n => n.getClientRects().length);
+      const leftEnd = Math.max(B.left, ...before.map(n => n.getBoundingClientRect().right));
+      const right = bar.querySelector('.rt-right'), rightStart = right ? right.getBoundingClientRect().left : B.right;
+      const l = B.left + B.width / 2 - F.width / 2;
+      if (l > leftEnd + 12 && l + F.width < rightStart - 12) file.classList.add('rt-centred');
+    };
+    new ResizeObserver(centreName).observe(document.querySelector('.rt-bar'));
     const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
     Object.defineProperty(nameInput, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); fit(); } });
     nameInput.addEventListener('input', fit);
@@ -52929,7 +53519,7 @@ function commandList() {
 // the parts and the examples, found only by what is typed (not listed with nothing typed)
 function findList() {
   const out = [];
-  for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', run: () => addPart(p.key) });
+  for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', uses: PART_USES[p.key] || '', run: () => addPart(p.key) });
   for (const [group, , list] of EXAMPLES) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
   return out;
 }
@@ -52937,7 +53527,7 @@ function findList() {
 function commandFind(q, list) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean), Q = words.join(' ');
   if (!words.length) return list.slice();
-  const hits = list.filter(c => { const t = (c.path.join(' ') + ' ' + c.label).toLowerCase(); return words.every(w => t.includes(w)); });
+  const hits = list.filter(c => { const t = (c.path.join(' ') + ' ' + c.label + ' ' + (c.uses || '')).toLowerCase(); return words.every(w => t.includes(w)); });
   const rank = c => { const l = c.label.toLowerCase(); return l.startsWith(Q) ? 0 : l.includes(Q) ? 1 : 2; };
   return hits.map((c, i) => [rank(c), i, c]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]);
 }
@@ -52978,6 +53568,7 @@ function openCommands(q) {
       if (e.key === 'ArrowDown') { e.preventDefault(); step(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1); }
       else if (e.key === 'Enter') { e.preventDefault(); cmdRun(cmdAt); }
+      else if (e.key === 'Escape') { e.preventDefault(); cmdDlg.close(); }   // at once (a search box would only clear its text first)
     });
     cmdDlg = h('dialog', { class: 'rt-dialog rt-cmd', id: 'cmdDialog', 'aria-label': 'Search commands' },
       h('div', { class: 'rt-cmdbox' }, input), h('ul', { id: 'cmdList', role: 'listbox', 'aria-label': 'Commands' }));
@@ -53764,7 +54355,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -53799,7 +54390,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   window.JEKray = {
     view3d: V3D.api,
     ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
-    load(data) { loadProject(data); selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
+    load(data) { loadProject(data); nameInput.value = project.name; selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
     partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
     // sweeps: play one (resolving once any rendering of its field is done), pause them all, and

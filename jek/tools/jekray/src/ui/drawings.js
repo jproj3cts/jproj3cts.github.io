@@ -128,8 +128,29 @@ function drawShape(el) {
     ctx.strokeStyle = rgbaHex(el.stroke, el.strokeOpacity * el.opacity); ctx.lineWidth = lw;
     ctx.lineCap = el.cap; ctx.lineJoin = el.join; ctx.setLineDash(DRAW_DASH[el.dash].map(v => v * lw));
     ctx.stroke(); ctx.setLineDash([]);
+    if (el.shape === 'path' && !el.closed && (el.startMark || el.endMark)) drawMarks(el, lw);
   }
   ctx.restore();
+}
+/* an open path's end marks, in the stroke's colour, sized from its width in mm (so they scale with the bench):
+   an arrowhead with its point on the node, a dot on it, a bar across it */
+function drawMarks(el, lw) {
+  const f = frame(el), P = p => { const q = el.m ? mApply(el.m, p) : p, [x, y] = toWorld(f, q[0], q[1]); return [sx(x), sy(y)]; };
+  const N = el.nodes, s = V().scale, len = Math.max(3, Math.max(1.5, el.strokeWidth * 4.5) * s);
+  const end = (k, at, prev) => {
+    const mark = el[k]; if (!mark) return;
+    const A = P([at.x, at.y]);
+    let B = P(prev); if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 1e-6) return;
+    const ux = (A[0] - B[0]) / Math.hypot(B[0] - A[0], B[1] - A[1]), uy = (A[1] - B[1]) / Math.hypot(B[0] - A[0], B[1] - A[1]), nx = -uy, ny = ux;
+    ctx.fillStyle = ctx.strokeStyle; ctx.setLineDash([]);
+    if (mark === 'arrow') { const w = len * 0.42; ctx.beginPath(); ctx.moveTo(A[0] + ux * lw * 0.5, A[1] + uy * lw * 0.5); ctx.lineTo(A[0] - ux * len + nx * w, A[1] - uy * len + ny * w); ctx.lineTo(A[0] - ux * len - nx * w, A[1] - uy * len - ny * w); ctx.closePath(); ctx.fill(); }
+    else if (mark === 'dot') { ctx.beginPath(); ctx.arc(A[0], A[1], Math.max(lw * 1.6, len * 0.28), 0, 2 * Math.PI); ctx.fill(); }
+    else { const w = len * 0.45; ctx.beginPath(); ctx.moveTo(A[0] + nx * w, A[1] + ny * w); ctx.lineTo(A[0] - nx * w, A[1] - ny * w); ctx.stroke(); }
+  };
+  // the way the path leaves its first node (its handle, else the next node) and comes into its last
+  const a = N[0], b = N[1], y = N[N.length - 1], z = N[N.length - 2];
+  end('startMark', a, a.h2 ? [a.x + a.h2[0], a.y + a.h2[1]] : b.h1 ? [b.x + b.h1[0], b.y + b.h1[1]] : [b.x, b.y]);
+  end('endMark', y, y.h1 ? [y.x + y.h1[0], y.y + y.h1[1]] : z.h2 ? [z.x + z.h2[0], z.y + z.h2[1]] : [z.x, z.y]);
 }
 export function hitDrawing(el, lx, ly, tol) {
   const P = drawPoly(el, 16), t = tol + el.strokeWidth / 2;
@@ -155,6 +176,10 @@ export const DRAW_TOOLS = [
     '<rect x="3.5" y="6" width="17" height="12" fill="none" stroke="currentColor" stroke-width="1.8"/>'],
   ['ellipse', 'Ellipse', 'E', 'Ellipse: drag to draw one. Ctrl: a circle. Shift: from its middle.',
     '<ellipse cx="12" cy="12" rx="8.5" ry="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>'],
+  ['line', 'Line', 'L', 'Line: drag to draw a straight line. Ctrl: at 15\u00b0 steps. Its panel puts an arrowhead, a dot or a bar at either end.',
+    '<path d="M4 19 20 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['arrow', 'Arrow', 'W', 'Arrow: drag from the tail to the point. Ctrl: at 15\u00b0 steps. Its panel changes either end.',
+    '<path d="M4 19 18 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 4 11.5 6.5 17.5 12.5Z" fill="currentColor"/>'],
   ['text', 'Text', 'T', 'Text: click on the bench to write, or on a text or a part\u2019s name to change it. Enter starts a new line (a name has one); Escape or a click elsewhere finishes.',
     '<path d="M5 5h14v3.5M5 5v3.5M12 5v14M9 19h6" fill="none" stroke="currentColor" stroke-width="2"/>'],
   ['pen', 'Pen', 'B', 'Pen: click for a corner, drag for a curve. Click the first node to close the path; Enter, a double-click or a right-click ends it, Backspace takes the last node off, Escape drops it.',
@@ -186,7 +211,7 @@ export function setDrawTool(t) {
   if (t !== 'select' && palette !== 'draw') setPalette('draw');
   if (t !== 'node') drawNodeSel = null;
   if (t !== 'text') closeTextEdit();
-  canvas.classList.toggle('drawing', t === 'rect' || t === 'ellipse' || t === 'pen');
+  canvas.classList.toggle('drawing', t === 'rect' || t === 'ellipse' || t === 'pen' || t === 'line' || t === 'arrow');
   canvas.classList.toggle('texting', t === 'text');
   drawToolsShown();
   requestRender();
@@ -201,6 +226,20 @@ export function drawToolsShown() {
   bar.textContent = T[3];
 }
 /* a new drawing from what the tool made, in world mm, on this tab, and selected */
+/* a text started at a point (mm) and opened to be typed: the Text tool's click, and the bench's right-click Add a note here */
+export function noteAt(x, y) {
+  const st = drawStyleNow();
+  const el = addDrawing({ shape: 'text', x, y, text: '', stroke: 'none',
+    fill: st.textFill || (st.stroke !== 'none' ? st.stroke : '#e8edf0'), size: st.textSize || +(14 / V().scale).toPrecision(2), font: st.textFont, bold: st.textBold, italic: st.textItalic });
+  editText(el, 'text', true);
+  return el;
+}
+/* an arrow from a point (mm), 60 px long up and to the right, selected to drag or edit: the right-click Add an arrow here */
+export function arrowAt(x, y) {
+  const L = 30 / V().scale;
+  return addDrawing({ shape: 'path', x: x + L, y: y + L, closed: false, fill: 'none', endMark: 'arrow',
+    nodes: [{ x: -L, y: -L, h1: null, h2: null }, { x: L, y: L, h1: null, h2: null }] });
+}
 function addDrawing(props) {
   checkpoint();
   const el = normElement(Object.assign({ type: 'draw', name: nextName(DRAW_SHAPES[props.shape]), angle: 0 }, drawStyleNow(), props));
@@ -267,13 +306,10 @@ export function drawDown(px, py, e) {
     const hit = hitTest(px, py);
     if (hit && hit.type === 'draw' && hit.shape === 'text') { selectOne(hit.id); renderPanel(); editText(hit, 'text'); return true; }
     if (textEdit) { closeTextEdit(); return true; }            // a click away finishes the one being typed
-    const st = drawStyleNow();
-    const el = addDrawing({ shape: 'text', x: snapVal(wx(px), e), y: snapVal(wy(py), e), text: '', stroke: 'none',
-      fill: st.textFill || (st.stroke !== 'none' ? st.stroke : '#e8edf0'), size: st.textSize || +(14 / V().scale).toPrecision(2), font: st.textFont, bold: st.textBold, italic: st.textItalic });
-    editText(el, 'text', true);
+    noteAt(snapVal(wx(px), e), snapVal(wy(py), e));
     return true;
   }
-  if (drawTool === 'rect' || drawTool === 'ellipse') {
+  if (drawTool === 'rect' || drawTool === 'ellipse' || drawTool === 'line' || drawTool === 'arrow') {
     setDrag({ mode: 'drawshape', kind: drawTool, px0: px, py0: py, cur: null });
     return true;
   }
@@ -381,8 +417,19 @@ export function drawUp(e) {
     selectOne(hit ? hit.id : null); setSelFibreId(null); renderPanel(); requestRender();
     return;
   }
+  if (d.kind === 'line' || d.kind === 'arrow') { addDrawing(lineOf(d)); return; }
   const b = shapeBox(d, { shiftKey: false });
   addDrawing(d.kind === 'rect' ? { shape: 'rect', x: b.cx, y: b.cy, w: b.w, h: b.h } : { shape: 'ellipse', x: b.cx, y: b.cy, rx: b.w / 2, ry: b.h / 2 });
+}
+/* a line or an arrow dragged out: a path of two straight nodes about its middle; Ctrl at 15 degree steps */
+function lineOf(d) {
+  const ax = snapVal(wx(d.px0)), ay = snapVal(wy(d.py0));
+  let [bx, by] = [snapVal(wx(d.cur[0])), snapVal(wy(d.cur[1]))];
+  if (d.sq) [bx, by] = snap15(ax, ay, wx(d.cur[0]), wy(d.cur[1]));
+  const cx = +((ax + bx) / 2).toFixed(4), cy = +((ay + by) / 2).toFixed(4);
+  return Object.assign({ shape: 'path', x: cx, y: cy, closed: false, fill: 'none',
+    nodes: [{ x: +(ax - cx).toFixed(4), y: +(ay - cy).toFixed(4), h1: null, h2: null }, { x: +(bx - cx).toFixed(4), y: +(by - cy).toFixed(4), h1: null, h2: null }] },
+    d.kind === 'arrow' ? { endMark: 'arrow' } : {});
 }
 /* the box a rectangle or ellipse drag spans, in world mm: Ctrl square, Shift from its middle */
 function shapeBox(d, e) {
@@ -397,8 +444,9 @@ export function drawToolOverlay() {
   ctx.save();
   const ink = getCss('--jek-cyan');
   if (drag && drag.mode === 'drawshape' && drag.cur) {
-    const b = shapeBox(drag, { shiftKey: false }), st = drawStyleNow();
-    const ghost = normDraw(Object.assign({}, st, drag.kind === 'rect' ? { shape: 'rect', w: b.w, h: b.h } : { shape: 'ellipse', rx: b.w / 2, ry: b.h / 2 }), { type: 'draw', x: b.cx, y: b.cy, angle: 0 });
+    const b = shapeBox(drag, { shiftKey: false }), st = drawStyleNow(), L = drag.kind === 'line' || drag.kind === 'arrow' ? lineOf(drag) : null;
+    const ghost = L ? normDraw(Object.assign({}, st, L), { type: 'draw', x: L.x, y: L.y, angle: 0 })
+      : normDraw(Object.assign({}, st, drag.kind === 'rect' ? { shape: 'rect', w: b.w, h: b.h } : { shape: 'ellipse', rx: b.w / 2, ry: b.h / 2 }), { type: 'draw', x: b.cx, y: b.cy, angle: 0 });
     drawDrawing(ghost, false);
     drawTrace(ctx, ghost); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
   }
@@ -850,7 +898,7 @@ export function drawKey(e) {
   if ((e.key === 'h' || e.key === 'v') && selection().some(x => x.type === 'draw')) { e.preventDefault(); flipEls(selection(), e.key); return true; }
   const st = { Home: 'top', End: 'bottom', PageUp: 'up', PageDown: 'down' }[e.key];
   if (st && selection().some(x => x.type === 'draw')) { e.preventDefault(); restack(selection(), st); return true; }
-  const k = { s: 'select', n: 'node', e: 'ellipse', b: 'pen', t: 'text', F1: 'select', F2: 'node', F4: 'rect', F5: 'ellipse', F8: 'text' }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  const k = { s: 'select', n: 'node', e: 'ellipse', b: 'pen', t: 'text', l: 'line', w: 'arrow', F1: 'select', F2: 'node', F4: 'rect', F5: 'ellipse', F8: 'text' }[e.key.length === 1 ? e.key.toLowerCase() : e.key];
   if (!k || e.shiftKey || (e.key.startsWith('F') && e.key.length > 1 && palette !== 'draw')) return false;
   e.preventDefault();
   setDrawTool(k);
@@ -934,6 +982,9 @@ export function drawPanel(el) {
       cl.addEventListener('change', () => { checkpoint(); el.closed = cl.checked; changed(false); });
       const ni = drawNodeSel && drawNodeSel.id === el.id ? drawNodeSel.i : -1, n = el.nodes[ni];
       const b = box(h('label', { class: 'rt-check' }, cl, 'Closed path'));
+      // an open path's ends: an arrowhead, a dot or a bar at either
+      if (!el.closed) for (const [k, label] of [['startMark', 'Start'], ['endMark', 'End']]) b.append(row(label, seg([['', null, 'None', 'No mark'], ['arrow', null, 'Arrow', 'An arrowhead'], ['dot', null, 'Dot', 'A dot'], ['bar', null, 'Bar', 'A bar across it']],
+        () => el[k] || '', v => { if (v) el[k] = v; else delete el[k]; })));
       if (n) b.append(head('Node ' + (ni + 1) + ' of ' + el.nodes.length),
         row('x', ...num(() => n.x, v => { n.x = v; }, 'mm')), row('y', ...num(() => n.y, v => { n.y = v; }, 'mm')),
         row('Type', seg([['straight', '<path d="M4 18 20 6" stroke="currentColor" stroke-width="2"/><rect x="9" y="9" width="6" height="6" fill="currentColor"/>', null, 'Straight: no handles'],

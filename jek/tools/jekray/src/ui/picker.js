@@ -6,6 +6,7 @@ import { PALETTE_NAMES, addPart, palette, palettesOn, partGroups, partTile, part
 import { setPalette } from './rail.js';
 import { MINE, loadMine, mineBody, mineChanged, mineOn, mineTile, placeMine } from './myparts.js';
 import { packHits, packTile, packsBody } from '../io/packs.js';
+import { partWords } from './part-uses.js';
 
 /* ---------- the picker ---------- */
 export const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
@@ -34,7 +35,9 @@ export function fillPicker(q) {
     body.replaceChildren();
     if (t) {
       // every palette's parts whose name has each word typed
-      const words = t.split(/\s+/), hits = palettesOn().flatMap(pal => partsOf(pal)).filter(p => words.every(w => (p.short + ' ' + p.long + ' ' + PALETTE_NAMES[p.pal]).toLowerCase().includes(w)));
+      const words = t.split(/\s+/), named = p => words.every(w => (p.short + ' ' + p.long + ' ' + PALETTE_NAMES[p.pal]).toLowerCase().includes(w));
+      // by name first, then by what a part is for (“focus”, “split”, “measure power”)
+      const all = palettesOn().flatMap(pal => partsOf(pal)), hits = [...all.filter(named), ...all.filter(p => !named(p) && words.every(w => partWords(p, PALETTE_NAMES[p.pal]).includes(w)))];
       const mine = mineOn() && MINE.list ? MINE.list.filter(p => words.every(w => (p.name + ' ' + p.summary).toLowerCase().includes(w))) : [];
       if (mine.length) body.append(h('h4', null, 'My parts'), h('div', { class: 'rt-pgrid' }, ...mine.map(p => mineTile(p, e => { if (!e.shiftKey) pickerShown(false); }))), hits.length ? h('h4', null, 'Parts') : null);
       const ph = packHits(words);

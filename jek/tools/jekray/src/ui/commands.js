@@ -4,6 +4,7 @@ import { editCan } from './actions.js';
 import { PALETTE_NAMES, addPart, exp, palettesOn, partsOf } from './experimental.js';
 import { EXAMPLES } from './news.js';
 import { openDemo } from './tours.js';
+import { PART_USES } from './part-uses.js';
 
 /* ---------- Search commands (Ctrl+K) ----------
    Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay
@@ -43,7 +44,7 @@ export function commandList() {
 // the parts and the examples, found only by what is typed (not listed with nothing typed)
 export function findList() {
   const out = [];
-  for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', run: () => addPart(p.key) });
+  for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', uses: PART_USES[p.key] || '', run: () => addPart(p.key) });
   for (const [group, , list] of EXAMPLES) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
   return out;
 }
@@ -51,7 +52,7 @@ export function findList() {
 export function commandFind(q, list) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean), Q = words.join(' ');
   if (!words.length) return list.slice();
-  const hits = list.filter(c => { const t = (c.path.join(' ') + ' ' + c.label).toLowerCase(); return words.every(w => t.includes(w)); });
+  const hits = list.filter(c => { const t = (c.path.join(' ') + ' ' + c.label + ' ' + (c.uses || '')).toLowerCase(); return words.every(w => t.includes(w)); });
   const rank = c => { const l = c.label.toLowerCase(); return l.startsWith(Q) ? 0 : l.includes(Q) ? 1 : 2; };
   return hits.map((c, i) => [rank(c), i, c]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]);
 }
@@ -92,6 +93,7 @@ export function openCommands(q) {
       if (e.key === 'ArrowDown') { e.preventDefault(); step(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1); }
       else if (e.key === 'Enter') { e.preventDefault(); cmdRun(cmdAt); }
+      else if (e.key === 'Escape') { e.preventDefault(); cmdDlg.close(); }   // at once (a search box would only clear its text first)
     });
     cmdDlg = h('dialog', { class: 'rt-dialog rt-cmd', id: 'cmdDialog', 'aria-label': 'Search commands' },
       h('div', { class: 'rt-cmdbox' }, input), h('ul', { id: 'cmdList', role: 'listbox', 'aria-label': 'Commands' }));

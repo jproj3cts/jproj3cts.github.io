@@ -6587,6 +6587,29 @@ const TESTS = [
     },
   },
   {
+    name: 'Two drives on the light and a photodetector left dark: the circuit is still solved, and moving fibre parts needs no new trace',
+    why: 'two LEDs, each square-wave modulated by its own generator, combined onto one photodetector, and a second photodetector joined to nothing: the lit one reads both tones (10 and 20 kHz), the dark one reads 0 (once a sum of each detector’s changes taken whole, which threw and was worked out again every frame); then the lit photodetector moved 30 mm and the combiner turned leaves the trace current (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const led = (id, y) => ({ type: 'fcomp', kind: 'laser', id, name: id, x: 0, y, angle: 0, wavelength: 690, power: 10, led: true, cmode: 'broad', bw: 40, ext: true, modk: 20, pol: 'unpolarised' });
+      const gen = (id, y, f) => ({ type: 'elec', kind: 'sig', id, name: id, x: -60, y, angle: 0, wave: 'square', f, amp: 2.5, offset: 2.5, duty: 50 });
+      J.load({ format: 'jekray', version: 1, elements: [led('A', 0), led('B', 40), gen('GA', 0, 10000), gen('GB', 40, 20000),
+        { type: 'fcomp', kind: 'split', id: 'C', name: 'C', x: 60, y: 20, angle: 0, ways: 2, combine: true, loss: 0.2 },
+        { type: 'fcomp', kind: 'pd', id: 'D', name: 'D', x: 120, y: 20, angle: 0 }, { type: 'fcomp', kind: 'pd', id: 'E', name: 'E', x: 120, y: 80, angle: 0 }],
+        fibres: [{ a: ['GA', 0], b: ['A', 1], wire: true }, { a: ['GB', 0], b: ['B', 1], wire: true }, { a: ['A', 0], b: ['C', 1] }, { a: ['B', 0], b: ['C', 2] }, { a: ['C', 0], b: ['D', 0] }] });
+      let lit = false, dark = false;
+      try {
+        const S = J.elec.signal('D', 0), Q = J.elec.signal('E', 0), T = f => (S.tones.find(t => Math.abs(t.f - f) < 1e-3) || { amp: 0 }).amp;
+        lit = S.dc > 0 && T(10000) > 0 && T(20000) > 0; dark = Q.dc === 0;
+      } catch (err) { console.log('two drives', err.message); }
+      J.traceInfo();
+      const d = J.byName('D'), c = J.byName('C'); d.x += 30; c.angle = 90;
+      const kept = J.traceInfo().current;
+      if (!(lit && dark && kept)) console.log('two drives', { lit, dark, kept });
+      return lit && dark && kept ? 1 : 0;
+    },
+  },
+  {
     name: 'View › Lay new links square: a fibre laid click by click runs only across and up the bench through its corners; links already laid keep their way',
     why: 'a curved fibre is on the bench; with square on, a click on the laser’s port, one on the bench and one on the photodiode’s port make a fibre routed square with that one corner, every run of it past the ports’ stubs horizontal or vertical, and the curved one stays curved; with square off, a fibre dragged port to port is curved (1 when all hold)',
     want: 1, tol: 0, unit: '',

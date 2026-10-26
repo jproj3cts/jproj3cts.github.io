@@ -5,7 +5,7 @@ import { onTab } from '../state/tabs.js';
 import { frame, toLocal } from '../core/mask.js';
 import {
   H, W, canvas, fibreAtPx, fibreGrip, fibreNearest, fibreSplit, handlePos, moveGrip, portAt,
-  halfSize, removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, sx, sy, wx,
+  halfSize, removeFibre, requestRender, selFibre, selFibreId, selection, setSelFibreId, setSelection, setSquareMode, squareOn, sx, sy, wx,
   wy
 } from './render.js';
 import {
@@ -133,6 +133,14 @@ function endPointer(e) {
     const rect = canvas.getBoundingClientRect(), to = drag.cur ? portAt(e.clientX - rect.left, e.clientY - rect.top) : null;
     const d = drag, F = d.fib;
     drag = null; canvas.classList.remove('dragging');
+    // laying a new link square: let go (or clicked) off a port, a corner there, and on to the next click
+    if (d.square && !F && (!to || pkey(...to) === pkey(...d.from))) {
+      if (to && d.laying) { requestRender(); return; }                      // back on its own port: given up
+      if (d.cur && !to) d.corners.push({ x: snapVal(wx(d.cur[0])), y: snapVal(wy(d.cur[1])), h1: [0, 0], h2: [0, 0] });
+      if (!d.laying) toast('Square: click for each corner, then on a port to join it; Backspace takes the last corner back, Esc stops');
+      drag = Object.assign(d, { laying: true });
+      requestRender(); return;
+    }
     if (!d.cur) {                              // a click on a port: select its fibre
       if (F) { setSelFibreId(F.id); selectOne(null); renderPanel(); }
       requestRender(); return;
@@ -149,7 +157,12 @@ function endPointer(e) {
       if (taken) { toast('That input already has a wire: an input takes one', true); requestRender(); return; }
       checkpoint();
       if (F) { F.a = a; F.b = b; }
-      else { project.fibres = project.fibres || []; const G = { id: uid(), a, b, wire: true, path: [] }; project.fibres.push(G); setSelFibreId(G.id); selectOne(null); }
+      else {
+        project.fibres = project.fibres || [];
+        const G = { id: uid(), a, b, wire: true, path: [] };
+        if (d.square) Object.assign(G, { route: 'square', path: pkey(...a) === pkey(...d.from) ? d.corners : d.corners.slice().reverse() });   // its corners from its output
+        project.fibres.push(G); setSelFibreId(G.id); selectOne(null);
+      }
       changed(true);
       return;
     }
@@ -162,7 +175,13 @@ function endPointer(e) {
     if (to && !busy && pkey(...to) !== pkey(...d.from)) {
       checkpoint();
       if (F) { if (pkey(...F.a) === pkey(...d.from)) F.b = to; else F.a = to; }
-      else { project.fibres = project.fibres || []; const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 }; if (lk === 'wg') G.wg = PIC.normWg({}); project.fibres.push(G); setSelFibreId(G.id); selectOne(null); }
+      else {
+        project.fibres = project.fibres || [];
+        const G = { id: uid(), a: d.from, b: to, len: 1, loss: 0.2 };
+        if (lk === 'wg') G.wg = PIC.normWg({});
+        if (d.square) Object.assign(G, { route: 'square', path: d.corners });
+        project.fibres.push(G); setSelFibreId(G.id); selectOne(null);
+      }
       changed(true);
     } else if (F && !to) removeFibre(F);        // pulled off its port: the fibre goes
     else requestRender();
@@ -201,6 +220,8 @@ let spaceDown = false;
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wirePointer() {
+  const sq = document.getElementById('btnSquare');
+  if (sq) { setSquareMode(squareOn()); sq.addEventListener('click', () => { const on = setSquareMode(!squareOn()); toast(on ? 'New fibres, wires and waveguides are laid square: click for each corner' : 'New fibres, wires and waveguides are drawn curved'); }); }
   canvas.addEventListener('pointerdown', e => {
     canvas.focus({ preventScroll: true });
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* a pointer the browser no longer tracks (a synthetic one) */ }
@@ -214,6 +235,11 @@ export function wirePointer() {
       return;
     }
     hideCtxMenu();
+    // laying a square link: a click is its next corner (or the port it ends on: endPointer); the right button stops
+    if (drag && drag.mode === 'fibre' && drag.laying) {
+      if (e.button === 2) { drag = null; setPenEnded(performance.now()); requestRender(); return; }
+      drag.cur = [px, py]; return;
+    }
     if (e.button === 2 && penDraft) { finishPen(); setPenEnded(performance.now()); return; }   // the pen's right-click ends its path
     // the right button: a pan if it drags, the menu if it does not
     if (e.button === 2) { drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: false, right: true }; Object.assign(RIGHT, { on: true, moved: false, menu: null }); return; }
@@ -241,7 +267,8 @@ export function wirePointer() {
     if (port) {
       // ELEC hook: an electrical output feeds any number of wires, so a drag from it always draws a new one
       const F = ELEC.dirOf(port) === 'out' || ELEC.dirOf(port) === 'io' ? null : (project.fibres || []).find(G => pkey(...G.a) === pkey(...port) || pkey(...G.b) === pkey(...port));
-      drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null };
+      drag = { mode: 'fibre', from: F ? (pkey(...F.a) === pkey(...port) ? F.b : F.a) : port, fib: F || null, grabbed: port, px0: px, py0: py, cur: null,
+        square: F ? F.route === 'square' : squareOn(), corners: [] };          // a new link laid square in square mode; a link taken up keeps its own way
       return;
     }
     const hit = hitTest(px, py);
@@ -418,6 +445,10 @@ export function wirePointer() {
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); return; }
     if (typing) return;
     if (LOCKED && e.key !== ' ') return;                                  // a locked embed: Space pans, nothing else
+    if (drag && drag.mode === 'fibre' && drag.laying) {                    // laying a square link
+      if (e.key === 'Escape') { e.preventDefault(); drag = null; requestRender(); return; }
+      if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); drag.corners.pop(); requestRender(); return; }
+    }
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelection(project.elements.filter(x => onTab(x) && (!partsLocked() || x.type === 'draw'))); return; }

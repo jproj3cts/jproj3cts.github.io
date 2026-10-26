@@ -6586,6 +6586,42 @@ const TESTS = [
       return !a.on && b.on && !unlisted && listedOn && !c.on && listedOff ? 1 : 0;
     },
   },
+  {
+    name: 'View › Lay new links square: a fibre laid click by click runs only across and up the bench through its corners; links already laid keep their way',
+    why: 'a curved fibre is on the bench; with square on, a click on the laser’s port, one on the bench and one on the photodiode’s port make a fibre routed square with that one corner, every run of it past the ports’ stubs horizontal or vertical, and the curved one stays curved; with square off, a fibre dragged port to port is curved (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), cv = D.getElementById('bench'), sq = D.getElementById('btnSquare');
+      const parts = [{ type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 20, angle: 0 }, { type: 'fcomp', kind: 'pd', id: 'D', name: 'PD', x: 60, y: -30, angle: 0 }];
+      J.load({ format: 'jekray', version: 1, snap: 1, view: { cx: 0, cy: 0, scale: 5 }, elements: [...parts,
+        { type: 'fcomp', kind: 'laser', id: 'L2', name: 'Laser 2', x: -60, y: -60, angle: 0 }, { type: 'fcomp', kind: 'pd', id: 'D2', name: 'PD 2', x: 60, y: -70, angle: 0 }],
+        fibres: [{ id: 'c', a: ['L2', 0], b: ['D2', 0] }] });
+      const r = () => cv.getBoundingClientRect();
+      const P = (type, x, y, b) => cv.dispatchEvent(new W.PointerEvent(type, { clientX: r().left + x, clientY: r().top + y, pointerId: 11, button: 0, buttons: b, bubbles: true, isPrimary: true, pointerType: 'mouse' }));
+      const click = (x, y) => { P('pointermove', x, y, 0); P('pointerdown', x, y, 1); P('pointerup', x, y, 0); };
+      const on = sq.getAttribute('aria-checked') === 'true';
+      if (!on) sq.click();
+      try {
+        const [ax, ay] = J.portScreen('L', 0), [bx, by] = J.portScreen('D', 0);
+        click(ax, ay); click(ax + 100, ay - 150); click(bx, by);
+        const F = J.project().fibres.find(f => f.a[0] === 'L'), curved = J.project().fibres.find(f => f.id === 'c');
+        const laid = !!(F && F.route === 'square' && F.path.length === 1 && curved && !curved.route);
+        let square = laid, runs = 0;
+        for (let k = 1; square; k++) {
+          let p0, p1; try { J.fibrePoint(F.id, k + 1, 0); p0 = J.fibrePoint(F.id, k, 0); p1 = J.fibrePoint(F.id, k, 1); } catch (err) { break; }
+          square = Math.abs(p0[0] - p1[0]) < 0.01 || Math.abs(p0[1] - p1[1]) < 0.01; runs++;
+        }
+        square = square && runs >= 2;
+        sq.click();
+        J.load({ format: 'jekray', version: 1, view: { cx: 0, cy: 0, scale: 5 }, elements: parts });
+        const [ux, uy] = J.portScreen('L', 0), [vx, vy] = J.portScreen('D', 0);
+        P('pointerdown', ux, uy, 1); for (let i = 1; i <= 6; i++) P('pointermove', ux + (vx - ux) * i / 6, uy + (vy - uy) * i / 6, 1); P('pointerup', vx, vy, 0);
+        const G = J.project().fibres[0], plain = !!G && !G.route;
+        if (!(laid && square && plain)) console.log('square links', { F, laid, square, runs, G });
+        return laid && square && plain ? 1 : 0;
+      } finally { if ((sq.getAttribute('aria-checked') === 'true') !== on) sq.click(); }
+    },
+  },
   { group: 'The 3D view' },
   {
     name: 'The 3D field\u2019s colours run to the collimated beam, not a micrometre spot',

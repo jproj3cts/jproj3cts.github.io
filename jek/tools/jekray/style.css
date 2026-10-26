@@ -797,6 +797,16 @@
   .rt-datafmts { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; margin-bottom: 0.6rem; }
   .rt-datafmts .rt-check { align-items: center; font-weight: 500; }
   @media (pointer: coarse) { .rt-datakinds .rt-check, .rt-datafmts .rt-check { min-height: 2.2rem; align-items: center; } }
+  /* File › Export figure: the kinds as tabs, the choices beside a preview of the figure */
+  .rt-figtabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0 0.7rem; }
+  .rt-figtabs .rt-btn.on { background: var(--jek-ink); color: var(--rt-surface); border-color: var(--jek-ink); }
+  .rt-figbody { display: grid; grid-template-columns: minmax(12rem, 15rem) 1fr; gap: 1rem; align-items: start; }
+  .rt-figopts { display: grid; gap: 0.45rem; }
+  .rt-figrow { display: grid; gap: 0.15rem; font-size: 0.82rem; font-weight: 600; }
+  .rt-figrow select, .rt-figrow input { font: inherit; font-weight: 400; font-size: 0.88rem; padding: 0.3rem 0.4rem; border: 1px solid var(--rt-line, #c9c0b0); border-radius: 4px; background: var(--rt-surface); color: inherit; }
+  .rt-figprev { min-height: 14rem; display: grid; place-items: center; background: repeating-conic-gradient(#e9e5de 0% 25%, #f6f3ee 0% 50%) 0 0 / 16px 16px; border-radius: 6px; padding: 0.6rem; }
+  .rt-figprev img { max-width: 100%; max-height: 22rem; box-shadow: 0 2px 10px rgba(0,0,0,0.18); background: #fff; }
+  @media (max-width: 640px) { .rt-figbody { grid-template-columns: 1fr; } }
   /* the parts' panels made out of sight, for their plots' numbers: laid out at a panel's width, never seen */
   .rt-dataprobe { position: fixed; left: -10000px; top: 0; width: 360px; max-height: none; visibility: hidden; pointer-events: none; overflow: hidden; }
   .rt-dataprobe .rt-sec.shut > .rt-secbody { display: block; }
@@ -1098,6 +1108,12 @@
   .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
   .rt-tbl .ic { width: 15px; height: 15px; }
   .rt-bar .rt-file { margin: 0 auto; }
+  /* centred on the page when it clears both sides (ui/tours.js centreName) */
+  @media (min-width: 961px) {
+    .rt-bar { position: relative; }
+    .rt-bar .rt-file.rt-centred { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; }
+    .rt-bar .rt-file.rt-centred ~ .rt-right { margin-left: auto; }
+  }
   .rt-bar .rt-right { margin-left: 0; }
   .rt-cartbtn .rt-cartcount { position: absolute; top: -2px; right: -3px; min-width: 1rem; line-height: 1rem; padding: 0 0.25rem; font-size: 0.66rem; }
   /* Search commands (Ctrl+K, ui/commands.js): a box and the menus' items that hold its words */

@@ -7570,6 +7570,82 @@ const TESTS = [
     },
   },
   {
+    name: 'Parts are found by what they do, not only by their names: in Add part and in Ctrl+K',
+    why: 'Add part’s search “focus” lists the parts named for it first (Focusing mirror) and then the lenses (Lens among them); “measure power” finds the photodetector; Ctrl+K “frequency doubling” offers the nonlinear crystal (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      D.getElementById('btnAddPart').click();
+      const search = D.querySelector('.rt-picker input[type="search"], #pickerDialog input');
+      const tiles = q => { search.value = q; search.dispatchEvent(new W.Event('input')); return [...D.querySelectorAll('.rt-pbody .rt-pgrid > *')].map(t => t.textContent.trim()); };
+      const focus = tiles('focus'), power = tiles('measure power');
+      const byName = /^Focusing mirror/.test(focus[0] || '') && focus.some(t => /^Lens/.test(t)), meas = power.some(t => /^Photodetector/.test(t));
+      search.value = ''; D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      const pk = D.querySelector('dialog[open]'); if (pk) pk.close();
+      D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+      const dlg = D.getElementById('cmdDialog'), input = dlg.querySelector('input');
+      input.value = 'frequency doubling'; input.dispatchEvent(new W.Event('input'));
+      const shg = [...dlg.querySelectorAll('li[role="option"] .rt-cmdname')].some(n => /Nonlinear crystal/.test(n.textContent));
+      input.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      const shut = !dlg.open;
+      if (!(byName && meas && shg && shut)) console.log('uses', { focus, power, shg, shut });
+      return byName && meas && shg && shut ? 1 : 0;
+    },
+  },
+  {
+    name: 'The Line and Arrow tools draw a straight path, an arrow ending in an arrowhead; right-click adds a note or an arrow there',
+    why: 'with the Line tool (L) a drag from (−20, 0) to (20, 0) mm makes an open two-node path 40 mm long with no end marks; with the Arrow tool (W) the same drag makes one ending in an arrow; the empty bench’s right-click menu has Add a note here and Add an arrow here, and the second adds an arrow (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), cv = D.getElementById('bench');
+      J.load({ format: 'jekray', version: 1, snap: 0, view: { cx: 0, cy: 0, scale: 4 }, elements: [] });
+      const at = (x, y) => { const r = cv.getBoundingClientRect(); return [r.left + r.width / 2 + x * 4, r.top + r.height / 2 - y * 4]; };
+      const P = (type, x, y, b) => { const [cx, cy] = at(x, y); cv.dispatchEvent(new W.PointerEvent(type, { clientX: cx, clientY: cy, pointerId: 9, button: 0, buttons: b, bubbles: true, isPrimary: true, pointerType: 'mouse' })); };
+      const draws = () => J.project().elements.filter(e => e.type === 'draw');
+      const stroke = key => {
+        cv.focus(); cv.dispatchEvent(new W.KeyboardEvent('keydown', { key, bubbles: true }));
+        P('pointerdown', -20, 0, 1); for (let i = 1; i <= 8; i++) P('pointermove', -20 + 5 * i, 0, 1); P('pointerup', 20, 0, 0);
+        return draws()[draws().length - 1];
+      };
+      const ln = stroke('l'), ar = stroke('w');
+      const len = e => e && e.nodes && e.nodes.length === 2 ? Math.hypot(e.nodes[1].x - e.nodes[0].x, e.nodes[1].y - e.nodes[0].y) : NaN;
+      const lineOk = ln && ln.shape === 'path' && !ln.closed && Math.abs(len(ln) - 40) < 0.5 && !ln.endMark && !ln.startMark;
+      const arrowOk = ar && ar !== ln && ar.endMark === 'arrow' && Math.abs(len(ar) - 40) < 0.5;
+      cv.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      J.select(null);
+      const n0 = draws().length, [cx, cy] = at(30, -30);
+      cv.dispatchEvent(new W.MouseEvent('contextmenu', { clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+      const items = [...D.querySelectorAll('#ctxMenu button')];
+      const both = ['Add a note here', 'Add an arrow here'].every(t => items.some(b => b.textContent.includes(t)));
+      const add = items.find(b => b.textContent.includes('Add an arrow here')); if (add) add.click();
+      const last = draws()[draws().length - 1], added = draws().length === n0 + 1 && last.endMark === 'arrow';
+      if (!(lineOk && arrowOk && both && added)) console.log('line tools', { ln, ar, both, added, items: items.map(b => b.textContent) });
+      return lineOk && arrowOk && both && added ? 1 : 0;
+    },
+  },
+  {
+    name: 'File › Export figure: a journal figure 85 mm wide on white, a technical drawing on A4 with its parts list, a slide at 1920 × 1080',
+    why: 'the Michelson: Journal at a single column is 240.94 pt wide (85 mm), its names Helvetica at 8 pt, no bench colour or holes; Technical drawing is an A4 sheet (842 × 595 pt) with a Parts list, a Scale in its title block and a numbered balloon for each of the 6 parts; Presentation is 1920 × 1080 with the credit line (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      J.load(JSON.parse(getDemo('michelson')));
+      try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ }
+      D.getElementById('btnExportFigure').click();
+      const dlg = D.getElementById('figureDialog'), pick = k => { dlg.querySelector('.rt-figtabs [data-preset="' + k + '"]').click(); return dlg.figSvg || ''; };
+      const jr = pick('journal');
+      const journal = /<svg[^>]* width="240\.94pt"/.test(jr) && /font-family="Helvetica, Arial, sans-serif" font-size="8"/.test(jr) && !/#f3eee5|#1f2529/i.test(jr) && /<text[^>]*>Fixed mirror<\/text>/.test(jr);
+      const tc = pick('technical');
+      const balloons = [1, 2, 3, 4, 5, 6].every(n => new RegExp('font-weight="600"[^>]*>' + n + '</text>').test(tc));
+      const technical = /<svg[^>]* width="842pt" height="595pt"/.test(tc) && />Parts<\/text>/.test(tc) && />Scale<\/text>/.test(tc) && />Beam splitter cube<\/text>/.test(tc) && balloons;
+      const sl = pick('slides');
+      const slides = /<svg[^>]* width="1920" height="1080"/.test(sl) && /Made with JEKray/.test(sl);
+      dlg.close();
+      if (!(journal && technical && slides)) console.log('figure', { journal, technical, balloons, slides, head: [jr, tc, sl].map(t => t.slice(0, 300)) });
+      return journal && technical && slides ? 1 : 0;
+    },
+  },
+  {
     name: 'The palette switcher shows the palette in use and changes it from its list',
     why: 'the rail’s switcher names the palette in use; its list holds every palette with a line of what each holds; choosing Fibre makes the switcher show Fibre and the rail show fibre parts; Free space goes back (1 when all hold)',
     want: 1, tol: 0, unit: '',

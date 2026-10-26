@@ -204,6 +204,8 @@
   url: /jek/docs/jekray/scripting/
 - title: Exporting data
   url: /jek/docs/jekray/data-export/
+- title: Figures for papers, drawings and slides
+  url: /jek/docs/jekray/figures/
 - title: FAQ
   url: /jek/docs/jekray/faq/
   group: Help

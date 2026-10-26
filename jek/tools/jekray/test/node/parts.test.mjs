@@ -62,3 +62,14 @@ test('every part has its page side: drawn, picked and edited', () => {
   }
   assert.deepEqual(Object.keys(PART_UI).sort(), Object.keys(PARTS).sort());
 });
+test('every part in every palette has the plain words it is searched by (what it is for)', async () => {
+  const { PART_USES, partWords } = await import('../../src/ui/part-uses.js');
+  await import('../../src/engines/elec.js'); await import('../../src/engines/pic.js');
+  const keys = Object.keys(PALETTES).flatMap(pal => PALETTES[pal].map(r => r[0]));
+  assert.ok(keys.length > 100, keys.length + ' parts');
+  for (const k of keys) assert.ok(PART_USES[k] && PART_USES[k].split(' ').length >= 3, k + ' has its uses');
+  for (const k of Object.keys(PART_USES)) assert.ok(keys.includes(k), k + ' is a part');
+  const find = q => keys.filter(k => q.split(' ').every(w => partWords({ key: k, short: '', long: '' }).includes(w)));
+  assert.ok(find('focus').includes('lens')); assert.ok(find('measure power').includes('detector'));
+  assert.ok(find('split').includes('cube')); assert.ok(find('frequency doubling').includes('nlc'));
+});

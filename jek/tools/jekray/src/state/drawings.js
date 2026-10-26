@@ -14,6 +14,7 @@ import { num } from './project.js';
    ========================================================================== */
 export const DRAW_SHAPES = { rect: 'Rectangle', ellipse: 'Ellipse', path: 'Path', text: 'Text' };
 
+export const DRAW_MARKS = ['arrow', 'dot', 'bar'];
 export const DRAW_DASH = { solid: [], dash: [4, 2], dot: [1, 1.5], dashdot: [4, 1.5, 1, 1.5], long: [8, 3] };   // in stroke widths
 
 export const hexColour = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
@@ -60,6 +61,8 @@ export function normDraw(e, base) {
       .map(n => Object.assign({ x: +n.x, y: +n.y, h1: hd(n.h1), h2: hd(n.h2) }, n.smooth === true ? { smooth: true } : {}));
     if (o.nodes.length < 2) o.nodes = [{ x: -10, y: 0, h1: null, h2: null }, { x: 10, y: 0, h1: null, h2: null }];
     o.closed = e.closed === true;
+    // a mark at an open path's first and last node: an arrowhead, a dot or a bar across it (left out, none)
+    if (!o.closed) for (const k of ['startMark', 'endMark']) if (DRAW_MARKS.includes(e[k])) o[k] = e[k];
   }
   return o;
 }

@@ -74,20 +74,22 @@ export function isoWeek(day) {
   return t.getUTCFullYear() + '-W' + String(Math.ceil(((t - y0) / 864e5 + 1) / 7)).padStart(2, '0');
 }
 export function people(r) {
-  const V = r.visitors || [], days = {}, weeks = {}, months = {};
+  const V = r.visitors || [], days = {}, fresh = {}, weeks = {}, months = {};
   let newcomers = 0;
   for (const x of V) {
     if (x.prop === 'day') days[x.day] = (days[x.day] || 0) + x.n;
     else if (x.prop === 'week') weeks[isoWeek(x.day)] = (weeks[isoWeek(x.day)] || 0) + x.n;
     else if (x.prop === 'month') months[x.day.slice(0, 7)] = (months[x.day.slice(0, 7)] || 0) + x.n;
-    else if (x.prop === 'new') newcomers += x.n;
+    else if (x.prop === 'new') { newcomers += x.n; fresh[x.day] = (fresh[x.day] || 0) + x.n; }
   }
   // whole periods only are whole counts: the first and last of the range may be cut
   const all = [];
   for (let t = Date.parse(r.from); t <= Date.parse(r.to); t += 864e5) all.push(new Date(t).toISOString().slice(0, 10));
   const part = (key, of) => { const ds = all.filter((d) => of(d) === key); const want = of === isoWeek ? 7 : new Date(Date.UTC(+key.slice(0, 4), +key.slice(5, 7), 0)).getUTCDate(); return ds.length < want; };
   const perDay = all.length ? Object.values(days).reduce((a, b) => a + b, 0) / all.length : 0;
-  return { days, perDay, newcomers, any: V.length > 0,
+  // in all: every browser seen since counting began (the API's sum of 'new' over all time; an older API: those new in this report)
+  const total = typeof r.peopleEver === 'number' ? r.peopleEver : newcomers, ever = typeof r.peopleEver === 'number';
+  return { days, fresh, perDay, newcomers, total, ever, any: V.length > 0,
     weeks: Object.entries(weeks).sort().map(([k, n]) => ({ k, n, part: part(k, isoWeek) })),
     months: Object.entries(months).sort().map(([k, n]) => ({ k, n, part: part(k, (d) => d.slice(0, 7)) })) };
 }
@@ -144,7 +146,7 @@ export function text(r) {
   }
   const pp = people(r);
   if (pp.any) {
-    console.log(`\nPeople (browsers, counted without an id)  ${pp.perDay.toFixed(1)} a day on average, ${pp.newcomers} new`);
+    console.log(`\nPeople (browsers, counted without an id)  ${pp.total} in all${pp.ever ? ' since counting began' : ' (new in this report)'}, ${pp.perDay.toFixed(1)} a day on average, ${pp.newcomers} new in this report`);
     for (const x of pp.weeks) console.log(`  week  ${x.k}${x.part ? ' (part)' : ''}  ${String(x.n).padStart(6)}`);
     for (const x of pp.months) console.log(`  month ${x.k}${x.part ? ' (part)' : ''}    ${String(x.n).padStart(6)}`);
   }
@@ -190,7 +192,15 @@ function promptTable(r) {
 }
 function peopleHero(r) {
   const pp = people(r);
-  return pp.any ? `<div><b>${pp.perDay.toFixed(1)}</b>people a day</div><div><b>${pp.newcomers}</b>new people</div>` : '';
+  return pp.any ? `<div><b>${pp.total}</b>people in all${pp.ever ? '' : ' (new here)'}</div><div><b>${pp.perDay.toFixed(1)}</b>people a day</div><div><b>${pp.newcomers}</b>new people</div>` : '';
+}
+// people a day: those back again, and those new to JEKray, stacked
+function peopleBars(r, days) {
+  const pp = people(r);
+  if (!pp.any) return '';
+  const fresh = (d) => Math.min(pp.fresh[d] || 0, pp.days[d] || 0);
+  return `<h3 style="margin-top:20px">People a day <span>browsers, each counted once a day with no id</span></h3>${dayBars(days, [
+    { key: 'back', name: 'returning', of: (d) => (pp.days[d] || 0) - fresh(d) }, { key: 'new', name: 'new', of: fresh }], 'People a day')}`;
 }
 function peopleTable(r) {
   const pp = people(r);
@@ -198,30 +208,37 @@ function peopleTable(r) {
   const rows = [...pp.weeks.map((x) => ['week', x]), ...pp.months.map((x) => ['month', x])];
   return `<h3 style="margin-top:24px">People <span>browsers, each counted once a week or a month with no id; a period the report only partly covers is marked part</span></h3><table><tr><th>period</th><th></th><th>people</th></tr>${rows.map(([w, x]) => `<tr><td>${w}</td><td>${esc(x.k)}${x.part ? ' <small>part</small>' : ''}</td><td>${x.n}</td></tr>`).join('')}</table>`;
 }
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-export function html(r) {
-  const { ev, days, visits } = summarise(r);
-  const v = ev.open || { total: 0, tiers: {} };
-  // visits a day, stacked by tier: one bar a day, a gap of 2 px between bars and between segments
-  const W = 900, H = 220, P = 36, bw = (W - P - 8) / days.length;
-  const max = Math.max(1, ...days.map((d) => TIERS.reduce((a, t) => a + visits[d][t], 0)));
-  const nice = Math.pow(10, Math.floor(Math.log10(max))), step = max / nice > 5 ? nice * 2 : max / nice > 2 ? nice : nice / 2;
+/* a bar a day, stacked by series ({ key, name, of(day) }), each series filled by its CSS class t-<key>; a tip on each */
+function dayBars(days, series, label) {
+  const W = 900, H = 220, P = 36, bw = (W - P - 8) / days.length, total = (d) => series.reduce((a, q) => a + q.of(d), 0);
+  const max = Math.max(1, ...days.map(total));
+  const nice = Math.pow(10, Math.floor(Math.log10(max))), step = Math.max(1, max / nice > 5 ? nice * 2 : max / nice > 2 ? nice : nice / 2);
   const topY = Math.ceil(max / step) * step, ticks = [];
   for (let y = 0; y <= topY; y += step) ticks.push(y);
   const yOf = (n) => H - 24 - ((H - 40) * n) / topY;
   let bars = '';
   days.forEach((d, i) => {
-    let y0 = H - 24, tip = `${d}: ${TIERS.map((t) => `${TIER_NAMES[t]} ${visits[d][t]}`).join(', ')}`;
-    for (const t of TIERS) {
-      const n = visits[d][t];
+    let y0 = H - 24, sum = 0;
+    const tip = `${d}: ${series.map((q) => `${q.name} ${q.of(d)}`).join(', ')}`;
+    for (const q of series) {
+      const n = q.of(d);
       if (!n) continue;
-      const y1 = yOf(TIERS.slice(0, TIERS.indexOf(t) + 1).reduce((a, k) => a + visits[d][k], 0));
-      bars += `<rect class="t-${t}" x="${(P + i * bw + 1).toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${Math.max(0, y0 - y1 - 2).toFixed(1)}" rx="2"><title>${esc(tip)}</title></rect>`;
+      sum += n;
+      const y1 = yOf(sum);
+      bars += `<rect class="t-${q.key}" x="${(P + i * bw + 1).toFixed(1)}" y="${y1.toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${Math.max(0, y0 - y1 - 2).toFixed(1)}" rx="2"><title>${esc(tip)}</title></rect>`;
       y0 = y1;
     }
   });
   const grid = ticks.map((t) => `<line x1="${P}" x2="${W - 8}" y1="${yOf(t)}" y2="${yOf(t)}" class="grid"/><text x="${P - 6}" y="${yOf(t) + 4}" text-anchor="end">${t}</text>`).join('');
   const labels = days.map((d, i) => (i % Math.ceil(days.length / 8) === 0 ? `<text x="${P + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${d.slice(5)}</text>` : '')).join('');
+  return `<div class="key">${series.map((q) => `<span><i class="t-${q.key}" style="background:var(--${q.key})"></i>${esc(q.name)}</span>`).join('')}</div>
+<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${grid}${bars}${labels}</svg>`;
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+export function html(r) {
+  const { ev, days, visits } = summarise(r);
+  const v = ev.open || { total: 0, tiers: {} };
+  // visits a day, stacked by tier: one bar a day, a gap of 2 px between bars and between segments
   const section = (k) => {
     const x = ev[k], [label, what] = LABELS[k];
     const rows = what ? top(x.props, 12).map(([p, n]) => `<tr><td>${esc(p)}</td><td>${n}</td><td><span class="bar" style="width:${Math.max(2, Math.round((60 * n) / x.total))}px"></span> ${pct(n, x.total)}</td></tr>`).join('') : '';
@@ -229,19 +246,19 @@ export function html(r) {
   };
   const errs = r.errors.map((e) => `<tr><td>${e.n}</td><td><code>${esc(e.msg)}</code><br><small>${esc(e.src)} · ${e.first} to ${e.last}</small></td></tr>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JEKray usage</title><style>
-:root{--bg:#fff;--fg:#1d1d1f;--muted:#6b6b70;--line:#e4e4e8;--anon:#9aa7b8;--free:#2f7fd1;--pro:#e07b1a}
-@media (prefers-color-scheme:dark){:root{--bg:#141416;--fg:#ececf0;--muted:#9a9aa2;--line:#2c2c31;--anon:#5d6878;--free:#4d9be6;--pro:#f0913a}}
+:root{--bg:#fff;--fg:#1d1d1f;--muted:#6b6b70;--line:#e4e4e8;--anon:#9aa7b8;--free:#2f7fd1;--pro:#e07b1a;--back:#2f9e8f;--new:#8a5cc7}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--fg:#ececf0;--muted:#9a9aa2;--line:#2c2c31;--anon:#5d6878;--free:#4d9be6;--pro:#f0913a;--back:#3bb3a2;--new:#a07ce0}}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}main{max-width:960px;margin:0 auto;padding:24px 16px}
 h1{font-size:22px;margin:0 0 4px}h3{font-size:15px;margin:0 0 2px}h3 span{color:var(--muted);font-weight:400}.sub,.tiers,small{color:var(--muted)}
 .hero{display:flex;gap:32px;flex-wrap:wrap;margin:20px 0}.hero b{display:block;font-size:30px}svg{width:100%;height:auto}svg text{fill:var(--muted);font-size:11px}
-.grid{stroke:var(--line)}.t-anon{fill:var(--anon)}.t-free{fill:var(--free)}.t-pro{fill:var(--pro)}.key{display:flex;gap:16px;color:var(--muted);font-size:13px}
+.grid{stroke:var(--line)}.t-anon{fill:var(--anon)}.t-free{fill:var(--free)}.t-pro{fill:var(--pro)}.t-back{fill:var(--back)}.t-new{fill:var(--new)}.key{display:flex;gap:16px;color:var(--muted);font-size:13px}
 .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}.cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px;margin-top:24px}
 table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowrap;text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:500}
 .bar{display:inline-block;height:8px;background:var(--free);border-radius:2px;vertical-align:middle}code{font-size:12px;word-break:break-word;white-space:normal}td:last-child{white-space:normal}td:nth-child(3){white-space:nowrap}</style></head><body><main>
 <h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} ${r.days === 1 ? "day" : "days"}. A visit is one opening of the app; people are browsers, each counted once a day, week or month with no id.</p>
 <div class="hero"><div><b>${v.total}</b>visits</div>${peopleHero(r)}${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
-<h3>Visits a day</h3><div class="key">${TIERS.map((t) => `<span><i class="t-${t}" style="background:var(--${t})"></i>${TIER_NAMES[t]}</span>`).join('')}</div>
-<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visits a day">${grid}${bars}${labels}</svg>
+<h3>Visits a day</h3>${dayBars(days, TIERS.map((t) => ({ key: t, name: TIER_NAMES[t], of: (d) => visits[d][t] })), 'Visits a day')}
+${peopleBars(r, days)}
 ${peopleTable(r)}
 ${funnelTable(r)}
 ${promptTable(r)}

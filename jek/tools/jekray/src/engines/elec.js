@@ -729,7 +729,7 @@ function opticalSignals(drives, dets) {
     if (!per.length) { P = zero('W'); P.dc = ref[j]; }
     else if (per.length === 1) P = per[0][j];
     else if (ref[j] > 0) { P = per[0][j]; for (let i = 1; i < per.length; i++) P = mixer(P, scaled(per[i][j], 1 / ref[j]), 1); }
-    else { P = zero('W'); for (const q of per) P = sum(P, q, 1, 1); P.dc -= (per.length - 1) * ref[j]; }   // none of it through: their changes add
+    else { P = zero('W'); for (const q of per) P = sum(P, q[j], 1, 1); P.dc -= (per.length - 1) * ref[j]; }   // none of it through: their changes add
     P.unit = 'W';
     R.set(el.id, P);
   });

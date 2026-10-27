@@ -91,6 +91,7 @@ import { scriptCalls } from './script-calls.js';
 import { runScript, scriptRunning, stopScript, wireScripts } from './scripts.js';
 import { exportData, exportEverything, plotsData, wireDataExport } from '../io/data-export.js';
 import { wireFigure } from '../io/figure.js';
+import { wireTasters } from '../io/tasters.js';
 import { gatherData } from '../engines/data-export.js';
 import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
@@ -119,7 +120,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

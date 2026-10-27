@@ -1573,6 +1573,9 @@
   .rt-proneed::after, .rt-acctneed::after, .rt-sub.rt-acctneed::before, .rt-sub.rt-proneed::before { flex: none; margin-left: 0.4em; padding: 0 0.4em; border-radius: 0.6em;
     font: 700 0.68em/1.5 var(--jek-sans); letter-spacing: 0.04em; text-transform: none; vertical-align: 0.1em; white-space: nowrap; opacity: 1; color: #fff; }
   .rt-proneed::after, .rt-sub.rt-proneed::before { content: 'Pro'; background: var(--jek-orange, #f47742); }
+  .rt-founding { margin: 0.2rem 0 0.7rem; padding: 0.5rem 0.7rem; border-radius: 6px; background: color-mix(in srgb, var(--jek-orange, #f47742) 12%, transparent); font-size: 0.88rem; }
+  /* a free account's free uses of it left this month (io/tasters.js) */
+  .rt-proneed[data-free]::after, .rt-sub.rt-proneed[data-free]::before { content: attr(data-free) ' free'; background: var(--jek-cyan-dark, #0e6e7a); }
   .rt-acctneed::after, .rt-sub.rt-acctneed::before { content: 'Free account'; background: var(--jek-cyan-dark, #007893); }
   /* in a menu, at the row's right; a submenu's own arrow (its ::after) stays last, the badge before it */
   .rt-imenu > .rt-proneed::after, .rt-imenu > .rt-acctneed::after, .rt-ctx > .rt-proneed::after { margin-left: auto; font-size: 0.66rem; }
@@ -2232,6 +2235,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
     <p>Do the full design work in the Optical and RF designers: the optimiser, global search and glass substitution, tolerancing, design reports, lens drawings and exporting a design. Share any bench as a short link, an embed or a QR code. Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The rest of the simulator stays free.</p>
+    <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
@@ -2385,6 +2389,8 @@ const hooks = {
   saveParts: null,
   // the cloud: why a saving, forking or keeping action is not possible now ('' when it is), and the way to make it so (sign in, or subscribe)
   proWhy: () => '', proFix(what, kind) {},
+  // a free account's tasters of that work (io/tasters.js): how many are left, spend one, and the card once spent
+  tasterLeft: () => null, tasterUse: () => false, tasterOut: () => false,
   // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // mods run in their sandbox on the page
@@ -6670,6 +6676,16 @@ function packTrustHelp(t) {
   const L = packTrustLabel(t);
   return L.cls === 'ok' ? 'Signed by the organisation ' + t.by.name + ', which has shown that the web domain ' + t.by.domain + ' is its own, and unchanged since.'
     : L.cls === 'signed' ? 'Signed with that JEKray account, and unchanged since. The name is the one the account gives itself: no one has checked who is behind it.' : '';
+}
+/* The tasters (io/tasters.js; jek-api src/tasters.js keeps the count): the JEKrayPro work a free account may try a
+   few times a month, by the name its gate gives it (ui/pro.js designPro, ui/scripts.js), and what each is called. */
+const TASTER_NAMES = { optimise: 'optimiser runs', tolerance: 'tolerance runs', script: 'script runs', report: 'design reports', drawing: 'drawing saves',
+  design: 'design exports', data: 'Excel, NumPy or MATLAB exports' };
+// the work, as the gates name it, to its taster
+function tasterOf(what) {
+  const w = String(what || '');
+  return /optimise a design|search for designs|substitute glasses/.test(w) ? 'optimise' : /tolerance a design/.test(w) ? 'tolerance' : /run scripts/.test(w) ? 'script'
+    : /design report/.test(w) ? 'report' : /drawings/.test(w) ? 'drawing' : /export a design/.test(w) ? 'design' : /export (data as|several kinds|everything)/.test(w) ? 'data' : '';
 }
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
    Above about 30 GHz a beam through lenses, mirrors and horns is a Gaussian beam that
@@ -27218,8 +27234,10 @@ const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhy
 function designPro(what) {
   const why = designWhy(what);
   if (!why) return true;
-  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans
-  if (!/^Sign in/.test(why)) toast(why, true);
+  // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
+  if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
+  if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
 }
@@ -27249,6 +27267,9 @@ function accountGate(what) {
 function needShow(el) {
   const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
   el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
+  // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
+  const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
+  if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
   // the reason in the title: the control's own, or, for a group with one badge, each button's in it
   for (const b of el.matches('button, [role="menuitem"]') ? [el] : [el, ...el.querySelectorAll('button')]) {
     if (b.dataset.needTitle === undefined) b.dataset.needTitle = b.title || '';
@@ -46368,6 +46389,66 @@ function wireFigure() {
   const b = document.getElementById('btnExportFigure');
   if (b) b.addEventListener('click', () => openFigure());
 }
+/* ---------- Tasters ----------
+   So that someone on a free account can try JEKrayPro's work before paying, a few uses a month of each part of it
+   that runs in their own browser (jek-api src/tasters.js keeps the count): the designers' optimiser, tolerancing,
+   scripts, design reports, drawings, design exports and the data export's Pro formats. The balance is read when the
+   account is (cloud.js cloudGates), shown on the Pro badges ("4 free"), and spent as the work starts (ui/pro.js
+   designPro, ui/scripts.js); once spent, a card says what is used and what JEKrayPro costs. Counted as 'taster'
+   <feature>.used and <feature>.out. */
+let tasterState = null;                     // { month, limits, left } for the account signed in without a plan; null otherwise
+let tasterFor = null;                       // whose it is
+/* the balance, for someone signed in without a plan (noPlan); dropped otherwise */
+async function loadTasters(noPlan) {
+  if (!accountsOn() || !account || !noPlan) { tasterState = null; tasterFor = null; return; }
+  if (tasterFor === account.user.id && tasterState) return;
+  tasterFor = account.user.id;
+  try { tasterState = await api('/v1/tasters'); } catch (err) { tasterState = null; tasterFor = null; return; }
+  needsShown();
+}
+/* how many free uses of the work named are left this month: a number, or null (no taster for it, or none to count) */
+function tasterLeft(what) {
+  const f = tasterOf(what);
+  return f && tasterState && tasterState.left[f] !== undefined ? tasterState.left[f] : null;
+}
+/* one free use of the work named, if there is one left: true when it may go ahead */
+function tasterUse(what) {
+  const f = tasterOf(what), left = tasterLeft(what);
+  if (!(left > 0)) return false;
+  tasterState.left[f] = left - 1;
+  track('taster', f + '.used');
+  api('/v1/tasters/' + f, { method: 'POST' }).then(r => { if (tasterState && r && typeof r.left === 'number') tasterState.left[f] = r.left; needsShown(); })
+    .catch(err => { if (tasterState && err && err.code === 'taster_used') { tasterState.left[f] = 0; needsShown(); } });
+  needsShown();
+  const n = tasterState.left[f], lim = tasterState.limits[f];
+  toast('Free with your account: ' + n + ' of ' + lim + ' ' + TASTER_NAMES[f] + ' left this month');
+  return true;
+}
+/* the month's free uses spent: what was used, and what JEKrayPro costs (the founding price, and the student one);
+   false when the work named has no taster (the plans are offered as before) */
+function tasterOut(what) {
+  const f = tasterOf(what);
+  if (!f || !tasterState) return false;
+  track('taster', f + '.out');
+  const lim = tasterState.limits[f];
+  let dlg = document.getElementById('tasterOut');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'tasterOut', 'aria-labelledby': 'tasterOutTitle' }); document.body.append(dlg); }
+  const close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, 'This month’s free ' + TASTER_NAMES[f] + ' are used'),
+    h('p', null, 'Your free account has ' + lim + ' ' + TASTER_NAMES[f] + ' a month, and they are back on the 1st. JEKrayPro has them without a limit, with the rest of the design work and saving to the cloud.'),
+    h('p', null, h('b', null, 'Students and university staff: '), 'JEKrayPro is half price with your university email. ', h('b', null, 'Founding members: '),
+      'subscribe during the open beta and keep that price for as long as you stay subscribed.'),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn', type: 'button', onclick: close }, 'Not now'),
+      h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('taster', f + '.plans'); close(); showSubscribe(); } }, 'See JEKrayPro')));
+  dlg.showModal();
+  return true;
+}
+
+/* the page's wiring for this module: done once, from boot.js */
+function wireTasters() {
+  Object.assign(hooks, { tasterLeft, tasterUse, tasterOut });
+}
 /* ==========================================================================
    The guide for AI assistants
    A Markdown file that teaches an assistant the .jekray format well enough to write one.
@@ -50922,7 +51003,7 @@ const proWhy = () => (!account ? 'Sign in, top right, to use the cloud' : newPla
    features, which an account is enough for); signed in, the subscribe dialog. what: what was asked for, as 'optimise a design' */
 function proFix(what, kind) {
   // after the menu the click came from has closed
-  setTimeout(() => { if (!account) gateSignIn(kind === 'exp' || kind === 'acct' ? kind : 'pro', typeof what === 'string' ? what : ''); else if (kind !== 'exp' && kind !== 'acct') showSubscribe(); });
+  setTimeout(() => { if (!account) gateSignIn(kind === 'exp' || kind === 'acct' ? kind : 'pro', typeof what === 'string' ? what : ''); else if (kind !== 'exp' && kind !== 'acct' && !hooks.tasterOut(what)) showSubscribe(); });
 }
 /* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix.
    badge: 'pro' (the Pro badge, the default) or 'account' (Free account) for what is missing, or a word of its own */
@@ -51726,6 +51807,7 @@ function closeHome() {
 /* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
 function cloudGates() {
   const on = cloudOn(), show = accountsOn(), why = proWhy();
+  loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
   // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
   needsShown();
   document.getElementById('btnHome').hidden = !on;
@@ -51887,6 +51969,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Try JEKrayPro on a free account</b>: each month a free account gets a few uses of the design work, to try it: 5 optimiser runs in the Optical and RF designers, 3 tolerance runs, 10 script runs, 3 design reports, 3 drawing saves, 3 design exports and 5 Excel, NumPy or MATLAB data exports. The Pro badge says how many are left (\u201c4 free\u201d). And a <b>founding member price</b>: subscribe during the open beta and keep your price for as long as you stay subscribed.',
     '<b>Signing in, where it helps</b>: signed out, asking for something that needs an account (My benches, the experimental features) or JEKrayPro (the optimiser, scripts, the cloud, My parts) now says what it needs, with one-click ways in, rather than just opening the account menu; and the end of a tour and the first-visit welcome note offer a free account too.',
     '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit, for what it gives: exporting the bench\u2019s images and data, making part packs and the experimental features. Your bench stays as it is while you sign in.',
     '<b>Square links</b>, as in a schematic: tick <b>View \u203a Lay new links square</b> and a new fibre, wire or waveguide is laid click by click, from its port through a corner at each click to the port it ends on, running only across and up the bench. Links already laid keep their way; a link\u2019s panel has <b>Route</b> (Curved or Square) to change just that one.',
@@ -52828,6 +52911,7 @@ J.elements()`, 'py'],
 
 // why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
 const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
+let tasterRun = false;                 // the run under way is one of a free account's free runs (io/tasters.js): its files come down too
 
 /* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node); saves, the
    list its save() calls go into, for the page to make into files when the run ends */
@@ -52888,7 +52972,8 @@ async function scriptDataFile(s, script) {
 }
 /* the files a run's save() calls asked for, downloaded (a run's script is JEKrayPro's: so is this). More than five come as one zip */
 async function saveScriptFiles(saves, script) {
-  if (scriptsWhy()) { toast(scriptsWhy(), true); return []; }
+  if (scriptsWhy() && !tasterRun) { toast(scriptsWhy(), true); return []; }
+  tasterRun = false;
   if (!saves || !saves.length) return [];
   const files = [], used = new Set();
   for (const s of saves) {
@@ -53116,9 +53201,11 @@ function wireScripts() {
     if (on) { const t0 = performance.now(); const tick = () => { clock.textContent = 'Running… ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s'; }; tick(); timer = setInterval(tick, 100); }
   };
   const run = async (o = {}) => {
-    const why = scriptsWhy();
-    if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('run scripts'); return; }
+    // signed in without a plan: one of the month's free runs (its files come down with it), or the card once spent
+    const why = scriptsWhy(), free = !!why && !/^Sign in/.test(why) && !scriptRunning() && hooks.tasterUse('run scripts');
+    if (scriptsWhy() && !free) { if (!/^Sign in/.test(why) && hooks.tasterLeft('run scripts') !== 0) toast(why, true); hooks.proFix('run scripts'); return; }
     if (scriptRunning()) return;
+    tasterRun = free;
     keep();
     out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
     // Python's first run fetches it: what that is doing, below the lines logged so far
@@ -53183,10 +53270,11 @@ function wireScripts() {
     showList();
     const why = scriptsWhy();
     gate.hidden = !why;
-    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
+    const free = why && !/^Sign in/.test(why) ? hooks.tasterLeft('run scripts') : null;
+    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : free > 0 ? 'Your free account has ' + free + ' free runs left this month; JEKrayPro has them without a limit. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
       h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix('run scripts') }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
-    if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
-    if (!why) scriptWarm(langOf());
+    if (!scriptRunning()) { runBtn.disabled = !!why && !(free > 0); out.replaceChildren(); }
+    if (!why || free > 0) scriptWarm(langOf());
     dlg.showModal();
     ed.focus();
   });
@@ -54719,7 +54807,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

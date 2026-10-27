@@ -95,6 +95,7 @@ J.elements()`, 'py'],
 
 // why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
 export const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
+let tasterRun = false;                 // the run under way is one of a free account's free runs (io/tasters.js): its files come down too
 
 /* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node); saves, the
    list its save() calls go into, for the page to make into files when the run ends */
@@ -155,7 +156,8 @@ export async function scriptDataFile(s, script) {
 }
 /* the files a run's save() calls asked for, downloaded (a run's script is JEKrayPro's: so is this). More than five come as one zip */
 export async function saveScriptFiles(saves, script) {
-  if (scriptsWhy()) { toast(scriptsWhy(), true); return []; }
+  if (scriptsWhy() && !tasterRun) { toast(scriptsWhy(), true); return []; }
+  tasterRun = false;
   if (!saves || !saves.length) return [];
   const files = [], used = new Set();
   for (const s of saves) {
@@ -383,9 +385,11 @@ export function wireScripts() {
     if (on) { const t0 = performance.now(); const tick = () => { clock.textContent = 'Running… ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s'; }; tick(); timer = setInterval(tick, 100); }
   };
   const run = async (o = {}) => {
-    const why = scriptsWhy();
-    if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('run scripts'); return; }
+    // signed in without a plan: one of the month's free runs (its files come down with it), or the card once spent
+    const why = scriptsWhy(), free = !!why && !/^Sign in/.test(why) && !scriptRunning() && hooks.tasterUse('run scripts');
+    if (scriptsWhy() && !free) { if (!/^Sign in/.test(why) && hooks.tasterLeft('run scripts') !== 0) toast(why, true); hooks.proFix('run scripts'); return; }
     if (scriptRunning()) return;
+    tasterRun = free;
     keep();
     out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
     // Python's first run fetches it: what that is doing, below the lines logged so far
@@ -450,10 +454,11 @@ export function wireScripts() {
     showList();
     const why = scriptsWhy();
     gate.hidden = !why;
-    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
+    const free = why && !/^Sign in/.test(why) ? hooks.tasterLeft('run scripts') : null;
+    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : free > 0 ? 'Your free account has ' + free + ' free runs left this month; JEKrayPro has them without a limit. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
       h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix('run scripts') }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
-    if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
-    if (!why) scriptWarm(langOf());
+    if (!scriptRunning()) { runBtn.disabled = !!why && !(free > 0); out.replaceChildren(); }
+    if (!why || free > 0) scriptWarm(langOf());
     dlg.showModal();
     ed.focus();
   });

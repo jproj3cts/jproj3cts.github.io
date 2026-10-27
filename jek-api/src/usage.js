@@ -16,7 +16,7 @@ import { ApiError } from './util.js';
 export const EVENTS = new Set([
   'open', 'leave', 'screen', 'browser',                 // a visit: how it began, how long, on what
   'from', 'goal', 'prompt', 'remind',                   // where a visit came from (a post's tag), what it led to, sign-in prompts, links emailed
-  'visitor',                                            // a browser's first visit of the day, week or month, or ever (no id: see the app's usageVisitor)
+  'visitor', 'taster',                                  // a browser's first visit of the day, week or month, or ever (no id: see the app's usageVisitor); a free account's free uses of Pro work
   'part', 'example', 'import', 'export', 'save', 'share', 'view', 'beam', 'sweep', 'field',
   'designer', 'optimise', 'analysis', 'tolerance', 'report', 'search',
   'tour', 'help', 'news', 'signin', 'subscribe', 'quote', 'mod', 'experimental', 'cloud',

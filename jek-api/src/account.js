@@ -87,6 +87,7 @@ export async function deleteAccount(req, env, user) {
     del('DELETE FROM email_codes WHERE user_id = ?', user.id),
     del('DELETE FROM email_sends WHERE user_id = ?', user.id),
     del('DELETE FROM passwords WHERE user_id = ?', user.id),
+    del('DELETE FROM taster_uses WHERE user_id = ?', user.id),
     del('DELETE FROM signin_codes WHERE link_user = ?', user.id),
     // packs signed stay listed by hash (their ids stay claimed, and can still be taken down), without the name
     del("UPDATE pack_sigs SET signer_name = NULL WHERE signer_kind = 'person' AND signer_id = ?", user.id),

@@ -31,6 +31,7 @@ export const LABELS = {
   from: ['Where visits came from', 'post tag or site'], goal: ['What visits led to', 'source.step'],
   prompt: ['Sign-in prompts', 'where.answer'], remind: ['Links emailed from a phone', ''],
   visitor: ['People (browsers)', 'first visit of the day, week, month, or ever'],
+  taster: ['Free uses of JEKrayPro work', 'feature.used, .out (spent) or .plans (went to the plans)'],
 };
 // what a visit can lead to, in the order it usually goes (the app's goal() calls): the Instagram note shown and a
 // bench opened from it, the first edit, the note on a bench worked on shown and a way in chosen from it, then the rest

@@ -154,6 +154,21 @@ npx wrangler d1 execute jek --remote --command "SELECT w.id, u.name, u.email FRO
 npx wrangler d1 execute jek --remote --command "INSERT INTO subscriptions (workspace_id, stripe_customer, plan, seats, status, updated_at) VALUES ('<workspace id>', 'manual', 'individual', 1, 'active', 0)"
 ```
 
+## Changing prices (founding members)
+
+Anyone who subscribes during the open beta keeps their price for as long as that subscription runs (terms section 2,
+`#founding`). Stripe keeps a subscription on the price it started on, so to change prices: create **new** Stripe
+prices, move the lookup keys (`pro_monthly` and the rest, `src/billing.js` `PRICE_KEYS`) to them, and leave every
+existing subscription where it is. Never migrate subscriptions to a new price, and never archive a price a
+subscription is on. The app reads prices through the lookup keys (cached an hour), so new subscribers see the new ones.
+
+## Tasters (free uses of JEKrayPro work)
+
+A free account gets a few uses a month of the Pro work that runs in the browser: `src/tasters.js` `TASTERS`
+(optimise 5, tolerance 3, script 10, report 3, drawing 3, design 3, data 5), counted in `taster_uses`
+(migration 0016) and reset each calendar month (UTC). Change the numbers there; the app reads them from
+`GET /v1/tasters`. Turning them on: `npm run migrate:remote`, then `npm run deploy`.
+
 ## Working on it
 
 ```sh

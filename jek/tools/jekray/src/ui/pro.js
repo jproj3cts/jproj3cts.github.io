@@ -18,8 +18,10 @@ export const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : de
 export function designPro(what) {
   const why = designWhy(what);
   if (!why) return true;
-  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans
-  if (!/^Sign in/.test(why)) toast(why, true);
+  // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
+  if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
+  if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
 }
@@ -49,6 +51,9 @@ export function accountGate(what) {
 function needShow(el) {
   const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
   el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
+  // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
+  const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
+  if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
   // the reason in the title: the control's own, or, for a group with one badge, each button's in it
   for (const b of el.matches('button, [role="menuitem"]') ? [el] : [el, ...el.querySelectorAll('button')]) {
     if (b.dataset.needTitle === undefined) b.dataset.needTitle = b.title || '';

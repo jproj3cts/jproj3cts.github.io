@@ -20,6 +20,7 @@ import {
   gateSignIn, showSubscribe
 } from './account.js';
 import { keepSnapshot, scheduleSave } from './autosave.js';
+import { loadTasters } from './tasters.js';
 import { newProject, openZmx } from '../ui/tours.js';
 import { newLensDesign } from '../ui/assembly.js';
 import { newRfDesign } from '../ui/rf-workspace.js';
@@ -115,7 +116,7 @@ export const proWhy = () => (!account ? 'Sign in, top right, to use the cloud' :
    features, which an account is enough for); signed in, the subscribe dialog. what: what was asked for, as 'optimise a design' */
 export function proFix(what, kind) {
   // after the menu the click came from has closed
-  setTimeout(() => { if (!account) gateSignIn(kind === 'exp' || kind === 'acct' ? kind : 'pro', typeof what === 'string' ? what : ''); else if (kind !== 'exp' && kind !== 'acct') showSubscribe(); });
+  setTimeout(() => { if (!account) gateSignIn(kind === 'exp' || kind === 'acct' ? kind : 'pro', typeof what === 'string' ? what : ''); else if (kind !== 'exp' && kind !== 'acct' && !hooks.tasterOut(what)) showSubscribe(); });
 }
 /* a menu item present but greyed when it is not possible, saying why: clicked, it explains and offers the fix.
    badge: 'pro' (the Pro badge, the default) or 'account' (Free account) for what is missing, or a word of its own */
@@ -919,6 +920,7 @@ function closeHome() {
 /* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
 function cloudGates() {
   const on = cloudOn(), show = accountsOn(), why = proWhy();
+  loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
   // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
   needsShown();
   document.getElementById('btnHome').hidden = !on;

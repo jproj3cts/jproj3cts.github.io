@@ -13,7 +13,7 @@ describe('tasters', () => {
     const start = await json(await send('/v1/tasters', 'GET', a.token));
     expect(start.status).toBe(200);
     expect(start.body.month).toBe(thisMonth());
-    expect(start.body.left).toEqual(TASTERS);
+    expect(start.body.left).toEqual(Object.assign({}, TASTERS, { share: 3 }));
     for (let i = TASTERS.optimise - 1; i >= 0; i--) {
       const r = await json(await send('/v1/tasters/optimise', 'POST', a.token));
       expect(r.status).toBe(200);

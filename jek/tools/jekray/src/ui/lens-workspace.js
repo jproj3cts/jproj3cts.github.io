@@ -27,7 +27,7 @@ import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
 import { isRfAsm, openRfDesign } from './rf-workspace.js';
 import { fmtWs } from '../core/format.js';
-import { designPro, proMark } from './pro.js';
+import { designPro, previewOK, proMark } from './pro.js';
 import { track } from '../io/usage.js';
 
 /* ==========================================================================
@@ -72,6 +72,7 @@ export function closeLensDesign() {
   if (!WS) return;
   optStop('Stopped: the workspace was closed.');
   tolStop('Stopped: the workspace was closed.');
+  previewBack();                                       // a preview not kept: the design as it was
   const asm = WS.asm;
   WS = null;
   // designed: its parts' fields on the bench are locked against a stray edit (the padlock in their panel opens them)
@@ -972,9 +973,30 @@ export function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { 
 export const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note, subs: OPT.sub ? OPT.sub.log.map(l => ({ gi: l.gi, from: l.from, to: l.to, merit: l.merit, tried: l.tried.length })) : null };
 const liveRender = throttle(() => renderWs(), 200);
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
+/* see the result, pay to keep it: a preview run's design kept (with JEKrayPro), or put back as it was */
+const previewPending = () => !!(OPT && OPT.preview && !OPT.preview.done && !OPT.running);
+function previewBack() {
+  if (!OPT || !OPT.preview || OPT.preview.done) return;
+  optStop('Stopped.');
+  const S = JSON.parse(OPT.preview.was), asm = (project.assemblies || []).find(a => a.id === OPT.id);
+  for (const e of S.els) { const cur = getEl(e.id); if (cur) { for (const k of Object.keys(cur)) delete cur[k]; Object.assign(cur, e); } }
+  if (asm) { if (S.design) asm.design = S.design; else delete asm.design; }
+  OPT.preview.done = true; OPT.now = OPT.start; OPT.note = 'Put back: the design is as it was.';
+  changed(true);
+  if (WS) renderWs();
+}
+function previewKeep() {
+  if (!OPT || !OPT.preview || !designPro(OPT.preview.what)) return;
+  OPT.preview.done = true; OPT.note = 'Kept.';
+  track('taster', 'optimise.kept');
+  if (WS) renderWs();
+}
 export function optStart(mode, opts) {
   if (!WS) return false;
-  if (!designPro(mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design')) return false;
+  // signed in without a plan, this month's free runs spent: a preview, its result shown, kept only with JEKrayPro
+  const what = mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design', preview = previewOK(what);
+  if (!preview && !designPro(what)) return false;
+  previewBack();
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
   if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
   if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
@@ -982,7 +1004,10 @@ export function optStart(mode, opts) {
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
-    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync) };
+    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync),
+    // a preview: the design as it was, to put back unless it is kept
+    preview: preview ? { what, was: JSON.stringify({ els: asmMembers(asm), design: asm.design || null }), done: false } : null };
+  if (preview) toast('A preview: see what the optimiser finds, then keep it with JEKrayPro or put the design back');
   if (mode === 'subst') {
     const S = WS.subst || (WS.subst = { makers: GLASS_MAKERS.slice(), n: 12 });
     OPT.sub = { list: substIndices(prob), li: 0, pass: 0, moved: false, cands: null, ci: 0, tried: [], base: null, log: [], makers: (opts && opts.makers) || S.makers, n: (opts && opts.n) || S.n };
@@ -1149,7 +1174,14 @@ function optCard(asm, P) {
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
     O.mode === 'subst' ? ['Glasses tried', String(O.sub.log.reduce((a, l) => a + l.tried.length, 0) + (O.sub.cands ? O.sub.tried.length : 0))] : [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
   card.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
-  if (O && (O.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note));
+  if (O && (O.note || running) && !previewPending()) card.append(h('div', { class: 'rt-lnote', role: 'status' }, (O.preview && running ? 'A preview: ' : '') + (running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note)));
+  // a preview run ended: what it found, and the choice: keep it (JEKrayPro) or put the design back
+  if (O && previewPending()) card.append(h('div', { class: 'rt-lnote rt-preview', role: 'status' },
+    h('p', null, h('b', null, O.now < O.start ? 'The optimiser found a better design: ' : 'The optimiser found nothing better. '),
+      O.now < O.start ? 'the merit fell from ' + wsFmt(O.start, 4) + ' to ' + wsFmt(O.now, 4) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(0) + '% lower)' : '') + '. ' : '',
+      'This month\u2019s free runs are used: keep it with JEKrayPro, or put the design back as it was.'),
+    h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: previewKeep }, 'Keep this design'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: previewBack }, 'Put it back'))));
   if (O && O.mode === 'subst' && O.sub.log.length) {
     const tb = h('tbody');
     for (const L of O.sub.log) tb.append(h('tr', null, h('td', null, 'After surface ' + (L.gi + 1)), h('td', null, L.from), h('td', null, L.to || 'kept'), h('td', { class: 'mono' }, wsFmt(L.merit, 5)),

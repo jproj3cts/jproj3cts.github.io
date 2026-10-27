@@ -20,7 +20,7 @@ export const hooks = {
   // the cloud: why a saving, forking or keeping action is not possible now ('' when it is), and the way to make it so (sign in, or subscribe)
   proWhy: () => '', proFix(what, kind) {},
   // a free account's tasters of that work (io/tasters.js): how many are left, spend one, and the card once spent
-  tasterLeft: () => null, tasterUse: () => false, tasterOut: () => false,
+  tasterLeft: () => null, tasterUse: () => false, tasterOut: () => false, tasterRefresh() {},
   // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // mods run in their sandbox on the page

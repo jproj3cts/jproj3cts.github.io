@@ -38,15 +38,22 @@ export async function hasPlan(env, user) {
   return !!ws && (await workspaceAccess(env, user, ws.id)).active;
 }
 
+// a free account's share links, kept at once (deleting one makes room for another); JEKrayPro has MAX_LINKS
+export const FREE_LINKS = 3;
+export const linkCount = async (env, user) => (await env.DB.prepare('SELECT COUNT(*) AS n FROM share_links WHERE user_id = ?').bind(user.id).first()).n;
+
 // POST /v1/links  {name, data}: a new link to the bench given
 export async function create(req, env, user) {
-  if (!(await hasPlan(env, user))) throw new ApiError(402, 'no_plan', 'Share links need JEKrayPro.');
+  const plan = await hasPlan(env, user);
+  if (!plan && (await linkCount(env, user)) >= FREE_LINKS) {
+    throw new ApiError(402, 'free_links_used', `A free account keeps ${FREE_LINKS} share links at once: delete an old one (My benches, My links), or JEKrayPro has them without a limit.`);
+  }
   const body = await readJson(req);
   const data = body.data;
   if (typeof data !== 'string' || !DATA.test(data)) throw new ApiError(400, 'bad_link', 'That is not a bench from JEKray.');
   if (data.length > MAX_LINK) throw new ApiError(413, 'too_large', 'A shared bench can be at most 1 MB compressed: save it as a .jekray file instead.');
   const name = cleanName(body.name, 'Untitled bench');
-  const n = (await env.DB.prepare('SELECT COUNT(*) AS n FROM share_links WHERE user_id = ?').bind(user.id).first()).n;
+  const n = await linkCount(env, user);
   if (n >= MAX_LINKS) throw new ApiError(409, 'too_many', `You can keep ${MAX_LINKS} share links; delete some old ones first.`);
   let id;
   for (let i = 0; i < 5 && !id; i++) {

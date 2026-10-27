@@ -13,6 +13,7 @@ import { account, accountsOn, api, shareSignIn, sharedCopyPrompt } from './accou
 import { cloudOn, copyPlaces, newCloudBench, proWhy } from './cloud.js';
 import { designPro, designWhy } from '../ui/pro.js';
 import { goal, track } from './usage.js';
+import { hooks } from '../core/hooks.js';
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed. A share link is JEKrayPro's: the
@@ -168,8 +169,11 @@ const MADE = new Map();
 export async function shortLink(data) {
   const text = await shareHash(data);
   if (MADE.has(text)) return MADE.get(text);
-  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: project.name || 'Untitled bench', data: text }) });
+  let r;
+  try { r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: project.name || 'Untitled bench', data: text }) }); }
+  catch (err) { if (err.code === 'free_links_used' && hooks.tasterOut('share a link')) err.shown = true; throw err; }   // a free account's links all in use: the card says so
   MADE.set(text, r.id);
+  hooks.tasterRefresh();                             // a free account's links left, as the badge shows them
   return r.id;
 }
 export const shortUrl = id => location.origin + '/s/' + id;
@@ -177,8 +181,8 @@ export const shortUrl = id => location.origin + '/s/' + id;
    a short link (JEKrayPro's), /S/ and its id in capitals */
 export async function qrLink() {
   if (accountsOn()) {
-    const why = designWhy('make a QR code of the bench');
-    if (why) throw new Error(why);
+    // a free account's share links make a QR code too (io/tasters.js)
+    if (designWhy('make a QR code of the bench') && !(hooks.tasterLeft('share a link') > 0 || MADE.size)) throw new Error(designWhy('make a QR code of the bench'));
     const id = await shortLink(), host = location.origin.toUpperCase(); track('share', 'qr');
     return /^[0-9A-Z $%*+\-.\/:]+$/.test(host) ? [host + '/S/' + id, true] : [shortUrl(id), false];
   }
@@ -221,6 +225,7 @@ async function linksList(current) {
     h('button', { type: 'button', class: 'rt-link', onclick: e => { navigator.clipboard.writeText(shortUrl(l.id)).then(() => { e.target.textContent = 'Copied'; }, () => {}); } }, 'Copy'),
     h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Delete the link ' + l.id, onclick: async () => {
       try { await api('/v1/links/' + l.id, { method: 'DELETE' }); } catch (err) { toast('Could not delete it: ' + err.message, true); return; }
+      hooks.tasterRefresh();
       for (const [k, v] of MADE) if (v === l.id) MADE.delete(k);
       toast('Deleted: ' + shortUrl(l.id) + ' no longer opens.');
       linksList(current);
@@ -283,7 +288,7 @@ function saveSharedCopy() {
 export function wireShare() {
   {
     const dlg = document.getElementById('shareDialog');
-    document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy'; shareLink().catch(err => toast('Could not make a link: ' + err.message, true)); });
+    document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy'; shareLink().catch(err => { if (!err.shown) toast('Could not make a link: ' + err.message, true); }); });
     document.getElementById('shareClose').addEventListener('click', () => dlg.close());
     for (const [b, t] of [['shareCopy', 'shareUrl'], ['shareEmbedCopy', 'shareEmbed']]) document.getElementById(b).addEventListener('click', e => {
       const box = document.getElementById(t); box.select();

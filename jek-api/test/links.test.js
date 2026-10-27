@@ -37,18 +37,25 @@ describe('share links', () => {
     expect(l[0].data).toBeUndefined();
   });
 
-  it('without a plan, no link is made; signed out, neither; a link made before still opens after the plan ends', async () => {
-    const free = await signedIn('Bo');
+  it('without a plan, three links kept at once (deleting one makes room); signed out, none; a link made before still opens after the plan ends', async () => {
+    const free = await signedIn('Bo'), ids = [];
+    for (let i = 0; i < 3; i++) { const m = await make(free, { name: 'x' + i, data: await linkData() }); expect(m.status).toBe(201); ids.push(m.body.id); }
     const r = await make(free, { name: 'x', data: await linkData() });
-    expect([r.status, r.body.error.code]).toEqual([402, 'no_plan']);
+    expect([r.status, r.body.error.code]).toEqual([402, 'free_links_used']);
+    expect((await json(await send('/v1/tasters', 'GET', free.token))).body.left.share).toBe(0);
+    expect((await call(`/v1/links/${ids[0]}`, { method: 'DELETE', token: free.token })).status).toBe(200);
+    expect((await json(await send('/v1/tasters', 'GET', free.token))).body.left.share).toBe(1);
+    expect((await make(free, { name: 'again', data: await linkData() })).status).toBe(201);
     expect((await call('/v1/links', { method: 'POST', body: JSON.stringify({ data: await linkData() }), headers: { 'Content-Type': 'application/json' } })).status).toBe(401);
     const s = await pro('Cy');
     const id = (await make(s, { name: 'Kept', data: await linkData() })).body.id;
+    for (let i = 0; i < 2; i++) await make(s, { name: 'More ' + i, data: await linkData() });
     await env.DB.prepare("UPDATE subscriptions SET status = 'canceled', period_end = 0 WHERE workspace_id = ?").bind(s.workspaceId).run();
+    // the plan ended with three links kept: the free account's three, so no more
     expect((await make(s, { name: 'New', data: await linkData() })).status).toBe(402);
     expect((await call(`/v1/links/${id}`)).status).toBe(200);
     // the list and deleting need no plan
-    expect((await json(await call('/v1/me/links', { token: s.token }))).body.links).toHaveLength(1);
+    expect((await json(await call('/v1/me/links', { token: s.token }))).body.links).toHaveLength(3);
     expect((await call(`/v1/links/${id}`, { method: 'DELETE', token: s.token })).status).toBe(200);
   });
 
@@ -65,9 +72,11 @@ describe('share links', () => {
     };
     // an editor takes a paid seat
     expect((await make(await join('Editor', 'editor', 1), { name: 'Editor link', data: await linkData() })).status).toBe(201);
-    // a viewer takes none: belonging to a team with a plan is not a plan
-    const r = await make(await join('Viewer', 'viewer', 0), { name: 'Free ride', data: await linkData() });
-    expect([r.status, r.body.error.code]).toEqual([402, 'no_plan']);
+    // a viewer takes none: belonging to a team with a plan is not a plan, so a free account's three
+    const viewer = await join('Viewer', 'viewer', 0);
+    for (let i = 0; i < 3; i++) expect((await make(viewer, { name: 'Free ' + i, data: await linkData() })).status).toBe(201);
+    const r = await make(viewer, { name: 'Free ride', data: await linkData() });
+    expect([r.status, r.body.error.code]).toEqual([402, 'free_links_used']);
   });
 
   it('refuses what is not a link’s bench, and anything over 1 MB', async () => {

@@ -24,7 +24,7 @@ import { openLensDesign } from './lens-workspace.js';
 import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
 import { saveRfReport } from './rf-report.js';
-import { designPro, proMark } from './pro.js';
+import { designPro, previewOK, proMark } from './pro.js';
 import { track } from '../io/usage.js';
 
 /* ==========================================================================
@@ -1079,19 +1079,27 @@ function rwOptCard(asm, P) {
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
     const S = RW_OPT.st;
-    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running ? '' : '. Undo takes it back.')));
+    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.preview ? 'A preview: ' : '') + (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running || RW_OPT.pending ? '' : '. Undo takes it back.')));
+    // a preview that found better: the choice, keep it (JEKrayPro) or leave the design as it is
+    if (RW_OPT.pending) card.append(h('div', { class: 'rt-lnote rt-preview', role: 'status' },
+      h('p', null, h('b', null, 'A better design: '), 'mean efficiency ' + rwPct(RW_OPT.mean0) + ' \u2192 ' + rwPct(S.mean) + '. This month\u2019s free runs are used: keep it with JEKrayPro, or leave the design as it is.'),
+      h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: rwOptKeep }, 'Keep this design'),
+        h('button', { class: 'rt-btn', type: 'button', onclick: () => { RW_OPT.pending = false; RW_OPT.note = 'Left as it was.'; rwRender(); } }, 'Leave it'))));
   }
   return card;
 }
 // while a run goes on, the RF designer redrawn a few times a second, so its Stop button stays put
 const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
-  if (!designPro('optimise a design')) return;
+  // signed in without a plan, this month's free runs spent: a preview, its values kept only with JEKrayPro
+  const preview = previewOK('optimise a design');
+  if (!preview && !designPro('optimise a design')) return;
   track('optimise', 'rf');
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
-  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '' };
+  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '', preview };
+  if (preview) toast('A preview: see what the optimiser finds, then keep it with JEKrayPro');
   rwRender();
   const tick = () => {
     if (!RW_OPT || !RW_OPT.running) return;
@@ -1106,7 +1114,19 @@ function rwOptGo(asm) {
 function rwOptStop(note) {
   if (!RW_OPT || !RW_OPT.running) return;
   const R = RW_OPT; R.running = false; R.note = note;
-  const c = R.prob.at(R.st.x);
+  if (R.preview && R.st.mean > R.mean0) { R.pending = true; if (RW) rwRender(); return; }   // shown, kept only with JEKrayPro (rwOptKeep)
+  rwOptApply(R);
+}
+/* a preview's values kept: with JEKrayPro (or, signed in without a plan, the card saying so) */
+function rwOptKeep() {
+  const R = RW_OPT;
+  if (!R || !R.pending || !designPro('optimise a design')) return;
+  R.pending = false; R.preview = false; track('taster', 'optimise.kept');
+  rwOptApply(R);
+}
+/* the run's values into the design, as one change, if better */
+function rwOptApply(R) {
+  const note = R.note, c = R.prob.at(R.st.x);
   if (RW && RW.asm === R.asm && R.st.mean > R.mean0) {
     rwEdit((Pd, asm) => {
       R.prob.keys.forEach(k0 => {

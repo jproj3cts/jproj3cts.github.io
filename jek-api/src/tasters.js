@@ -5,17 +5,21 @@
 // JEKrayPro plan needs none: the app does not ask. The count resets each calendar month (UTC).
 
 import { ApiError } from './util.js';
+import { FREE_LINKS, linkCount } from './links.js';
 
 export const TASTERS = { optimise: 5, tolerance: 3, script: 10, report: 3, drawing: 3, design: 3, data: 5 };
 const KEEP_MONTHS = 13;
 export const thisMonth = (now = Date.now()) => new Date(now).toISOString().slice(0, 7);
 
-// GET /v1/tasters: { month, limits, left }
+// GET /v1/tasters: { month, limits, left }; with the share links a free account may still make (FREE_LINKS kept at
+// once, counted from the links themselves: deleting one gives it back) as 'share'
 export async function tasters(env, user) {
   const month = thisMonth();
   const rows = (await env.DB.prepare('SELECT feature, n FROM taster_uses WHERE user_id = ? AND month = ?').bind(user.id, month).all()).results;
   const used = Object.fromEntries(rows.map((r) => [r.feature, r.n]));
-  return { month, limits: TASTERS, left: Object.fromEntries(Object.entries(TASTERS).map(([k, lim]) => [k, Math.max(0, lim - (used[k] || 0))])) };
+  const left = Object.fromEntries(Object.entries(TASTERS).map(([k, lim]) => [k, Math.max(0, lim - (used[k] || 0))]));
+  left.share = Math.max(0, FREE_LINKS - (await linkCount(env, user)));
+  return { month, limits: Object.assign({}, TASTERS, { share: FREE_LINKS }), left };
 }
 
 // POST /v1/tasters/:feature: one use, while the month has any left; { feature, left }

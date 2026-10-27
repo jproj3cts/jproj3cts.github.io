@@ -14,6 +14,12 @@ export function designWhyOf(why, what) {
   return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
 }
 export const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
+/* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
+   run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
+export function previewOK(what) {
+  const why = designWhy(what);
+  return !!why && !/^Sign in/.test(why) && hooks.tasterLeft(what) === 0;
+}
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 export function designPro(what) {
   const why = designWhy(what);

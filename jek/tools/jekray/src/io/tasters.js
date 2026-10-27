@@ -32,6 +32,8 @@ export function tasterLeft(what) {
 export function tasterUse(what) {
   const f = tasterOf(what), left = tasterLeft(what);
   if (!(left > 0)) return false;
+  // a share link is counted by the link itself, once made (the same bench again makes none): read again then (tasterRefresh)
+  if (f === 'share') return true;
   tasterState.left[f] = left - 1;
   track('taster', f + '.used');
   api('/v1/tasters/' + f, { method: 'POST' }).then(r => { if (tasterState && r && typeof r.left === 'number') tasterState.left[f] = r.left; needsShown(); })
@@ -47,14 +49,21 @@ export function tasterOut(what) {
   const f = tasterOf(what);
   if (!f || !tasterState) return false;
   track('taster', f + '.out');
-  const lim = tasterState.limits[f];
+  const lim = tasterState.limits[f], share = f === 'share';
   let dlg = document.getElementById('tasterOut');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'tasterOut', 'aria-labelledby': 'tasterOutTitle' }); document.body.append(dlg); }
   const close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, 'This month’s free ' + TASTER_NAMES[f] + ' are used'),
-    h('p', null, 'Your free account has ' + lim + ' ' + TASTER_NAMES[f] + ' a month, and they are back on the 1st. JEKrayPro has them without a limit, with the rest of the design work and saving to the cloud.'),
-    h('p', null, h('b', null, 'Students and university staff: '), 'JEKrayPro is half price with your university email. ', h('b', null, 'Founding members: '),
-      'subscribe during the open beta and keep that price for as long as you stay subscribed.'),
+  // the prices as they are now (the API's from Stripe): the student and staff one first
+  const price = h('p', null, h('b', null, 'Students and university staff: '), 'JEKrayPro is half price with your university email.');
+  api('/v1/billing/prices').then(P => {
+    const m = (q) => P && P[q] ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: (P[q].currency || 'gbp').toUpperCase() }).format(P[q].amount / 100).replace(/\.00$/, '') : '';
+    if (m('academic_monthly')) price.replaceChildren(h('b', null, 'Students and university staff: '), 'JEKrayPro is ' + m('academic_monthly') + ' a month' + (m('academic_yearly') ? ' or ' + m('academic_yearly') + ' a year' : '') + ' with your university email' + (m('pro_monthly') ? ' (' + m('pro_monthly') + ' a month otherwise)' : '') + '.');
+  }).catch(() => { /* the line as it is */ });
+  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, share ? 'Your free share links are all in use' : 'This month’s free ' + TASTER_NAMES[f] + ' are used'),
+    h('p', null, share ? 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud and the design work.'
+      : 'Your free account has ' + lim + ' ' + TASTER_NAMES[f] + ' a month, and they are back on the 1st. JEKrayPro has them without a limit, with the rest of the design work and saving to the cloud.'),
+    price,
+    h('p', null, h('b', null, 'Founding members: '), 'subscribe during the open beta and keep that price for as long as you stay subscribed.'),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn', type: 'button', onclick: close }, 'Not now'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('taster', f + '.plans'); close(); showSubscribe(); } }, 'See JEKrayPro')));
@@ -62,7 +71,13 @@ export function tasterOut(what) {
   return true;
 }
 
+/* the balance read again (after a share link is made or deleted: links are counted from the links themselves) */
+export async function tasterRefresh() {
+  if (!tasterState || !account) return;
+  try { tasterState = await api('/v1/tasters'); } catch (err) { return; }
+  needsShown();
+}
 /* the page's wiring for this module: done once, from boot.js */
 export function wireTasters() {
-  Object.assign(hooks, { tasterLeft, tasterUse, tasterOut });
+  Object.assign(hooks, { tasterLeft, tasterUse, tasterOut, tasterRefresh });
 }

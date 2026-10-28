@@ -39,3 +39,14 @@ export function orcidOnFor(beforeEach, afterEach) {
   beforeEach(() => { was = env.ORCID_ON; env.ORCID_ON = '1'; });
   afterEach(() => { env.ORCID_ON = was; });
 }
+
+// The rate limiters count in fixed minutes of the clock, so a burst that crosses one starts counting again. Runs
+// `burst(try)` (0, then 1) and does it once more, on fresh keys, if the minute turned while it ran.
+export async function inOneMinute(burst) {
+  const minute = () => Math.floor(Date.now() / 60000);
+  for (let t = 0; ; t++) {
+    const m = minute();
+    const out = await burst(t);
+    if (minute() === m || t > 0) return out;
+  }
+}

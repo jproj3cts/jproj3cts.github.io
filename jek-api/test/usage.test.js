@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
-import { call, signedIn } from './helpers.js';
+import { call, inOneMinute, signedIn } from './helpers.js';
 import { MAX_ERRORS, purgeUsage } from '../src/usage.js';
 import { html, isoWeek, people, prompts, promptAnswers, text } from '../scripts/usage.mjs';
 
@@ -122,9 +122,12 @@ describe('usage counts', () => {
   it('are hidden from all but the operations token, and are held back per address', async () => {
     expect((await call('/ops/usage', { origin: null })).status).toBe(404);
     expect((await call('/ops/usage', { origin: null, headers: { Authorization: 'Bearer nope' } })).status).toBe(404);
-    const h = { 'CF-Connecting-IP': '192.0.2.77' };
-    let last;
-    for (let i = 0; i < 121; i++) last = await post({ tier: 'anon', ev: [['open', '']] }, { headers: { ...h, 'Content-Type': 'text/plain' } });
+    const last = await inOneMinute(async (t) => {
+      const h = { 'CF-Connecting-IP': `192.0.2.${77 + 100 * t}`, 'Content-Type': 'text/plain' };
+      let r;
+      for (let i = 0; i < 121; i++) r = await post({ tier: 'anon', ev: [['open', '']] }, { headers: h });
+      return r;
+    });
     expect(last.status).toBe(429);
   });
 

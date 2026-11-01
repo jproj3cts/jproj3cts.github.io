@@ -6,6 +6,8 @@ import { openDemo } from './tours.js';
 import { remindForm } from './news.js';
 import { themeDark } from './render.js';
 import { REELS } from './reels.js';
+import { exerciseOfReel } from '../core/exercises.js';
+import { startExercise } from './challenge.js';
 import { openProjectData } from '../io/open.js';
 import { account, accountLoaded, accountOffer } from '../io/account.js';
 import { goal } from '../io/usage.js';
@@ -29,6 +31,8 @@ async function openReel(r) {
   goal('landing-open');
   hideLanding(false);
   if (r.demo) { await openDemo(r.demo, true); return; }
+  const ex = exerciseOfReel(r.id);
+  if (ex && startExercise(ex.id, 'reel')) return;
   const data = JSON.parse(JSON.stringify(r.bench));
   openProjectData(data, data.name || r.title);
   if (!data.keepView) fitView();

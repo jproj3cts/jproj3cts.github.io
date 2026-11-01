@@ -33,7 +33,7 @@ export const LABELS = {
   visitor: ['People (browsers)', 'first visit of the day, week, month, or ever'],
   taster: ['Free uses of JEKrayPro work', 'feature.used, .out (spent) or .plans (went to the plans)'],
   funnel: ['People, step by step', 'source.step or dev-device.step'], cohort: ['First visits', 'source.week'],
-  back: ['Back again', 'source.week.d1, d7 or d30'], load: ['Bench drawn', 'drawn or early (left before), and how long'],
+  back: ['Back again', 'source.week.d1, d7 or d30'], exercise: ['Exercises', 'exercise.step (start, hint1, hint2, solve, next, share, optimise, leave), list.where'], load: ['Bench drawn', 'drawn or early (left before), and how long'],
 };
 // the events with tables of their own, left out of the list of every event
 const OWN_TABLES = new Set(['visitor', 'funnel', 'cohort', 'back', 'load']);
@@ -175,7 +175,7 @@ export function loading(r) {
 // the sign-in prompts (the app's track('prompt', '<where>.<answer>')): a row for each, with how often it was shown,
 // each answer, the sign-in clicks among them (a way in chosen: Google, Microsoft or email) and those as a share of shown
 export const WAYS_IN = ['google', 'microsoft', 'email'];
-export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out', landing: 'From Instagram note, signed out', welcome: 'First-visit welcome note', pro: 'A JEKrayPro feature, signed out', acct: 'An account feature (My benches), signed out', exp: 'Experimental features, signed out' };
+export const PROMPT_NAMES = { share: 'Share, signed out', save: 'After a file save', return: 'Restored on a later visit', shared: 'A shared bench, Save a copy', tour: 'The tour\u2019s end', menu: 'Account menu, signed out', export: 'An export, signed out', work: 'A bench worked on, signed out', landing: 'From Instagram note, signed out', welcome: 'First-visit welcome note', pro: 'A JEKrayPro feature, signed out', acct: 'An account feature (My benches), signed out', exp: 'Experimental features, signed out', exercise: 'An exercise solved, signed out' };
 export function prompts(r) {
   const rows = {};
   for (const e of r.events) {

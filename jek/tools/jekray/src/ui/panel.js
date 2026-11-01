@@ -1,3 +1,4 @@
+import { hooks } from '../core/hooks.js';
 import { BEAM_Z, TEST_MODE } from '../core/constants.js';
 import { asmOf, asmOfSelection } from '../core/assembly.js';
 import { assemblyPanel, designOneRow } from './assembly.js';
@@ -133,6 +134,7 @@ function paramBits(label, el, path, opts, id) {
   const sweeps = el.sweeps || (el.sweeps = {});
   const sw = sweeps[path], key = sweepKey(el, path), open = !!sw && sweepOpen.has(key);
   const inp = numInput(id, () => getPath(el, path), v => { pause(el, path); setParam(el, path, v); }, opts);
+  inp.dataset.path = path;                      // which setting it is (an exercise lets only some be changed: ui/challenge.js)
   const name = label.replace(/\s*\(.*\)$/, '');
   const tip = sw ? (open ? 'Fold the sweep of ' : 'Edit the sweep of ') + name : 'Sweep ' + name + ' over a range';
   const toggle = opts.noSweep ? null : h('button', {
@@ -507,7 +509,7 @@ function renderInto(box, el) {
   const saved = panel;
   panel = box;
   refs = [];
-  try { renderPanelBody(el); } finally { box._refs = refs; panel = saved; refs = []; }
+  try { renderPanelBody(el); hooks.exercisePanel(box, el); } finally { box._refs = refs; panel = saved; refs = []; }
 }
 /* a part's panel made in a box of the caller's, apart from the page's own (File › Export data reads the plots drawn in it) */
 export function panelInto(box, el) { renderInto(box, el); }

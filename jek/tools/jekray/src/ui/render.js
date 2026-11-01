@@ -1,3 +1,4 @@
+import { hooks } from '../core/hooks.js';
 import { BEAM_Z, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen } from '../core/format.js';
 import { hornGeom } from '../core/rf.js';
@@ -1036,7 +1037,7 @@ function renderAll(stale) {
     ctx.save(); ctx.strokeStyle = lightLayer ? 'rgba(0,120,147,0.85)' : 'rgba(127,220,255,0.85)'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
     ctx.beginPath(); for (const [x0, y0, x1, y1] of guides) { ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); } ctx.stroke(); ctx.restore();
   }
-  if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
+  if (!exporting) { hooks.exerciseDraw(ctx); drawMinimap(); drawSelection(); drawToolOverlay(); hooks.exerciseTick(); }
   if (!figure) drawScaleBar();
   if (exporting && !thumbing && !figure) drawCredit();
 }

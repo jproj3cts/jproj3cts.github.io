@@ -1821,6 +1821,36 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-kiosk .rt-panel, .rt-kiosk #minimap, .rt-kiosk .rt-coords, .rt-kiosk .rt-sidetab, .rt-kiosk .rt-drawhint, .rt-kiosk .rt-picker { display: none !important; }
 .rt-kiosk .rt-grid { grid-template-columns: 1fr !important; }
 .rt-kiosk-all .rt-rail, .rt-kiosk-all .rt-flyout, .rt-kiosk-all .rt-benchtabs, .rt-kiosk-all .rt-v3dswitch { display: none !important; }
+/* an exercise's bar (ui/challenge.js): at the bench's top, the goal, the reading against it, hints, and once solved what next */
+.rt-exbar { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 6; width: min(34rem, calc(100% - 1.6rem)); padding: 0.6rem 0.85rem 0.55rem;
+  background: var(--jek-panel); color: var(--jek-ink); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-orange); border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16); font-size: 0.88rem; }
+.rt-exbar.solved { border-left-color: var(--rt-good-ink); }
+.rt-exhead { display: flex; align-items: baseline; gap: 0.5rem; }
+.rt-exhead b { flex: 1; font-size: 0.95rem; }
+.rt-exhead .rt-wx { position: static; }
+.rt-exkind { color: var(--jek-ink-soft); font-size: 0.78rem; white-space: nowrap; }
+.rt-exgoal { margin: 0.2rem 0 0.35rem; }
+.rt-exrow { display: flex; gap: 0.45rem; align-items: baseline; font-variant-numeric: tabular-nums; }
+.rt-exrow small { color: var(--jek-ink-soft); }
+.rt-exmark { width: 1em; color: var(--jek-ink-soft); }
+.rt-exrow.ok .rt-exmark { color: var(--rt-good-ink); font-weight: 700; }
+.rt-exhint { margin: 0.35rem 0 0; font-size: 0.85rem; }
+.rt-exbar .rt-actions { margin-top: 0.5rem; flex-wrap: wrap; align-items: center; }
+.rt-exmay { color: var(--jek-ink-soft); font-size: 0.78rem; }
+.rt-exsolved { margin: 0.45rem 0 0; font-weight: 600; color: var(--rt-good-ink); }
+.rt-exacct { border-top: 1px solid var(--jek-line); margin-top: 0.5rem; padding-top: 0.4rem; }
+.rt-exacct p { margin: 0; font-size: 0.85rem; }
+.rt-exnote { border-left: 3px solid var(--jek-orange); padding-left: 0.5rem; }
+.rt-exinvite { font-size: 0.85rem; margin: 0.4rem 0; }
+.rt-exlist { list-style: none; padding: 0; margin: 0.6rem 0; display: grid; gap: 0.3rem; counter-reset: ex; }
+.rt-exlist li { counter-increment: ex; }
+.rt-exitem { display: block; width: 100%; text-align: left; border: 1px solid var(--jek-line); background: none; border-radius: 6px; padding: 0.4rem 0.6rem; font: inherit; color: inherit; cursor: pointer; }
+.rt-exitem:hover { border-color: var(--jek-orange); }
+.rt-exitem b::before { content: counter(ex) '. '; color: var(--jek-ink-soft); font-weight: 400; }
+.rt-exitem small { display: block; color: var(--jek-ink-soft); }
+.rt-extick { color: var(--rt-good-ink); }
+@media (max-width: 600px) { .rt-exbar { top: 0.3rem; font-size: 0.82rem; padding: 0.45rem 0.6rem; } .rt-exmay { display: none; } }
 </style>
 </head>
 <body>
@@ -1958,6 +1988,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
                 <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
               </div>
             </div>
+            <button type="button" role="menuitem" id="btnExercises" data-icon="flag" title="Short exercises on the bench, each checked as you go: from aiming a mirror to fixing a fibre’s polarisation">Exercises…</button>
             <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
             <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
             <div class="sep"></div>
@@ -2415,6 +2446,8 @@ const hooks = {
   // the page redraws, or rebuilds a panel, after something the engines worked out
   requestRender() {}, renderPanel() {}, syncPanel() {}, showActivityNow() {}, cavityLater() {},
   toast() {}, benchStyleShown() {}, view3dReset() {},
+  // an exercise on the bench (ui/challenge.js): drawn, read after each render, a part's panel limited, a change counted
+  exerciseDraw() {}, exerciseTick() {}, exercisePanel() {}, exerciseStep() {},
   // what the page is doing meanwhile
   playing: () => false,                 // a sweep is playing
   sweepJob: () => null,                 // a sweep's field is being rendered
@@ -8921,6 +8954,147 @@ function backMarks(now, first) {
   const marks = BACK_DAYS.filter(([d, m]) => dt <= d * 864e5 && !b.includes(m)).map(([, m]) => m);
   return { marks, keep: Object.assign({}, first, { b: [...b, ...marks] }) };
 }
+/* ---------- Exercises ----------
+   Short exercises on the bench, each with a goal the bench itself checks (ui/challenge.js): a part, what is measured
+   on it (a key of the optimiser's measures, ui/optimise.js METRICS), and above, below or within ± a value. Only the
+   parts in `unlocked`, and only those settings, can be changed while one is on; everything else is held. Each starts
+   from one of our reels' benches (ui/reels.js), changed as `start` says. In order they make a short course (Help ›
+   Exercises); the ones with a `reel` are also that reel's challenge, offered to visitors who come from it. Nothing of
+   this goes in a bench file: a bench saved during an exercise is an ordinary bench.
+   optimiser: the range JEKrayPro's optimiser searches for each setting, offered after the second hint; left out where
+   it cannot find the answer (thread-both-irises reads nothing until both irises pass, so it has nothing to climb).
+   result(v): the line once solved, from the checks' values in order. Figures measured on the benches as given:
+   each exercise's answer is checked in the browser suite (jekray-tests.html, group 'Exercises'). */
+const fix = (v, d) => (+v).toFixed(d);
+const EXERCISES = [
+  { id: 'aim-a-mirror', title: 'Aim with a mirror', teaches: 'A mirror turned by an angle turns the beam by twice that.',
+    start: { reel: 'ig-90-turn-always', set: { 'Mirror 2': { angle: 296.5 } } },
+    goal: 'Put the spot in the middle of the Screen.',
+    checks: [{ part: 'Screen', key: 'centroid', op: 'within', value: 0, tol: 0.5 }],
+    unlocked: { 'Mirror 2': ['angle'] },
+    hints: ['Turn Mirror 2 a little and watch how far the spot moves.', 'Each degree moves the spot about 2.2 mm. Turn it back about 4°.'],
+    answer: { 'Mirror 2': { angle: 292.5 } },
+    optimiser: { 'Mirror 2': { angle: [286.5, 306.5] } },
+    result: () => 'spot centred' },
+  { id: 'focus-a-camera', title: 'Focus a camera', teaches: 'A near object focuses further behind the lens, so the focus ring moves the lens out.',
+    start: { reel: 'ig-focus-ring' },
+    goal: 'Make the Object sharp on the Sensor.',
+    checks: [{ part: 'Sensor', key: 'rms', op: 'below', value: 0.03 }],
+    unlocked: { Lens: ['x'] },
+    hints: ['Move the lens along the beam and watch the spot.', 'The lens needs to move about 11 mm towards the Object.'],
+    answer: { Lens: { x: -11.4 } },
+    optimiser: { Lens: { x: [-15, 15] } },
+    result: () => 'Object sharp on the Sensor' },
+  { id: 'find-a-focal-length', title: 'Find a lens’s focal length', teaches: 'Autocollimation: a point at the focus comes back to itself off a flat mirror, at any mirror distance.',
+    start: { reel: 'ig-one-mirror-finds-f' },
+    goal: 'Make the returning spot on the Screen as small as you can.',
+    checks: [{ part: 'Screen', key: 'rms', op: 'below', value: 0.05 }],
+    unlocked: { Lens: ['x'] },
+    hints: ['The spot is smallest when the light between the lens and the mirror runs parallel.', 'That happens when the source sits one focal length from the lens.'],
+    answer: { Lens: { x: -29.6 } },
+    optimiser: { Lens: { x: [-45, -20] } },
+    result: () => 'returning spot sharp: the focal length is the lens’s distance from the source' },
+  { id: 'focus-into-a-fibre', title: 'Focus into a fibre', teaches: 'A fibre’s core is microns wide, so its focus must be placed to a few hundredths of a millimetre.',
+    start: { reel: 'ig-hairs-gap', set: { 'Fibre A in': { x: 22 } } },
+    goal: 'Get the light into fibre A.',
+    checks: [{ part: 'Fibre A in', key: 'couple', op: 'above', value: 90 }],
+    unlocked: { 'Fibre A in': ['x'] },
+    hints: ['The lens brings the beam to a point; the fibre’s end must sit exactly there.', 'Type the position rather than dragging: it’s within 1 mm of the start, closer to the lens.'],
+    answer: { 'Fibre A in': { x: 21 } },
+    optimiser: { 'Fibre A in': { x: [7, 37] } },
+    result: v => fix(v[0], 1) + '% into fibre A' },
+  { id: 'close-the-gap', title: 'Close the gap', teaches: 'Light spreads as it leaves a fibre, so connectors press the ends together.',
+    start: { reel: 'ig-hairs-gap', set: { 'End B': { x: -9.93 } } },
+    goal: 'Get the light into fibre B.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.95 }],
+    unlocked: { 'End B': ['x'] },
+    hints: ['The light spreads out as it crosses the gap.', 'Bring End B to within 10 µm of End A.'],
+    answer: { 'End B': { x: -9.995 } },
+    optimiser: { 'End B': { x: [-25, 5] } },
+    result: v => fix(v[0], 3) + ' mW reaches fibre B' },
+  { id: 'steer-with-a-lens', title: 'Steer with a lens', teaches: 'Sliding a lens sideways steers the beam, by the slide over the focal length.',
+    start: { reel: 'ig-lens-steer' },
+    goal: 'Move the spot 4 mm across the Target without turning anything.',
+    checks: [{ part: 'Target', key: 'centroid', op: 'within', value: 4, tol: 0.2 }],
+    unlocked: { 'Lens 2': ['y'] },
+    hints: ['Slide Lens 2 sideways, across the beam, not along it.', 'About 1 mm of slide moves the spot about 4 mm.'],
+    answer: { 'Lens 2': { y: -1.02 } },
+    optimiser: { 'Lens 2': { y: [-15, 15] } },
+    result: () => 'spot moved 4 mm, nothing turned' },
+  { id: 'double-the-beam', reel: 'ig-double-beam', title: 'Double the beam', teaches: 'Two lenses whose focuses meet make a telescope: the beam leaves as wide as their focal lengths’ ratio.',
+    start: { reel: 'ig-double-beam' },
+    goal: 'Make the beam twice as wide, 4 mm, on both cards.',
+    checks: [{ part: 'Near card', key: 'full', op: 'within', value: 4, tol: 0.2 }, { part: 'Far card', key: 'full', op: 'within', value: 4, tol: 0.2 }],
+    unlocked: { 'Lens 2': ['x'] },
+    hints: ['Find where Lens 1 brings the light to a point.', 'Put Lens 2 so its own focus falls on that point, about 77 mm after Lens 1.'],
+    answer: { 'Lens 2': { x: 0 } },
+    optimiser: { 'Lens 2': { x: [-40, 20] } },
+    result: () => '4 mm on both cards' },
+  { id: 'thread-both-irises', reel: 'ig-thread-both-irises', title: 'Thread both irises', teaches: 'Two mirrors set a beam’s position and its angle, which one mirror alone cannot.',
+    start: { reel: 'ig-thread-both-irises' },
+    goal: 'Get the light through both irises to the Detector.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { 'Mirror 1': ['angle'], 'Mirror 2': ['angle'] },
+    hints: ['One mirror can put the beam through one iris, but not both. The other mirror sets where it starts from.', 'Turn Mirror 1 until the beam passes Iris 1, then Mirror 2 until it passes Iris 2. Repeat, each time turning the same way.'],
+    answer: { 'Mirror 1': { angle: 133.567 }, 'Mirror 2': { angle: 313.567 } },
+    result: v => fix(v[0], 2) + ' mW through both irises' },
+  { id: 'get-both-sharp', reel: 'ig-both-sharp', title: 'Get both sharp', teaches: 'A narrower cone of light deepens the focus: closing the aperture brings near and far into focus together.',
+    // the reel's one Sensor shows both spots, its rms mixing them: two screens, one for each object's spot
+    start: { reel: 'ig-both-sharp', remove: ['Sensor'], add: [
+      { type: 'screen', id: 'exs1', name: 'Sensor top', x: 34, y: 5, angle: 180, length: 10 },
+      { type: 'screen', id: 'exs2', name: 'Sensor bottom', x: 34, y: -5, angle: 180, length: 10 }] },
+    goal: 'Get the near and the far object sharp at the same time.',
+    checks: [{ part: 'Sensor top', key: 'rms', op: 'below', value: 0.03 }, { part: 'Sensor bottom', key: 'rms', op: 'below', value: 0.03 }],
+    unlocked: { Lens: ['x'], Aperture: ['aperture'] },
+    hints: ['Moving the lens only chooses which object is sharp.', 'Make the cone of light narrower: close the Aperture to about 1 mm.'],
+    answer: { Aperture: { aperture: 1.2 } },
+    optimiser: { Lens: { x: [-16.5, 13.5] }, Aperture: { aperture: [0.5, 5] } },
+    result: () => 'both objects sharp' },
+  { id: 'fix-the-polarisation', title: 'Fix the polarisation', teaches: 'An ordinary fibre turns polarisation into an oval. A quarter-wave plate makes it a straight line, and a half-wave plate turns that line.',
+    start: { reel: 'ig-fibre-two-plates' },
+    goal: 'Send all the light to the p light detector.',
+    checks: [{ part: 'p light', key: 'dmw', op: 'above', value: 0.995 }],
+    unlocked: { 'Quarter-wave': ['axis'], 'Half-wave': ['axis'] },
+    hints: ['First turn the Quarter-wave until the s light reading is as low as it will go.', 'Then turn the Half-wave to swing what’s left into p.'],
+    answer: { 'Quarter-wave': { axis: 35 }, 'Half-wave': { axis: 30 } },
+    optimiser: { 'Quarter-wave': { axis: [0, 180] }, 'Half-wave': { axis: [0, 180] } },
+    result: v => fix(v[0] * 100, 1) + '% in p' },
+  { id: 'get-it-back-in', reel: 'ig-get-it-back-in', title: 'Get it back in', teaches: 'A tilted plate shifts a beam sideways without turning it; a second, tilted the other way, shifts it back.',
+    start: { reel: 'ig-get-it-back-in' },
+    goal: 'Get the light back into fibre B without moving the collimators or the first filter.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { 'Filter 2': ['angle'] },
+    hints: ['A tilted plate shifts the beam sideways without turning it. Which way does Filter 2 shift it?', 'Tilt Filter 2 the other way from Filter, by the same amount.'],
+    answer: { 'Filter 2': { angle: -25 } },
+    optimiser: { 'Filter 2': { angle: [-40, 40] } },
+    result: v => fix(v[0] * 100, 0) + '% back into fibre B' },
+];
+const exerciseById = id => EXERCISES.find(x => x.id === id) || null;
+const exerciseOfReel = reel => EXERCISES.find(x => x.reel === reel) || null;
+/* one check against its value (null: not measured yet, as when no light arrives) */
+function checkPasses(c, v) {
+  if (v === null || v === undefined || !isFinite(v)) return false;
+  return c.op === 'above' ? v > c.value : c.op === 'below' ? v < c.value : Math.abs(v - c.value) <= c.tol + 1e-9;
+}
+/* what a check asks, in words: "above 0.9", "below 0.03", "4 ± 0.2" */
+const checkWant = c => (c.op === 'above' ? 'above ' + c.value : c.op === 'below' ? 'below ' + c.value : c.value + ' ± ' + c.tol);
+/* the bench an exercise starts from: its reel's, changed as `start` says (a copy; the reel's own is left alone) */
+function exerciseBench(ex, reelBench) {
+  const b = JSON.parse(JSON.stringify(reelBench)), S = ex.start || {};
+  b.elements = b.elements.filter(e => !(S.remove || []).includes(e.name));
+  for (const [name, f] of Object.entries(S.set || {})) { const e = b.elements.find(q => q.name === name); if (e) Object.assign(e, f); }
+  for (const e of S.add || []) b.elements.push(JSON.parse(JSON.stringify(e)));
+  b.name = ex.reel ? b.name : ex.title;
+  return b;
+}
+
+/* where a visit came from, if it is to start in an exercise: ?ex=<id>, or a reel that is a challenge (?src=ig-…) */
+function exerciseArrival(search) {
+  const m = /[?&]ex=([a-z0-9-]+)/.exec(search || ''), s = /[?&]src=([a-z0-9_-]+)/i.exec(search || '');
+  if (m && exerciseById(m[1])) return { id: m[1], from: 'link' };
+  const ex = s && exerciseOfReel(s[1].toLowerCase());
+  return ex ? { id: ex.id, from: 'reel' } : null;
+}
 /* ---------- Sign-up prompts: whether one may show ----------
    One cap for them all (io/account.js): once the share dialog, the note after a file save or the return-visit card
    has shown, none of them shows again for a week. */
@@ -14804,7 +14978,7 @@ function renderAll(stale) {
     ctx.save(); ctx.strokeStyle = lightLayer ? 'rgba(0,120,147,0.85)' : 'rgba(127,220,255,0.85)'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
     ctx.beginPath(); for (const [x0, y0, x1, y1] of guides) { ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); } ctx.stroke(); ctx.restore();
   }
-  if (!exporting) { drawMinimap(); drawSelection(); drawToolOverlay(); }
+  if (!exporting) { hooks.exerciseDraw(ctx); drawMinimap(); drawSelection(); drawToolOverlay(); hooks.exerciseTick(); }
   if (!figure) drawScaleBar();
   if (exporting && !thumbing && !figure) drawCredit();
 }
@@ -25882,6 +26056,7 @@ function paramBits(label, el, path, opts, id) {
   const sweeps = el.sweeps || (el.sweeps = {});
   const sw = sweeps[path], key = sweepKey(el, path), open = !!sw && sweepOpen.has(key);
   const inp = numInput(id, () => getPath(el, path), v => { pause(el, path); setParam(el, path, v); }, opts);
+  inp.dataset.path = path;                      // which setting it is (an exercise lets only some be changed: ui/challenge.js)
   const name = label.replace(/\s*\(.*\)$/, '');
   const tip = sw ? (open ? 'Fold the sweep of ' : 'Edit the sweep of ') + name : 'Sweep ' + name + ' over a range';
   const toggle = opts.noSweep ? null : h('button', {
@@ -26256,7 +26431,7 @@ function renderInto(box, el) {
   const saved = panel;
   panel = box;
   refs = [];
-  try { renderPanelBody(el); } finally { box._refs = refs; panel = saved; refs = []; }
+  try { renderPanelBody(el); hooks.exercisePanel(box, el); } finally { box._refs = refs; panel = saved; refs = []; }
 }
 /* a part's panel made in a box of the caller's, apart from the page's own (File › Export data reads the plots drawn in it) */
 function panelInto(box, el) { renderInto(box, el); }
@@ -45761,7 +45936,7 @@ function checkpoint(opening) {
   setFuture([]);
   updateUndoButtons();
   markUnsaved(true);
-  if (!opening) benchEdited();
+  if (!opening) { benchEdited(); hooks.exerciseStep(); }
 }
 
 function undo() {
@@ -52374,6 +52549,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account.',
     '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',
     '<b>More prisms</b>: the pentaprism (90\u00b0 whatever its tilt), the Amici roof prism, the Pellin\u2013Broca prism and a polygon of your own corners, with any faces silvered. Mirrors can have a <b>hole through them</b>, a source\u2019s line of rays can carry <b>power as across a round beam</b> (so an iris passes what it would), and a fibre wound round a radius has its <b>bend loss</b> (Marcuse\u2019s formula, single-mode fibre). A fibre\u2019s route now moves with the parts at its ends.',
     '<b>Fixed</b>: a fibre path set from a script without its handles no longer stops the bench drawing; the empty bench\u2019s tip steps aside for the parts picker; names on the bench keep a gap between them; a short mirror\u2019s hatching no longer fills it.',
@@ -52734,6 +52910,7 @@ function showWelcome() {
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
+    exerciseInvite(),
     accountOffer('welcome'),
     h('div', { class: 'rt-actions' }, pick, h('button', { class: 'rt-btn', type: 'button', onclick: () => startTour('focus') }, 'Take the tour'),
       h('button', { class: 'rt-btn primary', type: 'button', onclick: hideWelcome }, 'Got it'))));
@@ -54423,6 +54600,8 @@ async function openReel(r) {
   goal('landing-open');
   hideLanding(false);
   if (r.demo) { await openDemo(r.demo, true); return; }
+  const ex = exerciseOfReel(r.id);
+  if (ex && startExercise(ex.id, 'reel')) return;
   const data = JSON.parse(JSON.stringify(r.bench));
   openProjectData(data, data.name || r.title);
   if (!data.keepView) fitView();
@@ -54465,6 +54644,261 @@ function reelsFit(list) {
   list.addEventListener('scroll', end, { passive: true });
   fit();
   addEventListener('resize', fit);
+}
+/* ---------- Exercises and the reels' challenges ----------
+   An exercise (core/exercises.js) on the bench: a bar at its top with the goal, the reading against it, hints and a
+   way out. Only the parts it names can be changed, and only those settings: the rest are held in place (not dragged:
+   a lock that is never saved) and anything else changed is put back. Solved, the bar says so, in how many changes,
+   and offers the next one, a link to share it, and (signed out) a free account, which keeps the list of those solved
+   in any browser (jek-api src/exercises.js; signed out, this browser's own list, sent once they sign in).
+   Started from Help › Exercises, from a reel's bench in the From Instagram note, from a link (?ex=<id>), or by
+   arriving from a reel that is a challenge (?src=ig-…). Nothing of it is in the bench: leave, and the bench is an
+   ordinary one, every part free. Counted as 'exercise' <id>.<step> and the funnel's 'solve'. */
+let EX = null;                   // { ex, from, snap: Map id -> JSON, fibres, ids: { id: fields }, names, changes, hints, solved, seen, values }
+const SOLVED_KEY = 'jek-exercises';             // this browser's list: { id: { at, changes } }
+const exerciseOn = () => EX;
+function exSolvedList() { try { return JSON.parse(localStorage.getItem(SOLVED_KEY) || '{}') || {}; } catch (err) { return {}; } }
+let exServer = null;                             // the account's list, once read: { id: { at, changes } }
+const exSolved = () => Object.assign({}, exSolvedList(), exServer || {});
+
+/* an exercise put on the bench, from its reel's bench */
+function startExercise(id, from) {
+  const ex = exerciseById(id), reel = ex && REELS.find(r => r.id === ex.start.reel);
+  if (!ex || !reel || !reel.bench) return false;
+  if (EX) exerciseLeave(true);
+  const bench = exerciseBench(ex, reel.bench);
+  openProjectData(bench, ex.reel ? reel.title : ex.title);
+  fitView();
+  const byName = n => project.elements.find(e => e.name === n);
+  const ids = {};
+  for (const [n, f] of Object.entries(ex.unlocked)) { const e = byName(n); if (e) ids[e.id] = f; }
+  EX = { ex, from: from || 'help', snap: new Map(project.elements.map(e => [e.id, JSON.stringify(e)])), fibres: JSON.stringify(project.fibres || []),
+    ids, changes: 0, hints: 0, solved: false, seen: null, values: [], title: ex.reel && from === 'reel' ? reel.title : ex.title };
+  exLocks();
+  exBar();
+  track('exercise', ex.id + '.start');
+  renderPanel(); requestRender();
+  return true;
+}
+/* out of it: the bench as it is, every part free */
+function exerciseLeave(quiet) {
+  if (!EX) return;
+  if (!quiet) track('exercise', EX.ex.id + '.leave');
+  for (const e of project.elements) if (Object.prototype.hasOwnProperty.call(e, 'locked') && !Object.getOwnPropertyDescriptor(e, 'locked').enumerable) delete e.locked;
+  EX = null;
+  const bar = document.getElementById('exBar');
+  if (bar) bar.remove();
+  renderPanel(); requestRender();
+}
+// held in place, not saved: a lock no JSON carries, for every part whose place is not the exercise's to change
+function exLocks() {
+  for (const e of project.elements) {
+    const f = EX.ids[e.id] || [];
+    if (f.includes('x') || f.includes('y') || e.locked === true) continue;
+    if (!Object.prototype.hasOwnProperty.call(e, 'locked')) Object.defineProperty(e, 'locked', { value: true, enumerable: false, configurable: true, writable: true });
+  }
+}
+// a part as the exercise holds it: everything but the settings it may change
+const exHeld = (o, fields) => { const c = Object.assign({}, o); for (const k of fields) delete c[k]; delete c.locked; return JSON.stringify(c); };
+/* what was changed that may not be is put back: parts, their settings, the fibres; parts added go, parts deleted come back */
+function exEnforce() {
+  let back = false;
+  const now = new Map(project.elements.map(e => [e.id, e]));
+  const list = [];
+  for (const [id, js] of EX.snap) {
+    const was = JSON.parse(js), e = now.get(id), f = EX.ids[id] || [];
+    if (!e) { list.push(was); back = true; continue; }
+    if (exHeld(e, f) !== exHeld(was, f)) {
+      const keep = Object.fromEntries(f.filter(k => k in e).map(k => [k, e[k]]));
+      for (const k of Object.keys(e)) delete e[k];
+      Object.assign(e, was, keep); back = true;
+    }
+    list.push(e);
+  }
+  if (project.elements.some(e => !EX.snap.has(e.id))) back = true;
+  if (back) project.elements.splice(0, project.elements.length, ...list);
+  if (JSON.stringify(project.fibres || []) !== EX.fibres) { project.fibres = JSON.parse(EX.fibres); back = true; }
+  if (back) {
+    exLocks();
+    toast('In this exercise only ' + exAllowedText() + ' can be changed');
+    changed(true);
+  }
+  return back;
+}
+// the settings by the names their panels give them
+const EX_FIELDS = { x: 'x', y: 'y', angle: 'facing angle', axis: 'axis', aperture: 'aperture' };
+function exAllowedText() {
+  return Object.entries(EX.ex.unlocked).map(([n, f]) => n + '’s ' + f.map(k => EX_FIELDS[k] || k).join(' and ')).join(' and ');
+}
+/* after each trace: anything not allowed put back, then the goal read */
+function exerciseTick() {
+  if (!EX) return;
+  exLocks();
+  if (EX.seen === lastTrace) return;
+  // another bench opened (or Undo past the start): the exercise is over
+  if (![...EX.snap.keys()].some(id => project.elements.some(e => e.id === id))) { exerciseLeave(true); return; }
+  if (exEnforce()) return;
+  EX.seen = lastTrace;
+  exRead();
+}
+function exRead() {
+  const els = EX.ex.checks.map(c => project.elements.find(e => e.name === c.part && onTab(e)));
+  EX.values = EX.ex.checks.map((c, i) => (els[i] ? metricRaw(els[i], c.key) : null));
+  const ok = EX.ex.checks.map((c, i) => checkPasses(c, EX.values[i]));
+  if (!EX.solved && ok.every(Boolean)) exSolvedNow();
+  exBarReading(ok);
+}
+// when a change is made (ui/tabs.js checkpoint): counted until solved
+function exerciseStep() { if (EX && !EX.solved) EX.changes++; }
+
+function exSolvedNow() {
+  EX.solved = true;
+  const id = EX.ex.id, rec = { at: Date.now(), changes: EX.changes }, mine = exSolvedList();
+  if (!mine[id] || mine[id].changes > rec.changes) { mine[id] = Object.assign({}, rec, mine[id] ? { at: mine[id].at } : {}); try { localStorage.setItem(SOLVED_KEY, JSON.stringify(mine)); } catch (err) { /* kept on the account, if any */ } }
+  if (account) api('/v1/exercises/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(rec) }).then(exTake).catch(() => {});
+  track('exercise', id + '.solve');
+  funnel('solve');
+  exBar();
+}
+// the account's list read in: { solved: [{ id, at, changes }] }
+const exTake = r => { if (r && Array.isArray(r.solved)) exServer = Object.fromEntries(r.solved.map(x => [x.id, { at: x.at, changes: x.changes }])); };
+/* the account's list, and this browser's solved before signing in, sent to it */
+async function exerciseSync() {
+  if (!account) { exServer = null; return; }
+  try {
+    exTake(await api('/v1/exercises'));
+    for (const [id, x] of Object.entries(exSolvedList())) {
+      if (exServer[id] && exServer[id].changes <= x.changes) continue;
+      if (!exerciseById(id)) continue;
+      exTake(await api('/v1/exercises/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ changes: x.changes, at: x.at }) }));
+    }
+  } catch (err) { /* this browser's list meanwhile */ }
+}
+
+/* the next exercise, the first not yet solved: after this one, in the course's order; from a reel's challenge or a
+   link, from the course's start (a way into it) */
+function exerciseNext(id, fromStart) {
+  const S = exSolved(), i = fromStart ? -1 : EXERCISES.findIndex(x => x.id === id);
+  const after = [...EXERCISES.slice(i + 1), ...EXERCISES.slice(0, Math.max(0, i))].filter(x => x.id !== id);
+  return after.find(x => !S[x.id]) || null;
+}
+const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW' };
+const exWhat = { rms: 'RMS spot', full: 'width', centroid: 'spot centre', couple: 'coupling', dmw: 'power' };
+const exFmt = v => (v === null || !isFinite(v) ? '–' : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(2) : Math.abs(v) >= 0.01 ? v.toFixed(3) : v === 0 ? '0' : v.toPrecision(2));
+function exShareLink() {
+  const u = location.origin + location.pathname.replace(/jekray-dev\.html$/, 'jekray.html') + '?ex=' + EX.ex.id + '&src=solved';
+  const text = 'Solved: ' + EX.title + '\n' + EX.ex.result(EX.values) + ', in ' + EX.changes + ' ' + (EX.changes === 1 ? 'change' : 'changes') + '. Can you do it?\nFree in your browser, nothing to install · JEKray';
+  track('exercise', EX.ex.id + '.share');
+  if (navigator.share && typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) { navigator.share({ title: 'Solved: ' + EX.title, text, url: u }).catch(() => {}); return; }
+  const all = text + '\n' + u;
+  (navigator.clipboard ? navigator.clipboard.writeText(all) : Promise.reject()).then(() => toast('Copied: the link opens this exercise for whoever you send it to'), () => toast(u));
+}
+/* the optimiser finds it (JEKrayPro, or a free account's optimiser runs): offered after the second hint */
+function exerciseOptimise() { if (EX && EX.ex.optimiser) exOptimise(); }
+function exOptimise() {
+  if (!designPro('optimise a design')) return;
+  track('exercise', EX.ex.id + '.optimise');
+  const vars = [], terms = [];
+  const keep = [];
+  for (const [n, R] of Object.entries(EX.ex.optimiser)) {
+    const e = project.elements.find(q => q.name === n);
+    for (const [k, [lo, hi]] of Object.entries(R)) { keep.push([e, k, e.sweeps && e.sweeps[k]]); e.sweeps = Object.assign({}, e.sweeps, { [k]: { min: lo, max: hi } }); vars.push([e, k]); }
+  }
+  // the ranges are the optimiser's for this search only: each part's sweeps put back as they were
+  const unkeep = () => { for (const [e, k, was] of keep) { if (was) e.sweeps[k] = was; else delete e.sweeps[k]; } };
+  for (const c of EX.ex.checks) terms.push({ target: project.elements.find(q => q.name === c.part), key: c.key, goal: c.op === 'above' ? 'max' : c.op === 'below' ? 'min' : 'match', targetVal: c.value, weight: 1 });
+  toast('The optimiser is looking…');
+  setTimeout(() => {
+    try { optimiseMany(vars, terms); } catch (err) { unkeep(); toast('The optimiser could not finish: ' + err.message, true); return; }
+    unkeep();
+    EX.changes++; changed(true);
+  }, 30);
+}
+
+/* the bar at the bench's top */
+function exBar() {
+  let bar = document.getElementById('exBar');
+  if (!bar) { bar = h('div', { class: 'rt-exbar', id: 'exBar', role: 'region', 'aria-label': 'Exercise' }); document.getElementById('stage').append(bar); }
+  const E = EX.ex, n = EXERCISES.indexOf(E) + 1;
+  const head = h('div', { class: 'rt-exhead' },
+    h('span', { class: 'rt-exkind' }, EX.from === 'reel' && E.reel ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
+    h('b', null, EX.title),
+    h('button', { class: 'rt-wx', type: 'button', title: 'Leave the exercise: the bench stays, every part free', 'aria-label': 'Leave the exercise', onclick: () => exerciseLeave(false) }, '×'));
+  const body = [head, h('p', { class: 'rt-exgoal' }, E.goal), h('div', { class: 'rt-exread', id: 'exRead' })];
+  if (!EX.solved) {
+    for (let i = 0; i < EX.hints; i++) body.push(h('p', { class: 'rt-exhint' }, h('b', null, 'Hint ' + (i + 1) + ': '), E.hints[i]));
+    const acts = h('div', { class: 'rt-actions' });
+    if (EX.hints < E.hints.length) acts.append(h('button', { class: 'rt-btn', type: 'button', onclick: () => { EX.hints++; track('exercise', E.id + '.hint' + EX.hints); exBar(); } }, EX.hints ? 'Another hint' : 'Hint'));
+    else if (E.optimiser) acts.append(h('button', { class: 'rt-btn', type: 'button', title: 'JEKrayPro’s optimiser searches the settings you may change for the goal (a free account has a few runs a month)', onclick: exOptimise }, 'Let the optimiser find it'));
+    acts.append(h('span', { class: 'rt-exmay' }, 'You can change ' + exAllowedText() + '.'));
+    body.push(acts);
+  } else {
+    const next = exerciseNext(E.id, EX.from === 'reel' || EX.from === 'link');
+    body.push(h('p', { class: 'rt-exsolved' }, '✓ Solved: ' + E.result(EX.values) + ', in ' + EX.changes + ' ' + (EX.changes === 1 ? 'change' : 'changes') + '.'));
+    if (accountsOn() && !account) {
+      track('prompt', 'exercise.shown');
+      body.push(h('div', { class: 'rt-exacct' }, h('p', null, 'Make a free account to keep track of the exercises you’ve solved.'), h('div', { class: 'rt-actions' }, ...signInRow('exercise', () => {}))));
+    }
+    body.push(h('div', { class: 'rt-actions' },
+      next ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('exercise', E.id + '.next'); startExercise(next.id, 'help'); } }, 'Next exercise: ' + next.title) : null,
+      h('button', { class: 'rt-btn', type: 'button', onclick: exShareLink }, 'Share'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => showExercises('solved') }, 'All exercises'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => exerciseLeave(false) }, 'Keep the bench')));
+  }
+  bar.replaceChildren(...body);
+  bar.classList.toggle('solved', EX.solved);
+  if (EX.values.length) exBarReading(EX.ex.checks.map((c, i) => checkPasses(c, EX.values[i])));
+}
+function exBarReading(ok) {
+  const box = document.getElementById('exRead');
+  if (!box) return;
+  box.replaceChildren(...EX.ex.checks.map((c, i) => h('div', { class: 'rt-exrow' + (ok[i] ? ' ok' : '') },
+    h('span', { class: 'rt-exmark', 'aria-hidden': 'true' }, ok[i] ? '✓' : '○'),
+    h('span', null, c.part + ' ' + exWhat[c.key] + ': ', h('b', null, exFmt(EX.values[i]) + exUnits[c.key])),
+    h('small', null, ' goal ' + checkWant(c) + exUnits[c.key]))));
+}
+/* on the bench: a dashed ring round each part the exercise lets you change */
+function exerciseDraw(ctx) {
+  if (!EX) return;
+  ctx.save();
+  ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(240,160,40,0.9)';
+  for (const e of project.elements) {
+    if (!EX.ids[e.id] || !onTab(e)) continue;
+    const r = Math.max(14, 0.6 * Math.max(e.length || 0, e.size || 0, e.diameter || 0, 12) * V().scale);
+    ctx.beginPath(); ctx.arc(sx(e.x), sy(e.y), r, 0, 2 * Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+}
+/* a part's panel in an exercise: only the settings it may change take input; a line says what those are */
+function exercisePanel(box, el) {
+  if (!EX || !el || !EX.snap.has(el.id)) return;
+  const f = EX.ids[el.id] || [];
+  for (const inp of box.querySelectorAll('input, select, textarea')) if (!(inp.dataset.path && f.includes(inp.dataset.path))) inp.disabled = true;
+  box.prepend(h('p', { class: 'note rt-exnote' }, f.length ? 'In this exercise you can change only its ' + f.map(k => EX_FIELDS[k] || k).join(' and ') + '.' : 'Held in place for this exercise.'));
+}
+
+/* Help › Exercises: the course, in order, each with what it teaches and a tick once solved */
+function showExercises(from) {
+  track('exercise', 'list.' + (from || 'help'));
+  let dlg = document.getElementById('exDialog');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'exDialog', 'aria-labelledby': 'exDialogTitle' }); document.body.append(dlg); }
+  const S = exSolved(), done = EXERCISES.filter(x => S[x.id]).length;
+  dlg.replaceChildren(h('h2', { id: 'exDialogTitle' }, 'Exercises'),
+    h('p', null, EXERCISES.length + ' short exercises on the bench, about two minutes each, from aiming a mirror to fixing a fibre’s polarisation. Each says what to reach, checks it as you go, and has two hints.' + (done ? ' Solved: ' + done + ' of ' + EXERCISES.length + '.' : '')),
+    h('ol', { class: 'rt-exlist' }, ...EXERCISES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
+      h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.teaches))))),
+    accountsOn() && !account ? h('p', { class: 'note' }, 'Signed out, the ones you solve are kept in this browser; a free account keeps them in any.') : null,
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
+  dlg.showModal();
+}
+/* a quiet line for the welcome note */
+const exerciseInvite = () => h('p', { class: 'rt-exinvite' }, 'New to optics benches? ', h('button', { type: 'button', class: 'rt-link', onclick: () => { const w = document.getElementById('welcome'); if (w) w.remove(); showExercises('welcome'); } }, EXERCISES.length + ' short exercises, about 2 minutes each.'));
+/* the page's wiring for this module: done once, from boot.js */
+function wireChallenge() {
+  Object.assign(hooks, { exerciseDraw, exerciseTick, exercisePanel, exerciseStep });
+  const b = document.getElementById('btnExercises');
+  if (b) b.addEventListener('click', () => showExercises('help'));
+  Promise.resolve(accountLoaded).then(exerciseSync);
 }
 /* ---------- Search commands (Ctrl+K) ----------
    Every item of the bar's menus, found by its words and run as if it were clicked there: the menus stay
@@ -55354,7 +55788,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireStep(); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -55365,6 +55799,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   try { again = !!sessionStorage.getItem('jek-visit'); sessionStorage.setItem('jek-visit', '1'); } catch (err) { /* not told apart: taken as a reload */ }
   const arrived = location.hash + '&' + location.search;
   const ig = landingDue();
+  // ?ex=<id>, or a reel that is a challenge: the visit starts in that exercise (ui/challenge.js)
+  const exArr = TEST_MODE || EMBED ? null : exerciseArrival(location.search);
   try {
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
@@ -55377,13 +55813,19 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
   if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
   // from an Instagram post: the reels' benches, in place of the welcome note
+  else if (exArr) {
+    if (/[?&]ex=/.test(location.search)) { const u = new URL(location.href); u.searchParams.delete('ex'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }
+    setTimeout(() => startExercise(exArr.id, exArr.from), 300);
+  }
   else if (ig) { const dm = arrived.match(/[#?&]demo=([a-z0-9-]+)/); setTimeout(() => showLanding(dm && dm[1]), 400); }
-  else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b|ex=)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));
   usageStart(shared || short ? 'share' : /[#?&]demo=/.test(location.hash + '&' + location.search) ? 'example' : restored ? 'restored' : 'fresh');
   // the bench drawn: the next frame after this one (the load's time, and the funnel's 'land')
   requestAnimationFrame(() => requestAnimationFrame(usageDrawn));
+  // the exercises solved, from the account once it is known (and this browser's, sent to it)
+  Promise.resolve(accountLoaded).then(exerciseSync);
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();
@@ -55709,6 +56151,14 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     aiFieldCoverage() { const miss = []; for (const t of Object.keys(TYPE_LABEL)) for (const k of aiFieldsOf(t)) if (!(AI_FIELDS[t] || {})[k]) miss.push(t + '.' + k); for (const t of Object.keys(TYPE_LABEL)) if (!AI_ANGLE[t] || !AI_WHAT[t]) miss.push(t); return miss; },
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
+    // the exercises (ui/challenge.js): started as from Help, the state of the one on, out of it, the goal read now
+    exercises: () => EXERCISES.map(x => x.id),
+    exerciseStart(id, from) { return startExercise(id, from || 'help'); },
+    exerciseState() { const E = exerciseOn(); return E ? { id: E.ex.id, solved: E.solved, changes: E.changes, values: E.values.slice(), title: E.title } : null; },
+    exerciseLeave() { exerciseLeave(true); },
+    exerciseCheck() { exerciseTick(); const E = exerciseOn(); return E ? E.solved : null; },
+    exerciseAnswer: id => { const x = exerciseById(id); return x ? JSON.parse(JSON.stringify(x.answer)) : null; },
+    exerciseOptimise() { exerciseOptimise(); },
     lastTrace() { return lastTrace; },
     popCore: { popFieldSeries, setBabN: n => { setBAB_N(n); }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,
       popGaussian2, popLeg2, popStats2, popSurface2, popScreen },

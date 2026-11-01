@@ -17,6 +17,7 @@ import * as K from './packs.js';
 import * as T from './teams.js';
 import * as U from './usage.js';
 import { purgeTasters, tasters, useTaster } from './tasters.js';
+import { exercises, solveExercise } from './exercises.js';
 import { remind } from './remind.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
 import { cancelAtPeriodEnd, checkout, portal, priceList, switchInterval, webhook } from './billing.js';
@@ -188,6 +189,8 @@ const router = new Router()
   .on('POST', '/v1/institutions/:id/restore', async (req, env, ctx, { id }) => json(await I.adminRestore(req, env, await requireUser(req, env, ctx), id)))
   .on('GET', '/v1/tasters', async (req, env, ctx) => json(await tasters(env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/tasters/:feature', async (req, env, ctx, { feature }) => json(await useTaster(env, await requireUser(req, env, ctx), feature)))
+  .on('GET', '/v1/exercises', async (req, env, ctx) => json(await exercises(env, await requireUser(req, env, ctx))))
+  .on('POST', '/v1/exercises/:id', async (req, env, ctx, { id }) => json(await solveExercise(req, env, await requireUser(req, env, ctx), id)))
   .on('POST', '/v1/me/academic', async (req, env, ctx) => json(await verifyAcademic(env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/me/academic/email', async (req, env, ctx) => json(await sendCode(req, env, await requireUser(req, env, ctx))))
   .on('POST', '/v1/me/academic/code', async (req, env, ctx) => json(await checkCode(req, env, await requireUser(req, env, ctx))))

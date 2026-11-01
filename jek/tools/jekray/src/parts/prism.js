@@ -1,9 +1,4 @@
 import { PRISM_SHAPES, nextName, normCoat, normMat, num } from '../state/project.js';
-const polyCorners = v => {
-  const P = Array.isArray(v) ? v.filter(p => Array.isArray(p) && p.length >= 2 && isFinite(p[0]) && isFinite(p[1])).slice(0, 16).map(p => [+p[0], +p[1]]) : [];
-  return P.length >= 3 ? P : [[-10, -10], [10, -10], [0, 10]];
-};
-
 /* Prism: A glass prism or window. */
 export const PRISM = {
   type: 'prism', label: 'Prism',
@@ -11,6 +6,11 @@ export const PRISM = {
   keys: ['prism'],
   make: (x, y) => ({ type: 'prism', name: nextName('Prism'), x, y, shape: 'right', size: 20, material: { glass: 'N-BK7' } }),
   norm(e, base) {
+    // a polygon's corners kept: 3 to 16 finite x, y pairs, else a small triangle
+    const polyCorners = v => {
+      const P = Array.isArray(v) ? v.filter(p => Array.isArray(p) && p.length >= 2 && isFinite(p[0]) && isFinite(p[1])).slice(0, 16).map(p => [+p[0], +p[1]]) : [];
+      return P.length >= 3 ? P : [[-10, -10], [10, -10], [0, 10]];
+    };
     return Object.assign(base, {
       shape: PRISM_SHAPES[e.shape] ? e.shape : 'right',
       // a polygon's corners (mm, about its middle; 3 to 16), and the faces silvered (their indices from the first corner)

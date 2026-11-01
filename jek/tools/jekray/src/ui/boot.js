@@ -105,7 +105,7 @@ import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from 
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
-import { usageStart, wireUsage } from '../io/usage.js';
+import { usageDrawn, usageStart, wireUsage } from '../io/usage.js';
 import { landingDue, showLanding } from './landing.js';
 import { phosphorRead } from './phosphor.js';
 import { renderFrame } from '../io/figure.js';
@@ -160,6 +160,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));
   usageStart(shared || short ? 'share' : /[#?&]demo=/.test(location.hash + '&' + location.search) ? 'example' : restored ? 'restored' : 'fresh');
+  // the bench drawn: the next frame after this one (the load's time, and the funnel's 'land')
+  requestAnimationFrame(() => requestAnimationFrame(usageDrawn));
   renderPanel();
   updateUndoButtons();
   updateSweepButtons();

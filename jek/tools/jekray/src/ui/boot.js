@@ -12,7 +12,7 @@ import { beamAt, lgComps } from '../core/beams-hom.js';
 import { lensAntenna } from '../core/antenna.js';
 import { grinDesign, normGrin } from '../core/grin.js';
 import { TYPE_LABEL } from '../parts/registry.js';
-import { project, selectOne, setFuture, setHistory, setProject, uid } from '../state/project.js';
+import { V, project, selectOne, setFuture, setHistory, setProject, uid } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { stackAmp } from '../core/coatings.js';
 import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
@@ -108,6 +108,18 @@ import { besselJ01, besselZerosJ0 } from '../core/special.js';
 import { usageStart, wireUsage } from '../io/usage.js';
 import { landingDue, showLanding } from './landing.js';
 import { phosphorRead } from './phosphor.js';
+import { renderFrame } from '../io/figure.js';
+
+/* Recording mode (J.kiosk, ?kiosk): the busy banner, the side panel, the notes (welcome, empty bench, From Instagram,
+   sign-in), toasts, the minimap and the coordinates hidden, nothing selected; opts.all hides the parts rail and the
+   bench tabs too. The bench fills what is left. */
+function kioskSet(on, opts) {
+  const r = document.documentElement;
+  r.classList.toggle('rt-kiosk', !!on);
+  r.classList.toggle('rt-kiosk-all', !!(on && opts && opts.all));
+  if (on) { selectOne(null); renderPanel(); }
+  setTimeout(() => { resize(); requestRender(); }, 0);
+}
 
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
@@ -158,6 +170,15 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   window.JEKray = {
     view3d: V3D.api,
     ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
+    // on the page, a change made by J.set or J.setFibre is drawn, and its panel follows
+    set(name, props) { const el = scriptCalls().set.call(this, name, props); renderPanel(); requestRender(); return el; },
+    setFibre(which, props) { const F = scriptCalls().setFibre.call(this, which, props); renderPanel(); requestRender(); return F; },
+    // the view, without loading the bench again: { cx, cy, scale } (scale in screen pixels a mm), any of them
+    setView(v) { const W0 = V(); for (const k of ['cx', 'cy', 'scale']) if (v && isFinite(v[k])) W0[k] = k === 'scale' ? Math.max(1e-3, +v[k]) : +v[k]; requestRender(); return Object.assign({}, W0); },
+    // recording: the page's notes, panels and banners out of the way (opts.all: the parts rail and the tabs too); kiosk(false) back
+    kiosk(on, opts) { kioskSet(on, opts); return !!on; },
+    // one frame at a size of its own: { width, height, view: { cx, cy, scale }, labels }: a PNG data URL (a Promise)
+    renderPNG(o) { return renderFrame(o); },
     load(data) { loadProject(data); nameInput.value = project.name; selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
     partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
@@ -287,7 +308,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),
     modTimeout(ms) { MODS.timeout = ms || 0; },
     modStatus(name) { return modStatus(this.byName(name)); },
-    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean' || k === 'path'))); },
+    // y is along the screen's own face (its sign follows the way the screen faces); bx, by where on the bench
     beams: () => lastTrace.beams,
     segPlanes: i => segPlanes(lastTrace.beams, i),
     maskAt(name, pts, nm) { const fn = maskFns(this.byName(name)).fn; return pts.map(([u, v]) => fn(u, v, (nm || 633) * 1e-6)); },
@@ -582,6 +603,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     return true;
   };
   if (!TEST_MODE && !EMBED) helpLink();
+  // ?kiosk (or ?kiosk=all): recording, the page's notes and panels out of the way (J.kiosk does the same)
+  if (/[?&]kiosk\b/.test(location.search)) kioskSet(true, { all: /[?&]kiosk=all\b/.test(location.search) });
   // a link pasted into the address bar of a page already open changes only the hash
   if (!TEST_MODE) window.addEventListener('hashchange', () => {
     if (!EMBED && helpLink()) return;

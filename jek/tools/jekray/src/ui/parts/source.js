@@ -94,6 +94,12 @@ function sourcePanel(el) {
       param('Rays', el, 'rays')));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
+    // a line of rays standing for a round beam's power (an f-stop halves it, as in 3D)
+    if (!el.pattern) {
+      const rb = h('input', { type: 'checkbox' }); rb.checked = !!el.round;
+      rb.addEventListener('change', () => { checkpoint(); if (rb.checked) el.round = true; else delete el.round; changed(); });
+      panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.35rem', title: 'Each ray carries the ring of a round beam it stands for, so an iris at half the width passes a quarter of the light, and one f-stop halves it' }, rb, 'Power as across a round beam'));
+    }
     const pn = h('p', { class: 'note', style: 'margin-top:0.3rem' });
     bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = (el.pattern ? N + ' rays across the beam, up and down it too, ' : 'In the bench plane only, ') + 'its width (and divergence) the same both ways, each traced exactly in 3D. Screens show where they land on a spot diagram (Rays tab).'; });
     panel.append(pn);

@@ -17,6 +17,7 @@
   "core/nlc.js",
   "core/modulators.js",
   "core/packsig.js",
+  "core/bend.js",
   "core/tasters.js",
   "core/rf.js",
   "core/grin.js",

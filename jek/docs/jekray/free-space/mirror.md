@@ -21,6 +21,8 @@ $$
 
 over $$\vert y\vert $$ up to half its length. $$y_0$$ is the off-axis offset: the aperture slides that far along the parent curve, which is how an off-axis parabola is made ($$k = -1$$). $$R$$ is positive when the mirror is concave towards the light it faces, so its focal length is $$R/2$$. Leave $$R$$ blank for a plane mirror.
 
+A mirror can have a **hole through it**: a round hole of that diameter at its middle (up to 95 % of its length), as a scraper or a pick-off mirror has. Light through the hole goes on as if the mirror were not there; the rest is reflected. The hole shows in the bench, the 3D view and the CAD export.
+
 ### Reflection
 
 Rays and beams reflect by the law of reflection, $$\hat d_r = \hat d - 2(\hat d\cdot\hat n)\hat n$$, at the exact point and normal on the surface. A mirror reflects a share $$R_m$$ of the power (the *reflectance*, %) in amplitude $$\pm\sqrt{R_m}$$, both polarisations alike.

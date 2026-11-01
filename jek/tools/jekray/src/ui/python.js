@@ -80,8 +80,12 @@ class _Bench:
         return _call('element', name)
     def get(self, name, path):
         return _call('get', name, path)
-    def set(self, name, path, value):
-        _call('set', name, path, value)
+    def set(self, name, path, value=None):
+        # J.set(name, path, value), or J.set(name, {'x': 20, 'diameter': 25}): several fields at once
+        if isinstance(path, dict):
+            _call('set', name, path)
+        else:
+            _call('set', name, path, value)
         return self
     def range(self, a, b, n):
         n = max(2, math.floor(n + 0.5))

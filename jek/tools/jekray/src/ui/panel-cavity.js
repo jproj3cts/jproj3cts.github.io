@@ -302,7 +302,8 @@ export function renderOverview() {
     c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); renderPanel(); });
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
-  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
+  panel.append(tick('rays', 'Show the rays'), tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
+    tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));

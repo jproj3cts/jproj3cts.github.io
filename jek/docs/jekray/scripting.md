@@ -18,6 +18,7 @@ description: "Drive JEKray from a script: the Scripts editor on the bench (JEKra
 | `J.elements()` | Every part: name, type, x, y, angle. |
 | `J.element(name)` | A part's settings, as a copy. |
 | `J.get(name, path)`, `J.set(name, path, value)` | A parameter read, or set and the bench traced again. |
+| `J.set(name, { x: 20, diameter: 25 })` | Several of a part's fields at once, checked as a file's are (clamped, filled in), then traced; its id, type and tab stay. Returns the part. |
 | `J.range(a, b, n)` | n values from a to b. |
 | `J.sweep(name, path, values, read)` | Each value set, `read(value)` called, and the parameter put back: rows of the value and what was read. |
 | `J.csv(rows)` | Rows as CSV text. |
@@ -132,8 +133,29 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.exportZmx(names)` | Parts as a lens file. |
 | `JEKray.sweepPlay(name, path)`, `JEKray.sweepPause()` | A sweep played and paused. |
 | `JEKray.typeLabel(name)`, `JEKray.benches()`, `JEKray.showTab(name)` | What a part is called, the bench tabs, and switching between them. |
+| `JEKray.set(name, props)`, `JEKray.setFibre(id, props)` | A part's fields, or a fibre's (its `path`, `bendR`, `turns`, ends…), changed as a file would give them, checked, and traced. A fibre's path nodes may be `{ x, y }`, their handles left out. |
+| `JEKray.rays()` | Every ray drawn, labelled: its source and wavelength, its polarisation (`'s'` or `'p'`, an unpolarised source's two halves), its weight now and at the start, its colour, the bench points it passes, the parts it `met` in order, its bounces, its final direction (`angle`, degrees). |
+| `JEKray.hitsOn(name)` | The rays on a screen: `y` across the screen in its own frame (see below), with `bx`, `by` where that is on the bench. |
+| `JEKray.distance(at, { source })` | The closest any ray (or a named source's) comes to a point `{ x, y }` on the bench, or a part's centre given by name: `{ d, x, y, ray }` (`ray` the index in `rays()`). |
+| `JEKray.metric(name, 'couple')`, `JEKray.metric(name, 'fibremw')` | A fibre tip's coupling efficiency into its fibre, and the mW that couples. A detector in the fibre network (the **Fibre** palette's photodetector) reads with `JEKray.fibrePd(name)`. |
+| `JEKray.bendDbPerTurn(R, nm)` | The loss of one turn of single-mode fibre round radius R (mm): [Bends](/jek/docs/jekray/fibre/#bends). |
+| `JEKray.setView({ cx, cy, scale })` | Moves the view (centre in mm, scale in pixels per mm); returns it. |
+| `JEKray.kiosk(on, { all })` | Recording mode: the side panel, notes, banners, toasts, minimap and coordinates hidden; `all: true` hides the parts rail and the tabs too. `kiosk(false)` brings them back. The page opened with `?kiosk` (or `?kiosk=all`) starts in it. |
+| `JEKray.renderPNG({ width, height, view, labels })` | The bench drawn as a PNG (a data URL, from a promise) at that size in pixels: what the screen shows, fitted to it, or the `view` `{ cx, cy, scale }` given; `labels: false` without the names. The 2D view only. |
 
 A screen's `power` (from `JEKray.stats`, the headless `screen()` and the command line's `screen`) is the sum of the weights of the rays that reach it, not milliwatts: each ray leaves its source with weight 1 (an unpolarised one as two halves of ½), a fan for each of the source's wavelengths, so it counts rays as much as light and changes with a source's number of rays and lines. `powerPct` beside it is that sum as a percentage of what the sources reaching the screen send out, so `powerPct / 100` times those sources' power is the mW in the rays. For a reading in mW, put a photodetector there and read it with `detector`: it takes Gaussian beams by their fields and ray fans by each ray's share of its source's power.
+
+A screen reads `y` along its own across axis, 90° anticlockwise from the way it faces, so one facing −x has +y pointing down the bench and reads a ray above the axis as negative (see [Coordinates](/jek/docs/jekray/concepts/#coordinates-and-angles)); `bx`, `by` are the bench's. Ray brightness on the bench is each source's against its own brightest ray, unless the bench's Light has **Rays as bright as their power**; `rays()` gives each ray's weight `w` either way, and its share of its source's power is `w` times the source's mW over its rays' count.
+
+**Recording a reel.** Open the bench with `?kiosk`, then from the console or a script:
+
+```js
+JEKray.setView({ cx: 0, cy: 0, scale: 4 });
+for (let a = 130; a <= 140; a += 0.25) { JEKray.set('Fold', { angle: a }); await new Promise(r => setTimeout(r, 40)); }
+const png = await JEKray.renderPNG({ width: 1080, height: 1920 });   // a still for the cover
+```
+
+In the Scripts editor, `setView`, `kiosk` and `renderPNG` are the page's own: they work in a script run on the page (**Run on the page**), not in the background.
 
 Parameters have **paths**, the same the panels and sweeps use: `x`, `angle`, `surfaces.0.R`, `gaps.0`, `mmw.ghz`, `grin.f`. The parts' fields are listed under each part in [Parts](/jek/docs/jekray/params.json) and in the [AI guide](/jek/tools/jekray-ai-guide.md).
 

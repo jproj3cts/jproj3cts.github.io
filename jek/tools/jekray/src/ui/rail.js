@@ -2,7 +2,7 @@ import { EMBED, LOCKED } from '../core/constants.js';
 import { project } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import {
-  benchHoles, benchStyleShown, labelSize, requestRender, selFibreId, selection, setSelFibreId,
+  benchHoles, benchStyleShown, labelFixedSet, labelSize, requestRender, selFibreId, selection, setSelFibreId,
   setSelection, stage
 } from './render.js';
 import { DRAW_TOOLS, drawIcon, drawTool, drawToolsShown, setDrawTool } from './drawings.js';
@@ -143,6 +143,7 @@ export function wireRail() {
   document.getElementById('btnNamesUp').addEventListener('click', () => labelSize(1.25));
 
   document.getElementById('btnNamesDown').addEventListener('click', () => labelSize(0.8));
+  document.getElementById('btnNamesFixed').addEventListener('click', () => labelFixedSet(!project.labelFixed));
 
   document.getElementById('btnRailToggle').addEventListener('click', () => {
     railOn = !railOn;

@@ -205,6 +205,7 @@ export function benchStyleShown() {
       h('span', { class: 'rt-swatch' + (c ? '' : ' auto'), style: c ? 'background:' + c : null }), name, v === themePref ? h('span', { class: 'k' }, '✓') : null)),
     h('span', { class: 'rt-menunote' }, 'Yours, kept in this browser: a bench opens in your theme, whoever made it. Exported pictures come out in it too.'));
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
+  const nf = document.getElementById('btnNamesFixed'); if (nf) nf.setAttribute('aria-checked', project && project.labelFixed ? 'true' : 'false');
   stage.style.background = benchBg();
 }
 // a part drawn off the bench (its symbol in the rail or the picker), in the ink the bench draws it in
@@ -507,10 +508,33 @@ function drawBeams(fieldShown) {
 const RAY_LAYER_MIN = 2000;
 const rayLayer = { cv: null, key: null, rays: null, frame: null, view: null, settled: false, timer: null, done: 0 };
 const RAY_CHUNK = 30000;              // segments drawn into the layer per frame: a big bench fills in over a few frames
+/* Fading trails (Light: fading trails while sweeps play): each time the light changes (a sweep's next step), the
+   rays before are laid on a canvas of their own, what was there fading by a third, and that canvas drawn under the
+   rays now; moving the view starts it afresh */
+const trail = { cv: null, last: null, key: '' };
+function drawTrail() {
+  const rays = lastTrace.rays, key = [V().cx, V().cy, V().scale, W, H, DPR, project.tab, lightLayer].join('|');
+  if (typeof document.createElement !== 'function') return;
+  const cv = trail.cv || (trail.cv = document.createElement('canvas')), c = cv.getContext('2d');
+  if (cv.width !== canvas.width || cv.height !== canvas.height || trail.key !== key) {
+    cv.width = canvas.width; cv.height = canvas.height; trail.key = key; trail.last = rays;
+    c.clearRect(0, 0, cv.width, cv.height);
+    return;
+  }
+  if (trail.last !== rays) {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.33)'; c.fillRect(0, 0, cv.width, cv.height);
+    c.globalCompositeOperation = 'source-over';
+    if (trail.last) { c.setTransform(DPR, 0, 0, DPR, 0, 0); drawRaysOn(c, trail.last); }
+    trail.last = rays;
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 0.7; ctx.globalCompositeOperation = glowOp();
+  ctx.drawImage(cv, 0, 0); ctx.restore();
+}
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -599,11 +623,13 @@ function drawRaysOn(ctx, rays, shared) {
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
+  // by power (Light: rays as bright as their power): each ray's mW against the bench's strongest, whatever its source
+  const sc = (lastTrace.raySc) || {}, byPow = lightOf().byPower ? rayTopPower(rays, project.tab, sc) : 0;
   ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
+    const alpha = (byPow ? rayAlphaPower(r.w * (sc[r.src] || 1) / byPow) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
       const key = part.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: part.colour, alpha: lvl / 12, rays: [] });
@@ -656,6 +682,14 @@ export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, Math.pow(M
    launch, so a fibre tip fed through a lossy network is as bright as a laser, and a return beam
    or a window's reflection is fainter than the beam it came off (a kept ray is never drawn at
    no brightness at all: the faintest level is one step) */
+/* by power: the alpha of a ray carrying a share p of the bench's strongest, nearly in proportion (half the power,
+   about half as bright), a faint line kept for the weakest */
+export function rayAlphaPower(p) { return 0.85 * Math.min(1, Math.max(0.05, Math.pow(Math.max(p, 1e-9), 0.85))); }
+export function rayTopPower(rays, tab, sc) {
+  let top = 0;
+  for (const r of rays) if (r.bench === tab) top = Math.max(top, r.w * (sc[r.src] || 1));
+  return top || 1;
+}
 export function rayTops(rays, tab) {
   const tops = new Map();
   for (const r of rays) if (r.bench === tab && r.w > (tops.get(r.src) || 0)) tops.set(r.src, r.w);
@@ -731,7 +765,16 @@ function labelMm() {
   return project.labelMm;
 }
 export function labelSize(f) {
-  project.labelMm = +(labelMm() * f).toPrecision(3);
+  if (project.labelFixed) project.labelPx = clamp(Math.round((project.labelPx || 12) * f), 6, 40);
+  else project.labelMm = +(labelMm() * f).toPrecision(3);
+  scheduleSave(); requestRender();
+}
+/* names a fixed size on the screen (project.labelFixed, labelPx px) rather than on the bench: the same at any zoom */
+export function labelFixedSet(on) {
+  project.labelFixed = !!on;
+  if (on && !(project.labelPx > 0)) project.labelPx = 12;
+  const b = document.getElementById('btnNamesFixed');
+  if (b) b.setAttribute('aria-checked', on ? 'true' : 'false');
   scheduleSave(); requestRender();
 }
 /* a ringed red ! on a part whose import made assumptions (see partAssumptions); not in exports */
@@ -764,6 +807,7 @@ function drawLabels() {
     const k = el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
+    if (project.labelFixed && !exporting) fs = (project.labelPx || 12) * k;      // a fixed size on the screen
     if (figure && figure.labelPx) fs = figure.labelPx * k;                // a figure's labels at its own size
     const u = fs / 11;
     // below the part's body, whichever way it is turned, centred under it
@@ -777,7 +821,8 @@ function drawLabels() {
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
     if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
-      const clear = y => { const box = { x: X - w / 2, y: y - 10 * u, w, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
+      // clear of the others, with a word's gap either side: two names side by side never read as one
+      const gap = 0.6 * fs, clear = y => { const box = { x: X - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
       Y = tries.find(clear) ?? (figure ? tries[tries.length - 1] : Y + 52 * u);
     }
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
@@ -967,7 +1012,7 @@ function renderAll(stale) {
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
-  if (lightOf().rays) drawRays(stale);
+  if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
   if (!stale) {
     setCloseupOn(drawCloseup());
     const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
@@ -1206,6 +1251,8 @@ export const portsInUse = () => new Set((project.fibres || []).flatMap(F => [pke
    It leaves each port along the port's direction, ta and tb mm (or a length that suits the
    span); each node has an in handle h1 and an out handle h2, offsets from it, as in a
    drawing program. endB, a point, stands in for the far port while a fibre is being laid. */
+// a node's handle as an offset: one left out, or set to null (a script writing a path), is none
+const hnd = v => Array.isArray(v) && v.length === 2 && isFinite(v[0]) && isFinite(v[1]) ? v : [0, 0];
 export function fibreSegs(F, endB) {
   const A = getEl(F.a[0]);
   if (!A) return null;
@@ -1219,9 +1266,9 @@ export function fibreSegs(F, endB) {
   const segs = [];
   for (let i = 0; i < P.length - 1; i++) {
     const ta = F.ta != null ? F.ta : auto(0);
-    const c1 = i === 0 ? [pa.x + pa.dx * ta, pa.y + pa.dy * ta] : [P[i][0] + nodes[i - 1].h2[0], P[i][1] + nodes[i - 1].h2[1]];
+    const c1 = i === 0 ? [pa.x + pa.dx * ta, pa.y + pa.dy * ta] : [P[i][0] + hnd(nodes[i - 1].h2)[0], P[i][1] + hnd(nodes[i - 1].h2)[1]];
     let c2;
-    if (i < P.length - 2) c2 = [P[i + 1][0] + nodes[i].h1[0], P[i + 1][1] + nodes[i].h1[1]];
+    if (i < P.length - 2) c2 = [P[i + 1][0] + hnd(nodes[i].h1)[0], P[i + 1][1] + hnd(nodes[i].h1)[1]];
     else if (pb) { const tb = F.tb != null ? F.tb : auto(i); c2 = [pb.x + pb.dx * tb, pb.y + pb.dy * tb]; }
     else c2 = [(c1[0] + P[i + 1][0]) / 2, (c1[1] + P[i + 1][1]) / 2];
     segs.push([P[i], c1, c2, P[i + 1]]);
@@ -1331,8 +1378,8 @@ export function fibreGrip(F, px, py) {
   if (F.route === 'square') { for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i }; return null; }   // corners only
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
-    if (near([n.x + n.h1[0], n.y + n.h1[1]])) return { type: 'h1', i };
-    if (near([n.x + n.h2[0], n.y + n.h2[1]])) return { type: 'h2', i };
+    if (near([n.x + hnd(n.h1)[0], n.y + hnd(n.h1)[1]])) return { type: 'h1', i };
+    if (near([n.x + hnd(n.h2)[0], n.y + hnd(n.h2)[1]])) return { type: 'h2', i };
   }
   for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i };
   // an end with no direction (an electrical node) has no handle: its point is the node's own
@@ -1350,7 +1397,7 @@ export function moveGrip(F, g, X, Y, free) {
     const n = nodes[g.i], mine = g.type, other = mine === 'h1' ? 'h2' : 'h1';
     n[mine] = [X - n.x, Y - n.y];
     if (!free) {                               // a smooth node: the other handle stays opposite, its own length
-      const L = Math.hypot(...n[mine]), Lo = Math.hypot(...n[other]) || L;
+      const L = Math.hypot(...n[mine]), Lo = Math.hypot(...hnd(n[other])) || L;
       if (L > 0) n[other] = [-n[mine][0] / L * Lo, -n[mine][1] / L * Lo];
     }
     return;
@@ -1403,8 +1450,8 @@ function drawFibreNodes(F, segs) {
     const last = segs[segs.length - 1];
     knob(last[2], last[3]);
     for (const n of F.path || []) {
-      knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
-      knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+      knob([n.x + hnd(n.h1)[0], n.y + hnd(n.h1)[1]], [n.x, n.y]);
+      knob([n.x + hnd(n.h2)[0], n.y + hnd(n.h2)[1]], [n.x, n.y]);
     }
   }
   for (const n of F.path || []) {

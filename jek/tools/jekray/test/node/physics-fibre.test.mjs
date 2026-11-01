@@ -98,3 +98,32 @@ test('cell lines: field-free saturation is the Zeeman model at B -> 0, line by l
   near(w, 0.0209, 3e-4, 'Rb87 D1');
   near(a[0].Isat0 / 10, 1.496, 0.01, 'cycling Isat0, mW/cm^2');
 });
+
+test('fibre bend loss (Marcuse) matches Corning SMF-28 macrobend figures, falls with radius and rises with wavelength', async () => {
+  const { besselK1, bendDbPerTurn, fibreBendDb } = await import('../../src/core/bend.js');
+  // K1 against tables (Abramowitz and Stegun table 9.8)
+  assert.ok(Math.abs(besselK1(1) - 0.6019072302) < 1e-6 && Math.abs(besselK1(2) - 0.1398658818) < 1e-6 && Math.abs(besselK1(3) - 0.0401564311) < 1e-6);
+  // Corning SMF-28: 100 turns on a 25 mm radius under 0.05 dB at 1550 nm; one turn on 16 mm under 0.05 dB;
+  // one turn on 10 mm about 0.1 to 1 dB (typical measurements); 1310 nm far below 1550 nm
+  assert.ok(100 * bendDbPerTurn(25, 1550) < 0.05);
+  assert.ok(bendDbPerTurn(16, 1550) < 0.05);
+  const r10 = bendDbPerTurn(10, 1550);
+  assert.ok(r10 > 0.1 && r10 < 1, 'R 10 mm at 1550 nm: ' + r10);
+  assert.ok(bendDbPerTurn(10, 1310) < 0.05 * r10);
+  assert.ok(bendDbPerTurn(7.5, 1550) > bendDbPerTurn(10, 1550) && bendDbPerTurn(10, 1625) > r10);
+  // a link: turns times one turn's; none straight, none for multimode
+  assert.ok(Math.abs(fibreBendDb({ bendR: 10, turns: 3 }, 1550) - 3 * r10) < 1e-12);
+  assert.equal(fibreBendDb({ bendR: 0 }, 1550), 0);
+  assert.equal(fibreBendDb({ bendR: 10, turns: 1, ftype: 'mm' }, 1550), 0);
+});
+
+test('a line of rays standing for a round beam: an aperture at half its width passes a quarter of the power', async () => {
+  const { roundWeights } = await import('../../src/engines/trace.js');
+  for (const n of [21, 101]) {
+    const w = roundWeights(n), at = i => i / (n - 1) - 0.5;
+    assert.ok(Math.abs(w.reduce((a, b) => a + b, 0) / n - 1) < 1e-12, 'the beam’s power kept');
+    const frac = r => w.filter((_, i) => Math.abs(at(i)) <= r + 1e-9).reduce((a, b) => a + b, 0) / n;
+    assert.ok(Math.abs(frac(0.25) - 0.25) < 0.03, n + ' rays: half the width passes ' + frac(0.25));
+    assert.ok(Math.abs(frac(0.5 / Math.SQRT2) - 0.5) < 0.04, n + ' rays: one f-stop halves it, ' + frac(0.5 / Math.SQRT2));
+  }
+});

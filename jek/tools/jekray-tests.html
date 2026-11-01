@@ -1520,6 +1520,35 @@ const TESTS = [
 
   { group: 'Geometric tracing' },
   {
+    name: 'New prisms and a mirror with a hole: a pentaprism turns light 90°, a Pellin–Broca 90° at its angle, a polygon traces, and light through a mirror’s hole goes on',
+    why: 'a beam along +x into a pentaprism leaves along +y (silvered faces 1 and 3), into a Pellin–Broca turned 50° leaves within 3° of −90°, through a polygon prism (a wedge given by corners) is bent; a mirror at 135° with a 4 mm hole reflects the outer rays up and lets the middle ones through along +x (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const src = o => Object.assign({ type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, width: 2, rays: 3, pol: 's' }, o);
+      const out = (shape, extra) => { J.load({ format: 'jekray', version: 1, elements: [src(), Object.assign({ type: 'prism', id: 'P', name: 'P', x: 0, y: 0, angle: 0, shape, size: 20, material: { glass: 'N-BK7' } }, extra)] });
+        const r = J.rays().filter(q => q.met.length).sort((a, b) => b.w - a.w)[0]; return r ? r.angle : NaN; };
+      const penta = Math.abs(out('penta') - 90) < 0.5;
+      const pellin = Math.abs(out('pellin', { angle: 50 }) + 90) < 3;
+      const poly = Math.abs(out('polygon', { verts: [[-5, -10], [5, -10], [-5, 10]] })) > 1;
+      J.load({ format: 'jekray', version: 1, elements: [src({ width: 10, rays: 11 }), { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 135, length: 20, hole: 4 }] });
+      const A = J.rays().map(r => Math.round(r.angle)), hole = A.filter(a => a === 0).length === 3 && A.filter(a => a === 90).length === 8;
+      if (!(penta && pellin && poly && hole)) console.log('prisms', { penta, pellin, poly, A });
+      return penta && pellin && poly && hole ? 1 : 0;
+    },
+  },
+  {
+    name: 'A round beam’s power on the 2D bench: an iris at half the width passes a quarter (a line of rays: a half)',
+    why: 'a 10 mm beam of 101 rays through a 5 mm iris onto a screen: without round, 48.5% arrives (a line); with round, within 2% of 25%, as a real round beam would (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const iris = round => { J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'S', x: -40, y: 0, angle: 0, wavelength: 633, width: 10, rays: 101, pol: 's', round },
+        { type: 'stop', id: 'I', name: 'I', x: 0, y: 0, angle: 0, aperture: 5 }, { type: 'screen', id: 'Sc', name: 'Sc', x: 20, y: 0, angle: 180, length: 30 }] }); return J.stats('Sc').powerPct; };
+      const line = iris(false), round = iris(true);
+      if (!(Math.abs(line - 48.5) < 2 && Math.abs(round - 25) < 2)) console.log('round', { line, round });
+      return Math.abs(line - 48.5) < 2 && Math.abs(round - 25) < 2 ? 1 : 0;
+    },
+  },
+  {
     name: 'Off-axis parabola is stigmatic',
     why: 'a parabola focuses a collimated beam perfectly',
     want: 0, tol: 1e-5, unit: ' waves RMS',
@@ -5989,6 +6018,29 @@ const TESTS = [
   },
   { group: 'Fibre extras' },
   {
+    name: 'A fibre’s path set from a script, its handles left out, draws; and a bend loses light by its radius',
+    why: 'J.setFibre gives a fibre path nodes {x, y} with no handles, and a path with handles null set straight on it is drawn without error; the photodetector’s power with the fibre wound 3 turns at 10 mm is 10^(−3 × the per-turn loss / 10) of the straight fibre’s at 1550 nm, and a 25 mm bend loses almost nothing (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1550, power: 1 }, { type: 'fcomp', kind: 'pd', id: 'D', name: 'PD', x: 60, y: 0, angle: 0 }],
+        fibres: [{ id: 'f', a: ['L', 0], b: ['D', 0] }] });
+      const pw = () => J.fibrePd('PD');
+      const straight = pw();
+      J.setFibre('f', { path: [{ x: 0, y: 30 }] });
+      J.project().fibres[0].path.push({ x: 20, y: 30, h1: null, h2: null });
+      let drew = true;
+      try { J.redraw(); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); J.fibrePoint('f', 1, 0.5); } catch (err) { drew = false; console.log(err); }
+      J.setFibre('f', { bendR: 10, turns: 3 });
+      const bent = pw();
+      J.setFibre('f', { bendR: 25, turns: 1 });
+      const wide = pw();
+      const want = straight * Math.pow(10, -0.3 * J.bendDbPerTurn(10, 1550));
+      const ok = drew && Math.abs(bent / want - 1) < 1e-3 && bent < straight && wide / straight > 0.999;
+      if (!ok) console.log('bend', { drew, straight, bent, want, wide });
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'PM fibre launched off its axis turns the polarisation by its beat',
     why: '1.001 m of fibre, beat length 4 mm, key at 45° to the light: through a polariser along the light, 1 − sin² 2θ sin²(πL/L_b)',
     want: 0.5, tol: 1e-6, unit: '',
@@ -7724,6 +7776,58 @@ const TESTS = [
       return start && listed && fibre && back ? 1 : 0;
     },
   },  { group: 'Scripts' },
+  {
+    name: 'Script calls for reels: J.set checks what it is given, J.rays labels each ray, J.distance finds the closest approach, hitsOn gives bench coordinates',
+    why: 'J.set moves a mirror and clamps a negative length; an unpolarised source’s rays come as s and p with their wavelength, source and the parts they met (a fold mirror then a screen), their direction at the end; J.distance from a point 3 mm off the beam is 3 mm; a screen facing −x reads y the other way to the bench’s, its bx, by on the bench (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Laser', x: -40, y: 0, angle: 0, wavelength: 532, width: 0.1, rays: 1, pol: 'unpolarised' },
+        { type: 'mirror', id: 'M', name: 'Fold', x: 0, y: 0, angle: 180, length: 10 }, { type: 'screen', id: 'Sc', name: 'Card', x: 0, y: 40, angle: 270, length: 20 }] });
+      const el = J.set('Fold', { angle: 135, length: -5 });
+      const set = el.angle === 135 && el.length > 0 && J.byName('Fold') === el;
+      const R = J.rays(), pols = R.map(r => r.pol).sort().join(','), r0 = R[0];
+      const rays = /p.*s|s.*p/.test(pols) && r0.nm === 532 && r0.sourceName === 'Laser' && r0.met.join('>') === 'Fold>Card' && r0.bounces === 2 && Math.abs(r0.angle - 90) < 1e-6;
+      const D = J.distance({ x: 3, y: 20 }), dist = Math.abs(D.d - 3) < 1e-6;
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Laser', x: -40, y: 2, angle: 0, wavelength: 532, width: 0.1, rays: 1, pol: 's' }, { type: 'screen', id: 'Sc', name: 'Card', x: 20, y: 0, angle: 180, length: 20 }] });
+      const h = J.hitsOn('Card')[0], hits = Math.abs(h.y + 2) < 1e-6 && Math.abs(h.by - 2) < 1e-6 && Math.abs(h.bx - 20) < 1e-6;
+      if (!(set && rays && dist && hits)) console.log('script calls', { set, pols, r0, D, h });
+      return set && rays && dist && hits ? 1 : 0;
+    },
+  },
+  {
+    name: 'Recording a reel: kiosk mode, a frame as PNG, names a fixed size, the empty tip out of the picker’s way, rays by power with trails',
+    why: 'J.kiosk(true) hides the side panel and J.kiosk(false) brings it back; J.renderPNG gives a PNG 640 × 360; names a fixed size on screen are kept in the saved bench; the empty bench’s tip is hidden while the parts picker is open; rays drawn by power with fading trails draw without error and are saved (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc(), frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Laser', x: -40, y: 0, angle: 0, wavelength: 532, width: 2, rays: 5 }, { type: 'screen', id: 'Sc', name: 'Card', x: 40, y: 0, angle: 180, length: 20 }] });
+      J.select('Laser'); await frame();
+      const panel = doc.querySelector('.rt-panel'), shown = el => !!el && el.getClientRects().length > 0;
+      J.kiosk(true); await frame();
+      const kHid = doc.documentElement.classList.contains('rt-kiosk') && !shown(panel);
+      J.kiosk(false); await frame();
+      const kBack = !doc.documentElement.classList.contains('rt-kiosk');
+      const url = await J.renderPNG({ width: 640, height: 360 });
+      const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = url; });
+      const png = /^data:image\/png/.test(url) && img && img.width === 640 && img.height === 360;
+      doc.getElementById('btnNamesFixed').click();
+      const fixed = J.project().labelFixed === true && (s => (typeof s === "string" ? JSON.parse(s) : s).labelFixed === true)(J.serialize());
+      doc.getElementById('btnNamesFixed').click();
+      J.load({ format: 'jekray', version: 1, elements: [] }); await frame();
+      const tip = doc.getElementById('emptyHint');
+      doc.getElementById('btnAddPart').click(); await frame();
+      const tipHid = !tip || tip.hidden;
+      doc.getElementById('btnAddPart').click(); await frame();
+      const tipBack = !tip || !tip.hidden;
+      J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: true, byPower: true, trail: true }, elements: [{ type: 'source', id: 'S', name: 'Laser', x: -40, y: 0, angle: 0, wavelength: 532, width: 2, rays: 5 }, { type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 135, length: 10 }] });
+      let drew = true;
+      try { await frame(); J.set('M', { angle: 130 }); J.redraw(); await frame(); } catch (err) { drew = false; console.log(err); }
+      const L = J.project().light, light = drew && L.byPower === true && L.trail === true;
+      const ok = kHid && kBack && png && fixed && tipHid && tipBack && light;
+      if (!ok) console.log('recording', { kHid, kBack, png, fixed, tipHid, tipBack, light });
+      return ok ? 1 : 0;
+    },
+  },
   {
     name: 'A script runs against the bench with the documented calls: a sweep to rows, a read, and an error reported rather than thrown',
     why: 'File \u203a Scripts runs JavaScript given J: J.sweep moves a lens along x over three places, reads the spot each time and puts the lens back; log() lines are kept; a script that throws reports its message; Undo has a checkpoint from before the run',

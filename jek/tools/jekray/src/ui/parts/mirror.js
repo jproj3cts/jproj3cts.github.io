@@ -22,11 +22,14 @@ function drawMirror(el, sel) {
   // hatching on the back
   ctx.strokeStyle = metal(0.45);
   ctx.lineWidth = 1;
-  const hat = Math.min(3, Math.max(0.8, el.length * 0.08));   // the hatch strokes a set length (mm) for the mirror, at any zoom; how many, by the zoom
+  // the hatch strokes a set length (mm) for the mirror, at any zoom, but never more than 7 px: zoomed in, they stay
+  // a short fringe, not a band that fills a narrow wedge between two mirrors; how many, by the zoom
+  const hat = Math.min(3, Math.max(0.8, el.length * 0.08), 7 / V().scale);
   const nH = Math.max(4, Math.round(el.length * V().scale / 7));
   ctx.beginPath();
   for (let i = 0; i <= nH; i++) {
     const y = s.semi * (2 * i / nH - 1);
+    if (s.hole > 0 && Math.abs(y) < s.hole) continue;            // none across its hole
     const x = sagFn(s, y);
     const [ax, ay] = toWorld(f, x, y);
     const [bx, by] = toWorld(f, x - hat, y - hat);
@@ -36,8 +39,9 @@ function drawMirror(el, sel) {
   ctx.strokeStyle = sel ? selInk() : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
   ctx.lineWidth = sel ? 3.5 : 3;
   ctx.lineCap = 'round';
-  pathLocal(f, pts);
-  ctx.stroke();
+  // a hole through the middle: the face drawn either side of it
+  if (s.hole > 0) { for (const side of [pts.filter(p => p[1] <= -s.hole), pts.filter(p => p[1] >= s.hole)]) if (side.length > 1) { pathLocal(f, side); ctx.stroke(); } }
+  else { pathLocal(f, pts); ctx.stroke(); }
   ctx.lineCap = 'butt';
 }
 
@@ -60,6 +64,7 @@ function mirrorPanel(el) {
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
     ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
     param('Conic k', el, 'k', { blank: 0 }),
+    param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
     // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
     ...(el.A || []).map((_, j) => param('A' + (4 + 2 * j), el, `A.${j}`, { blank: 0 })),
     h('div', { class: 'rt-inline wide' },

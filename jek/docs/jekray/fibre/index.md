@@ -34,6 +34,18 @@ with phase index $$n = 1.468$$, group index $$n_g = 1.468$$, and $$\tau$$ the wa
 
 Each end of a fibre can be a splice (no reflection), a PC or APC connector (45 or 65 dB return loss), or a flat cleave (4 %).
 
+### Bends
+
+A fibre wound round a spool or a post loses light from its mode, and more the tighter the bend and the longer the wavelength. Give a fibre a **Bend radius** $$R$$ and a number of **Turns** $$N$$ and it loses $$N$$ times the loss of one turn, from Marcuse's formula for a step-index fibre's fundamental mode (J. Opt. Soc. Am. 66, 216, 1976):
+
+$$
+\alpha = \frac{\sqrt{\pi}\,\kappa^2\, e^{-2\gamma^3 R/3\beta^2}}{2\,\gamma^{3/2} V^2 \sqrt R\, K_1(\gamma a)^2}, \qquad \text{one turn: } 2\pi R\,\alpha,
+$$
+
+with $$V = k a\,\mathrm{NA}$$, $$\kappa$$ and $$\gamma$$ the mode's constants in the core and the cladding and $$K_1$$ the modified Bessel function. Every kind but multimode is taken as standard single-mode fibre (SMF-28: core radius 4.1 µm, an effective NA of 0.13, which matches Corning's figures where the datasheet's 0.14 gives too little loss): at 1550 nm about 0.003 dB a turn at 16 mm radius, 0.5 dB at 10 mm and 4 dB at 7.5 mm, and almost none at 25 mm or at 1310 nm. The fibre's panel reads the loss at the network's wavelengths. Multimode fibre's bend loss is not modelled. `J.bendDbPerTurn(R, nm)` gives the loss of one turn from a script.
+
+A fibre's route, its corners and bends, moves with the parts at its ends: drag a part and a route drawn by hand stays the same shape, stretched between them.
+
 ### Dispersion and self-phase modulation
 
 A pulse in fibre sees the fibre's dispersion $$D$$ (ps/(nm km)), which sets $$\beta_2 = -\lambda^2 D / 2\pi c$$. A pulse strong enough for a nonlinear phase is propagated by the nonlinear Schrödinger equation, split-step Fourier and symmetric:

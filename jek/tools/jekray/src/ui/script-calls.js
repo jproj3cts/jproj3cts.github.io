@@ -1,6 +1,11 @@
 import { project, typeLabel } from '../state/project.js';
-import { serialize } from '../state/elements.js';
-import { paraxial, setLastTraceKey, traceScene } from '../engines/trace.js';
+import { normElement, normFibres, serialize } from '../state/elements.js';
+import { lastTrace, paraxial, setLastTraceKey, sourceLines, subFrame, traceScene } from '../engines/trace.js';
+import { elementSurfaces } from '../core/stl.js';
+import { sagFn } from '../core/geometry.js';
+import { bendDbPerTurn } from '../core/bend.js';
+import { frame, toLocal, toWorld } from '../core/mask.js';
+import { onTab } from '../state/tabs.js';
 import { getPath, setParam } from '../state/params.js';
 import { detectorReading, faceArrivals } from '../engines/fibre-face.js';
 import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
@@ -17,8 +22,110 @@ import { lensSystem } from '../engines/lens-engine.js';
    script worker (page/script-worker.js) makes the same calls over its own copy of the bench: the same code, the same
    answers. Each reads only the bench and the engines; none needs the page. The page-only ones (load, select, showTab,
    sweepPlay, sweepPause) stay in boot.js, and the worker has its own (page/script-worker.js workerCalls). */
+/* The traced rays, labelled (J.rays): each drawn run of a ray as it went, with the source it came from (id, name),
+   its wavelength, its polarisation (the source's state it was launched as, and its s share at the end), its power
+   (w, as a share of the launch: 1 a whole ray, 0.5 each of an unpolarised ray's s and p), the points it went
+   through, the parts it met at them in order (bounces), its direction at the end, and the events along it (ev:
+   r reflect, t transmit, and so on, each with its bounce). Runs one ray's brightness split are joined again. */
+function surfsOnTab() {
+  const out = [];
+  for (const el of project.elements) {
+    if (!onTab(el) || ['draw', 'elec', 'fcomp', 'pic', 'source'].includes(el.type)) continue;
+    let S = [];
+    try { S = elementSurfaces(el); } catch (err) { S = []; }
+    const f = frame(el);
+    for (const q of S) if (q) { q.f = q.lf ? subFrame(f, q.lf) : f; out.push({ el, q }); }
+  }
+  return out;
+}
+function partAt(surfs, x, y) {
+  let best = null, bd = 1e-3;
+  for (const { el, q } of surfs) {
+    const [lx, ly] = toLocal(q.f, x, y);
+    if (Math.abs(ly) > (q.semi || 0) + 1e-6) continue;
+    let sag = 0;
+    try { sag = sagFn(q, ly) || 0; } catch (err) { sag = 0; }
+    const d = Math.abs(lx - sag);
+    if (d < bd) { bd = d; best = el; }
+  }
+  return best;
+}
+export function labelledRays() {
+  traceScene();
+  const surfs = surfsOnTab(), byId = new Map(project.elements.map(e => [e.id, e])), out = [];
+  for (const r of lastTrace.rays || []) {
+    const prev = out[out.length - 1], n = r.pts.length;
+    // a ray's brightness changing splits its drawing: joined again where one run starts where the last ended
+    if (prev && prev.rid === r.rid && prev.fam === r.fam && prev.pts.length && Math.abs(prev.pts[prev.pts.length - 2] - r.pts[0]) < 1e-9 && Math.abs(prev.pts[prev.pts.length - 1] - r.pts[1]) < 1e-9) {
+      for (let i = 2; i < n; i++) prev.pts.push(r.pts[i]);
+      prev.w = r.w; prev.J = r.J; prev.ev = r.ev;
+      continue;
+    }
+    out.push({ rid: r.rid, fam: r.fam, src: r.src, bench: r.bench, colour: r.colour, w0: r.w, w: r.w, J: r.J, ev: r.ev, pts: Array.from(r.pts) });
+  }
+  return out.map((r, i) => {
+    const src = byId.get(r.src), parts = String(r.rid || '').split(':'), wi = +parts[parts.length - 2], lines = src ? sourceLines(src) : [];
+    const pts = [];
+    for (let k = 0; k < r.pts.length; k += 2) pts.push([r.pts[k], r.pts[k + 1]]);
+    const met = [];
+    for (let k = 1; k < pts.length; k++) { const el = partAt(surfs, pts[k][0], pts[k][1]); if (el && (!met.length || met[met.length - 1] !== el.name || k === pts.length - 1)) met.push(el.name); }
+    const a = pts[pts.length - 2], b = pts[pts.length - 1], L = a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
+    const J = r.J || [0, 0, 0, 0], ws = J[0] * J[0] + J[1] * J[1], wt = ws + J[2] * J[2] + J[3] * J[3];
+    // the launch state: an unpolarised source's rays go as two (its fam's last figure), each half the power
+    const st = /(\d+)$/.exec(String(r.fam || '')), fam = st ? +st[1] : 0;
+    return { i, source: r.src, sourceName: src ? src.name : '', nm: isFinite(wi) && lines[wi] !== undefined ? lines[wi] : null, state: fam,
+      pol: src && src.pol === 'unpolarised' ? (fam === 0 ? 's' : 'p') : src ? src.pol : '', sShare: wt > 0 ? ws / wt : null,
+      w: r.w, w0: r.w0, colour: r.colour, points: pts, met, bounces: met.length, dir: L > 0 ? [(b[0] - a[0]) / L, (b[1] - a[1]) / L] : null,
+      angle: L > 0 ? Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI : null, ev: r.ev || '', bench: r.bench };
+  });
+}
+/* the nearest any traced ray comes to a point (J.distance): { d mm, x, y where on the ray, ray: its index in J.rays() };
+   the point { x, y }, or a part's name (its centre); only one source's rays if asked (opts.source, a name or id) */
+export function rayDistance(at, opts = {}) {
+  const P = typeof at === 'string' ? project.elements.find(e => e.name === at) : at;
+  if (!P || !isFinite(P.x) || !isFinite(P.y)) throw new Error('J.distance needs a point { x, y } or a part\u2019s name');
+  const R = labelledRays(), want = opts.source ? project.elements.find(e => e.name === opts.source || e.id === opts.source) : null;
+  let best = null;
+  for (const r of R) {
+    if (want && r.source !== want.id) continue;
+    for (let k = 1; k < r.points.length; k++) {
+      const [ax, ay] = r.points[k - 1], [bx, by] = r.points[k], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((P.x - ax) * dx + (P.y - ay) * dy) / l2)) : 0, x = ax + t * dx, y = ay + t * dy, d = Math.hypot(P.x - x, P.y - y);
+      if (!best || d < best.d) best = { d, x, y, ray: r.i };
+    }
+  }
+  return best;
+}
 export function scriptCalls() {
   return {
+    rays() { return labelledRays(); },
+    /* a part's fields changed as a file would give them (checked and filled in as J.load does), then traced:
+       J.set('Lens', { x: 20, diameter: 25 }); its id, type and tab stay as they were */
+    set(name, props) {
+      const el = typeof name === 'string' ? this.byName(name) : name;
+      if (!el) throw new Error('No part called ' + name);
+      const keep = { id: el.id, type: el.type, bench: el.bench }, next = normElement(Object.assign(JSON.parse(JSON.stringify(el)), props || {}, keep));
+      for (const k of Object.keys(el)) delete el[k];
+      Object.assign(el, next, keep);
+      setLastTraceKey(null); traceScene();
+      return el;
+    },
+    /* a fibre, wire or waveguide changed (by its id, or its place in J.project().fibres), checked as J.load does:
+       its path's nodes may be { x, y } (handles left out are none) */
+    setFibre(which, props) {
+      const list = project.fibres || [], i = typeof which === 'number' ? which : list.findIndex(F => F.id === which);
+      if (!(i >= 0 && i < list.length)) throw new Error('No fibre ' + which);
+      const F = Object.assign(JSON.parse(JSON.stringify(list[i])), props || {}), [N] = normFibres([F], project.elements);
+      if (!N) throw new Error('That fibre cannot be joined as given');
+      list[i] = N;
+      setLastTraceKey(null); traceScene();
+      return N;
+    },
+    distance(at, opts) { return rayDistance(at, opts); },
+    // the rays on a screen: y across it as the screen reads it (its own axis, so it turns over with the screen), bx, by on the bench
+    hitsOn(name) { const el = this.byName(name), f = frame(el); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => { const o = Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean' || k === 'path')); const [bx, by] = toWorld(f, 0, t.y); return Object.assign(o, { bx, by }); }); },
+    // dB lost in one turn of standard single-mode fibre round a radius (mm) at a wavelength (nm): Marcuse's formula, core/bend.js
+    bendDbPerTurn(Rmm, nm) { return bendDbPerTurn(+Rmm, +nm); },
     serialize() { return serialize(); },
     trace() { setLastTraceKey(null); traceScene(); },
     benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },

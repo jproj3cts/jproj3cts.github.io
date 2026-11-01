@@ -8,6 +8,8 @@ export const hooks = {
   // the page redraws, or rebuilds a panel, after something the engines worked out
   requestRender() {}, renderPanel() {}, syncPanel() {}, showActivityNow() {}, cavityLater() {},
   toast() {}, benchStyleShown() {}, view3dReset() {},
+  // an exercise on the bench (ui/challenge.js): drawn, read after each render, a part's panel limited, a change counted
+  exerciseDraw() {}, exerciseTick() {}, exercisePanel() {}, exerciseStep() {},
   // what the page is doing meanwhile
   playing: () => false,                 // a sweep is playing
   sweepJob: () => null,                 // a sweep's field is being rendered

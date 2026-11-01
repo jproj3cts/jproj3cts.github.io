@@ -1776,3 +1776,33 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-kiosk .rt-panel, .rt-kiosk #minimap, .rt-kiosk .rt-coords, .rt-kiosk .rt-sidetab, .rt-kiosk .rt-drawhint, .rt-kiosk .rt-picker { display: none !important; }
 .rt-kiosk .rt-grid { grid-template-columns: 1fr !important; }
 .rt-kiosk-all .rt-rail, .rt-kiosk-all .rt-flyout, .rt-kiosk-all .rt-benchtabs, .rt-kiosk-all .rt-v3dswitch { display: none !important; }
+/* an exercise's bar (ui/challenge.js): at the bench's top, the goal, the reading against it, hints, and once solved what next */
+.rt-exbar { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 6; width: min(34rem, calc(100% - 1.6rem)); padding: 0.6rem 0.85rem 0.55rem;
+  background: var(--jek-panel); color: var(--jek-ink); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-orange); border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16); font-size: 0.88rem; }
+.rt-exbar.solved { border-left-color: var(--rt-good-ink); }
+.rt-exhead { display: flex; align-items: baseline; gap: 0.5rem; }
+.rt-exhead b { flex: 1; font-size: 0.95rem; }
+.rt-exhead .rt-wx { position: static; }
+.rt-exkind { color: var(--jek-ink-soft); font-size: 0.78rem; white-space: nowrap; }
+.rt-exgoal { margin: 0.2rem 0 0.35rem; }
+.rt-exrow { display: flex; gap: 0.45rem; align-items: baseline; font-variant-numeric: tabular-nums; }
+.rt-exrow small { color: var(--jek-ink-soft); }
+.rt-exmark { width: 1em; color: var(--jek-ink-soft); }
+.rt-exrow.ok .rt-exmark { color: var(--rt-good-ink); font-weight: 700; }
+.rt-exhint { margin: 0.35rem 0 0; font-size: 0.85rem; }
+.rt-exbar .rt-actions { margin-top: 0.5rem; flex-wrap: wrap; align-items: center; }
+.rt-exmay { color: var(--jek-ink-soft); font-size: 0.78rem; }
+.rt-exsolved { margin: 0.45rem 0 0; font-weight: 600; color: var(--rt-good-ink); }
+.rt-exacct { border-top: 1px solid var(--jek-line); margin-top: 0.5rem; padding-top: 0.4rem; }
+.rt-exacct p { margin: 0; font-size: 0.85rem; }
+.rt-exnote { border-left: 3px solid var(--jek-orange); padding-left: 0.5rem; }
+.rt-exinvite { font-size: 0.85rem; margin: 0.4rem 0; }
+.rt-exlist { list-style: none; padding: 0; margin: 0.6rem 0; display: grid; gap: 0.3rem; counter-reset: ex; }
+.rt-exlist li { counter-increment: ex; }
+.rt-exitem { display: block; width: 100%; text-align: left; border: 1px solid var(--jek-line); background: none; border-radius: 6px; padding: 0.4rem 0.6rem; font: inherit; color: inherit; cursor: pointer; }
+.rt-exitem:hover { border-color: var(--jek-orange); }
+.rt-exitem b::before { content: counter(ex) '. '; color: var(--jek-ink-soft); font-weight: 400; }
+.rt-exitem small { display: block; color: var(--jek-ink-soft); }
+.rt-extick { color: var(--rt-good-ink); }
+@media (max-width: 600px) { .rt-exbar { top: 0.3rem; font-size: 0.82rem; padding: 0.45rem 0.6rem; } .rt-exmay { display: none; } }

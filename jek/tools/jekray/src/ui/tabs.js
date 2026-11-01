@@ -1,3 +1,4 @@
+import { hooks } from '../core/hooks.js';
 import { LOCKED, clamp } from '../core/constants.js';
 import { extraSel, future, history, project, selectOne, selectedId, setFuture } from '../state/project.js';
 import { getEl, loadProject, selected } from '../state/elements.js';
@@ -195,7 +196,7 @@ export function checkpoint(opening) {
   setFuture([]);
   updateUndoButtons();
   markUnsaved(true);
-  if (!opening) benchEdited();
+  if (!opening) { benchEdited(); hooks.exerciseStep(); }
 }
 
 export function undo() {

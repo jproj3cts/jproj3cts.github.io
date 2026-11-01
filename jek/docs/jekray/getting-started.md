@@ -35,7 +35,7 @@ Every bench in the **Examples** gallery works. Open one, change it, and press **
 
 ## The 3D view
 
-For a first go, take the tour under **Help › Build a periscope in 3D**: it builds a periscope step by step, tipping two mirrors with their rings.
+For a first go, take the tour under **Help › Build a periscope in 3D**: it builds a periscope step by step, tipping two mirrors with their rings. **Help › Exercises** has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre's polarisation: each says what to reach, reads it as you go, has two hints, and lets you change only the settings it is about until you leave it.
 
 The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows the tab in three dimensions. Every part sits at the beam height, 75 mm above a breadboard, and is built from its own numbers: a lens from its surfaces, a mirror from its curvature. The light is drawn as the trace has it: rays as lines, Gaussian beams as tubes as wide as the beam, in the bench plane and out of it. The diffracted field glows along each beam, each point showing the irradiance summed along that line of sight against the key at the bottom left; point at it to read the value. A tight focus is far brighter than its beam, so choose 60 dB to see both. On a slow computer, untick the field.
 

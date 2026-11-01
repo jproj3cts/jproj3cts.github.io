@@ -1,0 +1,141 @@
+/* ---------- Exercises ----------
+   Short exercises on the bench, each with a goal the bench itself checks (ui/challenge.js): a part, what is measured
+   on it (a key of the optimiser's measures, ui/optimise.js METRICS), and above, below or within ± a value. Only the
+   parts in `unlocked`, and only those settings, can be changed while one is on; everything else is held. Each starts
+   from one of our reels' benches (ui/reels.js), changed as `start` says. In order they make a short course (Help ›
+   Exercises); the ones with a `reel` are also that reel's challenge, offered to visitors who come from it. Nothing of
+   this goes in a bench file: a bench saved during an exercise is an ordinary bench.
+   optimiser: the range JEKrayPro's optimiser searches for each setting, offered after the second hint; left out where
+   it cannot find the answer (thread-both-irises reads nothing until both irises pass, so it has nothing to climb).
+   result(v): the line once solved, from the checks' values in order. Figures measured on the benches as given:
+   each exercise's answer is checked in the browser suite (jekray-tests.html, group 'Exercises'). */
+const fix = (v, d) => (+v).toFixed(d);
+export const EXERCISES = [
+  { id: 'aim-a-mirror', title: 'Aim with a mirror', teaches: 'A mirror turned by an angle turns the beam by twice that.',
+    start: { reel: 'ig-90-turn-always', set: { 'Mirror 2': { angle: 296.5 } } },
+    goal: 'Put the spot in the middle of the Screen.',
+    checks: [{ part: 'Screen', key: 'centroid', op: 'within', value: 0, tol: 0.5 }],
+    unlocked: { 'Mirror 2': ['angle'] },
+    hints: ['Turn Mirror 2 a little and watch how far the spot moves.', 'Each degree moves the spot about 2.2 mm. Turn it back about 4°.'],
+    answer: { 'Mirror 2': { angle: 292.5 } },
+    optimiser: { 'Mirror 2': { angle: [286.5, 306.5] } },
+    result: () => 'spot centred' },
+  { id: 'focus-a-camera', title: 'Focus a camera', teaches: 'A near object focuses further behind the lens, so the focus ring moves the lens out.',
+    start: { reel: 'ig-focus-ring' },
+    goal: 'Make the Object sharp on the Sensor.',
+    checks: [{ part: 'Sensor', key: 'rms', op: 'below', value: 0.03 }],
+    unlocked: { Lens: ['x'] },
+    hints: ['Move the lens along the beam and watch the spot.', 'The lens needs to move about 11 mm towards the Object.'],
+    answer: { Lens: { x: -11.4 } },
+    optimiser: { Lens: { x: [-15, 15] } },
+    result: () => 'Object sharp on the Sensor' },
+  { id: 'find-a-focal-length', title: 'Find a lens’s focal length', teaches: 'Autocollimation: a point at the focus comes back to itself off a flat mirror, at any mirror distance.',
+    start: { reel: 'ig-one-mirror-finds-f' },
+    goal: 'Make the returning spot on the Screen as small as you can.',
+    checks: [{ part: 'Screen', key: 'rms', op: 'below', value: 0.05 }],
+    unlocked: { Lens: ['x'] },
+    hints: ['The spot is smallest when the light between the lens and the mirror runs parallel.', 'That happens when the source sits one focal length from the lens.'],
+    answer: { Lens: { x: -29.6 } },
+    optimiser: { Lens: { x: [-45, -20] } },
+    result: () => 'returning spot sharp: the focal length is the lens’s distance from the source' },
+  { id: 'focus-into-a-fibre', title: 'Focus into a fibre', teaches: 'A fibre’s core is microns wide, so its focus must be placed to a few hundredths of a millimetre.',
+    start: { reel: 'ig-hairs-gap', set: { 'Fibre A in': { x: 22 } } },
+    goal: 'Get the light into fibre A.',
+    checks: [{ part: 'Fibre A in', key: 'couple', op: 'above', value: 90 }],
+    unlocked: { 'Fibre A in': ['x'] },
+    hints: ['The lens brings the beam to a point; the fibre’s end must sit exactly there.', 'Type the position rather than dragging: it’s within 1 mm of the start, closer to the lens.'],
+    answer: { 'Fibre A in': { x: 21 } },
+    optimiser: { 'Fibre A in': { x: [7, 37] } },
+    result: v => fix(v[0], 1) + '% into fibre A' },
+  { id: 'close-the-gap', title: 'Close the gap', teaches: 'Light spreads as it leaves a fibre, so connectors press the ends together.',
+    start: { reel: 'ig-hairs-gap', set: { 'End B': { x: -9.93 } } },
+    goal: 'Get the light into fibre B.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.95 }],
+    unlocked: { 'End B': ['x'] },
+    hints: ['The light spreads out as it crosses the gap.', 'Bring End B to within 10 µm of End A.'],
+    answer: { 'End B': { x: -9.995 } },
+    optimiser: { 'End B': { x: [-25, 5] } },
+    result: v => fix(v[0], 3) + ' mW reaches fibre B' },
+  { id: 'steer-with-a-lens', title: 'Steer with a lens', teaches: 'Sliding a lens sideways steers the beam, by the slide over the focal length.',
+    start: { reel: 'ig-lens-steer' },
+    goal: 'Move the spot 4 mm across the Target without turning anything.',
+    checks: [{ part: 'Target', key: 'centroid', op: 'within', value: 4, tol: 0.2 }],
+    unlocked: { 'Lens 2': ['y'] },
+    hints: ['Slide Lens 2 sideways, across the beam, not along it.', 'About 1 mm of slide moves the spot about 4 mm.'],
+    answer: { 'Lens 2': { y: -1.02 } },
+    optimiser: { 'Lens 2': { y: [-15, 15] } },
+    result: () => 'spot moved 4 mm, nothing turned' },
+  { id: 'double-the-beam', reel: 'ig-double-beam', title: 'Double the beam', teaches: 'Two lenses whose focuses meet make a telescope: the beam leaves as wide as their focal lengths’ ratio.',
+    start: { reel: 'ig-double-beam' },
+    goal: 'Make the beam twice as wide, 4 mm, on both cards.',
+    checks: [{ part: 'Near card', key: 'full', op: 'within', value: 4, tol: 0.2 }, { part: 'Far card', key: 'full', op: 'within', value: 4, tol: 0.2 }],
+    unlocked: { 'Lens 2': ['x'] },
+    hints: ['Find where Lens 1 brings the light to a point.', 'Put Lens 2 so its own focus falls on that point, about 77 mm after Lens 1.'],
+    answer: { 'Lens 2': { x: 0 } },
+    optimiser: { 'Lens 2': { x: [-40, 20] } },
+    result: () => '4 mm on both cards' },
+  { id: 'thread-both-irises', reel: 'ig-thread-both-irises', title: 'Thread both irises', teaches: 'Two mirrors set a beam’s position and its angle, which one mirror alone cannot.',
+    start: { reel: 'ig-thread-both-irises' },
+    goal: 'Get the light through both irises to the Detector.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { 'Mirror 1': ['angle'], 'Mirror 2': ['angle'] },
+    hints: ['One mirror can put the beam through one iris, but not both. The other mirror sets where it starts from.', 'Turn Mirror 1 until the beam passes Iris 1, then Mirror 2 until it passes Iris 2. Repeat, each time turning the same way.'],
+    answer: { 'Mirror 1': { angle: 133.567 }, 'Mirror 2': { angle: 313.567 } },
+    result: v => fix(v[0], 2) + ' mW through both irises' },
+  { id: 'get-both-sharp', reel: 'ig-both-sharp', title: 'Get both sharp', teaches: 'A narrower cone of light deepens the focus: closing the aperture brings near and far into focus together.',
+    // the reel's one Sensor shows both spots, its rms mixing them: two screens, one for each object's spot
+    start: { reel: 'ig-both-sharp', remove: ['Sensor'], add: [
+      { type: 'screen', id: 'exs1', name: 'Sensor top', x: 34, y: 5, angle: 180, length: 10 },
+      { type: 'screen', id: 'exs2', name: 'Sensor bottom', x: 34, y: -5, angle: 180, length: 10 }] },
+    goal: 'Get the near and the far object sharp at the same time.',
+    checks: [{ part: 'Sensor top', key: 'rms', op: 'below', value: 0.03 }, { part: 'Sensor bottom', key: 'rms', op: 'below', value: 0.03 }],
+    unlocked: { Lens: ['x'], Aperture: ['aperture'] },
+    hints: ['Moving the lens only chooses which object is sharp.', 'Make the cone of light narrower: close the Aperture to about 1 mm.'],
+    answer: { Aperture: { aperture: 1.2 } },
+    optimiser: { Lens: { x: [-16.5, 13.5] }, Aperture: { aperture: [0.5, 5] } },
+    result: () => 'both objects sharp' },
+  { id: 'fix-the-polarisation', title: 'Fix the polarisation', teaches: 'An ordinary fibre turns polarisation into an oval. A quarter-wave plate makes it a straight line, and a half-wave plate turns that line.',
+    start: { reel: 'ig-fibre-two-plates' },
+    goal: 'Send all the light to the p light detector.',
+    checks: [{ part: 'p light', key: 'dmw', op: 'above', value: 0.995 }],
+    unlocked: { 'Quarter-wave': ['axis'], 'Half-wave': ['axis'] },
+    hints: ['First turn the Quarter-wave until the s light reading is as low as it will go.', 'Then turn the Half-wave to swing what’s left into p.'],
+    answer: { 'Quarter-wave': { axis: 35 }, 'Half-wave': { axis: 30 } },
+    optimiser: { 'Quarter-wave': { axis: [0, 180] }, 'Half-wave': { axis: [0, 180] } },
+    result: v => fix(v[0] * 100, 1) + '% in p' },
+  { id: 'get-it-back-in', reel: 'ig-get-it-back-in', title: 'Get it back in', teaches: 'A tilted plate shifts a beam sideways without turning it; a second, tilted the other way, shifts it back.',
+    start: { reel: 'ig-get-it-back-in' },
+    goal: 'Get the light back into fibre B without moving the collimators or the first filter.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { 'Filter 2': ['angle'] },
+    hints: ['A tilted plate shifts the beam sideways without turning it. Which way does Filter 2 shift it?', 'Tilt Filter 2 the other way from Filter, by the same amount.'],
+    answer: { 'Filter 2': { angle: -25 } },
+    optimiser: { 'Filter 2': { angle: [-40, 40] } },
+    result: v => fix(v[0] * 100, 0) + '% back into fibre B' },
+];
+export const exerciseById = id => EXERCISES.find(x => x.id === id) || null;
+export const exerciseOfReel = reel => EXERCISES.find(x => x.reel === reel) || null;
+/* one check against its value (null: not measured yet, as when no light arrives) */
+export function checkPasses(c, v) {
+  if (v === null || v === undefined || !isFinite(v)) return false;
+  return c.op === 'above' ? v > c.value : c.op === 'below' ? v < c.value : Math.abs(v - c.value) <= c.tol + 1e-9;
+}
+/* what a check asks, in words: "above 0.9", "below 0.03", "4 ± 0.2" */
+export const checkWant = c => (c.op === 'above' ? 'above ' + c.value : c.op === 'below' ? 'below ' + c.value : c.value + ' ± ' + c.tol);
+/* the bench an exercise starts from: its reel's, changed as `start` says (a copy; the reel's own is left alone) */
+export function exerciseBench(ex, reelBench) {
+  const b = JSON.parse(JSON.stringify(reelBench)), S = ex.start || {};
+  b.elements = b.elements.filter(e => !(S.remove || []).includes(e.name));
+  for (const [name, f] of Object.entries(S.set || {})) { const e = b.elements.find(q => q.name === name); if (e) Object.assign(e, f); }
+  for (const e of S.add || []) b.elements.push(JSON.parse(JSON.stringify(e)));
+  b.name = ex.reel ? b.name : ex.title;
+  return b;
+}
+
+/* where a visit came from, if it is to start in an exercise: ?ex=<id>, or a reel that is a challenge (?src=ig-…) */
+export function exerciseArrival(search) {
+  const m = /[?&]ex=([a-z0-9-]+)/.exec(search || ''), s = /[?&]src=([a-z0-9_-]+)/i.exec(search || '');
+  if (m && exerciseById(m[1])) return { id: m[1], from: 'link' };
+  const ex = s && exerciseOfReel(s[1].toLowerCase());
+  return ex ? { id: ex.id, from: 'reel' } : null;
+}

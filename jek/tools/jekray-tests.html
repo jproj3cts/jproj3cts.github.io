@@ -6016,6 +6016,84 @@ const TESTS = [
     run: J => { J.load(walkBench()); let n = 0; const r = J.optimiseMany([['M1', 'angle'], ['M2', 'angle']], [{ target: 'S1', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }, { target: 'S2', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }], { stop: () => ++n > 25 });
       return +(r.evals <= 25 && r.bestMerit <= r.startMerit); },
   },
+  { group: 'Exercises' },
+  {
+    name: 'Each exercise starts unsolved, and the answer the course gives solves it',
+    why: 'the eleven exercises (core/exercises.js), each from its reel’s bench: the goal not met at the start, then met with the answer’s settings, the bar saying Solved (the count of those that hold)',
+    want: 11, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      let n = 0;
+      for (const id of J.exercises()) {
+        J.exerciseStart(id); await frame();
+        const before = J.exerciseCheck();
+        for (const [name, f] of Object.entries(J.exerciseAnswer(id))) J.set(name, f);
+        await frame(); await frame();
+        const after = J.exerciseCheck(), bar = (rigDoc().getElementById('exBar') || {}).textContent || '';
+        if (before === false && after === true && /Solved: /.test(bar)) n++; else console.log('exercise', id, { before, after, state: J.exerciseState(), bar });
+      }
+      J.exerciseLeave();
+      try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
+      return n;
+    },
+  },
+  {
+    name: 'and the wrong tries do not pass: one mirror for both irises, one wave plate, the filter left flat',
+    why: 'turning only Mirror 2 gives no light through both irises; the quarter-wave plate alone reaches 0.994 mW, under 0.995; Filter 2 at 0° gives 0.36 mW, under 0.9 (1 when all three fail)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      const tries = [['thread-both-irises', 'Mirror 2', { angle: 316.433 }], ['fix-the-polarisation', 'Quarter-wave', { axis: 118 }], ['get-it-back-in', 'Filter 2', { angle: 0 }]];
+      let fails = 0;
+      for (const [id, name, f] of tries) { J.exerciseStart(id); await frame(); J.set(name, f); await frame(); await frame(); if (J.exerciseCheck() === false) fails++; else console.log('passed', id); }
+      J.exerciseLeave();
+      return fails === 3 ? 1 : 0;
+    },
+  },
+  {
+    name: 'In an exercise only what it names can change, a bench saved is an ordinary one, and leaving frees every part',
+    why: 'Thread both irises: the Laser moved is put back, Mirror 1 moved is put back but its angle kept; the Laser cannot be dragged (held, with no lock saved); the bench saved has no lock and nothing of the exercise; out of it, the Laser moves and stays; a bench loaded over it ends it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      J.exerciseStart('thread-both-irises'); await frame();
+      J.set('Laser', { x: -50 }); await frame(); await frame(); J.exerciseCheck();
+      const laserBack = J.byName('Laser').x === -64;
+      J.set('Mirror 1', { x: 5, angle: 134 }); await frame(); await frame(); J.exerciseCheck();
+      const m1 = J.byName('Mirror 1'), mirrorKept = m1.x === -30 && m1.angle === 134;
+      const held = J.byName('Laser').locked === true && J.byName('Mirror 1').locked === true;
+      const saved = JSON.stringify(J.serialize()), clean = !/"locked"/.test(saved) && !/exercise|thread-both-irises/i.test(saved.replace(/"name":"[^"]*"/g, ''));
+      J.exerciseLeave(); await frame();
+      const freed = J.byName('Laser').locked === undefined;
+      J.set('Laser', { x: -50 }); await frame(); await frame();
+      const stays = J.byName('Laser').x === -50 && J.exerciseState() === null;
+      J.exerciseStart('aim-a-mirror'); await frame();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0 }] }); await frame(); await frame(); J.exerciseCheck();
+      const ended = J.exerciseState() === null;
+      const ok = laserBack && mirrorKept && held && clean && freed && stays && ended;
+      if (!ok) console.log('exercise rules', { laserBack, mirrorKept, held, clean, freed, stays, ended });
+      return ok ? 1 : 0;
+    },
+  },
+  {
+    name: 'The optimiser finds an exercise’s answer within the ranges it is given',
+    why: 'Focus a camera and Get it back in, from their starts: Let the optimiser find it (here without the JEKrayPro gate, as in test mode) leaves each solved, the ranges it searched not kept on the parts (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      let ok = true;
+      for (const [id, part, k] of [['focus-a-camera', 'Lens', 'x'], ['get-it-back-in', 'Filter 2', 'angle']]) {
+        J.exerciseStart(id); await frame();
+        J.exerciseOptimise();
+        for (let i = 0; i < 40 && !J.exerciseCheck(); i++) await new Promise(r => setTimeout(r, 100));
+        const solved = J.exerciseCheck() === true, noSweep = !(J.byName(part).sweeps || {})[k];
+        if (!(solved && noSweep)) { ok = false; console.log('optimiser', id, { solved, noSweep, state: J.exerciseState() }); }
+      }
+      J.exerciseLeave();
+      try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
+      return ok ? 1 : 0;
+    },
+  },
   { group: 'Fibre extras' },
   {
     name: 'A fibre’s path set from a script, its handles left out, draws; and a bend loses light by its radius',

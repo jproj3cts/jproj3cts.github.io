@@ -1,4 +1,5 @@
 import { PRISM_SHAPES, nextName, normCoat, normMat, num } from '../state/project.js';
+
 /* Prism: A glass prism or window. */
 export const PRISM = {
   type: 'prism', label: 'Prism',

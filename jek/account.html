@@ -121,7 +121,7 @@
   box.checked = !dnt && !off; box.disabled = dnt;
   if (dnt) msg.textContent = "Your browser asks sites not to track it, so JEKray sends none.";
   box.addEventListener("change", function () {
-    try { if (box.checked) localStorage.removeItem("jek-usage-off"); else localStorage.setItem("jek-usage-off", "1"); msg.textContent = box.checked ? "On. Thank you!" : "Off in this browser."; }
+    try { if (box.checked) localStorage.removeItem("jek-usage-off"); else { localStorage.setItem("jek-usage-off", "1"); ["jek-seen", "jek-funnel", "jek-first", "jek-src"].forEach(function (k) { localStorage.removeItem(k); }); } msg.textContent = box.checked ? "On. Thank you!" : "Off in this browser."; }
     catch (e) { msg.textContent = "This browser keeps no settings for this site, so the switch cannot be kept."; }
   });
 })();

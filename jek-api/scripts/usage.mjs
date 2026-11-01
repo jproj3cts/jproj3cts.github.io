@@ -32,7 +32,11 @@ export const LABELS = {
   prompt: ['Sign-in prompts', 'where.answer'], remind: ['Links emailed from a phone', ''],
   visitor: ['People (browsers)', 'first visit of the day, week, month, or ever'],
   taster: ['Free uses of JEKrayPro work', 'feature.used, .out (spent) or .plans (went to the plans)'],
+  funnel: ['People, step by step', 'source.step or dev-device.step'], cohort: ['First visits', 'source.week'],
+  back: ['Back again', 'source.week.d1, d7 or d30'], load: ['Bench drawn', 'drawn or early (left before), and how long'],
 };
+// the events with tables of their own, left out of the list of every event
+const OWN_TABLES = new Set(['visitor', 'funnel', 'cohort', 'back', 'load']);
 // what a visit can lead to, in the order it usually goes (the app's goal() calls): the Instagram note shown and a
 // bench opened from it, the first edit, the note on a bench worked on shown and a way in chosen from it, then the rest
 export const STEPS = ['landing', 'landing-open', 'edit', 'ask', 'ask-yes', 'save', 'share', 'remind', 'signin', 'account', 'subscribe', 'pro'];
@@ -113,6 +117,61 @@ export function funnel(r) {
   return Object.values(rows).sort((a, b) => (a.src === 'none') - (b.src === 'none') || b.visits + b.again - a.visits - a.again);
 }
 
+/* People step by step (the app's funnel(): each step once for a browser and a source, and once for its kind of device):
+   left before the bench was drawn, saw it, changed it, solved its challenge, signed in, made an account, took
+   JEKrayPro. Arrived is early + land; each later step is also given as a share of those who arrived. */
+export const FUNNEL = ['early', 'land', 'change', 'solve', 'signin', 'account', 'pro'];
+export const FUNNEL_NAMES = { early: 'left early', land: 'saw the bench', change: 'changed it', solve: 'solved it', signin: 'signed in', account: 'made an account', pro: 'JEKrayPro' };
+export function peopleFunnel(r) {
+  const src = {}, dev = {};
+  for (const e of r.events) {
+    if (e.event !== 'funnel' || !e.prop) continue;
+    const i = e.prop.lastIndexOf('.'), key = e.prop.slice(0, i), step = e.prop.slice(i + 1);
+    if (!FUNNEL.includes(step) || !key) continue;
+    const isDev = key.startsWith('dev-'), T = isDev ? dev : src, k = isDev ? key.slice(4) : key;
+    const x = (T[k] ||= { key: k, steps: Object.fromEntries(FUNNEL.map((q) => [q, 0])) });
+    x.steps[step] += e.n;
+  }
+  const done = (T) => Object.values(T).map((x) => Object.assign(x, { arrived: x.steps.early + x.steps.land })).sort((a, b) => b.arrived - a.arrived || (a.key < b.key ? -1 : 1));
+  return { sources: done(src), devices: done(dev) };
+}
+/* Coming back: a browser's first visit counted by its source and ISO week ('cohort'), and again if it came back within
+   1, 7 and 30 days of it ('back' ….d1, .d7, .d30). A window not yet over for the whole week is marked open (its count can
+   still grow). today: the report's last day. */
+export function weekStart(w) {
+  const m = /^(\d{4})-w(\d{2})$/i.exec(w || '');
+  if (!m) return null;
+  const jan4 = new Date(Date.UTC(+m[1], 0, 4)), dow = jan4.getUTCDay() || 7;
+  return new Date(jan4.getTime() + ((+m[2] - 1) * 7 - (dow - 1)) * 864e5);
+}
+export function cohorts(r) {
+  const rows = {}, today = Date.parse(r.to + 'T23:59:59Z');
+  const row = (src, week) => (rows[src + '|' + week] ||= { src, week: week.toUpperCase(), n: 0, d1: 0, d7: 0, d30: 0, open: {} });
+  for (const e of r.events) {
+    if ((e.event !== 'cohort' && e.event !== 'back') || !e.prop) continue;
+    const parts = e.prop.split('.');
+    if (e.event === 'cohort' && parts.length === 2) row(parts[0], parts[1]).n += e.n;
+    if (e.event === 'back' && parts.length === 3 && ['d1', 'd7', 'd30'].includes(parts[2])) row(parts[0], parts[1])[parts[2]] += e.n;
+  }
+  for (const x of Object.values(rows)) {
+    const t0 = weekStart(x.week);
+    for (const [k, d] of [['d1', 1], ['d7', 7], ['d30', 30]]) x.open[k] = !t0 || t0.getTime() + (7 + d) * 864e5 > today;
+  }
+  return Object.values(rows).sort((a, b) => (a.week < b.week ? 1 : a.week > b.week ? -1 : b.n - a.n));
+}
+/* how long the bench took to draw, and the visits that ended before it was ('load' drawn.<band>, early.<band>) */
+export const LOAD_BANDS = ['under-1s', '1-3s', '3-6s', '6-10s', '10-20s', 'over-20s'];
+export function loading(r) {
+  const drawn = Object.fromEntries(LOAD_BANDS.map((b) => [b, 0])), early = Object.fromEntries(LOAD_BANDS.map((b) => [b, 0]));
+  for (const e of r.events) {
+    if (e.event !== 'load' || !e.prop) continue;
+    const [k, band] = e.prop.split('.');
+    if (band in drawn) (k === 'early' ? early : k === 'drawn' ? drawn : {})[band] += e.n;
+  }
+  const nd = Object.values(drawn).reduce((a, b) => a + b, 0), ne = Object.values(early).reduce((a, b) => a + b, 0);
+  return { drawn, early, nDrawn: nd, nEarly: ne, any: nd + ne > 0 };
+}
+
 // the sign-in prompts (the app's track('prompt', '<where>.<answer>')): a row for each, with how often it was shown,
 // each answer, the sign-in clicks among them (a way in chosen: Google, Microsoft or email) and those as a share of shown
 export const WAYS_IN = ['google', 'microsoft', 'email'];
@@ -160,7 +219,7 @@ export function text(r) {
   }
   console.log('');
   for (const [k, [label, what]] of Object.entries(LABELS)) {
-    if (k === 'open' || k === 'visitor' || !ev[k]) continue;
+    if (k === 'open' || OWN_TABLES.has(k) || !ev[k]) continue;
     const x = ev[k];
     console.log(`${label.padEnd(26)} ${String(x.total).padStart(7)}${v.total ? `   ${(x.total / v.total).toFixed(2)} a visit` : ''}`);
     if (what) for (const [p, n] of top(x.props)) console.log(`    ${p.padEnd(30)} ${String(n).padStart(7)}  ${pct(n, x.total)}`);
@@ -174,6 +233,24 @@ export function text(r) {
     console.log('\nBy source (none: no tag and no social site)');
     console.log(`    ${'source'.padEnd(24)} ${'visits'.padStart(7)} ${'back'.padStart(6)} ${STEPS.map((k) => k.padStart(12)).join(' ')}`);
     for (const x of f) console.log(`    ${x.src.padEnd(24)} ${String(x.visits).padStart(7)} ${String(x.again).padStart(6)} ${STEPS.map((k) => String(x.steps[k]).padStart(12)).join(' ')}`);
+  }
+  const pf = peopleFunnel(r);
+  for (const [title, rows] of [['People step by step, by source (each counted once)', pf.sources], ['People step by step, by device', pf.devices]]) {
+    if (!rows.length) continue;
+    console.log(`\n${title}`);
+    console.log(`    ${''.padEnd(24)} ${'arrived'.padStart(8)} ${FUNNEL.map((k) => FUNNEL_NAMES[k].padStart(16)).join(' ')}`);
+    for (const x of rows) console.log(`    ${x.key.padEnd(24)} ${String(x.arrived).padStart(8)} ${FUNNEL.map((k) => `${x.steps[k]} ${pct(x.steps[k], x.arrived)}`.padStart(16)).join(' ')}`);
+  }
+  const co = cohorts(r);
+  if (co.length) {
+    console.log('\nBack again (first visits by week and source; * still counting)');
+    console.log(`    ${'week'.padEnd(9)} ${'source'.padEnd(24)} ${'first'.padStart(6)} ${'1 day'.padStart(10)} ${'7 days'.padStart(10)} ${'30 days'.padStart(10)}`);
+    for (const x of co) console.log(`    ${x.week.padEnd(9)} ${x.src.padEnd(24)} ${String(x.n).padStart(6)} ${['d1', 'd7', 'd30'].map((k) => `${pct(x[k], x.n)}${x.open[k] ? '*' : ' '}`.padStart(10)).join(' ')}`);
+  }
+  const ld = loading(r);
+  if (ld.any) {
+    console.log(`\nBench drawn  ${ld.nDrawn}; left before it was drawn ${ld.nEarly} (${pct(ld.nEarly, ld.nDrawn + ld.nEarly)})`);
+    for (const b of LOAD_BANDS) console.log(`    ${b.padEnd(10)} drawn ${String(ld.drawn[b]).padStart(6)}   left ${String(ld.early[b]).padStart(6)}`);
   }
   const p = prompts(r);
   if (p.length) {
@@ -191,6 +268,23 @@ function funnelTable(r) {
   if (!f.length) return '';
   const cell = (n, of) => `<td>${n}${of && n ? ` <small>${pct(n, of)}</small>` : ''}</td>`;
   return `<h3 style="margin-top:24px">By source <span>a post's tag (?src=) or the site a visit came through; none: neither</span></h3><div style="overflow-x:auto"><table><tr><th>source</th><th>visits</th><th>back</th>${STEPS.map((k) => `<th>${k}</th>`).join('')}</tr>${f.map((x) => `<tr><td>${esc(x.src)}</td><td>${x.visits}</td><td>${x.again}</td>${STEPS.map((k) => cell(x.steps[k], x.visits + x.again)).join('')}</tr>`).join('')}</table></div>`;
+}
+function peopleFunnelTables(r) {
+  const pf = peopleFunnel(r);
+  const one = (title, note, rows) => (rows.length ? `<h3 style="margin-top:24px">${title} <span>${note}</span></h3><div style="overflow-x:auto"><table><tr><th></th><th>arrived</th>${FUNNEL.map((k) => `<th>${esc(FUNNEL_NAMES[k])}</th>`).join('')}</tr>${rows.map((x) => `<tr><td>${esc(x.key)}</td><td>${x.arrived}</td>${FUNNEL.map((k) => `<td>${x.steps[k]}${x.steps[k] ? ` <small>${pct(x.steps[k], x.arrived)}</small>` : ''}</td>`).join('')}</tr>`).join('')}</table></div>` : '');
+  return one('People step by step, by source', 'each browser counted once a step; arrived: left early + saw the bench; shares of arrived', pf.sources)
+    + one('People step by step, by device', 'an app’s own browser (instagram, facebook, tiktok, linkedin), else the screen’s size', pf.devices);
+}
+function backTable(r) {
+  const co = cohorts(r);
+  if (!co.length) return '';
+  const cell = (x, k) => `<td>${x[k]} <small>${pct(x[k], x.n)}</small>${x.open[k] ? ' <small title="not over yet for the whole week">*</small>' : ''}</td>`;
+  return `<h3 style="margin-top:24px">Back again <span>browsers new that week, by source, and the share back within 1, 7 and 30 days of their first visit; * still counting</span></h3><div style="overflow-x:auto"><table><tr><th>week</th><th>source</th><th>first visits</th><th>within 1 day</th><th>within 7 days</th><th>within 30 days</th></tr>${co.map((x) => `<tr><td>${esc(x.week)}</td><td>${esc(x.src)}</td><td>${x.n}</td>${cell(x, 'd1')}${cell(x, 'd7')}${cell(x, 'd30')}</tr>`).join('')}</table></div>`;
+}
+function loadTable(r) {
+  const ld = loading(r);
+  if (!ld.any) return '';
+  return `<h3 style="margin-top:24px">Bench drawn <span>${ld.nDrawn} drawn; ${ld.nEarly} visits (${pct(ld.nEarly, ld.nDrawn + ld.nEarly)}) ended before it was</span></h3><table><tr><th>time from opening</th><th>drawn by then</th><th>left by then, not drawn</th></tr>${LOAD_BANDS.map((b) => `<tr><td>${b}</td><td>${ld.drawn[b]}</td><td>${ld.early[b]}</td></tr>`).join('')}</table>`;
 }
 function promptTable(r) {
   const p = prompts(r);
@@ -270,8 +364,11 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowra
 ${peopleBars(r, days)}
 ${peopleTable(r)}
 ${funnelTable(r)}
+${peopleFunnelTables(r)}
+${backTable(r)}
+${loadTable(r)}
 ${promptTable(r)}
-<div class="cols">${Object.keys(LABELS).filter((k) => ev[k] && k !== 'visitor').map(section).join('')}</div>
+<div class="cols">${Object.keys(LABELS).filter((k) => ev[k] && !OWN_TABLES.has(k)).map(section).join('')}</div>
 <h3 style="margin-top:28px">Errors <span>${r.errors.length} ${r.errors.length === 1 ? 'kind' : 'kinds'}</span></h3>${errs ? `<table><tr><th>count</th><th>message</th></tr>${errs}</table>` : '<p class="sub">None.</p>'}
 </main></body></html>`;
 }

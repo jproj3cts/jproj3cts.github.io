@@ -10,6 +10,36 @@
 <title>Dev: JEKray</title>
 <!-- one address: www.jeksys.net to the same page on jeksys.net, the one the account service accepts -->
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
+<!-- the usage counts' one early part (io/usage.js has the rest, and says what is sent): a visit that ends before the
+     bench is drawn, which the app's own code, further down this large page, may not have loaded yet to count. Sent
+     as the app's other counts are, and not when they would not be (test mode, an embed, Do Not Track or Global
+     Privacy Control, counts turned off). deviceOf as core/src-tag.js's (test/node/usage-funnel.test.mjs) -->
+<script id="jekEarly">(function () {
+  try {
+    var Q = location.hash + location.search, ls = window.localStorage, sent = false;
+    if (/(^|[#?&])(test|embed)\b/.test(Q) || navigator.globalPrivacyControl === true || navigator.doNotTrack === '1' || window.doNotTrack === '1' || ls.getItem('jek-usage-off') === '1') return;
+    var api = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://api.jeksys.net';
+    var deviceOf = function (u, w) { return /Instagram/.test(u) ? 'instagram' : /FBAN|FBAV|FB_IAB/.test(u) ? 'facebook' : /musical_ly|BytedanceWebview|TikTok/i.test(u) ? 'tiktok' : /LinkedInApp/.test(u) ? 'linkedin' : w < 600 ? 'phone' : w < 1024 ? 'tablet' : 'desktop'; };
+    var band = function (ms) { return ms < 1000 ? 'under-1s' : ms < 3000 ? '1-3s' : ms < 6000 ? '3-6s' : ms < 10000 ? '6-10s' : ms < 20000 ? '10-20s' : 'over-20s'; };
+    var gone = function () {
+      if (sent || window.JEK_DRAWN) return;
+      sent = true;
+      var m = /[?&]src=([^&#]*)/.exec(location.search), tag = m ? decodeURIComponent(m[1]).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) : '';
+      if (!tag) { try { var k = JSON.parse(ls.getItem('jek-src') || 'null'); if (k && Date.now() - k.t < 30 * 864e5) tag = k.s; } catch (e) { /* none */ } }
+      if (!tag && /(^|\.)instagram\.com$/.test((document.referrer.match(/^https?:\/\/([^/]+)/) || [])[1] || '')) tag = 'instagram';
+      var src = tag || 'none', dev = deviceOf(navigator.userAgent, Math.min(screen.width || innerWidth, innerWidth || 1e9)), ev = [['load', 'early.' + band(performance.now())]], F = {};
+      try { F = JSON.parse(ls.getItem('jek-funnel') || '{}') || {}; } catch (e) { F = {}; }
+      [[src, src], ['@' + dev, 'dev-' + dev]].forEach(function (p) {
+        var done = Array.isArray(F[p[0]]) ? F[p[0]] : (F[p[0]] = []);
+        if (done.indexOf('early') < 0 && done.indexOf('land') < 0) { done.push('early'); ev.push(['funnel', p[1] + '.early']); }
+      });
+      try { ls.setItem('jek-funnel', JSON.stringify(F)); } catch (e) { /* fine */ }
+      navigator.sendBeacon(api + '/v1/events', JSON.stringify({ tier: 'anon', ev: ev, err: [] }));
+    };
+    addEventListener('pagehide', gone);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') gone(); });
+  } catch (e) { /* not counted */ }
+})();</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
 <link rel="stylesheet" href="jekray/style.css">

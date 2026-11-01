@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { call, inOneMinute, signedIn } from './helpers.js';
 import { MAX_ERRORS, purgeUsage } from '../src/usage.js';
-import { html, isoWeek, people, prompts, promptAnswers, text } from '../scripts/usage.mjs';
+import { cohorts, html, isoWeek, loading, people, peopleFunnel, prompts, promptAnswers, text, weekStart } from '../scripts/usage.mjs';
 
 const OPS = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const post = (body, opts = {}) => call('/v1/events', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'text/plain' }, ...opts });
@@ -117,6 +117,32 @@ describe('usage counts', () => {
     for (let i = 0; i < MAX_ERRORS / 20 + 2; i++) await post({ tier: 'anon', err: Array.from({ length: 20 }, (_, j) => [`E${i}-${j}`, 'f.js:1']) });
     const n = (await env.DB.prepare('SELECT COUNT(*) AS n FROM usage_errors').first()).n;
     expect(n).toBe(MAX_ERRORS);
+  });
+
+  it('counts people step by step by source and device, first visits and those back, and how long the bench took to draw', async () => {
+    const ev = [['funnel', 'ig-irises.early'], ['funnel', 'ig-irises.land', 3], ['funnel', 'ig-irises.change', 2], ['funnel', 'ig-irises.account'],
+      ['funnel', 'dev-instagram.land', 3], ['funnel', 'dev-instagram.early'], ['funnel', 'ig-irises.nonsense'],
+      ['cohort', 'ig-irises.2026-w44', 4], ['back', 'ig-irises.2026-w44.d1'], ['back', 'ig-irises.2026-w44.d7', 2], ['back', 'ig-irises.2026-w44.d30', 2],
+      ['load', 'drawn.1-3s', 3], ['load', 'early.3-6s']];
+    expect((await post({ tier: 'anon', ev })).status).toBe(200);
+    const r = await report(), f = peopleFunnel(r), src = f.sources.find((x) => x.key === 'ig-irises'), dev = f.devices.find((x) => x.key === 'instagram');
+    expect(src.arrived).toBe(4);
+    expect(src.steps).toMatchObject({ early: 1, land: 3, change: 2, account: 1, solve: 0 });
+    expect(dev.arrived).toBe(4);
+    const c = cohorts(r).find((x) => x.src === 'ig-irises');
+    expect(c).toMatchObject({ week: '2026-W44', n: 4, d1: 1, d7: 2, d30: 2 });
+    expect(weekStart('2026-w44').toISOString().slice(0, 10)).toBe('2026-10-26');
+    expect(weekStart('2027-w01').toISOString().slice(0, 10)).toBe('2027-01-04');
+    const ld = loading(r);
+    expect(ld.drawn['1-3s']).toBeGreaterThanOrEqual(3);
+    expect(ld.early['3-6s']).toBeGreaterThanOrEqual(1);
+    const page = html(r);
+    for (const t of ['People step by step, by source', 'by device', 'Back again', 'Bench drawn']) expect(page).toContain(t);
+    // the text report runs over them too
+    const log = console.log; let out = ''; console.log = (...a) => { out += a.join(' ') + '\n'; };
+    try { text(r); } finally { console.log = log; }
+    expect(out).toContain('People step by step, by source');
+    expect(out).toContain('Back again');
   });
 
   it('are hidden from all but the operations token, and are held back per address', async () => {

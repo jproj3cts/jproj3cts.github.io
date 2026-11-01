@@ -122,6 +122,11 @@ through `core/hooks.js`.
   load (only `ui/boot.js`); another module's binding is changed through its setter (`setProject`, …).
 - A new usage event goes in three places: `EVENTS` in `jek-api/src/usage.js`, `LABELS` in `jek-api/scripts/usage.mjs`,
   and `src/io/usage.js`.
+- People step by step, with no id: `funnel(step)` in `io/usage.js` counts each step once per browser per source and
+  device ('funnel' <src>.<step>, dev-<device>.<step>; steps in `FUNNEL` of `jek-api/scripts/usage.mjs`); first visits
+  'cohort' <src>.<week> and 'back' ….d1/d7/d30 (`backMarks` in `core/src-tag.js`); the bench drawn 'load' drawn.<band>,
+  and visits that end before it 'early.<band>', sent by page.html's early script (`#jekEarly`, kept like `deviceOf`
+  by `test/node/usage-funnel.test.mjs`).
 - Usage report (baseline before a change meant to move a number): `cd jek-api && JEK_OPS_TOKEN=… node scripts/usage.mjs`
   (`--days 90`, `--html r.html`, `--json`). Its "Sign-in prompts" table has a row per prompt (`track('prompt',
   '<where>.<answer>')`: share, save, return, shared, tour, menu; names in `PROMPT_NAMES`) with shown, each answer,

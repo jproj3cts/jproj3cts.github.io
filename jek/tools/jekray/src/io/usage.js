@@ -1,6 +1,6 @@
 import { EMBED, TEST_MODE } from '../core/constants.js';
 import { API_BASE, account } from './account.js';
-import { srcTag, visitorMarks } from '../core/src-tag.js';
+import { backMarks, deviceOf, loadBand, srcTag, visitorMarks } from '../core/src-tag.js';
 
 /* ---------- Usage counts ----------
    How the tool is used, so it can be made better: which parts are added, which designers and analyses are
@@ -18,7 +18,7 @@ export const usageBrowserSaysNo = () => typeof navigator !== 'undefined' && (nav
 export function usageOff() { try { return localStorage.getItem(USAGE_OFF) === '1'; } catch (err) { return false; } }
 export function setUsageOff(off) {
   try { if (off) localStorage.setItem(USAGE_OFF, '1'); else localStorage.removeItem(USAGE_OFF); } catch (err) { /* not kept: none sent this visit */ }
-  if (off) { usageQ.clear(); usageErrs.length = 0; try { localStorage.removeItem('jek-seen'); } catch (err) { /* fine */ } }
+  if (off) { usageQ.clear(); usageErrs.length = 0; try { for (const k of ['jek-seen', 'jek-funnel', 'jek-first', SRC_KEY]) localStorage.removeItem(k); } catch (err) { /* fine */ } }
   else usageSent = true;                   // not a visit's start: nothing about how it began
 }
 const usageOn = () => !TEST_MODE && !EMBED && !usageBrowserSaysNo() && !usageOff();
@@ -56,7 +56,8 @@ const usageMinutes = ms => (ms < 60e3 ? 'under-1m' : ms < 300e3 ? '1-5m' : ms < 
 const usageScreen = () => { const w = Math.min(screen.width || innerWidth, innerWidth || 1e9); return w < 600 ? 'phone' : w < 1024 ? 'tablet' : w < 1700 ? 'desktop' : 'wide'; };
 function usageBrowser() {
   const u = navigator.userAgent;
-  return /Edg\//.test(u) ? 'edge' : /OPR\//.test(u) ? 'opera' : /SamsungBrowser/.test(u) ? 'samsung' : /Firefox\//.test(u) ? 'firefox' : /Chrome\//.test(u) ? 'chrome' : /Safari\//.test(u) ? 'safari' : 'other';
+  return /Instagram/.test(u) ? 'instagram' : /FBAN|FBAV|FB_IAB/.test(u) ? 'facebook' : /musical_ly|BytedanceWebview|TikTok/i.test(u) ? 'tiktok' : /LinkedInApp/.test(u) ? 'linkedin'
+    : /Edg\//.test(u) ? 'edge' : /OPR\//.test(u) ? 'opera' : /SamsungBrowser/.test(u) ? 'samsung' : /Firefox\//.test(u) ? 'firefox' : /Chrome\//.test(u) ? 'chrome' : /Safari\//.test(u) ? 'safari' : 'other';
 }
 // buttons counted wherever they are pressed: [event, token]
 const USAGE_CLICKS = {
@@ -88,7 +89,43 @@ function readSrc() {
 }
 /* something a visit led to (landing, landing-open, edit, ask, ask-yes, save, share, signin, account, subscribe, pro, remind),
    counted against where it came from */
-export function goal(step) { track('goal', (usageSrc || 'none') + '.' + step); }
+export function goal(step) {
+  track('goal', (usageSrc || 'none') + '.' + step);
+  const f = FUNNEL_OF[step];
+  if (f) funnel(f);
+}
+/* The funnel, in people: each step counted once for a browser and a source (and once for its kind of device), so a
+   source's row reads as people who arrived, saw the bench, changed it, solved its challenge, signed in, made an
+   account, took JEKrayPro. Which steps this browser has counted is kept here (never sent); 'early' (the visit ended
+   before the bench was drawn) is counted by page.html's early script. */
+const FUNNEL_KEY = 'jek-funnel', FUNNEL_OF = { edit: 'change', signin: 'signin', account: 'account', pro: 'pro' };
+const usageDevice = () => { try { return deviceOf(navigator.userAgent, Math.min(screen.width || innerWidth, innerWidth || 1e9)); } catch (err) { return 'other'; } };
+export function funnel(step) {
+  if (!usageOn()) return;
+  let F;
+  try { F = JSON.parse(localStorage.getItem(FUNNEL_KEY) || '{}') || {}; } catch (err) { return; }
+  const src = usageSrc || 'none', dev = '@' + usageDevice(), sent = [];
+  for (const k of [src, dev]) {
+    const done = Array.isArray(F[k]) ? F[k] : (F[k] = []);
+    if (done.includes(step)) continue;
+    done.push(step); sent.push(k);
+    delete F[k]; F[k] = done;                                    // the latest last, so the oldest go first
+  }
+  const keys = Object.keys(F);
+  for (const k of keys.slice(0, Math.max(0, keys.length - 40))) delete F[k];
+  try { localStorage.setItem(FUNNEL_KEY, JSON.stringify(F)); } catch (err) { return; }
+  for (const k of sent) track('funnel', (k === dev ? 'dev-' + dev.slice(1) : src) + '.' + step);
+}
+/* the bench drawn for the first time this visit: how long it took, and the funnel's 'land' (page.html's early script
+   counts those that leave before this) */
+let usageDrawnYet = false;
+export function usageDrawn() {
+  if (usageDrawnYet) return;
+  usageDrawnYet = true;
+  try { window.JEK_DRAWN = true; } catch (err) { /* fine */ }
+  track('load', 'drawn.' + loadBand(typeof performance !== 'undefined' ? performance.now() : 0));
+  funnel('land');
+}
 /* a visit's start: how it began (fresh, restored, a shared bench, an example), on what, and from where */
 export function usageStart(how) {
   if (usageSent) return;
@@ -108,9 +145,26 @@ function usageVisitor() {
   if (!usageOn()) return;
   let was = null;
   try { was = JSON.parse(localStorage.getItem(SEEN_KEY) || 'null'); } catch (err) { return; }    // no store: not counted, rather than counted again each visit
-  const V = visitorMarks(Date.now(), was);
+  const now = Date.now(), V = visitorMarks(now, was);
   try { localStorage.setItem(SEEN_KEY, JSON.stringify(V.seen)); } catch (err) { return; }
   for (const m of V.marks) track('visitor', m);
+  usageBack(now, !was, V.seen.w);
+}
+/* coming back (core/src-tag.js backMarks): a browser's first visit keeps its time, week and source here, never sent,
+   and counts 'cohort' <source>.<week>; a later one within 30 days counts 'back' <source>.<week>.d1, .d7, .d30 */
+const FIRST_KEY = 'jek-first';
+function usageBack(now, isNew, week) {
+  try {
+    if (isNew) {
+      const first = { t: now, s: usageSrc || 'none', w: String(week).toLowerCase(), b: [] };
+      localStorage.setItem(FIRST_KEY, JSON.stringify(first));
+      track('cohort', first.s + '.' + first.w);
+      return;
+    }
+    const first = JSON.parse(localStorage.getItem(FIRST_KEY) || 'null'), B = backMarks(now, first);
+    if (B.keep) localStorage.setItem(FIRST_KEY, JSON.stringify(B.keep)); else localStorage.removeItem(FIRST_KEY);
+    for (const m of B.marks) track('back', first.s + '.' + first.w + '.' + m);
+  } catch (err) { /* no store: not counted */ }
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

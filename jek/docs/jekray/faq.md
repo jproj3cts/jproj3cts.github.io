@@ -24,7 +24,7 @@ Not unless you choose to send it. Your bench is autosaved in this browser, and n
 
 ### Does JEKray collect anything about how I use it?
 
-Only anonymous counts: which parts are added (by type), which designers, analyses, examples and tours are opened, what is exported (by format), how long a visit lasts, the screen size class and browser family, and JEKray's own errors. They carry nothing that says who you are, are not linked to your account, and never include your benches, their names, file names or anything you type. None are sent from an embedded bench or when your browser sends Do Not Track or Global Privacy Control. Turn them off with **Share anonymous usage counts** in the account menu (top right) or on the [Your account](/jek/account.html) page. The [Privacy Policy](/jek/privacy.html#usage) has the details.
+Only anonymous counts: which parts are added (by type), which designers, analyses, examples and tours are opened, what is exported (by format), how long a visit lasts and how long the bench took to appear, the screen size class and browser family, how many people from each post get as far as changing a bench or making an account, and how many come back, and JEKray's own errors. They carry nothing that says who you are, are not linked to your account, and never include your benches, their names, file names or anything you type. None are sent from an embedded bench or when your browser sends Do Not Track or Global Privacy Control. Turn them off with **Share anonymous usage counts** in the account menu (top right) or on the [Your account](/jek/account.html) page. The [Privacy Policy](/jek/privacy.html#usage) has the details.
 
 ### Which browsers does it run in?
 

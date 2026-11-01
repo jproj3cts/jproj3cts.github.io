@@ -1,21 +1,21 @@
 // The exercises (core/exercises.js): each starts from a reel's bench that is there, names parts that are on it and
 // measures the optimiser has, gives two hints and a result line; the reels' challenges are the "Can you…" ones; a
-// visit's address starts the right one. That each can be solved, and only so, is the browser suite's ('Exercises').
+// visit's address starts the right one. The reels' challenges (CHALLENGES) are kept apart from the course. That each can be solved, and only so, is the browser suite's ('Exercises').
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EXERCISES, checkPasses, checkWant, exerciseArrival, exerciseBench, exerciseOfReel } from '../../src/core/exercises.js';
+import { CHALLENGES, EXERCISES, checkPasses, checkWant, exerciseArrival, exerciseBench, exerciseById, exerciseOfReel, isChallenge } from '../../src/core/exercises.js';
 import { REELS } from '../../src/ui/reels.js';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const METRICS = new Set([...readFileSync(join(here, '../../src/ui/optimise.js'), 'utf8').matchAll(/\{ key: '([a-zA-Z0-9]+)', fam: '[a-z]+', on: '([a-z]+)'/g)].map(m => m[1] + '@' + m[2]));
 const kindOf = e => (e.type === 'fibre' ? 'fibre' : e.type);
 
-test('every exercise starts from a reel’s bench, and names parts on it and measures they have', () => {
+test('every exercise and challenge starts from a reel’s bench, and names parts on it and measures they have', () => {
   const ids = new Set();
-  for (const ex of EXERCISES) {
+  for (const ex of [...EXERCISES, ...CHALLENGES]) {
     assert.match(ex.id, /^[a-z0-9][a-z0-9-]{0,47}$/, ex.id);
     assert.ok(!ids.has(ex.id), 'one id each: ' + ex.id); ids.add(ex.id);
     const reel = REELS.find(r => r.id === ex.start.reel);
@@ -31,12 +31,30 @@ test('every exercise starts from a reel’s bench, and names parts on it and mea
     for (const [n, R] of Object.entries(ex.optimiser || {})) for (const [k, [lo, hi]] of Object.entries(R)) assert.ok((ex.unlocked[n] || []).includes(k) && lo < hi, ex.id + ': the optimiser’s ' + n + '.' + k);
     for (const [n, f] of Object.entries(ex.answer)) for (const k of Object.keys(f)) assert.ok((ex.unlocked[n] || []).includes(k), ex.id + ': the answer changes only what may be');
     assert.equal(ex.hints.length, 2);
-    assert.ok(ex.goal && ex.teaches && ex.title);
+    assert.ok(ex.goal && ex.title && (ex.teaches || isChallenge(ex)));
     assert.equal(typeof ex.result(ex.checks.map(c => c.value)), 'string');
     // the reel's own bench is left as it was
     assert.ok(!reel.bench.elements.some(e => e.id === 'exs1'));
   }
   assert.equal(EXERCISES.length, 11);
+});
+
+test('the reels’ challenges are apart from the course: each its own "Can you…" reel’s, newest first, found by id and by reel', () => {
+  assert.ok(CHALLENGES.length >= 1);
+  const order = REELS.map(r => r.id);
+  for (const c of CHALLENGES) {
+    const reel = REELS.find(r => r.id === c.reel);
+    assert.ok(reel, c.id + ': its reel is in REELS');
+    assert.equal(c.start.reel, c.reel, c.id + ': starts from its own reel’s bench');
+    assert.equal(c.title, reel.title, c.id + ': titled as the reel');
+    assert.ok(!EXERCISES.some(x => x.id === c.id || x.reel === c.reel), c.id + ': not also in the course');
+    assert.equal(exerciseById(c.id), c); assert.equal(exerciseOfReel(c.reel), c); assert.ok(isChallenge(c));
+  }
+  const at = CHALLENGES.map(c => order.indexOf(c.reel));
+  assert.deepEqual(at, [...at].sort((a, b) => a - b), 'newest first, as REELS');
+  assert.ok(!EXERCISES.some(isChallenge));
+  assert.deepEqual(exerciseArrival('?src=ig-hit-the-pinhole'), { id: 'hit-the-pinhole', from: 'reel' });
+  assert.deepEqual(exerciseArrival('?ex=hit-the-pinhole&src=solved'), { id: 'hit-the-pinhole', from: 'link' });
 });
 
 test('the reels’ challenges are their "Can you…" reels, and an address starts the right exercise', () => {

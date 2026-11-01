@@ -1849,6 +1849,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-exitem:hover { border-color: var(--jek-orange); }
 .rt-exitem b::before { content: counter(ex) '. '; color: var(--jek-ink-soft); font-weight: 400; }
 .rt-exitem small { display: block; color: var(--jek-ink-soft); }
+.rt-chlist .rt-exitem b::before { content: none; }
 .rt-extick { color: var(--rt-good-ink); }
 @media (max-width: 600px) { .rt-exbar { top: 0.3rem; font-size: 0.82rem; padding: 0.45rem 0.6rem; } .rt-exmay { display: none; } }
 </style>
@@ -1988,7 +1989,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
                 <button type="button" role="menuitem" data-tour="periscope" data-icon="cube">Build a periscope in 3D</button>
               </div>
             </div>
-            <button type="button" role="menuitem" id="btnExercises" data-icon="flag" title="Short exercises on the bench, each checked as you go: from aiming a mirror to fixing a fibre’s polarisation">Exercises…</button>
+            <button type="button" role="menuitem" id="btnExercises" data-icon="flag" title="Short exercises on the bench, each checked as you go: from aiming a mirror to fixing a fibre’s polarisation; then the challenges from our reels">Exercises…</button>
             <a role="menuitem" href="/jek/docs/jekray/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
             <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new<span class="rt-dot" id="newsDot" hidden></span></button>
             <div class="sep"></div>
@@ -9069,8 +9070,25 @@ const EXERCISES = [
     optimiser: { 'Filter 2': { angle: [-40, 40] } },
     result: v => fix(v[0] * 100, 0) + '% back into fibre B' },
 ];
-const exerciseById = id => EXERCISES.find(x => x.id === id) || null;
-const exerciseOfReel = reel => EXERCISES.find(x => x.reel === reel) || null;
+/* The reels' challenges: one puzzle a "Can you…" reel, newest first, kept out of the course so it stays a course. Each
+   is an exercise in all but its place (the same fields, `teaches` left out) and always has its `reel`: offered to
+   visitors who come from that reel, marked in the From Instagram note, and listed under Help › Exercises' Challenges.
+   A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
+   own exercises with a `reel` stay in the course, and are those reels' challenges too. */
+const CHALLENGES = [
+  { id: 'hit-the-pinhole', reel: 'ig-hit-the-pinhole', title: 'Can you hit the pinhole?',
+    start: { reel: 'ig-hit-the-pinhole' },
+    goal: 'Get the light through the pinhole to the Detector.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { Pinhole: ['x', 'y'] },
+    hints: ['A tilted beam focuses off the axis: the pinhole has to move up as well as along.', 'The focus is about 50 mm from the lens and 0.53 mm above the axis.'],
+    answer: { Pinhole: { x: 49.85, y: 0.53 } },
+    // no optimiser: nothing reaches the Detector until the pinhole is within 0.05 mm, so it has nothing to climb
+    result: v => fix(v[0], 2) + ' mW through the pinhole' },
+];
+const isChallenge = ex => CHALLENGES.includes(ex);
+const exerciseById = id => EXERCISES.find(x => x.id === id) || CHALLENGES.find(x => x.id === id) || null;
+const exerciseOfReel = reel => CHALLENGES.find(x => x.reel === reel) || EXERCISES.find(x => x.reel === reel) || null;
 /* one check against its value (null: not measured yet, as when no light arrives) */
 function checkPasses(c, v) {
   if (v === null || v === undefined || !isFinite(v)) return false;
@@ -52549,7 +52567,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account.',
+    '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account. Under them, <b>Challenges</b>: the puzzles from our Instagram reels, newest first, starting with \u201cCan you hit the pinhole?\u201d; the same checks and hints, kept apart from the course.',
     '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',
     '<b>More prisms</b>: the pentaprism (90\u00b0 whatever its tilt), the Amici roof prism, the Pellin\u2013Broca prism and a polygon of your own corners, with any faces silvered. Mirrors can have a <b>hole through them</b>, a source\u2019s line of rays can carry <b>power as across a round beam</b> (so an iris passes what it would), and a fibre wound round a radius has its <b>bend loss</b> (Marcuse\u2019s formula, single-mode fibre). A fibre\u2019s route now moves with the parts at its ends.',
     '<b>Fixed</b>: a fibre path set from a script without its handles no longer stops the bench drawing; the empty bench\u2019s tip steps aside for the parts picker; names on the bench keep a gap between them; a short mirror\u2019s hatching no longer fills it.',
@@ -54777,10 +54795,11 @@ async function exerciseSync() {
 }
 
 /* the next exercise, the first not yet solved: after this one, in the course's order; from a reel's challenge or a
-   link, from the course's start (a way into it) */
+   link, from the course's start (a way into it). After one of the reels' challenges, the next challenge instead */
 function exerciseNext(id, fromStart) {
-  const S = exSolved(), i = fromStart ? -1 : EXERCISES.findIndex(x => x.id === id);
-  const after = [...EXERCISES.slice(i + 1), ...EXERCISES.slice(0, Math.max(0, i))].filter(x => x.id !== id);
+  const L = isChallenge(exerciseById(id)) ? CHALLENGES : EXERCISES;
+  const S = exSolved(), i = fromStart && L === EXERCISES ? -1 : L.findIndex(x => x.id === id);
+  const after = [...L.slice(i + 1), ...L.slice(0, Math.max(0, i))].filter(x => x.id !== id);
   return after.find(x => !S[x.id]) || null;
 }
 const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW' };
@@ -54820,9 +54839,9 @@ function exOptimise() {
 function exBar() {
   let bar = document.getElementById('exBar');
   if (!bar) { bar = h('div', { class: 'rt-exbar', id: 'exBar', role: 'region', 'aria-label': 'Exercise' }); document.getElementById('stage').append(bar); }
-  const E = EX.ex, n = EXERCISES.indexOf(E) + 1;
+  const E = EX.ex, n = EXERCISES.indexOf(E) + 1, ch = isChallenge(E);
   const head = h('div', { class: 'rt-exhead' },
-    h('span', { class: 'rt-exkind' }, EX.from === 'reel' && E.reel ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
+    h('span', { class: 'rt-exkind' }, ch || (EX.from === 'reel' && E.reel) ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
     h('b', null, EX.title),
     h('button', { class: 'rt-wx', type: 'button', title: 'Leave the exercise: the bench stays, every part free', 'aria-label': 'Leave the exercise', onclick: () => exerciseLeave(false) }, '×'));
   const body = [head, h('p', { class: 'rt-exgoal' }, E.goal), h('div', { class: 'rt-exread', id: 'exRead' })];
@@ -54838,12 +54857,12 @@ function exBar() {
     body.push(h('p', { class: 'rt-exsolved' }, '✓ Solved: ' + E.result(EX.values) + ', in ' + EX.changes + ' ' + (EX.changes === 1 ? 'change' : 'changes') + '.'));
     if (accountsOn() && !account) {
       track('prompt', 'exercise.shown');
-      body.push(h('div', { class: 'rt-exacct' }, h('p', null, 'Make a free account to keep track of the exercises you’ve solved.'), h('div', { class: 'rt-actions' }, ...signInRow('exercise', () => {}))));
+      body.push(h('div', { class: 'rt-exacct' }, h('p', null, 'Make a free account to keep track of the ' + (ch ? 'challenges' : 'exercises') + ' you’ve solved.'), h('div', { class: 'rt-actions' }, ...signInRow('exercise', () => {}))));
     }
     body.push(h('div', { class: 'rt-actions' },
-      next ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('exercise', E.id + '.next'); startExercise(next.id, 'help'); } }, 'Next exercise: ' + next.title) : null,
+      next ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('exercise', E.id + '.next'); startExercise(next.id, 'help'); } }, (ch ? 'Next challenge: ' : 'Next exercise: ') + next.title) : null,
       h('button', { class: 'rt-btn', type: 'button', onclick: exShareLink }, 'Share'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => showExercises('solved') }, 'All exercises'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => showExercises(ch ? 'challenge' : 'solved') }, ch ? 'All challenges' : 'All exercises'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => exerciseLeave(false) }, 'Keep the bench')));
   }
   bar.replaceChildren(...body);
@@ -54878,7 +54897,8 @@ function exercisePanel(box, el) {
   box.prepend(h('p', { class: 'note rt-exnote' }, f.length ? 'In this exercise you can change only its ' + f.map(k => EX_FIELDS[k] || k).join(' and ') + '.' : 'Held in place for this exercise.'));
 }
 
-/* Help › Exercises: the course, in order, each with what it teaches and a tick once solved */
+/* Help › Exercises: the course, in order, each with what it teaches and a tick once solved; then the reels'
+   challenges, newest first, each with its goal (core/exercises.js CHALLENGES), apart so they do not get in its way */
 function showExercises(from) {
   track('exercise', 'list.' + (from || 'help'));
   let dlg = document.getElementById('exDialog');
@@ -54888,9 +54908,14 @@ function showExercises(from) {
     h('p', null, EXERCISES.length + ' short exercises on the bench, about two minutes each, from aiming a mirror to fixing a fibre’s polarisation. Each says what to reach, checks it as you go, and has two hints.' + (done ? ' Solved: ' + done + ' of ' + EXERCISES.length + '.' : '')),
     h('ol', { class: 'rt-exlist' }, ...EXERCISES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
       h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.teaches))))),
+    CHALLENGES.length ? h('h3', { id: 'exChallenges' }, 'Challenges') : null,
+    CHALLENGES.length ? h('p', null, 'Puzzles from our Instagram reels, newest first: no lesson, just a goal to reach.' + (CHALLENGES.some(x => S[x.id]) ? ' Solved: ' + CHALLENGES.filter(x => S[x.id]).length + ' of ' + CHALLENGES.length + '.' : '')) : null,
+    CHALLENGES.length ? h('ol', { class: 'rt-exlist rt-chlist' }, ...CHALLENGES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
+      h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.goal))))) : null,
     accountsOn() && !account ? h('p', { class: 'note' }, 'Signed out, the ones you solve are kept in this browser; a free account keeps them in any.') : null,
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
   dlg.showModal();
+  if (from === 'challenge') { const c = document.getElementById('exChallenges'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'start' }); }
 }
 /* a quiet line for the welcome note */
 const exerciseInvite = () => h('p', { class: 'rt-exinvite' }, 'New to optics benches? ', h('button', { type: 'button', class: 'rt-link', onclick: () => { const w = document.getElementById('welcome'); if (w) w.remove(); showExercises('welcome'); } }, EXERCISES.length + ' short exercises, about 2 minutes each.'));
@@ -56152,8 +56177,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     aiFieldCoverage() { const miss = []; for (const t of Object.keys(TYPE_LABEL)) for (const k of aiFieldsOf(t)) if (!(AI_FIELDS[t] || {})[k]) miss.push(t + '.' + k); for (const t of Object.keys(TYPE_LABEL)) if (!AI_ANGLE[t] || !AI_WHAT[t]) miss.push(t); return miss; },
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
-    // the exercises (ui/challenge.js): started as from Help, the state of the one on, out of it, the goal read now
+    // the exercises and the reels' challenges (ui/challenge.js): started as from Help, the state of the one on, out of it, the goal read now
     exercises: () => EXERCISES.map(x => x.id),
+    challenges: () => CHALLENGES.map(x => x.id),
     exerciseStart(id, from) { return startExercise(id, from || 'help'); },
     exerciseState() { const E = exerciseOn(); return E ? { id: E.ex.id, solved: E.solved, changes: E.changes, values: E.values.slice(), title: E.title } : null; },
     exerciseLeave() { exerciseLeave(true); },

@@ -1804,5 +1804,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-exitem:hover { border-color: var(--jek-orange); }
 .rt-exitem b::before { content: counter(ex) '. '; color: var(--jek-ink-soft); font-weight: 400; }
 .rt-exitem small { display: block; color: var(--jek-ink-soft); }
+.rt-chlist .rt-exitem b::before { content: none; }
 .rt-extick { color: var(--rt-good-ink); }
 @media (max-width: 600px) { .rt-exbar { top: 0.3rem; font-size: 0.82rem; padding: 0.45rem 0.6rem; } .rt-exmay { display: none; } }

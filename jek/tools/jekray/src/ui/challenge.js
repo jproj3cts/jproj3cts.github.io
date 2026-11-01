@@ -2,7 +2,7 @@ import { hooks } from '../core/hooks.js';
 import { V, project } from '../state/project.js';
 import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
-import { EXERCISES, checkPasses, checkWant, exerciseBench, exerciseById } from '../core/exercises.js';
+import { CHALLENGES, EXERCISES, checkPasses, checkWant, exerciseBench, exerciseById, isChallenge } from '../core/exercises.js';
 import { h, renderPanel } from './panel.js';
 import { changed, fitView, toast } from './actions.js';
 import { metricRaw, optimiseMany } from './optimise.js';
@@ -144,10 +144,11 @@ export async function exerciseSync() {
 }
 
 /* the next exercise, the first not yet solved: after this one, in the course's order; from a reel's challenge or a
-   link, from the course's start (a way into it) */
+   link, from the course's start (a way into it). After one of the reels' challenges, the next challenge instead */
 export function exerciseNext(id, fromStart) {
-  const S = exSolved(), i = fromStart ? -1 : EXERCISES.findIndex(x => x.id === id);
-  const after = [...EXERCISES.slice(i + 1), ...EXERCISES.slice(0, Math.max(0, i))].filter(x => x.id !== id);
+  const L = isChallenge(exerciseById(id)) ? CHALLENGES : EXERCISES;
+  const S = exSolved(), i = fromStart && L === EXERCISES ? -1 : L.findIndex(x => x.id === id);
+  const after = [...L.slice(i + 1), ...L.slice(0, Math.max(0, i))].filter(x => x.id !== id);
   return after.find(x => !S[x.id]) || null;
 }
 const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW' };
@@ -187,9 +188,9 @@ function exOptimise() {
 function exBar() {
   let bar = document.getElementById('exBar');
   if (!bar) { bar = h('div', { class: 'rt-exbar', id: 'exBar', role: 'region', 'aria-label': 'Exercise' }); document.getElementById('stage').append(bar); }
-  const E = EX.ex, n = EXERCISES.indexOf(E) + 1;
+  const E = EX.ex, n = EXERCISES.indexOf(E) + 1, ch = isChallenge(E);
   const head = h('div', { class: 'rt-exhead' },
-    h('span', { class: 'rt-exkind' }, EX.from === 'reel' && E.reel ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
+    h('span', { class: 'rt-exkind' }, ch || (EX.from === 'reel' && E.reel) ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
     h('b', null, EX.title),
     h('button', { class: 'rt-wx', type: 'button', title: 'Leave the exercise: the bench stays, every part free', 'aria-label': 'Leave the exercise', onclick: () => exerciseLeave(false) }, '×'));
   const body = [head, h('p', { class: 'rt-exgoal' }, E.goal), h('div', { class: 'rt-exread', id: 'exRead' })];
@@ -205,12 +206,12 @@ function exBar() {
     body.push(h('p', { class: 'rt-exsolved' }, '✓ Solved: ' + E.result(EX.values) + ', in ' + EX.changes + ' ' + (EX.changes === 1 ? 'change' : 'changes') + '.'));
     if (accountsOn() && !account) {
       track('prompt', 'exercise.shown');
-      body.push(h('div', { class: 'rt-exacct' }, h('p', null, 'Make a free account to keep track of the exercises you’ve solved.'), h('div', { class: 'rt-actions' }, ...signInRow('exercise', () => {}))));
+      body.push(h('div', { class: 'rt-exacct' }, h('p', null, 'Make a free account to keep track of the ' + (ch ? 'challenges' : 'exercises') + ' you’ve solved.'), h('div', { class: 'rt-actions' }, ...signInRow('exercise', () => {}))));
     }
     body.push(h('div', { class: 'rt-actions' },
-      next ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('exercise', E.id + '.next'); startExercise(next.id, 'help'); } }, 'Next exercise: ' + next.title) : null,
+      next ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('exercise', E.id + '.next'); startExercise(next.id, 'help'); } }, (ch ? 'Next challenge: ' : 'Next exercise: ') + next.title) : null,
       h('button', { class: 'rt-btn', type: 'button', onclick: exShareLink }, 'Share'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => showExercises('solved') }, 'All exercises'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => showExercises(ch ? 'challenge' : 'solved') }, ch ? 'All challenges' : 'All exercises'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => exerciseLeave(false) }, 'Keep the bench')));
   }
   bar.replaceChildren(...body);
@@ -245,7 +246,8 @@ export function exercisePanel(box, el) {
   box.prepend(h('p', { class: 'note rt-exnote' }, f.length ? 'In this exercise you can change only its ' + f.map(k => EX_FIELDS[k] || k).join(' and ') + '.' : 'Held in place for this exercise.'));
 }
 
-/* Help › Exercises: the course, in order, each with what it teaches and a tick once solved */
+/* Help › Exercises: the course, in order, each with what it teaches and a tick once solved; then the reels'
+   challenges, newest first, each with its goal (core/exercises.js CHALLENGES), apart so they do not get in its way */
 export function showExercises(from) {
   track('exercise', 'list.' + (from || 'help'));
   let dlg = document.getElementById('exDialog');
@@ -255,9 +257,14 @@ export function showExercises(from) {
     h('p', null, EXERCISES.length + ' short exercises on the bench, about two minutes each, from aiming a mirror to fixing a fibre’s polarisation. Each says what to reach, checks it as you go, and has two hints.' + (done ? ' Solved: ' + done + ' of ' + EXERCISES.length + '.' : '')),
     h('ol', { class: 'rt-exlist' }, ...EXERCISES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
       h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.teaches))))),
+    CHALLENGES.length ? h('h3', { id: 'exChallenges' }, 'Challenges') : null,
+    CHALLENGES.length ? h('p', null, 'Puzzles from our Instagram reels, newest first: no lesson, just a goal to reach.' + (CHALLENGES.some(x => S[x.id]) ? ' Solved: ' + CHALLENGES.filter(x => S[x.id]).length + ' of ' + CHALLENGES.length + '.' : '')) : null,
+    CHALLENGES.length ? h('ol', { class: 'rt-exlist rt-chlist' }, ...CHALLENGES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
+      h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.goal))))) : null,
     accountsOn() && !account ? h('p', { class: 'note' }, 'Signed out, the ones you solve are kept in this browser; a free account keeps them in any.') : null,
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
   dlg.showModal();
+  if (from === 'challenge') { const c = document.getElementById('exChallenges'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'start' }); }
 }
 /* a quiet line for the welcome note */
 export const exerciseInvite = () => h('p', { class: 'rt-exinvite' }, 'New to optics benches? ', h('button', { type: 'button', class: 'rt-link', onclick: () => { const w = document.getElementById('welcome'); if (w) w.remove(); showExercises('welcome'); } }, EXERCISES.length + ' short exercises, about 2 minutes each.'));

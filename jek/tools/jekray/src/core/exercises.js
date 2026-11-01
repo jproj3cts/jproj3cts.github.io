@@ -113,8 +113,25 @@ export const EXERCISES = [
     optimiser: { 'Filter 2': { angle: [-40, 40] } },
     result: v => fix(v[0] * 100, 0) + '% back into fibre B' },
 ];
-export const exerciseById = id => EXERCISES.find(x => x.id === id) || null;
-export const exerciseOfReel = reel => EXERCISES.find(x => x.reel === reel) || null;
+/* The reels' challenges: one puzzle a "Can you…" reel, newest first, kept out of the course so it stays a course. Each
+   is an exercise in all but its place (the same fields, `teaches` left out) and always has its `reel`: offered to
+   visitors who come from that reel, marked in the From Instagram note, and listed under Help › Exercises' Challenges.
+   A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
+   own exercises with a `reel` stay in the course, and are those reels' challenges too. */
+export const CHALLENGES = [
+  { id: 'hit-the-pinhole', reel: 'ig-hit-the-pinhole', title: 'Can you hit the pinhole?',
+    start: { reel: 'ig-hit-the-pinhole' },
+    goal: 'Get the light through the pinhole to the Detector.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { Pinhole: ['x', 'y'] },
+    hints: ['A tilted beam focuses off the axis: the pinhole has to move up as well as along.', 'The focus is about 50 mm from the lens and 0.53 mm above the axis.'],
+    answer: { Pinhole: { x: 49.85, y: 0.53 } },
+    // no optimiser: nothing reaches the Detector until the pinhole is within 0.05 mm, so it has nothing to climb
+    result: v => fix(v[0], 2) + ' mW through the pinhole' },
+];
+export const isChallenge = ex => CHALLENGES.includes(ex);
+export const exerciseById = id => EXERCISES.find(x => x.id === id) || CHALLENGES.find(x => x.id === id) || null;
+export const exerciseOfReel = reel => CHALLENGES.find(x => x.reel === reel) || EXERCISES.find(x => x.reel === reel) || null;
 /* one check against its value (null: not measured yet, as when no light arrives) */
 export function checkPasses(c, v) {
   if (v === null || v === undefined || !isFinite(v)) return false;

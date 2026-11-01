@@ -127,9 +127,10 @@ through `core/hooks.js`.
   'cohort' <src>.<week> and 'back' ….d1/d7/d30 (`backMarks` in `core/src-tag.js`); the bench drawn 'load' drawn.<band>,
   and visits that end before it 'early.<band>', sent by page.html's early script (`#jekEarly`, kept like `deviceOf`
   by `test/node/usage-funnel.test.mjs`).
-- Exercises (Help › Exercises; a "Can you…" reel's challenge, from its link or the From Instagram note; `?ex=<id>`):
-  data `core/exercises.js` (start = a reel's bench + changes, checks on the optimiser's measures, unlocked settings,
-  hints, answer, optimiser ranges), the bar/locks/checks `ui/challenge.js` (`exerciseTick` after each render puts back
+- Exercises (Help › Exercises; `?ex=<id>`) and the reels' challenges (from a reel's link or the From Instagram note, and
+  listed under Help › Exercises' Challenges): data `core/exercises.js`, the course `EXERCISES` in teaching order and the
+  challenges `CHALLENGES` newest first, apart so reels do not grow the course (start = a reel's bench + changes, checks on
+  the optimiser's measures, unlocked settings, hints, answer, optimiser ranges), the bar/locks/checks `ui/challenge.js` (`exerciseTick` after each render puts back
   what may not change; locks are non-enumerable so never saved), solved kept in `jek-exercises` and on the account
   (`jek-api/src/exercises.js`, migration 0017). Each answer is checked by the browser group 'Exercises'.
 - Usage report (baseline before a change meant to move a number): `cd jek-api && JEK_OPS_TOKEN=… node scripts/usage.mjs`

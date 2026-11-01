@@ -6038,6 +6038,31 @@ const TESTS = [
     },
   },
   {
+    name: 'and so does each reel’s challenge, apart from the course: its bar says Challenge and offers the next challenge',
+    why: 'the reels’ challenges (core/exercises.js CHALLENGES), each from its reel’s bench: unsolved at the start, solved with its answer, the bar saying Challenge (not Exercise n of 11) and, solved, All challenges; Help › Exercises lists them under Challenges, unnumbered, after the eleven (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      const ids = J.challenges(), bad = [];
+      for (const id of ids) {
+        J.exerciseStart(id); await frame();
+        const before = J.exerciseCheck(), kind = ((rigDoc().querySelector('#exBar .rt-exkind') || {}).textContent || '');
+        for (const [name, f] of Object.entries(J.exerciseAnswer(id))) J.set(name, f);
+        await frame(); await frame();
+        const after = J.exerciseCheck(), bar = (rigDoc().getElementById('exBar') || {}).textContent || '';
+        if (!(before === false && after === true && kind === 'Challenge' && /Solved: /.test(bar) && /All challenges/.test(bar) && !/Exercise \d+ of/.test(bar))) bad.push({ id, before, after, kind, bar });
+      }
+      J.exerciseLeave();
+      rigDoc().getElementById('btnExercises').click(); await frame();
+      const dlg = rigDoc().getElementById('exDialog'), lists = dlg ? dlg.querySelectorAll('.rt-exlist') : [];
+      const listed = lists.length === 2 && lists[0].children.length === J.exercises().length && lists[1].children.length === ids.length && lists[1].classList.contains('rt-chlist') && !!dlg.querySelector('#exChallenges');
+      if (dlg) dlg.close();
+      try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
+      if (bad.length || !listed) console.log('challenges', { bad, listed });
+      return ids.length && !bad.length && listed ? 1 : 0;
+    },
+  },
+  {
     name: 'and the wrong tries do not pass: one mirror for both irises, one wave plate, the filter left flat',
     why: 'turning only Mirror 2 gives no light through both irises; the quarter-wave plate alone reaches 0.994 mW, under 0.995; Filter 2 at 0° gives 0.36 mW, under 0.9 (1 when all three fail)',
     want: 1, tol: 0, unit: '',

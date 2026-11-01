@@ -110,7 +110,7 @@ import { landingDue, showLanding } from './landing.js';
 import { phosphorRead } from './phosphor.js';
 import { renderFrame } from '../io/figure.js';
 import { exerciseLeave, exerciseOn, exerciseOptimise, exerciseSync, exerciseTick, startExercise, wireChallenge } from './challenge.js';
-import { EXERCISES, exerciseArrival, exerciseById } from '../core/exercises.js';
+import { CHALLENGES, EXERCISES, exerciseArrival, exerciseById } from '../core/exercises.js';
 
 /* Recording mode (J.kiosk, ?kiosk): the busy banner, the side panel, the notes (welcome, empty bench, From Instagram,
    sign-in), toasts, the minimap and the coordinates hidden, nothing selected; opts.all hides the parts rail and the
@@ -497,8 +497,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     aiFieldCoverage() { const miss = []; for (const t of Object.keys(TYPE_LABEL)) for (const k of aiFieldsOf(t)) if (!(AI_FIELDS[t] || {})[k]) miss.push(t + '.' + k); for (const t of Object.keys(TYPE_LABEL)) if (!AI_ANGLE[t] || !AI_WHAT[t]) miss.push(t); return miss; },
     importText(text) { const n = openProjectData(parseProjectText(text), 'test'); return n.map(x => x.replace(/<[^>]+>/g, '')); },
     measures() { return JSON.parse(JSON.stringify(project.measures || [])); },
-    // the exercises (ui/challenge.js): started as from Help, the state of the one on, out of it, the goal read now
+    // the exercises and the reels' challenges (ui/challenge.js): started as from Help, the state of the one on, out of it, the goal read now
     exercises: () => EXERCISES.map(x => x.id),
+    challenges: () => CHALLENGES.map(x => x.id),
     exerciseStart(id, from) { return startExercise(id, from || 'help'); },
     exerciseState() { const E = exerciseOn(); return E ? { id: E.ex.id, solved: E.solved, changes: E.changes, values: E.values.slice(), title: E.title } : null; },
     exerciseLeave() { exerciseLeave(true); },

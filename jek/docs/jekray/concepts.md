@@ -38,6 +38,8 @@ What the angle *means* depends on the element:
 
 To fold a beam travelling in direction $$a$$ into direction $$b$$, a plane mirror faces $$(a + 180° + b)/2$$. For example, a beam travelling +x (0°) sent up to +y (90°) needs a mirror at 135°.
 
+**A screen's own across axis.** A screen (or photodetector) reads positions across its face along its own local +y, 90° anticlockwise from the way it faces. One facing −x (angle 180°) has its +y pointing down the bench, so a ray 2 mm above the axis reads y = −2 on it. A script that wants bench positions reads `bx`, `by` from `J.hitsOn` beside `y`.
+
 **Out of the plane.** A free-space part also has a height **z** above the breadboard (75 mm is the beam height), a **Tip** about its own across axis and a **Roll** about its own axis. In the plane they are 75 mm, 0 and 0, and the light is traced in three dimensions through whatever they are set to (see [Heights](/jek/docs/jekray/free-space/#heights)).
 
 ## Surfaces

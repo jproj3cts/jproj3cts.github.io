@@ -521,12 +521,12 @@
     {
      "k": "shape",
      "def": "\"right\"",
-     "meaning": "one of the prism shapes below."
+     "meaning": "one of the prism shapes below. The equilateral prism's apex points along +x at angle 0, so a beam along +x meets the apex; a pentaprism or Pellin–Broca prism takes light in along +x through its first face."
     },
     {
      "k": "size",
      "def": "20",
-     "meaning": "mm."
+     "meaning": "mm (a pentaprism's or Pellin–Broca's first face; ignored for a polygon)."
     },
     {
      "k": "thickness",

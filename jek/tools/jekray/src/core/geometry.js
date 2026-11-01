@@ -216,6 +216,29 @@ export function lensStacks(ss) {
   }
   return out;
 }
+/* A polygon walked round from its first corner: each side's length (times the size) and the turn after it (degrees,
+   to the left); the light's way in is through the first side, from -x */
+function walkPoly(W, size) {
+  let x = 0, y = 0, a = 90 * deg;                                // the first side up the left, its outside to -x
+  const out = [];
+  for (const [len, turn] of W) { out.push([x, y]); x += len * size * Math.cos(a); y += len * size * Math.sin(a); a += turn * deg; }
+  return out.map(([px, py]) => [px, -py]);                      // turned over: counter-clockwise, as the other shapes, its faces in the order walked
+}
+// the outline about its middle (the mean of its corners), so it turns about where it is
+function centred(P) {
+  const cx = P.reduce((t, p) => t + p[0], 0) / P.length, cy = P.reduce((t, p) => t + p[1], 0) / P.length;
+  return P.map(p => [p[0] - cx, p[1] - cy]);
+}
+/* A pentaprism: the face the light comes in by and the face it leaves by at 90°, the other corners 112.5°; between
+   them two faces that each reflect it (silvered: at 22.5° the light would not be totally reflected) and a short top.
+   Light in along +x leaves along +y, turned 90° whatever the prism's small tilt. Sides: in a, mirror 1.082a, top
+   0.586a, mirror 1.082a, out a */
+const PENTA = [[1, -67.5], [1.0824, -67.5], [0.5858, -67.5], [1.0824, -67.5], [1, -90]];
+/* A Pellin–Broca prism: corners of 90°, 75°, 135° and 60°; light at one wavelength leaves turned 90° (reflected inside
+   off its long face), and turning the prism picks the wavelength */
+const PELLIN = [[1, -90], [0.7673, -105], [0.6822, -45], [0.6822, -120]];
+/* which of a prism's faces are silvered: its own list (mirrored, face indices), or the pentaprism's two */
+export const prismMirrored = el => Array.isArray(el.mirrored) ? el.mirrored : el.shape === 'penta' ? [1, 3] : [];
 /* Outline of a glass block in the element's local frame, counter-clockwise */
 export function polyVerts(el) {
   const a = el.size / 2;
@@ -231,17 +254,19 @@ export function polyVerts(el) {
     const hgt = el.size * Math.sqrt(3) / 2;
     return [[-hgt / 3, -a], [2 * hgt / 3, 0], [-hgt / 3, a]];     // apex points along +x
   }
+  if (el.shape === 'penta' || el.shape === 'pellin') return centred(walkPoly(el.shape === 'penta' ? PENTA : PELLIN, el.size));
+  if (el.shape === 'polygon') return centred(el.verts && el.verts.length >= 3 ? el.verts.map(p => [p[0], p[1]]) : [[-a, -a], [a, -a], [0, a]]);
   return [[-a, -a], [a, -a], [-a, a]];                              // right angle at (−a, −a)
 }
 export function polySurfaces(el) {
-  const V = polyVerts(el), out = [];
+  const V = polyVerts(el), out = [], mir = el.type === 'prism' ? prismMirrored(el) : [];
   for (let i = 0; i < V.length; i++) {
     const [x1, y1] = V[i], [x2, y2] = V[(i + 1) % V.length];
     const len = Math.hypot(x2 - x1, y2 - y1);
     const nx = (y2 - y1) / len, ny = -(x2 - x1) / len;           // outward normal
     // face frame: local +x along the outward normal, so glass is "front" and air "back"
     out.push(makeSurf(el, 0, 0, 0, 0, [], len / 2, {
-      kind: 'refract', coat: el.coat, front: el.material, back: { glass: 'AIR' },
+      kind: 'refract', coat: mir.includes(i) ? { mode: 'mirror', R: 100, metal: 'Ag' } : el.coat, front: el.material, back: { glass: 'AIR' },
       lf: { x: (x1 + x2) / 2, y: (y1 + y2) / 2, a: Math.atan2(ny, nx) },
     }));
   }

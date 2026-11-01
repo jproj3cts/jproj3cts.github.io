@@ -289,8 +289,8 @@ A glass prism or window.
 
 | field | default | meaning |
 |---|---|---|
-| shape | `"right"` | one of the prism shapes below. |
-| size | `20` | mm. |
+| shape | `"right"` | one of the prism shapes below. The equilateral prism's apex points along +x at angle 0, so a beam along +x meets the apex; a pentaprism or Pellin–Broca prism takes light in along +x through its first face. |
+| size | `20` | mm (a pentaprism's or Pellin–Broca's first face; ignored for a polygon). |
 | thickness | `5` | mm (for a window). |
 | material | `{"glass":"N-BK7","abs":0}` | e.g. {"glass": "N-BK7"}. |
 | coat | `{"mode":"bare","R":4}` | coating on its faces. |
@@ -1071,7 +1071,7 @@ Optical parts have electrical ports after their fibre ports: a "detector" (free 
 
 **Crystal shapes** ("shape" of a crystal): "displacer" (Beam displacer), "wollaston" (Wollaston prism), "glan" (Glan–Taylor polariser).
 
-**Prism shapes**: "right" (Right-angle prism), "equilateral" (Equilateral prism), "window" (Window), "dove" (Dove prism).
+**Prism shapes**: "right" (Right-angle prism), "equilateral" (Equilateral prism), "window" (Window), "dove" (Dove prism), "penta" (Pentaprism), "amici" (Amici roof prism), "pellin" (Pellin–Broca prism), "polygon" (Polygon (its corners)).
 
 **Stop shapes**: "round" (Iris), "slit" (Slit), "double" (Double slit), "comb" (Slit comb), "knife" (Knife edge), "disc" (Beam block).
 

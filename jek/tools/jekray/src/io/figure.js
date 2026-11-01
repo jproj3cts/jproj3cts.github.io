@@ -229,6 +229,41 @@ function technicalFigure(o) {
   return { g, unit: 'pt', dpi: 300, note: o.sheet + ' landscape, scale ' + ratio[1] + (callouts ? ', ' + parts.length + ' parts listed' : '') };
 }
 
+/* the bench's own ground under a picture of it: its colour, and its 25 mm holes as the bench draws them (big: their
+   size against a screen's), the picture's box at (ox, oy), s picture pixels to a canvas pixel */
+function figGround(g, SW, SH, box, ox, oy, s, big) {
+  const light = benchLight();
+  g.fillStyle = benchBg(); g.fillRect(0, 0, SW, SH);
+  if (!benchHoles()) return;
+  const k = V().scale * s, r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * k)) * big;
+  const wxOf = X => (X - ox) / s + box.x, wyOf = Y => (Y - oy) / s + box.y;           // picture to canvas pixels
+  const toW = (px, py) => [V().cx + (px - W / 2) / V().scale, V().cy - (py - H / 2) / V().scale];
+  const [a0, b1] = toW(wxOf(0), wyOf(0)), [a1, b0] = toW(wxOf(SW), wyOf(SH));
+  g.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
+  if (25 * k > 6) for (let x = Math.floor(a0 / 25) * 25; x <= a1; x += 25) for (let y = Math.floor(b0 / 25) * 25; y <= b1; y += 25) {
+    g.beginPath(); g.arc(ox + (sx(x) - box.x) * s, oy + (sy(y) - box.y) * s, r, 0, 2 * Math.PI); g.fill();
+  }
+}
+/* One frame of the bench, as it looks, at a size of its own (J.renderPNG, for frame-by-frame video): width × height
+   pixels, the view { cx, cy, scale } given (scale in the frame's own pixels a mm) or the bench's own. A PNG's data URL. */
+export function renderFrame(o = {}) {
+  let in3d = false;
+  try { in3d = V3D.active(); } catch (err) { in3d = false; }
+  if (in3d) return Promise.reject(new Error('switch to the 2D view first'));
+  const FW = Math.max(16, Math.min(8192, Math.round(o.width || W))), FH = Math.max(16, Math.min(8192, Math.round(o.height || H)));
+  const keep = Object.assign({}, V()), k = Math.min(W / FW, H / FH), view = o.view || keep;
+  let F;
+  try {
+    Object.assign(V(), { cx: view.cx, cy: view.cy, scale: (o.view ? view.scale : keep.scale * Math.min(FW / W, FH / H)) * k });
+    const rec = figRecord({ plain: true, labels: o.labels === false ? false : undefined });
+    const box = { x: W / 2 - FW * k / 2, y: H / 2 - FH * k / 2, w: FW * k, h: FH * k }, g = new VecCtx(FW, FH, { res: 1 });
+    figGround(g, FW, FH, box, 0, 0, 1 / k, 1);
+    figPlace(g, rec, box, 0, 0, 1 / k, 0);
+    F = { g, unit: '', dpi: 72, opts: { fmt: 'png' } };
+  } finally { Object.assign(V(), keep); requestRender(); }
+  return figurePng(F).then(b => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => no(fr.error); fr.readAsDataURL(b); }));
+}
+
 /* ---- Presentation ---- */
 function slidesFigure(o) {
   const [SW, SH] = o.size === '43' ? [1600, 1200] : [1920, 1080];
@@ -236,18 +271,7 @@ function slidesFigure(o) {
   const { rec, box, s } = figFitted(fig, Math.round(SH / 40), b => Math.min(SW * 0.9 / b.w, SH * 0.86 / b.h));
   const g = new VecCtx(SW, SH, { res: 1 });
   const ox = (SW - box.w * s) / 2, oy = (SH - box.h * s) / 2, light = benchLight();
-  g.fillStyle = benchBg(); g.fillRect(0, 0, SW, SH);
-  if (benchHoles()) {
-    // the breadboard's 25 mm holes, as the bench draws them, over the whole slide
-    const k = V().scale * s, r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * k)) * SH / 800;   // as on a screen, a little larger for a slide's pixels
-    const wxOf = X => (X - ox) / s + box.x, wyOf = Y => (Y - oy) / s + box.y;           // slide to canvas pixels
-    const toW = (px, py) => [V().cx + (px - W / 2) / V().scale, V().cy - (py - H / 2) / V().scale];
-    const [a0, b1] = toW(wxOf(0), wyOf(0)), [a1, b0] = toW(wxOf(SW), wyOf(SH));
-    g.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
-    if (25 * k > 6) for (let x = Math.floor(a0 / 25) * 25; x <= a1; x += 25) for (let y = Math.floor(b0 / 25) * 25; y <= b1; y += 25) {
-      g.beginPath(); g.arc(ox + (sx(x) - box.x) * s, oy + (sy(y) - box.y) * s, r, 0, 2 * Math.PI); g.fill();
-    }
-  }
+  figGround(g, SW, SH, box, ox, oy, s, SH / 800);
   figPlace(g, rec, box, ox, oy, s, 1);
   figSay(g, 'Made with JEKray · jeksys.net', SW - 24, SH - 20, { size: Math.round(SH / 70), align: 'right', ink: light ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)' });
   return { g, unit: '', dpi: 72, note: SW + ' × ' + SH + ' pixels, the bench as it looks' };

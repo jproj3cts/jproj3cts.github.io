@@ -21,6 +21,14 @@ In the prism's own frame, with its size $$a$$:
 | Equilateral prism | an equilateral triangle of side $$a$$, its apex pointing along the prism's angle |
 | Window | a plate of thickness $$t$$ and height $$a$$ |
 | Dove prism | a trapezoid of height $$a$$ and length $$4.224\,a$$ (as catalogue N-BK7 ones are), its base below and its ends cut at $$45°$$ |
+| Pentaprism | the five-sided prism of a camera's viewfinder, faces $$a$$ to $$1.08\,a$$: light in through one face leaves through the next at $$90°$$, whatever the prism's tilt, after two reflections off its two silvered faces (faces 1 and 3, counting from 0) |
+| Amici roof prism | drawn as the right-angle prism (the roof is a pair of faces across the bench, which the plane view cannot show): it turns light through $$90°$$ as the right-angle prism does; the roof's extra flip, side to side, is not traced |
+| Pellin–Broca prism | a four-sided prism of side $$a$$, angles $$90°$$, $$75°$$, $$135°$$ and $$60°$$: one wavelength, coming in near Brewster's angle, leaves at $$90°$$ after a total internal reflection, the angle set by turning the prism |
+| Polygon | the corners you give, in mm in the prism's own frame (x, y pairs, 3 to 16, in order round the shape) |
+
+**Apex.** An equilateral prism's apex points along its angle (+x in its own frame), its base behind: at angle 0 a beam travelling +x meets the base side and the light leaves bent away from the apex, towards the base. Turn it by 180° for the apex the other way. Any shape's faces can be **silvered** (the faces by number, the first face 0, round the shape), as a pentaprism's two reflecting faces come.
+
+A Pellin–Broca prism sends light at exactly $$90°$$ only for the wavelength that crosses it at minimum deviation, at the angle where it meets the first face near Brewster's angle; for N-BK7 at 633 nm, light along +x, that is with the prism turned about $$50°$$. Turning it tunes which wavelength leaves at $$90°$$, as the prism is used to pick one line from a laser.
 
 The prism turns about its centre.
 

@@ -313,7 +313,7 @@ export function setExporting(v) { return (exporting = v); }
 export let lastTrace = { rays: [], screens: {} };
 export function setLastTrace(v) { return (lastTrace = v); }
 
-function subFrame(f, lf) {
+export function subFrame(f, lf) {
   const [ox, oy] = toWorld(f, lf.x, lf.y);
   const a = Math.atan2(f.s, f.c) + lf.a;
   return { ox, oy, c: Math.cos(a), s: Math.sin(a) };
@@ -447,6 +447,19 @@ export function traceSceneRaw() {
    a cross, n across and n up; a square grid of n by n, trimmed to the round beam; or hexapolar,
    rings of 6, 12, 18... about the middle, as lens design programs trace a pupil. */
 export const RAY_PATTERNS = [['line', 'A line across the bench'], ['cross', 'A cross: across and up'], ['grid', 'A grid across the beam'], ['hex', 'Hexapolar rings']];
+/* A line of n rays standing for a round beam (a source's round): each ray's power the area of the ring of the beam it
+   stands for, from its distance off the middle (half the spacing either side), so an aperture of half the width passes a
+   quarter, as a real round beam's would. As a mean of 1: the beam's power is the same. Rays at at(i) across [-1/2, 1/2] */
+export function roundWeights(n) {
+  if (n <= 1) return [1];
+  const dt = 1 / (n - 1), w = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.abs(i / (n - 1) - 0.5), r0 = Math.max(0, r - dt / 2), r1 = Math.min(0.5 + dt / 2, r + dt / 2);
+    w.push((r1 * r1 - r0 * r0) / (r === 0 ? 1 : 2));          // a ring is shared by the two rays either side of the middle
+  }
+  const m = w.reduce((a, b) => a + b, 0) / n;
+  return w.map(v => v / m);
+}
 export function rayPattern(src, n) {
   const pat = src.pattern || 'line', out = [], at = i => n === 1 ? 0 : i / (n - 1) - 0.5;
   if (pat === 'line' || n <= 1) { for (let i = n - 1; i >= 0; i--) out.push([at(i), 0, i]); return out; }
@@ -725,6 +738,7 @@ function traceSceneOnce() {
   const ghosts = project.ghosts;
   const anyZ = anyHeights();
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
+  const raySc = {};
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
@@ -788,7 +802,10 @@ function traceSceneOnce() {
     const pat = rayPattern(src, n);
     emitted += pat.length;
     emittedBy[src.id] = (emittedBy[src.id] || 0) + pat.length * sAmp * sAmp;
+    raySc[src.id] = lmw / Math.max(1, pat.length);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
+    const RW = src.round && (src.pattern || 'line') === 'line' && n > 1 ? roundWeights(n) : null;
     for (const [t0, u0, i] of pat) {
+      const g = RW ? Math.sqrt(RW[i]) : 1;                       // a round beam's ring, as an amplitude
       // and its pattern across the beam with it
       const t = src.roll ? t0 * rc - u0 * rs : t0, u = src.roll ? t0 * rs + u0 * rc : u0;
       const a = (src.angle + t * src.divergence) * deg;
@@ -799,7 +816,7 @@ function traceSceneOnce() {
       for (const st of states) {
         stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
           dx: Math.cos(a) * ce, dy: Math.sin(a) * ce,
-          sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3],
+          sr: amp(st)[0] * g, si: amp(st)[1] * g, pr: amp(st)[2] * g, pi: amp(st)[3] * g,
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
           fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
       }
@@ -1157,7 +1174,7 @@ function traceSceneOnce() {
           // it is nothing at all, so its field carries on unchanged.
           const P = linkTo.get(s.el.id);
           if (!P || !P.s) { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
-          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
+          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
           [px, py] = toWorld(P.s.f, lx, ly);
           [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
           bn = P.el.bench;
@@ -1523,7 +1540,7 @@ function traceSceneOnce() {
                 hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
-              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
+              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
               pts.length = 0; pts.push(px, py);
             }
           }
@@ -1741,21 +1758,21 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
+      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
     }
     }
   }
   };
   runSources(project.elements);
   // The fibre network, from what reached its tips, and the light it sends back out of them
-  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
+  lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
   let net = fibreNetCached();
   // on a second pass, what the tips sent out last pass, which already includes the light
   // that came back into them
   const vs = tipCarry || tipSources(net);
   setVSRC(new Map(vs.map(v => [v.id, v])));
   if (vs.length) runSources(vs);
-  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
+  lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
   // Light the tips sent out may come back into a fibre (off a mirror into the same tip, or
   // across to another): the network again with it, so it reaches the photodiodes. If that
@@ -1801,14 +1818,14 @@ function traceSceneOnce() {
     const shg = nlcSources(nlcDone);
     for (const v of shg) VSRC.set(v.id, v);
     runSources(shg);
-    lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
+    lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
   }
   if (hasGain) {
     const las = laserSources();
     if (las.length) {
       for (const v of las) VSRC.set(v.id, v);
       runSources(las);
-      lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
+      lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
       setCavCache(null);
     }
   }

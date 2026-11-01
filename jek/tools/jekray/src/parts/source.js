@@ -22,6 +22,8 @@ export const SOURCE = {
       soft: Math.max(0, num(e.soft, 0)),                        // used only when not automatic; the panel shows the automatic one
       divergence: clamp(num(e.divergence, 0), -179, 179),
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
+      // a line of rays carrying a round beam's power: each as much as the ring of the beam it stands for (engines/trace.js roundWeights)
+      ...(e.round === true ? { round: true } : {}),
       gauss: e.gauss === true,
       w0: Math.max(1e-4, num(e.w0, 0.35)),
       z0: num(e.z0, 0),
@@ -56,6 +58,7 @@ export const SOURCE = {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
     angle: 'the direction the light leaves in (0 = travelling +x).',
     fields: {
+      round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
     divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',

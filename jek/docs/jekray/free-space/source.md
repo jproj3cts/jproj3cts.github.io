@@ -34,6 +34,8 @@ The fan is a line across the source, in the bench plane. A source can lay its ra
 
 A ray $$s$$ of the width up starts that far above the source's height, rising at the angle $$s\,\Theta$$. A source with a **Tip** $$\tau$$ sends all of its light up at $$\tau$$ more (down, for a negative tip). Every ray is traced exactly in 3D (see [heights](/jek/docs/jekray/free-space/#heights)). A screen's **Rays** tab then has a spot diagram, across against up, with the aberrations as they are.
 
+A line of rays stands for the light all across the beam, but in the plane view each ray carries an equal share of the power, as if the beam were a strip. Tick **Power as across a round beam** (for a line, with more than one ray) and each ray carries the share of a round beam's power in the slice of the disc it stands for: the edge rays less, the middle ones more. Then an iris closed to half the beam's width passes 48.5 % of the light (the share of a uniform disc's area within a strip half its width), not 50 %, and so the power read through a round stop matches what a round beam would give.
+
 ### The fan's diffracted field
 
 Without a Gaussian beam, the diffracted field starts from the fan as a uniform top-hat of its width, curved to its divergence. Its **edge softness** is the distance over which the edge rises from 10% to 90%, a Gaussian blur of the top-hat:

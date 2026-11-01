@@ -996,6 +996,7 @@
   @keyframes rt-flash { 0% { box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.9); } 100% { box-shadow: var(--jek-shadow, 0 4px 14px rgba(0,0,0,0.2)); } }
   .rt-btn.rt-pulse { position: relative; z-index: 2; animation: rt-pulse 1.4s ease-in-out infinite; border-color: var(--jek-orange) !important; }
   @keyframes rt-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(244, 121, 62, 0.75); } 50% { box-shadow: 0 0 0 7px rgba(244, 121, 62, 0); } }
+  .rt-empty[hidden] { display: none; }
   .rt-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; max-width: min(26rem, calc(100% - 2rem)); padding: 1rem 1.1rem;
     text-align: center; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 2px; box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
   .rt-empty p { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--jek-ink-soft); }
@@ -1785,6 +1786,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-welcome.rt-landing, #welcome, .rt-coach { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
 .rt-landacct { border-top: 1px solid var(--jek-line, #ddd5c6); padding-top: 0.55rem; margin-bottom: 0.4rem; }
 .rt-landacct p { font-size: 0.85rem; }
+/* Recording mode (ui/boot.js kioskSet): the bench alone */
+.rt-kiosk .rt-activity, .rt-kiosk #emptyHint, .rt-kiosk #igLanding, .rt-kiosk #welcome, .rt-kiosk .rt-nudge, .rt-kiosk .rt-coach, .rt-kiosk .rt-toast,
+.rt-kiosk .rt-panel, .rt-kiosk #minimap, .rt-kiosk .rt-coords, .rt-kiosk .rt-sidetab, .rt-kiosk .rt-drawhint, .rt-kiosk .rt-picker { display: none !important; }
+.rt-kiosk .rt-grid { grid-template-columns: 1fr !important; }
+.rt-kiosk-all .rt-rail, .rt-kiosk-all .rt-flyout, .rt-kiosk-all .rt-benchtabs, .rt-kiosk-all .rt-v3dswitch { display: none !important; }
 </style>
 </head>
 <body>
@@ -1876,6 +1882,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitemcheckbox" id="btnSquare" aria-checked="false" data-icon="check" title="New fibres, wires and waveguides laid square, as in a schematic: click for each corner. Links already laid keep their own way; a link’s panel changes it">Lay new links square</button>
             <button type="button" role="menuitem" id="btnNamesUp" title="Parts' names bigger on the bench, at every zoom">Larger names</button>
             <button type="button" role="menuitem" id="btnNamesDown" title="Parts' names smaller on the bench, at every zoom">Smaller names</button>
+            <button type="button" role="menuitemcheckbox" id="btnNamesFixed" aria-checked="false" data-icon="check" title="Parts' names the same size on the screen at any zoom, rather than a size on the bench (exports and figures keep their own sizes)">Names a fixed size on screen</button>
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnRailToggle" aria-checked="true" data-icon="check">Parts rail on the bench</button>
             <button type="button" role="menuitem" data-icon="parts" id="viewAddPart">Add a part…<span class="k">A</span></button>
@@ -6677,6 +6684,48 @@ function packTrustHelp(t) {
   return L.cls === 'ok' ? 'Signed by the organisation ' + t.by.name + ', which has shown that the web domain ' + t.by.domain + ' is its own, and unchanged since.'
     : L.cls === 'signed' ? 'Signed with that JEKray account, and unchanged since. The name is the one the account gives itself: no one has checked who is behind it.' : '';
 }
+/* Bend loss in single-mode fibre: a fibre wound round a radius R loses light from its fundamental mode, the more the
+   tighter the bend and the longer the wavelength. Marcuse's formula for a step-index fibre's LP01 mode (D. Marcuse,
+   "Curvature loss formula for optical fibers", J. Opt. Soc. Am. 66, 216 (1976)), its power lost per metre of bend:
+
+     alpha = sqrt(pi) kappa^2 exp(-2 gamma^3 R / (3 beta^2)) / (2 gamma^(3/2) V^2 sqrt(R) K1(gamma a)^2)
+
+   with the core's radius a and numerical aperture NA, V = k a NA, the mode's normalised constant b from V (Rudolph and
+   Neumann's fit, good for 1.5 < V < 2.5), beta^2 = k^2 (n2^2 + b NA^2), kappa^2 = n1^2 k^2 - beta^2 (in the core) and
+   gamma^2 = beta^2 - n2^2 k^2 (in the cladding). Standard single-mode fibre (SMF-28: a 4.1 um, NA 0.13 effective) is taken for
+   every kind but multimode, whose bend loss is not modelled. Checked against Corning's figures: test/node/physics-fibre.test.mjs. */
+const BEND_FIBRE = { a: 4.1e-6, na: 0.13, n2: 1.444 };      // SMF-28's core; its NA the effective one that matches Corning's bend figures (0.14 is the datasheet's)
+
+// the modified Bessel function K1 (Abramowitz and Stegun 9.8.3, 9.8.7, 9.8.8: to about 1e-7)
+function besselK1(x) {
+  if (!(x > 0)) return Infinity;
+  if (x <= 2) {
+    const t = x / 3.75, t2 = t * t;
+    const I1 = x * (0.5 + t2 * (0.87890594 + t2 * (0.51498869 + t2 * (0.15084934 + t2 * (0.02658733 + t2 * (0.00301532 + t2 * 0.00032411))))));
+    const y = (x / 2) * (x / 2);
+    return (x * Math.log(x / 2) * I1 + 1 + y * (0.15443144 + y * (-0.67278579 + y * (-0.18156897 + y * (-0.01919402 + y * (-0.00110404 + y * -0.00004686)))))) / x;
+  }
+  const z = 2 / x;
+  return Math.exp(-x) / Math.sqrt(x) * (1.25331414 + z * (0.23498619 + z * (-0.0365562 + z * (0.01504268 + z * (-0.00780353 + z * (0.00325614 + z * -0.00068245))))));
+}
+
+/* dB lost in one turn round a radius R (mm) at a wavelength (nm), for a fibre { a (m), na, n2 } */
+function bendDbPerTurn(Rmm, nm, fib = BEND_FIBRE) {
+  if (!(Rmm > 0) || !(nm > 0)) return 0;
+  const k = 2 * Math.PI / (nm * 1e-9), a = fib.a, NA = fib.na, n2 = fib.n2, n1 = Math.sqrt(n2 * n2 + NA * NA), V = k * a * NA;
+  if (V < 0.8) return Infinity;                                    // the mode barely guided: all of it goes in a bend
+  const b = Math.max(1e-6, Math.min(1, (1.1428 - 0.996 / V) ** 2));
+  const beta2 = k * k * (n2 * n2 + b * NA * NA), kappa = Math.sqrt(Math.max(0, n1 * n1 * k * k - beta2)), gamma = Math.sqrt(Math.max(1e-30, beta2 - n2 * n2 * k * k));
+  const R = Rmm * 1e-3, K = besselK1(gamma * a);
+  const alpha = Math.sqrt(Math.PI) * kappa * kappa * Math.exp(-2 * gamma ** 3 * R / (3 * beta2)) / (2 * gamma ** 1.5 * V * V * Math.sqrt(R) * K * K);
+  return 10 / Math.LN10 * alpha * 2 * Math.PI * R;
+}
+/* a fibre link's bend loss (dB) at a wavelength: its bendR (mm) wound turns times; none for multimode or no bend */
+function fibreBendDb(F, nm) {
+  if (!F || !(F.bendR > 0) || F.ftype === 'mm') return 0;
+  const n = F.turns > 0 ? F.turns : 1;
+  return Math.min(300, n * bendDbPerTurn(F.bendR, nm));
+}
 /* The tasters (io/tasters.js; jek-api src/tasters.js keeps the count): the JEKrayPro work a free account may try a
    few times a month, by the name its gate gives it (ui/pro.js designPro, ui/scripts.js), and what each is called. Share
    links ('share') are not a month's uses but a free account's links kept at once (jek-api src/links.js FREE_LINKS). */
@@ -8948,6 +8997,8 @@ const SOURCE = {
       soft: Math.max(0, num(e.soft, 0)),                        // used only when not automatic; the panel shows the automatic one
       divergence: clamp(num(e.divergence, 0), -179, 179),
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
+      // a line of rays carrying a round beam's power: each as much as the ring of the beam it stands for (engines/trace.js roundWeights)
+      ...(e.round === true ? { round: true } : {}),
       gauss: e.gauss === true,
       w0: Math.max(1e-4, num(e.w0, 0.35)),
       z0: num(e.z0, 0),
@@ -8982,6 +9033,7 @@ const SOURCE = {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
     angle: 'the direction the light leaves in (0 = travelling +x).',
     fields: {
+      round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
     divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
@@ -9019,6 +9071,8 @@ const MIRROR = {
       ...(normF(e.F) ? { F: normF(e.F) } : {}),
       R: (isFinite(e.R) && e.R !== 0 && e.R !== null) ? +e.R : null,
       gdd: num(e.gdd, 0),                            // fs^2 a reflection: a chirped mirror
+      // a hole through its middle (mm across): light inside it goes on through, as into a cavity or a multipass cell
+      ...(num(e.hole, 0) > 0 ? { hole: clamp(num(e.hole, 0), 0, 0.95 * Math.max(0.1, num(e.length, 25))) } : {}),
       // a metal mirror (RF): its conductor, for its loss; a film beam splitter: a dielectric sheet, index and thickness (mm)
       ...(RF_METALS[e.metal] ? { metal: e.metal } : {}),
       ...(e.film && typeof e.film === 'object' ? { film: { n: clamp(num(e.film.n, 1.73), 1, 20), t: clamp(num(e.film.t, 0.1), 1e-4, 100) } } : {}),
@@ -9031,7 +9085,7 @@ const MIRROR = {
   guide: {
     what: 'A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if reflect < 100.',
     angle: 'the direction its reflecting face points (its normal, towards the light it reflects).',
-    fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).',
+    fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).', hole: 'mm across: a hole through its middle that light passes through (0 or left out: none).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
     k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', F: 'optional: freeform terms {"mn": c_mn}, c_mn x^m y^n added to the sag (x up out of the bench plane, y across the mirror; m even).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
@@ -9218,6 +9272,9 @@ const PRISM = {
   norm(e, base) {
     return Object.assign(base, {
       shape: PRISM_SHAPES[e.shape] ? e.shape : 'right',
+      // a polygon's corners (mm, about its middle; 3 to 16), and the faces silvered (their indices from the first corner)
+      ...(e.shape === 'polygon' ? { verts: polyCorners(e.verts) } : {}),
+      ...(Array.isArray(e.mirrored) ? { mirrored: [...new Set(e.mirrored.map(Math.round).filter(i => i >= 0 && i < 16))].sort((a, b) => a - b) } : {}),
       size: Math.max(0.1, num(e.size, 20)),
       thickness: Math.max(0.1, num(e.thickness, 5)),
       material: normMat(e.material),
@@ -9230,7 +9287,9 @@ const PRISM = {
   guide: {
     what: 'A glass prism or window.',
     angle: 'rotates the prism about its centre; check the result on the bench.',
-    fields: { shape: 'one of the prism shapes below.', size: 'mm.', thickness: 'mm (for a window).', material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.' },
+    fields: { shape: 'one of the prism shapes below. The equilateral prism\'s apex points along +x at angle 0, so a beam along +x meets the apex; a pentaprism or Pellin–Broca prism takes light in along +x through its first face.', size: 'mm (a pentaprism\'s or Pellin–Broca\'s first face; ignored for a polygon).', thickness: 'mm (for a window).',
+      verts: 'a polygon\'s corners, [[x, y], ...] in mm, 3 to 16, in order round it.', mirrored: 'the faces silvered, by index from the first corner\'s face (a pentaprism\'s two are by default).',
+      material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.' },
   },
 };
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
@@ -9885,7 +9944,7 @@ const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
 const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 const deg = Math.PI / 180;
 
-const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window', dove: 'Dove prism' };
+const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window', dove: 'Dove prism', penta: 'Pentaprism', amici: 'Amici roof prism', pellin: 'Pellin\u2013Broca prism', polygon: 'Polygon (its corners)' };
 const DOVE_RATIO = 4.224;              // a Dove prism's length over its height, for N-BK7 (as catalogue ones are)
 const typeLabel = el => el.mod ? modName(el) : el.type === 'lens' && el.mmw ? 'RF lens' : el.grin ? 'GRIN lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
@@ -10404,6 +10463,10 @@ function normLight(L, els) {
     envelope: L && typeof L.envelope === 'boolean' ? L.envelope : was ? was !== 'none' : true,
     field: L && typeof L.field === 'boolean' ? L.field : was ? was === 'field' : any('field'),
     scale: L && (L.scale === 'log' || L.scale === 'log60' || L.scale === 'lin') ? L.scale : (els || []).some(e => e && e.beamView === 'field' && e.beamScale === 'log') ? 'log' : 'lin',
+    // the rays drawn as bright as the power they carry against the bench's strongest (not each source's own),
+    // and, while sweeps play, fading trails of the frames before: kept only when on
+    ...(L && L.byPower === true ? { byPower: true } : {}),
+    ...(L && L.trail === true ? { trail: true } : {}),
   };
 }
 const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
@@ -10422,6 +10485,7 @@ function serialize() {
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
+    ...(project.labelFixed ? { labelFixed: true, labelPx: project.labelPx || 12 } : {}),
     ...(project.elements.some(e => e.mod) ? { mods: modsCarried() } : {}),
     ...(project.style && (project.style.bg || project.style.holes === false) ? { style: project.style } : {}),
   };
@@ -10478,6 +10542,8 @@ function normFibres(list, els) {
       conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
+      // wound round a radius (mm), turns times: its bend loss (core/bend.js)
+      ...(isFinite(F.bendR) && F.bendR > 0 ? { bendR: clamp(+F.bendR, 1, 1000), turns: isFinite(F.turns) && F.turns > 0 ? clamp(+F.turns, 0.01, 1e5) : 1 } : {}),
       wg: F.wg ? PIC.normWg(F.wg) : undefined,                                               // PIC hook: a waveguide on a chip
       route: F.route === 'square' ? 'square' : undefined });                                  // laid square (render.js squarePts)
   }
@@ -10545,6 +10611,7 @@ function loadProject(data) {
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
+  if (data.labelFixed === true) { p.labelFixed = true; p.labelPx = isFinite(data.labelPx) ? clamp(Math.round(+data.labelPx), 6, 40) : 12; }   // or px on the screen
   // the bench's colour and its holes (View › Bench colour)
   const st = data.style && typeof data.style === 'object' ? data.style : {};
   p.style = {};
@@ -10799,6 +10866,29 @@ function lensStacks(ss) {
   }
   return out;
 }
+/* A polygon walked round from its first corner: each side's length (times the size) and the turn after it (degrees,
+   to the left); the light's way in is through the first side, from -x */
+function walkPoly(W, size) {
+  let x = 0, y = 0, a = 90 * deg;                                // the first side up the left, its outside to -x
+  const out = [];
+  for (const [len, turn] of W) { out.push([x, y]); x += len * size * Math.cos(a); y += len * size * Math.sin(a); a += turn * deg; }
+  return out.map(([px, py]) => [px, -py]);                      // turned over: counter-clockwise, as the other shapes, its faces in the order walked
+}
+// the outline about its middle (the mean of its corners), so it turns about where it is
+function centred(P) {
+  const cx = P.reduce((t, p) => t + p[0], 0) / P.length, cy = P.reduce((t, p) => t + p[1], 0) / P.length;
+  return P.map(p => [p[0] - cx, p[1] - cy]);
+}
+/* A pentaprism: the face the light comes in by and the face it leaves by at 90°, the other corners 112.5°; between
+   them two faces that each reflect it (silvered: at 22.5° the light would not be totally reflected) and a short top.
+   Light in along +x leaves along +y, turned 90° whatever the prism's small tilt. Sides: in a, mirror 1.082a, top
+   0.586a, mirror 1.082a, out a */
+const PENTA = [[1, -67.5], [1.0824, -67.5], [0.5858, -67.5], [1.0824, -67.5], [1, -90]];
+/* A Pellin–Broca prism: corners of 90°, 75°, 135° and 60°; light at one wavelength leaves turned 90° (reflected inside
+   off its long face), and turning the prism picks the wavelength */
+const PELLIN = [[1, -90], [0.7673, -105], [0.6822, -45], [0.6822, -120]];
+/* which of a prism's faces are silvered: its own list (mirrored, face indices), or the pentaprism's two */
+const prismMirrored = el => Array.isArray(el.mirrored) ? el.mirrored : el.shape === 'penta' ? [1, 3] : [];
 /* Outline of a glass block in the element's local frame, counter-clockwise */
 function polyVerts(el) {
   const a = el.size / 2;
@@ -10814,17 +10904,19 @@ function polyVerts(el) {
     const hgt = el.size * Math.sqrt(3) / 2;
     return [[-hgt / 3, -a], [2 * hgt / 3, 0], [-hgt / 3, a]];     // apex points along +x
   }
+  if (el.shape === 'penta' || el.shape === 'pellin') return centred(walkPoly(el.shape === 'penta' ? PENTA : PELLIN, el.size));
+  if (el.shape === 'polygon') return centred(el.verts && el.verts.length >= 3 ? el.verts.map(p => [p[0], p[1]]) : [[-a, -a], [a, -a], [0, a]]);
   return [[-a, -a], [a, -a], [-a, a]];                              // right angle at (−a, −a)
 }
 function polySurfaces(el) {
-  const V = polyVerts(el), out = [];
+  const V = polyVerts(el), out = [], mir = el.type === 'prism' ? prismMirrored(el) : [];
   for (let i = 0; i < V.length; i++) {
     const [x1, y1] = V[i], [x2, y2] = V[(i + 1) % V.length];
     const len = Math.hypot(x2 - x1, y2 - y1);
     const nx = (y2 - y1) / len, ny = -(x2 - x1) / len;           // outward normal
     // face frame: local +x along the outward normal, so glass is "front" and air "back"
     out.push(makeSurf(el, 0, 0, 0, 0, [], len / 2, {
-      kind: 'refract', coat: el.coat, front: el.material, back: { glass: 'AIR' },
+      kind: 'refract', coat: mir.includes(i) ? { mode: 'mirror', R: 100, metal: 'Ag' } : el.coat, front: el.material, back: { glass: 'AIR' },
       lf: { x: (x1 + x2) / 2, y: (y1 + y2) / 2, a: Math.atan2(ny, nx) },
     }));
   }
@@ -11109,7 +11201,7 @@ function elementSurfaces(el) {
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
     const c = el.R ? 1 / el.R : 0;
-    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0, FL: ffList(el.F) })];
+    return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0, FL: ffList(el.F), ...(el.hole > 0 ? { hole: el.hole / 2 } : {}) })];
   }
   if (el.type === 'screen') {
     const c = el.R ? 1 / el.R : 0;      // a curved screen: a retina, a film plane on a curve
@@ -11981,6 +12073,19 @@ function traceSceneRaw() {
    a cross, n across and n up; a square grid of n by n, trimmed to the round beam; or hexapolar,
    rings of 6, 12, 18... about the middle, as lens design programs trace a pupil. */
 const RAY_PATTERNS = [['line', 'A line across the bench'], ['cross', 'A cross: across and up'], ['grid', 'A grid across the beam'], ['hex', 'Hexapolar rings']];
+/* A line of n rays standing for a round beam (a source's round): each ray's power the area of the ring of the beam it
+   stands for, from its distance off the middle (half the spacing either side), so an aperture of half the width passes a
+   quarter, as a real round beam's would. As a mean of 1: the beam's power is the same. Rays at at(i) across [-1/2, 1/2] */
+function roundWeights(n) {
+  if (n <= 1) return [1];
+  const dt = 1 / (n - 1), w = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.abs(i / (n - 1) - 0.5), r0 = Math.max(0, r - dt / 2), r1 = Math.min(0.5 + dt / 2, r + dt / 2);
+    w.push((r1 * r1 - r0 * r0) / (r === 0 ? 1 : 2));          // a ring is shared by the two rays either side of the middle
+  }
+  const m = w.reduce((a, b) => a + b, 0) / n;
+  return w.map(v => v / m);
+}
 function rayPattern(src, n) {
   const pat = src.pattern || 'line', out = [], at = i => n === 1 ? 0 : i / (n - 1) - 0.5;
   if (pat === 'line' || n <= 1) { for (let i = n - 1; i >= 0; i--) out.push([at(i), 0, i]); return out; }
@@ -12259,6 +12364,7 @@ function traceSceneOnce() {
   const ghosts = project.ghosts;
   const anyZ = anyHeights();
   let limited = 0, dropped = 0, emitted = 0, absorbed = 0, budget = TRACE_BUDGET, truncated = false;
+  const raySc = {};
   const emittedBy = {};       // source id -> its rays' launch power, a split source's by its share of its laser
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
@@ -12322,7 +12428,10 @@ function traceSceneOnce() {
     const pat = rayPattern(src, n);
     emitted += pat.length;
     emittedBy[src.id] = (emittedBy[src.id] || 0) + pat.length * sAmp * sAmp;
+    raySc[src.id] = lmw / Math.max(1, pat.length);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
+    const RW = src.round && (src.pattern || 'line') === 'line' && n > 1 ? roundWeights(n) : null;
     for (const [t0, u0, i] of pat) {
+      const g = RW ? Math.sqrt(RW[i]) : 1;                       // a round beam's ring, as an amplitude
       // and its pattern across the beam with it
       const t = src.roll ? t0 * rc - u0 * rs : t0, u = src.roll ? t0 * rs + u0 * rc : u0;
       const a = (src.angle + t * src.divergence) * deg;
@@ -12333,7 +12442,7 @@ function traceSceneOnce() {
       for (const st of states) {
         stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
           dx: Math.cos(a) * ce, dy: Math.sin(a) * ce,
-          sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3],
+          sr: amp(st)[0] * g, si: amp(st)[1] * g, pr: amp(st)[2] * g, pi: amp(st)[3] * g,
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
           fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
       }
@@ -12691,7 +12800,7 @@ function traceSceneOnce() {
           // it is nothing at all, so its field carries on unchanged.
           const P = linkTo.get(s.el.id);
           if (!P || !P.s) { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
-          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
+          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
           [px, py] = toWorld(P.s.f, lx, ly);
           [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
           bn = P.el.bench;
@@ -13057,7 +13166,7 @@ function traceSceneOnce() {
                 hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
-              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
+              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
               pts.length = 0; pts.push(px, py);
             }
           }
@@ -13275,21 +13384,21 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn });
+      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
     }
     }
   }
   };
   runSources(project.elements);
   // The fibre network, from what reached its tips, and the light it sends back out of them
-  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
+  lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: null, pulses };
   let net = fibreNetCached();
   // on a second pass, what the tips sent out last pass, which already includes the light
   // that came back into them
   const vs = tipCarry || tipSources(net);
   setVSRC(new Map(vs.map(v => [v.id, v])));
   if (vs.length) runSources(vs);
-  lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
+  lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed,
     system: firstOrder(probes, probeSrc), net, pulses };
   // Light the tips sent out may come back into a fibre (off a mirror into the same tip, or
   // across to another): the network again with it, so it reaches the photodiodes. If that
@@ -13335,14 +13444,14 @@ function traceSceneOnce() {
     const shg = nlcSources(nlcDone);
     for (const v of shg) VSRC.set(v.id, v);
     runSources(shg);
-    lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
+    lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net: lastTrace.net, pulses, cells: cellHits, nlc: nlcDone };
   }
   if (hasGain) {
     const las = laserSources();
     if (las.length) {
       for (const v of las) VSRC.set(v.id, v);
       runSources(las);
-      lastTrace = { rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
+      lastTrace = { raySc, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
       setCavCache(null);
     }
   }
@@ -13805,6 +13914,7 @@ function benchStyleShown() {
       h('span', { class: 'rt-swatch' + (c ? '' : ' auto'), style: c ? 'background:' + c : null }), name, v === themePref ? h('span', { class: 'k' }, '✓') : null)),
     h('span', { class: 'rt-menunote' }, 'Yours, kept in this browser: a bench opens in your theme, whoever made it. Exported pictures come out in it too.'));
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
+  const nf = document.getElementById('btnNamesFixed'); if (nf) nf.setAttribute('aria-checked', project && project.labelFixed ? 'true' : 'false');
   stage.style.background = benchBg();
 }
 // a part drawn off the bench (its symbol in the rail or the picker), in the ink the bench draws it in
@@ -14107,10 +14217,33 @@ function drawBeams(fieldShown) {
 const RAY_LAYER_MIN = 2000;
 const rayLayer = { cv: null, key: null, rays: null, frame: null, view: null, settled: false, timer: null, done: 0 };
 const RAY_CHUNK = 30000;              // segments drawn into the layer per frame: a big bench fills in over a few frames
+/* Fading trails (Light: fading trails while sweeps play): each time the light changes (a sweep's next step), the
+   rays before are laid on a canvas of their own, what was there fading by a third, and that canvas drawn under the
+   rays now; moving the view starts it afresh */
+const trail = { cv: null, last: null, key: '' };
+function drawTrail() {
+  const rays = lastTrace.rays, key = [V().cx, V().cy, V().scale, W, H, DPR, project.tab, lightLayer].join('|');
+  if (typeof document.createElement !== 'function') return;
+  const cv = trail.cv || (trail.cv = document.createElement('canvas')), c = cv.getContext('2d');
+  if (cv.width !== canvas.width || cv.height !== canvas.height || trail.key !== key) {
+    cv.width = canvas.width; cv.height = canvas.height; trail.key = key; trail.last = rays;
+    c.clearRect(0, 0, cv.width, cv.height);
+    return;
+  }
+  if (trail.last !== rays) {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.33)'; c.fillRect(0, 0, cv.width, cv.height);
+    c.globalCompositeOperation = 'source-over';
+    if (trail.last) { c.setTransform(DPR, 0, 0, DPR, 0, 0); drawRaysOn(c, trail.last); }
+    trail.last = rays;
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 0.7; ctx.globalCompositeOperation = glowOp();
+  ctx.drawImage(cv, 0, 0); ctx.restore();
+}
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -14199,11 +14332,13 @@ function drawRaysOn(ctx, rays, shared) {
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
+  // by power (Light: rays as bright as their power): each ray's mW against the bench's strongest, whatever its source
+  const sc = (lastTrace.raySc) || {}, byPow = lightOf().byPower ? rayTopPower(rays, project.tab, sc) : 0;
   ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const alpha = rayAlpha(r.w / (tops.get(r.src) || 1)) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
+    const alpha = (byPow ? rayAlphaPower(r.w * (sc[r.src] || 1) / byPow) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
       const key = part.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: part.colour, alpha: lvl / 12, rays: [] });
@@ -14256,6 +14391,14 @@ function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, Math.pow(Math.max
    launch, so a fibre tip fed through a lossy network is as bright as a laser, and a return beam
    or a window's reflection is fainter than the beam it came off (a kept ray is never drawn at
    no brightness at all: the faintest level is one step) */
+/* by power: the alpha of a ray carrying a share p of the bench's strongest, nearly in proportion (half the power,
+   about half as bright), a faint line kept for the weakest */
+function rayAlphaPower(p) { return 0.85 * Math.min(1, Math.max(0.05, Math.pow(Math.max(p, 1e-9), 0.85))); }
+function rayTopPower(rays, tab, sc) {
+  let top = 0;
+  for (const r of rays) if (r.bench === tab) top = Math.max(top, r.w * (sc[r.src] || 1));
+  return top || 1;
+}
 function rayTops(rays, tab) {
   const tops = new Map();
   for (const r of rays) if (r.bench === tab && r.w > (tops.get(r.src) || 0)) tops.set(r.src, r.w);
@@ -14331,7 +14474,16 @@ function labelMm() {
   return project.labelMm;
 }
 function labelSize(f) {
-  project.labelMm = +(labelMm() * f).toPrecision(3);
+  if (project.labelFixed) project.labelPx = clamp(Math.round((project.labelPx || 12) * f), 6, 40);
+  else project.labelMm = +(labelMm() * f).toPrecision(3);
+  scheduleSave(); requestRender();
+}
+/* names a fixed size on the screen (project.labelFixed, labelPx px) rather than on the bench: the same at any zoom */
+function labelFixedSet(on) {
+  project.labelFixed = !!on;
+  if (on && !(project.labelPx > 0)) project.labelPx = 12;
+  const b = document.getElementById('btnNamesFixed');
+  if (b) b.setAttribute('aria-checked', on ? 'true' : 'false');
   scheduleSave(); requestRender();
 }
 /* a ringed red ! on a part whose import made assumptions (see partAssumptions); not in exports */
@@ -14364,6 +14516,7 @@ function drawLabels() {
     const k = el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
+    if (project.labelFixed && !exporting) fs = (project.labelPx || 12) * k;      // a fixed size on the screen
     if (figure && figure.labelPx) fs = figure.labelPx * k;                // a figure's labels at its own size
     const u = fs / 11;
     // below the part's body, whichever way it is turned, centred under it
@@ -14377,7 +14530,8 @@ function drawLabels() {
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
     if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
-      const clear = y => { const box = { x: X - w / 2, y: y - 10 * u, w, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
+      // clear of the others, with a word's gap either side: two names side by side never read as one
+      const gap = 0.6 * fs, clear = y => { const box = { x: X - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
       Y = tries.find(clear) ?? (figure ? tries[tries.length - 1] : Y + 52 * u);
     }
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
@@ -14567,7 +14721,7 @@ function renderAll(stale) {
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
-  if (lightOf().rays) drawRays(stale);
+  if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
   if (!stale) {
     setCloseupOn(drawCloseup());
     const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
@@ -14806,6 +14960,8 @@ const portsInUse = () => new Set((project.fibres || []).flatMap(F => [pkey(...F.
    It leaves each port along the port's direction, ta and tb mm (or a length that suits the
    span); each node has an in handle h1 and an out handle h2, offsets from it, as in a
    drawing program. endB, a point, stands in for the far port while a fibre is being laid. */
+// a node's handle as an offset: one left out, or set to null (a script writing a path), is none
+const hnd = v => Array.isArray(v) && v.length === 2 && isFinite(v[0]) && isFinite(v[1]) ? v : [0, 0];
 function fibreSegs(F, endB) {
   const A = getEl(F.a[0]);
   if (!A) return null;
@@ -14819,9 +14975,9 @@ function fibreSegs(F, endB) {
   const segs = [];
   for (let i = 0; i < P.length - 1; i++) {
     const ta = F.ta != null ? F.ta : auto(0);
-    const c1 = i === 0 ? [pa.x + pa.dx * ta, pa.y + pa.dy * ta] : [P[i][0] + nodes[i - 1].h2[0], P[i][1] + nodes[i - 1].h2[1]];
+    const c1 = i === 0 ? [pa.x + pa.dx * ta, pa.y + pa.dy * ta] : [P[i][0] + hnd(nodes[i - 1].h2)[0], P[i][1] + hnd(nodes[i - 1].h2)[1]];
     let c2;
-    if (i < P.length - 2) c2 = [P[i + 1][0] + nodes[i].h1[0], P[i + 1][1] + nodes[i].h1[1]];
+    if (i < P.length - 2) c2 = [P[i + 1][0] + hnd(nodes[i].h1)[0], P[i + 1][1] + hnd(nodes[i].h1)[1]];
     else if (pb) { const tb = F.tb != null ? F.tb : auto(i); c2 = [pb.x + pb.dx * tb, pb.y + pb.dy * tb]; }
     else c2 = [(c1[0] + P[i + 1][0]) / 2, (c1[1] + P[i + 1][1]) / 2];
     segs.push([P[i], c1, c2, P[i + 1]]);
@@ -14931,8 +15087,8 @@ function fibreGrip(F, px, py) {
   if (F.route === 'square') { for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i }; return null; }   // corners only
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
-    if (near([n.x + n.h1[0], n.y + n.h1[1]])) return { type: 'h1', i };
-    if (near([n.x + n.h2[0], n.y + n.h2[1]])) return { type: 'h2', i };
+    if (near([n.x + hnd(n.h1)[0], n.y + hnd(n.h1)[1]])) return { type: 'h1', i };
+    if (near([n.x + hnd(n.h2)[0], n.y + hnd(n.h2)[1]])) return { type: 'h2', i };
   }
   for (let i = 0; i < nodes.length; i++) if (near([nodes[i].x, nodes[i].y], 8)) return { type: 'node', i };
   // an end with no direction (an electrical node) has no handle: its point is the node's own
@@ -14950,7 +15106,7 @@ function moveGrip(F, g, X, Y, free) {
     const n = nodes[g.i], mine = g.type, other = mine === 'h1' ? 'h2' : 'h1';
     n[mine] = [X - n.x, Y - n.y];
     if (!free) {                               // a smooth node: the other handle stays opposite, its own length
-      const L = Math.hypot(...n[mine]), Lo = Math.hypot(...n[other]) || L;
+      const L = Math.hypot(...n[mine]), Lo = Math.hypot(...hnd(n[other])) || L;
       if (L > 0) n[other] = [-n[mine][0] / L * Lo, -n[mine][1] / L * Lo];
     }
     return;
@@ -15003,8 +15159,8 @@ function drawFibreNodes(F, segs) {
     const last = segs[segs.length - 1];
     knob(last[2], last[3]);
     for (const n of F.path || []) {
-      knob([n.x + n.h1[0], n.y + n.h1[1]], [n.x, n.y]);
-      knob([n.x + n.h2[0], n.y + n.h2[1]], [n.x, n.y]);
+      knob([n.x + hnd(n.h1)[0], n.y + hnd(n.h1)[1]], [n.x, n.y]);
+      knob([n.x + hnd(n.h2)[0], n.y + hnd(n.h2)[1]], [n.x, n.y]);
     }
   }
   for (const n of F.path || []) {
@@ -16368,7 +16524,10 @@ function wirePointer() {
       // the whole selection moves with it; fibres between its members bring their shapes along
       const group = selection().filter(x => !x.locked), ids = new Set(group.map(x => x.id));
       const fibres = (project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0]));
-      drag = { mode: 'move', wasSel, el: hit, group, ids, starts: group.map(x => [x.x, x.y]), nodes: fibres.flatMap(F => (F.path || []).map(n => [n, n.x, n.y])),
+      // a curved fibre with one end moving: its bends follow in proportion, those nearest the moving end most
+      const halfway = (project.fibres || []).filter(F => F.route !== 'square' && (F.path || []).length && ids.has(F.a[0]) !== ids.has(F.b[0]))
+        .flatMap(F => { const n = F.path.length, fromA = ids.has(F.a[0]); return F.path.map((p, j) => [p, p.x, p.y, fromA ? 1 - (j + 1) / (n + 1) : (j + 1) / (n + 1)]); });
+      drag = { mode: 'move', wasSel, el: hit, group, ids, starts: group.map(x => [x.x, x.y]), nodes: [...fibres.flatMap(F => (F.path || []).map(n => [n, n.x, n.y])), ...halfway],
         ox: wx(px) - hit.x, oy: wy(py) - hit.y, px0: px, py0: py, started: false, x0: hit.x, y0: hit.y };
     } else if (e.pointerType === 'touch') {
       drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: false };
@@ -16458,7 +16617,7 @@ function wirePointer() {
       // the grabbed element snaps; the rest keep their places against it
       const [nx, ny] = alignDrag(drag.el, snapVal(wx(px) - drag.ox, e), snapVal(wy(py) - drag.oy, e), new Set(drag.group.map(g => g.id)), e), dx = nx - drag.x0, dy = ny - drag.y0;
       drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + dx; g.y = drag.starts[i][1] + dy; });
-      for (const [n, x0, y0] of drag.nodes) { n.x = x0 + dx; n.y = y0 + dy; }
+      for (const [n, x0, y0, t] of drag.nodes) { const k = t === undefined ? 1 : t; n.x = x0 + k * dx; n.y = y0 + k * dy; }
       syncPanel(); requestRender();
       return;
     }
@@ -18110,7 +18269,8 @@ function fibreNet() {
         const Rc = connR(f.F), rc = Math.sqrt(Rc), tc = w.inside ? 1 : Math.sqrt(1 - Rc);
         if (Rc > 0 && !w.inside) arrive(next, w.port, w.E.map(v => v * rc), w.dl, w.fo, w.gdd, w.sp);
         // the phase at this light's own frequency: the laser's, plus its offset
-        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a * tc);
+        // its bend loss at this light's wavelength (core/bend.js), on top of its loss along it
+        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a * tc * (f.F.bendR > 0 ? Math.pow(10, -fibreBendDb(f.F, G.nm) / 20) : 1));
         let E = [w.E[0] * z[0] - w.E[1] * z[1], w.E[0] * z[1] + w.E[1] * z[0], w.E[2] * z[0] - w.E[3] * z[1], w.E[2] * z[1] + w.E[3] * z[0]];
         const FJ = Jmemo(f);
         if (FJ) E = J2.app(FJ, E);
@@ -23065,6 +23225,12 @@ function sourcePanel(el) {
       param('Rays', el, 'rays')));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
+    // a line of rays standing for a round beam's power (an f-stop halves it, as in 3D)
+    if (!el.pattern) {
+      const rb = h('input', { type: 'checkbox' }); rb.checked = !!el.round;
+      rb.addEventListener('change', () => { checkpoint(); if (rb.checked) el.round = true; else delete el.round; changed(); });
+      panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.35rem', title: 'Each ray carries the ring of a round beam it stands for, so an iris at half the width passes a quarter of the light, and one f-stop halves it' }, rb, 'Power as across a round beam'));
+    }
     const pn = h('p', { class: 'note', style: 'margin-top:0.3rem' });
     bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = (el.pattern ? N + ' rays across the beam, up and down it too, ' : 'In the bench plane only, ') + 'its width (and divergence) the same both ways, each traced exactly in 3D. Screens show where they land on a spot diagram (Rays tab).'; });
     panel.append(pn);
@@ -23237,11 +23403,14 @@ function drawMirror(el, sel) {
   // hatching on the back
   ctx.strokeStyle = metal(0.45);
   ctx.lineWidth = 1;
-  const hat = Math.min(3, Math.max(0.8, el.length * 0.08));   // the hatch strokes a set length (mm) for the mirror, at any zoom; how many, by the zoom
+  // the hatch strokes a set length (mm) for the mirror, at any zoom, but never more than 7 px: zoomed in, they stay
+  // a short fringe, not a band that fills a narrow wedge between two mirrors; how many, by the zoom
+  const hat = Math.min(3, Math.max(0.8, el.length * 0.08), 7 / V().scale);
   const nH = Math.max(4, Math.round(el.length * V().scale / 7));
   ctx.beginPath();
   for (let i = 0; i <= nH; i++) {
     const y = s.semi * (2 * i / nH - 1);
+    if (s.hole > 0 && Math.abs(y) < s.hole) continue;            // none across its hole
     const x = sagFn(s, y);
     const [ax, ay] = toWorld(f, x, y);
     const [bx, by] = toWorld(f, x - hat, y - hat);
@@ -23251,8 +23420,9 @@ function drawMirror(el, sel) {
   ctx.strokeStyle = sel ? selInk() : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
   ctx.lineWidth = sel ? 3.5 : 3;
   ctx.lineCap = 'round';
-  pathLocal(f, pts);
-  ctx.stroke();
+  // a hole through the middle: the face drawn either side of it
+  if (s.hole > 0) { for (const side of [pts.filter(p => p[1] <= -s.hole), pts.filter(p => p[1] >= s.hole)]) if (side.length > 1) { pathLocal(f, side); ctx.stroke(); } }
+  else { pathLocal(f, pts); ctx.stroke(); }
   ctx.lineCap = 'butt';
 }
 
@@ -23275,6 +23445,7 @@ function mirrorPanel(el) {
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
     ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
     param('Conic k', el, 'k', { blank: 0 }),
+    param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
     // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
     ...(el.A || []).map((_, j) => param('A' + (4 + 2 * j), el, `A.${j}`, { blank: 0 })),
     h('div', { class: 'rt-inline wide' },
@@ -23654,9 +23825,19 @@ function prismPanel(el) {
   panel.append(h('h3', null, 'Prism'));
   const rows = h('div', { class: 'rt-rows' },
     selectField('Shape', Object.entries(PRISM_SHAPES), () => el.shape, v => { removeSweeps(el, 'thickness'); el.shape = v; }, { wide: true }),
-    param(el.shape === 'window' || el.shape === 'dove' ? 'Height (mm)' : el.shape === 'right' ? 'Leg length (mm)' : 'Side (mm)', el, 'size', { wide: el.shape !== 'window' }),
+    param(el.shape === 'window' || el.shape === 'dove' ? 'Height (mm)' : el.shape === 'right' || el.shape === 'amici' ? 'Leg length (mm)' : el.shape === 'polygon' ? 'Height (mm)' : el.shape === 'penta' || el.shape === 'pellin' ? 'First face (mm)' : 'Side (mm)', el, 'size', { wide: el.shape !== 'window' }),
   );
   if (el.shape === 'window') rows.append(param('Thickness (mm)', el, 'thickness'));
+  // a polygon's corners, typed as x, y pairs; any prism's silvered faces, by number
+  if (el.shape === 'polygon') {
+    const box = h('input', { type: 'text', value: (el.verts || []).map(p => +p[0].toFixed(3) + ', ' + (+p[1].toFixed(3))).join('; '), 'aria-label': 'Corners' });
+    box.addEventListener('change', () => { const P = box.value.split(';').map(t => t.split(',').map(Number)).filter(p => p.length >= 2 && p.every(isFinite)); if (P.length >= 3) { checkpoint(); el.verts = P.map(p => [p[0], p[1]]); changed(); } else box.value = (el.verts || []).map(p => p[0] + ', ' + p[1]).join('; '); });
+    rows.append(h('div', { class: 'rt-f wide' }, h('label', null, 'Corners (x, y mm; …)'), box));
+  }
+  const mir = h('input', { type: 'text', value: prismMirrored(el).join(', '), placeholder: 'none', 'aria-label': 'Silvered faces' });
+  mir.addEventListener('change', () => { checkpoint(); el.mirrored = mir.value.split(/[,\s]+/).filter(Boolean).map(Number).filter(i => isFinite(i) && i >= 0 && i < 16).map(Math.round); changed(); });
+  rows.append(h('div', { class: 'rt-f wide' }, h('label', null, 'Silvered faces (numbers, the first face 0)'), mir));
+  if (el.shape === 'amici') rows.append(h('p', { class: 'note' }, 'On the bench, a right-angle prism: its roof turns the image over out of the bench\u2019s plane, which the 2D bench does not show.'));
   panel.append(rows);
   panel.append(materialRows(el));
   panel.append(coatingRows(el, el, 'Face coating'));
@@ -27051,7 +27232,10 @@ function fibreLinkPanel(F) {
     h('div', { class: 'rt-f' }, h('label', { for: id1 }, 'Length (m)'), numInput(id1, () => F.len, v => { F.len = Math.max(0, v); })),
     h('div', { class: 'rt-f' }, h('label', { for: id2 }, 'Loss (dB/km)'), numInput(id2, () => F.loss, v => { F.loss = Math.max(0, v); })),
     h('div', { class: 'rt-f wide' }, h('label', { for: id3 }, 'Dispersion (ps/(nm km))'), numInput(id3, () => F.disp, v => { F.disp = v === null ? null : v; }, { blank: null, placeholder: 'standard single-mode (SMF-28)', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })),
-    (() => { const id4 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })()));
+    (() => { const id4 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })(),
+    // wound round a radius: its bend loss (core/bend.js), by wavelength
+    (() => { const id5 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' }, h('label', { for: id5 }, 'Bend radius (mm)'), numInput(id5, () => F.bendR, v => { if (v === null || !(v > 0)) { delete F.bendR; delete F.turns; } else { F.bendR = clamp(v, 1, 1000); if (!(F.turns > 0)) F.turns = 1; } }, { blank: null, placeholder: 'straight', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })(),
+    ...(F.bendR > 0 ? [(() => { const id6 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' }, h('label', { for: id6 }, 'Turns'), numInput(id6, () => F.turns, v => { F.turns = clamp(v || 1, 0.01, 1e5); })); })()] : [])));
   // what it does to polarisation
   const tRows = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, selectField('Polarisation', [['smf', 'Kept (ideal, held still)'], ['random', 'Standard fibre as laid (random)'],
     ['pm', 'Polarisation maintaining'], ['mm', 'Multimode (scrambled)']], () => F.ftype || 'smf', v => { F.ftype = v; }, { wide: true }),
@@ -27073,6 +27257,7 @@ function fibreLinkPanel(F) {
     const pa = portPower(A, F.a[1]), pb = portPower(B, F.b[1]);
     const rows = [['Delay', (+(FIBRE_NG * F.len / 0.299792458).toPrecision(4)) + ' ns (optical path ' + fmtLen(FIBRE_NG * F.len * 1000) + ')'],
       ['Loss over it', (+(F.loss * F.len / 1000).toPrecision(3)) + ' dB'],
+      ...(F.bendR > 0 ? [['Bend loss', F.ftype === 'mm' ? 'not modelled for multimode fibre' : [...new Set([...((lastTrace.net && lastTrace.net.keys) || []).map(k => k.nm), 1550])].slice(0, 3).map(nm => (+fibreBendDb(F, nm).toPrecision(3)) + ' dB at ' + (+(+nm).toPrecision(5)) + ' nm').join(', ')]] : []),
       ...(pulsedFibreLaser() ? (() => { const P = pulsedFibreLaser(); return [['Dispersion at ' + (+P.wavelength.toPrecision(5)) + ' nm', (+fibreDisp(F, P.wavelength).toPrecision(3)) + ' ps/(nm km): GDD ' + fmtFs2(fibreGDD(F, P.wavelength, F.len))]]; })() : []),
       ...(() => { const S = lastTrace.net && lastTrace.net.spm && lastTrace.net.spm.get(F.id);
         return S ? [['Self-phase modulation', 'B-integral ' + (+S.B.toPrecision(3)) + ' rad (peak ' + fmtW(S.peak) + ' in, \u03b3 ' + (+fibreGamma(F, S.nm).toPrecision(3)) + ' /(W km)); the spectrum leaves ' + (+S.broad.toPrecision(3)) + ' times as wide (rms)']]
@@ -33087,7 +33272,8 @@ function renderOverview() {
     c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); renderPanel(); });
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
-  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
+  panel.append(tick('rays', 'Show the rays'), tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
+    tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
@@ -46300,6 +46486,41 @@ function technicalFigure(o) {
   return { g, unit: 'pt', dpi: 300, note: o.sheet + ' landscape, scale ' + ratio[1] + (callouts ? ', ' + parts.length + ' parts listed' : '') };
 }
 
+/* the bench's own ground under a picture of it: its colour, and its 25 mm holes as the bench draws them (big: their
+   size against a screen's), the picture's box at (ox, oy), s picture pixels to a canvas pixel */
+function figGround(g, SW, SH, box, ox, oy, s, big) {
+  const light = benchLight();
+  g.fillStyle = benchBg(); g.fillRect(0, 0, SW, SH);
+  if (!benchHoles()) return;
+  const k = V().scale * s, r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * k)) * big;
+  const wxOf = X => (X - ox) / s + box.x, wyOf = Y => (Y - oy) / s + box.y;           // picture to canvas pixels
+  const toW = (px, py) => [V().cx + (px - W / 2) / V().scale, V().cy - (py - H / 2) / V().scale];
+  const [a0, b1] = toW(wxOf(0), wyOf(0)), [a1, b0] = toW(wxOf(SW), wyOf(SH));
+  g.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
+  if (25 * k > 6) for (let x = Math.floor(a0 / 25) * 25; x <= a1; x += 25) for (let y = Math.floor(b0 / 25) * 25; y <= b1; y += 25) {
+    g.beginPath(); g.arc(ox + (sx(x) - box.x) * s, oy + (sy(y) - box.y) * s, r, 0, 2 * Math.PI); g.fill();
+  }
+}
+/* One frame of the bench, as it looks, at a size of its own (J.renderPNG, for frame-by-frame video): width × height
+   pixels, the view { cx, cy, scale } given (scale in the frame's own pixels a mm) or the bench's own. A PNG's data URL. */
+function renderFrame(o = {}) {
+  let in3d = false;
+  try { in3d = V3D.active(); } catch (err) { in3d = false; }
+  if (in3d) return Promise.reject(new Error('switch to the 2D view first'));
+  const FW = Math.max(16, Math.min(8192, Math.round(o.width || W))), FH = Math.max(16, Math.min(8192, Math.round(o.height || H)));
+  const keep = Object.assign({}, V()), k = Math.min(W / FW, H / FH), view = o.view || keep;
+  let F;
+  try {
+    Object.assign(V(), { cx: view.cx, cy: view.cy, scale: (o.view ? view.scale : keep.scale * Math.min(FW / W, FH / H)) * k });
+    const rec = figRecord({ plain: true, labels: o.labels === false ? false : undefined });
+    const box = { x: W / 2 - FW * k / 2, y: H / 2 - FH * k / 2, w: FW * k, h: FH * k }, g = new VecCtx(FW, FH, { res: 1 });
+    figGround(g, FW, FH, box, 0, 0, 1 / k, 1);
+    figPlace(g, rec, box, 0, 0, 1 / k, 0);
+    F = { g, unit: '', dpi: 72, opts: { fmt: 'png' } };
+  } finally { Object.assign(V(), keep); requestRender(); }
+  return figurePng(F).then(b => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => no(fr.error); fr.readAsDataURL(b); }));
+}
+
 /* ---- Presentation ---- */
 function slidesFigure(o) {
   const [SW, SH] = o.size === '43' ? [1600, 1200] : [1920, 1080];
@@ -46307,18 +46528,7 @@ function slidesFigure(o) {
   const { rec, box, s } = figFitted(fig, Math.round(SH / 40), b => Math.min(SW * 0.9 / b.w, SH * 0.86 / b.h));
   const g = new VecCtx(SW, SH, { res: 1 });
   const ox = (SW - box.w * s) / 2, oy = (SH - box.h * s) / 2, light = benchLight();
-  g.fillStyle = benchBg(); g.fillRect(0, 0, SW, SH);
-  if (benchHoles()) {
-    // the breadboard's 25 mm holes, as the bench draws them, over the whole slide
-    const k = V().scale * s, r = Math.min(light ? 3.5 : 5, Math.max(1, (light ? 2.2 : 3) * k)) * SH / 800;   // as on a screen, a little larger for a slide's pixels
-    const wxOf = X => (X - ox) / s + box.x, wyOf = Y => (Y - oy) / s + box.y;           // slide to canvas pixels
-    const toW = (px, py) => [V().cx + (px - W / 2) / V().scale, V().cy - (py - H / 2) / V().scale];
-    const [a0, b1] = toW(wxOf(0), wyOf(0)), [a1, b0] = toW(wxOf(SW), wyOf(SH));
-    g.fillStyle = light ? 'rgba(95,75,45,0.15)' : '#343d44';
-    if (25 * k > 6) for (let x = Math.floor(a0 / 25) * 25; x <= a1; x += 25) for (let y = Math.floor(b0 / 25) * 25; y <= b1; y += 25) {
-      g.beginPath(); g.arc(ox + (sx(x) - box.x) * s, oy + (sy(y) - box.y) * s, r, 0, 2 * Math.PI); g.fill();
-    }
-  }
+  figGround(g, SW, SH, box, ox, oy, s, SH / 800);
   figPlace(g, rec, box, ox, oy, s, 1);
   figSay(g, 'Made with JEKray · jeksys.net', SW - 24, SH - 20, { size: Math.round(SH / 70), align: 'right', ink: light ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)' });
   return { g, unit: '', dpi: 72, note: SW + ' × ' + SH + ' pixels, the bench as it looks' };
@@ -48766,6 +48976,9 @@ const addBtn = h('button', { type: 'button', class: 'rt-radd', id: 'btnAddPart',
 let pickTab = 'free';
 function setPickTab(v) { return (pickTab = v); }
 function pickerShown(on) {
+  // the empty bench's tip steps aside while the picker is open (they sit in the same corner)
+  const tip = document.getElementById('emptyHint');
+  if (tip) tip.hidden = !!on;
   if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
   if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
@@ -48976,6 +49189,7 @@ function wireRail() {
   document.getElementById('btnNamesUp').addEventListener('click', () => labelSize(1.25));
 
   document.getElementById('btnNamesDown').addEventListener('click', () => labelSize(0.8));
+  document.getElementById('btnNamesFixed').addEventListener('click', () => labelFixedSet(!project.labelFixed));
 
   document.getElementById('btnRailToggle').addEventListener('click', () => {
     railOn = !railOn;
@@ -52047,6 +52261,9 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',
+    '<b>More prisms</b>: the pentaprism (90\u00b0 whatever its tilt), the Amici roof prism, the Pellin\u2013Broca prism and a polygon of your own corners, with any faces silvered. Mirrors can have a <b>hole through them</b>, a source\u2019s line of rays can carry <b>power as across a round beam</b> (so an iris passes what it would), and a fibre wound round a radius has its <b>bend loss</b> (Marcuse\u2019s formula, single-mode fibre). A fibre\u2019s route now moves with the parts at its ends.',
+    '<b>Fixed</b>: a fibre path set from a script without its handles no longer stops the bench drawing; the empty bench\u2019s tip steps aside for the parts picker; names on the bench keep a gap between them; a short mirror\u2019s hatching no longer fills it.',
     '<b>Try JEKrayPro on a free account</b>: each month a free account gets a few uses of the design work, to try it: 5 optimiser runs in the Optical and RF designers, 3 tolerance runs, 10 script runs, 3 design reports, 3 drawing saves, 3 design exports and 5 Excel, NumPy or MATLAB data exports. The Pro badge says how many are left (\u201c4 free\u201d). Once the month\u2019s optimiser runs are used, the optimiser still runs as a <b>preview</b>: see the better design, then keep it with JEKrayPro or put the design back. A free account also keeps <b>3 share links</b> at once. And a <b>founding member price</b>: subscribe during the open beta and keep your price for as long as you stay subscribed.',
     '<b>Signing in, where it helps</b>: signed out, asking for something that needs an account (My benches, the experimental features) or JEKrayPro (the optimiser, scripts, the cloud, My parts) now says what it needs, with one-click ways in, rather than just opening the account menu; and the end of a tour and the first-visit welcome note offer a free account too.',
     '<b>From Instagram</b>: following a link from one of our Instagram posts shows the benches from our latest reels, each a click away (close the note and it stays closed until a new reel is added). And once you have changed a bench, signed out, a note offers a free account, once a visit, for what it gives: exporting the bench\u2019s images and data, making part packs and the experimental features. Your bench stays as it is while you sign in.',
@@ -52661,8 +52878,12 @@ class _Bench:
         return _call('element', name)
     def get(self, name, path):
         return _call('get', name, path)
-    def set(self, name, path, value):
-        _call('set', name, path, value)
+    def set(self, name, path, value=None):
+        # J.set(name, path, value), or J.set(name, {'x': 20, 'diameter': 25}): several fields at once
+        if isinstance(path, dict):
+            _call('set', name, path)
+        else:
+            _call('set', name, path, value)
         return self
     def range(self, a, b, n):
         n = max(2, math.floor(n + 0.5))
@@ -52878,8 +53099,110 @@ const pyHeld = () => (pyodide ? { objects: pyodide.runPython('import gc\ngc.coll
    script worker (page/script-worker.js) makes the same calls over its own copy of the bench: the same code, the same
    answers. Each reads only the bench and the engines; none needs the page. The page-only ones (load, select, showTab,
    sweepPlay, sweepPause) stay in boot.js, and the worker has its own (page/script-worker.js workerCalls). */
+/* The traced rays, labelled (J.rays): each drawn run of a ray as it went, with the source it came from (id, name),
+   its wavelength, its polarisation (the source's state it was launched as, and its s share at the end), its power
+   (w, as a share of the launch: 1 a whole ray, 0.5 each of an unpolarised ray's s and p), the points it went
+   through, the parts it met at them in order (bounces), its direction at the end, and the events along it (ev:
+   r reflect, t transmit, and so on, each with its bounce). Runs one ray's brightness split are joined again. */
+function surfsOnTab() {
+  const out = [];
+  for (const el of project.elements) {
+    if (!onTab(el) || ['draw', 'elec', 'fcomp', 'pic', 'source'].includes(el.type)) continue;
+    let S = [];
+    try { S = elementSurfaces(el); } catch (err) { S = []; }
+    const f = frame(el);
+    for (const q of S) if (q) { q.f = q.lf ? subFrame(f, q.lf) : f; out.push({ el, q }); }
+  }
+  return out;
+}
+function partAt(surfs, x, y) {
+  let best = null, bd = 1e-3;
+  for (const { el, q } of surfs) {
+    const [lx, ly] = toLocal(q.f, x, y);
+    if (Math.abs(ly) > (q.semi || 0) + 1e-6) continue;
+    let sag = 0;
+    try { sag = sagFn(q, ly) || 0; } catch (err) { sag = 0; }
+    const d = Math.abs(lx - sag);
+    if (d < bd) { bd = d; best = el; }
+  }
+  return best;
+}
+function labelledRays() {
+  traceScene();
+  const surfs = surfsOnTab(), byId = new Map(project.elements.map(e => [e.id, e])), out = [];
+  for (const r of lastTrace.rays || []) {
+    const prev = out[out.length - 1], n = r.pts.length;
+    // a ray's brightness changing splits its drawing: joined again where one run starts where the last ended
+    if (prev && prev.rid === r.rid && prev.fam === r.fam && prev.pts.length && Math.abs(prev.pts[prev.pts.length - 2] - r.pts[0]) < 1e-9 && Math.abs(prev.pts[prev.pts.length - 1] - r.pts[1]) < 1e-9) {
+      for (let i = 2; i < n; i++) prev.pts.push(r.pts[i]);
+      prev.w = r.w; prev.J = r.J; prev.ev = r.ev;
+      continue;
+    }
+    out.push({ rid: r.rid, fam: r.fam, src: r.src, bench: r.bench, colour: r.colour, w0: r.w, w: r.w, J: r.J, ev: r.ev, pts: Array.from(r.pts) });
+  }
+  return out.map((r, i) => {
+    const src = byId.get(r.src), parts = String(r.rid || '').split(':'), wi = +parts[parts.length - 2], lines = src ? sourceLines(src) : [];
+    const pts = [];
+    for (let k = 0; k < r.pts.length; k += 2) pts.push([r.pts[k], r.pts[k + 1]]);
+    const met = [];
+    for (let k = 1; k < pts.length; k++) { const el = partAt(surfs, pts[k][0], pts[k][1]); if (el && (!met.length || met[met.length - 1] !== el.name || k === pts.length - 1)) met.push(el.name); }
+    const a = pts[pts.length - 2], b = pts[pts.length - 1], L = a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
+    const J = r.J || [0, 0, 0, 0], ws = J[0] * J[0] + J[1] * J[1], wt = ws + J[2] * J[2] + J[3] * J[3];
+    // the launch state: an unpolarised source's rays go as two (its fam's last figure), each half the power
+    const st = /(\d+)$/.exec(String(r.fam || '')), fam = st ? +st[1] : 0;
+    return { i, source: r.src, sourceName: src ? src.name : '', nm: isFinite(wi) && lines[wi] !== undefined ? lines[wi] : null, state: fam,
+      pol: src && src.pol === 'unpolarised' ? (fam === 0 ? 's' : 'p') : src ? src.pol : '', sShare: wt > 0 ? ws / wt : null,
+      w: r.w, w0: r.w0, colour: r.colour, points: pts, met, bounces: met.length, dir: L > 0 ? [(b[0] - a[0]) / L, (b[1] - a[1]) / L] : null,
+      angle: L > 0 ? Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI : null, ev: r.ev || '', bench: r.bench };
+  });
+}
+/* the nearest any traced ray comes to a point (J.distance): { d mm, x, y where on the ray, ray: its index in J.rays() };
+   the point { x, y }, or a part's name (its centre); only one source's rays if asked (opts.source, a name or id) */
+function rayDistance(at, opts = {}) {
+  const P = typeof at === 'string' ? project.elements.find(e => e.name === at) : at;
+  if (!P || !isFinite(P.x) || !isFinite(P.y)) throw new Error('J.distance needs a point { x, y } or a part\u2019s name');
+  const R = labelledRays(), want = opts.source ? project.elements.find(e => e.name === opts.source || e.id === opts.source) : null;
+  let best = null;
+  for (const r of R) {
+    if (want && r.source !== want.id) continue;
+    for (let k = 1; k < r.points.length; k++) {
+      const [ax, ay] = r.points[k - 1], [bx, by] = r.points[k], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((P.x - ax) * dx + (P.y - ay) * dy) / l2)) : 0, x = ax + t * dx, y = ay + t * dy, d = Math.hypot(P.x - x, P.y - y);
+      if (!best || d < best.d) best = { d, x, y, ray: r.i };
+    }
+  }
+  return best;
+}
 function scriptCalls() {
   return {
+    rays() { return labelledRays(); },
+    /* a part's fields changed as a file would give them (checked and filled in as J.load does), then traced:
+       J.set('Lens', { x: 20, diameter: 25 }); its id, type and tab stay as they were */
+    set(name, props) {
+      const el = typeof name === 'string' ? this.byName(name) : name;
+      if (!el) throw new Error('No part called ' + name);
+      const keep = { id: el.id, type: el.type, bench: el.bench }, next = normElement(Object.assign(JSON.parse(JSON.stringify(el)), props || {}, keep));
+      for (const k of Object.keys(el)) delete el[k];
+      Object.assign(el, next, keep);
+      setLastTraceKey(null); traceScene();
+      return el;
+    },
+    /* a fibre, wire or waveguide changed (by its id, or its place in J.project().fibres), checked as J.load does:
+       its path's nodes may be { x, y } (handles left out are none) */
+    setFibre(which, props) {
+      const list = project.fibres || [], i = typeof which === 'number' ? which : list.findIndex(F => F.id === which);
+      if (!(i >= 0 && i < list.length)) throw new Error('No fibre ' + which);
+      const F = Object.assign(JSON.parse(JSON.stringify(list[i])), props || {}), [N] = normFibres([F], project.elements);
+      if (!N) throw new Error('That fibre cannot be joined as given');
+      list[i] = N;
+      setLastTraceKey(null); traceScene();
+      return N;
+    },
+    distance(at, opts) { return rayDistance(at, opts); },
+    // the rays on a screen: y across it as the screen reads it (its own axis, so it turns over with the screen), bx, by on the bench
+    hitsOn(name) { const el = this.byName(name), f = frame(el); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => { const o = Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean' || k === 'path')); const [bx, by] = toWorld(f, 0, t.y); return Object.assign(o, { bx, by }); }); },
+    // dB lost in one turn of standard single-mode fibre round a radius (mm) at a wavelength (nm): Marcuse's formula, core/bend.js
+    bendDbPerTurn(Rmm, nm) { return bendDbPerTurn(+Rmm, +nm); },
     serialize() { return serialize(); },
     trace() { setLastTraceKey(null); traceScene(); },
     benches() { return project.benches.map(b => ({ id: b.id, name: b.name, on: b.id === project.tab })); },
@@ -52925,7 +53248,8 @@ const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
 const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
 const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
-  'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam'];
+  'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
+  'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 
 const EXAMPLE_SCRIPTS = [
   ['Read a screen', `// The spot on the first screen: its rms radius, and the share of the sources' light that reaches it.
@@ -53000,7 +53324,8 @@ function makeJ(P = window.JEKray, saves = []) {   // (in the script worker, P is
   J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
   J.element = name => { const e = P.byName(name); if (!e) throw new Error('No part is called ' + JSON.stringify(name)); return JSON.parse(JSON.stringify(e)); };
   J.get = (name, path) => { J.element(name); return P.getParam(name, path); };
-  J.set = (name, path, v) => { J.element(name); P.setParam(name, path, v); P.trace(); return J; };
+  // J.set(name, path, value): one parameter; J.set(name, { x: 20, diameter: 25 }): several fields at once, checked as a file is
+  J.set = (name, path, v) => { J.element(name); if (path && typeof path === 'object') { P.set(name, path); return J; } P.setParam(name, path, v); P.trace(); return J; };
   J.range = (a, b, n) => { n = Math.max(2, Math.round(n)); return Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1)); };
   // each value set, read, and the parameter put back: rows of { [path]: value, ...what was read }
   J.sweep = (name, path, values, read) => {
@@ -53492,7 +53817,8 @@ function updateEmpty() {
   let c = document.getElementById('emptyHint');
   if (!empty) { if (c) c.remove(); return; }
   if (c) return;
-  document.getElementById('stage').append(h('div', { class: 'rt-empty', id: 'emptyHint' },
+  const pk = document.getElementById('picker');
+  document.getElementById('stage').append(h('div', { class: 'rt-empty', id: 'emptyHint', hidden: !!(pk && !pk.hidden) },
     h('p', null, h('b', null, 'This bench is empty.'), ' Add a part with Add, at the top of the parts rail on the left (or press A), or:'),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn primary', type: 'button', onclick: () => startTour('focus') }, 'Take the 2-minute tour'),
@@ -54726,6 +55052,9 @@ function workerCalls(ops, st) {
     showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) { project.tab = b.id; project.view = curBench().view; } return project.tab; },
     sweepPause() { ops.push(['pause']); },
     sweepPlay() { throw pageOnly('sweepPlay', 'it plays a sweep on the bench you see (for a table, use J.sweep)'); },
+    setView() { throw pageOnly('setView', 'it moves the view of the bench you see'); },
+    kiosk() { throw pageOnly('kiosk', 'it hides the page’s panels for recording'); },
+    renderPNG() { throw pageOnly('renderPNG', 'it draws the bench you see as a picture'); },
   };
 }
 
@@ -54888,6 +55217,17 @@ function fwPackCavities(before) {
   return out;
 }
 if (IN_WORKER) { (self.JEKRAY_SCRIPT_WORKER ? scriptWorkerMain : workerMain)(); return; }
+/* Recording mode (J.kiosk, ?kiosk): the busy banner, the side panel, the notes (welcome, empty bench, From Instagram,
+   sign-in), toasts, the minimap and the coordinates hidden, nothing selected; opts.all hides the parts rail and the
+   bench tabs too. The bench fills what is left. */
+function kioskSet(on, opts) {
+  const r = document.documentElement;
+  r.classList.toggle('rt-kiosk', !!on);
+  r.classList.toggle('rt-kiosk-all', !!(on && opts && opts.all));
+  if (on) { selectOne(null); renderPanel(); }
+  setTimeout(() => { resize(); requestRender(); }, 0);
+}
+
 
 // every module's page wiring, in the page's order (the modules declare; this is where the page is put together)
 /* the engines reach the page through these, and nowhere else */
@@ -54937,6 +55277,15 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   window.JEKray = {
     view3d: V3D.api,
     ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
+    // on the page, a change made by J.set or J.setFibre is drawn, and its panel follows
+    set(name, props) { const el = scriptCalls().set.call(this, name, props); renderPanel(); requestRender(); return el; },
+    setFibre(which, props) { const F = scriptCalls().setFibre.call(this, which, props); renderPanel(); requestRender(); return F; },
+    // the view, without loading the bench again: { cx, cy, scale } (scale in screen pixels a mm), any of them
+    setView(v) { const W0 = V(); for (const k of ['cx', 'cy', 'scale']) if (v && isFinite(v[k])) W0[k] = k === 'scale' ? Math.max(1e-3, +v[k]) : +v[k]; requestRender(); return Object.assign({}, W0); },
+    // recording: the page's notes, panels and banners out of the way (opts.all: the parts rail and the tabs too); kiosk(false) back
+    kiosk(on, opts) { kioskSet(on, opts); return !!on; },
+    // one frame at a size of its own: { width, height, view: { cx, cy, scale }, labels }: a PNG data URL (a Promise)
+    renderPNG(o) { return renderFrame(o); },
     load(data) { loadProject(data); nameInput.value = project.name; selectOne(null); setHistory([]); setFuture([]); renderBenchTabs(); renderPanel(); traceScene(); requestRender(); },
     // what keeping a part as one of My parts would send, in bytes (-1: too big even simplified)
     partSize(name) { const c = partContent([this.byName(name)]); return c ? c.length : -1; },
@@ -55066,7 +55415,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),
     modTimeout(ms) { MODS.timeout = ms || 0; },
     modStatus(name) { return modStatus(this.byName(name)); },
-    hitsOn(name) { const el = this.byName(name); return ((lastTrace.screens && lastTrace.screens[el.id]) || []).map(t => Object.fromEntries(Object.entries(t).filter(([k, v]) => typeof v === 'number' || typeof v === 'boolean' || k === 'path'))); },
+    // y is along the screen's own face (its sign follows the way the screen faces); bx, by where on the bench
     beams: () => lastTrace.beams,
     segPlanes: i => segPlanes(lastTrace.beams, i),
     maskAt(name, pts, nm) { const fn = maskFns(this.byName(name)).fn; return pts.map(([u, v]) => fn(u, v, (nm || 633) * 1e-6)); },
@@ -55361,6 +55710,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     return true;
   };
   if (!TEST_MODE && !EMBED) helpLink();
+  // ?kiosk (or ?kiosk=all): recording, the page's notes and panels out of the way (J.kiosk does the same)
+  if (/[?&]kiosk\b/.test(location.search)) kioskSet(true, { all: /[?&]kiosk=all\b/.test(location.search) });
   // a link pasted into the address bar of a page already open changes only the hash
   if (!TEST_MODE) window.addEventListener('hashchange', () => {
     if (!EMBED && helpLink()) return;

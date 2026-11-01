@@ -13,6 +13,7 @@ import { PIC } from './pic.js';
 import { ELEC } from './elec.js';
 import { modS } from './mods.js';
 import { cmul } from '../core/numeric.js';
+import { fibreBendDb } from '../core/bend.js';
 
 /* ==========================================================================
    Fibre subsystems
@@ -500,7 +501,8 @@ export function fibreNet() {
         const Rc = connR(f.F), rc = Math.sqrt(Rc), tc = w.inside ? 1 : Math.sqrt(1 - Rc);
         if (Rc > 0 && !w.inside) arrive(next, w.port, w.E.map(v => v * rc), w.dl, w.fo, w.gdd, w.sp);
         // the phase at this light's own frequency: the laser's, plus its offset
-        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a * tc);
+        // its bend loss at this light's wavelength (core/bend.js), on top of its loss along it
+        const z = ci.sc(ci.e(-(k0 + 2 * Math.PI * w.fo / C_MM) * FIBRE_N * f.Lmm), f.a * tc * (f.F.bendR > 0 ? Math.pow(10, -fibreBendDb(f.F, G.nm) / 20) : 1));
         let E = [w.E[0] * z[0] - w.E[1] * z[1], w.E[0] * z[1] + w.E[1] * z[0], w.E[2] * z[0] - w.E[3] * z[1], w.E[2] * z[1] + w.E[3] * z[0]];
         const FJ = Jmemo(f);
         if (FJ) E = J2.app(FJ, E);

@@ -39,6 +39,7 @@ import { addBench, checkpoint, selectEl } from './tabs.js';
 import { exportScreen } from '../io/layout.js';
 import { acctMark } from './pro.js';
 import { modReadoutSection } from '../io/mods.js';
+import { fibreBendDb } from '../core/bend.js';
 
 function drawPulse(cv, el, view) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 160;
@@ -912,7 +913,10 @@ export function fibreLinkPanel(F) {
     h('div', { class: 'rt-f' }, h('label', { for: id1 }, 'Length (m)'), numInput(id1, () => F.len, v => { F.len = Math.max(0, v); })),
     h('div', { class: 'rt-f' }, h('label', { for: id2 }, 'Loss (dB/km)'), numInput(id2, () => F.loss, v => { F.loss = Math.max(0, v); })),
     h('div', { class: 'rt-f wide' }, h('label', { for: id3 }, 'Dispersion (ps/(nm km))'), numInput(id3, () => F.disp, v => { F.disp = v === null ? null : v; }, { blank: null, placeholder: 'standard single-mode (SMF-28)', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })),
-    (() => { const id4 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })()));
+    (() => { const id4 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f wide' }, h('label', { for: id4 }, 'Nonlinearity \u03b3 (1/(W km))'), numInput(id4, () => F.gamma, v => { F.gamma = v === null ? null : Math.max(0, v); }, { blank: null, placeholder: 'fused silica, from the mode area', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })(),
+    // wound round a radius: its bend loss (core/bend.js), by wavelength
+    (() => { const id5 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' }, h('label', { for: id5 }, 'Bend radius (mm)'), numInput(id5, () => F.bendR, v => { if (v === null || !(v > 0)) { delete F.bendR; delete F.turns; } else { F.bendR = clamp(v, 1, 1000); if (!(F.turns > 0)) F.turns = 1; } }, { blank: null, placeholder: 'straight', fmt: v => v === null || v === undefined ? '' : fmtNum(v) })); })(),
+    ...(F.bendR > 0 ? [(() => { const id6 = 'rtf' + (setFid(fid + 1)); return h('div', { class: 'rt-f' }, h('label', { for: id6 }, 'Turns'), numInput(id6, () => F.turns, v => { F.turns = clamp(v || 1, 0.01, 1e5); })); })()] : [])));
   // what it does to polarisation
   const tRows = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, selectField('Polarisation', [['smf', 'Kept (ideal, held still)'], ['random', 'Standard fibre as laid (random)'],
     ['pm', 'Polarisation maintaining'], ['mm', 'Multimode (scrambled)']], () => F.ftype || 'smf', v => { F.ftype = v; }, { wide: true }),
@@ -934,6 +938,7 @@ export function fibreLinkPanel(F) {
     const pa = portPower(A, F.a[1]), pb = portPower(B, F.b[1]);
     const rows = [['Delay', (+(FIBRE_NG * F.len / 0.299792458).toPrecision(4)) + ' ns (optical path ' + fmtLen(FIBRE_NG * F.len * 1000) + ')'],
       ['Loss over it', (+(F.loss * F.len / 1000).toPrecision(3)) + ' dB'],
+      ...(F.bendR > 0 ? [['Bend loss', F.ftype === 'mm' ? 'not modelled for multimode fibre' : [...new Set([...((lastTrace.net && lastTrace.net.keys) || []).map(k => k.nm), 1550])].slice(0, 3).map(nm => (+fibreBendDb(F, nm).toPrecision(3)) + ' dB at ' + (+(+nm).toPrecision(5)) + ' nm').join(', ')]] : []),
       ...(pulsedFibreLaser() ? (() => { const P = pulsedFibreLaser(); return [['Dispersion at ' + (+P.wavelength.toPrecision(5)) + ' nm', (+fibreDisp(F, P.wavelength).toPrecision(3)) + ' ps/(nm km): GDD ' + fmtFs2(fibreGDD(F, P.wavelength, F.len))]]; })() : []),
       ...(() => { const S = lastTrace.net && lastTrace.net.spm && lastTrace.net.spm.get(F.id);
         return S ? [['Self-phase modulation', 'B-integral ' + (+S.B.toPrecision(3)) + ' rad (peak ' + fmtW(S.peak) + ' in, \u03b3 ' + (+fibreGamma(F, S.nm).toPrecision(3)) + ' /(W km)); the spectrum leaves ' + (+S.broad.toPrecision(3)) + ' times as wide (rms)']]

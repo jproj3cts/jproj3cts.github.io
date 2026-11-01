@@ -31,7 +31,8 @@ const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
 export const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
 const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
-  'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam'];
+  'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
+  'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 
 export const EXAMPLE_SCRIPTS = [
   ['Read a screen', `// The spot on the first screen: its rms radius, and the share of the sources' light that reaches it.
@@ -106,7 +107,8 @@ export function makeJ(P = window.JEKray, saves = []) {   // (in the script worke
   J.elements = () => project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle }));
   J.element = name => { const e = P.byName(name); if (!e) throw new Error('No part is called ' + JSON.stringify(name)); return JSON.parse(JSON.stringify(e)); };
   J.get = (name, path) => { J.element(name); return P.getParam(name, path); };
-  J.set = (name, path, v) => { J.element(name); P.setParam(name, path, v); P.trace(); return J; };
+  // J.set(name, path, value): one parameter; J.set(name, { x: 20, diameter: 25 }): several fields at once, checked as a file is
+  J.set = (name, path, v) => { J.element(name); if (path && typeof path === 'object') { P.set(name, path); return J; } P.setParam(name, path, v); P.trace(); return J; };
   J.range = (a, b, n) => { n = Math.max(2, Math.round(n)); return Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1)); };
   // each value set, read, and the parameter put back: rows of { [path]: value, ...what was read }
   J.sweep = (name, path, values, read) => {

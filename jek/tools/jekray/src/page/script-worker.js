@@ -48,6 +48,9 @@ function workerCalls(ops, st) {
     showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) { project.tab = b.id; project.view = curBench().view; } return project.tab; },
     sweepPause() { ops.push(['pause']); },
     sweepPlay() { throw pageOnly('sweepPlay', 'it plays a sweep on the bench you see (for a table, use J.sweep)'); },
+    setView() { throw pageOnly('setView', 'it moves the view of the bench you see'); },
+    kiosk() { throw pageOnly('kiosk', 'it hides the page’s panels for recording'); },
+    renderPNG() { throw pageOnly('renderPNG', 'it draws the bench you see as a picture'); },
   };
 }
 

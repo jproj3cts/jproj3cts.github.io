@@ -15,6 +15,9 @@ export const addBtn = h('button', { type: 'button', class: 'rt-radd', id: 'btnAd
 export let pickTab = 'free';
 export function setPickTab(v) { return (pickTab = v); }
 export function pickerShown(on) {
+  // the empty bench's tip steps aside while the picker is open (they sit in the same corner)
+  const tip = document.getElementById('emptyHint');
+  if (tip) tip.hidden = !!on;
   if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
   if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });

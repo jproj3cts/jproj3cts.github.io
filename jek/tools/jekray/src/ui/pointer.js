@@ -295,7 +295,10 @@ export function wirePointer() {
       // the whole selection moves with it; fibres between its members bring their shapes along
       const group = selection().filter(x => !x.locked), ids = new Set(group.map(x => x.id));
       const fibres = (project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0]));
-      drag = { mode: 'move', wasSel, el: hit, group, ids, starts: group.map(x => [x.x, x.y]), nodes: fibres.flatMap(F => (F.path || []).map(n => [n, n.x, n.y])),
+      // a curved fibre with one end moving: its bends follow in proportion, those nearest the moving end most
+      const halfway = (project.fibres || []).filter(F => F.route !== 'square' && (F.path || []).length && ids.has(F.a[0]) !== ids.has(F.b[0]))
+        .flatMap(F => { const n = F.path.length, fromA = ids.has(F.a[0]); return F.path.map((p, j) => [p, p.x, p.y, fromA ? 1 - (j + 1) / (n + 1) : (j + 1) / (n + 1)]); });
+      drag = { mode: 'move', wasSel, el: hit, group, ids, starts: group.map(x => [x.x, x.y]), nodes: [...fibres.flatMap(F => (F.path || []).map(n => [n, n.x, n.y])), ...halfway],
         ox: wx(px) - hit.x, oy: wy(py) - hit.y, px0: px, py0: py, started: false, x0: hit.x, y0: hit.y };
     } else if (e.pointerType === 'touch') {
       drag = { mode: 'pan', px0: px, py0: py, cx0: V().cx, cy0: V().cy, moved: false };
@@ -385,7 +388,7 @@ export function wirePointer() {
       // the grabbed element snaps; the rest keep their places against it
       const [nx, ny] = alignDrag(drag.el, snapVal(wx(px) - drag.ox, e), snapVal(wy(py) - drag.oy, e), new Set(drag.group.map(g => g.id)), e), dx = nx - drag.x0, dy = ny - drag.y0;
       drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + dx; g.y = drag.starts[i][1] + dy; });
-      for (const [n, x0, y0] of drag.nodes) { n.x = x0 + dx; n.y = y0 + dy; }
+      for (const [n, x0, y0, t] of drag.nodes) { const k = t === undefined ? 1 : t; n.x = x0 + k * dx; n.y = y0 + k * dy; }
       syncPanel(); requestRender();
       return;
     }

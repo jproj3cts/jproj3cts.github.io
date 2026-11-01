@@ -142,6 +142,10 @@ export function normLight(L, els) {
     envelope: L && typeof L.envelope === 'boolean' ? L.envelope : was ? was !== 'none' : true,
     field: L && typeof L.field === 'boolean' ? L.field : was ? was === 'field' : any('field'),
     scale: L && (L.scale === 'log' || L.scale === 'log60' || L.scale === 'lin') ? L.scale : (els || []).some(e => e && e.beamView === 'field' && e.beamScale === 'log') ? 'log' : 'lin',
+    // the rays drawn as bright as the power they carry against the bench's strongest (not each source's own),
+    // and, while sweeps play, fading trails of the frames before: kept only when on
+    ...(L && L.byPower === true ? { byPower: true } : {}),
+    ...(L && L.trail === true ? { trail: true } : {}),
   };
 }
 export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
@@ -160,6 +164,7 @@ export function serialize() {
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
+    ...(project.labelFixed ? { labelFixed: true, labelPx: project.labelPx || 12 } : {}),
     ...(project.elements.some(e => e.mod) ? { mods: modsCarried() } : {}),
     ...(project.style && (project.style.bg || project.style.holes === false) ? { style: project.style } : {}),
   };
@@ -216,6 +221,8 @@ export function normFibres(list, els) {
       conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
+      // wound round a radius (mm), turns times: its bend loss (core/bend.js)
+      ...(isFinite(F.bendR) && F.bendR > 0 ? { bendR: clamp(+F.bendR, 1, 1000), turns: isFinite(F.turns) && F.turns > 0 ? clamp(+F.turns, 0.01, 1e5) : 1 } : {}),
       wg: F.wg ? PIC.normWg(F.wg) : undefined,                                               // PIC hook: a waveguide on a chip
       route: F.route === 'square' ? 'square' : undefined });                                  // laid square (render.js squarePts)
   }
@@ -283,6 +290,7 @@ export function loadProject(data) {
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
+  if (data.labelFixed === true) { p.labelFixed = true; p.labelPx = isFinite(data.labelPx) ? clamp(Math.round(+data.labelPx), 6, 40) : 12; }   // or px on the screen
   // the bench's colour and its holes (View › Bench colour)
   const st = data.style && typeof data.style === 'object' ? data.style : {};
   p.style = {};

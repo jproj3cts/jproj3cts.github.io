@@ -2,7 +2,7 @@ import { hooks } from '../core/hooks.js';
 import { V, project } from '../state/project.js';
 import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
-import { CHALLENGES, EXERCISES, checkPasses, checkWant, exerciseBench, exerciseById, isChallenge } from '../core/exercises.js';
+import { CHALLENGES, EXERCISES, LISTED_NEWEST, checkPasses, checkWant, exerciseBench, exerciseById, isChallenge } from '../core/exercises.js';
 import { h, renderPanel } from './panel.js';
 import { changed, fitView, toast } from './actions.js';
 import { metricRaw, optimiseMany } from './optimise.js';
@@ -253,14 +253,21 @@ export function showExercises(from) {
   let dlg = document.getElementById('exDialog');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'exDialog', 'aria-labelledby': 'exDialogTitle' }); document.body.append(dlg); }
   const S = exSolved(), done = EXERCISES.filter(x => S[x.id]).length;
+  // the challenges, the newest few, the rest behind Show older
+  const chItem = x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
+    h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.goal)));
+  const chList = h('ol', { class: 'rt-exlist rt-chlist' }, ...CHALLENGES.slice(0, LISTED_NEWEST).map(chItem));
+  if (CHALLENGES.length > LISTED_NEWEST) {
+    const more = h('li', { class: 'rt-older' }, h('button', { class: 'rt-link', type: 'button', onclick: () => more.replaceWith(...CHALLENGES.slice(LISTED_NEWEST).map(chItem)) }, 'Show older (' + (CHALLENGES.length - LISTED_NEWEST) + ')'));
+    chList.append(more);
+  }
   dlg.replaceChildren(h('h2', { id: 'exDialogTitle' }, 'Exercises'),
     h('p', null, EXERCISES.length + ' short exercises on the bench, about two minutes each, from aiming a mirror to fixing a fibre’s polarisation. Each says what to reach, checks it as you go, and has two hints.' + (done ? ' Solved: ' + done + ' of ' + EXERCISES.length + '.' : '')),
     h('ol', { class: 'rt-exlist' }, ...EXERCISES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
       h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.teaches))))),
     CHALLENGES.length ? h('h3', { id: 'exChallenges' }, 'Challenges') : null,
     CHALLENGES.length ? h('p', null, 'Puzzles from our Instagram reels, newest first: no lesson, just a goal to reach.' + (CHALLENGES.some(x => S[x.id]) ? ' Solved: ' + CHALLENGES.filter(x => S[x.id]).length + ' of ' + CHALLENGES.length + '.' : '')) : null,
-    CHALLENGES.length ? h('ol', { class: 'rt-exlist rt-chlist' }, ...CHALLENGES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
-      h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.goal))))) : null,
+    CHALLENGES.length ? chList : null,
     accountsOn() && !account ? h('p', { class: 'note' }, 'Signed out, the ones you solve are kept in this browser; a free account keeps them in any.') : null,
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
   dlg.showModal();

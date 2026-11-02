@@ -6039,7 +6039,7 @@ const TESTS = [
   },
   {
     name: 'and so does each reel’s challenge, apart from the course: its bar says Challenge and offers the next challenge',
-    why: 'the reels’ challenges (core/exercises.js CHALLENGES), each from its reel’s bench: unsolved at the start, solved with its answer, the bar saying Challenge (not Exercise n of 11) and, solved, All challenges; Help › Exercises lists them under Challenges, unnumbered, after the eleven (1 when all hold)',
+    why: 'the reels’ challenges (core/exercises.js CHALLENGES), each from its reel’s bench: unsolved at the start, solved with its answer, the bar saying Challenge (not Exercise n of 11) and, solved, All challenges; Help › Exercises lists them under Challenges, unnumbered, after the eleven: the newest ten, the rest behind Show older (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
@@ -6055,7 +6055,11 @@ const TESTS = [
       J.exerciseLeave();
       rigDoc().getElementById('btnExercises').click(); await frame();
       const dlg = rigDoc().getElementById('exDialog'), lists = dlg ? dlg.querySelectorAll('.rt-exlist') : [];
-      const listed = lists.length === 2 && lists[0].children.length === J.exercises().length && lists[1].children.length === ids.length && lists[1].classList.contains('rt-chlist') && !!dlg.querySelector('#exChallenges');
+      // the newest ten listed, the rest behind Show older, which lists them all
+      const L = lists[1], older = L && L.querySelector('.rt-older button'), firstSeen = L ? L.querySelectorAll('.rt-exitem').length : 0;
+      if (older) { older.click(); await frame(); }
+      const listed = lists.length === 2 && lists[0].children.length === J.exercises().length && L.classList.contains('rt-chlist') && !!dlg.querySelector('#exChallenges')
+        && firstSeen === Math.min(10, ids.length) && !!older === (ids.length > 10) && L.querySelectorAll('.rt-exitem').length === ids.length && !L.querySelector('.rt-older');
       if (dlg) dlg.close();
       try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
       if (bad.length || !listed) console.log('challenges', { bad, listed });

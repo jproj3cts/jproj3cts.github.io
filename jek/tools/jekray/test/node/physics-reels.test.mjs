@@ -119,10 +119,18 @@ test('a Lamp with a size sends its light from its surface, its body takes light 
   assert.equal(R.length, 24, 'its rays in all');
   // each from across its face as seen its way: not all along the radius (a point's would be)
   assert.ok(R.some(r => Math.abs((r.pts[0] * (r.pts[3] - r.pts[1]) - r.pts[1] * (r.pts[2] - r.pts[0])) / Math.hypot(r.pts[2] - r.pts[0], r.pts[3] - r.pts[1])) > 1), 'rays start across the face');
-  for (const r of R) { near(Math.hypot(r.pts[0], r.pts[1]), 5, 1e-5); assert.ok(r.pts[0] * (r.pts[2] - r.pts[0]) + r.pts[1] * (r.pts[3] - r.pts[1]) > 0, 'outward'); }
-  // a tube lying along x, 30 by 4: its rays start on the rectangle
-  const T2 = run([{ type: 'lamp', id: 'S', name: 'Tube', x: 0, y: 0, angle: 0, wavelength: 580, rays: 40, lampD: 4, lampL: 30, lampShape: 'tube', pol: 's' }]);
-  for (const r of T2.rays.filter(q => q.src === 'S')) { const x = Math.abs(r.pts[0]), y = Math.abs(r.pts[1]); assert.ok(Math.abs(x - 15) < 1e-5 || Math.abs(y - 2) < 1e-5, 'on its outline'); assert.ok(x <= 15 + 1e-5 && y <= 2 + 1e-5); }
+  // each starts on the sphere, in 3D (some above the bench plane, some below), going out of it
+  for (const r of R) { const z = r.zs[0] - 75; near(Math.hypot(r.pts[0], r.pts[1], z), 5, 1e-5); assert.ok(r.pts[0] * (r.pts[2] - r.pts[0]) + r.pts[1] * (r.pts[3] - r.pts[1]) + z * (r.zs[1] - r.zs[0]) > 0, 'outward'); }
+  assert.ok(R.some(r => r.zs[0] > 76) && R.some(r => r.zs[0] < 74), 'from all its heights');
+  // a cylinder lying along x (tipped 0), 30 long and 4 across: its rays start on its side or its ends
+  const T2 = run([{ type: 'lamp', id: 'S', name: 'Tube', x: 0, y: 0, angle: 0, wavelength: 580, rays: 40, lampD: 4, lampL: 30, lampShape: 'cylinder', lampTip: 0, pol: 's' }]);
+  for (const r of T2.rays.filter(q => q.src === 'S')) {
+    const x = Math.abs(r.pts[0]), rad = Math.hypot(r.pts[1], r.zs[0] - 75);
+    assert.ok(Math.abs(x - 15) < 1e-5 || Math.abs(rad - 2) < 1e-5, 'on its surface'); assert.ok(x <= 15 + 1e-5 && rad <= 2 + 1e-5);
+  }
+  // a tube saved before opens as a cylinder lying down; a cylinder saved before stands up
+  run([{ type: 'lamp', id: 'A', name: 'Old tube', x: 0, y: 0, lampD: 4, lampL: 30, lampShape: 'tube' }, { type: 'lamp', id: 'B', name: 'Old cylinder', x: 50, y: 0, lampD: 4, lampL: 30, lampShape: 'cylinder' }]);
+  assert.deepEqual([byName('Old tube').lampShape, byName('Old tube').lampTip, byName('Old cylinder').lampTip], ['cylinder', 0, 90]);
   // a mirror behind it sends the light back into it, and the screen beyond sees none; a point lamp lets it through
   const behind = D => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, angle: 180, wavelength: 580, rays: 1, lampD: D, pol: 's' },
     { type: 'mirror', id: 'M', name: 'M', x: -20, y: 0, angle: 0, length: 10 }, { type: 'screen', id: 'B', name: 'Behind', x: 30, y: 0, angle: 180, length: 10 }]);
@@ -148,7 +156,7 @@ test('a Lamp’s light up and down: rings above and below the plane, the same po
   // seven rings, each with rays by its share of the sphere, every other one turned half a step
   const { lampRaysOf } = await import('../../src/state/elements.js');
   const L = lampRaysOf(byName('L')), byEl = new Map();
-  for (const [, , az, e] of L) { const k = e.toFixed(6); if (!byEl.has(k)) byEl.set(k, []); byEl.get(k).push(az); }
+  for (const [, , , az, e] of L) { const k = e.toFixed(6); if (!byEl.has(k)) byEl.set(k, []); byEl.get(k).push(az); }
   assert.equal(byEl.size, 7);
   const ring = e => byEl.get((e * Math.PI / 180).toFixed(6));
   assert.ok(ring(0).length > ring(20).length, 'the plane’s ring has more rays than the top one');

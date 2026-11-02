@@ -1,4 +1,4 @@
-import { FORMAT, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
+import { BEAM_Z, FORMAT, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
 import { assemblies, normAssemblies } from '../core/assembly.js';
 import { hooks } from '../core/hooks.js';
 import { normModRef } from '../core/modulators.js';
@@ -180,14 +180,33 @@ export function applySpins() {
    all (rays) are spread evenly over the band of directions it shines in: rings of latitude at k/rings of elev above and
    below the bench plane (one ring, the plane, without elev), each ring given rays in proportion to its share of the
    sphere (its cosine), every other ring turned half a step, so the directions pack as a honeycomb, not a grid. A lamp
-   with a size sends each from its visible face: across the face as seen from that direction (golden-ratio steps, so
-   neighbouring rays start far apart), from where a line that way leaves its outline. Uniform across the face seen
-   from any direction is how a glowing surface looks (Lambertian), so its size shows: the rays a lens collects leave
-   from all over it. Seen from above a sphere or a standing cylinder is a circle (lampD), a tube lying along its
-   direction a rectangle (lampL by lampD). [x, y, azimuth (rad, on the bench), elevation (rad)], on the bench. */
-export const lampTube = el => el.lampShape === 'tube';
+   with a size sends each from its face as seen from that direction, in 3D: a point across the outline it shows that
+   way (from an even two-dimensional sequence, so neighbouring rays start far apart), then out along the ray to where it
+   leaves the lamp. Uniform across the face seen from any direction is how a glowing surface looks (Lambertian), so its
+   size shows: the rays a lens collects leave from all over it. A sphere is lampD across; a cylinder lampD across and
+   lampL long, its axis along the lamp's direction tipped up by lampTip (90: standing up; 0: lying along its direction).
+   [x, y, z, azimuth (rad, on the bench), elevation (rad)], on the bench, z above the breadboard. */
+export const lampAxis = el => { const a = (el.angle || 0) * Math.PI / 180, t = (isFinite(el.lampTip) ? el.lampTip : 90) * Math.PI / 180; return [Math.cos(t) * Math.cos(a), Math.cos(t) * Math.sin(a), Math.sin(t)]; };
+const lampDot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+/* where a line from q (relative to the lamp's centre) along d leaves the lamp (the far end of its stretch inside), or null */
+function lampExit(el, q, d) {
+  const r = el.lampD / 2;
+  if (el.lampShape !== 'cylinder') {
+    const b = lampDot(q, d), c = lampDot(q, q) - r * r, disc = b * b - c;
+    return disc < 0 ? null : -b + Math.sqrt(disc);
+  }
+  const A = lampAxis(el), h = el.lampL / 2, qA = lampDot(q, A), dA = lampDot(d, A);
+  const qp = [q[0] - qA * A[0], q[1] - qA * A[1], q[2] - qA * A[2]], dp = [d[0] - dA * A[0], d[1] - dA * A[1], d[2] - dA * A[2]];
+  let lo = -Infinity, hi = Infinity;
+  const a2 = lampDot(dp, dp), b2 = lampDot(qp, dp), c2 = lampDot(qp, qp) - r * r;
+  if (a2 < 1e-12) { if (c2 > 0) return null; }
+  else { const disc = b2 * b2 - a2 * c2; if (disc < 0) return null; const sq = Math.sqrt(disc); lo = (-b2 - sq) / a2; hi = (-b2 + sq) / a2; }
+  if (Math.abs(dA) < 1e-12) { if (Math.abs(qA) > h) return null; }
+  else { const t1 = (-h - qA) / dA, t2 = (h - qA) / dA; lo = Math.max(lo, Math.min(t1, t2)); hi = Math.min(hi, Math.max(t1, t2)); }
+  return lo <= hi ? hi : null;
+}
 export function lampRaysOf(el) {
-  const N = Math.max(1, Math.round(el.rays || 1)), a0 = (el.angle || 0) * Math.PI / 180;
+  const N = Math.max(1, Math.round(el.rays || 1)), a0 = (el.angle || 0) * Math.PI / 180, z0 = isFinite(el.z) && el.z !== null ? +el.z : BEAM_Z;
   const R = el.elev > 0 ? Math.max(1, el.rings || 3) : 0, lev = [];
   for (let k = -R; k <= R; k++) lev.push([k, R ? k / R * el.elev * Math.PI / 180 : 0]);
   const cs = lev.map(([, e]) => Math.cos(e)), sc = cs.reduce((x, y) => x + y, 0);
@@ -196,32 +215,46 @@ export function lampRaysOf(el) {
   if (n[R] < 1) n[R] = 1;
   const dirs = [];
   lev.forEach(([k, e], q) => { const m = n[q], off = Math.abs(k) % 2 ? 0.5 : 0; for (let i = 0; i < m; i++) dirs.push([a0 + 2 * Math.PI * (i + off) / m, e]); });
-  const out = [], r = (el.lampD || 0) / 2, tube = lampTube(el), A = (el.lampL || 0) / 2, B = r, ca = Math.cos(a0), sa = Math.sin(a0);
-  dirs.forEach(([az, e], i) => {
-    if (!(r > 0)) { out.push([el.x, el.y, az, e]); return; }
-    const u = 2 * ((0.5 + i * 0.6180339887498949) % 1) - 1, dx = Math.cos(az), dy = Math.sin(az);
-    let ox, oy;
-    if (!tube) { const s = u * r; ox = s * -dy + Math.sqrt(Math.max(0, r * r - s * s)) * dx; oy = s * dx + Math.sqrt(Math.max(0, r * r - s * s)) * dy; }
-    else {
-      // in the tube's own frame: across its outline as seen that way, then out along the way to its edge
-      const lx = dx * ca + dy * sa, ly = -dx * sa + dy * ca, w = A * Math.abs(ly) + B * Math.abs(lx), s = u * w;
-      const qx = -ly * s, qy = lx * s;
-      let t = Infinity;
-      if (Math.abs(lx) > 1e-12) t = Math.min(t, Math.max((A - qx) / lx, (-A - qx) / lx));
-      if (Math.abs(ly) > 1e-12) t = Math.min(t, Math.max((B - qy) / ly, (-B - qy) / ly));
-      const px = qx + t * lx, py = qy + t * ly;
-      ox = px * ca - py * sa; oy = px * sa + py * ca;
+  const r = (el.lampD || 0) / 2, out = [];
+  if (!(r > 0)) { for (const [az, e] of dirs) out.push([el.x, el.y, z0, az, e]); return out; }
+  const cyl = el.lampShape === 'cylinder', A = cyl ? lampAxis(el) : null, h = cyl ? el.lampL / 2 : 0;
+  let seq = 0;
+  dirs.forEach(([az, e]) => {
+    const ce = Math.cos(e), d = [Math.cos(az) * ce, Math.sin(az) * ce, Math.sin(e)];
+    // across the face it shows this way: u level and across the ray, v up it, both square to it
+    const u = [-Math.sin(az), Math.cos(az), 0], v = [d[1] * u[2] - d[2] * u[1], d[2] * u[0] - d[0] * u[2], d[0] * u[1] - d[1] * u[0]];
+    let hu = r, hv = r;
+    if (cyl) { const au = lampDot(A, u), av = lampDot(A, v); hu = Math.abs(au) * h + r * Math.sqrt(Math.max(0, 1 - au * au)); hv = Math.abs(av) * h + r * Math.sqrt(Math.max(0, 1 - av * av)); }
+    // the next points of the sequence (R2, the plastic number's) inside the outline: the first that meets the lamp
+    let P = null;
+    for (let tries = 0; tries < 64 && !P; tries++, seq++) {
+      const a = (0.5 + seq * 0.7548776662466927) % 1, b = (0.5 + seq * 0.5698402909980532) % 1;
+      let s, t;
+      if (!cyl) { const rr = r * Math.sqrt(a), th = 2 * Math.PI * b; s = rr * Math.cos(th); t = rr * Math.sin(th); }
+      else { s = (2 * a - 1) * hu; t = (2 * b - 1) * hv; }
+      const q = [s * u[0] + t * v[0], s * u[1] + t * v[1], s * u[2] + t * v[2]], tx = lampExit(el, q, d);
+      if (tx !== null) P = [q[0] + tx * d[0], q[1] + tx * d[1], q[2] + tx * d[2]];
     }
-    out.push([el.x + ox + dx * 1e-7, el.y + oy + dy * 1e-7, az, e]);
+    if (!P) P = [0, 0, 0];
+    out.push([el.x + P[0] + d[0] * 1e-7, el.y + P[1] + d[1] * 1e-7, z0 + P[2] + d[2] * 1e-7, az, e]);
   });
   return out;
 }
 /* whether a source sends its rays as a Lamp's (lampRaysOf), not as a fan */
 export const lampEmits = el => !!(el && el.lamp && (el.lampD > 0 || el.elev > 0));
+/* a Lamp's outline seen from above, in its own frame (x along its direction): a circle (a sphere, or a cylinder standing
+   up), else a cylinder's footprint as it tips, its length L cos(tip) + D sin(tip); which light coming back is taken by */
+export function lampFootprint(el) {
+  const r = el.lampD / 2;
+  if (el.lampShape !== 'cylinder') return { round: true, a: r, b: r };
+  const t = (isFinite(el.lampTip) ? el.lampTip : 90) * Math.PI / 180, a = Math.abs(Math.cos(t)) * el.lampL / 2 + Math.abs(Math.sin(t)) * r;
+  return a <= r + 1e-9 ? { round: true, a: r, b: r } : { round: false, a, b: r };
+}
 export function lampBody(el) {
-  if (lampTube(el)) { const a = el.lampL / 2, b = el.lampD / 2; return [[a, -b], [a, b], [-a, b], [-a, -b]]; }
-  const r = el.lampD / 2, out = [];
-  for (let i = 0; i < 32; i++) { const t = 2 * Math.PI * i / 32; out.push([r * Math.cos(t), r * Math.sin(t)]); }
+  const F = lampFootprint(el);
+  if (!F.round) return [[F.a, -F.b], [F.a, F.b], [-F.a, F.b], [-F.a, -F.b]];
+  const out = [];
+  for (let i = 0; i < 32; i++) { const t = 2 * Math.PI * i / 32; out.push([F.a * Math.cos(t), F.a * Math.sin(t)]); }
   return out;
 }
 export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };

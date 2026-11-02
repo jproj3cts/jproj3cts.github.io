@@ -6,7 +6,7 @@ import { openDemo } from './tours.js';
 import { remindForm } from './news.js';
 import { themeDark } from './render.js';
 import { REELS } from './reels.js';
-import { exerciseOfReel } from '../core/exercises.js';
+import { LISTED_NEWEST, exerciseOfReel } from '../core/exercises.js';
 import { startExercise } from './challenge.js';
 import { openProjectData } from '../io/open.js';
 import { account, accountLoaded, accountOffer } from '../io/account.js';
@@ -45,7 +45,13 @@ export async function showLanding(opened) {
   const reel = r => h('li', null, h('button', { class: 'rt-reel' + (r.demo && r.demo === opened ? ' on' : ''), type: 'button', onclick: () => openReel(r) },
     r.demo ? h('img', { src: 'demos/thumbs/' + (dark ? '' : 'light/') + r.demo + '.webp', alt: '', loading: 'lazy', width: 96, height: 60 }) : h('i', { 'aria-hidden': 'true' }),
     h('span', null, h('b', null, r.title), h('small', null, r.demo && r.demo === opened ? 'On the bench now' : r.line))));
-  const list = h('ul', { class: 'rt-reels', tabindex: '0', 'aria-label': 'Benches from our reels, newest first' }, ...REELS.map(reel));
+  // the newest few, the rest behind Show older (all of them, if the one on the bench is among the older)
+  const cut = REELS.findIndex(r => r.demo && r.demo === opened) >= LISTED_NEWEST ? REELS.length : LISTED_NEWEST;
+  const list = h('ul', { class: 'rt-reels', tabindex: '0', 'aria-label': 'Benches from our reels, newest first' }, ...REELS.slice(0, cut).map(reel));
+  if (REELS.length > cut) {
+    const more = h('li', { class: 'rt-older' }, h('button', { class: 'rt-link', type: 'button', onclick: () => { more.replaceWith(...REELS.slice(cut).map(reel)); list.dispatchEvent(new Event('scroll')); } }, 'Show older (' + (REELS.length - cut) + ')'));
+    list.append(more);
+  }
   document.getElementById('stage').append(h('div', { class: 'rt-welcome rt-landing', id: 'igLanding', role: 'note' },
     h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: () => hideLanding(true) }, '\u00d7'),
     h('h3', null, 'From Instagram'),

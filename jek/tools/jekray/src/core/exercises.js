@@ -130,6 +130,9 @@ export const CHALLENGES = [
     result: v => fix(v[0], 2) + ' mW through the pinhole' },
 ];
 export const isChallenge = ex => CHALLENGES.includes(ex);
+/* how many reels (the From Instagram note) and challenges (Help › Exercises) are listed, newest first, before a
+   "Show older" button; every one still opens from its own link (?src=ig-…, ?ex=), however old */
+export const LISTED_NEWEST = 10;
 export const exerciseById = id => EXERCISES.find(x => x.id === id) || CHALLENGES.find(x => x.id === id) || null;
 export const exerciseOfReel = reel => CHALLENGES.find(x => x.reel === reel) || EXERCISES.find(x => x.reel === reel) || null;
 /* one check against its value (null: not measured yet, as when no light arrives) */

@@ -132,7 +132,9 @@ through `core/hooks.js`.
   challenges `CHALLENGES` newest first, apart so reels do not grow the course (start = a reel's bench + changes, checks on
   the optimiser's measures, unlocked settings, hints, answer, optimiser ranges), the bar/locks/checks `ui/challenge.js` (`exerciseTick` after each render puts back
   what may not change; locks are non-enumerable so never saved), solved kept in `jek-exercises` and on the account
-  (`jek-api/src/exercises.js`, migration 0017). Each answer is checked by the browser group 'Exercises'.
+  (`jek-api/src/exercises.js`, migration 0017). Each answer is checked by the browser group 'Exercises'. The From
+  Instagram note and the Challenges section list the newest `LISTED_NEWEST` (10), the rest behind Show older; every
+  reel and challenge keeps working from its own link.
 - Usage report (baseline before a change meant to move a number): `cd jek-api && JEK_OPS_TOKEN=… node scripts/usage.mjs`
   (`--days 90`, `--html r.html`, `--json`). Its "Sign-in prompts" table has a row per prompt (`track('prompt',
   '<where>.<answer>')`: share, save, return, shared, tour, menu; names in `PROMPT_NAMES`) with shown, each answer,

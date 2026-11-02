@@ -56,6 +56,7 @@ export function normSurface(s) {
   };
 }
 export function normElement(e) {
+  if (e && e.type === 'lamp') e = Object.assign({}, e, { type: 'source', lamp: true });
   const o = normElementBase(e);
   if (!o) return null;
   ELEC.normExtra(e, o);                                                                      // ELEC hook: an optical part's electrical settings
@@ -80,6 +81,7 @@ export function normElement(e) {
   return o;
 }
 export function normElementBase(e) {
+  if (e && e.type === 'lamp') e = Object.assign({}, e, { type: 'source', lamp: true });     // a Lamp written as its own type
   const base = {
     id: typeof e.id === 'string' ? e.id : uid(),
     type: e.type,

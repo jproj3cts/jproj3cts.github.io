@@ -46,6 +46,17 @@ test('a lamp shines all round: 360° of rays evenly spaced, none doubled', () =>
   for (const g of gaps) near(g, 30, 1, 'evenly 30° apart');
 });
 
+test('a Lamp is its own part: written as type lamp it opens as one, a point all round whatever it was given', () => {
+  run([{ type: 'lamp', id: 'S', name: 'Bulb', x: 0, y: 0, wavelength: 580, rays: 36, width: 9, divergence: 10, gauss: true }]);
+  const L = byName('Bulb');
+  assert.equal(L.lamp, true); assert.equal(L.width, 0); assert.equal(L.divergence, 360); assert.equal(L.gauss, false);
+  assert.equal(STATE.typeLabel(L), 'Lamp');
+  assert.equal(TRACE.lastTrace.rays.filter(r => r.src === 'S').length, 72, 'unpolarised: two halves of each of 36 rays');
+  const f = serialize().elements[0];
+  assert.equal(f.lamp, true);
+  run([f]); assert.equal(byName('Bulb').lamp, true, 'and opens again as one');
+});
+
 test('a source with an angular size: rays across that angle from each point, the power shared', () => {
   run([{ type: 'source', id: 'S', name: 'Sun', x: 0, y: 0, angle: 0, wavelength: 550, width: 10, divergence: 0, rays: 5, angularSize: 0.53, pol: 's' },
     { type: 'screen', id: 'A', name: 'Far', x: 1000, y: 0, angle: 180, length: 100 }]);

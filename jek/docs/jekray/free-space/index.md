@@ -331,6 +331,7 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 
 <ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/source/"><b>Source</b><small>A ray fan and a Gaussian beam: coherence, M², higher-order modes, pulses, fibre launch.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/lamp/"><b>Lamp</b><small>A point that shines all round: a lighthouse’s lamp, a bulb.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/detector/"><b>Photodetector</b><small>A photodiode and amplifier: DC, beat notes, noise and demodulation.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/screen/"><b>Screen</b><small>Spots, profiles, PSF and MTF, aberrations, pulses and optical traps.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/spectrometer/"><b>Spectrometer</b><small>Counts against wavelength through a slit or fibre entrance: resolution, saturation, signal-to-noise.</small></a></li>

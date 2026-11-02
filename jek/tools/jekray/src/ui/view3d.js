@@ -437,6 +437,8 @@ export const V3D = (() => {
         return g;
       }
       case 'source': {
+        // a Lamp: a glowing bulb on a short stem
+        if (el.lamp) { add(mesh(new T.SphereGeometry(3.5, 24, 16), mat.glow(el.colour || '#ffd060')), mesh(new T.CylinderGeometry(1, 1, 6, 12).rotateX(Math.PI / 2).translate(0, 0, -6), mat.body(0x2b2622))); return g; }
         const { L: len, hw } = srcBody(el);
         add(mesh(boxG(-len, 0, -hw, hw, -hw, hw), mat.body(0x2b2622)), mesh(disc(0.6, Math.max(0.6, el.width / 2), 0.3), mat.glow(el.colour || '#ff3030')));
         return g;

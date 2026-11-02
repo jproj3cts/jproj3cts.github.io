@@ -25,6 +25,7 @@ export const PART_USES = {
   stop: 'aperture iris block limit stop pinhole spatial filter clip',
   mask: 'aperture slit double slit pattern block diffraction mask',
   screen: 'view see image spot profile camera beam profile observe pattern ccd',
+  lamp: 'light bulb lighthouse all round 360 omnidirectional point lamp shine every direction torch candle',
   phosphor: 'view trail persistence glow card ir viewer see beam',
   grating: 'diffract disperse spectrum wavelength separate order ruled echelle',
   crystal: 'birefringent split polarisation displacer wollaston glan calcite double refraction',

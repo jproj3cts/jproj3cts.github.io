@@ -155,7 +155,7 @@ describe('usage counts', () => {
       return r;
     });
     expect(last.status).toBe(429);
-  });
+  }, 30000);                     // 121 requests one after another, twice if the minute turns: more than the default 5 s on a slow runner
 
   it('go after 25 months, and errors after 90 days', async () => {
     const old = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);

@@ -119,6 +119,15 @@ export const EXERCISES = [
    A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
    own exercises with a `reel` stay in the course, and are those reels' challenges too. */
 export const CHALLENGES = [
+  { id: 'escape-the-box', reel: 'ig-escape-the-box', title: 'Can you escape the box?',
+    start: { reel: 'ig-escape-the-box' },
+    goal: 'Get the beam out through the gap in the right wall to the Target.',
+    checks: [{ part: 'Target', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { Laser: ['angle'] },
+    hints: ['The beam has to leave through the gap: find a route the mirrors allow, as in a game of pool.', 'Aim at the gap\'s reflection in the left wall: about 164°.'],
+    answer: { Laser: { angle: 163.75 } },
+    // no optimiser: the Target reads 0 until the angle is within about 0.25° of a solution, so it has nothing to climb
+    result: v => fix(v[0], 2) + ' mW out of the box' },
   { id: 'hit-the-pinhole', reel: 'ig-hit-the-pinhole', title: 'Can you hit the pinhole?',
     start: { reel: 'ig-hit-the-pinhole' },
     goal: 'Get the light through the pinhole to the Detector.',

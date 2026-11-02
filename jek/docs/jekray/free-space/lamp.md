@@ -9,15 +9,9 @@ description: The JEKray lamp, a point that shines all round, its rays evenly spa
 
 ## The model
 
-A lamp has a **shape** and a **size**, and its light leaves from its surface:
+A lamp has a **shape** and a **size**, and its light leaves from its surface. It is a **sphere** (its diameter) or a **cylinder** (its diameter and length), the cylinder's axis along the lamp's **direction** tipped up by **Axis tipped up**: 90° stands it on end, like a candle or a lighthouse's mantle, 0° lays it along its direction, like a strip light, and anything between tilts it. On the bench, seen from above, it is drawn as its outline: a circle, or the rectangle a tipped cylinder covers.
 
-| Shape | Seen from above | Its size |
-|---|---|---|
-| Sphere | a circle | its diameter |
-| Cylinder, standing up | a circle | its diameter, and its height (in the 3D view) |
-| Tube, lying along its direction | a rectangle | its diameter and its length |
-
-Its **rays in all** are spread evenly over the directions it shines in, and each leaves from the lamp's face as seen from that direction, from all across it (in steps of the golden ratio, so neighbouring rays start far apart). A surface that glows evenly looks just that way from every side, an evenly bright disc (a Lambertian surface), so the lamp's size shows: a lens images it as a patch its size times the magnification, and a lighthouse's beam spreads by about the lamp's size over the lens's focal length, a 10 mm lamp's beam plainly wider than a 1 mm one's. A diameter of **0** makes it a point, its rays 360°/N apart, the first along its **direction**. A new lamp is a 1 mm sphere; one saved before lamps had a size opens as a point.
+Its **rays in all** are spread evenly over the directions it shines in, and each leaves from the lamp's face as seen from that direction, from all across it in three dimensions: across a sphere's disc, across a cylinder's side and ends, so its light starts from all its heights too (from an even two-dimensional sequence, so neighbouring rays start far apart). A surface that glows evenly looks just that way from every side, an evenly bright disc (a Lambertian surface), so the lamp's size shows: a lens images it as a patch its size times the magnification, and a lighthouse's beam spreads by about the lamp's size over the lens's focal length, a 10 mm lamp's beam plainly wider than a 1 mm one's. A diameter of **0** makes it a point, its rays 360°/N apart, the first along its **direction**. A new lamp is a 1 mm sphere; one saved before lamps had a size opens as a point.
 
 Its **body takes the light that comes back to it**: a mirror behind a bulb sends some of its light back into the bulb, lost, as in a real torch or headlight.
 
@@ -27,18 +21,18 @@ Its **power** is shared by all its rays, so a detector reads the share of the li
 
 ## Settings
 
-- **Shape**: sphere, cylinder standing up, or tube lying along its direction; **Diameter** (mm, 0 a point) and **Height** or **Length** (mm).
+- **Shape**: sphere or cylinder; **Diameter** (mm, 0 a point); a cylinder's **Length** (mm) and **Axis tipped up** (°, 90 standing).
 - **Wavelength** (nm), and **More wavelengths** for white light.
 - **Power** (mW), shared by all its rays.
 - **Rays in all** (1 to 501): spread round it, and over the rings when it has light up and down.
 - **Rays up and down** (°) and **Rings each way** (1 to 10).
-- **Direction** (°): where its outline starts (a tube's length lies along it).
+- **Direction** (°): the way a cylinder lying down points, and where a point lamp's first ray goes.
 
 ## A lighthouse
 
 Group the lamp with the lenses round it (select them all, Ctrl+G), then under **Turn the group** choose the lamp to turn about: its **Spin** (°) turns the lenses round it. A sweep of Spin from 0 to 360, played, spins the ring, and a detector far off sees a flash each time a lens faces it. [Fresnel lenses](/jek/docs/jekray/free-space/lens/#fresnel-lenses) make the ring light, as a real lighthouse's are.
 
-In a bench file a lamp is `{"type": "lamp", "lampShape": "sphere", "lampD": 1, "wavelength": 580, "power": 1, "rays": 240, "elev": 20, "rings": 3}` (`lampShape` `"sphere"`, `"cylinder"` or `"tube"`, `lampL` a cylinder's height or a tube's length), saved as a source with `"lamp": true`.
+In a bench file a lamp is `{"type": "lamp", "lampShape": "sphere", "lampD": 1, "wavelength": 580, "power": 1, "rays": 240, "elev": 20, "rings": 3}` (`lampShape` `"sphere"` or `"cylinder"`, `lampL` a cylinder's length, `lampTip` its axis tipped up, 90 standing; a `"tube"` saved before opens as a cylinder lying down), saved as a source with `"lamp": true`.
 
 ## Related
 

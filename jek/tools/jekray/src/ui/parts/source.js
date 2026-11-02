@@ -5,7 +5,7 @@ import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../../core/beams-ho
 import { wavelengthColour } from '../../core/colour.js';
 import { fanEdgeAuto } from '../../core/fan-edge.js';
 import { V, project } from '../../state/project.js';
-import { getEl, lampTube, lightOf, srcBody } from '../../state/elements.js';
+import { getEl, lampFootprint, lightOf, srcBody } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS, rayPattern } from '../../engines/trace.js';
 import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../render.js';
@@ -26,13 +26,13 @@ import { checkpoint } from '../tabs.js';
    strokes round it for its glow; drawn at least a few pixels across, so a millimetre's lamp can be found and picked */
 const LAMP_MIN_PX = 5;
 function lampHalf(el) {
-  const k = 1 / V().scale, m = LAMP_MIN_PX * k;
-  return lampTube(el) ? [Math.max(el.lampL / 2, m), Math.max(el.lampD / 2, m)] : [Math.max(el.lampD / 2, m), Math.max(el.lampD / 2, m)];
+  const k = 1 / V().scale, m = LAMP_MIN_PX * k, F = lampFootprint(el);
+  return [Math.max(F.a, m), Math.max(F.b, m), F.round];
 }
 function drawLamp(el, sel) {
-  const f = frame(el), [a, b] = lampHalf(el), k = 1 / V().scale;
+  const f = frame(el), [a, b, round] = lampHalf(el), k = 1 / V().scale;
   ctx.save();
-  if (lampTube(el)) pathLocal(f, [[a, -b], [a, b], [-a, b], [-a, -b]], true);
+  if (!round) pathLocal(f, [[a, -b], [a, b], [-a, b], [-a, -b]], true);
   else { ctx.beginPath(); ctx.arc(sx(el.x), sy(el.y), a * V().scale, 0, 2 * Math.PI); }
   ctx.fillStyle = el.colour; ctx.globalAlpha = 0.45; ctx.fill(); ctx.globalAlpha = 1;            // its light, gently: a lit surface, not a glare
   ctx.strokeStyle = sel ? selInk() : getCss('--rt-source'); ctx.lineWidth = sel ? 2 : 1.5; ctx.stroke();
@@ -42,7 +42,7 @@ function drawLamp(el, sel) {
   for (let i = 0; i < 8; i++) {
     const t = i * Math.PI / 4, c = Math.cos(t), s = Math.sin(t);
     // from the outline's edge in that direction (a rectangle's, or the circle's)
-    const e = lampTube(el) ? Math.min(Math.abs(c) > 1e-9 ? a / Math.abs(c) : Infinity, Math.abs(s) > 1e-9 ? b / Math.abs(s) : Infinity) : a;
+    const e = !round ? Math.min(Math.abs(c) > 1e-9 ? a / Math.abs(c) : Infinity, Math.abs(s) > 1e-9 ? b / Math.abs(s) : Infinity) : a;
     pathLocal(f, [[c * (e + g0), s * (e + g0)], [c * (e + g1), s * (e + g1)]]);
     ctx.stroke(); ctx.beginPath();
   }
@@ -51,9 +51,9 @@ function drawLamp(el, sel) {
 function lampPanel(el) {
   panel.append(h('h3', null, 'Lamp'));
   panel.append(h('div', { class: 'rt-rows' },
-    selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder, standing up'], ['tube', 'Tube, lying along its direction']], () => el.lampShape, v => { el.lampShape = v; renderPanel(); }, { wide: true }),
+    selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder']], () => el.lampShape, v => { el.lampShape = v; if (v === 'cylinder' && !isFinite(el.lampTip)) el.lampTip = 90; renderPanel(); }, { wide: true }),
     param('Diameter (mm)', el, 'lampD', { placeholder: '0: a point' }),
-    ...(el.lampShape === 'sphere' ? [] : [param(el.lampShape === 'tube' ? 'Length (mm)' : 'Height (mm)', el, 'lampL')]),
+    ...(el.lampShape === 'cylinder' ? [param('Length (mm)', el, 'lampL'), param('Axis tipped up (\u00b0)', el, 'lampTip', { placeholder: '90: standing' })] : []),
     param('Wavelength (nm)', el, 'wavelength'),
     param('Power (mW)', el, 'power'),
     param('Rays in all', el, 'rays'),
@@ -67,7 +67,7 @@ function lampPanel(el) {
   const tot = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   bindSync(tot, () => { const W = 1 + (el.lines || []).length; tot.textContent = el.rays + ' rays' + (el.elev > 0 ? ' spread over ' + (2 * (el.rings || 3) + 1) + ' rings' : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
   panel.append(tot);
-  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: round the bench plane, and with Rays up and down in rings above and below it, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. Seen from above a sphere or a standing cylinder is a circle of its diameter, a tube lying along its direction a rectangle. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. A cylinder\u2019s height shows in the 3D view. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
+  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: round the bench plane, and with Rays up and down in rings above and below it, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. A cylinder\u2019s axis lies along the lamp\u2019s direction tipped up by its tip: 90\u00b0 stands it up, 0\u00b0 lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere\u2019s disc, a cylinder\u2019s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
 }
 
 function drawSource(el, sel) {
@@ -313,7 +313,7 @@ function sourcePanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 }
 
-function hitSource(el, lx, ly, tol) { if (el.lamp) { const [a, b] = lampHalf(el); return lampTube(el) ? Math.abs(lx) <= a + tol && Math.abs(ly) <= b + tol : Math.hypot(lx, ly) <= a + tol; } const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
+function hitSource(el, lx, ly, tol) { if (el.lamp) { const [a, b, round] = lampHalf(el); return !round ? Math.abs(lx) <= a + tol && Math.abs(ly) <= b + tol : Math.hypot(lx, ly) <= a + tol; } const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
 
 export const SOURCE_UI = {
   draw: drawSource, hit: hitSource, panel: sourcePanel, rank: 0,

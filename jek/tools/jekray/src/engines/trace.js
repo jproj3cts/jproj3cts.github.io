@@ -485,7 +485,7 @@ export function rayPattern(src, n) {
 }
 export const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 export function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
-const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || (e.lamp && e.elev > 0))) || (e.type === 'fibre' && e.emitPattern));
+const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
@@ -715,7 +715,7 @@ function traceSceneOnce() {
     if (el.type === 'link') linkSurf.set(el.id, ss[0]);
     if (el.type === 'lens' && !el.tip && !el.roll) for (const sg of lensEdges(el, ss)) segs.push({ f, sg, el: el.id });
     // a Lamp with a size: its body takes the light that comes back to it (a reflector's, another lamp's)
-    if (el.type === 'source' && el.lamp && el.lampD > 0) { const B = lampBody(el); B.forEach((p, i) => { const q = B[(i + 1) % B.length]; segs.push({ f, sg: [p[0], p[1], q[0], q[1]], el: el.id }); }); }
+    if (el.type === 'source' && el.lamp && el.lampD > 0) { const B = lampBody(el); B.forEach((p, i) => { const q = B[(i + 1) % B.length]; segs.push({ f, sg: [p[0], p[1], q[0], q[1]], el: el.id, lamp: true }); }); }
     // The whole plane of a stop, seen only by the beam-parameter ray. That ray is a
     // reference, not light: it passes the blades, and the stop becomes a mask on the field,
     // so a slit or knife edge anywhere across the beam still leaves a field behind it.
@@ -812,13 +812,13 @@ function traceSceneOnce() {
     emitted += nRays;
     emittedBy[src.id] = (emittedBy[src.id] || 0) + nRays * sAmp * sAmp;
     raySc[src.id] = lmw / Math.max(1, nRays);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
-    if (LR) LR.forEach(([wx, wy, az, ev], i) => {
-      const ce = Math.cos(ev);
+    if (LR) LR.forEach(([wx, wy, wz, az, ev], i) => {
+      const ce = Math.cos(ev), z0 = zOf(src);
       for (const st of states) {
         stack.push(Object.assign({ px: wx, py: wy, dx: Math.cos(az) * ce, dy: Math.sin(az) * ce,
           sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3],
           bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, ev ? { zh: zOf(src), uz: Math.sin(ev) } : null));
+          fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, ev || Math.abs(wz - z0) > 1e-12 ? { zh: wz, uz: Math.sin(ev) } : null));
       }
     });
     const RW = src.round && (src.pattern || 'line') === 'line' && n > 1 ? roundWeights(n) : null;
@@ -992,6 +992,7 @@ function traceSceneOnce() {
         }
         if (!atLayer) for (const g of segs) {
           if (g.el && (g.el === skipEl || g.el === forceEl)) continue;       // its rim is no rim to these
+          if (g.lamp && bounce === 0 && g.el === src.id) continue;            // a lamp's light leaving it (from all its heights) is not taken back by its own outline
           if (gr && g.el !== gr.s.el.id) continue;
           const [lx, ly] = toLocal(g.f, px, py);
           const [ldx, ldy] = toLocalDir(g.f, dx, dy);

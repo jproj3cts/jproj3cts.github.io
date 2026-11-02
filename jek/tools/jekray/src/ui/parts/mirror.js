@@ -62,7 +62,7 @@ function mirrorPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Length (mm)', el, 'length'),
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
+    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })]),
     param('Conic k', el, 'k', { blank: 0 }),
     param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
     // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)

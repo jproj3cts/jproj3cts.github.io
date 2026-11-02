@@ -1,6 +1,7 @@
 /* ---------- Exercises ----------
    Short exercises on the bench, each with a goal the bench itself checks (ui/challenge.js): a part, what is measured
-   on it (a key of the optimiser's measures, ui/optimise.js METRICS), and above, below or within ± a value. Only the
+   on it (a key of the optimiser's measures, ui/optimise.js METRICS: key) or one of its own settings (field: x, y,
+   angle…, so a part must be where it is wanted, not deleted), and above, below or within ± a value. Only the
    parts in `unlocked`, and only those settings, can be changed while one is on; everything else is held. Each starts
    from one of our reels' benches (ui/reels.js), changed as `start` says. In order they make a short course (Help ›
    Exercises); the ones with a `reel` are also that reel's challenge, offered to visitors who come from it. Nothing of

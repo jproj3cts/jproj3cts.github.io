@@ -13,6 +13,8 @@ export const MIRROR = {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25)),
       reflect: clamp(num(e.reflect, 100), 0, 100),
+      // % passed through (what is neither reflected nor passed is absorbed); left out: all that is not reflected
+      ...(e.transmit !== undefined && e.transmit !== null && isFinite(+e.transmit) ? { transmit: clamp(+e.transmit, 0, 100 - clamp(num(e.reflect, 100), 0, 100)) } : {}),
       offset: num(e.offset, 0),
       k: num(e.k, 0),
       // even aspheric terms on the conic, A4 r⁴ … (as a lens surface's)
@@ -35,7 +37,7 @@ export const MIRROR = {
   guide: {
     what: 'A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if reflect < 100.',
     angle: 'the direction its reflecting face points (its normal, towards the light it reflects).',
-    fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).', hole: 'mm across: a hole through its middle that light passes through (0 or left out: none).',
+    fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted, unless transmit says otherwise).', transmit: '% passed through, 0 to 100 − reflect; what is neither reflected nor passed is absorbed (a black wall: reflect 10, transmit 0). Left out: all that is not reflected passes.', hole: 'mm across: a hole through its middle that light passes through (0 or left out: none).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
     k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', F: 'optional: freeform terms {"mn": c_mn}, c_mn x^m y^n added to the sag (x up out of the bench plane, y across the mirror; m even).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',

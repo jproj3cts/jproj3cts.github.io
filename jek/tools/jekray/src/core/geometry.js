@@ -22,7 +22,20 @@ export function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGr
 
 /* the sag; a zoned RF lens's cut face (s.zone, from lensSurfaces) is the smooth face stepped back by the whole layers
    taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
-export const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
+export const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? (s.zone.off ? s.zone.off(Math.abs(y)) : s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz) : 0);
+/* A Fresnel face (a surface's fresnel: its pitch, mm): the curved face cut into rings that wide, each keeping the
+   slope of the whole face where it is but brought back to the face's vertex plane, a sheer wall (a riser) between
+   one ring and the next: the sawtooth a moulded Fresnel lens has. As a zone (rawSag adds off(r); zoneHit meets the
+   risers, where the light is lost to the beam, as on a real one). Null for a flat face or no pitch. */
+export function fresnelZone(sd, c, semi) {
+  const p = sd.fresnel;
+  if (!(p > 0) || (!c && !sd.a2 && !(sd.A && sd.A.some(v => v)) && !(sd.odd && sd.odd.some(v => v)))) return null;
+  const base = r => sagR2(c, sd.k || 0, sd.a2 || 0, sd.A || [], sd.odd, r * r, true), steps = [];
+  for (let r = p; r < semi - 1e-9 && steps.length < 2000; r += p) steps.push(r);
+  if (!steps.length) return null;
+  const ring = r => Math.min(steps.length, Math.floor(r / p + 1e-12));
+  return { fresnel: p, steps, off: r => -base(ring(r) * p), k: ring, dz: 0, sg: 1 };
+}
 /* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
    (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
    runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
@@ -167,7 +180,7 @@ export function lensSurfaces(el) {
       sd.semi || el.diameter / 2, {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
-        kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
+        kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : out2 ? undefined : fresnelZone(sd, c, sd.semi || el.diameter / 2) || undefined,
         // a hole about the axis: no surface inside it; a mirror coating: silvered, for the drawing
         hole: sd.hole > 0 && sd.hole < (sd.semi || el.diameter / 2) - 1e-9 ? sd.hole : 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)

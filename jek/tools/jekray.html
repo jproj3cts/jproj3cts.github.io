@@ -8957,7 +8957,8 @@ function backMarks(now, first) {
 }
 /* ---------- Exercises ----------
    Short exercises on the bench, each with a goal the bench itself checks (ui/challenge.js): a part, what is measured
-   on it (a key of the optimiser's measures, ui/optimise.js METRICS), and above, below or within ± a value. Only the
+   on it (a key of the optimiser's measures, ui/optimise.js METRICS: key) or one of its own settings (field: x, y,
+   angle…, so a part must be where it is wanted, not deleted), and above, below or within ± a value. Only the
    parts in `unlocked`, and only those settings, can be changed while one is on; everything else is held. Each starts
    from one of our reels' benches (ui/reels.js), changed as `start` says. In order they make a short course (Help ›
    Exercises); the ones with a `reel` are also that reel's challenge, offered to visitors who come from it. Nothing of
@@ -9253,7 +9254,9 @@ const SOURCE = {
       // the soft edge of the fan's field, mm: the 10-90% rise of its uniform top-hat; automatic (core/fan-edge.js) unless set
       softAuto: e.softAuto !== false,
       soft: Math.max(0, num(e.soft, 0)),                        // used only when not automatic; the panel shows the automatic one
-      divergence: clamp(num(e.divergence, 0), -179, 179),
+      divergence: clamp(num(e.divergence, 0), -360, 360),
+      // a source as wide as it looks (the sun: 0.53°): each point of the beam sends rays across that angle
+      ...(e.angularSize > 0 ? { angularSize: clamp(+e.angularSize, 0, 90), angularRays: clamp(Math.round(num(e.angularRays, 5)), 2, 21) } : {}),                    // 360: a lamp, shining all round
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
       // a line of rays carrying a round beam's power: each as much as the ring of the beam it stands for (engines/trace.js roundWeights)
       ...(e.round === true ? { round: true } : {}),
@@ -9293,7 +9296,7 @@ const SOURCE = {
     fields: {
       round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
-    divergence: 'degrees, full angle of the fan; negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).',
+    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
@@ -9321,6 +9324,8 @@ const MIRROR = {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25)),
       reflect: clamp(num(e.reflect, 100), 0, 100),
+      // % passed through (what is neither reflected nor passed is absorbed); left out: all that is not reflected
+      ...(e.transmit !== undefined && e.transmit !== null && isFinite(+e.transmit) ? { transmit: clamp(+e.transmit, 0, 100 - clamp(num(e.reflect, 100), 0, 100)) } : {}),
       offset: num(e.offset, 0),
       k: num(e.k, 0),
       // even aspheric terms on the conic, A4 r⁴ … (as a lens surface's)
@@ -9343,7 +9348,7 @@ const MIRROR = {
   guide: {
     what: 'A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if reflect < 100.',
     angle: 'the direction its reflecting face points (its normal, towards the light it reflects).',
-    fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted).', hole: 'mm across: a hole through its middle that light passes through (0 or left out: none).',
+    fields: { length: 'mm: the mirror’s width across the bench.', reflect: '% reflected, 0 to 100 (the rest is transmitted, unless transmit says otherwise).', transmit: '% passed through, 0 to 100 − reflect; what is neither reflected nor passed is absorbed (a black wall: reflect 10, transmit 0). Left out: all that is not reflected passes.', hole: 'mm across: a hole through its middle that light passes through (0 or left out: none).',
     R: 'mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex.',
     k: 'conic constant (0 sphere, −1 paraboloid).', A: 'optional: even aspheric terms [A4, A6, …] (mm to the power 1 − n), added to the conic’s sag with the radius’s sign.', F: 'optional: freeform terms {"mn": c_mn}, c_mn x^m y^n added to the sag (x up out of the bench plane, y across the mirror; m even).', offset: 'mm: an off-axis segment of the parent surface, this far from its vertex.',
     gdd: 'fs² added to each reflection (a chirped mirror; negative compresses a pulse); 0 for an ordinary mirror.',
@@ -9663,7 +9668,7 @@ const LENS = {
   guide: {
     what: 'A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass.',
     angle: 'the direction of its optical axis. Surface 1 is on the side the axis points away from: at angle 0 light travelling +x meets surfaces[0] first.',
-    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating ({"mode": "bare" | "ar" | "custom" | "band" | "stack" | "mirror"}; a mirror coating reflects all it can and passes nothing, "metal": "ideal" | "Al" | "Ag" | "Au" for its reflectance), "semi": optional clear radius, mm (the lens\u2019s own unless given), "hole": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face\u2019s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
+    fields: { diameter: 'mm.', surfaces: 'list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating ({"mode": "bare" | "ar" | "custom" | "band" | "stack" | "mirror"}; a mirror coating reflects all it can and passes nothing, "metal": "ideal" | "Al" | "Ag" | "Au" for its reflectance), "semi": optional clear radius, mm (the lens\u2019s own unless given), "hole": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on, "fresnel": optional, mm: a Fresnel face, its curve cut into rings this wide, each keeping the face\u2019s slope where it is but brought back to its vertex plane with a sheer riser between rings (light meeting a riser is lost, as on a real one), so the lens can be far thinner (a flat face stays flat)}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face\u2019s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream).',
     gaps: 'mm: centre thicknesses between successive surfaces (one fewer than surfaces); 0 stacks the next surface on this one (the two share a vertex, each applying between its hole and its clear radius).', materials: 'one material per gap, e.g. {"glass": "N-BK7"}.',
     asphere: 'true for an asphere: only an asphere\u2019s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens\u2019s are spheres.',
     diffractive: 'true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π.',
@@ -10635,6 +10640,8 @@ function normSurface(s) {
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
     hole: isFinite(s.hole) && s.hole > 0 ? +s.hole : 0,     // a hole about the axis, this radius: no surface there, so the light meets the next surface of the stack, or goes on
     coat: normCoat(s.coat),
+    // a Fresnel face: the curved face cut into rings this wide (mm), each with the face's slope, brought back to its base
+    ...(isFinite(s.fresnel) && +s.fresnel > 0 ? { fresnel: Math.min(100, Math.max(0.05, +s.fresnel)) } : {}),
   };
 }
 function normElement(e) {
@@ -10678,6 +10685,9 @@ function normElementBase(e) {
   // and rolled about its own axis (the way it faces, or its optical axis), degrees (see setRoll)
   if (isFinite(e.roll) && e.roll !== null && +e.roll !== 0 && tippable(base)) base.roll = clamp(+(+e.roll).toFixed(6), -180, 180);
   if (typeof e.group === 'string' && e.group) base.group = e.group.slice(0, 40);     // one of a group, picked and moved together
+  // the part its group turns about: spin (degrees, sweepable) turns the rest of the group about its x, y; spun is the spin
+  // they are placed at now (applySpins brings them round to spin)
+  if (base.group && e.pivot === true) { base.pivot = true; base.spin = num(e.spin, 0); base.spun = num(e.spun, base.spin); }
   // what its import had to assume (a coating from the part number, a fold it could not follow): shown in red until dismissed
   if (Array.isArray(e.assumed) && e.assumed.length) base.assumed = e.assumed.filter(x => typeof x === 'string' && x).slice(0, 12).map(x => x.slice(0, 400));
   if (e.mmw && typeof e.mmw === 'object') base.mmw = normRf(e.mmw, e.type);              // an RF part: the RF palette's, a horn's settings
@@ -10730,7 +10740,28 @@ function normLight(L, els) {
     // and, while sweeps play, fading trails of the frames before: kept only when on
     ...(L && L.byPower === true ? { byPower: true } : {}),
     ...(L && L.trail === true ? { trail: true } : {}),
+    // the rays drawn wider than 1.2 px on the screen (up to 4), and with a soft glow round them: kept only when set
+    ...(L && isFinite(L.rayWidth) && +L.rayWidth > 1.2 ? { rayWidth: Math.min(4, +L.rayWidth) } : {}),
+    ...(L && L.glow === true ? { glow: true } : {}),
   };
+}
+/* A group's spin (a lighthouse's lamp ring, a polygon scanner): each group's pivot part with its spin changed turns the
+   rest of the group about its own x, y by the change, their angles too, and the fibres between them; spun then
+   says where they are. Done before each trace (engines/trace.js traceScene), so a sweep of spin plays it. */
+function applySpins() {
+  for (const p of project.elements) {
+    if (!p.pivot || !p.group) continue;
+    const d = (p.spin || 0) - (p.spun || 0);
+    if (!d) continue;
+    const r = d * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), rot = (x, y) => [p.x + (x - p.x) * c - (y - p.y) * s, p.y + (x - p.x) * s + (y - p.y) * c];
+    const mates = project.elements.filter(e => e !== p && e.group === p.group && e.bench === p.bench), ids = new Set([p.id, ...mates.map(e => e.id)]);
+    for (const e of mates) { [e.x, e.y] = rot(e.x, e.y); e.angle = +((((e.angle + d) % 360) + 540) % 360 - 180).toFixed(9); }
+    for (const F of project.fibres || []) if (ids.has(F.a[0]) && ids.has(F.b[0])) for (const n of F.path || []) {
+      [n.x, n.y] = rot(n.x, n.y);
+      for (const k of ['h1', 'h2']) if (Array.isArray(n[k])) n[k] = [n[k][0] * c - n[k][1] * s, n[k][0] * s + n[k][1] * c];
+    }
+    p.spun = p.spin || 0;
+  }
 }
 const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
 function serialize() {
@@ -10935,7 +10966,20 @@ function dsagFn(s, y) { return rawDsag(s, y + (s.y0 || 0)) + (s.FL ? ffGrad(s.FL
 
 /* the sag; a zoned RF lens's cut face (s.zone, from lensSurfaces) is the smooth face stepped back by the whole layers
    taken out at that radius, each step a sheer wall (its slope, rawDsag, is the smooth face's between the walls) */
-const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz : 0);
+const rawSag = (s, y) => sagR2(s.c, s.k, s.a2, s.A, s.odd, y * y, true) + (s.zone ? (s.zone.off ? s.zone.off(Math.abs(y)) : s.zone.sg * s.zone.k(Math.abs(y)) * s.zone.dz) : 0);
+/* A Fresnel face (a surface's fresnel: its pitch, mm): the curved face cut into rings that wide, each keeping the
+   slope of the whole face where it is but brought back to the face's vertex plane, a sheer wall (a riser) between
+   one ring and the next: the sawtooth a moulded Fresnel lens has. As a zone (rawSag adds off(r); zoneHit meets the
+   risers, where the light is lost to the beam, as on a real one). Null for a flat face or no pitch. */
+function fresnelZone(sd, c, semi) {
+  const p = sd.fresnel;
+  if (!(p > 0) || (!c && !sd.a2 && !(sd.A && sd.A.some(v => v)) && !(sd.odd && sd.odd.some(v => v)))) return null;
+  const base = r => sagR2(c, sd.k || 0, sd.a2 || 0, sd.A || [], sd.odd, r * r, true), steps = [];
+  for (let r = p; r < semi - 1e-9 && steps.length < 2000; r += p) steps.push(r);
+  if (!steps.length) return null;
+  const ring = r => Math.min(steps.length, Math.floor(r / p + 1e-12));
+  return { fresnel: p, steps, off: r => -base(ring(r) * p), k: ring, dz: 0, sg: 1 };
+}
 /* A ray meeting a zoned face, in the face's own frame (x along the axis from the vertex, y across, z up): the ray
    (px, py, pz) + t (dx, dy, dz) over t in [t0, t1]. Where it first meets the face, { t, wall }: wall true where it
    runs into a step's wall (the face jumps across its path there), where the light is lost to the beam. The sag's
@@ -11080,7 +11124,7 @@ function lensSurfaces(el) {
       sd.semi || el.diameter / 2, {
         odd: out2 ? undefined : sd.odd, FL: out2 ? null : ffList(sd.F),
         cyl: el.cyl, cylS: out2 ? { c, k: sd.k, a2: sd.a2, A: sd.A, odd: sd.odd } : undefined,
-        kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : undefined,
+        kind: 'refract', coat: sd.coat, zone: zone && i === Z.face ? zone : out2 ? undefined : fresnelZone(sd, c, sd.semi || el.diameter / 2) || undefined,
         // a hole about the axis: no surface inside it; a mirror coating: silvered, for the drawing
         hole: sd.hole > 0 && sd.hole < (sd.semi || el.diameter / 2) - 1e-9 ? sd.hole : 0, silver: !!(sd.coat && sd.coat.mode === 'mirror'), stack: first[i],
         // a diffractive lens's phase on this face, in its order (core/diffractive.js)
@@ -12281,6 +12325,7 @@ function keyCut(k, v) {
 }
 function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
+  applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
   // a sweep playing round again: each step's trace kept from the cycle before
@@ -12693,21 +12738,29 @@ function traceSceneOnce() {
     emittedBy[src.id] = (emittedBy[src.id] || 0) + pat.length * sAmp * sAmp;
     raySc[src.id] = lmw / Math.max(1, pat.length);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
     const RW = src.round && (src.pattern || 'line') === 'line' && n > 1 ? roundWeights(n) : null;
+    // a lamp all round (360°): n rays 360/n apart, the first and last not on one another
+    const ANG = src.angularSize > 0 ? src.angularRays || 5 : 1, angAmp = 1 / Math.sqrt(ANG);
+    const dvAll = Math.abs(src.divergence) >= 360 && n > 1 && (src.pattern || 'line') === 'line' ? src.divergence * (n - 1) / n : src.divergence;
     for (const [t0, u0, i] of pat) {
       const g = RW ? Math.sqrt(RW[i]) : 1;                       // a round beam's ring, as an amplitude
       // and its pattern across the beam with it
       const t = src.roll ? t0 * rc - u0 * rs : t0, u = src.roll ? t0 * rs + u0 * rc : u0;
-      const a = (src.angle + t * src.divergence) * deg;
+      const a = (src.angle + t * dvAll) * deg;
       const ca = Math.cos(src.angle * deg), sa = Math.sin(src.angle * deg);
       // a ray up the beam starts that far up it, its divergence (and the source's tip) turning it up
       const ev = e0 + u * src.divergence * deg, ce = Math.cos(ev);
       const off = u || src.tip ? { zh: zOf(src) + u * src.width, uz: Math.sin(ev) } : null;
-      for (const st of states) {
-        stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
-          dx: Math.cos(a) * ce, dy: Math.sin(a) * ce,
-          sr: amp(st)[0] * g, si: amp(st)[1] * g, pr: amp(st)[2] * g, pi: amp(st)[3] * g,
-          bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
+      // a source with an angular size (the sun's half a degree): from each point of the beam, ANG rays across that
+      // angle, sharing its power; the light from any one direction is still a parallel beam
+      for (let j = 0; j < ANG; j++) {
+        const aj = a + (ANG > 1 ? (j / (ANG - 1) - 0.5) * src.angularSize * deg : 0), gj = g * angAmp;
+        for (const st of states) {
+          stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
+            dx: Math.cos(aj) * ce, dy: Math.sin(aj) * ce,
+            sr: amp(st)[0] * gj, si: amp(st)[1] * gj, pr: amp(st)[2] * gj, pi: amp(st)[3] * gj,
+            bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i + (j ? '~' + j : ''),
+            fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
+        }
       }
     }
     if (src === probeSrc) {
@@ -13507,7 +13560,11 @@ function traceSceneOnce() {
             opl += reflExtra;
             sr = -sr * metalA; si = -si * metalA; pr = -pr * metalA; pi = -pi * metalA;
             if (metalA !== 1) { ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
-          } else if (Rms > 0 || Rmp > 0) branch(as, 0, ap, 0);
+          } else if (Rms > 0 || Rmp > 0 || (s.kind === 'mirror' && s.el.transmit != null)) {
+            // a mirror that absorbs: what it passes set apart from what it reflects, the rest lost
+            const tA = s.kind === 'mirror' && s.el.transmit != null && !s.el.film ? Math.sqrt(s.el.transmit / 100) : null;
+            branch(as, 0, ap, 0, tA === null ? undefined : { ts: [tA, 0], tp: [tA, 0] });
+          }
         } else {
           const goingBack = cosd > 0;
           // Entering a crystal: its two polarisations go their own ways from here, so the ray
@@ -14506,7 +14563,7 @@ function drawTrail() {
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower, lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -14597,7 +14654,8 @@ function drawRaysOn(ctx, rays, shared) {
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
   // by power (Light: rays as bright as their power): each ray's mW against the bench's strongest, whatever its source
   const sc = (lastTrace.raySc) || {}, byPow = lightOf().byPower ? rayTopPower(rays, project.tab, sc) : 0;
-  ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
+  const RW = (lightOf().rayWidth || 1.2) / 1.2, GLOW = !!lightOf().glow;
+  ctx.lineWidth = (dens < 1 ? 1.4 : 1.2) * RW;          // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
@@ -14638,6 +14696,13 @@ function drawRaysOn(ctx, rays, shared) {
         }
         x0 = x1; y0 = y1;
       }
+    }
+    // a glow: the same path twice more under it, wider and fainter
+    if (GLOW) {
+      const lw = ctx.lineWidth, ga = ctx.globalAlpha;
+      ctx.lineWidth = lw * 5; ctx.globalAlpha = ga * 0.12; ctx.stroke();
+      ctx.lineWidth = lw * 2.4; ctx.globalAlpha = ga * 0.3; ctx.stroke();
+      ctx.lineWidth = lw; ctx.globalAlpha = ga;
     }
     ctx.stroke();
   }
@@ -23485,7 +23550,12 @@ function sourcePanel(el) {
       param('Beam width (mm)', el, 'width'),
       ...(el.gauss ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
-      param('Rays', el, 'rays')));
+      param('Rays', el, 'rays'),
+      // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
+      param('Angular size (°)', el, 'angularSize', { placeholder: 'a point', blank: 0 }),
+      ...(el.angularSize > 0 ? [param('Rays across it', el, 'angularRays')] : [])));
+    if (Math.abs(el.divergence) >= 360) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, 'A lamp: its rays all round, evenly spaced.'));
+    if (el.angularSize > 0) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, (el.angularRays || 5) + ' rays across its ' + el.angularSize + '\u00b0 from each point: ' + rayPattern(el, el.rays).length * (el.angularRays || 5) + ' in all.'));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
     // a line of rays standing for a round beam's power (an f-stop halves it, as in 3D)
@@ -23706,7 +23776,7 @@ function mirrorPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Length (mm)', el, 'length'),
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect')]),
+    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })]),
     param('Conic k', el, 'k', { blank: 0 }),
     param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
     // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
@@ -23798,6 +23868,8 @@ function lensPanel(el) {
       // where the surface is: out to its clear radius (the lens's own unless given). A hole is the Optical designer's to make
       // (with what it means for the light's path), shown here when there is one
       param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
+    // a Fresnel face: its curve cut into rings of this pitch (a curved face only)
+    if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) rows.append(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));
     if (s.hole > 0) rows.append(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly\u2026).'));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
@@ -25517,6 +25589,9 @@ const METRICS = [
   { key: 'rms', fam: 'rays', on: 'screen', label: 'RMS spot', fmt: fmtLen, goals: ['min', 'match'], get: st => st.rms },
   { key: 'full', fam: 'rays', on: 'screen', label: 'Full width', fmt: fmtLen, goals: ['min', 'match'], get: st => st.full },
   { key: 'centroid', fam: 'rays', on: 'screen', label: 'Centroid position', fmt: fmtLen, goals: ['match', 'min'], get: st => st.centroid, absolute: true },
+  // which way the light arrives: its mean direction on the bench (as a part's angle), and off the screen's normal
+  { key: 'dir', fam: 'rays', on: 'screen', label: 'Beam direction on the bench (°)', fmt: v => (+v).toFixed(3) + '\u00b0', goals: ['match', 'min', 'max'], get: st => st.dirDeg },
+  { key: 'tilt', fam: 'rays', on: 'screen', label: 'Arrival angle off the normal (°)', fmt: v => (+v).toFixed(3) + '\u00b0', goals: ['match', 'min', 'max'], get: st => st.tiltDeg, absolute: true },
   { key: 'power', fam: 'rays', on: 'screen', label: 'Power received', fmt: pctTxt, goals: ['max', 'match', 'min'], get: st => st.powerPct },
   { key: 'wfRMS', fam: 'rays', on: 'screen', label: 'Wavefront RMS', fmt: wavesTxt, goals: ['min', 'match'], get: st => st.wfRMS === null ? null : st.wfRMS / (st.nm * 1e-6) },
   { key: 'wfPV', fam: 'rays', on: 'screen', label: 'Wavefront P\u2013V', fmt: wavesTxt, goals: ['min', 'match'], get: st => st.wfPV === null ? null : st.wfPV / (st.nm * 1e-6) },
@@ -27568,6 +27643,21 @@ function groupPanel(list) {
     B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
   const shared = sharedFields(list);
   if (shared) panel.append(h('h3', null, 'Set them all'), shared);
+  // a group can turn about one of its parts (a lighthouse's ring, a polygon scanner): its Spin turns the rest about it,
+  // and plays as a sweep like any setting
+  if (list.length > 1 && list.every(e => e.group && e.group === list[0].group)) {
+    const piv = list.find(e => e.pivot);
+    panel.append(h('h3', null, 'Turn the group'));
+    const rows = h('div', { class: 'rt-rows' }, selectField('Turns about', [['', 'Nothing (it does not turn)'], ...list.map(e => [e.id, e.name])], () => (piv ? piv.id : ''), v => {
+      for (const e of list) { delete e.pivot; delete e.spin; delete e.spun; }
+      const p = list.find(e => e.id === v);
+      if (p) { p.pivot = true; p.spin = 0; p.spun = 0; }
+      renderPanel();
+    }, { wide: true }));
+    if (piv) rows.append(param('Spin (\u00b0)', piv, 'spin'));
+    panel.append(rows);
+    if (piv) panel.append(helpLine('Spin turns the rest of the group about ' + piv.name + '; play it with its sweep.', ['Spin turns every other part of the group about ' + piv.name + '\u2019s centre, their angles with them, by the change in Spin. Give it a sweep (\u223f) from 0 to 360 and play it to spin the group, as a lighthouse\u2019s lenses or a polygon scanner\u2019s faces turn.'], 'note', 'margin-top:0.35rem'));
+  }
   panel.append(h('h3', null, 'Selection'));
   const locked = list.every(e => e.locked);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' },
@@ -33537,7 +33627,11 @@ function renderOverview() {
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
   panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'),
-    tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'));
+    tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
+    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'));
+  // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
+  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
+    selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
@@ -35143,7 +35237,7 @@ function laserState(c) {
   // the partly transmitting mirrors round the loop; the walk starts at the most transmitting
   const n = c.surfaces.length, els = c.surfaces.map(getEl);
   out.outs = [];
-  els.forEach((e, j) => { if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: 1 - e.reflect / 100 }); });
+  els.forEach((e, j) => { if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: e.transmit != null ? e.transmit / 100 : 1 - e.reflect / 100 }); });
   const oc = out.outs.length ? out.outs.reduce((a, b) => b.T > a.T ? b : a) : null, j0 = oc ? oc.j : 0;
   const Rof = (j, Roc) => { const e = els[j]; return e && e.type === 'mirror' ? (oc && j === oc.j && Roc !== undefined ? Roc : Math.min(1, e.reflect / 100)) : 1; };
   const rest = (lnPassive - els.reduce((a, e, j) => a + Math.log(Rof(j)), 0)) / n;
@@ -44885,9 +44979,19 @@ function screenStatsRaw(el) {
   const vis = field ? field.visibility : null;
   const interference = field ? field.interference : null;
 
+  // which way the light goes as it arrives: each ray's direction on the bench (degrees, as parts' angles) from its
+  // slope across the screen, the screen facing the light; their mean as a vector, weighted by power; and its angle off
+  // the screen's normal (+ towards the screen's own +y)
+  let dX = 0, dY = 0, tilt = 0;
+  for (const t of hits) {
+    const sy = Math.max(-1, Math.min(1, t.dly || 0)), th = el.angle * Math.PI / 180 + Math.atan2(sy, -Math.sqrt(1 - sy * sy));
+    dX += t.w * Math.cos(th); dY += t.w * Math.sin(th); tilt += t.w * Math.asin(sy);
+  }
+  const dirDeg = W0 > 0 ? Math.atan2(dY, dX) * 180 / Math.PI : null, tiltDeg = W0 > 0 ? tilt / W0 * 180 / Math.PI : null;
   return {
     count: hits.length,
     power: W0,
+    dirDeg, tiltDeg,
     stokes: { S0, S1, S2, S3 },
     profile,
     visibility: vis,
@@ -52579,6 +52683,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Fresnel lenses</b>: give a lens\u2019s curved face <b>Fresnel rings</b> (mm) and it is cut into rings of that pitch, each with the face\u2019s slope, as a moulded Fresnel lens is: it focuses as the solid lens does, a fraction as thick, a little light lost at the risers. And: a source\u2019s divergence up to <b>360\u00b0</b> (a lamp shining all round); an <b>angular size</b> (the sun\u2019s half a degree, so its image is a disc); mirrors that <b>absorb</b> (Passes through: what is neither reflected nor passed is lost); a group that <b>spins</b> about one of its parts (Turn the group, its Spin a sweep to play); <b>Ray width</b> and <b>Rays glow</b> under Bench \u203a Light; and screens\u2019 <b>beam direction</b> and <b>arrival angle</b>, for the optimiser and the exercises.',
     '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account. Under them, <b>Challenges</b>: the puzzles from our Instagram reels, newest first, starting with \u201cCan you hit the pinhole?\u201d; the same checks and hints, kept apart from the course.',
     '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',
     '<b>More prisms</b>: the pentaprism (90\u00b0 whatever its tilt), the Amici roof prism, the Pellin\u2013Broca prism and a polygon of your own corners, with any faces silvered. Mirrors can have a <b>hole through them</b>, a source\u2019s line of rays can carry <b>power as across a round beam</b> (so an iris passes what it would), and a fibre wound round a radius has its <b>bend loss</b> (Marcuse\u2019s formula, single-mode fibre). A fibre\u2019s route now moves with the parts at its ends.',
@@ -54784,7 +54889,8 @@ function exerciseTick() {
 }
 function exRead() {
   const els = EX.ex.checks.map(c => project.elements.find(e => e.name === c.part && onTab(e)));
-  EX.values = EX.ex.checks.map((c, i) => (els[i] ? metricRaw(els[i], c.key) : null));
+  // a measure on the part (the optimiser's), or one of the part's own settings (field: x, y, angle…): none if it is gone
+  EX.values = EX.ex.checks.map((c, i) => (!els[i] ? null : c.field ? (isFinite(els[i][c.field]) ? +els[i][c.field] : null) : metricRaw(els[i], c.key)));
   const ok = EX.ex.checks.map((c, i) => checkPasses(c, EX.values[i]));
   if (!EX.solved && ok.every(Boolean)) exSolvedNow();
   exBarReading(ok);
@@ -54824,8 +54930,9 @@ function exerciseNext(id, fromStart) {
   const after = [...L.slice(i + 1), ...L.slice(0, Math.max(0, i))].filter(x => x.id !== id);
   return after.find(x => !S[x.id]) || null;
 }
-const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW' };
-const exWhat = { rms: 'RMS spot', full: 'width', centroid: 'spot centre', couple: 'coupling', dmw: 'power' };
+const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW', dir: '\u00b0', tilt: '\u00b0', x: ' mm', y: ' mm', angle: '\u00b0', z: ' mm' };
+const exWhat = { rms: 'RMS spot', full: 'width', centroid: 'spot centre', couple: 'coupling', dmw: 'power', dir: 'beam direction', tilt: 'arrival angle', x: 'x', y: 'y', angle: 'angle', z: 'height' };
+const exKey = c => c.field || c.key;
 const exFmt = v => (v === null || !isFinite(v) ? '–' : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(2) : Math.abs(v) >= 0.01 ? v.toFixed(3) : v === 0 ? '0' : v.toPrecision(2));
 function exShareLink() {
   const u = location.origin + location.pathname.replace(/jekray-dev\.html$/, 'jekray.html') + '?ex=' + EX.ex.id + '&src=solved';
@@ -54848,7 +54955,7 @@ function exOptimise() {
   }
   // the ranges are the optimiser's for this search only: each part's sweeps put back as they were
   const unkeep = () => { for (const [e, k, was] of keep) { if (was) e.sweeps[k] = was; else delete e.sweeps[k]; } };
-  for (const c of EX.ex.checks) terms.push({ target: project.elements.find(q => q.name === c.part), key: c.key, goal: c.op === 'above' ? 'max' : c.op === 'below' ? 'min' : 'match', targetVal: c.value, weight: 1 });
+  for (const c of EX.ex.checks.filter(q => !q.field)) terms.push({ target: project.elements.find(q => q.name === c.part), key: c.key, goal: c.op === 'above' ? 'max' : c.op === 'below' ? 'min' : 'match', targetVal: c.value, weight: 1 });
   toast('The optimiser is looking…');
   setTimeout(() => {
     try { optimiseMany(vars, terms); } catch (err) { unkeep(); toast('The optimiser could not finish: ' + err.message, true); return; }
@@ -54896,8 +55003,8 @@ function exBarReading(ok) {
   if (!box) return;
   box.replaceChildren(...EX.ex.checks.map((c, i) => h('div', { class: 'rt-exrow' + (ok[i] ? ' ok' : '') },
     h('span', { class: 'rt-exmark', 'aria-hidden': 'true' }, ok[i] ? '✓' : '○'),
-    h('span', null, c.part + ' ' + exWhat[c.key] + ': ', h('b', null, exFmt(EX.values[i]) + exUnits[c.key])),
-    h('small', null, ' goal ' + checkWant(c) + exUnits[c.key]))));
+    h('span', null, c.part + ' ' + (exWhat[exKey(c)] || exKey(c)) + ': ', h('b', null, exFmt(EX.values[i]) + (exUnits[exKey(c)] || ''))),
+    h('small', null, ' goal ' + checkWant(c) + (exUnits[exKey(c)] || '')))));
 }
 /* on the bench: a dashed ring round each part the exercise lets you change */
 function exerciseDraw(ctx) {
@@ -56179,6 +56286,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },
+    // several parts selected together, as a box or Shift-clicks pick them
+    selectMany(names) { setSelection(names.map(n => this.byName(n)).filter(Boolean)); renderPanel(); requestRender(); return selection().length; },
     // several at once: the clipboard, turning and lining up, as the menu and panel do them
     copy(names) { return clipOf(names.map(n => this.byName(n))); },
     paste(clip, at) { return pasteClip(clip, at); },

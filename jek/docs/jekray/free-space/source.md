@@ -21,6 +21,12 @@ $$
 
 where $$\theta_0$$ is the source's angle. A negative divergence makes a converging fan. Each ray carries an equal share of the source's power. Rays show geometry: where light goes, spots, aberrations and vignetting.
 
+### A lamp, and a source with a size
+
+A **divergence of 360°** makes a lamp that shines all round: its rays spread evenly, 360°/N apart, none on top of another. A lighthouse's lamp is one, with lenses round it.
+
+A source can also have an **angular size**: how wide it looks from far away (the sun is 0.53°). From each point of its beam, rays go out across that angle (5 unless you set **Rays across it**, 2 to 21), sharing the point's power. So a lens forms a sun's image a disc, not a point: its width is the focal length times the angle, $$f\,\theta$$, which is why a burning glass's spot never shrinks to nothing.
+
 ### Rays across the beam
 
 The fan is a line across the source, in the bench plane. A source can lay its rays out across the whole beam instead, up and down as well as across, the same width (and divergence) both ways:

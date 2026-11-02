@@ -90,6 +90,8 @@ function lensPanel(el) {
       // where the surface is: out to its clear radius (the lens's own unless given). A hole is the Optical designer's to make
       // (with what it means for the light's path), shown here when there is one
       param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
+    // a Fresnel face: its curve cut into rings of this pitch (a curved face only)
+    if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) rows.append(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));
     if (s.hole > 0) rows.append(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly\u2026).'));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));

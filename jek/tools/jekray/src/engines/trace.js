@@ -17,7 +17,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
-import { FREE_3D, VSRC, getEl, setVSRC } from '../state/elements.js';
+import { FREE_3D, VSRC, applySpins, getEl, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
 import { stackMet, stackOrder } from '../core/sag.js';
@@ -392,6 +392,7 @@ function keyCut(k, v) {
 }
 export function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
+  applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
   // a sweep playing round again: each step's trace kept from the cycle before
@@ -804,21 +805,29 @@ function traceSceneOnce() {
     emittedBy[src.id] = (emittedBy[src.id] || 0) + pat.length * sAmp * sAmp;
     raySc[src.id] = lmw / Math.max(1, pat.length);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
     const RW = src.round && (src.pattern || 'line') === 'line' && n > 1 ? roundWeights(n) : null;
+    // a lamp all round (360°): n rays 360/n apart, the first and last not on one another
+    const ANG = src.angularSize > 0 ? src.angularRays || 5 : 1, angAmp = 1 / Math.sqrt(ANG);
+    const dvAll = Math.abs(src.divergence) >= 360 && n > 1 && (src.pattern || 'line') === 'line' ? src.divergence * (n - 1) / n : src.divergence;
     for (const [t0, u0, i] of pat) {
       const g = RW ? Math.sqrt(RW[i]) : 1;                       // a round beam's ring, as an amplitude
       // and its pattern across the beam with it
       const t = src.roll ? t0 * rc - u0 * rs : t0, u = src.roll ? t0 * rs + u0 * rc : u0;
-      const a = (src.angle + t * src.divergence) * deg;
+      const a = (src.angle + t * dvAll) * deg;
       const ca = Math.cos(src.angle * deg), sa = Math.sin(src.angle * deg);
       // a ray up the beam starts that far up it, its divergence (and the source's tip) turning it up
       const ev = e0 + u * src.divergence * deg, ce = Math.cos(ev);
       const off = u || src.tip ? { zh: zOf(src) + u * src.width, uz: Math.sin(ev) } : null;
-      for (const st of states) {
-        stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
-          dx: Math.cos(a) * ce, dy: Math.sin(a) * ce,
-          sr: amp(st)[0] * g, si: amp(st)[1] * g, pr: amp(st)[2] * g, pi: amp(st)[3] * g,
-          bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i,
-          fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
+      // a source with an angular size (the sun's half a degree): from each point of the beam, ANG rays across that
+      // angle, sharing its power; the light from any one direction is still a parallel beam
+      for (let j = 0; j < ANG; j++) {
+        const aj = a + (ANG > 1 ? (j / (ANG - 1) - 0.5) * src.angularSize * deg : 0), gj = g * angAmp;
+        for (const st of states) {
+          stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
+            dx: Math.cos(aj) * ce, dy: Math.sin(aj) * ce,
+            sr: amp(st)[0] * gj, si: amp(st)[1] * gj, pr: amp(st)[2] * gj, pi: amp(st)[3] * gj,
+            bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i + (j ? '~' + j : ''),
+            fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
+        }
       }
     }
     if (src === probeSrc) {
@@ -1618,7 +1627,11 @@ function traceSceneOnce() {
             opl += reflExtra;
             sr = -sr * metalA; si = -si * metalA; pr = -pr * metalA; pi = -pi * metalA;
             if (metalA !== 1) { ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
-          } else if (Rms > 0 || Rmp > 0) branch(as, 0, ap, 0);
+          } else if (Rms > 0 || Rmp > 0 || (s.kind === 'mirror' && s.el.transmit != null)) {
+            // a mirror that absorbs: what it passes set apart from what it reflects, the rest lost
+            const tA = s.kind === 'mirror' && s.el.transmit != null && !s.el.film ? Math.sqrt(s.el.transmit / 100) : null;
+            branch(as, 0, ap, 0, tA === null ? undefined : { ts: [tA, 0], tp: [tA, 0] });
+          }
         } else {
           const goingBack = cosd > 0;
           // Entering a crystal: its two polarisations go their own ways from here, so the ray

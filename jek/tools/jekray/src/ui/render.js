@@ -535,7 +535,7 @@ function drawTrail() {
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower, lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -626,7 +626,8 @@ function drawRaysOn(ctx, rays, shared) {
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
   // by power (Light: rays as bright as their power): each ray's mW against the bench's strongest, whatever its source
   const sc = (lastTrace.raySc) || {}, byPow = lightOf().byPower ? rayTopPower(rays, project.tab, sc) : 0;
-  ctx.lineWidth = dens < 1 ? 1.4 : 1.2;                 // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
+  const RW = (lightOf().rayWidth || 1.2) / 1.2, GLOW = !!lightOf().glow;
+  ctx.lineWidth = (dens < 1 ? 1.4 : 1.2) * RW;          // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
@@ -667,6 +668,13 @@ function drawRaysOn(ctx, rays, shared) {
         }
         x0 = x1; y0 = y1;
       }
+    }
+    // a glow: the same path twice more under it, wider and fainter
+    if (GLOW) {
+      const lw = ctx.lineWidth, ga = ctx.globalAlpha;
+      ctx.lineWidth = lw * 5; ctx.globalAlpha = ga * 0.12; ctx.stroke();
+      ctx.lineWidth = lw * 2.4; ctx.globalAlpha = ga * 0.3; ctx.stroke();
+      ctx.lineWidth = lw; ctx.globalAlpha = ga;
     }
     ctx.stroke();
   }

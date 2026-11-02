@@ -91,7 +91,12 @@ function sourcePanel(el) {
       param('Beam width (mm)', el, 'width'),
       ...(el.gauss ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
-      param('Rays', el, 'rays')));
+      param('Rays', el, 'rays'),
+      // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
+      param('Angular size (°)', el, 'angularSize', { placeholder: 'a point', blank: 0 }),
+      ...(el.angularSize > 0 ? [param('Rays across it', el, 'angularRays')] : [])));
+    if (Math.abs(el.divergence) >= 360) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, 'A lamp: its rays all round, evenly spaced.'));
+    if (el.angularSize > 0) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, (el.angularRays || 5) + ' rays across its ' + el.angularSize + '\u00b0 from each point: ' + rayPattern(el, el.rays).length * (el.angularRays || 5) + ' in all.'));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
     // a line of rays standing for a round beam's power (an f-stop halves it, as in 3D)

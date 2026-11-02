@@ -34,7 +34,7 @@ function drawLamp(el, sel) {
   ctx.save();
   if (lampTube(el)) pathLocal(f, [[a, -b], [a, b], [-a, b], [-a, -b]], true);
   else { ctx.beginPath(); ctx.arc(sx(el.x), sy(el.y), a * V().scale, 0, 2 * Math.PI); }
-  ctx.fillStyle = el.colour; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = el.colour; ctx.globalAlpha = 0.45; ctx.fill(); ctx.globalAlpha = 1;            // its light, gently: a lit surface, not a glare
   ctx.strokeStyle = sel ? selInk() : getCss('--rt-source'); ctx.lineWidth = sel ? 2 : 1.5; ctx.stroke();
   // the glow: eight short strokes out from the outline
   ctx.strokeStyle = el.colour; ctx.lineWidth = 1.5; ctx.beginPath();

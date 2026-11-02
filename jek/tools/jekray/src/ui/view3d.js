@@ -321,6 +321,9 @@ export const V3D = (() => {
     body: (c = 0x262b30) => new T.MeshStandardMaterial({ color: paperBody3(c), metalness: 0.35, roughness: benchLight() ? 0.45 : 0.55, side: T.DoubleSide }),
     matte: c => new T.MeshStandardMaterial({ color: col(c), metalness: 0, roughness: 0.8, side: T.DoubleSide }),
     glow: c => new T.MeshStandardMaterial({ color: col(c), emissive: col(c), emissiveIntensity: 0.7, roughness: 0.4, side: T.DoubleSide }),
+    // a Lamp's body: a whole surface lit, not a laser's pin-point face, so gentler: pale (its light mixed with white),
+    // a soft glow of its colour, frosted, so it has a shape and lights the scene without glaring
+    lamp: c => new T.MeshStandardMaterial({ color: col(c).lerp(new T.Color(0xffffff), 0.5), emissive: col(c), emissiveIntensity: 0.25, roughness: 0.9, metalness: 0, side: T.FrontSide }),
   };
   const mesh = (g, m) => { const o = new T.Mesh(g, m); o.castShadow = !m.transparent; o.receiveShadow = true; return o; };
   // a solid of revolution about the part's axis (local x): points [x, r]
@@ -440,7 +443,7 @@ export const V3D = (() => {
         // a Lamp: a glowing bulb on a short stem
         if (el.lamp) {
           // its shape at its size, glowing in its light: a sphere, a cylinder standing up, a tube lying along its direction
-          const r = Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.glow(el.colour || '#ffd060');
+          const r = Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.lamp(el.colour || '#ffd060');
           add(mesh(el.lampShape === 'tube' ? new T.CylinderGeometry(r, r, L, 24).rotateZ(Math.PI / 2) : el.lampShape === 'cylinder' ? new T.CylinderGeometry(r, r, L, 24).rotateX(Math.PI / 2) : new T.SphereGeometry(r, 24, 16), C));
           return g;
         }

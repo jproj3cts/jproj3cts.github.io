@@ -1525,7 +1525,7 @@ const TESTS = [
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
-      const els = [{ type: 'source', id: 'S', name: 'Lamp', x: 0, y: 0, angle: 0, wavelength: 580, width: 0, divergence: 360, rays: 240, group: 'ring', pivot: true, spin: 0, pol: 's' }];
+      const els = [{ type: 'lamp', id: 'S', name: 'Lamp', x: 0, y: 0, angle: 0, wavelength: 580, rays: 240, group: 'ring', pivot: true, spin: 0, pol: 's' }];
       for (let i = 0; i < 4; i++) { const a = i * 90; els.push({ type: 'lens', id: 'L' + i, name: 'Panel ' + (i + 1), x: 87.5 * Math.cos(a * Math.PI / 180), y: 87.5 * Math.sin(a * Math.PI / 180), angle: a, diameter: 70, surfaces: [{ R: null }, { R: -40, fresnel: 4 }], gaps: [3], materials: [{ glass: 'N-BK7' }], group: 'ring' }); }
       els.push({ type: 'detector', id: 'D', name: 'Ship', x: 400, y: 0, angle: 180 }, { type: 'mirror', id: 'W', name: 'Wall', x: 0, y: -300, angle: 90, length: 20, reflect: 5, transmit: 0 });
       J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: false, field: false, glow: true, rayWidth: 3 }, elements: els });

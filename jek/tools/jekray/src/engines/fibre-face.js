@@ -7,7 +7,7 @@ import { fanFromGauss, srcModes } from '../core/beams-hom.js';
 import { deg } from '../state/project.js';
 import { benchNms, getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
-import { lastTrace, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
+import { lastTrace, raysLaunched, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
 import { QEig, QRot, beamQ, beamQM, cavEventABCD, ccInv, mfree, qThrough } from './cavity.js';
 import { detectorFieldResult, viaCavity } from './pd-cavity.js';
 
@@ -373,7 +373,7 @@ export function detectorReading(el) {
     for (const t of hits) {
       const src = getEl(t.id.split(':')[0]);
       if (!src || src.gauss) continue;
-      const mw = t.w * splitRoot(src).power / (Math.max(1, src.rays) * sourceLines(src).length);
+      const mw = t.w * splitRoot(src).power / (raysLaunched(src) * sourceLines(src).length);
       P += mw; I += mw * responsivity(el, t.nm);
     }
     // noise: shot noise on the photocurrent and dark current, the feedback resistor's

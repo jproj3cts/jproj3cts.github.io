@@ -17,7 +17,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
-import { FREE_3D, VSRC, applySpins, getEl, setVSRC } from '../state/elements.js';
+import { FREE_3D, VSRC, applySpins, getEl, lampBody, lampOutline, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
 import { stackMet, stackOrder } from '../core/sag.js';
@@ -461,6 +461,21 @@ export function roundWeights(n) {
   const m = w.reduce((a, b) => a + b, 0) / n;
   return w.map(v => v / m);
 }
+/* how many rays a source launches across its beam, for each of its wavelengths: its pattern's (a hexapolar fan of 11
+   across is 91), not its rays setting; each carries that share of the power (a ray's own amplitude carries the rest:
+   an angular size's or a lamp's rays from one point share that point's) */
+export const raysLaunched = src => Math.max(1, rayPattern(src, src.traceRays === false ? 0 : src.rays).length * lampLevels(src).length);
+/* a Lamp's light up and down (elev, rings): the elevations its rays leave at, [radians, amplitude], the amplitudes
+   by the cosine of each (a ring's share of the sphere) and normalised so the levels carry as much as that many flat
+   fans; a flat lamp (or any other source) one level, at 0 */
+export function lampLevels(src) {
+  if (!src.lamp || !(src.elev > 0)) return [[0, 1]];
+  const R = Math.max(1, src.rings || 3), L = [];
+  for (let k = -R; k <= R; k++) L.push([k / R * src.elev * Math.PI / 180, 0]);
+  const sw = L.reduce((a, [t]) => a + Math.cos(t), 0);
+  for (const l of L) l[1] = Math.sqrt(L.length * Math.cos(l[0]) / sw);
+  return L;
+}
 export function rayPattern(src, n) {
   const pat = src.pattern || 'line', out = [], at = i => n === 1 ? 0 : i / (n - 1) - 0.5;
   if (pat === 'line' || n <= 1) { for (let i = n - 1; i >= 0; i--) out.push([at(i), 0, i]); return out; }
@@ -481,7 +496,7 @@ export function rayPattern(src, n) {
 }
 export const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 export function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
-const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && e.pattern && e.pattern !== 'line') || (e.type === 'fibre' && e.emitPattern));
+const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || (e.lamp && e.elev > 0))) || (e.type === 'fibre' && e.emitPattern));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
@@ -710,6 +725,8 @@ function traceSceneOnce() {
     for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; if ((el.tip || el.roll) && !s.mesh) { s.tilt = true; s.tip = (el.tip || 0) * deg; s.roll = (el.roll || 0) * deg; s.ef = f; } surfs.push(s); }
     if (el.type === 'link') linkSurf.set(el.id, ss[0]);
     if (el.type === 'lens' && !el.tip && !el.roll) for (const sg of lensEdges(el, ss)) segs.push({ f, sg, el: el.id });
+    // a Lamp with a size: its body takes the light that comes back to it (a reflector's, another lamp's)
+    if (el.type === 'source' && el.lamp && el.lampD > 0) { const B = lampBody(el); B.forEach((p, i) => { const q = B[(i + 1) % B.length]; segs.push({ f, sg: [p[0], p[1], q[0], q[1]], el: el.id }); }); }
     // The whole plane of a stop, seen only by the beam-parameter ray. That ray is a
     // reference, not light: it passes the blades, and the stop becomes a mask on the field,
     // so a slit or knife edge anywhere across the beam still leaves a field behind it.
@@ -801,14 +818,34 @@ function traceSceneOnce() {
     // across the beam as the source's pattern lays them out: a line in the bench plane, or
     // spread up and down it too (each then starting off the beam height, with its slope)
     const pat = rayPattern(src, n);
-    emitted += pat.length;
-    emittedBy[src.id] = (emittedBy[src.id] || 0) + pat.length * sAmp * sAmp;
-    raySc[src.id] = lmw / Math.max(1, pat.length);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
+    emitted += pat.length * lampLevels(src).length;
+    const nLev = lampLevels(src).length;              // a Lamp's light up and down: as many fans as its levels
+    emittedBy[src.id] = (emittedBy[src.id] || 0) + pat.length * nLev * sAmp * sAmp;
+    raySc[src.id] = lmw / Math.max(1, pat.length * nLev);     // mW a ray of w 1 carries, so rays can be drawn by power across sources
     const RW = src.round && (src.pattern || 'line') === 'line' && n > 1 ? roundWeights(n) : null;
     // a lamp all round (360°): n rays 360/n apart, the first and last not on one another
     const ANG = src.angularSize > 0 ? src.angularRays || 5 : 1, angAmp = 1 / Math.sqrt(ANG);
+    // a Lamp with a size: the light leaves from its outline, LM rays from each point across the half turn outward,
+    // each as bright as the cosine of its angle off the outward normal (a Lambertian surface), sharing the point's power
+    const LP = src.lamp && src.lampD > 0 ? lampOutline(src, pat.length) : null, LM = LP ? Math.max(1, src.lampRays || 3) : 1;
+    const LO = [], LW = [], LEV = lampLevels(src);
+    if (LP) { for (let j = 0; j < LM; j++) { const o = LM === 1 ? 0 : ((j + 0.5) / LM - 0.5) * Math.PI; LO.push(o); LW.push(Math.cos(o)); } const sw = LW.reduce((x, y) => x + y, 0); for (let j = 0; j < LM; j++) LW[j] = Math.sqrt(LW[j] / sw); }
     const dvAll = Math.abs(src.divergence) >= 360 && n > 1 && (src.pattern || 'line') === 'line' ? src.divergence * (n - 1) / n : src.divergence;
     for (const [t0, u0, i] of pat) {
+      if (LP) {
+        const [lx, ly, nx, ny] = LP[pat.length - 1 - i], c0 = Math.cos(src.angle * deg), s0 = Math.sin(src.angle * deg);
+        const wx = src.x + lx * c0 - ly * s0 + (nx * c0 - ny * s0) * 1e-7, wy = src.y + lx * s0 + ly * c0 + (nx * s0 + ny * c0) * 1e-7, an = Math.atan2(nx * s0 + ny * c0, nx * c0 - ny * s0);
+        for (let j = 0; j < LM; j++) for (let q = 0; q < LEV.length; q++) {
+          const aj = an + LO[j], [ev, la] = LEV[q], ce = Math.cos(ev), g = LW[j] * la;
+          for (const st of states) {
+            stack.push(Object.assign({ px: wx, py: wy, dx: Math.cos(aj) * ce, dy: Math.sin(aj) * ce,
+              sr: amp(st)[0] * g, si: amp(st)[1] * g, pr: amp(st)[2] * g, pi: amp(st)[3] * g,
+              bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i + (j ? '~' + j : '') + (ev ? '^' + q : ''),
+              fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, ev ? { zh: zOf(src), uz: Math.sin(ev) } : null));
+          }
+        }
+        continue;
+      }
       const g = RW ? Math.sqrt(RW[i]) : 1;                       // a round beam's ring, as an amplitude
       // and its pattern across the beam with it
       const t = src.roll ? t0 * rc - u0 * rs : t0, u = src.roll ? t0 * rs + u0 * rc : u0;
@@ -819,14 +856,15 @@ function traceSceneOnce() {
       const off = u || src.tip ? { zh: zOf(src) + u * src.width, uz: Math.sin(ev) } : null;
       // a source with an angular size (the sun's half a degree): from each point of the beam, ANG rays across that
       // angle, sharing its power; the light from any one direction is still a parallel beam
-      for (let j = 0; j < ANG; j++) {
-        const aj = a + (ANG > 1 ? (j / (ANG - 1) - 0.5) * src.angularSize * deg : 0), gj = g * angAmp;
+      for (let j = 0; j < ANG; j++) for (let q = 0; q < LEV.length; q++) {
+        const aj = a + (ANG > 1 ? (j / (ANG - 1) - 0.5) * src.angularSize * deg : 0), gj = g * angAmp * LEV[q][1];
+        const evq = LEV[q][0], ceq = evq ? Math.cos(evq) : ce, offq = evq ? { zh: zOf(src), uz: Math.sin(evq) } : off;
         for (const st of states) {
           stack.push(Object.assign({ px: src.x - sa * t * src.width, py: src.y + ca * t * src.width,
-            dx: Math.cos(aj) * ce, dy: Math.sin(aj) * ce,
+            dx: Math.cos(aj) * ceq, dy: Math.sin(aj) * ceq,
             sr: amp(st)[0] * gj, si: amp(st)[1] * gj, pr: amp(st)[2] * gj, pi: amp(st)[3] * gj,
-            bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i + (j ? '~' + j : ''),
-            fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, off));
+            bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i + (j ? '~' + j : '') + (evq ? '^' + q : ''),
+            fam: famAt(famOf(states.indexOf(st), false), src.vFo || 0), k: i, path: '', bn: src.bench, fo: src.vFo || 0 }, offq));
         }
       }
     }

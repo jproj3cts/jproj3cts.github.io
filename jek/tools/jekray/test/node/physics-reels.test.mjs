@@ -12,6 +12,7 @@ const { loadProject, serialize } = await import('../../src/state/elements.js');
 const TRACE = await import('../../src/engines/trace.js');
 const { metricRaw } = await import('../../src/ui/optimise.js');
 const { fresnelZone } = await import('../../src/core/geometry.js');
+const { detectorReading } = await import('../../src/engines/fibre-face.js');
 
 const byName = n => STATE.project.elements.find(e => e.name === n);
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, (msg || '') + ' ' + a + ' vs ' + b);
@@ -101,4 +102,47 @@ test('which way the light arrives at a screen: its direction on the bench, and o
   const [d0, t0] = at(0); near(d0, 0, 1e-9); near(t0, 0, 1e-9);
   const [d1, t1] = at(10); near(d1, 10, 1e-6, 'up 10°'); near(Math.abs(t1), 10, 1e-6, '10° off the normal');
   const [d2] = at(-20); near(d2, -20, 1e-6);
+});
+
+test('a source’s power is its power whatever its pattern: a detector reads 1 mW of a 1 mW hexapolar, grid or cross fan', () => {
+  for (const pattern of ['line', 'hex', 'grid', 'cross']) {
+    run([{ type: 'source', id: 'S', name: 'L', x: 0, y: 0, angle: 0, wavelength: 633, width: 0, divergence: 38, rays: 11, power: 1, ...(pattern === 'line' ? {} : { pattern }) },
+      { type: 'detector', id: 'D', name: 'D', x: 100, y: 0, angle: 180, length: 600 }]);
+    near(detectorReading(byName('D')).mw, 1, 1e-9, pattern);
+  }
+});
+
+test('a Lamp with a size sends its light from its surface, its body takes light back, and its size spreads a beam', () => {
+  // a sphere 10 mm across: every ray starts 5 mm from its centre, going outward
+  const T = run([{ type: 'lamp', id: 'S', name: 'Bulb', x: 0, y: 0, wavelength: 580, rays: 24, lampD: 10, lampRays: 3, pol: 's' }]);
+  const R = T.rays.filter(r => r.src === 'S');
+  assert.equal(R.length, 72, '24 points, 3 rays each');
+  for (const r of R) { near(Math.hypot(r.pts[0], r.pts[1]), 5, 1e-5); assert.ok(r.pts[0] * (r.pts[2] - r.pts[0]) + r.pts[1] * (r.pts[3] - r.pts[1]) > 0, 'outward'); }
+  // a tube lying along x, 30 by 4: its rays start on the rectangle
+  const T2 = run([{ type: 'lamp', id: 'S', name: 'Tube', x: 0, y: 0, angle: 0, wavelength: 580, rays: 40, lampD: 4, lampL: 30, lampShape: 'tube', lampRays: 1, pol: 's' }]);
+  for (const r of T2.rays.filter(q => q.src === 'S')) { const x = Math.abs(r.pts[0]), y = Math.abs(r.pts[1]); assert.ok(Math.abs(x - 15) < 1e-5 || Math.abs(y - 2) < 1e-5, 'on its outline'); assert.ok(x <= 15 + 1e-5 && y <= 2 + 1e-5); }
+  // a mirror behind it sends the light back into it, and the screen beyond sees none; a point lamp lets it through
+  const behind = D => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, angle: 180, wavelength: 580, rays: 1, lampD: D, lampRays: 1, pol: 's' },
+    { type: 'mirror', id: 'M', name: 'M', x: -20, y: 0, angle: 0, length: 10 }, { type: 'screen', id: 'B', name: 'Behind', x: 30, y: 0, angle: 180, length: 10 }]);
+    return (TRACE.lastTrace.screens.B || []).filter(t => !t.chief).length; };
+  assert.equal(behind(4), 0); assert.equal(behind(0), 1);
+  // a Fresnel panel's beam from a bigger lamp spreads more
+  const spread = D => { run([{ type: 'lamp', id: 'S', name: 'Lamp', x: 0, y: 0, wavelength: 580, rays: 240, lampD: D, pol: 's' },
+    { type: 'lens', id: 'L', name: 'Panel', x: 87, y: 0, angle: 0, diameter: 70, surfaces: [{ R: null }, { R: -40, fresnel: 4 }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
+    { type: 'screen', id: 'A', name: 'Far', x: 1000, y: 0, angle: 180, length: 300 }]); return metricRaw(byName('Far'), 'rms'); };
+  assert.ok(spread(10) > spread(0) + 5, 'a 10 mm lamp’s beam wider than a point’s');
+  // a lamp saved before it had a size is still a point; a new one from the picker is 1 mm
+  run([{ type: 'source', id: 'S', name: 'Old', lamp: true, x: 0, y: 0, wavelength: 580, rays: 12, divergence: 360, width: 0 }]);
+  assert.equal(byName('Old').lampD, 0);
+});
+
+test('a Lamp’s light up and down: rings above and below the plane, the same power; a flat Lamp as before', () => {
+  const flat = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's' }]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
+  const flat0 = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', elev: 0 }]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
+  assert.deepEqual(flat0, flat, 'elev 0 is the flat fan');
+  const T = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', elev: 20, rings: 3 }]);
+  assert.equal(T.rays.filter(r => r.src === 'S').length, 12 * 7, 'seven levels: three rings each way and the plane');
+  const read = elev => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 240, pol: 's', power: 1, elev, rings: 3 },
+    { type: 'detector', id: 'D', name: 'D', x: 100, y: 0, angle: 180, length: 2000 }]); return detectorReading(byName('D')).mw; };
+  near(read(20), read(0), 1e-6, 'the power the same');
 });

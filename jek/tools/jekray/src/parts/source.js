@@ -10,7 +10,7 @@ export const SOURCE = {
   picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines all round)' }],
   keys: ['source', 'lamp'],
   // a lamp: a point that shines all round, as a lighthouse's or a bulb (its own part on the page; traced as a source)
-  make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
+  make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180, lampD: 1, lampShape: 'sphere' }
     : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 },
   norm(e, base) {
     const wl = e.mmw ? num(e.wavelength, 633) : Math.min(1e6, Math.max(100, num(e.wavelength, 633)));
@@ -57,7 +57,13 @@ export const SOURCE = {
       gdd0: num(e.gdd0, 0),                                      // fs^2, the chirp it leaves the laser with
       fibre: e.fibre && isFinite(e.fibre.core) && isFinite(e.fibre.na)
         ? { core: Math.max(0.5, +e.fibre.core), na: clamp(+e.fibre.na, 0.01, 0.9) } : undefined,
-    }, lamp ? { type: 'source', lamp: true, width: 0, divergence: 360, gauss: false, traceRays: true, fibre: undefined, mmw: undefined } : {});
+    }, lamp ? { type: 'source', lamp: true, width: 0, divergence: 360, gauss: false, traceRays: true, fibre: undefined, mmw: undefined,
+      // its shape and size: a sphere, a cylinder standing up, or a tube lying along its direction; the light leaves its surface
+      lampShape: ['sphere', 'cylinder', 'tube'].includes(e.lampShape) ? e.lampShape : 'sphere',
+      lampD: clamp(num(e.lampD, 0), 0, 500), lampL: clamp(num(e.lampL, 1), 0.01, 2000),        // a lamp saved before it had a size: a point
+      // its light up and down too: rings of rays at k/rings of elev above and below the bench plane (0: the flat fan)
+      elev: clamp(num(e.elev, 0), 0, 89), rings: clamp(Math.round(num(e.rings, 3)), 1, 10),
+      lampRays: clamp(Math.round(num(e.lampRays, 3)), 1, 15) } : {});
   },
   guide: {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
@@ -65,7 +71,7 @@ export const SOURCE = {
     fields: {
       round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
-    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): a point shining all round, width 0 and divergence 360 always; its wavelength (and lines, for white light), power, rays and angle (where its first ray goes) are yours.',
+    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): it shines all round from its surface; width and divergence are not used. lampShape "sphere", "cylinder" (standing up) or "tube" (lying along its direction); lampD its diameter, mm (1; 0 is a point); lampL a cylinder\u2019s height or a tube\u2019s length, mm (1); lampRays the rays from each point of its surface across the half turn outward (3, 1 to 15), each as bright as a lit surface sends that way (Lambertian); rays: the points round it. Its body absorbs light that comes back to it.', lampShape: 'a Lamp\u2019s shape: "sphere", "cylinder" or "tube".', lampD: 'a Lamp\u2019s diameter, mm.', lampL: 'a Lamp\u2019s height (cylinder) or length (tube), mm.', lampRays: 'rays from each point of a Lamp\u2019s surface (1 to 15).', elev: 'a Lamp\u2019s light up and down, degrees: its rays also leave at k/rings of this above and below the bench plane, rings each way (0: a flat fan in the plane, as before).', rings: 'how many rings of rays above (and below) the plane, 1 to 10 (3).',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',

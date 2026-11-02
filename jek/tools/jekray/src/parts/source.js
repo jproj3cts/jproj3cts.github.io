@@ -7,11 +7,14 @@ import { RAY_PATTERNS } from '../engines/trace.js';
 /* Source: A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown. */
 export const SOURCE = {
   type: 'source', label: 'Source',
-  picker: [{ key: 'source', short: 'Source' }],
-  keys: ['source'],
-  make: (x, y) => ({ type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 }),
+  picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines all round)' }],
+  keys: ['source', 'lamp'],
+  // a lamp: a point that shines all round, as a lighthouse's or a bulb (its own part on the page; traced as a source)
+  make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
+    : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 },
   norm(e, base) {
     const wl = e.mmw ? num(e.wavelength, 633) : Math.min(1e6, Math.max(100, num(e.wavelength, 633)));
+    const lamp = e.lamp === true || e.type === 'lamp';
     return Object.assign(base, {
       wavelength: wl,
       colourAuto: e.colourAuto !== false,
@@ -54,7 +57,7 @@ export const SOURCE = {
       gdd0: num(e.gdd0, 0),                                      // fs^2, the chirp it leaves the laser with
       fibre: e.fibre && isFinite(e.fibre.core) && isFinite(e.fibre.na)
         ? { core: Math.max(0.5, +e.fibre.core), na: clamp(+e.fibre.na, 0.01, 0.9) } : undefined,
-    });
+    }, lamp ? { type: 'source', lamp: true, width: 0, divergence: 360, gauss: false, traceRays: true, fibre: undefined, mmw: undefined } : {});
   },
   guide: {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
@@ -62,7 +65,7 @@ export const SOURCE = {
     fields: {
       round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
-    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).',
+    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): a point shining all round, width 0 and divergence 360 always; its wavelength (and lines, for white light), power, rays and angle (where its first ray goes) are yours.',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',

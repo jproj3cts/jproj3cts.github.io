@@ -17,6 +17,8 @@
   pages:
     - title: Source
       url: /jek/docs/jekray/free-space/source/
+    - title: Lamp
+      url: /jek/docs/jekray/free-space/lamp/
     - title: Photodetector
       url: /jek/docs/jekray/free-space/detector/
     - title: Screen

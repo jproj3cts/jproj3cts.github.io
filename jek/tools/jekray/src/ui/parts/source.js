@@ -8,7 +8,7 @@ import { V, project } from '../../state/project.js';
 import { getEl, lightOf, srcBody } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS, rayPattern } from '../../engines/trace.js';
-import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk } from '../render.js';
+import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../render.js';
 import { applyFibre } from '../../engines/fibre-face.js';
 import {
   beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, h, panel, param, renderPanel,
@@ -22,7 +22,34 @@ import { checkpoint } from '../tabs.js';
 
 /* Source on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/source.js */
 
+/* a Lamp: a bulb, its glass round the light's colour, and short strokes all round for its glow */
+const LAMP_R = 3.5;                    // mm, the bulb's radius on the bench
+function drawLamp(el, sel) {
+  const k = 1 / V().scale, X = sx(el.x), Y = sy(el.y), r = Math.max(LAMP_R, 5 * k) * V().scale;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
+  ctx.fillStyle = el.colour; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = sel ? selInk() : getCss('--rt-source'); ctx.lineWidth = sel ? 2 : 1.5; ctx.stroke();
+  ctx.strokeStyle = el.colour; ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const a = el.angle * Math.PI / 180 + i * Math.PI / 4, c = Math.cos(a), s = -Math.sin(a); ctx.moveTo(X + c * r * 1.35, Y + s * r * 1.35); ctx.lineTo(X + c * r * 1.8, Y + s * r * 1.8); }
+  ctx.stroke();
+  ctx.restore();
+}
+function lampPanel(el) {
+  panel.append(h('h3', null, 'Lamp'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Wavelength (nm)', el, 'wavelength'),
+    param('Power (mW)', el, 'power'),
+    param('Rays all round', el, 'rays'),
+    textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
+      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
+      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
+    }, { wide: true, placeholder: 'none' })));
+  panel.append(helpLine('A point that shines all round, its rays evenly spaced.', ['A point that shines all round: its rays leave evenly spaced, 360\u00b0 over the number of rays apart, the first along its angle. More rays catch finer detail (a lens 100 mm off, 70 mm across, takes 240 rays\u2019 worth of a full turn about 27). Add wavelengths for white light; each fires the same rays. Its power is shared by them all, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.5rem'));
+}
+
 function drawSource(el, sel) {
+  if (el.lamp) return drawLamp(el, sel);
   if (el.mmw && !el.mmw.part) return drawHorn(el, sel);
   const f = frame(el);
   const k = 1 / V().scale;             // px → mm
@@ -55,6 +82,7 @@ function edgeRows(el) {
 }
 
 function sourcePanel(el) {
+  if (el.lamp) return lampPanel(el);
   panel.append(h('h3', null, 'Beam'));
   const rows = h('div', { class: 'rt-rows' });
   const colId = 'rtf' + setFid(fid + 1);
@@ -263,7 +291,7 @@ function sourcePanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 }
 
-function hitSource(el, lx, ly, tol) { const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
+function hitSource(el, lx, ly, tol) { if (el.lamp) return Math.hypot(lx, ly) <= Math.max(LAMP_R, 5 / V().scale) * 1.4 + tol; const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
 
 export const SOURCE_UI = {
   draw: drawSource, hit: hitSource, panel: sourcePanel, rank: 0,

@@ -176,24 +176,48 @@ export function applySpins() {
     p.spun = p.spin || 0;
   }
 }
-/* A Lamp with a size (lampD > 0): seen from above a sphere or a standing cylinder is a circle of its diameter, a tube
-   lying along its direction a rectangle lampL long, lampD wide. lampOutline: n points spread evenly round that
-   outline (in the lamp's own frame: x along its direction), each with its outward normal, [x, y, nx, ny]; the light
-   leaves from them. lampBody: the outline as a closed polygon (a circle as 32 sides inside it), which light hitting
-   the lamp from outside meets and is absorbed by. */
+/* A Lamp's rays (any but a flat point, which keeps the plain fan of rays 360/N apart: engines/trace.js). Its rays in
+   all (rays) are spread evenly over the band of directions it shines in: rings of latitude at k/rings of elev above and
+   below the bench plane (one ring, the plane, without elev), each ring given rays in proportion to its share of the
+   sphere (its cosine), every other ring turned half a step, so the directions pack as a honeycomb, not a grid. A lamp
+   with a size sends each from its visible face: across the face as seen from that direction (golden-ratio steps, so
+   neighbouring rays start far apart), from where a line that way leaves its outline. Uniform across the face seen
+   from any direction is how a glowing surface looks (Lambertian), so its size shows: the rays a lens collects leave
+   from all over it. Seen from above a sphere or a standing cylinder is a circle (lampD), a tube lying along its
+   direction a rectangle (lampL by lampD). [x, y, azimuth (rad, on the bench), elevation (rad)], on the bench. */
 export const lampTube = el => el.lampShape === 'tube';
-export function lampOutline(el, n) {
-  const out = [], r = el.lampD / 2;
-  if (!lampTube(el)) { for (let i = 0; i < n; i++) { const a = 2 * Math.PI * i / n, c = Math.cos(a), s = Math.sin(a); out.push([r * c, r * s, c, s]); } return out; }
-  const L = el.lampL, W = el.lampD, P = 2 * (L + W);
-  // round the rectangle from the middle of its front face, each point the middle of its share of the perimeter
-  const sides = [[L / 2, -W / 2, 0, 1, W, 1, 0], [L / 2, W / 2, -1, 0, L, 0, 1], [-L / 2, W / 2, 0, -1, W, -1, 0], [-L / 2, -W / 2, 1, 0, L, 0, -1]];
-  for (let i = 0; i < n; i++) {
-    let d = ((i + 0.5) / n * P + W / 2) % P;
-    for (const [x0, y0, ux, uy, len, nx, ny] of sides) { if (d <= len) { out.push([x0 + ux * d, y0 + uy * d, nx, ny]); break; } d -= len; }
-  }
+export function lampRaysOf(el) {
+  const N = Math.max(1, Math.round(el.rays || 1)), a0 = (el.angle || 0) * Math.PI / 180;
+  const R = el.elev > 0 ? Math.max(1, el.rings || 3) : 0, lev = [];
+  for (let k = -R; k <= R; k++) lev.push([k, R ? k / R * el.elev * Math.PI / 180 : 0]);
+  const cs = lev.map(([, e]) => Math.cos(e)), sc = cs.reduce((x, y) => x + y, 0);
+  const n = cs.map(c => Math.max(1, Math.round(N * c / sc)));
+  n[R] += N - n.reduce((x, y) => x + y, 0);                       // the plane's ring makes up the total
+  if (n[R] < 1) n[R] = 1;
+  const dirs = [];
+  lev.forEach(([k, e], q) => { const m = n[q], off = Math.abs(k) % 2 ? 0.5 : 0; for (let i = 0; i < m; i++) dirs.push([a0 + 2 * Math.PI * (i + off) / m, e]); });
+  const out = [], r = (el.lampD || 0) / 2, tube = lampTube(el), A = (el.lampL || 0) / 2, B = r, ca = Math.cos(a0), sa = Math.sin(a0);
+  dirs.forEach(([az, e], i) => {
+    if (!(r > 0)) { out.push([el.x, el.y, az, e]); return; }
+    const u = 2 * ((0.5 + i * 0.6180339887498949) % 1) - 1, dx = Math.cos(az), dy = Math.sin(az);
+    let ox, oy;
+    if (!tube) { const s = u * r; ox = s * -dy + Math.sqrt(Math.max(0, r * r - s * s)) * dx; oy = s * dx + Math.sqrt(Math.max(0, r * r - s * s)) * dy; }
+    else {
+      // in the tube's own frame: across its outline as seen that way, then out along the way to its edge
+      const lx = dx * ca + dy * sa, ly = -dx * sa + dy * ca, w = A * Math.abs(ly) + B * Math.abs(lx), s = u * w;
+      const qx = -ly * s, qy = lx * s;
+      let t = Infinity;
+      if (Math.abs(lx) > 1e-12) t = Math.min(t, Math.max((A - qx) / lx, (-A - qx) / lx));
+      if (Math.abs(ly) > 1e-12) t = Math.min(t, Math.max((B - qy) / ly, (-B - qy) / ly));
+      const px = qx + t * lx, py = qy + t * ly;
+      ox = px * ca - py * sa; oy = px * sa + py * ca;
+    }
+    out.push([el.x + ox + dx * 1e-7, el.y + oy + dy * 1e-7, az, e]);
+  });
   return out;
 }
+/* whether a source sends its rays as a Lamp's (lampRaysOf), not as a fan */
+export const lampEmits = el => !!(el && el.lamp && (el.lampD > 0 || el.elev > 0));
 export function lampBody(el) {
   if (lampTube(el)) { const a = el.lampL / 2, b = el.lampD / 2; return [[a, -b], [a, b], [-a, b], [-a, -b]]; }
   const r = el.lampD / 2, out = [];

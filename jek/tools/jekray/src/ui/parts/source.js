@@ -56,8 +56,7 @@ function lampPanel(el) {
     ...(el.lampShape === 'sphere' ? [] : [param(el.lampShape === 'tube' ? 'Length (mm)' : 'Height (mm)', el, 'lampL')]),
     param('Wavelength (nm)', el, 'wavelength'),
     param('Power (mW)', el, 'power'),
-    param('Points round it', el, 'rays'),
-    ...(el.lampD > 0 ? [param('Rays from each point', el, 'lampRays')] : []),
+    param('Rays in all', el, 'rays'),
     // its light up and down: rings of rays above and below the plane (0: a flat fan), for the 3D view and parts above or below
     param('Rays up and down (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
     ...(el.elev > 0 ? [param('Rings each way', el, 'rings')] : []),
@@ -66,9 +65,9 @@ function lampPanel(el) {
       if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
     }, { wide: true, placeholder: 'none' })));
   const tot = h('p', { class: 'note', style: 'margin-top:0.4rem' });
-  bindSync(tot, () => { const n = el.rays * (el.lampD > 0 ? el.lampRays || 3 : 1) * (el.elev > 0 ? 2 * (el.rings || 3) + 1 : 1) * (1 + (el.lines || []).length); tot.textContent = n + ' rays in all' + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
+  bindSync(tot, () => { const W = 1 + (el.lines || []).length; tot.textContent = el.rays + ' rays' + (el.elev > 0 ? ' spread over ' + (2 * (el.rings || 3) + 1) + ' rings' : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
   panel.append(tot);
-  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['The light leaves from the lamp\u2019s surface: seen from above, a sphere or a standing cylinder is a circle of its diameter, a tube lying along its direction a rectangle of its length and diameter. From each of the points spread round it go its rays across the half turn outward, each as bright as a lit surface sends that way (a Lambertian surface: brightest straight out). So a lamp\u2019s size shows: a lens images it as a patch its size times the magnification, and a lighthouse\u2019s beam spreads by the lamp\u2019s size over the lens\u2019s focal length. A diameter of 0 makes it a point, its rays evenly spaced round it. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Rays up and down sends its light out of the bench plane too, in rings at heights of the angle over the rings, each way, so a lens above or below the lamp\u2019s height catches it and the 3D view shows the light\u2019s height; 0 keeps a flat fan in the plane. A cylinder\u2019s height shows in the 3D view; on the bench, in its plane, it changes nothing. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
+  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: round the bench plane, and with Rays up and down in rings above and below it, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. Seen from above a sphere or a standing cylinder is a circle of its diameter, a tube lying along its direction a rectangle. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. A cylinder\u2019s height shows in the 3D view. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
 }
 
 function drawSource(el, sel) {

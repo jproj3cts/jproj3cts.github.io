@@ -114,15 +114,17 @@ test('a source’s power is its power whatever its pattern: a detector reads 1 m
 
 test('a Lamp with a size sends its light from its surface, its body takes light back, and its size spreads a beam', () => {
   // a sphere 10 mm across: every ray starts 5 mm from its centre, going outward
-  const T = run([{ type: 'lamp', id: 'S', name: 'Bulb', x: 0, y: 0, wavelength: 580, rays: 24, lampD: 10, lampRays: 3, pol: 's' }]);
+  const T = run([{ type: 'lamp', id: 'S', name: 'Bulb', x: 0, y: 0, wavelength: 580, rays: 24, lampD: 10, pol: 's' }]);
   const R = T.rays.filter(r => r.src === 'S');
-  assert.equal(R.length, 72, '24 points, 3 rays each');
+  assert.equal(R.length, 24, 'its rays in all');
+  // each from across its face as seen its way: not all along the radius (a point's would be)
+  assert.ok(R.some(r => Math.abs((r.pts[0] * (r.pts[3] - r.pts[1]) - r.pts[1] * (r.pts[2] - r.pts[0])) / Math.hypot(r.pts[2] - r.pts[0], r.pts[3] - r.pts[1])) > 1), 'rays start across the face');
   for (const r of R) { near(Math.hypot(r.pts[0], r.pts[1]), 5, 1e-5); assert.ok(r.pts[0] * (r.pts[2] - r.pts[0]) + r.pts[1] * (r.pts[3] - r.pts[1]) > 0, 'outward'); }
   // a tube lying along x, 30 by 4: its rays start on the rectangle
-  const T2 = run([{ type: 'lamp', id: 'S', name: 'Tube', x: 0, y: 0, angle: 0, wavelength: 580, rays: 40, lampD: 4, lampL: 30, lampShape: 'tube', lampRays: 1, pol: 's' }]);
+  const T2 = run([{ type: 'lamp', id: 'S', name: 'Tube', x: 0, y: 0, angle: 0, wavelength: 580, rays: 40, lampD: 4, lampL: 30, lampShape: 'tube', pol: 's' }]);
   for (const r of T2.rays.filter(q => q.src === 'S')) { const x = Math.abs(r.pts[0]), y = Math.abs(r.pts[1]); assert.ok(Math.abs(x - 15) < 1e-5 || Math.abs(y - 2) < 1e-5, 'on its outline'); assert.ok(x <= 15 + 1e-5 && y <= 2 + 1e-5); }
   // a mirror behind it sends the light back into it, and the screen beyond sees none; a point lamp lets it through
-  const behind = D => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, angle: 180, wavelength: 580, rays: 1, lampD: D, lampRays: 1, pol: 's' },
+  const behind = D => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, angle: 180, wavelength: 580, rays: 1, lampD: D, pol: 's' },
     { type: 'mirror', id: 'M', name: 'M', x: -20, y: 0, angle: 0, length: 10 }, { type: 'screen', id: 'B', name: 'Behind', x: 30, y: 0, angle: 180, length: 10 }]);
     return (TRACE.lastTrace.screens.B || []).filter(t => !t.chief).length; };
   assert.equal(behind(4), 0); assert.equal(behind(0), 1);
@@ -136,13 +138,24 @@ test('a Lamp with a size sends its light from its surface, its body takes light 
   assert.equal(byName('Old').lampD, 0);
 });
 
-test('a Lamp’s light up and down: rings above and below the plane, the same power; a flat Lamp as before', () => {
+test('a Lamp’s light up and down: rings above and below the plane, the same power; a flat Lamp as before', async () => {
   const flat = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's' }]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
   const flat0 = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', elev: 0 }]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
   assert.deepEqual(flat0, flat, 'elev 0 is the flat fan');
-  const T = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', elev: 20, rings: 3 }]);
-  assert.equal(T.rays.filter(r => r.src === 'S').length, 12 * 7, 'seven levels: three rings each way and the plane');
+  const T = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 240, pol: 's', elev: 20, rings: 3 }]);
+  const hits = T.rays.filter(r => r.src === 'S');
+  assert.equal(hits.length, 240, 'its rays in all, spread over the rings');
+  // seven rings, each with rays by its share of the sphere, every other one turned half a step
+  const { lampRaysOf } = await import('../../src/state/elements.js');
+  const L = lampRaysOf(byName('L')), byEl = new Map();
+  for (const [, , az, e] of L) { const k = e.toFixed(6); if (!byEl.has(k)) byEl.set(k, []); byEl.get(k).push(az); }
+  assert.equal(byEl.size, 7);
+  const ring = e => byEl.get((e * Math.PI / 180).toFixed(6));
+  assert.ok(ring(0).length > ring(20).length, 'the plane’s ring has more rays than the top one');
+  const step = 2 * Math.PI / ring(20 / 3).length;
+  near(((ring(20 / 3)[0] % step) + step) % step, step / 2, 1e-9, 'the first ring up turned half a step');
+  near(ring(0)[0], 0, 1e-12, 'the plane’s not');
   const read = elev => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 240, pol: 's', power: 1, elev, rings: 3 },
     { type: 'detector', id: 'D', name: 'D', x: 100, y: 0, angle: 180, length: 2000 }]); return detectorReading(byName('D')).mw; };
-  near(read(20), read(0), 1e-6, 'the power the same');
+  near(read(20), read(0), 0.02 * read(0), 'the power the same, but for how the rings round their rays');
 });

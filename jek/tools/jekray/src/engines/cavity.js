@@ -947,7 +947,7 @@ export function laserState(c) {
   // the partly transmitting mirrors round the loop; the walk starts at the most transmitting
   const n = c.surfaces.length, els = c.surfaces.map(getEl);
   out.outs = [];
-  els.forEach((e, j) => { if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: 1 - e.reflect / 100 }); });
+  els.forEach((e, j) => { if (e && e.type === 'mirror' && e.reflect < 100) out.outs.push({ j, e, T: e.transmit != null ? e.transmit / 100 : 1 - e.reflect / 100 }); });
   const oc = out.outs.length ? out.outs.reduce((a, b) => b.T > a.T ? b : a) : null, j0 = oc ? oc.j : 0;
   const Rof = (j, Roc) => { const e = els[j]; return e && e.type === 'mirror' ? (oc && j === oc.j && Roc !== undefined ? Roc : Math.min(1, e.reflect / 100)) : 1; };
   const rest = (lnPassive - els.reduce((a, e, j) => a + Math.log(Rof(j)), 0)) / n;

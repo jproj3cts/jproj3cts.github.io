@@ -31,6 +31,10 @@ Every bench in the **Examples** gallery works. Open one, change it, and press **
 
 **How the light is drawn** is set for the whole bench under **Light** in the Bench panel (the tab half way up the bench's right edge, or **Tools › Bench settings**): ticks for the rays, the Gaussian beams' envelope and their diffracted field. The field's intensity scale is linear, or logarithmic over 30 or 60 dB. With both on, the envelope marks the field's 1/e² edge. Rays and envelopes are drawn as bright as the power they carry, each source's against its own brightest ray: a ray carrying a tenth of what its source sends looks dim beside the others from that source, but a 1 µW source and a 1 W one look alike. Tick **Rays as bright as their power** to draw every ray against the strongest on the bench instead, so the weak source fades beside the strong one and the light dims as a filter or a splitter takes it. **Fading trails** leaves where the rays were, fading a third with each change, while the light changes (a sweep playing, a part dragged): for recordings. Where rays of different colours cross, their colours add, as light does on the dark bench (red and green make yellow); on the light bench they are drawn over one another.
 
+**Ray width** (Bench › Light) draws the rays 2, 3 or 4 pixels wide instead of the fine 1.2, at any zoom, and **Rays glow** gives each a soft halo: for recordings and for phones, and they make the faint ghost reflections easy to see.
+
+**A group can turn.** Select a group (Ctrl+G groups what is selected) and, under **Turn the group**, choose the part it turns about: its **Spin** (°) turns the rest of the group round that part's centre, their angles with them. Give Spin a sweep from 0 to 360 and play it: a lighthouse's lenses round their lamp, a polygon scanner's mirrors, a disco ball.
+
 **Names on the bench** grow and shrink with the zoom, as parts do, and stay a gap apart along a row. **View › Names a fixed size on screen** keeps them one size however far you zoom (the size is kept with the bench); a figure's export still sizes them for the figure.
 
 ## The 3D view

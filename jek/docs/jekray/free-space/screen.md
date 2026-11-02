@@ -24,7 +24,8 @@ Each ray that lands is recorded with where it lands, its power, its direction, i
   $$
 
 - the binned intensity, rays of one launch added as fields bin by bin, which shows interference fringes;
-- the wavefront: each ray's optical path to a reference sphere centred on the centroid, as an RMS and peak-to-valley error.
+- the wavefront: each ray's optical path to a reference sphere centred on the centroid, as an RMS and peak-to-valley error;
+- which way the light arrives: its **beam direction** on the bench (degrees, as a part's angle: the power-weighted mean of the rays' directions) and its **arrival angle** off the screen's normal. A prism's deviation is the beam direction against the light's direction before it; the optimiser and the exercises can aim at either.
 
 With interpolation on (the default, `binInterp`), each beam of rays is laid onto the bins as a sampled wavefront before the fields are added, which stops fringes aliasing against the ray spacing.
 

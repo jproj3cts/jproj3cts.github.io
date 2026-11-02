@@ -38,6 +38,9 @@ export const METRICS = [
   { key: 'rms', fam: 'rays', on: 'screen', label: 'RMS spot', fmt: fmtLen, goals: ['min', 'match'], get: st => st.rms },
   { key: 'full', fam: 'rays', on: 'screen', label: 'Full width', fmt: fmtLen, goals: ['min', 'match'], get: st => st.full },
   { key: 'centroid', fam: 'rays', on: 'screen', label: 'Centroid position', fmt: fmtLen, goals: ['match', 'min'], get: st => st.centroid, absolute: true },
+  // which way the light arrives: its mean direction on the bench (as a part's angle), and off the screen's normal
+  { key: 'dir', fam: 'rays', on: 'screen', label: 'Beam direction on the bench (°)', fmt: v => (+v).toFixed(3) + '\u00b0', goals: ['match', 'min', 'max'], get: st => st.dirDeg },
+  { key: 'tilt', fam: 'rays', on: 'screen', label: 'Arrival angle off the normal (°)', fmt: v => (+v).toFixed(3) + '\u00b0', goals: ['match', 'min', 'max'], get: st => st.tiltDeg, absolute: true },
   { key: 'power', fam: 'rays', on: 'screen', label: 'Power received', fmt: pctTxt, goals: ['max', 'match', 'min'], get: st => st.powerPct },
   { key: 'wfRMS', fam: 'rays', on: 'screen', label: 'Wavefront RMS', fmt: wavesTxt, goals: ['min', 'match'], get: st => st.wfRMS === null ? null : st.wfRMS / (st.nm * 1e-6) },
   { key: 'wfPV', fam: 'rays', on: 'screen', label: 'Wavefront P\u2013V', fmt: wavesTxt, goals: ['min', 'match'], get: st => st.wfPV === null ? null : st.wfPV / (st.nm * 1e-6) },

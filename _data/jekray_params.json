@@ -29,7 +29,7 @@
     {
      "k": "divergence",
      "def": "0",
-     "meaning": "degrees, full angle of the fan; negative converges."
+     "meaning": "degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges."
     },
     {
      "k": "gauss",
@@ -191,7 +191,7 @@
     {
      "k": "reflect",
      "def": "100",
-     "meaning": "% reflected, 0 to 100 (the rest is transmitted)."
+     "meaning": "% reflected, 0 to 100 (the rest is transmitted, unless transmit says otherwise)."
     },
     {
      "k": "offset",
@@ -243,7 +243,7 @@
     {
      "k": "surfaces",
      "def": "two flat surfaces",
-     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating ({\"mode\": \"bare\" | \"ar\" | \"custom\" | \"band\" | \"stack\" | \"mirror\"}; a mirror coating reflects all it can and passes nothing, \"metal\": \"ideal\" | \"Al\" | \"Ag\" | \"Au\" for its reflectance), \"semi\": optional clear radius, mm (the lens’s own unless given), \"hole\": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face’s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
+     "meaning": "list of surfaces in the order the light meets them at angle 0, each {\"R\": mm or null for flat, \"k\": conic, \"A\": [aspheric a4, a6, …], \"coat\": coating ({\"mode\": \"bare\" | \"ar\" | \"custom\" | \"band\" | \"stack\" | \"mirror\"}; a mirror coating reflects all it can and passes nothing, \"metal\": \"ideal\" | \"Al\" | \"Ag\" | \"Au\" for its reflectance), \"semi\": optional clear radius, mm (the lens’s own unless given), \"hole\": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on, \"fresnel\": optional, mm: a Fresnel face, its curve cut into rings this wide, each keeping the face’s slope where it is but brought back to its vertex plane with a sheer riser between rings (light meeting a riser is lost, as on a real one), so the lens can be far thinner (a flat face stays flat)}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face’s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream)."
     },
     {
      "k": "gaps",

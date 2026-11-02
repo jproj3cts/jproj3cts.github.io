@@ -470,6 +470,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     exportCad(name, kind) { const a = assemblies().find(x => x.name === name); if (!a) return null; return kind === 'stl' ? cadSTL(a) : cadSTEP(a, { date: '2026-01-01T00:00:00' }); },
     project() { return project; },
     sel() { return selection().map(e => e.name); },
+    // several parts selected together, as a box or Shift-clicks pick them
+    selectMany(names) { setSelection(names.map(n => this.byName(n)).filter(Boolean)); renderPanel(); requestRender(); return selection().length; },
     // several at once: the clipboard, turning and lining up, as the menu and panel do them
     copy(names) { return clipOf(names.map(n => this.byName(n))); },
     paste(clip, at) { return pasteClip(clip, at); },

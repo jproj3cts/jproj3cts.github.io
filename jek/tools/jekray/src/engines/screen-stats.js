@@ -197,9 +197,19 @@ function screenStatsRaw(el) {
   const vis = field ? field.visibility : null;
   const interference = field ? field.interference : null;
 
+  // which way the light goes as it arrives: each ray's direction on the bench (degrees, as parts' angles) from its
+  // slope across the screen, the screen facing the light; their mean as a vector, weighted by power; and its angle off
+  // the screen's normal (+ towards the screen's own +y)
+  let dX = 0, dY = 0, tilt = 0;
+  for (const t of hits) {
+    const sy = Math.max(-1, Math.min(1, t.dly || 0)), th = el.angle * Math.PI / 180 + Math.atan2(sy, -Math.sqrt(1 - sy * sy));
+    dX += t.w * Math.cos(th); dY += t.w * Math.sin(th); tilt += t.w * Math.asin(sy);
+  }
+  const dirDeg = W0 > 0 ? Math.atan2(dY, dX) * 180 / Math.PI : null, tiltDeg = W0 > 0 ? tilt / W0 * 180 / Math.PI : null;
   return {
     count: hits.length,
     power: W0,
+    dirDeg, tiltDeg,
     stokes: { S0, S1, S2, S3 },
     profile,
     visibility: vis,

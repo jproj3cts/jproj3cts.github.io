@@ -145,7 +145,7 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 | width | `4` | mm: the full width of the ray fan (follows the beam when gauss is true). |
 | softAuto | `true` | true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given. |
 | soft | `0` | mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge. |
-| divergence | `0` | degrees, full angle of the fan; negative converges. |
+| divergence | `0` | degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges. |
 | gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
 | w0 | `0.35` | mm: the 1/e² waist radius. |
 | z0 | `0` | mm: how far ahead of the source the waist is (negative: behind it). |
@@ -185,7 +185,7 @@ A mirror, flat or curved (spherical, conic or aspheric), partly transmitting if 
 | field | default | meaning |
 |---|---|---|
 | length | `25` | mm: the mirror’s width across the bench. |
-| reflect | `100` | % reflected, 0 to 100 (the rest is transmitted). |
+| reflect | `100` | % reflected, 0 to 100 (the rest is transmitted, unless transmit says otherwise). |
 | offset | `0` | mm: an off-axis segment of the parent surface, this far from its vertex. |
 | k | `0` | conic constant (0 sphere, −1 paraboloid). |
 | R | `null` | mm radius of curvature, null for flat. Positive: concave towards the light it faces (focuses, f = R/2); negative: convex. |
@@ -203,7 +203,7 @@ A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylind
 | field | default | meaning |
 |---|---|---|
 | diameter | `25.4` | mm. |
-| surfaces | two flat surfaces | list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating ({"mode": "bare" \| "ar" \| "custom" \| "band" \| "stack" \| "mirror"}; a mirror coating reflects all it can and passes nothing, "metal": "ideal" \| "Al" \| "Ag" \| "Au" for its reflectance), "semi": optional clear radius, mm (the lens’s own unless given), "hole": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face’s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream). |
+| surfaces | two flat surfaces | list of surfaces in the order the light meets them at angle 0, each {"R": mm or null for flat, "k": conic, "A": [aspheric a4, a6, …], "coat": coating ({"mode": "bare" \| "ar" \| "custom" \| "band" \| "stack" \| "mirror"}; a mirror coating reflects all it can and passes nothing, "metal": "ideal" \| "Al" \| "Ag" \| "Au" for its reflectance), "semi": optional clear radius, mm (the lens’s own unless given), "hole": optional, mm: a hole about the axis where there is no surface, so the light meets the next surface stacked on this one, or goes on, "fresnel": optional, mm: a Fresnel face, its curve cut into rings this wide, each keeping the face’s slope where it is but brought back to its vertex plane with a sheer riser between rings (light meeting a riser is lost, as on a real one), so the lens can be far thinner (a flat face stays flat)}. A gap of 0 stacks the next surface on this one at the same vertex: each then applies between its hole and its clear radius (a spot mirror in a hole, a flat ground into a face’s middle, a mirrored annulus round a clear centre). Standard sign convention: R > 0 has its centre of curvature on the far side (downstream). |
 | gaps | `[3]` | mm: centre thicknesses between successive surfaces (one fewer than surfaces); 0 stacks the next surface on this one (the two share a vertex, each applying between its hole and its clear radius). |
 | materials | `[{"glass":"N-BK7"}]` | one material per gap, e.g. {"glass": "N-BK7"}. |
 | cyl | (none) | optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it. |

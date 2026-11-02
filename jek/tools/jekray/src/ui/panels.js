@@ -985,6 +985,21 @@ export function groupPanel(list) {
     B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
   const shared = sharedFields(list);
   if (shared) panel.append(h('h3', null, 'Set them all'), shared);
+  // a group can turn about one of its parts (a lighthouse's ring, a polygon scanner): its Spin turns the rest about it,
+  // and plays as a sweep like any setting
+  if (list.length > 1 && list.every(e => e.group && e.group === list[0].group)) {
+    const piv = list.find(e => e.pivot);
+    panel.append(h('h3', null, 'Turn the group'));
+    const rows = h('div', { class: 'rt-rows' }, selectField('Turns about', [['', 'Nothing (it does not turn)'], ...list.map(e => [e.id, e.name])], () => (piv ? piv.id : ''), v => {
+      for (const e of list) { delete e.pivot; delete e.spin; delete e.spun; }
+      const p = list.find(e => e.id === v);
+      if (p) { p.pivot = true; p.spin = 0; p.spun = 0; }
+      renderPanel();
+    }, { wide: true }));
+    if (piv) rows.append(param('Spin (\u00b0)', piv, 'spin'));
+    panel.append(rows);
+    if (piv) panel.append(helpLine('Spin turns the rest of the group about ' + piv.name + '; play it with its sweep.', ['Spin turns every other part of the group about ' + piv.name + '\u2019s centre, their angles with them, by the change in Spin. Give it a sweep (\u223f) from 0 to 360 and play it to spin the group, as a lighthouse\u2019s lenses or a polygon scanner\u2019s faces turn.'], 'note', 'margin-top:0.35rem'));
+  }
   panel.append(h('h3', null, 'Selection'));
   const locked = list.every(e => e.locked);
   panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' },

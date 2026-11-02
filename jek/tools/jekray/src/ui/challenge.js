@@ -111,7 +111,8 @@ export function exerciseTick() {
 }
 function exRead() {
   const els = EX.ex.checks.map(c => project.elements.find(e => e.name === c.part && onTab(e)));
-  EX.values = EX.ex.checks.map((c, i) => (els[i] ? metricRaw(els[i], c.key) : null));
+  // a measure on the part (the optimiser's), or one of the part's own settings (field: x, y, angle…): none if it is gone
+  EX.values = EX.ex.checks.map((c, i) => (!els[i] ? null : c.field ? (isFinite(els[i][c.field]) ? +els[i][c.field] : null) : metricRaw(els[i], c.key)));
   const ok = EX.ex.checks.map((c, i) => checkPasses(c, EX.values[i]));
   if (!EX.solved && ok.every(Boolean)) exSolvedNow();
   exBarReading(ok);
@@ -151,8 +152,9 @@ export function exerciseNext(id, fromStart) {
   const after = [...L.slice(i + 1), ...L.slice(0, Math.max(0, i))].filter(x => x.id !== id);
   return after.find(x => !S[x.id]) || null;
 }
-const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW' };
-const exWhat = { rms: 'RMS spot', full: 'width', centroid: 'spot centre', couple: 'coupling', dmw: 'power' };
+const exUnits = { rms: ' mm', full: ' mm', centroid: ' mm', couple: '%', dmw: ' mW', dir: '\u00b0', tilt: '\u00b0', x: ' mm', y: ' mm', angle: '\u00b0', z: ' mm' };
+const exWhat = { rms: 'RMS spot', full: 'width', centroid: 'spot centre', couple: 'coupling', dmw: 'power', dir: 'beam direction', tilt: 'arrival angle', x: 'x', y: 'y', angle: 'angle', z: 'height' };
+const exKey = c => c.field || c.key;
 const exFmt = v => (v === null || !isFinite(v) ? '–' : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(2) : Math.abs(v) >= 0.01 ? v.toFixed(3) : v === 0 ? '0' : v.toPrecision(2));
 function exShareLink() {
   const u = location.origin + location.pathname.replace(/jekray-dev\.html$/, 'jekray.html') + '?ex=' + EX.ex.id + '&src=solved';
@@ -175,7 +177,7 @@ function exOptimise() {
   }
   // the ranges are the optimiser's for this search only: each part's sweeps put back as they were
   const unkeep = () => { for (const [e, k, was] of keep) { if (was) e.sweeps[k] = was; else delete e.sweeps[k]; } };
-  for (const c of EX.ex.checks) terms.push({ target: project.elements.find(q => q.name === c.part), key: c.key, goal: c.op === 'above' ? 'max' : c.op === 'below' ? 'min' : 'match', targetVal: c.value, weight: 1 });
+  for (const c of EX.ex.checks.filter(q => !q.field)) terms.push({ target: project.elements.find(q => q.name === c.part), key: c.key, goal: c.op === 'above' ? 'max' : c.op === 'below' ? 'min' : 'match', targetVal: c.value, weight: 1 });
   toast('The optimiser is looking…');
   setTimeout(() => {
     try { optimiseMany(vars, terms); } catch (err) { unkeep(); toast('The optimiser could not finish: ' + err.message, true); return; }
@@ -223,8 +225,8 @@ function exBarReading(ok) {
   if (!box) return;
   box.replaceChildren(...EX.ex.checks.map((c, i) => h('div', { class: 'rt-exrow' + (ok[i] ? ' ok' : '') },
     h('span', { class: 'rt-exmark', 'aria-hidden': 'true' }, ok[i] ? '✓' : '○'),
-    h('span', null, c.part + ' ' + exWhat[c.key] + ': ', h('b', null, exFmt(EX.values[i]) + exUnits[c.key])),
-    h('small', null, ' goal ' + checkWant(c) + exUnits[c.key]))));
+    h('span', null, c.part + ' ' + (exWhat[exKey(c)] || exKey(c)) + ': ', h('b', null, exFmt(EX.values[i]) + (exUnits[exKey(c)] || ''))),
+    h('small', null, ' goal ' + checkWant(c) + (exUnits[exKey(c)] || '')))));
 }
 /* on the bench: a dashed ring round each part the exercise lets you change */
 export function exerciseDraw(ctx) {

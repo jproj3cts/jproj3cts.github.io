@@ -51,6 +51,8 @@ export function normSurface(s) {
     semi: (isFinite(s.semi) && s.semi > 0) ? +s.semi : null,
     hole: isFinite(s.hole) && s.hole > 0 ? +s.hole : 0,     // a hole about the axis, this radius: no surface there, so the light meets the next surface of the stack, or goes on
     coat: normCoat(s.coat),
+    // a Fresnel face: the curved face cut into rings this wide (mm), each with the face's slope, brought back to its base
+    ...(isFinite(s.fresnel) && +s.fresnel > 0 ? { fresnel: Math.min(100, Math.max(0.05, +s.fresnel)) } : {}),
   };
 }
 export function normElement(e) {
@@ -94,6 +96,9 @@ export function normElementBase(e) {
   // and rolled about its own axis (the way it faces, or its optical axis), degrees (see setRoll)
   if (isFinite(e.roll) && e.roll !== null && +e.roll !== 0 && tippable(base)) base.roll = clamp(+(+e.roll).toFixed(6), -180, 180);
   if (typeof e.group === 'string' && e.group) base.group = e.group.slice(0, 40);     // one of a group, picked and moved together
+  // the part its group turns about: spin (degrees, sweepable) turns the rest of the group about its x, y; spun is the spin
+  // they are placed at now (applySpins brings them round to spin)
+  if (base.group && e.pivot === true) { base.pivot = true; base.spin = num(e.spin, 0); base.spun = num(e.spun, base.spin); }
   // what its import had to assume (a coating from the part number, a fold it could not follow): shown in red until dismissed
   if (Array.isArray(e.assumed) && e.assumed.length) base.assumed = e.assumed.filter(x => typeof x === 'string' && x).slice(0, 12).map(x => x.slice(0, 400));
   if (e.mmw && typeof e.mmw === 'object') base.mmw = normRf(e.mmw, e.type);              // an RF part: the RF palette's, a horn's settings
@@ -146,7 +151,28 @@ export function normLight(L, els) {
     // and, while sweeps play, fading trails of the frames before: kept only when on
     ...(L && L.byPower === true ? { byPower: true } : {}),
     ...(L && L.trail === true ? { trail: true } : {}),
+    // the rays drawn wider than 1.2 px on the screen (up to 4), and with a soft glow round them: kept only when set
+    ...(L && isFinite(L.rayWidth) && +L.rayWidth > 1.2 ? { rayWidth: Math.min(4, +L.rayWidth) } : {}),
+    ...(L && L.glow === true ? { glow: true } : {}),
   };
+}
+/* A group's spin (a lighthouse's lamp ring, a polygon scanner): each group's pivot part with its spin changed turns the
+   rest of the group about its own x, y by the change, their angles too, and the fibres between them; spun then
+   says where they are. Done before each trace (engines/trace.js traceScene), so a sweep of spin plays it. */
+export function applySpins() {
+  for (const p of project.elements) {
+    if (!p.pivot || !p.group) continue;
+    const d = (p.spin || 0) - (p.spun || 0);
+    if (!d) continue;
+    const r = d * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), rot = (x, y) => [p.x + (x - p.x) * c - (y - p.y) * s, p.y + (x - p.x) * s + (y - p.y) * c];
+    const mates = project.elements.filter(e => e !== p && e.group === p.group && e.bench === p.bench), ids = new Set([p.id, ...mates.map(e => e.id)]);
+    for (const e of mates) { [e.x, e.y] = rot(e.x, e.y); e.angle = +((((e.angle + d) % 360) + 540) % 360 - 180).toFixed(9); }
+    for (const F of project.fibres || []) if (ids.has(F.a[0]) && ids.has(F.b[0])) for (const n of F.path || []) {
+      [n.x, n.y] = rot(n.x, n.y);
+      for (const k of ['h1', 'h2']) if (Array.isArray(n[k])) n[k] = [n[k][0] * c - n[k][1] * s, n[k][0] * s + n[k][1] * c];
+    }
+    p.spun = p.spin || 0;
+  }
 }
 export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
 export function serialize() {

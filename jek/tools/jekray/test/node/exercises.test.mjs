@@ -24,7 +24,8 @@ test('every exercise and challenge starts from a reel’s bench, and names parts
     assert.equal(new Set(b.elements.map(e => e.id)).size, b.elements.length, ex.id + ': ids apart');
     for (const c of ex.checks) {
       assert.ok(on(c.part), ex.id + ': ' + c.part + ' is on the bench');
-      assert.ok(METRICS.has(c.key + '@' + kindOf(on(c.part))), ex.id + ': ' + c.key + ' is measured on a ' + on(c.part).type);
+      if (c.field) assert.ok(isFinite(on(c.part)[c.field]), ex.id + ': ' + c.part + '.' + c.field + ' is a number');
+      else assert.ok(METRICS.has(c.key + '@' + kindOf(on(c.part))), ex.id + ': ' + c.key + ' is measured on a ' + on(c.part).type);
       assert.ok(['above', 'below', 'within'].includes(c.op) && isFinite(c.value) && (c.op !== 'within' || c.tol > 0));
     }
     for (const [n, f] of Object.entries(ex.unlocked)) { assert.ok(on(n), ex.id + ': ' + n); for (const k of f) assert.ok(k in on(n) || k === 'aperture', ex.id + ': ' + n + '.' + k); }

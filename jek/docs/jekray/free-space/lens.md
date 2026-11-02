@@ -69,6 +69,16 @@ These are read-outs only. The trace itself is exact.
 
 A Gaussian beam goes through each surface by the ray-transfer matrix of its local curvature, in the plane and out of it. The diffracted field takes each surface as a phase screen: rays traced through it in three dimensions give the real surface's phase, aberrations included (see [Free-space optics: surfaces as phase screens](/jek/docs/jekray/free-space/#surfaces-as-phase-screens)).
 
+## Fresnel lenses
+
+A curved surface can be a **Fresnel face**: give it **Fresnel rings** (mm), the pitch, and its curve is cut into rings that wide. Each ring keeps the slope of the whole surface where it is but is brought back to the surface's vertex plane, with a sheer wall (a riser) between one ring and the next:
+
+$$
+\mathrm{sag}_F(r) = \mathrm{sag}(r) - \mathrm{sag}(k\,p), \qquad k = \lfloor r / p \rfloor,
+$$
+
+the sawtooth of a moulded Fresnel lens. Since each ring bends light by its slope, as the solid surface does there, a Fresnel lens focuses as the lens it is cut from, but its glass need be no thicker than the tallest ring: a plano-convex N-BK7 lens of R 40 mm, 70 mm across, collimates a point lamp 87 mm away as well 3 mm thick with 4 mm rings as 8 mm thick solid. Light meeting a riser is lost to the beam, as it is scattered on a real one (a fraction of a percent here; more with fine rings or steep ones). Either surface or both can be Fresnel; a flat surface stays flat. The bench draws the rings, and the 3D view shows them.
+
 ## Holes, stacked surfaces and mirror coatings
 
 Each surface has a **clear radius** (how far out from the axis it reaches: the lens's own radius unless set smaller) and a **hole radius** (inside it the surface is not there; set in the [Optical designer](/jek/docs/jekray/lens-design/), and shown on the bench panel when there is one, a hole being smaller than the surface's clear radius), and its **coating** can be a **mirror**: ideal (everything back), or aluminium, silver or gold with the metal's reflectance at each wavelength, the rest absorbed; a dielectric high reflector is a band coating of 99.9 %. Light meeting a mirror coating reflects wholly and stays in the glass it came from; a surface in a lens's middle with a mirror coat is a secondary ground into it.

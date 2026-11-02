@@ -438,7 +438,12 @@ export const V3D = (() => {
       }
       case 'source': {
         // a Lamp: a glowing bulb on a short stem
-        if (el.lamp) { add(mesh(new T.SphereGeometry(3.5, 24, 16), mat.glow(el.colour || '#ffd060')), mesh(new T.CylinderGeometry(1, 1, 6, 12).rotateX(Math.PI / 2).translate(0, 0, -6), mat.body(0x2b2622))); return g; }
+        if (el.lamp) {
+          // its shape at its size, glowing in its light: a sphere, a cylinder standing up, a tube lying along its direction
+          const r = Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.glow(el.colour || '#ffd060');
+          add(mesh(el.lampShape === 'tube' ? new T.CylinderGeometry(r, r, L, 24).rotateZ(Math.PI / 2) : el.lampShape === 'cylinder' ? new T.CylinderGeometry(r, r, L, 24).rotateX(Math.PI / 2) : new T.SphereGeometry(r, 24, 16), C));
+          return g;
+        }
         const { L: len, hw } = srcBody(el);
         add(mesh(boxG(-len, 0, -hw, hw, -hw, hw), mat.body(0x2b2622)), mesh(disc(0.6, Math.max(0.6, el.width / 2), 0.3), mat.glow(el.colour || '#ff3030')));
         return g;

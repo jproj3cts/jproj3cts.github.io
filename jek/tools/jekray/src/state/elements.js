@@ -176,6 +176,30 @@ export function applySpins() {
     p.spun = p.spin || 0;
   }
 }
+/* A Lamp with a size (lampD > 0): seen from above a sphere or a standing cylinder is a circle of its diameter, a tube
+   lying along its direction a rectangle lampL long, lampD wide. lampOutline: n points spread evenly round that
+   outline (in the lamp's own frame: x along its direction), each with its outward normal, [x, y, nx, ny]; the light
+   leaves from them. lampBody: the outline as a closed polygon (a circle as 32 sides inside it), which light hitting
+   the lamp from outside meets and is absorbed by. */
+export const lampTube = el => el.lampShape === 'tube';
+export function lampOutline(el, n) {
+  const out = [], r = el.lampD / 2;
+  if (!lampTube(el)) { for (let i = 0; i < n; i++) { const a = 2 * Math.PI * i / n, c = Math.cos(a), s = Math.sin(a); out.push([r * c, r * s, c, s]); } return out; }
+  const L = el.lampL, W = el.lampD, P = 2 * (L + W);
+  // round the rectangle from the middle of its front face, each point the middle of its share of the perimeter
+  const sides = [[L / 2, -W / 2, 0, 1, W, 1, 0], [L / 2, W / 2, -1, 0, L, 0, 1], [-L / 2, W / 2, 0, -1, W, -1, 0], [-L / 2, -W / 2, 1, 0, L, 0, -1]];
+  for (let i = 0; i < n; i++) {
+    let d = ((i + 0.5) / n * P + W / 2) % P;
+    for (const [x0, y0, ux, uy, len, nx, ny] of sides) { if (d <= len) { out.push([x0 + ux * d, y0 + uy * d, nx, ny]); break; } d -= len; }
+  }
+  return out;
+}
+export function lampBody(el) {
+  if (lampTube(el)) { const a = el.lampL / 2, b = el.lampD / 2; return [[a, -b], [a, b], [-a, b], [-a, -b]]; }
+  const r = el.lampD / 2, out = [];
+  for (let i = 0; i < 32; i++) { const t = 2 * Math.PI * i / 32; out.push([r * Math.cos(t), r * Math.sin(t)]); }
+  return out;
+}
 export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
 export function serialize() {
   return {

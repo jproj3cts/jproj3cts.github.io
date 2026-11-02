@@ -5,7 +5,7 @@ import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../../core/beams-ho
 import { wavelengthColour } from '../../core/colour.js';
 import { fanEdgeAuto } from '../../core/fan-edge.js';
 import { V, project } from '../../state/project.js';
-import { getEl, lightOf, srcBody } from '../../state/elements.js';
+import { getEl, lampTube, lightOf, srcBody } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS, rayPattern } from '../../engines/trace.js';
 import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../render.js';
@@ -22,30 +22,53 @@ import { checkpoint } from '../tabs.js';
 
 /* Source on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/source.js */
 
-/* a Lamp: a bulb, its glass round the light's colour, and short strokes all round for its glow */
-const LAMP_R = 3.5;                    // mm, the bulb's radius on the bench
+/* a Lamp: its shape seen from above at its size (a circle, or a tube's rectangle), filled with its light, and short
+   strokes round it for its glow; drawn at least a few pixels across, so a millimetre's lamp can be found and picked */
+const LAMP_MIN_PX = 5;
+function lampHalf(el) {
+  const k = 1 / V().scale, m = LAMP_MIN_PX * k;
+  return lampTube(el) ? [Math.max(el.lampL / 2, m), Math.max(el.lampD / 2, m)] : [Math.max(el.lampD / 2, m), Math.max(el.lampD / 2, m)];
+}
 function drawLamp(el, sel) {
-  const k = 1 / V().scale, X = sx(el.x), Y = sy(el.y), r = Math.max(LAMP_R, 5 * k) * V().scale;
+  const f = frame(el), [a, b] = lampHalf(el), k = 1 / V().scale;
   ctx.save();
-  ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
+  if (lampTube(el)) pathLocal(f, [[a, -b], [a, b], [-a, b], [-a, -b]], true);
+  else { ctx.beginPath(); ctx.arc(sx(el.x), sy(el.y), a * V().scale, 0, 2 * Math.PI); }
   ctx.fillStyle = el.colour; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
   ctx.strokeStyle = sel ? selInk() : getCss('--rt-source'); ctx.lineWidth = sel ? 2 : 1.5; ctx.stroke();
+  // the glow: eight short strokes out from the outline
   ctx.strokeStyle = el.colour; ctx.lineWidth = 1.5; ctx.beginPath();
-  for (let i = 0; i < 8; i++) { const a = el.angle * Math.PI / 180 + i * Math.PI / 4, c = Math.cos(a), s = -Math.sin(a); ctx.moveTo(X + c * r * 1.35, Y + s * r * 1.35); ctx.lineTo(X + c * r * 1.8, Y + s * r * 1.8); }
-  ctx.stroke();
+  const g0 = 3 * k, g1 = 7 * k;
+  for (let i = 0; i < 8; i++) {
+    const t = i * Math.PI / 4, c = Math.cos(t), s = Math.sin(t);
+    // from the outline's edge in that direction (a rectangle's, or the circle's)
+    const e = lampTube(el) ? Math.min(Math.abs(c) > 1e-9 ? a / Math.abs(c) : Infinity, Math.abs(s) > 1e-9 ? b / Math.abs(s) : Infinity) : a;
+    pathLocal(f, [[c * (e + g0), s * (e + g0)], [c * (e + g1), s * (e + g1)]]);
+    ctx.stroke(); ctx.beginPath();
+  }
   ctx.restore();
 }
 function lampPanel(el) {
   panel.append(h('h3', null, 'Lamp'));
   panel.append(h('div', { class: 'rt-rows' },
+    selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder, standing up'], ['tube', 'Tube, lying along its direction']], () => el.lampShape, v => { el.lampShape = v; renderPanel(); }, { wide: true }),
+    param('Diameter (mm)', el, 'lampD', { placeholder: '0: a point' }),
+    ...(el.lampShape === 'sphere' ? [] : [param(el.lampShape === 'tube' ? 'Length (mm)' : 'Height (mm)', el, 'lampL')]),
     param('Wavelength (nm)', el, 'wavelength'),
     param('Power (mW)', el, 'power'),
-    param('Rays all round', el, 'rays'),
+    param('Points round it', el, 'rays'),
+    ...(el.lampD > 0 ? [param('Rays from each point', el, 'lampRays')] : []),
+    // its light up and down: rings of rays above and below the plane (0: a flat fan), for the 3D view and parts above or below
+    param('Rays up and down (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
+    ...(el.elev > 0 ? [param('Rings each way', el, 'rings')] : []),
     textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
       const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
       if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
     }, { wide: true, placeholder: 'none' })));
-  panel.append(helpLine('A point that shines all round, its rays evenly spaced.', ['A point that shines all round: its rays leave evenly spaced, 360\u00b0 over the number of rays apart, the first along its angle. More rays catch finer detail (a lens 100 mm off, 70 mm across, takes 240 rays\u2019 worth of a full turn about 27). Add wavelengths for white light; each fires the same rays. Its power is shared by them all, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.5rem'));
+  const tot = h('p', { class: 'note', style: 'margin-top:0.4rem' });
+  bindSync(tot, () => { const n = el.rays * (el.lampD > 0 ? el.lampRays || 3 : 1) * (el.elev > 0 ? 2 * (el.rings || 3) + 1 : 1) * (1 + (el.lines || []).length); tot.textContent = n + ' rays in all' + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
+  panel.append(tot);
+  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['The light leaves from the lamp\u2019s surface: seen from above, a sphere or a standing cylinder is a circle of its diameter, a tube lying along its direction a rectangle of its length and diameter. From each of the points spread round it go its rays across the half turn outward, each as bright as a lit surface sends that way (a Lambertian surface: brightest straight out). So a lamp\u2019s size shows: a lens images it as a patch its size times the magnification, and a lighthouse\u2019s beam spreads by the lamp\u2019s size over the lens\u2019s focal length. A diameter of 0 makes it a point, its rays evenly spaced round it. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Rays up and down sends its light out of the bench plane too, in rings at heights of the angle over the rings, each way, so a lens above or below the lamp\u2019s height catches it and the 3D view shows the light\u2019s height; 0 keeps a flat fan in the plane. A cylinder\u2019s height shows in the 3D view; on the bench, in its plane, it changes nothing. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
 }
 
 function drawSource(el, sel) {
@@ -291,7 +314,7 @@ function sourcePanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 }
 
-function hitSource(el, lx, ly, tol) { if (el.lamp) return Math.hypot(lx, ly) <= Math.max(LAMP_R, 5 / V().scale) * 1.4 + tol; const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
+function hitSource(el, lx, ly, tol) { if (el.lamp) { const [a, b] = lampHalf(el); return lampTube(el) ? Math.abs(lx) <= a + tol && Math.abs(ly) <= b + tol : Math.hypot(lx, ly) <= a + tol; } const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
 
 export const SOURCE_UI = {
   draw: drawSource, hit: hitSource, panel: sourcePanel, rank: 0,

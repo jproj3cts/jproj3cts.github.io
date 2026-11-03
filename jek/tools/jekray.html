@@ -542,12 +542,6 @@
   .rt-pcell > input { box-sizing: border-box; height: 1.75rem; padding: 0.2rem 0.4rem; width: 100%; min-width: 0; }
   .rt-pgridf > .rt-sweep-box, .rt-pgridf > :nth-child(n+2) { margin-top: 0.3rem; }
   .rt-anglenote { font-size: 0.75rem; margin: -0.1rem 0 0.1rem !important; }
-  /* a sweep's ∿ only when its field is pointed at or being typed in, or once it is swept; always on a touch screen */
-  @media (hover: hover) {
-    .rt-sweep-toggle:not(.on) { opacity: 0; transition: opacity 0.12s; }
-    .rt-f:not(.rt-pgridf):hover .rt-sweep-toggle, .rt-f:not(.rt-pgridf):focus-within .rt-sweep-toggle,
-    .rt-pcell:hover .rt-sweep-toggle, .rt-pcell:focus-within .rt-sweep-toggle, .rt-sweep-toggle:focus-visible { opacity: 1; }
-  }
   .rt-pairbox { display: grid; grid-template-columns: minmax(0, 1fr) 1.35rem minmax(0, 1fr) 1.35rem; align-items: center; column-gap: 0.4rem; }
   .rt-plab { font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); }
   .rt-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -26396,8 +26390,7 @@ function param(label, el, path, opts = {}) {
   if (P.box) wrap.append(P.box);
   return wrap;
 }
-/* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name, shown on hover or
-   focus, or always once it is swept): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
+/* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
    (an empty cell); the open sweeps' controls follow the grid */
 function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled with each number's cell, in order (null for an empty one)
   const grid = h('div', { class: 'rt-pgrid' }), boxes = [];
@@ -52896,7 +52889,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>A tidier Position section</b>: a part\u2019s place is two rows of three, X, Y, Z and Angle, Tip, Roll, each with its name over it and room for the whole number; its angle is called Angle on every part, a line under it saying what it means for that one; and a number\u2019s sweep button (\u223f) shows when you point at it or type in it, or once it is swept.',
+    '<b>A tidier Position section</b>: a part\u2019s place is two rows of three, X, Y, Z and Angle, Tip, Roll, each with its name over it and room for the whole number; its angle is called Angle on every part, a line under it saying what it means for that one.',
     '<b>Fresnel lenses</b>: give a lens\u2019s curved face <b>Fresnel rings</b> (mm) and it is cut into rings of that pitch, each with the face\u2019s slope, as a moulded Fresnel lens is: it focuses as the solid lens does, a fraction as thick, a little light lost at the risers. And: a <b>Lamp</b> (Add part \u203a Lamp: a sphere or a cylinder of its size, standing, lying or tilted, shining every way from its surface, in 3D, its body taking light that comes back to it; and a <b>Circular lamp</b>, a point shining round the bench plane only, quick for 2D benches); an <b>angular size</b> (the sun\u2019s half a degree, so its image is a disc); mirrors that <b>absorb</b> (Passes through: what is neither reflected nor passed is lost); a group that <b>spins</b> about one of its parts (Turn the group, its Spin a sweep to play); <b>Ray width</b> and <b>Rays glow</b> under Bench \u203a Light; and screens\u2019 <b>beam direction</b> and <b>arrival angle</b>, for the optimiser and the exercises.',
     '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account. Under them, <b>Challenges</b>: the puzzles from our Instagram reels, newest first, starting with \u201cCan you hit the pinhole?\u201d; the same checks and hints, kept apart from the course.',
     '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',

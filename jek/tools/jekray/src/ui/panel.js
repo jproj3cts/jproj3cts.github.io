@@ -159,8 +159,7 @@ export function param(label, el, path, opts = {}) {
   if (P.box) wrap.append(P.box);
   return wrap;
 }
-/* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name, shown on hover or
-   focus, or always once it is swept): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
+/* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
    (an empty cell); the open sweeps' controls follow the grid */
 function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled with each number's cell, in order (null for an empty one)
   const grid = h('div', { class: 'rt-pgrid' }), boxes = [];

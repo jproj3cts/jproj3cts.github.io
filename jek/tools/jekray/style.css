@@ -497,12 +497,6 @@
   .rt-pcell > input { box-sizing: border-box; height: 1.75rem; padding: 0.2rem 0.4rem; width: 100%; min-width: 0; }
   .rt-pgridf > .rt-sweep-box, .rt-pgridf > :nth-child(n+2) { margin-top: 0.3rem; }
   .rt-anglenote { font-size: 0.75rem; margin: -0.1rem 0 0.1rem !important; }
-  /* a sweep's ∿ only when its field is pointed at or being typed in, or once it is swept; always on a touch screen */
-  @media (hover: hover) {
-    .rt-sweep-toggle:not(.on) { opacity: 0; transition: opacity 0.12s; }
-    .rt-f:not(.rt-pgridf):hover .rt-sweep-toggle, .rt-f:not(.rt-pgridf):focus-within .rt-sweep-toggle,
-    .rt-pcell:hover .rt-sweep-toggle, .rt-pcell:focus-within .rt-sweep-toggle, .rt-sweep-toggle:focus-visible { opacity: 1; }
-  }
   .rt-pairbox { display: grid; grid-template-columns: minmax(0, 1fr) 1.35rem minmax(0, 1fr) 1.35rem; align-items: center; column-gap: 0.4rem; }
   .rt-plab { font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); }
   .rt-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

@@ -33610,7 +33610,9 @@ function drawDiff(cv, D, el) {
     size(hgt);
     const A = { l: A0.l, t: A0.t, w: side, h: side };
     cv._area = A; cv._full = { x: [-L, L], y: [-L, L] };
-    const M = D.map.n, img = c.createImageData(M, M);
+    const M = D.map.n;
+    if (!(M >= 1 && Number.isFinite(M) && D.map.v && D.map.v.length >= M * M)) return;   // no map to draw (none is better than a page error)
+    const img = c.createImageData(M, M);
     plotCsv(cv, el.name + ' irradiance map', ['along_mm', 'out_of_plane_mm', 'irradiance', 'incoherent'], () => {
       const r = [];
       for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([u0 + (i + 0.5) * (u1 - u0) / M, v0 + (j + 0.5) * (v1 - v0) / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);
@@ -39641,7 +39643,9 @@ function popDiffraction(el, R) {
     const a = L2[i].sg.b, b = L2[j].sg.b, ang = Math.acos(Math.min(1, a.dx * b.dx + a.dy * b.dy));
     if (ang > 0) pFine = Math.min(pFine, (a.nm * 1e-6 / L2[i].G.n) / ang);
   }
-  const MN = coherent ? Math.max(256, Math.min(1024, Math.ceil(3 * 2 * H / pFine))) : MAP_N;
+  // (a size that is not a number, from an extent or fringe that is not, is the usual one: a NaN size made an empty map that
+  // the page could not draw)
+  const MNc = coherent ? Math.max(256, Math.min(1024, Math.ceil(3 * 2 * H / pFine))) : MAP_N, MN = Number.isFinite(MNc) ? MNc : MAP_N;
   const map = new Float32Array(MN * MN), inc = new Float32Array(MN * MN), pm = polMaps(MN);
   // each arrival's complex field at a point on the screen
   const fieldAt = h2 => segFieldAt(h2, sYx, sYy);

@@ -691,7 +691,9 @@ export function popDiffraction(el, R) {
     const a = L2[i].sg.b, b = L2[j].sg.b, ang = Math.acos(Math.min(1, a.dx * b.dx + a.dy * b.dy));
     if (ang > 0) pFine = Math.min(pFine, (a.nm * 1e-6 / L2[i].G.n) / ang);
   }
-  const MN = coherent ? Math.max(256, Math.min(1024, Math.ceil(3 * 2 * H / pFine))) : MAP_N;
+  // (a size that is not a number, from an extent or fringe that is not, is the usual one: a NaN size made an empty map that
+  // the page could not draw)
+  const MNc = coherent ? Math.max(256, Math.min(1024, Math.ceil(3 * 2 * H / pFine))) : MAP_N, MN = Number.isFinite(MNc) ? MNc : MAP_N;
   const map = new Float32Array(MN * MN), inc = new Float32Array(MN * MN), pm = polMaps(MN);
   // each arrival's complex field at a point on the screen
   const fieldAt = h2 => segFieldAt(h2, sYx, sYy);

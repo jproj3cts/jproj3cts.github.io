@@ -9241,14 +9241,18 @@ const STL = {
 /* Source: A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown. */
 const SOURCE = {
   type: 'source', label: 'Source',
-  picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines all round)' }],
-  keys: ['source', 'lamp'],
-  // a lamp: a point that shines all round, as a lighthouse's or a bulb (its own part on the page; traced as a source)
-  make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180, lampD: 1, lampShape: 'sphere' }
+  picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines every way, in 3D)' }, { key: 'lamp2d', short: 'Circular lamp', long: 'Circular lamp (2D: in the bench plane only, fast)' }],
+  keys: ['source', 'lamp', 'lamp2d'],
+  // a lamp: shining every way, as a bulb or a lighthouse's (its own part on the page; traced as a source); a circular lamp
+  // a point shining round the bench plane only, the quick flat fan of a 2D bench
+  make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 500, lampD: 1, lampShape: 'sphere', elev: 90, rings: 0 }
+    : kind === 'lamp2d' ? { type: 'source', lamp: true, lampFlat: true, name: nextName('Circular lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
     : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11 },
   norm(e, base) {
     const wl = e.mmw ? num(e.wavelength, 633) : Math.min(1e6, Math.max(100, num(e.wavelength, 633)));
     const lamp = e.lamp === true || e.type === 'lamp';
+    // a circular lamp (flat, in the plane): so made, or a point lamp saved before lamps shone in 3D (no size, no light up)
+    const flat = lamp && (e.lampFlat === true || (e.lampFlat === undefined && !(+e.lampD > 0) && !(+e.elev > 0)));
     return Object.assign(base, {
       wavelength: wl,
       colourAuto: e.colourAuto !== false,
@@ -9298,8 +9302,11 @@ const SOURCE = {
       lampTip: clamp(num(e.lampTip, e.lampShape === 'tube' ? 0 : 90), 0, 90),
       lampD: clamp(num(e.lampD, 0), 0, 500), lampL: clamp(num(e.lampL, 1), 0.01, 2000),        // a lamp saved before it had a size: a point
       // its light up and down too: rings of rays at k/rings of elev above and below the bench plane (0: the flat fan)
-      elev: clamp(num(e.elev, 0), 0, 89), rings: clamp(Math.round(num(e.rings, 3)), 1, 10),
-      lampRays: clamp(Math.round(num(e.lampRays, 3)), 1, 15) } : {});
+      // its light up and down: a band of directions to elev above and below the plane (90: every way); rings each way, 0 auto
+      elev: clamp(num(e.elev, 90), 0, 90), rings: clamp(Math.round(num(e.rings, 0)), 0, 40),
+      lampRays: clamp(Math.round(num(e.lampRays, 3)), 1, 15) } : {},
+    // a circular lamp: a point, flat in the plane, the plain fan of rays 360/N apart
+    flat ? { lampFlat: true, lampD: 0, elev: 0, lampShape: 'sphere' } : lamp ? { lampFlat: false } : {});
   },
   guide: {
     what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
@@ -9307,7 +9314,7 @@ const SOURCE = {
     fields: {
       round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
-    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): it shines all round from its surface; width and divergence are not used. lampShape "sphere", "cylinder" (standing up) or "tube" (lying along its direction); lampD its diameter, mm (1; 0 is a point); lampL a cylinder\u2019s height or a tube\u2019s length, mm (1); rays: its rays in all, spread evenly over the directions it shines in, each from across its face as seen that way, in 3D (a glowing surface, Lambertian). Its body absorbs light that comes back to it.', lampShape: 'a Lamp\u2019s shape: "sphere" or "cylinder".', lampD: 'a Lamp\u2019s diameter, mm.', lampL: 'a cylinder Lamp\u2019s length, mm.', lampTip: 'a cylinder Lamp\u2019s axis tipped up from lying along its direction, degrees (90: standing up).', elev: 'a Lamp\u2019s light up and down, degrees: its rays spread over rings at k/rings of this above and below the bench plane, rings each way, each ring\u2019s share by its cosine, every other ring turned half a step (0: all in the plane).', rings: 'how many rings of rays above (and below) the plane, 1 to 10 (3).',
+    divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): it shines all round from its surface; width and divergence are not used. lampShape "sphere", "cylinder" (standing up) or "tube" (lying along its direction); lampD its diameter, mm (1; 0 is a point); lampL a cylinder\u2019s height or a tube\u2019s length, mm (1); rays: its rays in all, spread evenly over the directions it shines in, each from across its face as seen that way, in 3D (a glowing surface, Lambertian). Its body absorbs light that comes back to it.', lampShape: 'a Lamp\u2019s shape: "sphere" or "cylinder".', lampD: 'a Lamp\u2019s diameter, mm.', lampL: 'a cylinder Lamp\u2019s length, mm.', lampTip: 'a cylinder Lamp\u2019s axis tipped up from lying along its direction, degrees (90: standing up).', elev: 'a Lamp\u2019s light up and down, degrees (90, the default: every way): its rays spread over rings at k/rings of this above and below the bench plane, each ring\u2019s share by its cosine, every other ring turned half a step.', rings: 'how many rings of rays above (and below) the plane, 1 to 40; 0 (the default): as many as spaces its rays evenly.', lampFlat: 'true: a Circular lamp, a point shining round the bench plane only (its rays 360/N apart): quick, for 2D benches. A point lamp saved with no light up and down opens as one.',
     gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
@@ -10194,7 +10201,7 @@ const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism
 const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
-const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'detector', 'spectrometer', 'screen', 'phosphor', 'fibre', 'collimator']],
+const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'lamp2d', 'detector', 'spectrometer', 'screen', 'phosphor', 'fibre', 'collimator']],
   ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
@@ -10225,7 +10232,7 @@ const deg = Math.PI / 180;
 
 const PRISM_SHAPES = { right: 'Right-angle prism', equilateral: 'Equilateral prism', window: 'Window', dove: 'Dove prism', penta: 'Pentaprism', amici: 'Amici roof prism', pellin: 'Pellin\u2013Broca prism', polygon: 'Polygon (its corners)' };
 const DOVE_RATIO = 4.224;              // a Dove prism's length over its height, for N-BK7 (as catalogue ones are)
-const typeLabel = el => el.mod ? modName(el) : el.type === 'source' && el.lamp ? 'Lamp' : el.type === 'lens' && el.mmw ? 'RF lens' : el.grin ? 'GRIN lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
+const typeLabel = el => el.mod ? modName(el) : el.type === 'source' && el.lamp ? (el.lampFlat ? 'Circular lamp' : 'Lamp') : el.type === 'lens' && el.mmw ? 'RF lens' : el.grin ? 'GRIN lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
 function nextName(prefix) {
@@ -10656,7 +10663,7 @@ function normSurface(s) {
   };
 }
 function normElement(e) {
-  if (e && e.type === 'lamp') e = Object.assign({}, e, { type: 'source', lamp: true });
+  if (e && (e.type === 'lamp' || e.type === 'lamp2d')) e = Object.assign({}, e, { type: 'source', lamp: true, lampFlat: e.type === 'lamp2d' || e.lampFlat === true });     // a Lamp (or Circular lamp) written as its own type
   const o = normElementBase(e);
   if (!o) return null;
   ELEC.normExtra(e, o);                                                                      // ELEC hook: an optical part's electrical settings
@@ -10681,7 +10688,7 @@ function normElement(e) {
   return o;
 }
 function normElementBase(e) {
-  if (e && e.type === 'lamp') e = Object.assign({}, e, { type: 'source', lamp: true });     // a Lamp written as its own type
+  if (e && (e.type === 'lamp' || e.type === 'lamp2d')) e = Object.assign({}, e, { type: 'source', lamp: true, lampFlat: e.type === 'lamp2d' || e.lampFlat === true });     // a Lamp (or Circular lamp) written as its own type     // a Lamp written as its own type
   const base = {
     id: typeof e.id === 'string' ? e.id : uid(),
     type: e.type,
@@ -10807,7 +10814,8 @@ function lampExit(el, q, d) {
 }
 function lampRaysOf(el) {
   const N = Math.max(1, Math.round(el.rays || 1)), a0 = (el.angle || 0) * Math.PI / 180, z0 = isFinite(el.z) && el.z !== null ? +el.z : BEAM_Z;
-  const R = el.elev > 0 ? Math.max(1, el.rings || 3) : 0, lev = [];
+  // rings each way: as set, or (0) as many as space the rays about as far apart up as round: the band's area 4π sin(elev)
+  const eR = (el.elev || 0) * Math.PI / 180, R = el.elev > 0 ? (el.rings > 0 ? el.rings : Math.max(1, Math.round(eR / Math.sqrt(4 * Math.PI * Math.sin(eR) / N)))) : 0, lev = [];
   for (let k = -R; k <= R; k++) lev.push([k, R ? k / R * el.elev * Math.PI / 180 : 0]);
   const cs = lev.map(([, e]) => Math.cos(e)), sc = cs.reduce((x, y) => x + y, 0);
   const n = cs.map(c => Math.max(1, Math.round(N * c / sc)));
@@ -10841,7 +10849,7 @@ function lampRaysOf(el) {
   return out;
 }
 /* whether a source sends its rays as a Lamp's (lampRaysOf), not as a fan */
-const lampEmits = el => !!(el && el.lamp && (el.lampD > 0 || el.elev > 0));
+const lampEmits = el => !!(el && el.lamp && !el.lampFlat);
 /* a Lamp's outline seen from above, in its own frame (x along its direction): a circle (a sphere, or a cylinder standing
    up), else a cylinder's footprint as it tips, its length L cos(tip) + D sin(tip); which light coming back is taken by */
 function lampFootprint(el) {
@@ -21373,7 +21381,7 @@ const V3D = (() => {
         // a Lamp: a glowing bulb on a short stem
         if (el.lamp) {
           // its shape at its size, glowing in its light: a sphere, a cylinder standing up, a tube lying along its direction
-          const r = Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.lamp(el.colour || '#ffd060');
+          const r = el.lampFlat ? 2 : Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.lamp(el.colour || '#ffd060');
           // a cylinder lies along the lamp's direction, then tips up by its tip (90: standing)
           add(mesh(el.lampShape === 'cylinder' ? new T.CylinderGeometry(r, r, L, 24).rotateZ(Math.PI / 2).rotateY(-(isFinite(el.lampTip) ? el.lampTip : 90) * Math.PI / 180) : new T.SphereGeometry(r, 24, 16), C));
           return g;
@@ -23630,7 +23638,21 @@ function drawLamp(el, sel) {
   }
   ctx.restore();
 }
+/* a Circular lamp: a point shining round the bench plane only, the quick flat fan of a 2D bench */
+function flatLampPanel(el) {
+  panel.append(h('h3', null, 'Circular lamp'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Wavelength (nm)', el, 'wavelength'),
+    param('Power (mW)', el, 'power'),
+    param('Rays round it', el, 'rays'),
+    textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
+      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
+      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
+    }, { wide: true, placeholder: 'none' })));
+  panel.append(helpLine('A point shining round the bench plane only: quick, for 2D benches.', ['A point whose rays leave round the bench plane only, 360\u00b0 over their number apart, the first along its direction: the plain fan of a 2D bench, traced quickly. For light every way, from a lamp with a shape and size, use the Lamp. Its power is shared by its rays, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.5rem'));
+}
 function lampPanel(el) {
+  if (el.lampFlat) return flatLampPanel(el);
   panel.append(h('h3', null, 'Lamp'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder']], () => el.lampShape, v => { el.lampShape = v; if (v === 'cylinder' && !isFinite(el.lampTip)) el.lampTip = 90; renderPanel(); }, { wide: true }),
@@ -23640,16 +23662,16 @@ function lampPanel(el) {
     param('Power (mW)', el, 'power'),
     param('Rays in all', el, 'rays'),
     // its light up and down: rings of rays above and below the plane (0: a flat fan), for the 3D view and parts above or below
-    param('Rays up and down (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
-    ...(el.elev > 0 ? [param('Rings each way', el, 'rings')] : []),
+    param('Shines up and down to (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
+    ...(el.elev > 0 ? [param('Rings each way', el, 'rings', { placeholder: 'auto', blank: 0, fmt: v => (v > 0 ? String(v) : '') })] : []),
     textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
       const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
       if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
     }, { wide: true, placeholder: 'none' })));
   const tot = h('p', { class: 'note', style: 'margin-top:0.4rem' });
-  bindSync(tot, () => { const W = 1 + (el.lines || []).length; tot.textContent = el.rays + ' rays' + (el.elev > 0 ? ' spread over ' + (2 * (el.rings || 3) + 1) + ' rings' : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
+  bindSync(tot, () => { const W = 1 + (el.lines || []).length, L = lampRaysOf(el), rings = new Set(L.map(q => q[4].toFixed(6))).size; tot.textContent = L.length + ' rays' + (rings > 1 ? ' spread over ' + rings + ' rings' + (el.elev >= 90 ? ', every way' : ', to ' + el.elev + '\u00b0 up and down') : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
   panel.append(tot);
-  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: round the bench plane, and with Rays up and down in rings above and below it, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. A cylinder\u2019s axis lies along the lamp\u2019s direction tipped up by its tip: 90\u00b0 stands it up, 0\u00b0 lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere\u2019s disc, a cylinder\u2019s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
+  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: every way (Shines up and down to 90\u00b0), or a band about the bench plane, in rings of latitude, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. A cylinder\u2019s axis lies along the lamp\u2019s direction tipped up by its tip: 90\u00b0 stands it up, 0\u00b0 lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere\u2019s disc, a cylinder\u2019s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
 }
 
 function drawSource(el, sel) {
@@ -49108,6 +49130,7 @@ const PART_USES = {
   mask: 'aperture slit double slit pattern block diffraction mask',
   screen: 'view see image spot profile camera beam profile observe pattern ccd',
   lamp: 'light bulb lighthouse all round 360 omnidirectional point lamp shine every direction torch candle',
+  lamp2d: 'circular lamp flat 2d plane fast bulb all round point lighthouse',
   phosphor: 'view trail persistence glow card ir viewer see beam',
   grating: 'diffract disperse spectrum wavelength separate order ruled echelle',
   crystal: 'birefringent split polarisation displacer wollaston glan calcite double refraction',
@@ -52857,7 +52880,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Fresnel lenses</b>: give a lens\u2019s curved face <b>Fresnel rings</b> (mm) and it is cut into rings of that pitch, each with the face\u2019s slope, as a moulded Fresnel lens is: it focuses as the solid lens does, a fraction as thick, a little light lost at the risers. And: a <b>Lamp</b> (Add part \u203a Lamp: a sphere or a cylinder of its size, standing, lying or tilted, shining all round from its surface, its light up and down too if you like, its body taking light that comes back to it); an <b>angular size</b> (the sun\u2019s half a degree, so its image is a disc); mirrors that <b>absorb</b> (Passes through: what is neither reflected nor passed is lost); a group that <b>spins</b> about one of its parts (Turn the group, its Spin a sweep to play); <b>Ray width</b> and <b>Rays glow</b> under Bench \u203a Light; and screens\u2019 <b>beam direction</b> and <b>arrival angle</b>, for the optimiser and the exercises.',
+    '<b>Fresnel lenses</b>: give a lens\u2019s curved face <b>Fresnel rings</b> (mm) and it is cut into rings of that pitch, each with the face\u2019s slope, as a moulded Fresnel lens is: it focuses as the solid lens does, a fraction as thick, a little light lost at the risers. And: a <b>Lamp</b> (Add part \u203a Lamp: a sphere or a cylinder of its size, standing, lying or tilted, shining every way from its surface, in 3D, its body taking light that comes back to it; and a <b>Circular lamp</b>, a point shining round the bench plane only, quick for 2D benches); an <b>angular size</b> (the sun\u2019s half a degree, so its image is a disc); mirrors that <b>absorb</b> (Passes through: what is neither reflected nor passed is lost); a group that <b>spins</b> about one of its parts (Turn the group, its Spin a sweep to play); <b>Ray width</b> and <b>Rays glow</b> under Bench \u203a Light; and screens\u2019 <b>beam direction</b> and <b>arrival angle</b>, for the optimiser and the exercises.',
     '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account. Under them, <b>Challenges</b>: the puzzles from our Instagram reels, newest first, starting with \u201cCan you hit the pinhole?\u201d; the same checks and hints, kept apart from the course.',
     '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',
     '<b>More prisms</b>: the pentaprism (90\u00b0 whatever its tilt), the Amici roof prism, the Pellin\u2013Broca prism and a polygon of your own corners, with any faces silvered. Mirrors can have a <b>hole through them</b>, a source\u2019s line of rays can carry <b>power as across a round beam</b> (so an iris passes what it would), and a fibre wound round a radius has its <b>bend loss</b> (Marcuse\u2019s formula, single-mode fibre). A fibre\u2019s route now moves with the parts at its ends.',

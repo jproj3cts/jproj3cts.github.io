@@ -47,15 +47,24 @@ test('a lamp shines all round: 360° of rays evenly spaced, none doubled', () =>
   for (const g of gaps) near(g, 30, 1, 'evenly 30° apart');
 });
 
-test('a Lamp is its own part: written as type lamp it opens as one, a point all round whatever it was given', () => {
+test('a Lamp and a Circular lamp are parts of their own: written as their types they open as them', () => {
+  // a Lamp: every way in 3D by default, whatever beam it was given
   run([{ type: 'lamp', id: 'S', name: 'Bulb', x: 0, y: 0, wavelength: 580, rays: 36, width: 9, divergence: 10, gauss: true }]);
   const L = byName('Bulb');
-  assert.equal(L.lamp, true); assert.equal(L.width, 0); assert.equal(L.divergence, 360); assert.equal(L.gauss, false);
+  assert.equal(L.lamp, true); assert.equal(L.lampFlat, false); assert.equal(L.width, 0); assert.equal(L.gauss, false); assert.equal(L.elev, 90);
   assert.equal(STATE.typeLabel(L), 'Lamp');
-  assert.equal(TRACE.lastTrace.rays.filter(r => r.src === 'S').length, 72, 'unpolarised: two halves of each of 36 rays');
+  const R = TRACE.lastTrace.rays.filter(r => r.src === 'S');
+  assert.equal(R.length, 72, 'unpolarised: two halves of each of 36 rays');
+  assert.ok(R.some(r => r.zs && r.zs[1] > r.zs[0] + 1) && R.some(r => r.zs && r.zs[1] < r.zs[0] - 1), 'up and down, every way');
   const f = serialize().elements[0];
-  assert.equal(f.lamp, true);
-  run([f]); assert.equal(byName('Bulb').lamp, true, 'and opens again as one');
+  run([f]); assert.equal(byName('Bulb').lampFlat, false, 'and opens again as one');
+  // a Circular lamp: a point, flat in the plane
+  run([{ type: 'lamp2d', id: 'C', name: 'Ring', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's' }]);
+  assert.equal(byName('Ring').lampFlat, true); assert.equal(STATE.typeLabel(byName('Ring')), 'Circular lamp');
+  assert.ok(TRACE.lastTrace.rays.every(r => !r.zs || r.zs.every(z => z === 75)), 'in the plane');
+  // a point lamp saved before lamps shone in 3D (no size, no light up): a Circular lamp, as it traced
+  run([{ type: 'source', id: 'O', name: 'Old', lamp: true, x: 0, y: 0, wavelength: 580, rays: 12, divergence: 360, width: 0 }]);
+  assert.equal(byName('Old').lampFlat, true);
 });
 
 test('a source with an angular size: rays across that angle from each point, the power shared', () => {
@@ -141,15 +150,15 @@ test('a Lamp with a size sends its light from its surface, its body takes light 
     { type: 'lens', id: 'L', name: 'Panel', x: 87, y: 0, angle: 0, diameter: 70, surfaces: [{ R: null }, { R: -40, fresnel: 4 }], gaps: [3], materials: [{ glass: 'N-BK7' }] },
     { type: 'screen', id: 'A', name: 'Far', x: 1000, y: 0, angle: 180, length: 300 }]); return metricRaw(byName('Far'), 'rms'); };
   assert.ok(spread(10) > spread(0) + 5, 'a 10 mm lamp’s beam wider than a point’s');
-  // a lamp saved before it had a size is still a point; a new one from the picker is 1 mm
-  run([{ type: 'source', id: 'S', name: 'Old', lamp: true, x: 0, y: 0, wavelength: 580, rays: 12, divergence: 360, width: 0 }]);
-  assert.equal(byName('Old').lampD, 0);
+  // a lamp saved before it had a size is still a point
 });
 
 test('a Lamp’s light up and down: rings above and below the plane, the same power; a flat Lamp as before', async () => {
-  const flat = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's' }]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
-  const flat0 = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', elev: 0 }]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
-  assert.deepEqual(flat0, flat, 'elev 0 is the flat fan');
+  // a Circular lamp traces as a point lamp saved before (no size, no light up), and as a source with divergence 360 did
+  const fan = el => run([el]).rays.map(r => r.pts.slice(0, 4).map(v => +v.toFixed(9)));
+  const flat = fan({ type: 'lamp2d', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's' });
+  assert.deepEqual(fan({ type: 'source', id: 'S', name: 'L', lamp: true, x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', width: 0, divergence: 360 }), flat, 'an old flat lamp');
+  assert.deepEqual(fan({ type: 'source', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's', width: 0, divergence: 360 }), flat, 'a source all round');
   const T = run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 240, pol: 's', elev: 20, rings: 3 }]);
   const hits = T.rays.filter(r => r.src === 'S');
   assert.equal(hits.length, 240, 'its rays in all, spread over the rings');
@@ -166,4 +175,10 @@ test('a Lamp’s light up and down: rings above and below the plane, the same po
   const read = elev => { run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 240, pol: 's', power: 1, elev, rings: 3 },
     { type: 'detector', id: 'D', name: 'D', x: 100, y: 0, angle: 180, length: 2000 }]); return detectorReading(byName('D')).mw; };
   near(read(20), read(0), 0.02 * read(0), 'the power the same, but for how the rings round their rays');
+  // every way (90°, a new Lamp's): rings auto, about as far apart up as round, one ray at each pole
+  run([{ type: 'lamp', id: 'S', name: 'L', x: 0, y: 0, wavelength: 580, rays: 500, pol: 's' }]);
+  const E = lampRaysOf(byName('L')).map(q => q[4]);
+  near(Math.max(...E), Math.PI / 2, 1e-9); near(Math.min(...E), -Math.PI / 2, 1e-9);
+  assert.equal(E.filter(e => Math.abs(e - Math.PI / 2) < 1e-9).length, 1, 'one ray straight up');
+  assert.equal(E.length, 500);
 });

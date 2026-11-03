@@ -5,7 +5,7 @@ import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../../core/beams-ho
 import { wavelengthColour } from '../../core/colour.js';
 import { fanEdgeAuto } from '../../core/fan-edge.js';
 import { V, project } from '../../state/project.js';
-import { getEl, lampFootprint, lightOf, srcBody } from '../../state/elements.js';
+import { getEl, lampFootprint, lampRaysOf, lightOf, srcBody } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS, rayPattern } from '../../engines/trace.js';
 import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../render.js';
@@ -48,7 +48,21 @@ function drawLamp(el, sel) {
   }
   ctx.restore();
 }
+/* a Circular lamp: a point shining round the bench plane only, the quick flat fan of a 2D bench */
+function flatLampPanel(el) {
+  panel.append(h('h3', null, 'Circular lamp'));
+  panel.append(h('div', { class: 'rt-rows' },
+    param('Wavelength (nm)', el, 'wavelength'),
+    param('Power (mW)', el, 'power'),
+    param('Rays round it', el, 'rays'),
+    textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
+      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
+      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
+    }, { wide: true, placeholder: 'none' })));
+  panel.append(helpLine('A point shining round the bench plane only: quick, for 2D benches.', ['A point whose rays leave round the bench plane only, 360\u00b0 over their number apart, the first along its direction: the plain fan of a 2D bench, traced quickly. For light every way, from a lamp with a shape and size, use the Lamp. Its power is shared by its rays, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.5rem'));
+}
 function lampPanel(el) {
+  if (el.lampFlat) return flatLampPanel(el);
   panel.append(h('h3', null, 'Lamp'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder']], () => el.lampShape, v => { el.lampShape = v; if (v === 'cylinder' && !isFinite(el.lampTip)) el.lampTip = 90; renderPanel(); }, { wide: true }),
@@ -58,16 +72,16 @@ function lampPanel(el) {
     param('Power (mW)', el, 'power'),
     param('Rays in all', el, 'rays'),
     // its light up and down: rings of rays above and below the plane (0: a flat fan), for the 3D view and parts above or below
-    param('Rays up and down (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
-    ...(el.elev > 0 ? [param('Rings each way', el, 'rings')] : []),
+    param('Shines up and down to (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
+    ...(el.elev > 0 ? [param('Rings each way', el, 'rings', { placeholder: 'auto', blank: 0, fmt: v => (v > 0 ? String(v) : '') })] : []),
     textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
       const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
       if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
     }, { wide: true, placeholder: 'none' })));
   const tot = h('p', { class: 'note', style: 'margin-top:0.4rem' });
-  bindSync(tot, () => { const W = 1 + (el.lines || []).length; tot.textContent = el.rays + ' rays' + (el.elev > 0 ? ' spread over ' + (2 * (el.rings || 3) + 1) + ' rings' : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
+  bindSync(tot, () => { const W = 1 + (el.lines || []).length, L = lampRaysOf(el), rings = new Set(L.map(q => q[4].toFixed(6))).size; tot.textContent = L.length + ' rays' + (rings > 1 ? ' spread over ' + rings + ' rings' + (el.elev >= 90 ? ', every way' : ', to ' + el.elev + '\u00b0 up and down') : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
   panel.append(tot);
-  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: round the bench plane, and with Rays up and down in rings above and below it, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. A cylinder\u2019s axis lies along the lamp\u2019s direction tipped up by its tip: 90\u00b0 stands it up, 0\u00b0 lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere\u2019s disc, a cylinder\u2019s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
+  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: every way (Shines up and down to 90\u00b0), or a band about the bench plane, in rings of latitude, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. A cylinder\u2019s axis lies along the lamp\u2019s direction tipped up by its tip: 90\u00b0 stands it up, 0\u00b0 lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere\u2019s disc, a cylinder\u2019s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
 }
 
 function drawSource(el, sel) {

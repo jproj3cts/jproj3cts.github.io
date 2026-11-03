@@ -248,7 +248,7 @@ function updateReadoutsIn(container, el) {
       rows.push(['EFL at ' + fmtWl(nm), fmtLen(p.efl)], ['BFL', fmtLen(p.bfl)]);
     }
     const unlit = hit.length ? '' : ' No light reaches it: these are at the bench\u2019s wavelengths.';
-    const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
+    const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => (m.glass === 'custom' ? 'A glass of' : matLabel(m)) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
     if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
     if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +

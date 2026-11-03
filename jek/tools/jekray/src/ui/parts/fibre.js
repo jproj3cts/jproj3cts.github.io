@@ -41,8 +41,8 @@ function fibrePanel(el) {
       if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
     }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    param(el.coll > 0 ? 'Clear aperture (mm)' : 'Ferrule face (mm)', el, 'length', { wide: true }),
-    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })])));
+    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })]),
+    param('Diameter (mm)', el, 'length', { wide: true })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
     const note = h('p', { class: 'note', style: 'margin-top:0.3rem' });
@@ -50,7 +50,7 @@ function fibrePanel(el) {
     panel.append(note);
   }
   // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
-  panel.append(h('h3', null, 'Light from the fibre network'));
+  panel.append(h('h3', el.emitTraceRays === false || el.emitGauss === false || el.emitPattern || el.emitRays !== undefined && el.emitRays !== 5 ? null : { 'data-shut': '' }, 'Light from the fibre network'));
   const tick = (key, label) => {
     const c = h('input', { type: 'checkbox' });
     c.checked = el[key] !== false;

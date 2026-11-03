@@ -27,9 +27,9 @@ export function nlcPanel(el) {
   panel.append(h('h3', null, 'Nonlinear crystal'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Crystal', Object.entries(NLC).map(([k, v]) => [k, v.name + ' (d_eff ' + (v.d * 1e12) + ' pm/V)']), () => el.material, v => { el.material = v; }, { wide: true }),
-    param('Length (mm)', el, 'nlLen'), param('Aperture (mm)', el, 'length'),
-    param('Poling period (µm)', el, 'period'), param('Temperature (°C)', el, 'temp'),
     selectField('Its z axis', [['s', 'Out of the bench plane: s light converts'], ['p', 'In the plane: p light converts']], () => el.axis, v => { el.axis = v; }, { wide: true }),
+    param('Poling period (µm)', el, 'period'), param('Temperature (°C)', el, 'temp'),
+    param('Length (mm)', el, 'nlLen'), param('Diameter (mm)', el, 'length'),
     selectField('End faces', [['ar', 'Anti-reflection coated (0.1%)'], ['bare', 'Bare']], () => el.faces, v => { el.faces = v; }, { wide: true })));
   const box = h('div', { class: 'rt-readout' }), cv = h('canvas', { height: '150', style: 'width:100%;display:block' });
   panel.append(box, h('div', { style: 'margin-top:0.5rem' }, cv), plotSaveRow(cv));

@@ -262,7 +262,7 @@ function elecDrawChopper(el, sel) {
 function elecChopperPanel(el) {
   panel.append(h('h3', null, 'Optical chopper'));
   panel.append(h('div', { class: 'rt-rows' }, param('Frequency (Hz)', el, 'f'), param('Open (% of cycle)', el, 'duty'),
-    param('Phase (°)', el, 'phase'), param('Aperture (mm)', el, 'length')));
+    param('Phase (°)', el, 'phase'), param('Diameter (mm)', el, 'length')));
   panel.append(readoutBox('chopper'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open; photodetectors behind it see the chopped light in their Signal views. Its phase is when in the cycle it opens, against the start of the generators\u2019 cycles (t = 0): 0\u00b0 opens at t = 0, 90\u00b0 a quarter of a cycle later. It matters only against something else on the same clock (another chopper, a generator\u2019s drive); a lock-in referenced to this chopper\u2019s own ref output sees no change, its reference shifting with it.' +
     ' Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in\u2019s reference.'));
@@ -282,6 +282,8 @@ function elecOpticPanel(el) {
     what = 'Its out port carries what it reads to the electronics: ' + (el.diode ? 'the photocurrent (amps), for a TIA or a scope; ' : 'the amplifier’s output (volts); ') +
       'drives on the bench (a chopper, a laser’s modulation, an AOM or EOM) move it as the light follows them.';
  } else if (isLaser(el) && !(el.mmw && el.mmw.tx === 'up')) {
+    // only on a bench with electronics to wire to it (or one that has it already): elsewhere the section says nothing useful
+    if (!el.ext && !project.elements.some(e => e.type === 'elec')) return;
     const tick = h('input', { type: 'checkbox' });
     tick.checked = !!el.ext;
     tick.addEventListener('change', () => {

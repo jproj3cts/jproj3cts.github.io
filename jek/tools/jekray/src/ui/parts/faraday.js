@@ -7,9 +7,10 @@ import { h, panel, param } from '../panel.js';
 export function faradayPanel(el) {
   const iso = el.type === 'isolator';
   panel.append(h('h3', null, iso ? 'Isolator' : 'Faraday rotator'));
-  const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length'));
-  if (iso) rows.append(param('Extinction (dB)', el, 'extinction'), param('Input polariser from p (°)', el, 'axis', { wide: true }));
+  const rows = h('div', { class: 'rt-rows' });
+  if (iso) rows.append(param('Input polariser from p (°)', el, 'axis', { wide: true }), param('Extinction (dB)', el, 'extinction'));
   else rows.append(param('Rotation (°)', el, 'rotation'));
+  rows.append(param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, iso
     ? 'A polariser, a 45° Faraday rotator and a second polariser at 45° to the first. Light going the way of the arrow passes; light coming back is turned a further 45° and stopped, as far as the extinction ratio allows.'

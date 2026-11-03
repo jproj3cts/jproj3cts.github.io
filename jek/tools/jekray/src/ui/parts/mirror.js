@@ -1,4 +1,5 @@
 import { V } from '../../state/project.js';
+import { moreFold } from './lens.js';
 import { sagFn } from '../../core/geometry.js';
 import { elementSurfaces } from '../../core/stl.js';
 import { frame, toWorld } from '../../core/mask.js';
@@ -53,16 +54,19 @@ function mirrorPanel(el) {
   if (el.film) {
     const F45 = filmCoef(el.film, nm, Math.SQRT1_2), pc = v => (100 * v).toPrecision(3) + ' %';
     panel.append(h('div', { class: 'rt-rows' },
-      param('Length (mm)', el, 'length'), param('Film index', el, 'film.n'), param('Thickness (mm)', el, 'film.t', { wide: true })));
+      param('Width (mm)', el, 'length'), param('Film index', el, 'film.n'), param('Thickness (mm)', el, 'film.t', { wide: true })));
     panel.append(h('div', { class: 'rt-readout' }, h('table', null, h('tbody', null,
       h('tr', null, h('td', null, 'At ' + (+ghz.toPrecision(4)) + ' GHz, 45\u00b0'), h('td', null, 'reflects ' + pc(F45.Rs) + ' of s, ' + pc(F45.Rp) + ' of p'))))));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A dielectric sheet (Mylar is 1.73): its two faces interfere, so what it reflects goes with its thickness over the wavelength, the angle, and the polarisation. Lossless.'));
     return;
   }
   panel.append(h('div', { class: 'rt-rows' },
-    param('Length (mm)', el, 'length'),
+    param('Width (mm)', el, 'length'),
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })]),
+    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })])));
+  // its shape beyond a sphere, a hole, an off-axis cut and a chirp: in a fold, open when any is set
+  const shaped = !!(el.k || el.hole > 0 || (el.A && el.A.length) || (el.F && Object.keys(el.F).length) || el.offset || el.gdd);
+  panel.append(moreFold(el.id + '|shape', 'Conic, aspheric terms, hole, off-axis offset, GDD', shaped, h('div', { class: 'rt-rows' },
     param('Conic k', el, 'k', { blank: 0 }),
     param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
     // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
@@ -76,7 +80,7 @@ function mirrorPanel(el) {
     ...ffRows(el, el, 'F', el.name || 'the mirror'),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
-  ));
+  )));
   if (el.mmw && el.R) panel.append(readoutBox('mirror'));
   if (el.metal) panel.append(h('p', { class: 'note' }, 'Reflects ' + (100 * metalR(el.metal, ghz)).toPrecision(4) + ' % at ' + (+ghz.toPrecision(4)) + ' GHz: the loss is 4 Rs / Z0, Rs = \u221a(\u03c0 f \u03bc0 / \u03c3) the surface resistance of ' + RF_METALS[el.metal].name.toLowerCase() + '.'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An off-axis offset slides the aperture that far along the parent curve, which is how off-axis parabolas work: set the parent radius, a conic of \u22121 and the offset. Leave the radius blank for a plane mirror. A positive radius is concave towards the reflecting face. At 100% the back of the mirror absorbs; below that it behaves as a thin partial reflector, and the transmitted part carries straight on. A GDD makes it a chirped (dispersive) mirror: each reflection adds that group-delay dispersion to a pulse, about the pulse\u2019s centre wavelength; negative compresses a pulse that glass has stretched.'));

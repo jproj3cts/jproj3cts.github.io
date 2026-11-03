@@ -82,7 +82,7 @@ function grinPanel(el) {
 function maskPanel(el) {
   if (el.grin) return grinPanel(el);
   panel.append(h('h3', null, 'Mask'));
-  const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length', { wide: true }),
+  const rows = h('div', { class: 'rt-rows' },
     selectField('Preset', [...MASK_PRESETS.map(p => [p[0], p[1]]), ['custom', 'Custom']], () => el.preset, v => {
       const p = MASK_PRESETS.find(q => q[0] === v);
       el.preset = v;
@@ -100,7 +100,7 @@ function maskPanel(el) {
     });
     return h('div', { class: 'rt-f wide' }, h('div', { class: 'rt-lab' }, h('label', { for: id }, label)), inp);
   };
-  rows.append(text('Amplitude, A(x, y)', 'amp'), text('Delay in waves, D(x, y)', 'delay'));
+  rows.append(text('Amplitude, A(x, y)', 'amp'), text('Delay in waves, D(x, y)', 'delay'), param('Diameter (mm)', el, 'length', { wide: true }));
   panel.append(rows, err);
   const me = maskFns(el);
   if (me.err) err.textContent = me.err;

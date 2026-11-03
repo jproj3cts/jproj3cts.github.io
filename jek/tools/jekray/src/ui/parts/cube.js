@@ -28,11 +28,11 @@ export function drawBlock(el, sel) {
 function cubePanel(el) {
   panel.append(h('h3', null, 'Beam splitter cube'));
   const rows = h('div', { class: 'rt-rows' },
-    param('Size (mm)', el, 'size', { wide: true }),
     selectField('Type', [['npbs', 'Non-polarising'], ['pbs', 'Polarising']], () => el.mode, v => el.mode = v, { wide: true }));
   if (el.mode === 'pbs') {
     rows.append(param('s reflected (%)', el, 'reflectS'), param('p reflected (%)', el, 'reflectP'));
   } else rows.append(param('Reflected (%)', el, 'reflect', { wide: true }));
+  rows.append(param('Size (mm)', el, 'size', { wide: true }));
   panel.append(rows);
   panel.append(materialRows(el));
   panel.append(coatingRows(el, el, 'Face coating'));

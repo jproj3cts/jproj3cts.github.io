@@ -10,6 +10,8 @@ export const hooks = {
   toast() {}, benchStyleShown() {}, view3dReset() {},
   // an exercise on the bench (ui/challenge.js): drawn, read after each render, a part's panel limited, a change counted
   exerciseDraw() {}, exerciseTick() {}, exercisePanel() {}, exerciseStep() {},
+  // the line under a part's name in its panel: what it reads now (ui/optimise.js partHeadline)
+  partHeadline: () => '',
   // what the page is doing meanwhile
   playing: () => false,                 // a sweep is playing
   sweepJob: () => null,                 // a sweep's field is being rendered

@@ -25,8 +25,8 @@ function gratingPanel(el) {
   panel.append(h('h3', null, 'Grating'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Type', [['reflect', 'Reflection'], ['transmit', 'Transmission']], () => el.mode, v => { el.mode = v; }, { wide: true }),
-    param('Lines per mm', el, 'lpmm'), param('Width (mm)', el, 'length'),
-    param('Blaze (nm)', el, 'blaze'), param('Efficiency (%)', el, 'eff')));
+    param('Lines per mm', el, 'lpmm'), param('Blaze (nm)', el, 'blaze'),
+    param('Efficiency (%)', el, 'eff'), param('Width (mm)', el, 'length')));
   panel.append(readoutBox('grating'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
 }

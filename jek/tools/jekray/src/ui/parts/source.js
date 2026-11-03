@@ -124,6 +124,51 @@ function edgeRows(el) {
   return [row, h('label', { class: 'rt-check' }, auto, 'Automatic: just enough for the field grid')];
 }
 
+/* a source's polarisation as seen looking along its beam: the bench plane across (p in it, s out of it), and its electric
+   field's swing: one line for a linear state (s, p or at its angle from p), lines every way for unpolarised light */
+function polDiagram(el) {
+  const cv = h('canvas', { class: 'rt-poldiag', width: 96, height: 96, role: 'img' });
+  const txt = h('span'), cap = h('p', { class: 'rt-polcap' }, h('b', null, 'Looking along the beam'), h('br'), txt);
+  const box = h('div', { class: 'rt-polbox' }, cv, cap);
+  const draw = () => {
+    const g = cv.getContext && cv.getContext('2d');
+    const P = el, pol = P.pol, ang = pol === 's' ? 90 : pol === 'p' ? 0 : pol === 'linear' ? (+P.polAngle || 0) : null;
+    txt.textContent = pol === 'unpolarised' ? 'Unpolarised: its field swings every way across the beam, half s and half p.'
+      : pol === 's' ? 's: its field swings out of the bench plane.' : pol === 'p' ? 'p: its field swings in the bench plane.'
+        : 'Linear, ' + (+(+P.polAngle || 0).toPrecision(4)) + '° from p (the bench plane) towards s.';
+    cv.setAttribute('aria-label', 'Its polarisation, looking along the beam: ' + txt.textContent);
+    if (!g) return;
+    const dpr = window.devicePixelRatio || 1, W = 96;
+    cv.width = W * dpr; cv.height = W * dpr; cv.style.width = W + 'px'; cv.style.height = W + 'px';
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, W);
+    const ink = getCss('--jek-ink') || '#222', soft = getCss('--jek-ink-soft') || '#777', c = W / 2, r = 34;
+    // the beam's cross-section, the bench plane through it, and the two directions named
+    g.fillStyle = (el.colour || '#d33') + '22'; g.beginPath(); g.arc(c, c, r, 0, 2 * Math.PI); g.fill();
+    g.strokeStyle = soft; g.lineWidth = 1; g.stroke();
+    g.setLineDash([3, 3]); g.beginPath(); g.moveTo(4, c); g.lineTo(W - 4, c); g.stroke(); g.setLineDash([]);
+    g.fillStyle = soft; g.font = '10px ' + (getCss('--jek-sans') || 'sans-serif'); g.textBaseline = 'middle';
+    g.textAlign = 'right'; g.fillText('p', W - 3, c - 8); g.textAlign = 'center'; g.fillText('s', c + 8, 7);
+    // its field's swing: a double-headed arrow (or one each way, faint, for unpolarised light)
+    const arrow = (deg, a) => {
+      const t = deg * Math.PI / 180, dx = Math.cos(t) * (r - 6), dy = -Math.sin(t) * (r - 6);
+      g.globalAlpha = a; g.strokeStyle = ink; g.fillStyle = ink; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(c - dx, c - dy); g.lineTo(c + dx, c + dy); g.stroke();
+      for (const sg of [1, -1]) {
+        const x = c + sg * dx, y = c + sg * dy, ux = sg * Math.cos(t), uy = -sg * Math.sin(t);
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x - 7 * ux - 4 * uy, y - 7 * uy + 4 * ux); g.lineTo(x - 7 * ux + 4 * uy, y - 7 * uy - 4 * ux); g.closePath(); g.fill();
+      }
+      g.globalAlpha = 1;
+    };
+    if (ang === null) for (const d of [0, 45, 90, 135]) arrow(d, 0.45); else arrow(ang, 1);
+    // a linear state's angle from p, marked
+    if (pol === 'linear' && Math.abs(ang) > 1) {
+      const t = ang * Math.PI / 180;
+      g.strokeStyle = soft; g.lineWidth = 1; g.beginPath(); g.arc(c, c, 15, -Math.max(t, 0), -Math.min(t, 0)); g.stroke();
+    }
+  };
+  bindSync(box, draw);
+  return box;
+}
 function sourcePanel(el) {
   if (el.lamp) return lampPanel(el);
   panel.append(h('h3', null, 'Light'));
@@ -244,6 +289,8 @@ function sourcePanel(el) {
   }
 
   panel.append(h('h3', null, 'Polarisation and coherence'));
+  // its polarisation drawn, as seen along the beam; then its state, the laser it is split from, its spectrum
+  panel.append(polDiagram(el));
   // its polarisation; the laser it is split from, if any (one launch with it); its spectrum: two to a row
   const others = project.elements.filter(e => e.type === 'source' && e !== el && !splitChain(e).includes(el));
   const pol = selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's (out of plane)'], ['p', 'p (in plane)'], ['linear', 'Linear, at angle']], () => el.pol, v => el.pol = v);

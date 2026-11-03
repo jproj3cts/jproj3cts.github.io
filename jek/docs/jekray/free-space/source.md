@@ -29,7 +29,7 @@ A source can also have an **angular size**: how wide it looks from far away (the
 
 ### Rays across the beam
 
-The fan is a line across the source, in the bench plane. A source can lay its rays out across the whole beam instead, up and down as well as across, the same width (and divergence) both ways:
+A new source lays its rays out in **hexapolar** rings across the whole beam, up and down as well as across, the same width (and divergence) both ways. Pick **A line** for the plain fan across the source in the bench plane (a bench saved with a line, or before this default, keeps it):
 
 | Pattern | Rays, for $$N$$ |
 |---|---|
@@ -80,7 +80,7 @@ A higher-order mode uses the 2D field.
 
 ### Polarisation
 
-A source is s (out of the plane), p (in it), linear at an angle from p, or unpolarised. An unpolarised source is two launches, s and p, of half the power each, which add as powers wherever they meet.
+A source is s (out of the plane), p (in it), linear at an angle from p, or unpolarised; its panel draws the state as seen looking along the beam, the bench plane across. An unpolarised source is two launches, s and p, of half the power each, which add as powers wherever they meet.
 
 ### Wavelengths
 

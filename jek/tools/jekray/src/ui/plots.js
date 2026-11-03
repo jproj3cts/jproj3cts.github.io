@@ -444,7 +444,9 @@ function drawDiff(cv, D, el) {
     size(hgt);
     const A = { l: A0.l, t: A0.t, w: side, h: side };
     cv._area = A; cv._full = { x: [-L, L], y: [-L, L] };
-    const M = D.map.n, img = c.createImageData(M, M);
+    const M = D.map.n;
+    if (!(M >= 1 && Number.isFinite(M) && D.map.v && D.map.v.length >= M * M)) return;   // no map to draw (none is better than a page error)
+    const img = c.createImageData(M, M);
     plotCsv(cv, el.name + ' irradiance map', ['along_mm', 'out_of_plane_mm', 'irradiance', 'incoherent'], () => {
       const r = [];
       for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) r.push([u0 + (i + 0.5) * (u1 - u0) / M, v0 + (j + 0.5) * (v1 - v0) / M, D.map.v[j * M + i], D.map.inc[j * M + i]]);

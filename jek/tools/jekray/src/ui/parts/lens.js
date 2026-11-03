@@ -256,15 +256,15 @@ function lensPanel(el) {
   // the faces as a table, a row each: its number, radius and coating, and a ▸ opening the rest (clear radius, Fresnel
   // rings, the coating's own numbers, an asphere's terms), open by itself when any of those is set; a lens of more than
   // one glass has a row for each glass between its faces, its thickness and glass, its ▸ its index and absorption
-  const grid = h('div', { class: 'rt-facegrid' }, h('span'), h('span', { class: 'rt-facecol' }, two ? 'Radius (mm)' : 'Radius, thickness (mm)'), h('span', { class: 'rt-facecol' }, two ? 'Coating' : 'Coating, glass'), h('span'));
+  const grid = h('div', { class: 'rt-facegrid' }, h('div', { class: 'rt-facerow rt-facehd' }, h('span'), h('span', { class: 'rt-facecol' }, 'Radius (mm)'), h('span', { class: 'rt-facecol' }, 'Coating'), h('span')));
   const swept = pre => Object.keys(el.sweeps || {}).some(k => k.startsWith(pre));
-  const moreRow = (key, what, set, nodes, cells) => {
+  const moreRow = (key, what, set, nodes, cells, kind) => {
     const body = h('div', { class: 'rt-facemore' }, ...nodes);
     const open = foldOpen.has(key) ? foldOpen.get(key) : set;
     body.hidden = !open;
     const btn = h('button', { class: 'rt-facebtn' + (open ? ' open' : ''), type: 'button', 'aria-expanded': String(open), title: what, 'aria-label': what,
       onclick: () => { const o = body.hidden; body.hidden = !o; foldOpen.set(key, o); btn.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); } }, '▸');
-    grid.append(...cells, btn, body);
+    grid.append(h('div', { class: 'rt-facerow' + (kind ? ' ' + kind : '') }, ...cells, btn), body);
   };
   for (let i = 0; i < N; i++) {
     const s = el.surfaces[i], c = s.coat || { mode: 'bare' };
@@ -312,7 +312,7 @@ function lensPanel(el) {
     const set = !!(R.box || s.hole > 0 || s.semi || s.fresnel || s.k || (s.A && s.A.length) || s.F || (s.ph && s.ph.length) || s.a2 || (s.odd && s.odd[0]) ||
       (c.mode !== 'bare' && c.mode !== 'ar') || (c.mode === 'ar' && c.R !== 0.5) || swept(`surfaces.${i}.`));
     moreRow(el.id + '|s' + i, 'More for face ' + (i + 1) + ': clear radius, Fresnel rings' + (el.asphere ? ', aspheric terms' : '') + ', the coating’s numbers', set, more,
-      [h('span', { class: 'rt-facenum', title: 'Face ' + (i + 1) }, String(i + 1)), rCell, coatingSelect(el, s, 'Coating of face ' + (i + 1))]);
+      [h('span', { class: 'rt-facenum', title: 'Face ' + (i + 1) }, String(i + 1)), rCell, coatingSelect(el, s, 'Coating of face ' + (i + 1))], 'rt-faceline');
     // the glass between this face and the next, for a lens of more than one glass
     if (i < N - 1 && !two) {
       const T = paramCell('Thickness to face ' + (i + 2) + ' (mm)', el, `gaps.${i}`, Object.assign({ prefix: 't' + (i + 1) }, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}));
@@ -320,7 +320,7 @@ function lensPanel(el) {
       if (T.box) gm.unshift(T.box);
       const m = el.materials[i];
       moreRow(el.id + '|g' + i, 'More for the glass to face ' + (i + 2) + ': its index and absorption', !!(T.box || el.gaps[i] === 0 || m.abs || m.grad || m.glass === 'custom' || unknownGlass(m) || swept(`materials.${i}.`)), gm,
-        [h('span', { class: 'rt-facenum rt-faceglass', title: 'The glass to face ' + (i + 2) }, '↕'), h('div', { class: 'rt-facer' + (T.sw ? ' swept' : '') }, T.inp, T.toggle || null), glassSelect(el, i, 'Glass to face ' + (i + 2))]);
+        [h('span', { class: 'rt-facenum rt-faceglass', title: 'The glass to face ' + (i + 2) + ': its thickness (mm) and glass' }, '↕'), h('div', { class: 'rt-facer' + (T.sw ? ' swept' : '') }, T.inp, T.toggle || null), glassSelect(el, i, 'Glass to face ' + (i + 2))], 'rt-glassline');
     }
   }
   panel.append(grid);

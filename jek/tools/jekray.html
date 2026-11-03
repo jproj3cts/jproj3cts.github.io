@@ -1877,20 +1877,25 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-pgrid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.5rem; margin-bottom: 0.35rem; }
 .rt-pgrid2 > .rt-f > .rt-lab { display: flex; align-items: center; justify-content: space-between; }
 .rt-pgrid2 > .rt-f input, .rt-pgrid2 > .rt-f select { box-sizing: border-box; height: 1.85rem; padding: 0.2rem 0.4rem; }
-/* the lens's faces as a table (ui/parts/lens.js): a row a face (number, radius, coating, ▸ for the rest), a row a glass between */
-.rt-facegrid { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr) minmax(0, 1.3fr) 1.5rem; column-gap: 0.4rem; row-gap: 0.3rem; align-items: center; margin: 0.2rem 0 0.5rem; }
-.rt-facecol { font-size: 0.72rem; font-weight: 600; color: var(--jek-ink-soft); }
+/* the lens's faces as a table (ui/parts/lens.js): a row a face (number, radius, coating, ▸ for the rest), a row a glass between,
+   shaded as the glass is in the drawing; a row's ▸ opens its settings under it */
+.rt-facegrid { margin: 0.15rem 0 0.6rem; }
+.rt-facerow { display: grid; grid-template-columns: 1.3rem minmax(0, 1fr) minmax(0, 1.35fr) 1.6rem; column-gap: 0.4rem; align-items: center; padding: 0.3rem 0.2rem; }
+.rt-facehd { padding-bottom: 0.1rem; }
+.rt-faceline + .rt-faceline, .rt-facemore + .rt-faceline { border-top: 1px solid var(--jek-line, rgba(127,127,127,0.2)); }
+.rt-glassline { background: rgba(115, 185, 202, 0.14); border-radius: 3px; }
+.rt-facecol { font-size: 0.72rem; font-weight: 600; color: var(--jek-ink-soft); padding-left: 0.1rem; }
 .rt-facenum { font-size: 0.8125rem; font-weight: 700; color: var(--jek-ink); text-align: center; }
 .rt-faceglass { color: var(--jek-ink-soft); font-weight: 400; }
-.rt-facer { display: flex; align-items: center; gap: 0.2rem; min-width: 0; }
-.rt-facer > input { flex: 1; min-width: 0; }
-.rt-facegrid input, .rt-facegrid select { box-sizing: border-box; height: 1.75rem; padding: 0.15rem 0.35rem; width: 100%; min-width: 0; }
-.rt-facebtn { border: 0; background: none; cursor: pointer; color: var(--jek-ink-soft); font-size: 0.9rem; padding: 0; height: 1.75rem; transition: transform 0.12s; }
-.rt-facebtn.open { transform: rotate(90deg); }
-.rt-facebtn:hover, .rt-facebtn:focus-visible { color: var(--jek-ink); }
-.rt-facemore { grid-column: 1 / -1; padding: 0.3rem 0 0.4rem 1.5rem; border-left: 2px solid var(--jek-line, rgba(127,127,127,0.25)); margin-left: 0.4rem; }
+.rt-facer { position: relative; min-width: 0; }
+.rt-facerow input, .rt-facerow select { box-sizing: border-box; height: 1.75rem; padding: 0.15rem 0.35rem; width: 100%; min-width: 0; }
+.rt-facer > input { padding-right: 1.6rem; }
+.rt-facer > .rt-sweep-toggle { position: absolute; right: 0.15rem; top: 50%; transform: translateY(-50%); }
+.rt-facebtn { border: 0; background: none; cursor: pointer; color: var(--jek-ink-soft); font-size: 0.85rem; padding: 0; width: 1.6rem; height: 1.6rem; border-radius: 3px; transition: transform 0.12s; }
+.rt-facebtn.open { transform: rotate(90deg); color: var(--jek-ink); }
+.rt-facebtn:hover, .rt-facebtn:focus-visible { color: var(--jek-ink); background: rgba(127, 127, 127, 0.12); }
+.rt-facemore { margin: 0 0 0.35rem 1.7rem; padding: 0.2rem 0 0.2rem 0.6rem; border-left: 2px solid var(--jek-line, rgba(127,127,127,0.25)); }
 .rt-facemore[hidden] { display: none; }
-.rt-facemore .rt-rows + div > .rt-rows { margin-top: 0.3rem; }
 </style>
 </head>
 <body>
@@ -24285,15 +24290,15 @@ function lensPanel(el) {
   // the faces as a table, a row each: its number, radius and coating, and a ▸ opening the rest (clear radius, Fresnel
   // rings, the coating's own numbers, an asphere's terms), open by itself when any of those is set; a lens of more than
   // one glass has a row for each glass between its faces, its thickness and glass, its ▸ its index and absorption
-  const grid = h('div', { class: 'rt-facegrid' }, h('span'), h('span', { class: 'rt-facecol' }, two ? 'Radius (mm)' : 'Radius, thickness (mm)'), h('span', { class: 'rt-facecol' }, two ? 'Coating' : 'Coating, glass'), h('span'));
+  const grid = h('div', { class: 'rt-facegrid' }, h('div', { class: 'rt-facerow rt-facehd' }, h('span'), h('span', { class: 'rt-facecol' }, 'Radius (mm)'), h('span', { class: 'rt-facecol' }, 'Coating'), h('span')));
   const swept = pre => Object.keys(el.sweeps || {}).some(k => k.startsWith(pre));
-  const moreRow = (key, what, set, nodes, cells) => {
+  const moreRow = (key, what, set, nodes, cells, kind) => {
     const body = h('div', { class: 'rt-facemore' }, ...nodes);
     const open = foldOpen.has(key) ? foldOpen.get(key) : set;
     body.hidden = !open;
     const btn = h('button', { class: 'rt-facebtn' + (open ? ' open' : ''), type: 'button', 'aria-expanded': String(open), title: what, 'aria-label': what,
       onclick: () => { const o = body.hidden; body.hidden = !o; foldOpen.set(key, o); btn.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); } }, '▸');
-    grid.append(...cells, btn, body);
+    grid.append(h('div', { class: 'rt-facerow' + (kind ? ' ' + kind : '') }, ...cells, btn), body);
   };
   for (let i = 0; i < N; i++) {
     const s = el.surfaces[i], c = s.coat || { mode: 'bare' };
@@ -24341,7 +24346,7 @@ function lensPanel(el) {
     const set = !!(R.box || s.hole > 0 || s.semi || s.fresnel || s.k || (s.A && s.A.length) || s.F || (s.ph && s.ph.length) || s.a2 || (s.odd && s.odd[0]) ||
       (c.mode !== 'bare' && c.mode !== 'ar') || (c.mode === 'ar' && c.R !== 0.5) || swept(`surfaces.${i}.`));
     moreRow(el.id + '|s' + i, 'More for face ' + (i + 1) + ': clear radius, Fresnel rings' + (el.asphere ? ', aspheric terms' : '') + ', the coating’s numbers', set, more,
-      [h('span', { class: 'rt-facenum', title: 'Face ' + (i + 1) }, String(i + 1)), rCell, coatingSelect(el, s, 'Coating of face ' + (i + 1))]);
+      [h('span', { class: 'rt-facenum', title: 'Face ' + (i + 1) }, String(i + 1)), rCell, coatingSelect(el, s, 'Coating of face ' + (i + 1))], 'rt-faceline');
     // the glass between this face and the next, for a lens of more than one glass
     if (i < N - 1 && !two) {
       const T = paramCell('Thickness to face ' + (i + 2) + ' (mm)', el, `gaps.${i}`, Object.assign({ prefix: 't' + (i + 1) }, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}));
@@ -24349,7 +24354,7 @@ function lensPanel(el) {
       if (T.box) gm.unshift(T.box);
       const m = el.materials[i];
       moreRow(el.id + '|g' + i, 'More for the glass to face ' + (i + 2) + ': its index and absorption', !!(T.box || el.gaps[i] === 0 || m.abs || m.grad || m.glass === 'custom' || unknownGlass(m) || swept(`materials.${i}.`)), gm,
-        [h('span', { class: 'rt-facenum rt-faceglass', title: 'The glass to face ' + (i + 2) }, '↕'), h('div', { class: 'rt-facer' + (T.sw ? ' swept' : '') }, T.inp, T.toggle || null), glassSelect(el, i, 'Glass to face ' + (i + 2))]);
+        [h('span', { class: 'rt-facenum rt-faceglass', title: 'The glass to face ' + (i + 2) + ': its thickness (mm) and glass' }, '↕'), h('div', { class: 'rt-facer' + (T.sw ? ' swept' : '') }, T.inp, T.toggle || null), glassSelect(el, i, 'Glass to face ' + (i + 2))], 'rt-glassline');
     }
   }
   panel.append(grid);

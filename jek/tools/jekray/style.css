@@ -1825,3 +1825,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-morefold > summary::before { content: '\25b8'; display: inline-block; width: 1em; transition: transform 0.12s; }
 .rt-morefold[open] > summary::before { transform: rotate(90deg); }
 .rt-morefold > .rt-rows { margin-top: 0.25rem; }
+/* the lens panel (ui/parts/lens.js): its drawing to scale, two settings to a row, a face's heading */
+.rt-lensbox { margin: 0.2rem 0 0.5rem; }
+.rt-lensdiag { display: block; width: 100%; height: 132px; cursor: pointer; background: var(--jek-well, transparent); border-radius: 3px; }
+.rt-lenswarn { margin: 0.3rem 0 0 !important; font-size: 0.78rem !important; color: var(--jek-red, #b3261e) !important; }
+.rt-pgrid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.5rem; margin-bottom: 0.35rem; }
+.rt-pgrid2 > .rt-f > .rt-lab { display: flex; align-items: center; justify-content: space-between; }
+.rt-pgrid2 > .rt-f input, .rt-pgrid2 > .rt-f select { box-sizing: border-box; height: 1.85rem; padding: 0.2rem 0.4rem; }
+.rt-panel h4.rt-facehead { margin: 0.6rem 0 0.25rem; font-size: 0.8125rem; font-weight: 700; color: var(--jek-ink); }
+.rt-panel h4.rt-glasshead { color: var(--jek-ink-soft); }

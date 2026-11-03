@@ -443,7 +443,7 @@ export const V3D = (() => {
         // a Lamp: a glowing bulb on a short stem
         if (el.lamp) {
           // its shape at its size, glowing in its light: a sphere, a cylinder standing up, a tube lying along its direction
-          const r = Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.lamp(el.colour || '#ffd060');
+          const r = el.lampFlat ? 2 : Math.max(0.05, el.lampD / 2), L = Math.max(0.05, el.lampL), C = mat.lamp(el.colour || '#ffd060');
           // a cylinder lies along the lamp's direction, then tips up by its tip (90: standing)
           add(mesh(el.lampShape === 'cylinder' ? new T.CylinderGeometry(r, r, L, 24).rotateZ(Math.PI / 2).rotateY(-(isFinite(el.lampTip) ? el.lampTip : 90) * Math.PI / 180) : new T.SphereGeometry(r, 24, 16), C));
           return g;

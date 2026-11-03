@@ -26,6 +26,7 @@ export const PART_USES = {
   mask: 'aperture slit double slit pattern block diffraction mask',
   screen: 'view see image spot profile camera beam profile observe pattern ccd',
   lamp: 'light bulb lighthouse all round 360 omnidirectional point lamp shine every direction torch candle',
+  lamp2d: 'circular lamp flat 2d plane fast bulb all round point lighthouse',
   phosphor: 'view trail persistence glow card ir viewer see beam',
   grating: 'diffract disperse spectrum wavelength separate order ruled echelle',
   crystal: 'birefringent split polarisation displacer wollaston glan calcite double refraction',

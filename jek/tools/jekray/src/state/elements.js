@@ -56,7 +56,7 @@ export function normSurface(s) {
   };
 }
 export function normElement(e) {
-  if (e && e.type === 'lamp') e = Object.assign({}, e, { type: 'source', lamp: true });
+  if (e && (e.type === 'lamp' || e.type === 'lamp2d')) e = Object.assign({}, e, { type: 'source', lamp: true, lampFlat: e.type === 'lamp2d' || e.lampFlat === true });     // a Lamp (or Circular lamp) written as its own type
   const o = normElementBase(e);
   if (!o) return null;
   ELEC.normExtra(e, o);                                                                      // ELEC hook: an optical part's electrical settings
@@ -81,7 +81,7 @@ export function normElement(e) {
   return o;
 }
 export function normElementBase(e) {
-  if (e && e.type === 'lamp') e = Object.assign({}, e, { type: 'source', lamp: true });     // a Lamp written as its own type
+  if (e && (e.type === 'lamp' || e.type === 'lamp2d')) e = Object.assign({}, e, { type: 'source', lamp: true, lampFlat: e.type === 'lamp2d' || e.lampFlat === true });     // a Lamp (or Circular lamp) written as its own type     // a Lamp written as its own type
   const base = {
     id: typeof e.id === 'string' ? e.id : uid(),
     type: e.type,
@@ -207,7 +207,8 @@ function lampExit(el, q, d) {
 }
 export function lampRaysOf(el) {
   const N = Math.max(1, Math.round(el.rays || 1)), a0 = (el.angle || 0) * Math.PI / 180, z0 = isFinite(el.z) && el.z !== null ? +el.z : BEAM_Z;
-  const R = el.elev > 0 ? Math.max(1, el.rings || 3) : 0, lev = [];
+  // rings each way: as set, or (0) as many as space the rays about as far apart up as round: the band's area 4π sin(elev)
+  const eR = (el.elev || 0) * Math.PI / 180, R = el.elev > 0 ? (el.rings > 0 ? el.rings : Math.max(1, Math.round(eR / Math.sqrt(4 * Math.PI * Math.sin(eR) / N)))) : 0, lev = [];
   for (let k = -R; k <= R; k++) lev.push([k, R ? k / R * el.elev * Math.PI / 180 : 0]);
   const cs = lev.map(([, e]) => Math.cos(e)), sc = cs.reduce((x, y) => x + y, 0);
   const n = cs.map(c => Math.max(1, Math.round(N * c / sc)));
@@ -241,7 +242,7 @@ export function lampRaysOf(el) {
   return out;
 }
 /* whether a source sends its rays as a Lamp's (lampRaysOf), not as a fan */
-export const lampEmits = el => !!(el && el.lamp && (el.lampD > 0 || el.elev > 0));
+export const lampEmits = el => !!(el && el.lamp && !el.lampFlat);
 /* a Lamp's outline seen from above, in its own frame (x along its direction): a circle (a sphere, or a cylinder standing
    up), else a cylinder's footprint as it tips, its length L cos(tip) + D sin(tip); which light coming back is taken by */
 export function lampFootprint(el) {

@@ -1550,8 +1550,8 @@ const TESTS = [
     },
   },
   {
-    name: 'The source and lamp panels: two to a row, more wavelengths typed or picked from a set',
-    why: 'a source\u2019s panel sets Wavelength beside Power two to a row; picking F and C lines from Or a set gives it 486.1 and 656.3 nm, shown in More wavelengths, and the list then says Typed for a set of its own; a lamp\u2019s panel has its Shape beside its Diameter (1 when all hold)',
+    name: 'The source and lamp panels: two to a row, more wavelengths typed or picked from a set, its polarisation drawn',
+    why: 'a source\u2019s panel sets Wavelength beside Power two to a row; picking F and C lines from Or a set gives it 486.1 and 656.3 nm, shown in More wavelengths, and the list then says Typed for a set of its own; a new source traces hexapolar rings, and its polarisation is drawn as seen along the beam (unpolarised, then s once chosen); a lamp\u2019s panel has its Shape beside its Diameter (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
@@ -1562,10 +1562,14 @@ const TESTS = [
       const lines = J.byName('Src').lines.join(), shown = field('More wavelengths').value;
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 587.6, lines: [500, 600] }] }); J.select('Src'); await frame();
       const typed = field('Or a set').value === 'custom';
+      const sn = J.add('source'); await frame();
+      const hex = J.byName(sn).pattern === 'hex', pcap = doc.querySelector('#panel .rt-polcap'), pd = !!doc.querySelector('#panel canvas.rt-poldiag') && !!pcap && /Unpolarised/.test(pcap.textContent);
+      const st = field('State'); st.value = 's'; st.dispatchEvent(new (rigWin().Event)('change')); await frame();
+      const ps = /s: its field swings out of the bench plane/.test(doc.querySelector('#panel .rt-polcap').textContent);
       const ln = J.add('lamp'); await frame();
       const lampOk = field('Shape').closest('.rt-pgrid2') === field('Diameter (mm)').closest('.rt-pgrid2');
-      const ok = pairOk && lines === '486.1,656.3' && shown === '486.1, 656.3' && typed && lampOk;
-      if (!ok) console.log('source panel', { pairOk, lines, shown, typed, lampOk, ln });
+      const ok = pairOk && lines === '486.1,656.3' && shown === '486.1, 656.3' && typed && lampOk && hex && pd && ps;
+      if (!ok) console.log('source panel', { pairOk, lines, shown, typed, lampOk, ln, hex, pd, ps });
       return ok ? 1 : 0;
     },
   },

@@ -1862,3 +1862,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-pgrid2 > .rt-f > input, .rt-pgrid2 > .rt-f > select { width: 100%; min-width: 0; }
 .rt-colrow { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.3rem; }
 .rt-colrow input[type=color] { width: 2.2rem; height: 1.5rem; padding: 0; border: 1px solid var(--jek-line, #ccc); }
+/* a source's polarisation as seen along its beam (ui/parts/source.js polDiagram), its line beside it */
+.rt-polbox { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.4rem; }
+.rt-poldiag { flex: none; width: 96px; height: 96px; }
+.rt-polcap { margin: 0 !important; font-size: 0.78rem; color: var(--jek-ink-soft); }
+.rt-polcap b { color: var(--jek-ink); font-weight: 600; }

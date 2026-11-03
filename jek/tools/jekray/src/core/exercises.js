@@ -120,6 +120,15 @@ export const EXERCISES = [
    A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
    own exercises with a `reel` stay in the course, and are those reels' challenges too. */
 export const CHALLENGES = [
+  { id: 'hit-the-target', reel: 'ig-hit-the-target', title: 'Can you hit the target?',
+    start: { reel: 'ig-hit-the-target' },
+    goal: 'Turn Mirror 3 so the beam reaches the Target.',
+    checks: [{ part: 'Target', key: 'power', op: 'above', value: 50 }],
+    unlocked: { 'Mirror 3': ['angle'] },
+    hints: ['After Mirror 3 the beam must run straight up to Mirror 4: a mirror turns light by twice its tilt.', 'A mirror at 45° turns the beam through a right angle: set Mirror 3 to 45°.'],
+    answer: { 'Mirror 3': { angle: 45 } },
+    // no optimiser: the Target reads 0 until the angle is within about 0.4° of the answer, so it has nothing to climb
+    result: v => fix(v[0], 0) + '% of the beam on the Target' },
   { id: 'escape-the-box', reel: 'ig-escape-the-box', title: 'Can you escape the box?',
     start: { reel: 'ig-escape-the-box' },
     goal: 'Get the beam out through the gap in the right wall to the Target.',

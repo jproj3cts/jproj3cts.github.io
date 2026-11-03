@@ -575,7 +575,7 @@ function sectionise(box, kind) {
   if (readSec) order.splice(order.lastIndexOf(secs[secs.length - 1]) + 1, 0, readSec);
   for (const o of order) {
     if (o instanceof Node) box.append(o);
-    else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), true));
+    else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
   }
   if (about.length) {
     const body = h('div', { class: 'rt-secbody rt-about' });
@@ -621,6 +621,10 @@ function renderPanelBody(el) {
   if (asm) panel.append(asm);
   panel.append(h('div', { class: 'rt-rows' },
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  // what it reads now, in one line (a detector's mW, a screen's spot, a lens's focal length), kept up to date
+  const head = h('p', { class: 'rt-headline', 'aria-live': 'polite' });
+  bindSync(head, () => { const t = hooks.partHeadline(el); head.textContent = t; head.hidden = !t; });
+  panel.append(head);
   // a lens, mirror or window on its own: straight into lens design, right under its name
   const dz = panel === mainPanel ? designOneRow(el) : null;
   if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));

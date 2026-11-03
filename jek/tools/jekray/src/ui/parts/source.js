@@ -119,7 +119,7 @@ function edgeRows(el) {
 
 function sourcePanel(el) {
   if (el.lamp) return lampPanel(el);
-  panel.append(h('h3', null, 'Beam'));
+  panel.append(h('h3', null, 'Light'));
   const rows = h('div', { class: 'rt-rows' });
   const colId = 'rtf' + setFid(fid + 1);
   const col = h('input', { id: colId, type: 'color' });
@@ -131,18 +131,38 @@ function sourcePanel(el) {
   chk.addEventListener('change', () => {
     checkpoint(); el.colourAuto = chk.checked;
     if (el.colourAuto) el.colour = wavelengthColour(el.wavelength);
-    changed(false);
+    changed(true);
   });
   const root = splitRoot(el), linked = root !== el;
   const wlId = 'rtf' + setFid(fid + 1);
   rows.append(
     // a copy split from a laser has the laser's wavelength
     linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
-    param('Power (mW)', el, 'power'),
-    h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col),
-    h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
   );
   panel.append(rows);
+  // more wavelengths, beside the first: each fires the same rays
+  const presets = [['', 'None: just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],
+    ['450,550,650', 'Visible (450, 550, 650)'], ['1530,1565', 'Telecom C-band (1530, 1565)']];
+  const pre = h('select', { id: 'rtf' + setFid(fid + 1) });
+  for (const [v, t] of presets) pre.append(h('option', { value: v }, t));
+  pre.value = presets.some(q => q[0] === el.lines.join(',')) ? el.lines.join(',') : '';
+  pre.addEventListener('change', () => {
+    checkpoint();
+    el.lines = pre.value ? pre.value.split(',').map(Number) : [];
+    changed(true);
+  });
+  panel.append(h('div', { class: 'rt-rows' },
+    h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'More wavelengths'), pre),
+    textField('Its wavelengths (nm), comma separated', () => el.lines.join(', '), v => {
+      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
+      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
+    }, { wide: true, placeholder: 'none' })));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
+  // its power, and the colour it is drawn in: its wavelength's, unless chosen
+  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' },
+    param('Power (mW)', el, 'power'),
+    h('label', { class: 'rt-check wide' }, chk, 'Colour from its wavelength'),
+    ...(el.colourAuto ? [] : [h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col)])));
 
   // the ray fan: on its own, and hidden with its settings when it is off
   panel.append(h('h3', null, 'Rays'));
@@ -153,7 +173,7 @@ function sourcePanel(el) {
   if (el.traceRays) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
-      ...(el.gauss ? [] : edgeRows(el)),
+      ...(el.gauss || !lightOf().field ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
       param('Rays', el, 'rays'),
       // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
@@ -177,12 +197,12 @@ function sourcePanel(el) {
     // without a Gaussian beam the fan's width and divergence still shape the diffracted field
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
-      ...edgeRows(el),
+      ...(lightOf().field ? edgeRows(el) : []),
       param('Divergence, full (°)', el, 'divergence')));
     panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
   } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
 
-  panel.append(h('h3', null, 'Beam propagation'));
+  panel.append(h('h3', null, 'Gaussian beam'));
   const gb = h('input', { type: 'checkbox' });
   gb.checked = el.gauss;
   gb.addEventListener('change', () => {
@@ -247,7 +267,7 @@ function sourcePanel(el) {
     panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. The ray fan\u2019s width and divergence (under Rays) stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
   }
 
-  panel.append(h('h3', null, 'Polarisation'));
+  panel.append(h('h3', null, 'Polarisation and coherence'));
   const prows = h('div', { class: 'rt-rows' },
     selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle']],
       () => el.pol, v => el.pol = v, { wide: el.pol !== 'linear' }));
@@ -256,7 +276,6 @@ function sourcePanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
 
   // the laser's own line: how far apart two paths can be and still interfere
-  panel.append(h('h3', null, 'Coherence'));
   // split from another laser's source: one launch with it
   const others = project.elements.filter(e => e.type === 'source' && e !== el && !splitChain(e).includes(el));
   const srows = h('div', { class: 'rt-rows' }, selectField('Split from', [['', 'Nothing: a laser of its own'], ...others.map(e => [e.id, e.name])],
@@ -286,7 +305,8 @@ function sourcePanel(el) {
     cl.textContent = coherenceNote(el);
   });
   panel.append(cl);
-  panel.append(h('h3', null, 'Pulse'));
+  // a pulse: folded until it is one (sectionise opens a section marked shut only when asked)
+  panel.append(h('h3', el.tau > 0 || (linked && splitRoot(el).tau > 0) ? null : { 'data-shut': '' }, 'Pulse'));
   if (linked) {
     const pl = h('p', { class: 'note' });
     bindSync(pl, () => { const r = splitRoot(el); pl.textContent = r.tau > 0 ? 'The pulse is ' + r.name + '\u2019s: ' + fmtFs(r.tau) + ', ' + (r.pshape === 'gauss' ? 'Gaussian' : 'sech\u00b2') + '. The extra fibre above delays it.' : r.name + ' is continuous.'; });
@@ -307,24 +327,6 @@ function sourcePanel(el) {
     if (el.tau > 0) panel.append(pl);
   }
 
-  panel.append(h('h3', null, 'Extra wavelengths'));
-  const presets = [['', 'Just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],
-    ['450,550,650', 'Visible (450, 550, 650)'], ['1530,1565', 'Telecom C-band (1530, 1565)']];
-  const pre = h('select', { id: 'rtf' + setFid(fid + 1) });
-  for (const [v, t] of presets) pre.append(h('option', { value: v }, t));
-  pre.value = presets.some(q => q[0] === el.lines.join(',')) ? el.lines.join(',') : '';
-  pre.addEventListener('change', () => {
-    checkpoint();
-    el.lines = pre.value ? pre.value.split(',').map(Number) : [];
-    changed(true);
-  });
-  panel.append(h('div', { class: 'rt-rows' },
-    h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'Preset'), pre),
-    textField('Wavelengths (nm), comma separated', () => el.lines.join(', '), v => {
-      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
-      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
-    }, { wide: true, placeholder: 'none' })));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 }
 
 function hitSource(el, lx, ly, tol) { if (el.lamp) { const [a, b, round] = lampHalf(el); return !round ? Math.abs(lx) <= a + tol && Math.abs(ly) <= b + tol : Math.hypot(lx, ly) <= a + tol; } const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }

@@ -25,8 +25,8 @@ function cellPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Atoms', Object.entries(ATOMS).map(([k, v]) => [k, v.name]), () => el.atom, v => { el.atom = v; }, { wide: true }),
     selectField('Line', [['D2', 'D2 (Rb 780, Cs 852, K 767 nm)'], ['D1', 'D1 (Rb 795, Cs 894, K 770 nm)']], () => el.line, v => { el.line = v; }, { wide: true }),
-    param('Temperature (°C)', el, 'temp'), param('Length (mm)', el, 'cellLen'),
-    param('Window (mm)', el, 'length'), param('Field (G)', el, 'bField')));
+    param('Temperature (°C)', el, 'temp'), param('Field (G)', el, 'bField'),
+    param('Length (mm)', el, 'cellLen'), param('Diameter (mm)', el, 'length')));
   panel.append(readoutBox('cell'));
   const vsEl = vs(el);
   vsEl.cellSpan = vsEl.cellSpan || 'all';

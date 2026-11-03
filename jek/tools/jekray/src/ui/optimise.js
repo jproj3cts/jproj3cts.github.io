@@ -113,6 +113,18 @@ export const metricsFor = kind => METRICS.filter(m => m.on === kind);
 /* a mirror reads the light arriving at its face as a screen does, so it is measured as one */
 export const metricKind = el => el.type === 'mirror' ? 'screen' : el.type;
 export const metricByKey = key => METRICS.find(m => m.key === key);
+/* the one line under a part's name in its panel: what it reads now, in a few words (ui/panel.js, through hooks:
+   the same measures the optimiser takes, so the line and the readouts agree); '' for a part that reads nothing */
+export function partHeadline(el) {
+  if (!el) return '';
+  const v = k => metricRaw(el, k), t = (k, x) => metricText(k, x);
+  if (el.type === 'detector') { const mw = v('dmw'), V = v('dvolt'); return mw === null ? 'No light on it' : t('dmw', mw) + ' mW on it' + (V !== null ? ' \u00b7 ' + t('dvolt', V) + ' V out' : ''); }
+  if (el.type === 'screen') { const r = v('rms'), p = v('power'); return r === null ? 'No light reaches it' : 'Spot ' + t('rms', r) + ' RMS' + (p !== null ? ' \u00b7 ' + t('power', p) + ' of the light' : ''); }
+  if (el.type === 'lens') { const f = v('efl'), b = v('bfl'); return f === null || !isFinite(f) ? '' : 'f ' + t('efl', f) + (b !== null && isFinite(b) ? ' \u00b7 BFL ' + t('bfl', b) : ''); }
+  if (el.type === 'fibre') { const c = v('couple'), mw = v('fibremw'); return c === null ? 'No light on its end' : t('couple', c) + ' into the fibre' + (mw !== null ? ' \u00b7 ' + t('fibremw', mw) + ' mW' : ''); }
+  if (el.type === 'stop') { const b = v('blocked'); return b === null ? '' : 'Stops ' + t('blocked', b) + ' of the light reaching it'; }
+  return '';
+}
 export const measurable = () => {                    // screens first: they are what most studies measure
   const rank = { screen: 0, detector: 0, fibre: 0, mirror: 1, stop: 1, lens: 2 };
   return project.elements.filter(e => rank[e.type] !== undefined).sort((a, b) => rank[a.type] - rank[b.type]);

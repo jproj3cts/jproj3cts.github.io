@@ -29,10 +29,10 @@ function crystalPanel(el) {
   panel.append(h('h3', null, 'Crystal'));
   const rows = h('div', { class: 'rt-rows' },
     selectField('Type', Object.entries(CRYSTAL_SHAPES), () => el.shape, v => { el.shape = v; }, { wide: true }),
-    selectField('Material', Object.entries(CRYSTALS).map(([k, v]) => [k, v.name]), () => el.crystal, v => { el.crystal = v; }),
-    param('Aperture (mm)', el, 'size'));
+    selectField('Material', Object.entries(CRYSTALS).map(([k, v]) => [k, v.name]), () => el.crystal, v => { el.crystal = v; }));
   if (el.shape === 'displacer') rows.append(param('Length (mm)', el, 'length'), param('Optic axis from the normal (°)', el, 'axisAngle', { wide: true }));
   if (el.shape === 'wollaston') rows.append(param('Wedge angle (°)', el, 'wedge', { wide: true }));
+  rows.append(param('Diameter (mm)', el, 'size'));
   panel.append(rows);
   panel.append(readoutBox('crystal'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, {

@@ -48,9 +48,8 @@ export function jonesPanel(el) {
   const wp = el.type === 'waveplate';
   if (el.grid) { gridPanel(el); return; }
   panel.append(h('h3', null, wp ? 'Waveplate' : 'Polariser'));
-  const rows = h('div', { class: 'rt-rows' },
-    param('Aperture (mm)', el, 'length', { wide: true }),
-    param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }));
+  // what kind it is (a waveplate's retardance), then its axis, then its size
+  const rows = h('div', { class: 'rt-rows' });
   if (wp) {
     rows.append(selectField('Retardance', [['0.25', 'Quarter wave'], ['0.5', 'Half wave'], ['custom', 'Custom']],
       () => el.retardCustom ? 'custom' : String(el.retard),
@@ -60,10 +59,12 @@ export function jonesPanel(el) {
       }, { wide: true }));
     if (el.retardCustom) rows.append(param('Retardance (waves)', el, 'retard', { wide: true }));
   }
+  rows.append(param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }),
+    param('Diameter (mm)', el, 'length', { wide: true }));
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, wp
-    ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength.'
-    : 'Passes the component along its axis and absorbs the rest. 0\u00b0 passes p, 90\u00b0 passes s.'));
+    ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength. Its Roll, under Position, turns the axis too: the two add.'
+    : 'Passes the component along its axis and absorbs the rest. 0\u00b0 passes p, 90\u00b0 passes s. Its Roll, under Position, turns the axis too: the two add.'));
 }
 
 export const WAVEPLATE_UI = {
@@ -75,9 +76,8 @@ function gridPanel(el) {
   panel.append(h('h3', null, 'Wire grid'));
   const up = Math.abs(((el.axis % 180) + 180) % 180 - 90) >= 45;
   panel.append(h('div', { class: 'rt-rows' },
-    param('Aperture (mm)', el, 'length'),
     selectField('Wires', [['0', 'Upright, across the bench (reflect s)'], ['90', 'In the bench plane (reflect p)']], () => (up ? '0' : '90'), v => { el.axis = +v; }),
-    param('Pitch g (mm)', el, 'grid.g'), param('Wire radius a (mm)', el, 'grid.a')));
+    param('Pitch g (mm)', el, 'grid.g'), param('Wire radius a (mm)', el, 'grid.a'), param('Diameter (mm)', el, 'length')));
   const nm = benchNms()[0], G = gridCoef(el.grid, nm, 1, !up), pc = v => (100 * v).toPrecision(3) + ' %';
   panel.append(h('div', { class: 'rt-readout' },
     h('table', null, h('tbody', null,

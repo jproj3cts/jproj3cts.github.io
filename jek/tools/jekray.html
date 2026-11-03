@@ -533,6 +533,8 @@
   /* a list with a long choice: its label above it, the list across the row (panel.js stackLongSelects) */
   .rt-rows > .rt-f.rt-fstack > label, .rt-rows > .rt-f.rt-fstack > .rt-lab > label { grid-column: 1 / -1; }
   .rt-rows > .rt-f.rt-fstack.rt-fstack > select:nth-child(n) { grid-column: 1 / -1; grid-row: 2; }
+  /* what a part reads now, under its name (panel.js) */
+  .rt-panel p.rt-headline { margin: 0.35rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; color: var(--jek-ink); font-variant-numeric: tabular-nums; }
   /* the Position section: two rows of three, each number with its name over it (panel.js paramGrid) */
   .rt-rows > .rt-f.rt-pgridf { display: block; }
   .rt-pgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 0.5rem; }
@@ -1861,6 +1863,13 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-chlist .rt-exitem b::before { content: none; }
 .rt-extick { color: var(--rt-good-ink); }
 @media (max-width: 600px) { .rt-exbar { top: 0.3rem; font-size: 0.82rem; padding: 0.45rem 0.6rem; } .rt-exmay { display: none; } }
+/* a fold for a part's less used settings (ui/parts/lens.js moreFold) */
+.rt-morefold { margin: 0.25rem 0 0.4rem; }
+.rt-morefold > summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--jek-ink-soft); padding: 0.15rem 0; list-style: none; }
+.rt-morefold > summary::-webkit-details-marker { display: none; }
+.rt-morefold > summary::before { content: '\25b8'; display: inline-block; width: 1em; transition: transform 0.12s; }
+.rt-morefold[open] > summary::before { transform: rotate(90deg); }
+.rt-morefold > .rt-rows { margin-top: 0.25rem; }
 </style>
 </head>
 <body>
@@ -2458,6 +2467,8 @@ const hooks = {
   toast() {}, benchStyleShown() {}, view3dReset() {},
   // an exercise on the bench (ui/challenge.js): drawn, read after each render, a part's panel limited, a change counted
   exerciseDraw() {}, exerciseTick() {}, exercisePanel() {}, exerciseStep() {},
+  // the line under a part's name in its panel: what it reads now (ui/optimise.js partHeadline)
+  partHeadline: () => '',
   // what the page is doing meanwhile
   playing: () => false,                 // a sweep is playing
   sweepJob: () => null,                 // a sweep's field is being rendered
@@ -23309,7 +23320,7 @@ function elecDrawChopper(el, sel) {
 function elecChopperPanel(el) {
   panel.append(h('h3', null, 'Optical chopper'));
   panel.append(h('div', { class: 'rt-rows' }, param('Frequency (Hz)', el, 'f'), param('Open (% of cycle)', el, 'duty'),
-    param('Phase (°)', el, 'phase'), param('Aperture (mm)', el, 'length')));
+    param('Phase (°)', el, 'phase'), param('Diameter (mm)', el, 'length')));
   panel.append(readoutBox('chopper'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open; photodetectors behind it see the chopped light in their Signal views. Its phase is when in the cycle it opens, against the start of the generators\u2019 cycles (t = 0): 0\u00b0 opens at t = 0, 90\u00b0 a quarter of a cycle later. It matters only against something else on the same clock (another chopper, a generator\u2019s drive); a lock-in referenced to this chopper\u2019s own ref output sees no change, its reference shifting with it.' +
     ' Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in\u2019s reference.'));
@@ -23329,6 +23340,8 @@ function elecOpticPanel(el) {
     what = 'Its out port carries what it reads to the electronics: ' + (el.diode ? 'the photocurrent (amps), for a TIA or a scope; ' : 'the amplifier’s output (volts); ') +
       'drives on the bench (a chopper, a laser’s modulation, an AOM or EOM) move it as the light follows them.';
  } else if (isLaser(el) && !(el.mmw && el.mmw.tx === 'up')) {
+    // only on a bench with electronics to wire to it (or one that has it already): elsewhere the section says nothing useful
+    if (!el.ext && !project.elements.some(e => e.type === 'elec')) return;
     const tick = h('input', { type: 'checkbox' });
     tick.checked = !!el.ext;
     tick.addEventListener('change', () => {
@@ -23718,7 +23731,7 @@ function edgeRows(el) {
 
 function sourcePanel(el) {
   if (el.lamp) return lampPanel(el);
-  panel.append(h('h3', null, 'Beam'));
+  panel.append(h('h3', null, 'Light'));
   const rows = h('div', { class: 'rt-rows' });
   const colId = 'rtf' + setFid(fid + 1);
   const col = h('input', { id: colId, type: 'color' });
@@ -23730,18 +23743,38 @@ function sourcePanel(el) {
   chk.addEventListener('change', () => {
     checkpoint(); el.colourAuto = chk.checked;
     if (el.colourAuto) el.colour = wavelengthColour(el.wavelength);
-    changed(false);
+    changed(true);
   });
   const root = splitRoot(el), linked = root !== el;
   const wlId = 'rtf' + setFid(fid + 1);
   rows.append(
     // a copy split from a laser has the laser's wavelength
     linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
-    param('Power (mW)', el, 'power'),
-    h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col),
-    h('label', { class: 'rt-check wide' }, chk, 'Match colour to wavelength'),
   );
   panel.append(rows);
+  // more wavelengths, beside the first: each fires the same rays
+  const presets = [['', 'None: just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],
+    ['450,550,650', 'Visible (450, 550, 650)'], ['1530,1565', 'Telecom C-band (1530, 1565)']];
+  const pre = h('select', { id: 'rtf' + setFid(fid + 1) });
+  for (const [v, t] of presets) pre.append(h('option', { value: v }, t));
+  pre.value = presets.some(q => q[0] === el.lines.join(',')) ? el.lines.join(',') : '';
+  pre.addEventListener('change', () => {
+    checkpoint();
+    el.lines = pre.value ? pre.value.split(',').map(Number) : [];
+    changed(true);
+  });
+  panel.append(h('div', { class: 'rt-rows' },
+    h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'More wavelengths'), pre),
+    textField('Its wavelengths (nm), comma separated', () => el.lines.join(', '), v => {
+      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
+      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
+    }, { wide: true, placeholder: 'none' })));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
+  // its power, and the colour it is drawn in: its wavelength's, unless chosen
+  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' },
+    param('Power (mW)', el, 'power'),
+    h('label', { class: 'rt-check wide' }, chk, 'Colour from its wavelength'),
+    ...(el.colourAuto ? [] : [h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col)])));
 
   // the ray fan: on its own, and hidden with its settings when it is off
   panel.append(h('h3', null, 'Rays'));
@@ -23752,7 +23785,7 @@ function sourcePanel(el) {
   if (el.traceRays) {
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
-      ...(el.gauss ? [] : edgeRows(el)),
+      ...(el.gauss || !lightOf().field ? [] : edgeRows(el)),
       param('Divergence, full (°)', el, 'divergence'),
       param('Rays', el, 'rays'),
       // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
@@ -23776,12 +23809,12 @@ function sourcePanel(el) {
     // without a Gaussian beam the fan's width and divergence still shape the diffracted field
     panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
       param('Beam width (mm)', el, 'width'),
-      ...edgeRows(el),
+      ...(lightOf().field ? edgeRows(el) : []),
       param('Divergence, full (°)', el, 'divergence')));
     panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
   } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
 
-  panel.append(h('h3', null, 'Beam propagation'));
+  panel.append(h('h3', null, 'Gaussian beam'));
   const gb = h('input', { type: 'checkbox' });
   gb.checked = el.gauss;
   gb.addEventListener('change', () => {
@@ -23846,7 +23879,7 @@ function sourcePanel(el) {
     panel.append(h('p', { style: 'margin-top:0.5rem' }, 'The waist sits this far ahead of the source; negative puts it behind. The ray fan\u2019s width and divergence (under Rays) stay in step with this: the rays are the wavefront normals, so the fan spans the beam diameter and a converging beam gives a negative divergence.'));
   }
 
-  panel.append(h('h3', null, 'Polarisation'));
+  panel.append(h('h3', null, 'Polarisation and coherence'));
   const prows = h('div', { class: 'rt-rows' },
     selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle']],
       () => el.pol, v => el.pol = v, { wide: el.pol !== 'linear' }));
@@ -23855,7 +23888,6 @@ function sourcePanel(el) {
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
 
   // the laser's own line: how far apart two paths can be and still interfere
-  panel.append(h('h3', null, 'Coherence'));
   // split from another laser's source: one launch with it
   const others = project.elements.filter(e => e.type === 'source' && e !== el && !splitChain(e).includes(el));
   const srows = h('div', { class: 'rt-rows' }, selectField('Split from', [['', 'Nothing: a laser of its own'], ...others.map(e => [e.id, e.name])],
@@ -23885,7 +23917,8 @@ function sourcePanel(el) {
     cl.textContent = coherenceNote(el);
   });
   panel.append(cl);
-  panel.append(h('h3', null, 'Pulse'));
+  // a pulse: folded until it is one (sectionise opens a section marked shut only when asked)
+  panel.append(h('h3', el.tau > 0 || (linked && splitRoot(el).tau > 0) ? null : { 'data-shut': '' }, 'Pulse'));
   if (linked) {
     const pl = h('p', { class: 'note' });
     bindSync(pl, () => { const r = splitRoot(el); pl.textContent = r.tau > 0 ? 'The pulse is ' + r.name + '\u2019s: ' + fmtFs(r.tau) + ', ' + (r.pshape === 'gauss' ? 'Gaussian' : 'sech\u00b2') + '. The extra fibre above delays it.' : r.name + ' is continuous.'; });
@@ -23906,24 +23939,6 @@ function sourcePanel(el) {
     if (el.tau > 0) panel.append(pl);
   }
 
-  panel.append(h('h3', null, 'Extra wavelengths'));
-  const presets = [['', 'Just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],
-    ['450,550,650', 'Visible (450, 550, 650)'], ['1530,1565', 'Telecom C-band (1530, 1565)']];
-  const pre = h('select', { id: 'rtf' + setFid(fid + 1) });
-  for (const [v, t] of presets) pre.append(h('option', { value: v }, t));
-  pre.value = presets.some(q => q[0] === el.lines.join(',')) ? el.lines.join(',') : '';
-  pre.addEventListener('change', () => {
-    checkpoint();
-    el.lines = pre.value ? pre.value.split(',').map(Number) : [];
-    changed(true);
-  });
-  panel.append(h('div', { class: 'rt-rows' },
-    h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'Preset'), pre),
-    textField('Wavelengths (nm), comma separated', () => el.lines.join(', '), v => {
-      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
-      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
-    }, { wide: true, placeholder: 'none' })));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 }
 
 function hitSource(el, lx, ly, tol) { if (el.lamp) { const [a, b, round] = lampHalf(el); return !round ? Math.abs(lx) <= a + tol && Math.abs(ly) <= b + tol : Math.hypot(lx, ly) <= a + tol; } const { L, hw } = srcBody(el); return lx <= tol && lx >= -L - tol && Math.abs(ly) <= hw + tol; }
@@ -23971,16 +23986,19 @@ function mirrorPanel(el) {
   if (el.film) {
     const F45 = filmCoef(el.film, nm, Math.SQRT1_2), pc = v => (100 * v).toPrecision(3) + ' %';
     panel.append(h('div', { class: 'rt-rows' },
-      param('Length (mm)', el, 'length'), param('Film index', el, 'film.n'), param('Thickness (mm)', el, 'film.t', { wide: true })));
+      param('Width (mm)', el, 'length'), param('Film index', el, 'film.n'), param('Thickness (mm)', el, 'film.t', { wide: true })));
     panel.append(h('div', { class: 'rt-readout' }, h('table', null, h('tbody', null,
       h('tr', null, h('td', null, 'At ' + (+ghz.toPrecision(4)) + ' GHz, 45\u00b0'), h('td', null, 'reflects ' + pc(F45.Rs) + ' of s, ' + pc(F45.Rp) + ' of p'))))));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A dielectric sheet (Mylar is 1.73): its two faces interfere, so what it reflects goes with its thickness over the wavelength, the angle, and the polarisation. Lossless.'));
     return;
   }
   panel.append(h('div', { class: 'rt-rows' },
-    param('Length (mm)', el, 'length'),
+    param('Width (mm)', el, 'length'),
     param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })]),
+    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })])));
+  // its shape beyond a sphere, a hole, an off-axis cut and a chirp: in a fold, open when any is set
+  const shaped = !!(el.k || el.hole > 0 || (el.A && el.A.length) || (el.F && Object.keys(el.F).length) || el.offset || el.gdd);
+  panel.append(moreFold(el.id + '|shape', 'Conic, aspheric terms, hole, off-axis offset, GDD', shaped, h('div', { class: 'rt-rows' },
     param('Conic k', el, 'k', { blank: 0 }),
     param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
     // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
@@ -23994,7 +24012,7 @@ function mirrorPanel(el) {
     ...ffRows(el, el, 'F', el.name || 'the mirror'),
     param('Off-axis offset (mm)', el, 'offset'),
     param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
-  ));
+  )));
   if (el.mmw && el.R) panel.append(readoutBox('mirror'));
   if (el.metal) panel.append(h('p', { class: 'note' }, 'Reflects ' + (100 * metalR(el.metal, ghz)).toPrecision(4) + ' % at ' + (+ghz.toPrecision(4)) + ' GHz: the loss is 4 Rs / Z0, Rs = \u221a(\u03c0 f \u03bc0 / \u03c3) the surface resistance of ' + RF_METALS[el.metal].name.toLowerCase() + '.'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An off-axis offset slides the aperture that far along the parent curve, which is how off-axis parabolas work: set the parent radius, a conic of \u22121 and the offset. Leave the radius blank for a plane mirror. A positive radius is concave towards the reflecting face. At 100% the back of the mirror absorbs; below that it behaves as a thin partial reflector, and the transmitted part carries straight on. A GDD makes it a chirped (dispersive) mirror: each reflection adds that group-delay dispersion to a pulse, about the pulse\u2019s centre wavelength; negative compresses a pulse that glass has stretched.'));
@@ -24050,6 +24068,15 @@ function drawLens(el, sel) {
   }
 }
 
+/* a fold for a part's less used settings: a summary that opens it (kept open as it was across redraws, and open to
+   start with when any of them is set) */
+const foldOpen = new Map();
+function moreFold(key, label, set, body) {
+  const d = h('details', { class: 'rt-morefold' }, h('summary', null, label), body);
+  if (foldOpen.has(key) ? foldOpen.get(key) : set) d.open = true;
+  d.addEventListener('toggle', () => foldOpen.set(key, d.open));
+  return d;
+}
 function lensPanel(el) {
   panel.append(h('h3', null, el.mmw ? 'RF lens' : 'Lens'));
   panel.append(h('div', { class: 'rt-rows' }, param('Diameter (mm)', el, 'diameter', { wide: true }),
@@ -24064,16 +24091,49 @@ function lensPanel(el) {
       h('label', { for: oid }, 'Diffraction order'), numInput(oid, () => el.diffOrder || 1, v => { const m = normOrder(Math.round(v)); el.diffOrder = m === 1 ? undefined : m; }))));
   }
 
-  const N = el.surfaces.length;
+  const N = el.surfaces.length, two = N === 2;
+  // the glass after surface i: its thickness to the next, its material (and its index, absorption and grading)
+  const glassRows = i => {
+    const m = el.materials[i];
+    const mrows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
+      param(two ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}),
+      selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
+        const old = el.materials[i];
+        if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
+        if (v === 'search') { askForGlass(k => { checkpoint(); removeSweeps(el, `materials.${i}.`); el.materials[i] = pickMaterial(k, el.materials[i]); changed(true); }); return; }
+        removeSweeps(el, `materials.${i}.`);
+        el.materials[i] = pickMaterial(v, old);
+      }),
+    );
+    const gn = glassNote(m); if (gn) mrows.append(gn);
+    if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
+    if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
+    if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
+    // a graded lens's glass: its index's terms in r from the axis, those it has and one more to add
+    if (el.graded && m.glass !== 'AIR') {
+      const G = m.grad || [], unit = ['mm⁻²', 'mm⁻⁴', 'mm⁻⁶'];
+      G.forEach((_, j) => mrows.append(param('Gradient ' + grLabel(j) + ' (' + unit[j] + ')', el, `materials.${i}.grad.${j}`, { blank: 0, wide: true })));
+      mrows.append(h('div', { class: 'rt-inline wide', title: 'The index n(r) = n + g₂r² + g₄r⁴ + g₆r⁶ in this glass, r mm from the lens\u2019s axis: below 0, it falls away from the axis and focuses' },
+        G.length < GR_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a gradient term to glass ' + (i + 1), onclick: () => { checkpoint(); m.grad = G.concat(0); changed(true); } },
+          G.length ? 'Add ' + grLabel(G.length) + ' gradient term' : 'Grade this glass') : null,
+        G.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+          checkpoint(); removeSweeps(el, `materials.${i}.grad.${G.length - 1}`); m.grad = G.slice(0, -1); if (!m.grad.length) delete m.grad; changed(true);
+        } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
+    }
+    panel.append(mrows);
+    if (el.gaps[i] === 0) panel.append(h('p', { class: 'note' }, 'Surface ' + (i + 2) + ' is stacked on this one, at the same vertex: the two make one face, each applying between its hole and its clear radius. Give the thickness a value to part them.'));
+  };
+  // a lens of one glass: its thickness and glass are the lens's own, under its diameter and shape
+  if (two) glassRows(0);
   for (let i = 0; i < N; i++) {
     const s = el.surfaces[i];
     panel.append(h('h3', null, 'Surface ' + (i + 1)));
-    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }),
-      // where the surface is: out to its clear radius (the lens's own unless given). A hole is the Optical designer's to make
-      // (with what it means for the light's path), shown here when there is one
-      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
-    // a Fresnel face: its curve cut into rings of this pitch (a curved face only)
-    if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) rows.append(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));
+    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }));
+    // less often changed, in a fold of its own (open when either is set): where the surface reaches to, its clear radius
+    // (the lens's own unless given; a hole is the Optical designer's to make, shown here when there is one), and a Fresnel
+    // face's rings (a curved face only)
+    const more = [param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) })];
+    if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) more.push(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));
     if (s.hole > 0) rows.append(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly\u2026).'));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
@@ -24107,38 +24167,10 @@ function lensPanel(el) {
     }
     panel.append(rows);
     panel.append(coatingRows(el, s));
+    panel.append(moreFold(el.id + '|s' + i, more.length > 1 ? 'Clear radius, Fresnel rings' : 'Clear radius', !!(s.semi || s.fresnel), h('div', { class: 'rt-rows' }, ...more)));
     if (s.coat && s.coat.mode === 'mirror') panel.append(h('p', { class: 'note' }, 'A mirror coating: light meeting this surface reflects and stays in the glass it came from (a surface stacked in its hole, or round it, takes the rest).'));
 
-    if (i < N - 1) {
-      const m = el.materials[i];
-      const mrows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
-        param(i === 0 && N === 2 ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}),
-        selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
-          const old = el.materials[i];
-          if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
-          if (v === 'search') { askForGlass(k => { checkpoint(); removeSweeps(el, `materials.${i}.`); el.materials[i] = pickMaterial(k, el.materials[i]); changed(true); }); return; }
-          removeSweeps(el, `materials.${i}.`);
-          el.materials[i] = pickMaterial(v, old);
-        }),
-      );
-      const gn = glassNote(m); if (gn) mrows.append(gn);
-      if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
-      if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
-      if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
-      // a graded lens's glass: its index's terms in r from the axis, those it has and one more to add
-      if (el.graded && m.glass !== 'AIR') {
-        const G = m.grad || [], unit = ['mm⁻²', 'mm⁻⁴', 'mm⁻⁶'];
-        G.forEach((_, j) => mrows.append(param('Gradient ' + grLabel(j) + ' (' + unit[j] + ')', el, `materials.${i}.grad.${j}`, { blank: 0, wide: true })));
-        mrows.append(h('div', { class: 'rt-inline wide', title: 'The index n(r) = n + g₂r² + g₄r⁴ + g₆r⁶ in this glass, r mm from the lens\u2019s axis: below 0, it falls away from the axis and focuses' },
-          G.length < GR_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a gradient term to glass ' + (i + 1), onclick: () => { checkpoint(); m.grad = G.concat(0); changed(true); } },
-            G.length ? 'Add ' + grLabel(G.length) + ' gradient term' : 'Grade this glass') : null,
-          G.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
-            checkpoint(); removeSweeps(el, `materials.${i}.grad.${G.length - 1}`); m.grad = G.slice(0, -1); if (!m.grad.length) delete m.grad; changed(true);
-          } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
-      }
-      panel.append(mrows);
-      if (el.gaps[i] === 0) panel.append(h('p', { class: 'note' }, 'Surface ' + (i + 2) + ' is stacked on this one, at the same vertex: the two make one face, each applying between its hole and its clear radius. Give the thickness a value to part them.'));
-    }
+    if (i < N - 1 && !two) glassRows(i);
   }
   // a made-to-order RF lens: how it is mounted
   if (el.mmw && el.materials.length === 1 && RF_MAT[el.materials[0].glass] && RF_MAT[el.materials[0].glass].print) mountSection(el);
@@ -24341,11 +24373,11 @@ function drawBlock(el, sel) {
 function cubePanel(el) {
   panel.append(h('h3', null, 'Beam splitter cube'));
   const rows = h('div', { class: 'rt-rows' },
-    param('Size (mm)', el, 'size', { wide: true }),
     selectField('Type', [['npbs', 'Non-polarising'], ['pbs', 'Polarising']], () => el.mode, v => el.mode = v, { wide: true }));
   if (el.mode === 'pbs') {
     rows.append(param('s reflected (%)', el, 'reflectS'), param('p reflected (%)', el, 'reflectP'));
   } else rows.append(param('Reflected (%)', el, 'reflect', { wide: true }));
+  rows.append(param('Size (mm)', el, 'size', { wide: true }));
   panel.append(rows);
   panel.append(materialRows(el));
   panel.append(coatingRows(el, el, 'Face coating'));
@@ -24427,9 +24459,8 @@ function jonesPanel(el) {
   const wp = el.type === 'waveplate';
   if (el.grid) { gridPanel(el); return; }
   panel.append(h('h3', null, wp ? 'Waveplate' : 'Polariser'));
-  const rows = h('div', { class: 'rt-rows' },
-    param('Aperture (mm)', el, 'length', { wide: true }),
-    param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }));
+  // what kind it is (a waveplate's retardance), then its axis, then its size
+  const rows = h('div', { class: 'rt-rows' });
   if (wp) {
     rows.append(selectField('Retardance', [['0.25', 'Quarter wave'], ['0.5', 'Half wave'], ['custom', 'Custom']],
       () => el.retardCustom ? 'custom' : String(el.retard),
@@ -24439,10 +24470,12 @@ function jonesPanel(el) {
       }, { wide: true }));
     if (el.retardCustom) rows.append(param('Retardance (waves)', el, 'retard', { wide: true }));
   }
+  rows.append(param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }),
+    param('Diameter (mm)', el, 'length', { wide: true }));
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, wp
-    ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength.'
-    : 'Passes the component along its axis and absorbs the rest. 0\u00b0 passes p, 90\u00b0 passes s.'));
+    ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength. Its Roll, under Position, turns the axis too: the two add.'
+    : 'Passes the component along its axis and absorbs the rest. 0\u00b0 passes p, 90\u00b0 passes s. Its Roll, under Position, turns the axis too: the two add.'));
 }
 
 const WAVEPLATE_UI = {
@@ -24454,9 +24487,8 @@ function gridPanel(el) {
   panel.append(h('h3', null, 'Wire grid'));
   const up = Math.abs(((el.axis % 180) + 180) % 180 - 90) >= 45;
   panel.append(h('div', { class: 'rt-rows' },
-    param('Aperture (mm)', el, 'length'),
     selectField('Wires', [['0', 'Upright, across the bench (reflect s)'], ['90', 'In the bench plane (reflect p)']], () => (up ? '0' : '90'), v => { el.axis = +v; }),
-    param('Pitch g (mm)', el, 'grid.g'), param('Wire radius a (mm)', el, 'grid.a')));
+    param('Pitch g (mm)', el, 'grid.g'), param('Wire radius a (mm)', el, 'grid.a'), param('Diameter (mm)', el, 'length')));
   const nm = benchNms()[0], G = gridCoef(el.grid, nm, 1, !up), pc = v => (100 * v).toPrecision(3) + ' %';
   panel.append(h('div', { class: 'rt-readout' },
     h('table', null, h('tbody', null,
@@ -24539,7 +24571,7 @@ function grinPanel(el) {
 function maskPanel(el) {
   if (el.grin) return grinPanel(el);
   panel.append(h('h3', null, 'Mask'));
-  const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length', { wide: true }),
+  const rows = h('div', { class: 'rt-rows' },
     selectField('Preset', [...MASK_PRESETS.map(p => [p[0], p[1]]), ['custom', 'Custom']], () => el.preset, v => {
       const p = MASK_PRESETS.find(q => q[0] === v);
       el.preset = v;
@@ -24557,7 +24589,7 @@ function maskPanel(el) {
     });
     return h('div', { class: 'rt-f wide' }, h('div', { class: 'rt-lab' }, h('label', { for: id }, label)), inp);
   };
-  rows.append(text('Amplitude, A(x, y)', 'amp'), text('Delay in waves, D(x, y)', 'delay'));
+  rows.append(text('Amplitude, A(x, y)', 'amp'), text('Delay in waves, D(x, y)', 'delay'), param('Diameter (mm)', el, 'length', { wide: true }));
   panel.append(rows, err);
   const me = maskFns(el);
   if (me.err) err.textContent = me.err;
@@ -24588,8 +24620,8 @@ function gratingPanel(el) {
   panel.append(h('h3', null, 'Grating'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Type', [['reflect', 'Reflection'], ['transmit', 'Transmission']], () => el.mode, v => { el.mode = v; }, { wide: true }),
-    param('Lines per mm', el, 'lpmm'), param('Width (mm)', el, 'length'),
-    param('Blaze (nm)', el, 'blaze'), param('Efficiency (%)', el, 'eff')));
+    param('Lines per mm', el, 'lpmm'), param('Blaze (nm)', el, 'blaze'),
+    param('Efficiency (%)', el, 'eff'), param('Width (mm)', el, 'length')));
   panel.append(readoutBox('grating'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
 }
@@ -24631,8 +24663,8 @@ function fibrePanel(el) {
       if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
     }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    param(el.coll > 0 ? 'Clear aperture (mm)' : 'Ferrule face (mm)', el, 'length', { wide: true }),
-    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })])));
+    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })]),
+    param('Diameter (mm)', el, 'length', { wide: true })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
     const note = h('p', { class: 'note', style: 'margin-top:0.3rem' });
@@ -24640,7 +24672,7 @@ function fibrePanel(el) {
     panel.append(note);
   }
   // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
-  panel.append(h('h3', null, 'Light from the fibre network'));
+  panel.append(h('h3', el.emitTraceRays === false || el.emitGauss === false || el.emitPattern || el.emitRays !== undefined && el.emitRays !== 5 ? null : { 'data-shut': '' }, 'Light from the fibre network'));
   const tick = (key, label) => {
     const c = h('input', { type: 'checkbox' });
     c.checked = el[key] !== false;
@@ -24690,11 +24722,18 @@ function drawDetector(el, sel) {
 }
 
 function detectorPanel(el) {
+  // in tabs, as a mirror's or a screen's: the detector and its amplifier; what its signal does (demodulation, a spectrum
+  // and a scope); and a pulse, when one reaches the bench
+  const tabsOf = [['det', el.diode ? 'Photodiode' : 'Photodetector'], ['signal', 'Signal'], ...(anyPulse() ? [['pulse', 'Pulse']] : [])];
+  if (!tabsOf.some(([k]) => k === vs(el).detTab)) vs(el).detTab = 'det';
+  panel.append(h('div', { class: 'rt-tabs' }, ...tabsOf.map(([k, l]) => h('button', { class: 'rt-tab' + (vs(el).detTab === k ? ' on' : ''), type: 'button', onclick: () => { vs(el).detTab = k; renderPanel(); } }, l))));
+  if (vs(el).detTab === 'signal') { signalSection(el); return; }
+  if (vs(el).detTab === 'pulse') { pulseSection(el); return; }
   panel.append(h('h3', null, el.diode ? 'Photodiode' : 'Photodetector'));
   const rows = h('div', { class: 'rt-rows' },
-    param('Diameter (mm)', el, 'length'),
     selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; }));
   if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp', { wide: true }));
+  rows.append(param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   if (el.diode) panel.append(h('div', { class: 'rt-rows' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));   // a bare diode: no amplifier
   else {
@@ -24705,8 +24744,6 @@ function detectorPanel(el) {
       param('Output limit (V)', el, 'vmax', { wide: true })));
   }
   panel.append(readoutBox('detector'));
-  signalSection(el);
-  if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (modReadouts('detector').length) modReadoutSection(el);                     // the mods' readouts
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Integrates the light over the active area: Gaussian beams as fields, so beams of one launch interfere on it and a beam larger than the diode is clipped; ray fans ray by ray. Set each source’s power in its own panel. Noise is shot noise on the photocurrent and dark current, the gain resistor’s Johnson noise and the amplifier’s input current noise, over the noise bandwidth: the bandwidth is a single pole, so white noise counts over π/2 times it.'));
 }
@@ -24826,9 +24863,10 @@ const SPECTROMETER_UI = {
 function faradayPanel(el) {
   const iso = el.type === 'isolator';
   panel.append(h('h3', null, iso ? 'Isolator' : 'Faraday rotator'));
-  const rows = h('div', { class: 'rt-rows' }, param('Aperture (mm)', el, 'length'));
-  if (iso) rows.append(param('Extinction (dB)', el, 'extinction'), param('Input polariser from p (°)', el, 'axis', { wide: true }));
+  const rows = h('div', { class: 'rt-rows' });
+  if (iso) rows.append(param('Input polariser from p (°)', el, 'axis', { wide: true }), param('Extinction (dB)', el, 'extinction'));
   else rows.append(param('Rotation (°)', el, 'rotation'));
+  rows.append(param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, iso
     ? 'A polariser, a 45° Faraday rotator and a second polariser at 45° to the first. Light going the way of the arrow passes; light coming back is turned a further 45° and stopped, as far as the extinction ratio allows.'
@@ -24910,10 +24948,10 @@ function crystalPanel(el) {
   panel.append(h('h3', null, 'Crystal'));
   const rows = h('div', { class: 'rt-rows' },
     selectField('Type', Object.entries(CRYSTAL_SHAPES), () => el.shape, v => { el.shape = v; }, { wide: true }),
-    selectField('Material', Object.entries(CRYSTALS).map(([k, v]) => [k, v.name]), () => el.crystal, v => { el.crystal = v; }),
-    param('Aperture (mm)', el, 'size'));
+    selectField('Material', Object.entries(CRYSTALS).map(([k, v]) => [k, v.name]), () => el.crystal, v => { el.crystal = v; }));
   if (el.shape === 'displacer') rows.append(param('Length (mm)', el, 'length'), param('Optic axis from the normal (°)', el, 'axisAngle', { wide: true }));
   if (el.shape === 'wollaston') rows.append(param('Wedge angle (°)', el, 'wedge', { wide: true }));
+  rows.append(param('Diameter (mm)', el, 'size'));
   panel.append(rows);
   panel.append(readoutBox('crystal'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, {
@@ -24939,7 +24977,7 @@ function filterPanel(el) {
   if (el.ftype === 'bandpass') rows.append(param('Centre (nm)', el, 'centre'), param('FWHM (nm)', el, 'fwhm'));
   if (el.ftype === 'nd') rows.append(param('Optical density', el, 'od'));
   else rows.append(param('Peak T (%)', el, 'tmax'));
-  rows.append(param('Aperture (mm)', el, 'length'));
+  rows.append(param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   const rf = h('input', { type: 'checkbox' });
   rf.checked = el.reflect;
@@ -24962,7 +25000,7 @@ function meshPanel(el) {
     selectField('Mesh', Object.entries(MESH_TYPES), () => el.mesh, v => { el.mesh = v; }, { wide: true }));
   if (res) rows.append(param('Centre (GHz)', el, 'meshF0'), param('Q', el, 'meshQ'));
   else rows.append(param('Period g (mm)', el, 'meshG'), param(el.mesh === 'capacitive' ? 'Gap 2a (mm)' : 'Line 2a (mm)', el, 'meshA'));
-  rows.append(param('Loss (dB)', el, 'meshLoss'), param('Aperture (mm)', el, 'length'));
+  rows.append(param('Loss (dB)', el, 'meshLoss'), param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   const nm = benchNms()[0], T = filterT(el, nm);
   panel.append(h('div', { class: 'rt-readout' }, h('table', null, h('tbody', null,
@@ -24978,9 +25016,9 @@ function meshPanel(el) {
 function gainPanel(el) {
   panel.append(h('h3', null, 'Gain medium'));
   panel.append(h('div', { class: 'rt-rows' },
-    param('Gain a pass (×)', el, 'g0'), param('Aperture (mm)', el, 'length'),
-    param('Line centre (nm)', el, 'centre'), param('FWHM (nm)', el, 'fwhm'),
-    param('Saturation intensity (kW/cm\u00b2)', el, 'isat', { wide: true })));
+    param('Gain a pass (×)', el, 'g0'), param('Line centre (nm)', el, 'centre'),
+    param('FWHM (nm)', el, 'fwhm'), param('Saturation intensity (kW/cm\u00b2)', el, 'isat', { wide: true }),
+    param('Diameter (mm)', el, 'length')));
   panel.append(readoutBox('gain'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it: the gain a pass is the small-signal gain, which the pump sets. In a cavity, the cavity card (on each of its elements) shows whether the round trip gains more than it loses. Above threshold it lases, and the gain saturates until the round trip is exactly one: the card gives the circulating power, the power leaving through each partly transmitting mirror and the best output coupler, and the output leaves those mirrors as a beam on the bench. Saturation is that of a homogeneous line, every beam through the gain saturating it together (Rigrod\u2019s analysis, exact at any gain and coupling), with the power set by the saturation intensity over the cavity mode\u2019s area at the gain (Nd:YAG 2.9 kW/cm\u00b2, Ti:sapphire 200, Yb:YAG 10); 0 turns it off. The laser runs on one mode at the seed\u2019s wavelength: put the seed on the gain line.'));
 }
@@ -25009,8 +25047,8 @@ function cellPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Atoms', Object.entries(ATOMS).map(([k, v]) => [k, v.name]), () => el.atom, v => { el.atom = v; }, { wide: true }),
     selectField('Line', [['D2', 'D2 (Rb 780, Cs 852, K 767 nm)'], ['D1', 'D1 (Rb 795, Cs 894, K 770 nm)']], () => el.line, v => { el.line = v; }, { wide: true }),
-    param('Temperature (°C)', el, 'temp'), param('Length (mm)', el, 'cellLen'),
-    param('Window (mm)', el, 'length'), param('Field (G)', el, 'bField')));
+    param('Temperature (°C)', el, 'temp'), param('Field (G)', el, 'bField'),
+    param('Length (mm)', el, 'cellLen'), param('Diameter (mm)', el, 'length')));
   panel.append(readoutBox('cell'));
   const vsEl = vs(el);
   vsEl.cellSpan = vsEl.cellSpan || 'all';
@@ -25052,9 +25090,9 @@ function nlcPanel(el) {
   panel.append(h('h3', null, 'Nonlinear crystal'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Crystal', Object.entries(NLC).map(([k, v]) => [k, v.name + ' (d_eff ' + (v.d * 1e12) + ' pm/V)']), () => el.material, v => { el.material = v; }, { wide: true }),
-    param('Length (mm)', el, 'nlLen'), param('Aperture (mm)', el, 'length'),
-    param('Poling period (µm)', el, 'period'), param('Temperature (°C)', el, 'temp'),
     selectField('Its z axis', [['s', 'Out of the bench plane: s light converts'], ['p', 'In the plane: p light converts']], () => el.axis, v => { el.axis = v; }, { wide: true }),
+    param('Poling period (µm)', el, 'period'), param('Temperature (°C)', el, 'temp'),
+    param('Length (mm)', el, 'nlLen'), param('Diameter (mm)', el, 'length'),
     selectField('End faces', [['ar', 'Anti-reflection coated (0.1%)'], ['bare', 'Bare']], () => el.faces, v => { el.faces = v; }, { wide: true })));
   const box = h('div', { class: 'rt-readout' }), cv = h('canvas', { height: '150', style: 'width:100%;display:block' });
   panel.append(box, h('div', { style: 'margin-top:0.5rem' }, cv), plotSaveRow(cv));
@@ -25150,7 +25188,7 @@ function modulatorPanel(el) {
       param('Drive (MHz)', el, 'rf'), param('Sound speed (m/s)', el, 'v'),
       param('Diffraction efficiency (%)', el, 'eff'),
       selectField('Order', [['1', '+1 (shifted up)'], ['-1', '\u22121 (shifted down)']], () => String(el.order), v => { el.order = +v; }),
-      param('Aperture (mm)', el, 'length', { wide: true })));
+      param('Diameter (mm)', el, 'length', { wide: true })));
     panel.append(readoutBox('aom'));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A Bragg cell: sound at the drive frequency makes a moving grating of period v / f in the crystal. The chosen order takes its share of the light, turned by \u03bbf/v and shifted in frequency by the drive; the rest goes straight through, unshifted. Tellurium dioxide carries sound at about 4200 m/s, fused silica 5960 m/s. Shifted light makes no steady fringes with the rest; on a photodiode it beats at the drive frequency.'));
   } else {
@@ -25159,7 +25197,7 @@ function modulatorPanel(el) {
       selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }),
       param('Drive (MHz)', el, 'fm'), param('Depth \u03b2 (rad)', el, 'beta'));
     if (el.emode === 'amplitude') rows.append(param('Bias (\u00b0)', el, 'bias'));
-    rows.append(param('Insertion loss (dB)', el, 'loss'), param('Aperture (mm)', el, 'length'));
+    rows.append(param('Insertion loss (dB)', el, 'loss'), param('Diameter (mm)', el, 'length'));
     panel.append(rows);
     panel.append(readoutBox('eom'));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each sideband leaves as a branch of its own, n f\u2098 from the light that came in, with its share of the field. Phase modulation at \u03b2 = 1.434 puts equal power in the carrier and each first sideband; at 2.405 the carrier is gone. With a cavity after it and a photodiode on the reflection, demodulated at the drive frequency, it is a Pound\u2013Drever\u2013Hall lock.'));
@@ -25544,7 +25582,7 @@ function updateReadoutsIn(container, el) {
       rows.push(['EFL at ' + fmtWl(nm), fmtLen(p.efl)], ['BFL', fmtLen(p.bfl)]);
     }
     const unlit = hit.length ? '' : ' No light reaches it: these are at the bench\u2019s wavelengths.';
-    const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => matLabel(m) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
+    const n0 = el.materials.filter(m => m.glass !== 'AIR').map(m => (m.glass === 'custom' ? 'A glass of' : matLabel(m)) + ' n = ' + refIndex(m, wls[0]).toFixed(4)).join('; ');
     const approx = el.materials.some(m => !glassKey(m.glass) && !m.table && m.glass !== 'custom' && m.glass !== 'AIR');
     if (el.mmw) parts = rfLensReadout(el, wls, rows);                       // an RF lens: its loss, its beam, its print
     if (!parts) parts = [rows, 'Paraxial values' + (el.cyl === 'out' ? ' in the bench plane, where this cylinder has no power' : el.cyl === 'plane' ? ', in the bench plane; out of it this cylinder has none' : '') + '. ' + n0 + ' at ' + fmtWl(wls[0]) + '.' + (approx ? ' Index approximated from the file\u2019s nd and Vd.' : '') +
@@ -25868,6 +25906,18 @@ const metricsFor = kind => METRICS.filter(m => m.on === kind);
 /* a mirror reads the light arriving at its face as a screen does, so it is measured as one */
 const metricKind = el => el.type === 'mirror' ? 'screen' : el.type;
 const metricByKey = key => METRICS.find(m => m.key === key);
+/* the one line under a part's name in its panel: what it reads now, in a few words (ui/panel.js, through hooks:
+   the same measures the optimiser takes, so the line and the readouts agree); '' for a part that reads nothing */
+function partHeadline(el) {
+  if (!el) return '';
+  const v = k => metricRaw(el, k), t = (k, x) => metricText(k, x);
+  if (el.type === 'detector') { const mw = v('dmw'), V = v('dvolt'); return mw === null ? 'No light on it' : t('dmw', mw) + ' mW on it' + (V !== null ? ' \u00b7 ' + t('dvolt', V) + ' V out' : ''); }
+  if (el.type === 'screen') { const r = v('rms'), p = v('power'); return r === null ? 'No light reaches it' : 'Spot ' + t('rms', r) + ' RMS' + (p !== null ? ' \u00b7 ' + t('power', p) + ' of the light' : ''); }
+  if (el.type === 'lens') { const f = v('efl'), b = v('bfl'); return f === null || !isFinite(f) ? '' : 'f ' + t('efl', f) + (b !== null && isFinite(b) ? ' \u00b7 BFL ' + t('bfl', b) : ''); }
+  if (el.type === 'fibre') { const c = v('couple'), mw = v('fibremw'); return c === null ? 'No light on its end' : t('couple', c) + ' into the fibre' + (mw !== null ? ' \u00b7 ' + t('fibremw', mw) + ' mW' : ''); }
+  if (el.type === 'stop') { const b = v('blocked'); return b === null ? '' : 'Stops ' + t('blocked', b) + ' of the light reaching it'; }
+  return '';
+}
 const measurable = () => {                    // screens first: they are what most studies measure
   const rank = { screen: 0, detector: 0, fibre: 0, mirror: 1, stop: 1, lens: 2 };
   return project.elements.filter(e => rank[e.type] !== undefined).sort((a, b) => rank[a.type] - rank[b.type]);
@@ -26806,7 +26856,7 @@ function sectionise(box, kind) {
   if (readSec) order.splice(order.lastIndexOf(secs[secs.length - 1]) + 1, 0, readSec);
   for (const o of order) {
     if (o instanceof Node) box.append(o);
-    else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), true));
+    else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
   }
   if (about.length) {
     const body = h('div', { class: 'rt-secbody rt-about' });
@@ -26852,6 +26902,10 @@ function renderPanelBody(el) {
   if (asm) panel.append(asm);
   panel.append(h('div', { class: 'rt-rows' },
     textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  // what it reads now, in one line (a detector's mW, a screen's spot, a lens's focal length), kept up to date
+  const head = h('p', { class: 'rt-headline', 'aria-live': 'polite' });
+  bindSync(head, () => { const t = hooks.partHeadline(el); head.textContent = t; head.hidden = !t; });
+  panel.append(head);
   // a lens, mirror or window on its own: straight into lens design, right under its name
   const dz = panel === mainPanel ? designOneRow(el) : null;
   if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
@@ -26948,10 +27002,8 @@ function drawPulse(cv, el, view) {
 }
 /* the pulse section of a screen's, photodiode's or fibre tip's panel */
 /* with nothing pulsed on the bench, the section is there but greyed, as the screens' Pulse tab is */
-function pulseSectionEmpty() {
-  panel.append(h('h3', { class: 'rt-muted' }, 'Pulse'),
-    helpLine('No pulsed source on the bench.', ['No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'], 'note rt-muted'));
-}
+/* with nothing pulsed on the bench: no section at all (it would only say there is nothing to show) */
+function pulseSectionEmpty() {}
 function pulseSection(el) {
   const vsEl = vs(el);
   vsEl.pulseView = vsEl.pulseView || 'time';
@@ -27134,12 +27186,12 @@ function screenParams(el) {
   stop.addEventListener('change', () => { checkpoint(); el.absorb = stop.checked; changed(false); });
   // flat or curved: a curved screen takes a radius, and remembers it while flat
   const srows = h('div', { class: 'rt-rows' },
-    param('Length (mm)', el, 'length'),
     selectField('Shape', [['flat', 'Flat'], ['curved', 'Curved']], () => el.R ? 'curved' : 'flat', v => {
       if (v === 'curved') el.R = vs(el).lastR || -100;
       else { if (el.R) vs(el).lastR = el.R; el.R = null; }
     }));
   if (el.R) srows.append(param('Radius (mm)', el, 'R', { wide: true }));
+  srows.append(param('Width (mm)', el, 'length'));
   srows.append(h('label', { class: 'rt-check wide' }, stop, 'Stop the rays it records'));
   // its diffraction pattern on its face, in the 3D view
   {
@@ -27408,7 +27460,7 @@ function coatingRows(el, holder, label) {
   const box = h('div', null);
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField(label || 'Coating',
-      [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
+      [['bare', el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
         ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
         ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])],
       () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode),
@@ -52890,6 +52942,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>A tidier Position section</b>: a part\u2019s place is two rows of three, X, Y, Z and Angle, Tip, Roll, each with its name over it and room for the whole number; its angle is called Angle on every part, a line under it saying what it means for that one.',
+    '<b>Clearer part panels</b>: each measuring part says what it reads in one line under its name (a detector\u2019s mW, a screen\u2019s spot, a lens\u2019s focal length, a fibre\u2019s coupling); a lens has its thickness and glass with its diameter and each face its radius and coating, the rest in a fold; a mirror\u2019s conic, aspheric terms, hole, off-axis offset and GDD fold away until set; a source\u2019s settings come as Light, Rays, Gaussian beam, Polarisation and coherence, and Pulse; a photodetector in tabs; sizes called Diameter (or Width, for a mirror, screen or grating) on every part, each panel in one order (what kind, what it does, its size, its material); and no empty sections.',
     '<b>Fresnel lenses</b>: give a lens\u2019s curved face <b>Fresnel rings</b> (mm) and it is cut into rings of that pitch, each with the face\u2019s slope, as a moulded Fresnel lens is: it focuses as the solid lens does, a fraction as thick, a little light lost at the risers. And: a <b>Lamp</b> (Add part \u203a Lamp: a sphere or a cylinder of its size, standing, lying or tilted, shining every way from its surface, in 3D, its body taking light that comes back to it; and a <b>Circular lamp</b>, a point shining round the bench plane only, quick for 2D benches); an <b>angular size</b> (the sun\u2019s half a degree, so its image is a disc); mirrors that <b>absorb</b> (Passes through: what is neither reflected nor passed is lost); a group that <b>spins</b> about one of its parts (Turn the group, its Spin a sweep to play); <b>Ray width</b> and <b>Rays glow</b> under Bench \u203a Light; and screens\u2019 <b>beam direction</b> and <b>arrival angle</b>, for the optimiser and the exercises.',
     '<b>Exercises</b>: <b>Help \u203a Exercises</b> has eleven short exercises on ready-made benches, from aiming a mirror to fixing a fibre\u2019s polarisation. Each says what to reach and reads it as you go, has two hints, and holds every part but the ones it is about until you leave it. Solved ones are ticked, and kept with a free account. Under them, <b>Challenges</b>: the puzzles from our Instagram reels, newest first, starting with \u201cCan you hit the pinhole?\u201d; the same checks and hints, kept apart from the course.',
     '<b>For recording</b>: <b>Rays as bright as their power</b> (Bench › Light) draws every ray against the strongest on the bench, so light fades as a filter or splitter takes it, and <b>Fading trails</b> leaves where the rays were as a part moves or a sweep plays. Open the page with <code>?kiosk</code> (or <code>JEKray.kiosk(true)</code>) for the bench alone, and <b>View \u203a Names a fixed size on screen</b> keeps names one size as you zoom. Scripts gain <code>J.set(name, { … })</code>, <code>J.setFibre</code>, <code>J.setView</code>, <code>J.renderPNG</code>, labelled <code>J.rays()</code>, <code>J.distance</code>, and bench coordinates from <code>J.hitsOn</code>.',
@@ -56158,7 +56211,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

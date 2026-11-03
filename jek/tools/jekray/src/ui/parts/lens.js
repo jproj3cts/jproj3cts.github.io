@@ -68,6 +68,15 @@ function drawLens(el, sel) {
   }
 }
 
+/* a fold for a part's less used settings: a summary that opens it (kept open as it was across redraws, and open to
+   start with when any of them is set) */
+const foldOpen = new Map();
+export function moreFold(key, label, set, body) {
+  const d = h('details', { class: 'rt-morefold' }, h('summary', null, label), body);
+  if (foldOpen.has(key) ? foldOpen.get(key) : set) d.open = true;
+  d.addEventListener('toggle', () => foldOpen.set(key, d.open));
+  return d;
+}
 function lensPanel(el) {
   panel.append(h('h3', null, el.mmw ? 'RF lens' : 'Lens'));
   panel.append(h('div', { class: 'rt-rows' }, param('Diameter (mm)', el, 'diameter', { wide: true }),
@@ -82,16 +91,49 @@ function lensPanel(el) {
       h('label', { for: oid }, 'Diffraction order'), numInput(oid, () => el.diffOrder || 1, v => { const m = normOrder(Math.round(v)); el.diffOrder = m === 1 ? undefined : m; }))));
   }
 
-  const N = el.surfaces.length;
+  const N = el.surfaces.length, two = N === 2;
+  // the glass after surface i: its thickness to the next, its material (and its index, absorption and grading)
+  const glassRows = i => {
+    const m = el.materials[i];
+    const mrows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
+      param(two ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}),
+      selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
+        const old = el.materials[i];
+        if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
+        if (v === 'search') { askForGlass(k => { checkpoint(); removeSweeps(el, `materials.${i}.`); el.materials[i] = pickMaterial(k, el.materials[i]); changed(true); }); return; }
+        removeSweeps(el, `materials.${i}.`);
+        el.materials[i] = pickMaterial(v, old);
+      }),
+    );
+    const gn = glassNote(m); if (gn) mrows.append(gn);
+    if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
+    if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
+    if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
+    // a graded lens's glass: its index's terms in r from the axis, those it has and one more to add
+    if (el.graded && m.glass !== 'AIR') {
+      const G = m.grad || [], unit = ['mm⁻²', 'mm⁻⁴', 'mm⁻⁶'];
+      G.forEach((_, j) => mrows.append(param('Gradient ' + grLabel(j) + ' (' + unit[j] + ')', el, `materials.${i}.grad.${j}`, { blank: 0, wide: true })));
+      mrows.append(h('div', { class: 'rt-inline wide', title: 'The index n(r) = n + g₂r² + g₄r⁴ + g₆r⁶ in this glass, r mm from the lens\u2019s axis: below 0, it falls away from the axis and focuses' },
+        G.length < GR_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a gradient term to glass ' + (i + 1), onclick: () => { checkpoint(); m.grad = G.concat(0); changed(true); } },
+          G.length ? 'Add ' + grLabel(G.length) + ' gradient term' : 'Grade this glass') : null,
+        G.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
+          checkpoint(); removeSweeps(el, `materials.${i}.grad.${G.length - 1}`); m.grad = G.slice(0, -1); if (!m.grad.length) delete m.grad; changed(true);
+        } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
+    }
+    panel.append(mrows);
+    if (el.gaps[i] === 0) panel.append(h('p', { class: 'note' }, 'Surface ' + (i + 2) + ' is stacked on this one, at the same vertex: the two make one face, each applying between its hole and its clear radius. Give the thickness a value to part them.'));
+  };
+  // a lens of one glass: its thickness and glass are the lens's own, under its diameter and shape
+  if (two) glassRows(0);
   for (let i = 0; i < N; i++) {
     const s = el.surfaces[i];
     panel.append(h('h3', null, 'Surface ' + (i + 1)));
-    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }),
-      // where the surface is: out to its clear radius (the lens's own unless given). A hole is the Optical designer's to make
-      // (with what it means for the light's path), shown here when there is one
-      param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
-    // a Fresnel face: its curve cut into rings of this pitch (a curved face only)
-    if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) rows.append(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));
+    const rows = h('div', { class: 'rt-rows' }, param('Radius (mm)', el, `surfaces.${i}.R`, { blank: null, placeholder: 'flat' }));
+    // less often changed, in a fold of its own (open when either is set): where the surface reaches to, its clear radius
+    // (the lens's own unless given; a hole is the Optical designer's to make, shown here when there is one), and a Fresnel
+    // face's rings (a curved face only)
+    const more = [param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) })];
+    if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) more.push(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));
     if (s.hole > 0) rows.append(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly\u2026).'));
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) rows.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
@@ -125,38 +167,10 @@ function lensPanel(el) {
     }
     panel.append(rows);
     panel.append(coatingRows(el, s));
+    panel.append(moreFold(el.id + '|s' + i, more.length > 1 ? 'Clear radius, Fresnel rings' : 'Clear radius', !!(s.semi || s.fresnel), h('div', { class: 'rt-rows' }, ...more)));
     if (s.coat && s.coat.mode === 'mirror') panel.append(h('p', { class: 'note' }, 'A mirror coating: light meeting this surface reflects and stays in the glass it came from (a surface stacked in its hole, or round it, takes the rest).'));
 
-    if (i < N - 1) {
-      const m = el.materials[i];
-      const mrows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
-        param(i === 0 && N === 2 ? 'Centre thickness (mm)' : 'Thickness to ' + (i + 2) + ' (mm)', el, `gaps.${i}`, el.gaps[i] === 0 ? { blank: 0, placeholder: 'stacked' } : {}),
-        selectField('Material', materialOptions(m, !!el.mmw), () => glassKey(m.glass) || m.glass, v => {
-          const old = el.materials[i];
-          if (v === 'import') { askForMaterial(mm => { el.materials[i] = mm; changed(true); }); return; }
-          if (v === 'search') { askForGlass(k => { checkpoint(); removeSweeps(el, `materials.${i}.`); el.materials[i] = pickMaterial(k, el.materials[i]); changed(true); }); return; }
-          removeSweeps(el, `materials.${i}.`);
-          el.materials[i] = pickMaterial(v, old);
-        }),
-      );
-      const gn = glassNote(m); if (gn) mrows.append(gn);
-      if (m.glass === 'custom') mrows.append(param('Index n', el, `materials.${i}.n`, { wide: true }));
-      if (unknownGlass(m)) mrows.append(unknownGlassNote(m));
-      if (m.glass !== 'AIR') mrows.append(param('Absorption (per mm)', el, `materials.${i}.abs`, { wide: true }));
-      // a graded lens's glass: its index's terms in r from the axis, those it has and one more to add
-      if (el.graded && m.glass !== 'AIR') {
-        const G = m.grad || [], unit = ['mm⁻²', 'mm⁻⁴', 'mm⁻⁶'];
-        G.forEach((_, j) => mrows.append(param('Gradient ' + grLabel(j) + ' (' + unit[j] + ')', el, `materials.${i}.grad.${j}`, { blank: 0, wide: true })));
-        mrows.append(h('div', { class: 'rt-inline wide', title: 'The index n(r) = n + g₂r² + g₄r⁴ + g₆r⁶ in this glass, r mm from the lens\u2019s axis: below 0, it falls away from the axis and focuses' },
-          G.length < GR_N ? h('button', { class: 'rt-link', type: 'button', 'aria-label': 'Add a gradient term to glass ' + (i + 1), onclick: () => { checkpoint(); m.grad = G.concat(0); changed(true); } },
-            G.length ? 'Add ' + grLabel(G.length) + ' gradient term' : 'Grade this glass') : null,
-          G.length ? h('button', { class: 'rt-link', type: 'button', onclick: () => {
-            checkpoint(); removeSweeps(el, `materials.${i}.grad.${G.length - 1}`); m.grad = G.slice(0, -1); if (!m.grad.length) delete m.grad; changed(true);
-          } }, 'Remove ' + grLabel(G.length - 1) + ' term') : null));
-      }
-      panel.append(mrows);
-      if (el.gaps[i] === 0) panel.append(h('p', { class: 'note' }, 'Surface ' + (i + 2) + ' is stacked on this one, at the same vertex: the two make one face, each applying between its hole and its clear radius. Give the thickness a value to part them.'));
-    }
+    if (i < N - 1 && !two) glassRows(i);
   }
   // a made-to-order RF lens: how it is mounted
   if (el.mmw && el.materials.length === 1 && RF_MAT[el.materials[0].glass] && RF_MAT[el.materials[0].glass].print) mountSection(el);

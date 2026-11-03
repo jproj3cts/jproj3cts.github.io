@@ -488,6 +488,8 @@
   /* a list with a long choice: its label above it, the list across the row (panel.js stackLongSelects) */
   .rt-rows > .rt-f.rt-fstack > label, .rt-rows > .rt-f.rt-fstack > .rt-lab > label { grid-column: 1 / -1; }
   .rt-rows > .rt-f.rt-fstack.rt-fstack > select:nth-child(n) { grid-column: 1 / -1; grid-row: 2; }
+  /* what a part reads now, under its name (panel.js) */
+  .rt-panel p.rt-headline { margin: 0.35rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; color: var(--jek-ink); font-variant-numeric: tabular-nums; }
   /* the Position section: two rows of three, each number with its name over it (panel.js paramGrid) */
   .rt-rows > .rt-f.rt-pgridf { display: block; }
   .rt-pgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 0.5rem; }
@@ -1816,3 +1818,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-chlist .rt-exitem b::before { content: none; }
 .rt-extick { color: var(--rt-good-ink); }
 @media (max-width: 600px) { .rt-exbar { top: 0.3rem; font-size: 0.82rem; padding: 0.45rem 0.6rem; } .rt-exmay { display: none; } }
+/* a fold for a part's less used settings (ui/parts/lens.js moreFold) */
+.rt-morefold { margin: 0.25rem 0 0.4rem; }
+.rt-morefold > summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--jek-ink-soft); padding: 0.15rem 0; list-style: none; }
+.rt-morefold > summary::-webkit-details-marker { display: none; }
+.rt-morefold > summary::before { content: '\25b8'; display: inline-block; width: 1em; transition: transform 0.12s; }
+.rt-morefold[open] > summary::before { transform: rotate(90deg); }
+.rt-morefold > .rt-rows { margin-top: 0.25rem; }

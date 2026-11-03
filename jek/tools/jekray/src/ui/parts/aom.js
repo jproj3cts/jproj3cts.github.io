@@ -29,7 +29,7 @@ export function modulatorPanel(el) {
       param('Drive (MHz)', el, 'rf'), param('Sound speed (m/s)', el, 'v'),
       param('Diffraction efficiency (%)', el, 'eff'),
       selectField('Order', [['1', '+1 (shifted up)'], ['-1', '\u22121 (shifted down)']], () => String(el.order), v => { el.order = +v; }),
-      param('Aperture (mm)', el, 'length', { wide: true })));
+      param('Diameter (mm)', el, 'length', { wide: true })));
     panel.append(readoutBox('aom'));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A Bragg cell: sound at the drive frequency makes a moving grating of period v / f in the crystal. The chosen order takes its share of the light, turned by \u03bbf/v and shifted in frequency by the drive; the rest goes straight through, unshifted. Tellurium dioxide carries sound at about 4200 m/s, fused silica 5960 m/s. Shifted light makes no steady fringes with the rest; on a photodiode it beats at the drive frequency.'));
   } else {
@@ -38,7 +38,7 @@ export function modulatorPanel(el) {
       selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }),
       param('Drive (MHz)', el, 'fm'), param('Depth \u03b2 (rad)', el, 'beta'));
     if (el.emode === 'amplitude') rows.append(param('Bias (\u00b0)', el, 'bias'));
-    rows.append(param('Insertion loss (dB)', el, 'loss'), param('Aperture (mm)', el, 'length'));
+    rows.append(param('Insertion loss (dB)', el, 'loss'), param('Diameter (mm)', el, 'length'));
     panel.append(rows);
     panel.append(readoutBox('eom'));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each sideband leaves as a branch of its own, n f\u2098 from the light that came in, with its share of the field. Phase modulation at \u03b2 = 1.434 puts equal power in the carrier and each first sideband; at 2.405 the carrier is gone. With a cavity after it and a photodiode on the reflection, demodulated at the drive frequency, it is a Pound\u2013Drever\u2013Hall lock.'));

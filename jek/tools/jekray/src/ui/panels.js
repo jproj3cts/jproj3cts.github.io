@@ -86,10 +86,8 @@ function drawPulse(cv, el, view) {
 }
 /* the pulse section of a screen's, photodiode's or fibre tip's panel */
 /* with nothing pulsed on the bench, the section is there but greyed, as the screens' Pulse tab is */
-export function pulseSectionEmpty() {
-  panel.append(h('h3', { class: 'rt-muted' }, 'Pulse'),
-    helpLine('No pulsed source on the bench.', ['No pulsed source on the bench. Give a source (or a fibre laser) a pulse duration and the pulse that arrives here shows in this section: its duration, chirp and arrival time.'], 'note rt-muted'));
-}
+/* with nothing pulsed on the bench: no section at all (it would only say there is nothing to show) */
+export function pulseSectionEmpty() {}
 export function pulseSection(el) {
   const vsEl = vs(el);
   vsEl.pulseView = vsEl.pulseView || 'time';
@@ -272,12 +270,12 @@ export function screenParams(el) {
   stop.addEventListener('change', () => { checkpoint(); el.absorb = stop.checked; changed(false); });
   // flat or curved: a curved screen takes a radius, and remembers it while flat
   const srows = h('div', { class: 'rt-rows' },
-    param('Length (mm)', el, 'length'),
     selectField('Shape', [['flat', 'Flat'], ['curved', 'Curved']], () => el.R ? 'curved' : 'flat', v => {
       if (v === 'curved') el.R = vs(el).lastR || -100;
       else { if (el.R) vs(el).lastR = el.R; el.R = null; }
     }));
   if (el.R) srows.append(param('Radius (mm)', el, 'R', { wide: true }));
+  srows.append(param('Width (mm)', el, 'length'));
   srows.append(h('label', { class: 'rt-check wide' }, stop, 'Stop the rays it records'));
   // its diffraction pattern on its face, in the 3D view
   {
@@ -546,7 +544,7 @@ export function coatingRows(el, holder, label) {
   const box = h('div', null);
   const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
     selectField(label || 'Coating',
-      [['bare', el.mmw ? 'Bare face (Fresnel)' : 'Bare glass (Fresnel)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
+      [['bare', el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
         ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
         ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])],
       () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode),

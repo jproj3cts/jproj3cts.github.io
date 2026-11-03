@@ -19,7 +19,7 @@ function filterPanel(el) {
   if (el.ftype === 'bandpass') rows.append(param('Centre (nm)', el, 'centre'), param('FWHM (nm)', el, 'fwhm'));
   if (el.ftype === 'nd') rows.append(param('Optical density', el, 'od'));
   else rows.append(param('Peak T (%)', el, 'tmax'));
-  rows.append(param('Aperture (mm)', el, 'length'));
+  rows.append(param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   const rf = h('input', { type: 'checkbox' });
   rf.checked = el.reflect;
@@ -42,7 +42,7 @@ function meshPanel(el) {
     selectField('Mesh', Object.entries(MESH_TYPES), () => el.mesh, v => { el.mesh = v; }, { wide: true }));
   if (res) rows.append(param('Centre (GHz)', el, 'meshF0'), param('Q', el, 'meshQ'));
   else rows.append(param('Period g (mm)', el, 'meshG'), param(el.mesh === 'capacitive' ? 'Gap 2a (mm)' : 'Line 2a (mm)', el, 'meshA'));
-  rows.append(param('Loss (dB)', el, 'meshLoss'), param('Aperture (mm)', el, 'length'));
+  rows.append(param('Loss (dB)', el, 'meshLoss'), param('Diameter (mm)', el, 'length'));
   panel.append(rows);
   const nm = benchNms()[0], T = filterT(el, nm);
   panel.append(h('div', { class: 'rt-readout' }, h('table', null, h('tbody', null,

@@ -109,6 +109,7 @@ import { usageDrawn, usageStart, wireUsage } from '../io/usage.js';
 import { landingDue, showLanding } from './landing.js';
 import { phosphorRead } from './phosphor.js';
 import { renderFrame } from '../io/figure.js';
+import { partHeadline } from './optimise.js';
 import { exerciseLeave, exerciseOn, exerciseOptimise, exerciseSync, exerciseTick, startExercise, wireChallenge } from './challenge.js';
 import { CHALLENGES, EXERCISES, exerciseArrival, exerciseById } from '../core/exercises.js';
 
@@ -134,7 +135,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

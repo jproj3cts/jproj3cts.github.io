@@ -25,7 +25,7 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { helpLine, bindSync, fid, h, numInput, panel, param, renderPanel, selectField, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, bindSync, fid, h, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
   plotCsv, plotFrame, plotSaveRow, plotZoom, removeSweeps, unknownGlass, unknownGlassNote,
@@ -540,28 +540,34 @@ function screenPlots(el) {
     acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
-export function coatingRows(el, holder, label) {
+/* a surface's coating, the list alone (the lens's face table) */
+export function coatingSelect(el, holder, label) {
+  return selectBox(coatingOptions(el, true), () => coatingValue(el, holder), v => setCoating(el, holder, v), { aria: label || 'Coating' });
+}
+function coatingOptions(el, short) {
+  return [['bare', short ? 'Uncoated' : el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
+    ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', short ? 'Dielectric HR' : 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', short ? 'Matching layer' : 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
+    ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])];
+}
+const coatingValue = (el, holder) => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
+function setCoating(el, holder, v) {
+  const keep = holder.coat;
+  // the coating design workspace, on this face; a coating kept by name there, written here
+  if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
+  } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
+  if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
+  // a mirror coating (ideal, or a metal's reflectance), or a dielectric high reflector over a band (bare glass outside it)
+  if (v === 'mirror') { holder.coat = normCoat({ mode: 'mirror', metal: keep.metal || 'ideal' }); return; }
+  if (v === 'hr') { const nm = benchNms()[0]; holder.coat = normCoat({ mode: 'band', R: 99.9, lo: Math.round(nm * 0.85), hi: Math.round(nm * 1.15), label: 'Dielectric HR' }); return; }
+  holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
+    lo: keep.lo, hi: keep.hi, label: keep.label });
+  if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
+}
+/* a surface's coating: its list (unless opts.noSelect: the list is elsewhere) and what the coating chosen takes */
+export function coatingRows(el, holder, label, opts = {}) {
   const box = h('div', null);
-  const rows = h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
-    selectField(label || 'Coating',
-      [['bare', el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
-        ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
-        ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])],
-      () => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode),
-      v => {
-        const keep = holder.coat;
-        // the coating design workspace, on this face; a coating kept by name there, written here
-        if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
-        } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
-        if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
-        // a mirror coating (ideal, or a metal's reflectance), or a dielectric high reflector over a band (bare glass outside it)
-        if (v === 'mirror') { holder.coat = normCoat({ mode: 'mirror', metal: keep.metal || 'ideal' }); return; }
-        if (v === 'hr') { const nm = benchNms()[0]; holder.coat = normCoat({ mode: 'band', R: 99.9, lo: Math.round(nm * 0.85), hi: Math.round(nm * 1.15), label: 'Dielectric HR' }); return; }
-        holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
-          lo: keep.lo, hi: keep.hi, label: keep.label });
-        if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
-      },
-      { wide: holder.coat.mode === 'bare' }));
+  const rows = h('div', { class: 'rt-rows', style: opts.noSelect ? '' : 'margin-top:0.6rem' });
+  if (!opts.noSelect) rows.append(selectField(label || 'Coating', coatingOptions(el), () => coatingValue(el, holder), v => setCoating(el, holder, v), { wide: holder.coat.mode === 'bare' }));
   if (holder.coat.mode === 'ar' || holder.coat.mode === 'custom') rows.append(param('Reflectance (%)', el, coatPath(el, holder) + '.R'));
   if (holder.coat.mode === 'mirror') {
     rows.append(selectField('Metal', Object.entries(MIRROR_METALS), () => holder.coat.metal, v => { holder.coat = normCoat(Object.assign({}, holder.coat, { metal: v })); }));

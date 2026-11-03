@@ -151,6 +151,13 @@ function paramBits(label, el, path, opts, id) {
   const box = !sw ? null : open ? sweepControls(el, path, sw, label) : sweepSummary(el, path, sw, label, opts.prefix);
   return { inp, toggle, box, sw };
 }
+/* a number with no name row of its own (a table's cell: the lens's faces), named for a screen reader; its sweep's ∿ and
+   controls given back to place */
+export function paramCell(label, el, path, opts = {}) {
+  const P = paramBits(label, el, path, opts, 'rtf' + (++fid));
+  P.inp.setAttribute('aria-label', label);
+  return P;
+}
 export function param(label, el, path, opts = {}) {
   const id = 'rtf' + (++fid);
   const P = paramBits(label, el, path, opts, id);
@@ -309,12 +316,17 @@ export function coherenceNote(el) {
     ', Lc = c/\u0394\u03bd; a cavity builds up the average of its response over the line. Separate sources never interfere.';
 }
 export function selectField(label, options, get, set, opts = {}) {
-  const id = 'rtf' + (++fid);
-  const sel = h('select', { id });
+  const sel = selectBox(options, get, set, opts);
+  return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: sel.id }, label), sel);
+}
+/* the list alone (a table's cell), its name given as aria-label in opts.aria */
+export function selectBox(options, get, set, opts = {}) {
+  const sel = h('select', { id: 'rtf' + (++fid) });
+  if (opts.aria) sel.setAttribute('aria-label', opts.aria);
   for (const [v, t] of options) sel.append(h('option', { value: v }, t));
   sel.value = get();
   sel.addEventListener('change', () => { checkpoint(); set(sel.value); changed(opts.rebuild !== false); });
-  return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), sel);
+  return sel;
 }
 
 /* a link's way across the bench (a fibre, wire or waveguide): curved, or square as in a schematic (render.js

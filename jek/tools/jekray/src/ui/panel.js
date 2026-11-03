@@ -159,17 +159,27 @@ export function param(label, el, path, opts = {}) {
   if (P.box) wrap.append(P.box);
   return wrap;
 }
-/* two numbers on one row, as X and Y, or Tip and Roll: each its own input and sweep */
-function paramPair(label, el, items, opts = {}) {
-  const cells = h('div', { class: 'rt-pairbox' }), boxes = [];
-  for (const [path, sub] of items) {
-    const id = 'rtf' + (++fid);
-    const P = paramBits(sub, el, path, Object.assign({ prefix: sub.replace(/\s*\(.*\)$/, '') }, opts), id);
-    cells.append(h('label', { for: id, class: 'rt-sr' }, sub), P.inp, P.toggle || h('span'));
+/* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name, shown on hover or
+   focus, or always once it is swept): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
+   (an empty cell); the open sweeps' controls follow the grid */
+function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled with each number's cell, in order (null for an empty one)
+  const grid = h('div', { class: 'rt-pgrid' }), boxes = [];
+  for (const it of items) {
+    if (!it) { grid.append(h('span')); cells.push(null); continue; }
+    const [path, label] = it, id = 'rtf' + (++fid);
+    const P = paramBits(label, el, path, Object.assign({ prefix: label.replace(/\s*\(.*\)$/, '') }, opts), id);
+    const cell = h('div', { class: 'rt-pcell' + (P.sw ? ' swept' : '') }, h('div', { class: 'rt-plab' }, h('label', { for: id }, label), P.toggle || null), P.inp);
+    grid.append(cell); cells.push(cell);
     if (P.box) boxes.push(P.box);
   }
-  return h('div', { class: 'rt-f rt-pair' + (boxes.length ? ' swept' : '') }, h('span', { class: 'rt-plab' }, label), cells, ...boxes);
+  return h('div', { class: 'rt-f rt-pgridf' }, grid, ...boxes);
 }
+/* what a part's Angle means, for the line under it: the way it points, by kind */
+const ANGLE_MEANS = { source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
+  screen: 'the way its face points, towards the light', detector: 'the way its face points, towards the light', spectrometer: 'the way its entrance faces, towards the light', fibre: 'the way its end faces, towards the light',
+  isolator: 'the way light passes forward', faraday: 'the way its magnetic field points', cube: 'turns it about its centre', prism: 'turns it about its centre (an equilateral\u2019s apex points this way)',
+  stl: 'turns it about its centre', draw: 'turns it about its x, y', fcomp: 'turns it about its centre', pic: 'turns it about its centre', elec: 'turns it about its centre' };
+const angleMeans = el => el.type === 'source' && el.lamp ? (el.lampFlat ? 'the way its first ray goes' : 'the way a lying cylinder points') : ANGLE_MEANS[el.type] || 'its normal: 0 or 180 for light along x';
 /* a sweep's play button */
 export function sweepPlay(el, path, label) {
   const btn = h('button', { class: 'rt-play', type: 'button' });
@@ -617,30 +627,21 @@ function renderPanelBody(el) {
   if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
   panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
-  rows.append(
-    paramPair('X, Y (mm)', el, [['x', 'X (mm)'], ['y', 'Y (mm)']], { noSweep: el.type === 'draw' }),
-    param({ source: 'Direction (\u00b0)', lens: 'Axis angle (\u00b0)', cube: 'Orientation (\u00b0)', prism: 'Orientation (\u00b0)',
-      stop: 'Orientation (\u00b0)', waveplate: 'Orientation (\u00b0)', polariser: 'Orientation (\u00b0)', crystal: 'Orientation (\u00b0)',
-      faraday: 'Field direction (\u00b0)', isolator: 'Forward direction (\u00b0)', filter: 'Orientation (\u00b0)', gain: 'Orientation (\u00b0)', cell: 'Orientation (\u00b0)', nlc: 'Orientation (\u00b0)',
-      link: 'Orientation (\u00b0)', fcomp: 'Orientation (\u00b0)', pic: 'Orientation (\u00b0)', aom: 'Orientation (\u00b0)', eom: 'Orientation (\u00b0)', draw: 'Rotation (\u00b0)' }[el.type] || 'Facing (\u00b0)', el, 'angle', { wide: true, noSweep: el.type === 'draw' }),
-  );
-  // its place out of the plane (as the 3D view shows it): height above the breadboard, tip and roll
-  if (V3D.free(el)) {
-    const zp = param('z (mm)', el, 'z', { wide: true });
-    zp.title = 'Its optical centre above the breadboard. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise; light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.';
-    rows.append(zp);
-  }
-  // a part tipped up or down out of the plane, as a mount's vertical knob does
-  if (tippable(el)) {
-    const tp = paramPair('Tip, Roll (\u00b0)', el, [['tip', 'Tip (\u00b0)'], ['roll', 'Roll (\u00b0)']]);
-    tp.title = el.type === 'mirror' ? 'Tips the mirror up (positive) or down out of the bench plane, as the vertical knob of a kinematic mount does; Facing turns it across, as the other knob does. The reflected light rises or falls by twice the tip.'
+  // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
+  // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
+  const noSw = el.type === 'draw', hasZ = V3D.free(el), tips = tippable(el);
+  const pc = [], ac = [];
+  const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw }, pc);
+  const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw }, ac);
+  if (hasZ) pc[2].title = 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise; light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.';
+  if (tips) {
+    const [, tc, rc] = ac;
+    tc.title = el.type === 'mirror' ? 'Tips the mirror up (positive) or down out of the bench plane, as the vertical knob of a kinematic mount does; Angle turns it across, as the other knob does. The reflected light rises or falls by twice the tip.'
       : el.type === 'source' ? 'Sends the light up (positive) or down out of the bench plane, at this angle.' : 'Tips the part up (positive) or down out of the bench plane, about its own across axis.';
-    // and rolled about its own axis: a cylinder's power, a grating's grooves, a Dove prism's image turned
-    tp.title += ' Roll: ' + (el.type === 'source' ? 'turns the source about its beam: its pattern across the beam and its polarisation with it.'
-      : 'turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).');
-    tp.title = 'Tip: ' + tp.title;
-    rows.append(tp);
+    rc.title = el.type === 'source' ? 'Turns the source about its beam: its pattern across the beam and its polarisation with it.'
+      : 'Turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).';
   }
+  rows.append(pos, ang, h('p', { class: 'rt-anglenote' }, 'Angle: ' + angleMeans(el) + '.'));
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));

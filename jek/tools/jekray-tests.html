@@ -6936,7 +6936,7 @@ const TESTS = [
         const shown = J.view3d.switchShown(); await J.view3d.set(true); const on = J.view3d.on();
         J.select('Fixed mirror');
         const labels = [...document.getElementById('rig').contentDocument.querySelectorAll('#panel label')].map(l => l.textContent);
-        return shown && on && ['z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => labels.includes(t)) ? 1 : 0;
+        return shown && on && ['Z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => labels.includes(t)) ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
   },
@@ -6948,10 +6948,10 @@ const TESTS = [
       J.load(JSON.parse(getDemo('michelson')));
       J.select('Fixed mirror');
       const doc = document.getElementById('rig').contentDocument;
-      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-f').querySelectorAll('.rt-sweep-toggle')[t === 'Y (mm)' ? 1 : 0];
+      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-pcell, .rt-f').querySelector('.rt-sweep-toggle');
       tog('X (mm)').click();
       const a = !!doc.querySelector('#panel .rt-sweep') && J.byName('Fixed mirror').sweeps.x;
-      tog('z (mm)').click();
+      tog('Z (mm)').click();
       const b = doc.querySelectorAll('#panel .rt-sweep').length === 1 && doc.querySelectorAll('#panel .rt-sweep-sum').length === 1 && J.byName('Fixed mirror').sweeps.z;
       const pos = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'Position');
       pos.click();
@@ -6972,7 +6972,7 @@ const TESTS = [
       J.load(JSON.parse(getDemo('michelson')));
       J.select('Fixed mirror');
       const doc = document.getElementById('rig').contentDocument;
-      const swept = ['z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-f').querySelector('.rt-sweep-toggle'); });
+      const swept = ['Z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-pcell, .rt-f').querySelector('.rt-sweep-toggle'); });
       J.setParam('Fixed mirror', 'z', 120); J.setParam('Fixed mirror', 'tip', 2); J.setParam('Fixed mirror', 'roll', 190);
       const m = J.byName('Fixed mirror'), set = m.z === 120 && m.tip === 2 && m.roll === -170;
       J.setParam('Fixed mirror', 'z', 75);

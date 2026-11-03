@@ -61,7 +61,7 @@ Choose between them with the **Mouse** menu on the 3D view's bar. On a touch scr
 
 **Turning a part about its three axes.** Click the part again for three rings, each the colour of the axis it turns about:
 
-- the blue ring, flat round the part, turns it to face another way (**Facing**);
+- the blue ring, flat round the part, turns it to face another way (its **Angle**);
 - the green ring tips it up or down about its own across axis, as a kinematic mount's vertical knob does (**Tip**);
 - the orange ring rolls it about its own axis, right-handed (**Roll**): a cylindrical lens at 45°, a Dove prism, a waveplate's axis.
 

@@ -53,7 +53,7 @@ $$
 \hat n = (\cos\phi\cos\tau,\ \sin\phi\cos\tau,\ \sin\tau),
 $$
 
-with $$\phi$$ its **Facing**. Rays meet it in 3D, within its round aperture, and reflect by $$\hat d' = \hat d - 2(\hat d\cdot\hat n)\,\hat n$$. Square on, a tip $$\tau$$ sends the light back rising at $$2\tau$$. A tipped 45° fold also turns the polarisation, as a real one does: s and p are taken from the tipped plane of incidence (see [heights](/jek/docs/jekray/free-space/#heights)). Two mirrors tipped $$45°$$ one over the other, the upper at its own height and tipped $$-45°$$, make a periscope.
+with $$\phi$$ its **Angle**. Rays meet it in 3D, within its round aperture, and reflect by $$\hat d' = \hat d - 2(\hat d\cdot\hat n)\,\hat n$$. Square on, a tip $$\tau$$ sends the light back rising at $$2\tau$$. A tipped 45° fold also turns the polarisation, as a real one does: s and p are taken from the tipped plane of incidence (see [heights](/jek/docs/jekray/free-space/#heights)). Two mirrors tipped $$45°$$ one over the other, the upper at its own height and tipped $$-45°$$, make a periscope.
 
 ### Chirped mirrors
 

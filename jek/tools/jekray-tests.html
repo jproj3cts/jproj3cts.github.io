@@ -1521,21 +1521,21 @@ const TESTS = [
   { group: 'Geometric tracing' },
   {
     name: 'The lens panel: drawn to scale, its focal length typed to set, and faces that cross said so',
-    why: 'a plano-convex lens (R 51.5, flat, 4 mm of N-BK7): its panel draws it, Shape beside Glass and Diameter beside Thickness, a face each with its radius; typing 50 into Focal length makes its EFL 50 mm by scaling the curved face (the flat one stays flat); a biconvex lens too thin for its curves warns that its faces cross; a cemented doublet (three faces) draws, with its glass between faces (1 when all hold)',
+    why: 'a plano-convex lens (R 51.5, flat, 4 mm of N-BK7): its panel draws it, Shape beside Glass and Diameter beside Thickness, a row each in its face table with its radius and coating; typing 50 into Focal length makes its EFL 50 mm by scaling the curved face (the flat one stays flat); a biconvex lens too thin for its curves warns that its faces cross; a cemented doublet (three faces) draws, with a row for each glass between its faces (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
       const doc = rigDoc(), lens = (surfaces, gaps, materials, d) => J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'L', x: -40, y: 0, angle: 0, wavelength: 587.6, width: 4, rays: 5 },
         { type: 'lens', id: 'Le', name: 'Lens', x: 0, y: 0, angle: 0, diameter: d || 25.4, surfaces, gaps, materials }] });
       lens([{ R: 51.5 }, { R: null }], [4], [{ glass: 'N-BK7' }]); J.select('Lens'); await frame(); await frame();
-      const drawn = !!doc.querySelector('#panel canvas.rt-lensdiag') && doc.querySelectorAll('#panel .rt-pgrid2').length >= 2 && [...doc.querySelectorAll('#panel h4.rt-facehead')].map(x => x.textContent).join() === 'Face 1,Face 2';
+      const drawn = !!doc.querySelector('#panel canvas.rt-lensdiag') && doc.querySelectorAll('#panel .rt-pgrid2').length >= 2 && [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent).join() === '1,2' && !!doc.querySelector('#panel input[aria-label="Radius of face 1 (mm)"]') && !!doc.querySelector('#panel select[aria-label="Coating of face 2"]');
       const fl = [...doc.querySelectorAll('#panel label')].find(l => l.textContent === 'Focal length (mm)'), inp = fl && doc.getElementById(fl.htmlFor);
       inp.value = '50'; inp.dispatchEvent(new (rigWin().Event)('change')); await frame();
       const L = J.byName('Lens'), f = J.paraxial('Lens', 587.6).efl, focal = Math.abs(f - 50) < 1e-6 && L.surfaces[1].R === null && Math.abs(L.surfaces[0].R / 51.5 - 50 / 99.984) < 0.02;
       lens([{ R: 12 }, { R: -12 }], [1], [{ glass: 'N-BK7' }]); J.select('Lens'); await frame(); await frame();
       const w = doc.querySelector('#panel .rt-lenswarn'), warns = !!w && !w.hidden && /cross/.test(w.textContent);
       lens([{ R: 61.4 }, { R: -44.2 }, { R: -128.9 }], [6, 2.5], [{ glass: 'N-BK7' }, { glass: 'N-SF5' }], 25); J.select('Lens'); await frame(); await frame();
-      const heads = [...doc.querySelectorAll('#panel h4.rt-facehead')].map(x => x.textContent), doublet = heads.includes('Face 3') && heads.includes('Glass to face 2') && !!doc.querySelector('#panel canvas.rt-lensdiag');
+      const heads = [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent), gl = doc.querySelector('#panel select[aria-label="Glass to face 3"]'), doublet = heads.join() === '1,↕,2,↕,3' && !!gl && gl.value === 'N-SF5' && !!doc.querySelector('#panel canvas.rt-lensdiag');
       const ok = drawn && focal && warns && doublet;
       if (!ok) console.log('lens panel', { drawn, focal, f, R: L.surfaces.map(q => q.R), warns, heads });
       return ok ? 1 : 0;
@@ -11780,12 +11780,12 @@ const TESTS = [
       J.closeLensDesign();
       J.select('Solo');
       const flatOk = J.byName('Solo').surfaces[1].R === null && Math.abs(J.lensParaxial('Solo', 587.56).efl - 99.3) < 1;
-      const lock = D.querySelector('#panel button.rt-padlock'), radius = [...D.querySelectorAll('#panel .rt-f')].find(f => /Radius/.test(f.textContent));
+      const lock = D.querySelector('#panel button.rt-padlock'), radius = D.querySelector('#panel .rt-facegrid .rt-facer');
       const lockedOk = !!lock && lock.getAttribute('aria-pressed') === 'true' && radius.querySelector('input').disabled;
       const reopen = [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === 'Open the assembly design…');
       const reopenOk = !!reopen && !reopen.disabled;
       lock.click();
-      const radius2 = [...D.querySelectorAll('#panel .rt-f')].find(f => /Radius/.test(f.textContent));
+      const radius2 = D.querySelector('#panel .rt-facegrid .rt-facer');
       const unlockedOk = !radius2.querySelector('input').disabled && D.querySelector('#panel button.rt-padlock').getAttribute('aria-pressed') === 'false';
       if (reopenOk) { reopen.click(); const open = J.lensDesignOpen(); J.closeLensDesign(); if (!open) console.log('did not reopen'); }
       J.select('Asph');

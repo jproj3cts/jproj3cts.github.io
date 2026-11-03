@@ -1521,7 +1521,7 @@ const TESTS = [
   { group: 'Geometric tracing' },
   {
     name: 'The lens panel: drawn to scale, its focal length typed to set, and faces that cross said so',
-    why: 'a plano-convex lens (R 51.5, flat, 4 mm of N-BK7): its panel draws it, Shape beside Glass and Diameter beside Thickness, a row each in its face table with its radius and coating; typing 50 into Focal length makes its EFL 50 mm by scaling the curved face (the flat one stays flat); a biconvex lens too thin for its curves warns that its faces cross; a cemented doublet (three faces) draws, with a row for each glass between its faces (1 when all hold)',
+    why: 'a plano-convex lens (R 51.5, flat, 4 mm of N-BK7): its panel draws it, Shape beside Glass and Diameter beside Thickness, a row each in its face table with its radius and coating; typing 50 into Focal length makes its EFL 50 mm by scaling the curved face (the flat one stays flat); a biconvex lens too thin for its curves warns that its faces cross; a cemented doublet (three faces) draws, with a row for each glass between its faces; a diffractive lens set to 40 mm has its radius and phase scaled as one; an axicon shows its cone angle and no focal length (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
@@ -1536,8 +1536,16 @@ const TESTS = [
       const w = doc.querySelector('#panel .rt-lenswarn'), warns = !!w && !w.hidden && /cross/.test(w.textContent);
       lens([{ R: 61.4 }, { R: -44.2 }, { R: -128.9 }], [6, 2.5], [{ glass: 'N-BK7' }, { glass: 'N-SF5' }], 25); J.select('Lens'); await frame(); await frame();
       const heads = [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent), gl = doc.querySelector('#panel select[aria-label="Glass to face 3"]'), doublet = heads.join() === '1,↕,2,↕,3' && !!gl && gl.value === 'N-SF5' && !!doc.querySelector('#panel canvas.rt-lensdiag');
-      const ok = drawn && focal && warns && doublet;
-      if (!ok) console.log('lens panel', { drawn, focal, f, R: L.surfaces.map(q => q.R), warns, heads });
+      // a hybrid (diffractive) lens keeps its form: its radius and phase scaled as one; an axicon has its cone angle, and no focal length
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'L', x: -40, y: 0, angle: 0, wavelength: 587.6, width: 4, rays: 5 }] }); const dn = J.add('diffractive'); await frame();
+      const dl = J.byName(dn), R0 = dl.surfaces[0].R, p0 = dl.surfaces[1].ph[0];
+      const fl2 = [...doc.querySelectorAll('#panel label')].find(l => l.textContent === 'Focal length (mm)'), inp2 = fl2 && doc.getElementById(fl2.htmlFor);
+      inp2.value = '40'; inp2.dispatchEvent(new (rigWin().Event)('change')); await frame();
+      const dl2 = J.byName(dn), hybrid = Math.abs(J.paraxial(dn, 587.6).efl - 40) < 1e-6 && Math.abs((dl2.surfaces[0].R / R0) * (dl2.surfaces[1].ph[0] / p0) - 1) < 1e-9;
+      J.add('axicon'); await frame();
+      const labs = [...doc.querySelectorAll('#panel label')].map(l => l.textContent), axicon = labs.includes('Cone angle (°)') && !labs.includes('Focal length (mm)');
+      const ok = drawn && focal && warns && doublet && hybrid && axicon;
+      if (!ok) console.log('lens panel', { drawn, focal, f, R: L.surfaces.map(q => q.R), warns, heads, hybrid, axicon });
       return ok ? 1 : 0;
     },
   },

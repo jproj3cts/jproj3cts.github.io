@@ -94,18 +94,31 @@ function glassSelect(el, i, bare) {
 /* its focal length, typed: every face's radius scaled by one factor (found by the secant method on the paraxial EFL,
    thickness kept), so the lens keeps its form; a flat face stays flat */
 export function setLensFocal(el, f, nm) {
-  const R0 = el.surfaces.map(q => q.R), efl = k => { el.surfaces.forEach((q, j) => { q.R = R0[j] === null ? null : R0[j] * k; }); return paraxial(el, nm).efl; };
-  if (!(isFinite(f) && f !== 0) || R0.every(r => r === null)) return false;
+  // the lens scaled in power by 1/k, keeping its form: each radius times k, an aspheric term A(2j+4) over k^(2j+3), a
+  // diffractive phase term (ρ^(2j+2)) over k^(2j+1); its thickness, conics and glass stay
+  const S0 = el.surfaces.map(q => ({ R: q.R, A: (q.A || []).slice(), ph: q.ph ? q.ph.slice() : null }));
+  const put = k => el.surfaces.forEach((q, j) => {
+    const o = S0[j];
+    q.R = o.R === null ? null : o.R * k;
+    if (q.A) o.A.forEach((v, n) => { q.A[n] = v / Math.pow(k, 2 * n + 3); });
+    if (o.ph) o.ph.forEach((v, n) => { q.ph[n] = v / Math.pow(k, 2 * n + 1); });
+  });
+  const efl = k => { put(k); return paraxial(el, nm).efl; };
+  if (!(isFinite(f) && f !== 0) || !lensScalable(el)) return false;
   let k0 = 1, f0 = efl(1), k1 = f / f0, f1 = efl(k1);
   for (let it = 0; it < 30 && isFinite(f1) && Math.abs(f1 - f) > 1e-9 * Math.abs(f); it++) {
     const k2 = k1 + (f - f1) * (k1 - k0) / ((f1 - f0) || 1e-30);
     if (!isFinite(k2) || k2 <= 0) break;
     k0 = k1; f0 = f1; k1 = k2; f1 = efl(k1);
   }
-  if (!isFinite(f1) || Math.abs(f1 - f) > 1e-4 * Math.abs(f)) { el.surfaces.forEach((q, j) => { q.R = R0[j]; }); return false; }
-  el.surfaces.forEach(q => { if (q.R !== null) q.R = +q.R.toPrecision(10); });
+  if (!isFinite(f1) || Math.abs(f1 - f) > 1e-4 * Math.abs(f)) { put(1); return false; }
+  const tidy = v => +v.toPrecision(10);
+  el.surfaces.forEach(q => { if (q.R !== null) q.R = tidy(q.R); if (q.A) q.A = q.A.map(tidy); if (q.ph) q.ph = q.ph.map(tidy); });
   return true;
 }
+/* whether its focal length can be set by scaling it: a curved face, or a diffractive phase (an axicon's cone and a graded
+   rod's index have no focal length of this kind) */
+const lensScalable = el => !el.graded && el.surfaces.some(q => q.R !== null || (q.ph && q.ph.some(v => v)));
 // the wavelength a lens's focal length is given at: the bench's first source's
 const lensNm = () => { const s0 = project.elements.find(e => e.type === 'source'); return s0 ? s0.wavelength : 587.6; };
 function focalRow(el) {
@@ -113,7 +126,7 @@ function focalRow(el) {
   const inp = numInput(id, () => { const v = paraxial(el, nm).efl; return isFinite(v) ? +v.toPrecision(6) : ''; }, v => {
     if (!setLensFocal(el, v, nm)) toast('That focal length cannot be reached by scaling its faces');
   }, { commit: true, placeholder: 'none' });
-  return h('div', { class: 'rt-f wide', title: 'Its effective focal length at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius is scaled together, so it keeps its form; its thickness stays.' },
+  return h('div', { class: 'rt-f wide', title: 'Its effective focal length at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
     h('label', { for: id }, 'Focal length (mm)'), inp);
 }
 /* the lens to scale, in its own frame (light from the left): each glass tinted, each face's outline (a coated face in
@@ -168,10 +181,14 @@ function lensDiagram(el, rIn) {
     g.font = '11px ' + (getCss('--jek-sans') || 'sans-serif'); g.fillStyle = ink; g.textBaseline = 'middle';
     el.surfaces.forEach((sd, i) => {
       const q = P[i]; if (!q) return;
-      const top = q[q.length - 1], lbl = 'R' + (i + 1) + ' ' + (sd.R === null ? 'flat' : (+sd.R.toPrecision(4)) + '') + (sd.fresnel ? ' (Fresnel)' : '');
-      g.textAlign = i === 0 ? 'right' : i === el.surfaces.length - 1 ? 'left' : 'center';
-      const tx = i === 0 ? X(top[0]) - 4 : i === el.surfaces.length - 1 ? X(top[0]) + 4 : X(top[0]);
-      g.fillText(lbl, tx, Math.max(7, Y(top[1]) - (i > 0 && i < el.surfaces.length - 1 ? 7 : -8)));
+      // its radius (an axicon's face its cone; a Fresnel or diffractive face said so), kept inside the drawing
+      const cone = sd.odd && sd.odd[0] ? 'cone ' + (+(Math.atan(Math.abs(sd.odd[0])) / deg).toPrecision(3)) + '\u00b0' : null;
+      const top = q[q.length - 1], lbl = 'R' + (i + 1) + ' ' + (cone || (sd.R === null ? 'flat' : (+sd.R.toPrecision(4)) + '')) + (sd.fresnel ? ' (Fresnel)' : '') + (sd.ph && sd.ph.some(v => v) ? ' (diffractive)' : '');
+      const last = i === el.surfaces.length - 1, tw = g.measureText(lbl).width;
+      let tx = i === 0 ? X(top[0]) - 4 - tw : last ? X(top[0]) + 4 : X(top[0]) - tw / 2;
+      tx = Math.max(3, Math.min(W - 3 - tw, tx));
+      g.textAlign = 'left';
+      g.fillText(lbl, tx, Math.max(7, Y(top[1]) - (i > 0 && !last ? 7 : -8)));
     });
     const T = el.gaps.reduce((p, q) => p + q, 0);
     const xa = X(ss[0].z), xb = X(ss[ss.length - 1].z), yb = Hh - 9;
@@ -209,15 +226,26 @@ function lensPanel(el) {
   const rIn = [];
   panel.append(lensDiagram(el, rIn));
   const N = el.surfaces.length, two = N === 2;
-  const shapeSel = selectField('Shape', [['round', 'Round'], ['plane', 'Cylinder, power in the bench plane'], ['out', 'Cylinder, power out of the plane']],
+  const shapeSel = selectField('Shape', [['round', 'Round'], ['plane', 'Cylinder \u2194'], ['out', 'Cylinder \u2195']],
     () => el.cyl || 'round', v => { el.cyl = v === 'round' ? undefined : v; });
+  shapeSel.title = 'Round: power both ways. Cylinder \u2194: power in the bench plane only; Cylinder \u2195: out of it only';
   // two to a row: its shape and (one glass) its glass; its diameter and (one glass) its thickness; more glasses: theirs in the face table
   const dia = param('Diameter (mm)', el, 'diameter');
   if (two) panel.append(h('div', { class: 'rt-pgrid2' }, shapeSel, glassSelect(el, 0)),
     h('div', { class: 'rt-pgrid2' }, dia, param('Thickness (mm)', el, 'gaps.0', el.gaps[0] === 0 ? { blank: 0, placeholder: 'stacked' } : {})));
   else panel.append(h('div', { class: 'rt-pgrid2' }, shapeSel, dia));
   // its focal length, to set: the faces' radii scaled together, so its form stays (biconvex, plano-convex, meniscus)
-  if (!el.mmw && !el.graded) panel.append(h('div', { class: 'rt-rows' }, focalRow(el)));
+  const rows = h('div', { class: 'rt-rows' });
+  if (!el.mmw && lensScalable(el)) rows.append(focalRow(el));
+  // an axicon's cone, given as its base angle (stored as its face's odd r^1 sag term): its own setting, up here
+  const coneAt = el.surfaces.findIndex(q => q.odd && q.odd[0]);
+  if (coneAt >= 0) {
+    const q = el.surfaces[coneAt], cid = 'rtf' + (setFid(fid + 1));
+    const cone = numInput(cid, () => +(Math.atan(q.odd[0]) / deg).toPrecision(6), v => { if (Math.abs(v) < 80 && v !== 0) q.odd[0] = Math.tan(v * deg); });
+    rows.append(h('div', { class: 'rt-f wide', title: 'The angle its cone\u2019s face makes with the flat (face ' + (coneAt + 1) + '): light leaves bent towards the axis by about (n \u2212 1) times it' },
+      h('label', { for: cid }, 'Cone angle (\u00b0)'), cone));
+  }
+  if (rows.childNodes.length) panel.append(rows);
   const clip = clipNote(el);
   if (clip) panel.append(h('p', { class: 'rt-assumed' }, clip));
   if (el.diffractive) {
@@ -279,12 +307,6 @@ function lensPanel(el) {
     // a conic and aspheric terms are an asphere's: a plain lens's surfaces are spheres
     if (el.asphere) geo.append(param('Conic k', el, `surfaces.${i}.k`, { blank: 0 }));
     if (s.a2 !== 0) geo.append(param('A2 (mm⁻¹)', el, `surfaces.${i}.a2`, { blank: 0 }));
-    if (s.odd && s.odd[0]) {
-      // an axicon's cone, given as its base angle; stored as the odd r^1 sag term
-      const cid = 'rtf' + (setFid(fid + 1));
-      const cone = numInput(cid, () => +(Math.atan(s.odd[0]) / deg).toPrecision(6), v => { if (Math.abs(v) < 80) s.odd[0] = Math.tan(v * deg); });
-      geo.append(h('div', { class: 'rt-f wide' }, h('label', { for: cid }, 'Cone angle (°)'), cone));
-    }
     if (el.asphere) s.A.forEach((_, j) => geo.append(param('A' + (4 + 2 * j), el, `surfaces.${i}.A.${j}`, { blank: 0 })));
     if (el.asphere) geo.append(h('div', { class: 'rt-inline wide' },
       h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); s.A.push(0); changed(true); } },
@@ -309,7 +331,7 @@ function lensPanel(el) {
     more.push(geo, coatingRows(el, s, null, { noSelect: true }));
     if (c.mode === 'mirror') more.push(h('p', { class: 'note' }, 'A mirror coating: light meeting this surface reflects and stays in the glass it came from (a surface stacked in its hole, or round it, takes the rest).'));
     if (R.box) more.unshift(R.box);
-    const set = !!(R.box || s.hole > 0 || s.semi || s.fresnel || s.k || (s.A && s.A.length) || s.F || (s.ph && s.ph.length) || s.a2 || (s.odd && s.odd[0]) ||
+    const set = !!(R.box || s.hole > 0 || s.semi || s.fresnel || s.k || (s.A && s.A.length) || s.F || (s.ph && s.ph.length) || s.a2 ||
       (c.mode !== 'bare' && c.mode !== 'ar') || (c.mode === 'ar' && c.R !== 0.5) || swept(`surfaces.${i}.`));
     moreRow(el.id + '|s' + i, 'More for face ' + (i + 1) + ': clear radius, Fresnel rings' + (el.asphere ? ', aspheric terms' : '') + ', the coating’s numbers', set, more,
       [h('span', { class: 'rt-facenum', title: 'Face ' + (i + 1) }, String(i + 1)), rCell, coatingSelect(el, s, 'Coating of face ' + (i + 1))], 'rt-faceline');

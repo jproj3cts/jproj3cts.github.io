@@ -11,7 +11,7 @@ import { RAY_PATTERNS, rayPattern } from '../../engines/trace.js';
 import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../render.js';
 import { applyFibre } from '../../engines/fibre-face.js';
 import {
-  beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, h, panel, param, renderPanel,
+  beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, grid2, h, panel, param, renderPanel,
   selectField, setFid, textField, helpLine
 } from '../panel.js';
 import { pulseLine, pulseToggle } from '../panels.js';
@@ -49,39 +49,45 @@ function drawLamp(el, sel) {
   ctx.restore();
 }
 /* a Circular lamp: a point shining round the bench plane only, the quick flat fan of a 2D bench */
+/* a light's more wavelengths, for white light: typed, beside a list of the usual sets (each fires the same rays) */
+const WL_SETS = [['', 'None'], ['486.1,656.3', 'F and C lines'], ['450,550,650', 'Visible (3)'], ['1530,1565', 'Telecom C-band']];
+function wlPair(el) {
+  const txt = textField('More wavelengths', () => el.lines.join(', '), v => {
+    const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
+    if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
+  }, { placeholder: 'nm, as 486, 656' });
+  txt.title = 'Wavelengths besides the first (nm), comma separated: each fires the same rays, so chromatic focal shift and lateral colour show directly';
+  const cur = el.lines.join(','), known = WL_SETS.some(q => q[0] === cur);
+  const pre = selectField('Or a set', known ? WL_SETS : [['custom', 'Typed'], ...WL_SETS], () => (known ? cur : 'custom'), v => {
+    if (v !== 'custom') el.lines = v ? v.split(',').map(Number) : [];
+  });
+  return [txt, pre];
+}
 function flatLampPanel(el) {
   panel.append(h('h3', null, 'Circular lamp'));
-  panel.append(h('div', { class: 'rt-rows' },
-    param('Wavelength (nm)', el, 'wavelength'),
-    param('Power (mW)', el, 'power'),
-    param('Rays round it', el, 'rays'),
-    textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
-      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
-      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
-    }, { wide: true, placeholder: 'none' })));
-  panel.append(helpLine('A point shining round the bench plane only: quick, for 2D benches.', ['A point whose rays leave round the bench plane only, 360\u00b0 over their number apart, the first along its direction: the plain fan of a 2D bench, traced quickly. For light every way, from a lamp with a shape and size, use the Lamp. Its power is shared by its rays, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.5rem'));
+  panel.append(grid2(param('Wavelength (nm)', el, 'wavelength'), param('Power (mW)', el, 'power')),
+    grid2(param('Rays round it', el, 'rays'), h('span')), grid2(wlPair(el)));
+  panel.append(helpLine('A point shining round the bench plane only: quick, for 2D benches.', ['A point whose rays leave round the bench plane only, 360° over their number apart, the first along its direction: the plain fan of a 2D bench, traced quickly. For light every way, from a lamp with a shape and size, use the Lamp. Its power is shared by its rays, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.2rem'));
 }
 function lampPanel(el) {
   if (el.lampFlat) return flatLampPanel(el);
+  // its shape and size
   panel.append(h('h3', null, 'Lamp'));
-  panel.append(h('div', { class: 'rt-rows' },
-    selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder']], () => el.lampShape, v => { el.lampShape = v; if (v === 'cylinder' && !isFinite(el.lampTip)) el.lampTip = 90; renderPanel(); }, { wide: true }),
-    param('Diameter (mm)', el, 'lampD', { placeholder: '0: a point' }),
-    ...(el.lampShape === 'cylinder' ? [param('Length (mm)', el, 'lampL'), param('Axis tipped up (\u00b0)', el, 'lampTip', { placeholder: '90: standing' })] : []),
-    param('Wavelength (nm)', el, 'wavelength'),
-    param('Power (mW)', el, 'power'),
-    param('Rays in all', el, 'rays'),
-    // its light up and down: rings of rays above and below the plane (0: a flat fan), for the 3D view and parts above or below
-    param('Shines up and down to (\u00b0)', el, 'elev', { placeholder: '0: flat' }),
-    ...(el.elev > 0 ? [param('Rings each way', el, 'rings', { placeholder: 'auto', blank: 0, fmt: v => (v > 0 ? String(v) : '') })] : []),
-    textField('More wavelengths (nm), for white light', () => el.lines.join(', '), v => {
-      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
-      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
-    }, { wide: true, placeholder: 'none' })));
-  const tot = h('p', { class: 'note', style: 'margin-top:0.4rem' });
-  bindSync(tot, () => { const W = 1 + (el.lines || []).length, L = lampRaysOf(el), rings = new Set(L.map(q => q[4].toFixed(6))).size; tot.textContent = L.length + ' rays' + (rings > 1 ? ' spread over ' + rings + ' rings' + (el.elev >= 90 ? ', every way' : ', to ' + el.elev + '\u00b0 up and down') : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
+  panel.append(grid2(selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder']], () => el.lampShape, v => { el.lampShape = v; if (v === 'cylinder' && !isFinite(el.lampTip)) el.lampTip = 90; renderPanel(); }),
+    param('Diameter (mm)', el, 'lampD', { placeholder: '0: a point' })));
+  if (el.lampShape === 'cylinder') panel.append(grid2(param('Length (mm)', el, 'lampL'), param('Axis tipped up (°)', el, 'lampTip', { placeholder: '90: standing' })));
+  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse’s beam spreading by the lamp’s size over the lens’s focal length. A cylinder’s axis lies along the lamp’s direction tipped up by its tip: 90° stands it up, 0° lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere’s disc, a cylinder’s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does.'], 'note', 'margin-top:0.1rem'));
+  // its light
+  panel.append(h('h3', null, 'Light'));
+  panel.append(grid2(param('Wavelength (nm)', el, 'wavelength'), param('Power (mW)', el, 'power')), grid2(wlPair(el)));
+  // its rays: spread evenly over the directions it shines in, rings of them above and below the plane (0: a flat fan)
+  panel.append(h('h3', null, 'Rays'));
+  panel.append(grid2(param('Rays in all', el, 'rays'), param('Up and down to (°)', el, 'elev', { placeholder: '0: flat' }),
+    el.elev > 0 ? param('Rings each way', el, 'rings', { placeholder: 'auto', blank: 0, fmt: v => (v > 0 ? String(v) : '') }) : null));
+  const tot = h('p', { class: 'note', style: 'margin-top:0.1rem' });
+  bindSync(tot, () => { const W = 1 + (el.lines || []).length, L = lampRaysOf(el), rings = new Set(L.map(q => q[4].toFixed(6))).size; tot.textContent = L.length + ' rays' + (rings > 1 ? ' over ' + rings + ' rings' + (el.elev >= 90 ? ', every way' : ', to ' + el.elev + '° up and down') : ' round it') + (W > 1 ? ', at each of ' + W + ' wavelengths' : '') + (el.pol === 'unpolarised' ? ', each in two halves (unpolarised)' : '') + '.'; });
   panel.append(tot);
-  panel.append(helpLine('It shines all round from its surface; its body takes light that comes back to it.', ['Its rays in all are spread evenly over the directions it shines in: every way (Shines up and down to 90\u00b0), or a band about the bench plane, in rings of latitude, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. A lamp with a size sends each ray from its face as seen that way, from all across it, as a glowing surface looks: so its size shows, a lens imaging it as a patch its size times the magnification, and a lighthouse\u2019s beam spreading by the lamp\u2019s size over the lens\u2019s focal length. A cylinder\u2019s axis lies along the lamp\u2019s direction tipped up by its tip: 90\u00b0 stands it up, 0\u00b0 lays it along its direction. Each ray starts from across the face the lamp shows its way, in 3D: a sphere\u2019s disc, a cylinder\u2019s side and ends, so rays leave from all its heights too. A diameter of 0 makes it a point. Its body absorbs light that comes back to it, as a bulb in front of a mirror does. Add wavelengths for white light; each fires the same rays. Its power is shared by them all.'], 'note', 'margin-top:0.3rem'));
+  panel.append(h('p', null, 'Its rays in all are spread evenly over the directions it shines in: every way (Up and down to 90°), or a band about the bench plane, in rings of latitude, each ring given rays by its share of the sphere and every other ring turned half a step, so they pack evenly. Its power is shared by them all; more wavelengths each fire the same rays.'));
 }
 
 function drawSource(el, sel) {
@@ -105,6 +111,7 @@ function drawSource(el, sel) {
 }
 
 /* the fan's soft edge: automatic (enough for the field grid) until a value is typed, 0 included */
+
 function edgeRows(el) {
   if (el.softAuto !== false) el.soft = fanEdgeAuto(el.width, el.popN);
   const row = param('Edge softness (mm)', el, 'soft');
@@ -120,7 +127,6 @@ function edgeRows(el) {
 function sourcePanel(el) {
   if (el.lamp) return lampPanel(el);
   panel.append(h('h3', null, 'Light'));
-  const rows = h('div', { class: 'rt-rows' });
   const colId = 'rtf' + setFid(fid + 1);
   const col = h('input', { id: colId, type: 'color' });
   col.addEventListener('input', () => { beginEdit(); el.colour = col.value; el.colourAuto = false; chk.checked = false; changed(false); });
@@ -135,34 +141,12 @@ function sourcePanel(el) {
   });
   const root = splitRoot(el), linked = root !== el;
   const wlId = 'rtf' + setFid(fid + 1);
-  rows.append(
-    // a copy split from a laser has the laser's wavelength
-    linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
-  );
-  panel.append(rows);
-  // more wavelengths, beside the first: each fires the same rays
-  const presets = [['', 'None: just the one above'], ['486.1,656.3', 'F and C lines (486.1, 656.3)'],
-    ['450,550,650', 'Visible (450, 550, 650)'], ['1530,1565', 'Telecom C-band (1530, 1565)']];
-  const pre = h('select', { id: 'rtf' + setFid(fid + 1) });
-  for (const [v, t] of presets) pre.append(h('option', { value: v }, t));
-  pre.value = presets.some(q => q[0] === el.lines.join(',')) ? el.lines.join(',') : '';
-  pre.addEventListener('change', () => {
-    checkpoint();
-    el.lines = pre.value ? pre.value.split(',').map(Number) : [];
-    changed(true);
-  });
-  panel.append(h('div', { class: 'rt-rows' },
-    h('div', { class: 'rt-f wide' }, h('label', { for: pre.id }, 'More wavelengths'), pre),
-    textField('Its wavelengths (nm), comma separated', () => el.lines.join(', '), v => {
-      const a = v.split(/[,;\s]+/).filter(Boolean).map(Number);
-      if (a.every(q => isFinite(q) && q >= 100 && q <= 20000)) el.lines = a.slice(0, 12);
-    }, { wide: true, placeholder: 'none' })));
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
-  // its power, and the colour it is drawn in: its wavelength's, unless chosen
-  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' },
-    param('Power (mW)', el, 'power'),
-    h('label', { class: 'rt-check wide' }, chk, 'Colour from its wavelength'),
-    ...(el.colourAuto ? [] : [h('div', { class: 'rt-f' }, h('label', { for: colId }, 'Colour'), col)])));
+  // its wavelength (a copy split from a laser has the laser's) and power; more wavelengths; the colour it is drawn in
+  panel.append(grid2(linked ? h('div', { class: 'rt-f' }, h('label', { for: wlId }, 'Wavelength (nm)'), h('input', { id: wlId, type: 'text', value: String(root.wavelength), disabled: '', title: 'Set on ' + root.name })) : param('Wavelength (nm)', el, 'wavelength'),
+    param('Power (mW)', el, 'power')), grid2(wlPair(el)));
+  panel.append(h('div', { class: 'rt-inline rt-colrow' }, h('label', { class: 'rt-check' }, chk, 'Colour from its wavelength'), el.colourAuto ? null : col));
+  col.setAttribute('aria-label', 'Colour');
+  panel.append(h('p', null, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 
   // the ray fan: on its own, and hidden with its settings when it is off
   panel.append(h('h3', null, 'Rays'));
@@ -171,18 +155,16 @@ function sourcePanel(el) {
   tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
   panel.append(h('label', { class: 'rt-check' }, tr, 'Trace the ray fan'));
   if (el.traceRays) {
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Beam width (mm)', el, 'width'),
-      ...(el.gauss || !lightOf().field ? [] : edgeRows(el)),
-      param('Divergence, full (°)', el, 'divergence'),
-      param('Rays', el, 'rays'),
+    const dv = param('Divergence (°)', el, 'divergence'); dv.title = 'Its full angle of spread: 0 collimated, negative converging';
+    panel.append(grid2(param('Beam width (mm)', el, 'width'), dv, param('Rays', el, 'rays'),
       // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
       param('Angular size (°)', el, 'angularSize', { placeholder: 'a point', blank: 0 }),
-      ...(el.angularSize > 0 ? [param('Rays across it', el, 'angularRays')] : [])));
+      el.angularSize > 0 ? param('Rays across it', el, 'angularRays') : null));
+    if (!el.gauss && lightOf().field) panel.append(h('div', { class: 'rt-rows' }, ...edgeRows(el)));
     if (Math.abs(el.divergence) >= 360) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, 'A lamp: its rays all round, evenly spaced.'));
     if (el.angularSize > 0) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, (el.angularRays || 5) + ' rays across its ' + el.angularSize + '\u00b0 from each point: ' + rayPattern(el, el.rays).length * (el.angularRays || 5) + ' in all.'));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
+    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.1rem' }, selectField('Rays across the beam', RAY_PATTERNS, () => el.pattern || 'line', v => { if (v === 'line') delete el.pattern; else el.pattern = v; }, { wide: true })));
     // a line of rays standing for a round beam's power (an f-stop halves it, as in 3D)
     if (!el.pattern) {
       const rb = h('input', { type: 'checkbox' }); rb.checked = !!el.round;
@@ -190,15 +172,13 @@ function sourcePanel(el) {
       panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.35rem', title: 'Each ray carries the ring of a round beam it stands for, so an iris at half the width passes a quarter of the light, and one f-stop halves it' }, rb, 'Power as across a round beam'));
     }
     const pn = h('p', { class: 'note', style: 'margin-top:0.3rem' });
-    bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = (el.pattern ? N + ' rays across the beam, up and down it too, ' : 'In the bench plane only, ') + 'its width (and divergence) the same both ways, each traced exactly in 3D. Screens show where they land on a spot diagram (Rays tab).'; });
+    bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = N + ' rays' + (el.pattern ? ' across the beam, up and down it too' : ' in the bench plane') + ', each traced in 3D; a screen\u2019s Rays tab shows where they land.'; });
     panel.append(pn);
   }
   else if (!el.gauss) {
     // without a Gaussian beam the fan's width and divergence still shape the diffracted field
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Beam width (mm)', el, 'width'),
-      ...(lightOf().field ? edgeRows(el) : []),
-      param('Divergence, full (°)', el, 'divergence')));
+    panel.append(grid2(param('Beam width (mm)', el, 'width'), param('Divergence (°)', el, 'divergence')));
+    if (lightOf().field) panel.append(h('div', { class: 'rt-rows' }, ...edgeRows(el)));
     panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
   } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
 
@@ -221,18 +201,14 @@ function sourcePanel(el) {
       changed(true);
     });
     panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.5rem' }, fb, 'Launch from a single-mode fibre'));
-    if (el.fibre) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
-    else panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      param('Waist radius (mm)', el, 'w0'),
-      param('Waist distance (mm)', el, 'z0'),
-      ...(el.tem === 'gauss' ? [param('M\u00b2 (beam quality)', el, 'm2')] : [])));
-    if (!el.fibre) {
-      panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-        selectField('Beam mode', [['gauss', 'Gaussian (TEM\u2080\u2080)'], ['hg', 'Hermite\u2013Gauss HG\u2098\u2099'], ['lg', 'Laguerre\u2013Gauss LG\u209a\u2097 (vortex)']],
-          () => el.tem, v => { el.tem = v; fanFromGauss(el); }, { wide: el.tem === 'gauss' }),
-        ...(el.tem === 'hg' ? [param('m, nodes in the bench plane', el, 'hm'), param('n, nodes out of it', el, 'hn')]
-          : el.tem === 'lg' ? [param('p, radial order', el, 'lp'), param('l, vortex charge', el, 'll')] : [])));
+    if (el.fibre) panel.append(grid2(param('Fibre core (µm)', el, 'fibre.core'), param('Fibre NA', el, 'fibre.na')));
+    else {
+      const mode = selectField('Beam mode', [['gauss', 'Gaussian TEM\u2080\u2080'], ['hg', 'Hermite\u2013Gauss'], ['lg', 'Laguerre\u2013Gauss']],
+        () => el.tem, v => { el.tem = v; fanFromGauss(el); });
+      mode.title = 'Gaussian (TEM\u2080\u2080); Hermite\u2013Gauss HG\u2098\u2099, m and n nodes in and out of the bench plane; Laguerre\u2013Gauss LG\u209a\u2097, a vortex of charge l';
+      panel.append(grid2(param('Waist radius (mm)', el, 'w0'), (() => { const z = param('Waist at (mm)', el, 'z0'); z.title = 'How far ahead of the source its waist sits; negative puts it behind'; return z; })(), mode,
+        ...(el.tem === 'gauss' ? [param('M\u00b2 (beam quality)', el, 'm2')] : el.tem === 'hg' ? [param('m (in the plane)', el, 'hm'), param('n (out of it)', el, 'hn')]
+          : [param('p (radial order)', el, 'lp'), param('l (vortex charge)', el, 'll')])));
     }
     const line = h('p', { class: 'note', style: 'margin-top:0.5rem' });
     bindSync(line, () => {
@@ -254,9 +230,9 @@ function sourcePanel(el) {
     });
     panel.append(line);
     // how it is shown (envelope, field) is the bench's, for every source alike; how its field is worked out is its own
-    panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
-      selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel, v => { el.popModel = v; }),
-      selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; })));
+    const fm = selectField('Field model', [['auto', 'Round if it can'], ['2d', 'Always 2D']], () => el.popModel, v => { el.popModel = v; });
+    fm.title = 'Round if it can: a radial profile while the beam stays round, 2D once it is not; Always 2D: a 2D field throughout, with polarisation';
+    panel.append(grid2(fm, selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN), v => { el.popN = +v; })));
     panel.append(helpLine('Rays, envelope and field are shown or hidden for the whole bench.', ['Whether the rays, the beams\u2019 envelope and their diffracted field show is set for the whole bench: the ticks under the Bench panel\u2019s Light (click empty bench).'], 'note', 'margin-top:0.4rem'));
     if (lightOf().field) {
       const pn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
@@ -268,37 +244,29 @@ function sourcePanel(el) {
   }
 
   panel.append(h('h3', null, 'Polarisation and coherence'));
-  const prows = h('div', { class: 'rt-rows' },
-    selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's, out of the plane'], ['p', 'p, in the plane'], ['linear', 'Linear at an angle']],
-      () => el.pol, v => el.pol = v, { wide: el.pol !== 'linear' }));
-  if (el.pol === 'linear') prows.append(param('Angle from p (°)', el, 'polAngle'));
-  panel.append(prows);
-  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
-
-  // the laser's own line: how far apart two paths can be and still interfere
-  // split from another laser's source: one launch with it
+  // its polarisation; the laser it is split from, if any (one launch with it); its spectrum: two to a row
   const others = project.elements.filter(e => e.type === 'source' && e !== el && !splitChain(e).includes(el));
-  const srows = h('div', { class: 'rt-rows' }, selectField('Split from', [['', 'Nothing: a laser of its own'], ...others.map(e => [e.id, e.name])],
-    () => el.splitFrom && getEl(el.splitFrom) ? el.splitFrom : '', v => { el.splitFrom = v || null; }, { wide: true }));
-  if (linked) srows.append(param('Phase against it (\u00b0)', el, 'splitPhase'), param('Extra fibre (mm)', el, 'splitPath'));
-  panel.append(srows);
+  const pol = selectField('State', [['unpolarised', 'Unpolarised'], ['s', 's (out of plane)'], ['p', 'p (in plane)'], ['linear', 'Linear, at angle']], () => el.pol, v => el.pol = v);
+  const split = selectField('Split from', [['', 'Its own laser'], ...others.map(e => [e.id, e.name])], () => el.splitFrom && getEl(el.splitFrom) ? el.splitFrom : '', v => { el.splitFrom = v || null; });
+  split.title = 'Another source this one’s light is split from before the bench (a fibre coupler): the two interfere';
+  const pulsed = !linked && el.tau > 0, coh = [];
+  if (!linked && !pulsed) coherenceFields(el, { append: (...n) => coh.push(...n) });
+  panel.append(grid2(pol, el.pol === 'linear' ? param('Angle from p (°)', el, 'polAngle') : null, split,
+    linked ? [param('Phase against it (°)', el, 'splitPhase'), param('Extra fibre (mm)', el, 'splitPath')] : null, coh));
+  panel.append(h('p', null, 'Everything here happens in one plane, so s and p never mix: each surface simply splits their power differently.'));
   if (linked) {
-    const sl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+    const sl = h('p', { class: 'note', style: 'margin-top:0.2rem' });
     bindSync(sl, () => {
       const r = splitRoot(el), lag = lagOf(el), g = cohGamma(r);
       sl.textContent = 'Light from ' + r.name + ', split before it reaches the bench (a fibre coupler, say): the two add as fields wherever they meet, so they interfere. ' +
-        'This one keeps its own power, place, beam and polarisation; its wavelength and line are ' + r.name + '\u2019s. ' +
+        'This one keeps its own power, place, beam and polarisation; its wavelength and line are ' + r.name + '’s. ' +
         'The phase between them is set by the fibres to within a wavelength, which in practice drifts: sweep it to see the fringes move. ' +
         'The extra fibre is counted at a group index of ' + FIBRE_NG + ': ' + fmtLen(Math.abs(lag)) + ' of optical path against ' + r.name +
         (g ? ', so fringes with its light have at most ' + (+g(lag).toPrecision(3)) + ' of full contrast.' : ', which matters only once the laser has a coherence length (set on ' + r.name + ').');
     });
     panel.append(sl);
   }
-  const crows = h('div', { class: 'rt-rows' });
-  const pulsed = !linked && el.tau > 0;
-  if (!linked && !pulsed) coherenceFields(el, crows);
-  panel.append(crows);
-  const cl = h('p', { class: 'note', style: 'margin-top:0.5rem' });
+  const cl = h('p', { class: 'note', style: 'margin-top:0.2rem' });
   bindSync(cl, () => {
     if (linked) { cl.textContent = 'The line is ' + splitRoot(el).name + '\u2019s' + (el.coh > 0 ? ': coherence length ' + fmtLen(el.coh) + '.' : ': a single frequency.'); return; }
     if (el.tau > 0) { cl.textContent = 'Set by the pulse (below): coherence length ' + fmtLen(el.coh) + ', Gaussian.'; return; }
@@ -313,11 +281,12 @@ function sourcePanel(el) {
     panel.append(pl);
   } else {
     panel.append(pulseToggle(el));
-    const prow = h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' });
-    if (el.tau > 0) prow.append(param('Duration (fs)', el, 'tau'),
-      selectField('Shape', [['sech2', 'sech\u00b2 (soliton, Kerr-lens)'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); }),
-      param('Repetition rate (MHz)', el, 'rep'),
-      param('Chirp at the laser, GDD (fs\u00b2)', el, 'gdd0', { wide: true }));
+    const prow = h('div', { class: 'rt-pgrid2', style: 'margin-top:0.4rem' });
+    if (el.tau > 0) {
+      const shape = selectField('Shape', [['sech2', 'sech\u00b2'], ['gauss', 'Gaussian']], () => el.pshape, v => { el.pshape = v; applyPulse(el); });
+      shape.title = 'sech\u00b2: a soliton\u2019s, as from a Kerr-lens mode-locked laser; or Gaussian';
+      prow.append(param('Duration (fs)', el, 'tau'), shape, param('Rep. rate (MHz)', el, 'rep'), param('Chirp, GDD (fs\u00b2)', el, 'gdd0'));
+    }
     panel.append(prow);
     // turning a laser pulsed or continuous changes the panel: redraw it once the field is left
     const built = el.tau > 0, flip = () => { if ((el.tau > 0) !== built) setTimeout(renderPanel); };

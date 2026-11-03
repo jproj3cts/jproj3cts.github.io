@@ -1550,6 +1550,26 @@ const TESTS = [
     },
   },
   {
+    name: 'The source and lamp panels: two to a row, more wavelengths typed or picked from a set',
+    why: 'a source\u2019s panel sets Wavelength beside Power two to a row; picking F and C lines from Or a set gives it 486.1 and 656.3 nm, shown in More wavelengths, and the list then says Typed for a set of its own; a lamp\u2019s panel has its Shape beside its Diameter (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      const doc = rigDoc(), field = t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && doc.getElementById(l.htmlFor); };
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 587.6 }] }); J.select('Src'); await frame();
+      const g = field('Wavelength (nm)'), pairOk = !!g && g.closest('.rt-pgrid2') === field('Power (mW)').closest('.rt-pgrid2');
+      const set = field('Or a set'); set.value = '486.1,656.3'; set.dispatchEvent(new (rigWin().Event)('change')); await frame();
+      const lines = J.byName('Src').lines.join(), shown = field('More wavelengths').value;
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 587.6, lines: [500, 600] }] }); J.select('Src'); await frame();
+      const typed = field('Or a set').value === 'custom';
+      const ln = J.add('lamp'); await frame();
+      const lampOk = field('Shape').closest('.rt-pgrid2') === field('Diameter (mm)').closest('.rt-pgrid2');
+      const ok = pairOk && lines === '486.1,656.3' && shown === '486.1, 656.3' && typed && lampOk;
+      if (!ok) console.log('source panel', { pairOk, lines, shown, typed, lampOk, ln });
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'A lighthouse: a lamp all round, Fresnel panels on a ring spun about it, a ship that sees the flashes',
     why: 'a 360° lamp grouped with four Fresnel lenses (rings 4 mm) 87.5 mm round it, the lamp the group’s pivot: the ship 400 mm off reads light with a panel facing it (spin 0° and 90°) and none half way (45°); the ring’s parts turned to match; ray width and glow kept in the bench; the group’s panel offers Turn the group and a mirror’s Passes through (1 when all hold)',
     want: 1, tol: 0, unit: '',

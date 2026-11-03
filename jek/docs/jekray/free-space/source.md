@@ -90,8 +90,8 @@ A source has a main wavelength and up to 12 more, each between 100 nm and 1 mm. 
 
 A source's light is one of three kinds:
 
-- **Single frequency**: every pair of paths interferes in full, however long.
-- **A line of its own**: a coherence length $$L_c = c/\Delta\nu$$, with a Lorentzian or Gaussian line, so fringe contrast falls as two paths grow apart (see [Concepts](/jek/docs/jekray/concepts/#launches-and-coherence)).
+- **One frequency**: every pair of paths interferes in full, however long.
+- **A spectral line**: a coherence length $$L_c = c/\Delta\nu$$, with a Lorentzian or Gaussian line, so fringe contrast falls as two paths grow apart (see [Concepts](/jek/docs/jekray/concepts/#launches-and-coherence)).
 - **Broadband**: a bandwidth $$\Delta\lambda$$ (FWHM), a Gaussian line of coherence length $$\lambda^2/\Delta\lambda$$, so only near-equal paths still make fringes.
 
 ### Split sources

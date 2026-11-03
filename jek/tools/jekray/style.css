@@ -1851,3 +1851,14 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-facebtn:hover, .rt-facebtn:focus-visible { color: var(--jek-ink); background: rgba(127, 127, 127, 0.12); }
 .rt-facemore { margin: 0 0 0.35rem 1.7rem; padding: 0.2rem 0 0.2rem 0.6rem; border-left: 2px solid var(--jek-line, rgba(127,127,127,0.25)); }
 .rt-facemore[hidden] { display: none; }
+/* two to a row (panel.js grid2): a swept setting takes the row, for its sweep's controls; a colour beside its tick */
+.rt-pgrid2 > .rt-f.swept { grid-column: 1 / -1; }
+.rt-pgrid2 { align-items: end; row-gap: 0.15rem; }
+.rt-pgrid2 > .rt-f > label, .rt-pgrid2 > .rt-f > .rt-lab > label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--jek-ink-soft); line-height: 1.35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rt-pgrid2 > .rt-f > .rt-lab { height: 1.35rem; gap: 0.2rem; flex-wrap: nowrap; min-width: 0; }
+.rt-pgrid2 > .rt-f > label { height: 1.35rem; }
+.rt-pgrid2 > .rt-f > .rt-lab > .rt-sweep-toggle { flex: none; }
+.rt-pgrid2 > .rt-f > .rt-lab > label { flex: 0 1 auto; }
+.rt-pgrid2 > .rt-f > input, .rt-pgrid2 > .rt-f > select { width: 100%; min-width: 0; }
+.rt-colrow { display: flex; align-items: center; gap: 0.6rem; margin: 0.1rem 0 0.3rem; }
+.rt-colrow input[type=color] { width: 2.2rem; height: 1.5rem; padding: 0; border: 1px solid var(--jek-line, #ccc); }

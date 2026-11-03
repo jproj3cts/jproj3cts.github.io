@@ -15,7 +15,7 @@ Its **rays in all** are spread evenly over the directions it shines in, and each
 
 Its **body takes the light that comes back to it**: a mirror behind a bulb sends some of its light back into the bulb, lost, as in a real torch or headlight.
 
-**Shines up and down to** (°) is how far above and below the bench plane its light goes: 90° (the default) is every way, a whole sphere of directions; less is a band about the plane, as a lighthouse's lamp needs only the light its lenses take. The rays are spread over the band in rings of latitude, each ring given rays in proportion to its share of the sphere (its cosine), every other ring turned half a step, so they pack as a honeycomb and a lens catches an even, round patch of them; **Rings each way** is worked out from the rays to space them about as far apart up as round, unless you set it. The total stays the rays you set, and so does the power. The 3D view shows the light's height: a lighthouse's beams as beams, not a sheet.
+**Up and down to** (°) is how far above and below the bench plane its light goes: 90° (the default) is every way, a whole sphere of directions; less is a band about the plane, as a lighthouse's lamp needs only the light its lenses take. The rays are spread over the band in rings of latitude, each ring given rays in proportion to its share of the sphere (its cosine), every other ring turned half a step, so they pack as a honeycomb and a lens catches an even, round patch of them; **Rings each way** is worked out from the rays to space them about as far apart up as round, unless you set it. The total stays the rays you set, and so does the power. The 3D view shows the light's height: a lighthouse's beams as beams, not a sheet.
 
 ## The Circular lamp
 
@@ -29,7 +29,7 @@ Its **power** is shared by all its rays, so a detector reads the share of the li
 - **Wavelength** (nm), and **More wavelengths** for white light.
 - **Power** (mW), shared by all its rays.
 - **Rays in all** (1 to 501): spread round it, and over the rings when it has light up and down.
-- **Shines up and down to** (°, 90 every way) and **Rings each way** (auto unless set).
+- **Up and down to** (°, 90 every way) and **Rings each way** (auto unless set).
 - **Direction** (°): the way a cylinder lying down points, and where a point lamp's first ray goes.
 
 ## A lighthouse

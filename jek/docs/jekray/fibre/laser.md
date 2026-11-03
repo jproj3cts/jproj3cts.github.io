@@ -34,9 +34,9 @@ Right- and left-handed are as the screens' Stokes $$S_3$$ counts them.
 
 A laser is one of three kinds of source.
 
-- **Single frequency.** Every path of its light interferes with every other in full, however long the difference.
-- **A line**, with a coherence length $$L_c$$: a linewidth $$\Delta\nu = c/L_c$$, or $$\Delta\lambda = \lambda^2/L_c$$, Lorentzian (a laser's own line) or Gaussian (Doppler, many modes).
-- **Incoherent, broadband.** A Gaussian spectrum of a set width. It is followed through the network in slices (see [Fibre optics: broadband light](/jek/docs/jekray/fibre/#broadband-light)), so filters, WDMs and Bragg gratings shape it.
+- **One frequency.** Every path of its light interferes with every other in full, however long the difference.
+- **A spectral line**, with a coherence length $$L_c$$: a linewidth $$\Delta\nu = c/L_c$$, or $$\Delta\lambda = \lambda^2/L_c$$, Lorentzian (a laser's own line) or Gaussian (Doppler, many modes).
+- **Broadband.** A Gaussian spectrum of a set width. It is followed through the network in slices (see [Fibre optics: broadband light](/jek/docs/jekray/fibre/#broadband-light)), so filters, WDMs and Bragg gratings shape it.
 
 Two paths of a line's light a distance $$\Delta L$$ apart interfere with a fringe contrast
 

@@ -92,6 +92,12 @@ export function helpLine(short, long, cls, style) {
     onclick: () => { const open = more.hidden; more.hidden = !open; btn.setAttribute('aria-expanded', String(open)); } }, '\u24d8');
   return h('p', { class: cls || 'rt-lsub', ...(style ? { style } : {}) }, ...(Array.isArray(short) ? short : [short]), ' ', btn, more);
 }
+/* settings two to a row, each its name over it (a part's panel: the lens's, the source's); an odd one out keeps its
+   half, and a swept one takes the row (CSS) so its controls have room */
+export function grid2(...items) {
+  const g = h('div', { class: 'rt-pgrid2' }, ...items.flat().filter(Boolean));
+  return g;
+}
 /* a setting whose list has a long choice: its label on a line of its own and the list across the panel, so the choice
    shown is never cut short */
 export function stackLongSelects(root) {
@@ -295,14 +301,14 @@ export function textField(label, get, set, opts = {}) {
 }
 /* a laser's coherence: the choice of three, and the fields that go with it */
 export function coherenceFields(el, rows) {
-  if (!el.led) rows.append(selectField('Spectrum', [['single', 'Single frequency'], ['line', 'A line (coherence length)'], ['broad', 'Incoherent, broadband']], () => el.cmode, v => {
+  if (!el.led) rows.append(selectField('Spectrum', [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], () => el.cmode, v => {
     const V = vs(el);
     if (el.cmode === 'line') V.lineCoh = el.coh;
     if (v === 'line' && el.cmode !== 'line') el.coh = V.lineCoh > 0 ? V.lineCoh : 300;
     el.cmode = v; syncLine(el);
   }, { wide: true }));
   if (el.cmode === 'line') rows.append(param('Coherence length (mm)', el, 'coh'),
-    selectField('Line shape', [['lorentz', 'Lorentzian (a laser\u2019s own line)'], ['gauss', 'Gaussian (Doppler, many modes)']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
+    selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
   if (el.cmode === 'broad') rows.append(param('Bandwidth (nm)', el, 'bw'));
 }
 export function coherenceNote(el) {

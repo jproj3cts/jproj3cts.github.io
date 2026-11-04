@@ -226,6 +226,8 @@ function drawCavityScan(cv, c, pseudo) {
 }
 
 export let benchTab = 'bench';
+// the Bench panel's list: the bench whose parts it shows, and the bench on show when it was chosen
+let listTab = null, listShown = null;
 export function setBenchTab(v) { return (benchTab = v); }
 let aboutNode = null;
 const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
@@ -251,11 +253,17 @@ export function renderOverview() {
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
       grating: '#c9a6ff', crystal: '#b79bff', fibre: '#e86fa6', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
       filter: '#9aa4ab', gain: '#ff6a3d', cell: '#c79bff', nlc: '#78c8a0', link: '#7fdcff', fcomp: '#e86fa6', elec: '#f2c14e', aom: '#9ad0ff', eom: '#c6a8ff' };
-    // this tab's first, then the others', each under its name when there are several
+    // with several benches, a tab for each (the one on show first, and chosen when it changes): the parts of the one chosen
     const multi = project.benches.length > 1;
-    for (const b of [curBench(), ...project.benches.filter(b2 => b2 !== curBench())]) {
+    if (listShown !== curBench().id) { listShown = curBench().id; listTab = curBench().id; }
+    if (!project.benches.some(b => b.id === listTab)) listTab = curBench().id;
+    if (multi) panel.append(h('div', { class: 'rt-tabs rt-listtabs', role: 'tablist', 'aria-label': 'Parts on each bench' },
+      ...[curBench(), ...project.benches.filter(b2 => b2 !== curBench())].map(b => h('button', { class: 'rt-tab' + (b.id === listTab ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(b.id === listTab),
+        title: b === curBench() ? 'The parts on this bench (on show)' : 'The parts on the bench ' + b.name, onclick: () => { listTab = b.id; renderPanel(); } },
+        b.name + ' (' + project.elements.filter(e => e.bench === b.id).length + ')'))));
+    for (const b of project.benches.filter(b2 => !multi || b2.id === listTab)) {
       const mine = project.elements.filter(e => e.bench === b.id);
-      if (multi) list.append(h('li', { class: 'tabhead' }, b.name + (b === curBench() ? ' (on show)' : '')));
+      if (multi && !mine.length) list.append(h('li', { class: 'tabhead' }, 'No parts on ' + b.name + ' yet'));
       for (const el of mine) {
         // the eye: shown or hidden in the 3D view, for a part drawn there; hidden, the light still meets it
         const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),

@@ -7097,6 +7097,24 @@ const TESTS = [
     },
   },
   {
+    name: 'The Bench panel lists each bench’s parts on a tab of its own',
+    why: 'the Czerny–Turner, two benches: a tab for each, the one on show first and chosen, its count in its name; the list shows only the chosen bench’s parts, and the other tab shows the other’s (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('czerny-turner')));
+      const doc = document.getElementById('rig').contentDocument;
+      J.select(null);
+      if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnSideTab').click();
+      const tabs = [...doc.querySelectorAll('#panel .rt-listtabs .rt-tab')], cur = J.serialize().elements;
+      const names = () => [...doc.querySelectorAll('#panel .rt-list li > button:not(.rt-eye)')].map(b => b.textContent);
+      const first = names();
+      tabs[1].click();
+      const second = names(), tabs2 = [...doc.querySelectorAll('#panel .rt-listtabs .rt-tab')];
+      return tabs.length === 2 && tabs[0].classList.contains('on') && /\((\d+)\)$/.test(tabs[0].textContent) && first.length > 0 && second.length > 0
+        && !first.some(t => second.includes(t)) && tabs2[1].classList.contains('on') && first.length + second.length === cur.length ? 1 : 0;
+    },
+  },
+  {
     name: 'Dragging a part in 3D compiles no new shaders',
     why: 'the Michelson in 3D: a part dragged ten steps (each rebuilding the models) uses the shader programs already compiled, the slow step that made dragging stutter (1 when no new one is made and the part moved)',
     want: 1, tol: 0, unit: '',

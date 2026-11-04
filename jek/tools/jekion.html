@@ -257,7 +257,7 @@
   .rt-diffkey .tk { position: relative; height: 1.2em; font-family: var(--jek-mono); font-size: 0.64rem; color: var(--jek-ink-soft); }
   .rt-diffkey .tk span { position: absolute; top: 1px; white-space: nowrap; transform: translateX(-50%); }
   .rt-diffkey .tk span:first-child { transform: none; } .rt-diffkey .tk span:last-child { transform: translateX(-100%); }
-  .rt-v3dkey { position: absolute; left: 60px; bottom: 8px; z-index: 6; width: 15rem; font: 0.7rem/1.35 var(--jek-sans); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); padding: 5px 8px 6px; border-radius: 4px; pointer-events: none; }
+  .rt-v3dkey { position: absolute; left: 0.6rem; bottom: 2.4rem; z-index: 6; width: 15rem; font: 0.7rem/1.35 var(--jek-sans); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); padding: 5px 8px 6px; border-radius: 4px; pointer-events: none; }
   .rt-v3dkey b { font-weight: 600; }
   .rt-v3dkey canvas { display: block; width: 100%; height: 10px; margin: 4px 0 2px; border-radius: 2px; }
   .rt-v3dkey .tk { position: relative; height: 1.1em; font-family: var(--jek-mono); font-size: 0.64rem; }
@@ -1918,6 +1918,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-mdlnote { font-size: 0.7rem; color: var(--jek-ink-soft); }
 .rt-mdlerr { color: var(--jek-red, #b3261e); }
 .rt-mdlon .rt-v3dhint { top: auto; bottom: 2.4rem; }
+.rt-mdlon .rt-v3dkey { display: none !important; }
 .rt-mdltip { position: absolute; z-index: 7; pointer-events: none; font: 600 0.66rem var(--jek-sans); color: #fff; background: #f28a1a; padding: 1px 5px; border-radius: 3px; }
 .rt-mdltip[hidden] { display: none; }
 /* a modelled part's features in its panel */

@@ -12,6 +12,8 @@ description: "The .jekion file, autosave, the examples, pictures, and what needs
 
 **Examples** (the gallery button, or File › Open an example) hold a working bench for each kind of instrument: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap, each with notes in its Bench panel saying what to try. A link `jekion.html?demo=paul-trap` opens one.
 
+**Share links.** **Share** (or File › Copy a share link) copies a short link, `jeksys.net/i/` and ten capitals, that opens the bench as it is now for anyone, signed in or not; a copy of the bench is kept with your account until you delete it, from the links listed in the Share dialog. Making links is JEKrayPro's; a free account keeps three at once. Without an account the link carries the bench itself after `#p=`, which is long. The same account and links serve JEKray.
+
 **Pictures.** File › Export the view as PNG saves the bench as drawn; the 3D view's PNG button saves it; each plot has its own PNG. **Data** is [its own page](/jek/docs/jekion/data-export/).
 
 **Accounts.** Saving the file needs no account. Exports (pictures, data as CSV or JSON one kind at a time) need a free account; scripts and the richer exports (Excel, NumPy, MATLAB, several kinds at once) are JEKrayPro's. JEKion shares JEKray's accounts: sign in with the same Google or Microsoft account, and subscribe, if you wish, from JEKray's account menu.

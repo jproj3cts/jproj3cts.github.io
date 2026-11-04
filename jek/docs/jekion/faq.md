@@ -20,4 +20,4 @@ description: Answers to the questions people ask about JEKion.
 
 **Where is the Python?** Scripts are JavaScript in this version. The data export reads straight into NumPy (`.npz`) and pandas.
 
-**Can I share a bench as a link?** Not yet: save the `.jekion` file and send it. A dropped file opens on the bench.
+**Can I share a bench as a link?** Yes: **Share** copies a short link that opens the bench as it is now ([files](/jek/docs/jekion/files/)). Or save the `.jekion` file and send it; a dropped file opens on the bench.

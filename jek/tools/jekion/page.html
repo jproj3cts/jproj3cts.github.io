@@ -33,6 +33,7 @@
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImportCad" data-icon="cube" title="Each body of a STEP file becomes an electrode of its own; an STL file one electrode">Import electrodes (.step, .stl)…</button>
             <div class="sep"></div>
@@ -123,6 +124,7 @@
             <button class="rt-btn rt-tbl" id="btnAdd" type="button" data-icon="parts" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Add an electrode, an ion group or a detector (A)">+ Add</button>
             <div class="rt-menu rt-menu-right rt-imenu" id="addMenu" role="menu" hidden></div>
           </div>
+          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekion</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <div class="rt-more rt-phonegone" id="acct" hidden>
@@ -141,6 +143,7 @@
               <button type="button" role="menuitem" data-click="btnTools" data-icon="flask">Tools…</button>
               <div class="sep"></div>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
+              <button type="button" role="menuitem" data-click="btnShare" data-icon="link" data-need="pro" data-what="share a link">Copy a share link</button>
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
               <button type="button" role="menuitem" data-click="btnHelpMenu" data-icon="info">Help and shortcuts…</button>
               <div class="sep"></div>
@@ -179,6 +182,17 @@
     </div>
     <div class="rt-gbody" id="galleryGrid"></div>
     <p class="rt-gfoot">Each example opens in place of your bench; Undo brings your bench back.</p>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Share this bench</h2>
+    <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
+    <p class="note" id="shareNote"></p>
+    <div id="shareLinks"></div>
+    <div class="rt-actions">
+      <button class="rt-btn" id="shareClose">Close</button>
+      <button class="rt-btn primary" id="shareCopy">Copy link</button>
+    </div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">

@@ -13,7 +13,8 @@ const { loadProject } = await import('../../src/state/elements.js');
 const ST = await import('../../src/state/project.js');
 const CAD = await import('../../src/io/cad-export.js');
 const SC = await import('../../src/core/step.js');
-const { STL_KEEP, meshTris } = await import('../../src/core/stl.js');
+const { meshTris } = await import('../../src/core/stl.js');
+const { STL_KEEP } = await import('../../src/core/constants.js');
 const { openBench, occtReader } = await import('../../headless.mjs');
 
 const lens = { type: 'lens', id: 'L', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 50 }, { R: -50 }], gaps: [5], materials: [{ glass: 'N-BK7' }], group: 'g' };

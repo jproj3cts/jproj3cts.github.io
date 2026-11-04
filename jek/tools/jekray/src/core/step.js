@@ -1,4 +1,4 @@
-import { STL_KEEP } from './stl.js';
+import { STL_KEEP } from './constants.js';
 
 /* ---------- STEP files, as STL objects ----------
    A .step (.stp) file is read by OpenCascade (occt-import-js, a WebAssembly build of it, vendored under

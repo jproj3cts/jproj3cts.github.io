@@ -59,6 +59,8 @@ export const V3D = (() => {
   // a tool of the view's own (the Model tools, ui/model3d.js): it sees the canvas's presses and the keys first, and takes
   // those it wants (the left button, as a rule: turning and panning stay the view's); and what it adds to the bar
   let tool = null;
+  // what the tool asks of the view: no turning it (sketching, square on), no parts taken hold of (the Model tools)
+  const lockView = () => !!(tool && tool.lockView && tool.lockView()), noParts = () => !!(tool && tool.noParts && tool.noParts());
   const barExtras = [];
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
@@ -1091,7 +1093,7 @@ export const V3D = (() => {
   function highlight() {
     disposeAll(R.groups.sel);
     R.ring = null; R.lift = null; R.tip = null; R.roll = null; R.moveX = null; R.moveY = null;
-    const ids = new Set(selection().map(e => e.id));
+    const ids = new Set(noParts() ? [] : selection().map(e => e.id));
     if (!ids.size) { need(); return; }
     // One part selected: arrows to move it along the bench's x and y and up, out of both sides of it
     // (x Jek orange, y chip green, up Jek blue), or, clicked again, three rings crossing on a sphere
@@ -1341,7 +1343,7 @@ export const V3D = (() => {
       }
       const h0 = pick(e), pivot = h0 ? h0.point.clone() : R.target.clone();
       // the left button (or one finger) on the ring turns the part; on a part, moves it
-      if (e.button === 0) {
+      if (e.button === 0 && !noParts()) {
         const hk = handleAt(e);
         if (hk === 'lift' || hk === 'x' || hk === 'y') {
           // an arrow: along its picture on the screen, 10 mm of it
@@ -1363,6 +1365,7 @@ export const V3D = (() => {
       if (touch) mode = 'orbit';
       else if (ctrl === 'default') mode = e.button === 2 ? (e.ctrlKey ? 'pan' : 'orbit') : e.button === 1 ? 'pan' : 'click';
       else mode = e.button === 0 ? (e.shiftKey ? 'pan' : 'orbit') : e.button === 1 || e.button === 2 ? 'pan' : null;
+      if (mode === 'orbit' && lockView()) mode = 'pan';                  // sketching: the view moves, it does not turn
       if (e.button === 1) e.preventDefault();
       drag = { mode, moved: 0, pivot, button: e.button };
     });
@@ -1373,7 +1376,7 @@ export const V3D = (() => {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -1431,7 +1434,8 @@ export const V3D = (() => {
         syncPanel(); requestRender();
         return;
       }
-      if (drag.mode === 'orbit') orbit(dx, dy, drag.pivot);
+      if (drag.mode === 'orbit' && !lockView()) orbit(dx, dy, drag.pivot);
+      else if (drag.mode === 'orbit') pan(dx, dy, drag.pivot);
       else if (drag.mode === 'pan') pan(dx, dy, drag.pivot);
       else if (drag.mode === 'touch2') {
         const [a, b] = [...P.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -1449,7 +1453,7 @@ export const V3D = (() => {
       if (P.size) { if (d.mode === 'touch2' && P.size === 1) d.mode = 'orbit'; return; }
       drag = null;
       cv.style.cursor = '';
-      if (d.cube) { if (d.moved < 5) cubeClick(e); return; }
+      if (d.cube) { if (d.moved < 5 && !lockView()) cubeClick(e); return; }
       if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis') && d.started) { changed(); return; }
       if (d.mode === 'lift' || d.mode === 'axis' || d.mode === 'rot') {
         // a handle pressed and let go without a drag, over the part: a click on it, so its handles change over
@@ -1459,6 +1463,7 @@ export const V3D = (() => {
       }
       if (d.mode !== 'grab' && d.mode !== 'rot') keepCam();
       // the right button without a drag: the bench's menu, for the part under it (or the bench)
+      if (noParts()) return;                                              // (the Model tools: no part menu, no selecting)
       if (d.moved < 5 && d.button === 2 && e.pointerType !== 'touch') {
         const el = partAt(e), at = plane(e) || [R.target.x, R.target.y];
         benchMenu(e.clientX, e.clientY, el, [snapVal(at[0]), snapVal(at[1])], true);
@@ -1499,7 +1504,7 @@ export const V3D = (() => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.code, views = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
     if (!e.shiftKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); e.stopPropagation(); fit(null, true); return; }
-    if (e.shiftKey && views[k]) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
+    if (e.shiftKey && views[k] && !lockView()) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
     if (!e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); e.stopPropagation(); zoomSel(); return; }
     if (e.key === ' ' || e.key === 'm' || e.key === 'M') { e.preventDefault(); e.stopPropagation(); }
   }
@@ -1670,7 +1675,7 @@ export const V3D = (() => {
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
     // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
-    setTool(t) { tool = t || null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
+    setTool(t) { tool = t || null; if (R) R.selKey = null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
     tool: () => tool,
     addBar(n) { barExtras.push(n); if (D) D.bar.prepend(n); },
     // what a tool of the view's own works with: three.js, the renderer's scene and camera, the page's canvas and hint, picking,

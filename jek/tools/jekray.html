@@ -1348,6 +1348,7 @@
   .rt-ptile.rf:hover, .rt-ptile.rf:focus-visible { border-color: var(--jek-amber); }
   .rt-pnone { margin: 1rem 0; color: var(--jek-ink-soft); font-size: 0.875rem; }
   .rt-ptab.mine { margin-left: auto; color: var(--rt-strong); } .rt-ptab.mine.on { border-color: var(--rt-strong); }
+  .rt-ptab.recent.on { border-color: var(--rt-strong); color: var(--rt-strong); }
   .rt-ptile.mine { position: relative; }
   .rt-ptile.mine img { background: var(--rt-bench); }
   .rt-ptile.mine > span:not(.rt-pmore) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -1919,7 +1920,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
 .rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
-.rt-tbsub:empty { display: none; }
+.rt-tbsub:empty, .rt-tbar:empty { display: none; }
 .rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
 .rt-tbsep { width: 1px; align-self: stretch; margin: 3px 4px; background: var(--jek-line); }
 .rt-tb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--jek-ink); cursor: pointer; font: 600 0.74rem var(--jek-sans); }
@@ -1971,6 +1972,9 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-mdldef { color: #2a8a4a; font-weight: 600; }
 .rt-mdims { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: 3px 8px; align-items: center; margin: -0.1rem 0 0.25rem 0.8rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
 .rt-mdims input { height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+.rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
+.rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
+.rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }
 </style>
 </head>
 <body>
@@ -10338,7 +10342,8 @@ const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
 const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'lamp2d', 'detector', 'spectrometer', 'screen', 'phosphor', 'fibre', 'collimator']],
-  ['Mirrors and lenses', ['mirror', 'lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
+  ['Mirrors', ['mirror']],
+  ['Lenses', ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
   ['Active and atomic', ['gain', 'cell', 'nlc', 'aom', 'eom', 'elec:chopper']],
@@ -21921,6 +21926,8 @@ const V3D = (() => {
   // a tool of the view's own (the Model tools, ui/model3d.js): it sees the canvas's presses and the keys first, and takes
   // those it wants (the left button, as a rule: turning and panning stay the view's); and what it adds to the bar
   let tool = null;
+  // what the tool asks of the view: no turning it (sketching, square on), no parts taken hold of (the Model tools)
+  const lockView = () => !!(tool && tool.lockView && tool.lockView()), noParts = () => !!(tool && tool.noParts && tool.noParts());
   const barExtras = [];
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
@@ -22953,7 +22960,7 @@ const V3D = (() => {
   function highlight() {
     disposeAll(R.groups.sel);
     R.ring = null; R.lift = null; R.tip = null; R.roll = null; R.moveX = null; R.moveY = null;
-    const ids = new Set(selection().map(e => e.id));
+    const ids = new Set(noParts() ? [] : selection().map(e => e.id));
     if (!ids.size) { need(); return; }
     // One part selected: arrows to move it along the bench's x and y and up, out of both sides of it
     // (x Jek orange, y chip green, up Jek blue), or, clicked again, three rings crossing on a sphere
@@ -23203,7 +23210,7 @@ const V3D = (() => {
       }
       const h0 = pick(e), pivot = h0 ? h0.point.clone() : R.target.clone();
       // the left button (or one finger) on the ring turns the part; on a part, moves it
-      if (e.button === 0) {
+      if (e.button === 0 && !noParts()) {
         const hk = handleAt(e);
         if (hk === 'lift' || hk === 'x' || hk === 'y') {
           // an arrow: along its picture on the screen, 10 mm of it
@@ -23225,6 +23232,7 @@ const V3D = (() => {
       if (touch) mode = 'orbit';
       else if (ctrl === 'default') mode = e.button === 2 ? (e.ctrlKey ? 'pan' : 'orbit') : e.button === 1 ? 'pan' : 'click';
       else mode = e.button === 0 ? (e.shiftKey ? 'pan' : 'orbit') : e.button === 1 || e.button === 2 ? 'pan' : null;
+      if (mode === 'orbit' && lockView()) mode = 'pan';                  // sketching: the view moves, it does not turn
       if (e.button === 1) e.preventDefault();
       drag = { mode, moved: 0, pivot, button: e.button };
     });
@@ -23235,7 +23243,7 @@ const V3D = (() => {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -23293,7 +23301,8 @@ const V3D = (() => {
         syncPanel(); requestRender();
         return;
       }
-      if (drag.mode === 'orbit') orbit(dx, dy, drag.pivot);
+      if (drag.mode === 'orbit' && !lockView()) orbit(dx, dy, drag.pivot);
+      else if (drag.mode === 'orbit') pan(dx, dy, drag.pivot);
       else if (drag.mode === 'pan') pan(dx, dy, drag.pivot);
       else if (drag.mode === 'touch2') {
         const [a, b] = [...P.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -23311,7 +23320,7 @@ const V3D = (() => {
       if (P.size) { if (d.mode === 'touch2' && P.size === 1) d.mode = 'orbit'; return; }
       drag = null;
       cv.style.cursor = '';
-      if (d.cube) { if (d.moved < 5) cubeClick(e); return; }
+      if (d.cube) { if (d.moved < 5 && !lockView()) cubeClick(e); return; }
       if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis') && d.started) { changed(); return; }
       if (d.mode === 'lift' || d.mode === 'axis' || d.mode === 'rot') {
         // a handle pressed and let go without a drag, over the part: a click on it, so its handles change over
@@ -23321,6 +23330,7 @@ const V3D = (() => {
       }
       if (d.mode !== 'grab' && d.mode !== 'rot') keepCam();
       // the right button without a drag: the bench's menu, for the part under it (or the bench)
+      if (noParts()) return;                                              // (the Model tools: no part menu, no selecting)
       if (d.moved < 5 && d.button === 2 && e.pointerType !== 'touch') {
         const el = partAt(e), at = plane(e) || [R.target.x, R.target.y];
         benchMenu(e.clientX, e.clientY, el, [snapVal(at[0]), snapVal(at[1])], true);
@@ -23361,7 +23371,7 @@ const V3D = (() => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.code, views = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
     if (!e.shiftKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); e.stopPropagation(); fit(null, true); return; }
-    if (e.shiftKey && views[k]) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
+    if (e.shiftKey && views[k] && !lockView()) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
     if (!e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); e.stopPropagation(); zoomSel(); return; }
     if (e.key === ' ' || e.key === 'm' || e.key === 'M') { e.preventDefault(); e.stopPropagation(); }
   }
@@ -23532,7 +23542,7 @@ const V3D = (() => {
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
     // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
-    setTool(t) { tool = t || null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
+    setTool(t) { tool = t || null; if (R) R.selKey = null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
     tool: () => tool,
     addBar(n) { barExtras.push(n); if (D) D.bar.prepend(n); },
     // what a tool of the view's own works with: three.js, the renderer's scene and camera, the page's canvas and hint, picking,
@@ -23718,7 +23728,18 @@ const LIFT = 0.02;                              // mm: the sketch drawn this far
 /* ---------- the button, and starting and stopping ---------- */
 // what to do once the tools are put away (the rail: back to the free-space palette)
 let modelExit = () => {}, modelEnter = () => startModel();
-function setModelExit(exit, enter) { modelExit = exit; if (enter) modelEnter = enter; }
+function setModelExit(exit, enter, rail) { modelExit = exit; if (enter) modelEnter = enter; if (rail) modelRailSync = rail; }
+let modelRailSync = () => {};
+/* the features, down the rail under the Model palette's button (ui/rail.js draws them): Sketch, Extrude, Revolve */
+function modelRailItems() {
+  const st = MD.stage, on = MD.on, loops = on && st !== 'plane' ? sketchLoops(MD.ents).loops : [], can = on && !!loops.length && !MD.edit;
+  return [
+    { k: 'sketch', name: 'Sketch', title: st === 'plane' ? 'Sketch: click a flat face, or pick a plane in the bar' : st === 'sketch' ? 'Sketch: its tools in the bar' : 'Sketch: back to the sketch', on: on && (st === 'plane' || st === 'sketch'),
+      run: () => { if (st === 'extrude' || st === 'revolve') setStage('sketch'); else if (st === 'plane') toast('Click a flat face to sketch on, or pick a plane from the bar'); }, icon: icon('sketch') },
+    { k: 'extrude', name: 'Extrude', title: MD.edit ? 'Extrude: finish editing the sketch first' : can ? 'Extrude the sketch\u2019s regions' : 'Extrude: sketch a closed shape first', on: st === 'extrude', disabled: !can, run: startExtrude, icon: icon('extrude') },
+    { k: 'revolve', name: 'Revolve', title: MD.edit ? 'Revolve: finish editing the sketch first' : can ? 'Revolve the sketch about one of its lines' : 'Revolve: sketch a closed shape first', on: st === 'revolve', disabled: !can, run: startRevolve, icon: icon('revolve') },
+  ];
+}
 function wireModel3d() { /* the tools are opened from the rail's palettes (Model, in 3D) */ }
 function startModel() {
   const K = kit(); if (!K) return false;
@@ -23746,11 +23767,15 @@ function stopModel() {
   modelExit();
 }
 function setStage(s) {
+  const back = s === 'sketch' && (MD.stage === 'extrude' || MD.stage === 'revolve');
   MD.stage = s; MD.draft = []; MD.draftSnaps = []; MD.typed = {}; MD.pickFor = null;
   // sketching, the view is flat (orthographic) and square on, as a CAD program's sketch is; else as it was
   const K0 = kit(); if (K0 && K0.setFlat) K0.setFlat(s === 'sketch');
   if (s !== 'extrude' && s !== 'revolve') { dropPrev(); MD.prevErr = ''; }
   if (s === 'sketch' && !MD.tool) MD.tool = 'line';
+  // back from the extrude (where the view may have turned): square on again, as the sketch is kept
+  if (back && K0 && MD.plane) { const P = sketchPlane(), n = planeNormal(P), c = fromUV(P, toUV(P, K0.R.target.toArray())), dist = Math.max(120, K0.R.camera.position.distanceTo(K0.R.target));
+    K0.go(mdV3(K0, [0, 1, 2].map(i => c[i] + n[i] * dist - P.y[i] * dist * 1e-4)), mdV3(K0, c), true); }
   drawCard(); redraw();
   const K = kit(); if (K) K.hint();
 }
@@ -24786,6 +24811,9 @@ function tmenu(ic, title, items, o) {
   });
   return h('div', { class: 'rt-tbgrp' }, main, car);
 }
+// Extrude, Revolve: from the sketch (or the one to the other)
+function startExtrude() { const { loops } = sketchLoops(MD.ents); if (!loops.length) { toast('Close a shape first'); return; } setStage('extrude'); manifoldLib().then(preview); }
+function startRevolve() { const { loops } = sketchLoops(MD.ents); if (!loops.length) { toast('Close a shape first'); return; } const ax = MD.ents.find(e => MD.sel.has(e.id) && e.t === 'line') || MD.ents.find(e => e.k && e.t === 'line'); MD.ex.axis = ax ? ax.id : null; setStage('revolve'); manifoldLib().then(preview); }
 const sep = () => h('span', { class: 'rt-tbsep', 'aria-hidden': 'true' });
 const setTool = k => { MD.tool = k; MD.draft = []; MD.draftSnaps = []; MD.typed = {}; MD.pickFor = null; drawCard(); redraw(); const K = kit(); if (K) K.hint(); };
 function drawCard() {
@@ -24805,26 +24833,32 @@ function drawCard() {
   const C = MD.card; C.replaceChildren();
   C.hidden = !MD.on; K.D.stage.classList.toggle('rt-mdlon', MD.on);
   if (!MD.on) return;
-  const bar = h('div', { class: 'rt-tbar' }), sub = h('div', { class: 'rt-tbsub' });
+  // three rows, as in Onshape: the features (Sketch ▾, Extrude, Revolve), under it the tools of the one in hand, then
+  // a strip with what the moment needs
+  // the features (Sketch, Extrude, Revolve) go down the rail; here, the tools of the one in hand, then a strip with what
+  // the moment needs
+  const tools = h('div', { class: 'rt-tbar rt-tbtools' }), sub = h('div', { class: 'rt-tbsub' });
   // (what is not there, null, is left out: append would write it as text)
-  for (const box of [bar, sub]) { const add = box.append.bind(box); box.append = (...n) => add(...n.flat().filter(x => x !== null && x !== undefined && x !== false)); }
-  C.append(bar, sub);
+  for (const box of [tools, sub]) { const add = box.append.bind(box); box.append = (...n) => add(...n.flat().filter(x => x !== null && x !== undefined && x !== false)); }
+  C.append(tools, sub);
+  modelRailSync();
   const planes = [['Table top', () => enterSketch(namedPlane('table'))], ['Beam plane', () => enterSketch(namedPlane('beam'))], ['Front plane (x, up)', () => enterSketch(namedPlane('front'))], ['Side plane (y, up)', () => enterSketch(namedPlane('side'))]];
-  if (MD.stage === 'plane') {
-    bar.append(h('b', { class: 'rt-tbname' }, 'Model'), sep(),
-      tmenu('sketch', 'New sketch: click a flat face, or pick a plane', planes, { on: true, text: 'Sketch' }),
+  const st = MD.stage;
+  if (st === 'plane') {
+    tools.append(h('b', { class: 'rt-tbname' }, 'Sketch'), sep(),
+      tmenu('sketch', 'A plane of the bench\u2019s own, through the point the view looks at', planes, { text: 'Plane' }),
       mdNum('Offset (mm)', () => MD.offset, v => { MD.offset = v; }), sep(),
       tbtn('cancel', 'Close the Model tools (Esc)', stopModel, { cls: 'rt-tbno' }));
-    sub.append(h('span', { class: 'rt-mdlnote' }, 'Click a flat face to sketch on (a part’s, or the table); empty space is the beam’s plane.'));
+    sub.append(h('span', { class: 'rt-mdlnote' }, 'Click a flat face to sketch on (a part\u2019s, or the table); empty space is the beam\u2019s plane. Or pick a plane.'));
     return;
   }
-  if (MD.stage === 'sketch') {
+  if (st === 'sketch') {
     const T = MD.tool, on = k => T === k;
     const holeItems = HOLE_SIZES.map(([n, d]) => [n + ' (' + d + ' mm)', () => { MD.holeStd = n; MD.holeD = d; setTool('hole'); }, MD.holeStd === n]).concat([['-'], ['A diameter of my own…', () => { MD.holeStd = ''; setTool('hole'); }, !MD.holeStd]]);
     const polyItems = [3, 4, 5, 6, 8, 10, 12].map(n => [n + ' sides', () => { MD.polyN = n; setTool('poly'); }, MD.polyN === n]);
     const gridItems = [0.1, 0.5, 1, 2, 5, 10, 25].map(g => [g + ' mm', () => { MD.grid = g; drawCard(); redraw(); }, MD.grid === g]);
     const selN = MD.sel.size;
-    bar.append(h('b', { class: 'rt-tbname' }, MD.edit ? 'Sketch: ' + ((getEl(MD.edit.id) || {}).name || '') : 'Sketch'), sep(),
+    tools.append(MD.edit ? [h('b', { class: 'rt-tbname' }, 'Editing: ' + ((getEl(MD.edit.id) || {}).name || '')), sep()] : null,
       tbtn('line', 'Line (L): click its points; its first again closes it', () => setTool('line'), { on: on('line') }),
       tmenu(T === 'carc' ? 'carc' : T === 'tarc' ? 'tarc' : 'arc', 'Arc (A): 3-point, centre-point or tangent', [['3-point arc', () => setTool('arc'), on('arc')], ['Centre-point arc', () => setTool('carc'), on('carc')], ['Tangent arc (from a line\u2019s end)', () => setTool('tarc'), on('tarc')]],
         { main: () => setTool(/^(arc|carc|tarc)$/.test(T) ? T : 'arc'), on: /^(arc|carc|tarc)$/.test(T) }),
@@ -24847,11 +24881,8 @@ function drawCard() {
       tbtn('undo', 'Undo in the sketch (Ctrl+Z)', () => sketchUndo(true), { disabled: !MD.undo.length }),
       tbtn('redo', 'Redo (Ctrl+Y)', () => sketchUndo(false), { disabled: !MD.redo.length }), sep());
     const { loops, open } = sketchLoops(MD.ents);
-    if (MD.edit) bar.append(tbtn('ok', 'Finish: make the part again from this sketch', () => commitEdit(), { cls: 'rt-tbok', text: 'Finish' }));
-    else bar.append(
-      tbtn('extrude', 'Extrude the sketch’s closed shapes', () => { if (!loops.length) { toast('Close a shape first'); return; } setStage('extrude'); manifoldLib().then(preview); }, { text: 'Extrude', disabled: !loops.length }),
-      tbtn('revolve', 'Revolve the sketch about one of its lines', () => { if (!loops.length) { toast('Close a shape first'); return; } const ax = MD.ents.find(e => MD.sel.has(e.id) && e.t === 'line') || MD.ents.find(e => e.k && e.t === 'line'); MD.ex.axis = ax ? ax.id : null; setStage('revolve'); manifoldLib().then(preview); }, { text: 'Revolve', disabled: !loops.length }));
-    bar.append(tbtn('cancel', 'Leave the sketch, making nothing', () => { MD.edit = null; MD.ents = []; setStage('plane'); }, { cls: 'rt-tbno' }));
+    tools.append(MD.edit ? tbtn('ok', 'Finish: make the part again from this sketch', () => commitEdit(), { cls: 'rt-tbok', text: 'Finish' }) : null,
+      tbtn('cancel', 'Leave the sketch, making nothing', () => { MD.edit = null; MD.ents = []; setStage('plane'); }, { cls: 'rt-tbno' }));
     // the strip: what the moment needs
     if (MD.draft.length) { const L = typedFields(); if (L.length) sub.append(h('div', { class: 'rt-mdlrow rt-mdltyped' }, ...L)); }
     if (T === 'hole') sub.append(h('span', { class: 'rt-mdlnote' }, 'Hole: ' + (MD.holeStd ? MD.holeStd + ', ' + MD.holeD + ' mm' : 'its diameter') + (MD.holes ? ' · snaps to the table’s holes' : '')), MD.holeStd ? null : mdNum('Diameter (mm)', () => MD.holeD, v => { MD.holeD = Math.max(0.05, v); }));
@@ -24883,18 +24914,18 @@ function drawCard() {
   const target = X.target && getEl(X.target), opText = X.op === 'new' || !target ? 'New part' : (X.op === 'cut' ? 'Cut from ' : 'Add to ') + target.name;
   const opItems = [['A new part', () => { X.op = 'new'; X.target = null; preview(); }, X.op === 'new']].concat(models.length ? [['-']] : [],
     models.flatMap(m => [['Add to ' + m.name, () => { X.op = 'add'; X.target = m.id; preview(); }, X.op === 'add' && X.target === m.id], ['Cut from ' + m.name, () => { X.op = 'cut'; X.target = m.id; preview(); }, X.op === 'cut' && X.target === m.id]]));
-  bar.append(h('b', { class: 'rt-tbname' }, rev ? 'Revolve' : 'Extrude'), sep(), tmenu(X.op === 'cut' ? 'through' : 'extrude', 'What it makes', opItems, { text: opText }), sep());
+  tools.append(h('b', { class: 'rt-tbname' }, rev ? 'Revolve' : 'Extrude'), sep(), tmenu(X.op === 'cut' ? 'through' : 'extrude', 'What it makes', opItems, { text: opText }), sep());
   if (!rev) {
-    if (!(X.through && X.op === 'cut')) bar.append(mdNum('Distance (mm)', () => X.d, (v, enter) => { if (v !== 0) X.d = v; preview(); if (enter) commitSolid(); }, { live: 'd' }));
-    bar.append(tbtn('flip', 'Flip: the other way', () => { X.d = -X.d; drawCard(); preview(); }),
+    if (!(X.through && X.op === 'cut')) tools.append(mdNum('Distance (mm)', () => X.d, (v, enter) => { if (v !== 0) X.d = v; preview(); if (enter) commitSolid(); }, { live: 'd' }));
+    tools.append(tbtn('flip', 'Flip: the other way', () => { X.d = -X.d; drawCard(); preview(); }),
       tbtn('both', 'Both ways: as far each side of the sketch', () => { X.both = !X.both; preview(); }, { on: X.both }),
       X.op === 'cut' ? tbtn('through', 'Through all: right through the part', () => { X.through = !X.through; preview(); }, { on: X.through }) : null);
   } else {
     const lines0 = MD.ents.filter(e => e.t === 'line'), axis = lines0.find(e => e.id === X.axis);
-    bar.append(tmenu('constr', 'Axis: the line to revolve about', lines0.map((e, i) => ['Line ' + (i + 1) + (e.k ? ' (construction)' : '') + ', ' + (+Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(2)) + ' mm', () => { X.axis = e.id; preview(); }, X.axis === e.id]), { text: axis ? 'Axis: line ' + (lines0.indexOf(axis) + 1) : 'Pick an axis' }),
+    tools.append(tmenu('constr', 'Axis: the line to revolve about', lines0.map((e, i) => ['Line ' + (i + 1) + (e.k ? ' (construction)' : '') + ', ' + (+Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(2)) + ' mm', () => { X.axis = e.id; preview(); }, X.axis === e.id]), { text: axis ? 'Axis: line ' + (lines0.indexOf(axis) + 1) : 'Pick an axis' }),
       mdNum('Angle (°)', () => X.deg, v => { X.deg = Math.max(1, Math.min(360, v)); preview(); }, { raw: true }));
   }
-  bar.append(sep(), tbtn('ok', 'OK: make it (Enter)', () => commitSolid(), { cls: 'rt-tbok', text: 'OK' }), tbtn('cancel', 'Back to the sketch (Esc)', () => setStage('sketch'), { cls: 'rt-tbno' }));
+  tools.append(sep(), tbtn('ok', 'OK: make it (Enter)', () => commitSolid(), { cls: 'rt-tbok', text: 'OK' }), tbtn('cancel', 'Back to the sketch (Esc)', () => setStage('sketch'), { cls: 'rt-tbno' }));
   sub.append(h('span', { class: 'rt-mdlnote' + (MD.prevErr ? ' rt-mdlerr' : '') }, MD.prevErr || (rev ? 'Click the sketch\u2019s regions to take or leave out · green adds, red cuts' : 'Click the sketch\u2019s regions to take or leave out · drag the arrow, or type the distance (mm, or 1in) · green adds, red cuts')));
 }
 // the sizes of the shape being drawn: shown as the pointer moves, typed to set
@@ -24968,6 +24999,10 @@ function dragTargets(D, dq) { return D.pts.map(([r, p]) => ({ r, to: [p[0] + dq[
 const TOOL = {
   // the view closed, or another tab shown: the Model tools put away
   off() { stopModel(); },
+  // sketching, the view stays square on (it moves and zooms, it does not turn); and the bench's parts are not taken
+  // hold of, selected or given their arrows while the Model tools are out
+  lockView() { return MD.on && MD.stage === 'sketch'; },
+  noParts() { return MD.on; },
   // each frame drawn: the labels where the picture now has them
   frame() { if (MD.on && MD.ann && !MD.ann.hidden) annots(); },
   hintText() {
@@ -24981,7 +25016,7 @@ const TOOL = {
         slot: 'Slot: its two ends, then its width', poly: 'Polygon: its centre, then a corner', hole: 'Hole: click where it goes', point: 'Point: click where it goes',
         select: 'Select: click points and shapes (Shift: more); drag to move them; Delete removes; then a constraint', use: 'Use edges: click a part’s edge to bring it into the sketch',
         dim: 'Dimension: click a line, a circle, two points, a point and a line, or two lines; then type its value', trim: 'Trim: click the piece of a line, circle or arc to take away', fillet: 'Fillet: click a corner where two lines meet' }[MD.tool];
-      return t + ' · Snaps make constraints · Alt: no snapping · Right-drag: turn the view';
+      return t + ' · Snaps make constraints · Alt: no snapping · Right-drag: move the view, the wheel zooms';
     }
     if (MD.stage === 'extrude') return 'Extrude: click the regions to take (or leave out) · drag the arrow, or type its distance · Enter or OK makes it';
     if (MD.stage === 'revolve') return 'Revolve: click the regions to take · pick the axis and the angle';
@@ -52343,7 +52378,7 @@ function pickerShown(on) {
   const tip = document.getElementById('emptyHint');
   if (tip) tip.hidden = !!on;
   if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
   const r = addBtn.isConnected && addBtn.getClientRects().length ? addBtn.getBoundingClientRect() : (() => { const s = document.getElementById('stage').getBoundingClientRect(); return { top: s.top + 8, right: s.left }; })();
@@ -52353,6 +52388,8 @@ function pickerShown(on) {
   picker.hidden = false; addBtn.setAttribute('aria-expanded', 'true');
   fillPicker('');
 }
+// the parts added lately, of the palettes shown, most recent first
+const recentTiles = () => recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
 function fillPicker(q) {
   const search = h('input', { type: 'search', class: 'rt-psearch', placeholder: 'Search all parts (Enter adds the first)', 'aria-label': 'Search parts', value: q });
   const body = h('div', { class: 'rt-pbody' });
@@ -52381,8 +52418,8 @@ function fillPicker(q) {
       body.append(...packsBody(e => { if (!e.shiftKey) pickerShown(false); }));
       return;
     }
-    const rec = recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
-    if (rec.length) body.append(h('h4', null, 'Recent'), h('div', { class: 'rt-pgrid' }, ...rec.map(p => partTile(p, add, p.pal !== pickTab))));
+    // the parts added lately: a tab of their own, so the palettes' tabs show only their own parts
+    if (pickTab === 'recent') { body.append(h('div', { class: 'rt-pgrid' }, ...recentTiles().map(p => partTile(p, add, true)))); return; }
     for (const g of partGroups(pickTab)) body.append(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, add))));
   };
   search.addEventListener('input', show);
@@ -52395,7 +52432,9 @@ function fillPicker(q) {
     const b = h('button', { type: 'button', role: 'tab', class: 'rt-ptab ' + pal + (pal === pickTab ? ' on' : ''), 'aria-selected': pal === pickTab ? 'true' : 'false' }, PALETTE_NAMES[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); pickTab = pal; setPalette(pal); search.value = ''; fillPicker(''); });
     return b;
-  }), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
+  }), recentTiles().length ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab recent' + (pickTab === 'recent' ? ' on' : ''), 'aria-selected': pickTab === 'recent' ? 'true' : 'false',
+    onclick: e => { e.stopPropagation(); pickTab = 'recent'; search.value = ''; fillPicker(''); } }, 'Recent') : null,
+  mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
     onclick: e => { e.stopPropagation(); pickTab = 'mine'; search.value = ''; fillPicker(''); } }, '★ My parts') : null,
     PACKS.list.length ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab packs' + (pickTab === 'packs' ? ' on' : ''), 'aria-selected': pickTab === 'packs' ? 'true' : 'false',
       onclick: e => { e.stopPropagation(); pickTab = 'packs'; search.value = ''; fillPicker(''); } }, 'Packs') : null);
@@ -52488,7 +52527,7 @@ function fillRail() {
   sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
   const pals = h('div', { class: 'rt-rpals' }, sw);
   // the Draw palette: its tools instead of groups of parts; the Model palette: its tools are its toolbar, over the 3D view
-  const groups = palette === 'model' ? [] : palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
+  const groups = palette === 'model' ? modelRailButtons() : palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); setDrawTool(k); });
     return b;
@@ -52505,6 +52544,22 @@ function fillRail() {
   }
   rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
   drawToolsShown();
+}
+// the Model palette's features down the rail, each an icon and its name; kept current as the Model tools change stage
+function modelRailButtons() {
+  return modelRailItems().map(it => {
+    const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool rt-rmfeat model' + (it.on ? ' on' : ''), 'data-mfeat': it.k, title: it.title, 'aria-label': it.name, 'aria-pressed': it.on ? 'true' : 'false' }, it.icon, h('span', null, it.name));
+    if (it.disabled) b.disabled = true;
+    b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); it.run(); });
+    return b;
+  });
+}
+function modelRailSyncNow() {
+  if (palette !== 'model' || !railOn) return;
+  const old = [...rail.querySelectorAll('[data-mfeat]')];
+  if (!old.length) return;
+  const now = modelRailButtons();
+  old.forEach((b, i) => { if (now[i]) b.replaceWith(now[i]); });
 }
 function setPalette(pal) {
   // the Model palette: its tools on while it is the palette, in the 3D view only
@@ -52534,7 +52589,7 @@ function layoutPalette() {
 function wireRail() {
   stage.append(rail);
   // the Model tools put away (their ×, Esc, the 3D view closed): back to the free-space palette
-  setModelExit(() => { if (palette === 'model') setPalette('free'); }, () => setPalette('model'));
+  setModelExit(() => { if (palette === 'model') setPalette('free'); }, () => setPalette('model'), modelRailSyncNow);
 
   stage.append(flyout);
 
@@ -55688,7 +55743,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Modelling in 3D</b>: the <b>Model</b> palette (in 3D, from the rail\u2019s palettes) makes parts as a CAD program does. Click a flat face (a part\u2019s, the table, or empty space for the beam\u2019s plane) and sketch on it: lines, arcs (3-point, centre, tangent), rectangles, circles, slots, polygons, points and holes of the usual screw sizes. The sketch is <b>parametric</b>: snaps make constraints (coincident, on a curve, midpoint, horizontal, vertical), more are a click away (parallel, perpendicular, tangent, equal, concentric, fix, symmetric), <b>dimensions</b> size it and are changed later with a double-click (or in the part\u2019s panel), shapes turn black once fully defined, and drags keep the constraints; trim and fillet too. Points snap to where the light crosses the plane and the table\u2019s holes. Then extrude or revolve <b>the regions you click</b>, into a part of its own or added to a modelled part or cut from one. The part is a beam block that keeps how it was made; <b>Export .stl</b> to make it.',
+    '<b>Modelling in 3D</b>: the <b>Model</b> palette (in 3D, from the rail\u2019s palettes) makes parts as a CAD program does. Click a flat face (a part\u2019s, the table, or empty space for the beam\u2019s plane) and sketch on it: lines, arcs (3-point, centre, tangent), rectangles, circles, slots, polygons, points and holes of the usual screw sizes. The sketch is <b>parametric</b>: snaps make constraints (coincident, on a curve, midpoint, horizontal, vertical), more are a click away (parallel, perpendicular, tangent, equal, concentric, fix, symmetric), <b>dimensions</b> size it and are changed later with a double-click (or in the part\u2019s panel), shapes turn black once fully defined, and drags keep the constraints; trim and fillet too. Points snap to where the light crosses the plane and the table\u2019s holes. The features (Sketch, Extrude, Revolve) run down the rail, the tools of the one in hand across the top; sketching, the view stays square on (it moves and zooms, it does not turn), and the bench\u2019s parts are left alone while you model. Then extrude or revolve <b>the regions you click</b>, into a part of its own or added to a modelled part or cut from one. The part is a beam block that keeps how it was made; <b>Export .stl</b> to make it.',
     '<b>A tidier Position section</b>: a part\u2019s place is two rows of three, X, Y, Z and Angle, Tip, Roll, each with its name over it and room for the whole number; its angle is called Angle on every part, a line under it saying what it means for that one.',
     '<b>The lens panel</b>: the lens drawn to scale at its top (its faces\u2019 radii, thickness and diameter on it, each glass tinted, a coated face in colour; click a face for its radius), and a warning when its faces cross before the rim; its shape and glass, diameter and thickness two to a row; its faces as a small table, a row each with its radius and coating and a \u25b8 for the rest (clear radius, Fresnel rings, the coating\u2019s numbers, aspheric terms), and a row for each glass between faces; and its <b>focal length</b> typed to set, its faces scaled together so it keeps its form (an asphere\u2019s terms and a diffractive lens\u2019s phase with them). An axicon has its cone angle up top.',
     '<b>Clearer part panels</b>: each measuring part says what it reads in one line under its name (a detector\u2019s mW, a screen\u2019s spot, a lens\u2019s focal length, a fibre\u2019s coupling); a lens has its thickness and glass with its diameter and each face its radius and coating, the rest in a fold; a mirror\u2019s conic, aspheric terms, hole, off-axis offset and GDD fold away until set; a source\u2019s settings come as Light, Rays, Gaussian beam, Polarisation and coherence, and Pulse; a photodetector in tabs; a source\u2019s and a lamp\u2019s settings two to a row (wavelength beside power, width beside divergence, a lamp\u2019s shape beside its size), their more wavelengths typed or picked from a set, in one row; a source\u2019s polarisation drawn as seen along its beam; a new source\u2019s rays in <b>hexapolar rings</b> across its beam (Rays across the beam; a saved bench keeps its own); sizes called Diameter (or Width, for a mirror, screen or grating) on every part, each panel in one order (what kind, what it does, its size, its material); and no empty sections.',

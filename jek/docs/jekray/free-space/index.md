@@ -339,10 +339,15 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
   <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/#collimator"><b>Collimator</b><small>A fibre tip with its lens: a collimated beam out, and in.</small></a></li>
 </ul>
 
-### Mirrors and lenses
+### Mirrors
 
 <ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/mirror/"><b>Mirror</b><small>Plane, spherical or conic; partly transmitting; chirped.</small></a></li>
+</ul>
+
+### Lenses
+
+<ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/lens/"><b>Lens</b><small>Any number of surfaces in real glass: singlets, doublets, aspheres, cylinders, axicons.</small></a></li>
 </ul>
 

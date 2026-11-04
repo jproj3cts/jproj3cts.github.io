@@ -1303,6 +1303,7 @@
   .rt-ptile.rf:hover, .rt-ptile.rf:focus-visible { border-color: var(--jek-amber); }
   .rt-pnone { margin: 1rem 0; color: var(--jek-ink-soft); font-size: 0.875rem; }
   .rt-ptab.mine { margin-left: auto; color: var(--rt-strong); } .rt-ptab.mine.on { border-color: var(--rt-strong); }
+  .rt-ptab.recent.on { border-color: var(--rt-strong); color: var(--rt-strong); }
   .rt-ptile.mine { position: relative; }
   .rt-ptile.mine img { background: var(--rt-bench); }
   .rt-ptile.mine > span:not(.rt-pmore) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -1874,7 +1875,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
 .rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
-.rt-tbsub:empty { display: none; }
+.rt-tbsub:empty, .rt-tbar:empty { display: none; }
 .rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
 .rt-tbsep { width: 1px; align-self: stretch; margin: 3px 4px; background: var(--jek-line); }
 .rt-tb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--jek-ink); cursor: pointer; font: 600 0.74rem var(--jek-sans); }
@@ -1926,3 +1927,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-mdldef { color: #2a8a4a; font-weight: 600; }
 .rt-mdims { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: 3px 8px; align-items: center; margin: -0.1rem 0 0.25rem 0.8rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
 .rt-mdims input { height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+.rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
+.rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
+.rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }

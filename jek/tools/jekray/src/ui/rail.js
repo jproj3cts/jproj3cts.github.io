@@ -7,7 +7,7 @@ import {
 } from './render.js';
 import { DRAW_TOOLS, drawIcon, drawTool, drawToolsShown, setDrawTool } from './drawings.js';
 import { V3D } from './view3d.js';
-import { setModelExit, startModel, stopModel } from './model3d.js';
+import { modelRailItems, setModelExit, startModel, stopModel } from './model3d.js';
 import { h } from './panel.js';
 import { addElement } from './actions.js';
 import {
@@ -80,7 +80,7 @@ export function fillRail() {
   sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
   const pals = h('div', { class: 'rt-rpals' }, sw);
   // the Draw palette: its tools instead of groups of parts; the Model palette: its tools are its toolbar, over the 3D view
-  const groups = palette === 'model' ? [] : palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
+  const groups = palette === 'model' ? modelRailButtons() : palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); setDrawTool(k); });
     return b;
@@ -97,6 +97,22 @@ export function fillRail() {
   }
   rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
   drawToolsShown();
+}
+// the Model palette's features down the rail, each an icon and its name; kept current as the Model tools change stage
+function modelRailButtons() {
+  return modelRailItems().map(it => {
+    const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool rt-rmfeat model' + (it.on ? ' on' : ''), 'data-mfeat': it.k, title: it.title, 'aria-label': it.name, 'aria-pressed': it.on ? 'true' : 'false' }, it.icon, h('span', null, it.name));
+    if (it.disabled) b.disabled = true;
+    b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); it.run(); });
+    return b;
+  });
+}
+function modelRailSyncNow() {
+  if (palette !== 'model' || !railOn) return;
+  const old = [...rail.querySelectorAll('[data-mfeat]')];
+  if (!old.length) return;
+  const now = modelRailButtons();
+  old.forEach((b, i) => { if (now[i]) b.replaceWith(now[i]); });
 }
 export function setPalette(pal) {
   // the Model palette: its tools on while it is the palette, in the 3D view only
@@ -126,7 +142,7 @@ export function layoutPalette() {
 export function wireRail() {
   stage.append(rail);
   // the Model tools put away (their ×, Esc, the 3D view closed): back to the free-space palette
-  setModelExit(() => { if (palette === 'model') setPalette('free'); }, () => setPalette('model'));
+  setModelExit(() => { if (palette === 'model') setPalette('free'); }, () => setPalette('model'), modelRailSyncNow);
 
   stage.append(flyout);
 

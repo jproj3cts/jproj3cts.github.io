@@ -19,7 +19,7 @@ export function pickerShown(on) {
   const tip = document.getElementById('emptyHint');
   if (tip) tip.hidden = !!on;
   if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn())) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
   const r = addBtn.isConnected && addBtn.getClientRects().length ? addBtn.getBoundingClientRect() : (() => { const s = document.getElementById('stage').getBoundingClientRect(); return { top: s.top + 8, right: s.left }; })();
@@ -29,6 +29,8 @@ export function pickerShown(on) {
   picker.hidden = false; addBtn.setAttribute('aria-expanded', 'true');
   fillPicker('');
 }
+// the parts added lately, of the palettes shown, most recent first
+const recentTiles = () => recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
 export function fillPicker(q) {
   const search = h('input', { type: 'search', class: 'rt-psearch', placeholder: 'Search all parts (Enter adds the first)', 'aria-label': 'Search parts', value: q });
   const body = h('div', { class: 'rt-pbody' });
@@ -57,8 +59,8 @@ export function fillPicker(q) {
       body.append(...packsBody(e => { if (!e.shiftKey) pickerShown(false); }));
       return;
     }
-    const rec = recentParts().map(k => palettesOn().flatMap(partsOf).find(p => p.key === k)).filter(Boolean);
-    if (rec.length) body.append(h('h4', null, 'Recent'), h('div', { class: 'rt-pgrid' }, ...rec.map(p => partTile(p, add, p.pal !== pickTab))));
+    // the parts added lately: a tab of their own, so the palettes' tabs show only their own parts
+    if (pickTab === 'recent') { body.append(h('div', { class: 'rt-pgrid' }, ...recentTiles().map(p => partTile(p, add, true)))); return; }
     for (const g of partGroups(pickTab)) body.append(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, add))));
   };
   search.addEventListener('input', show);
@@ -71,7 +73,9 @@ export function fillPicker(q) {
     const b = h('button', { type: 'button', role: 'tab', class: 'rt-ptab ' + pal + (pal === pickTab ? ' on' : ''), 'aria-selected': pal === pickTab ? 'true' : 'false' }, PALETTE_NAMES[pal]);
     b.addEventListener('click', e => { e.stopPropagation(); pickTab = pal; setPalette(pal); search.value = ''; fillPicker(''); });
     return b;
-  }), mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
+  }), recentTiles().length ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab recent' + (pickTab === 'recent' ? ' on' : ''), 'aria-selected': pickTab === 'recent' ? 'true' : 'false',
+    onclick: e => { e.stopPropagation(); pickTab = 'recent'; search.value = ''; fillPicker(''); } }, 'Recent') : null,
+  mineOn() ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab mine' + (pickTab === 'mine' ? ' on' : ''), 'aria-selected': pickTab === 'mine' ? 'true' : 'false',
     onclick: e => { e.stopPropagation(); pickTab = 'mine'; search.value = ''; fillPicker(''); } }, '★ My parts') : null,
     PACKS.list.length ? h('button', { type: 'button', role: 'tab', class: 'rt-ptab packs' + (pickTab === 'packs' ? ' on' : ''), 'aria-selected': pickTab === 'packs' ? 'true' : 'false',
       onclick: e => { e.stopPropagation(); pickTab = 'packs'; search.value = ''; fillPicker(''); } }, 'Packs') : null);

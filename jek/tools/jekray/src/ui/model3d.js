@@ -45,7 +45,18 @@ const LIFT = 0.02;                              // mm: the sketch drawn this far
 /* ---------- the button, and starting and stopping ---------- */
 // what to do once the tools are put away (the rail: back to the free-space palette)
 let modelExit = () => {}, modelEnter = () => startModel();
-export function setModelExit(exit, enter) { modelExit = exit; if (enter) modelEnter = enter; }
+export function setModelExit(exit, enter, rail) { modelExit = exit; if (enter) modelEnter = enter; if (rail) modelRailSync = rail; }
+let modelRailSync = () => {};
+/* the features, down the rail under the Model palette's button (ui/rail.js draws them): Sketch, Extrude, Revolve */
+export function modelRailItems() {
+  const st = MD.stage, on = MD.on, loops = on && st !== 'plane' ? sketchLoops(MD.ents).loops : [], can = on && !!loops.length && !MD.edit;
+  return [
+    { k: 'sketch', name: 'Sketch', title: st === 'plane' ? 'Sketch: click a flat face, or pick a plane in the bar' : st === 'sketch' ? 'Sketch: its tools in the bar' : 'Sketch: back to the sketch', on: on && (st === 'plane' || st === 'sketch'),
+      run: () => { if (st === 'extrude' || st === 'revolve') setStage('sketch'); else if (st === 'plane') toast('Click a flat face to sketch on, or pick a plane from the bar'); }, icon: icon('sketch') },
+    { k: 'extrude', name: 'Extrude', title: MD.edit ? 'Extrude: finish editing the sketch first' : can ? 'Extrude the sketch\u2019s regions' : 'Extrude: sketch a closed shape first', on: st === 'extrude', disabled: !can, run: startExtrude, icon: icon('extrude') },
+    { k: 'revolve', name: 'Revolve', title: MD.edit ? 'Revolve: finish editing the sketch first' : can ? 'Revolve the sketch about one of its lines' : 'Revolve: sketch a closed shape first', on: st === 'revolve', disabled: !can, run: startRevolve, icon: icon('revolve') },
+  ];
+}
 export function wireModel3d() { /* the tools are opened from the rail's palettes (Model, in 3D) */ }
 export function startModel() {
   const K = kit(); if (!K) return false;
@@ -73,11 +84,15 @@ export function stopModel() {
   modelExit();
 }
 function setStage(s) {
+  const back = s === 'sketch' && (MD.stage === 'extrude' || MD.stage === 'revolve');
   MD.stage = s; MD.draft = []; MD.draftSnaps = []; MD.typed = {}; MD.pickFor = null;
   // sketching, the view is flat (orthographic) and square on, as a CAD program's sketch is; else as it was
   const K0 = kit(); if (K0 && K0.setFlat) K0.setFlat(s === 'sketch');
   if (s !== 'extrude' && s !== 'revolve') { dropPrev(); MD.prevErr = ''; }
   if (s === 'sketch' && !MD.tool) MD.tool = 'line';
+  // back from the extrude (where the view may have turned): square on again, as the sketch is kept
+  if (back && K0 && MD.plane) { const P = sketchPlane(), n = planeNormal(P), c = fromUV(P, toUV(P, K0.R.target.toArray())), dist = Math.max(120, K0.R.camera.position.distanceTo(K0.R.target));
+    K0.go(mdV3(K0, [0, 1, 2].map(i => c[i] + n[i] * dist - P.y[i] * dist * 1e-4)), mdV3(K0, c), true); }
   drawCard(); redraw();
   const K = kit(); if (K) K.hint();
 }
@@ -1113,6 +1128,9 @@ function tmenu(ic, title, items, o) {
   });
   return h('div', { class: 'rt-tbgrp' }, main, car);
 }
+// Extrude, Revolve: from the sketch (or the one to the other)
+function startExtrude() { const { loops } = sketchLoops(MD.ents); if (!loops.length) { toast('Close a shape first'); return; } setStage('extrude'); manifoldLib().then(preview); }
+function startRevolve() { const { loops } = sketchLoops(MD.ents); if (!loops.length) { toast('Close a shape first'); return; } const ax = MD.ents.find(e => MD.sel.has(e.id) && e.t === 'line') || MD.ents.find(e => e.k && e.t === 'line'); MD.ex.axis = ax ? ax.id : null; setStage('revolve'); manifoldLib().then(preview); }
 const sep = () => h('span', { class: 'rt-tbsep', 'aria-hidden': 'true' });
 const setTool = k => { MD.tool = k; MD.draft = []; MD.draftSnaps = []; MD.typed = {}; MD.pickFor = null; drawCard(); redraw(); const K = kit(); if (K) K.hint(); };
 function drawCard() {
@@ -1132,26 +1150,32 @@ function drawCard() {
   const C = MD.card; C.replaceChildren();
   C.hidden = !MD.on; K.D.stage.classList.toggle('rt-mdlon', MD.on);
   if (!MD.on) return;
-  const bar = h('div', { class: 'rt-tbar' }), sub = h('div', { class: 'rt-tbsub' });
+  // three rows, as in Onshape: the features (Sketch ▾, Extrude, Revolve), under it the tools of the one in hand, then
+  // a strip with what the moment needs
+  // the features (Sketch, Extrude, Revolve) go down the rail; here, the tools of the one in hand, then a strip with what
+  // the moment needs
+  const tools = h('div', { class: 'rt-tbar rt-tbtools' }), sub = h('div', { class: 'rt-tbsub' });
   // (what is not there, null, is left out: append would write it as text)
-  for (const box of [bar, sub]) { const add = box.append.bind(box); box.append = (...n) => add(...n.flat().filter(x => x !== null && x !== undefined && x !== false)); }
-  C.append(bar, sub);
+  for (const box of [tools, sub]) { const add = box.append.bind(box); box.append = (...n) => add(...n.flat().filter(x => x !== null && x !== undefined && x !== false)); }
+  C.append(tools, sub);
+  modelRailSync();
   const planes = [['Table top', () => enterSketch(namedPlane('table'))], ['Beam plane', () => enterSketch(namedPlane('beam'))], ['Front plane (x, up)', () => enterSketch(namedPlane('front'))], ['Side plane (y, up)', () => enterSketch(namedPlane('side'))]];
-  if (MD.stage === 'plane') {
-    bar.append(h('b', { class: 'rt-tbname' }, 'Model'), sep(),
-      tmenu('sketch', 'New sketch: click a flat face, or pick a plane', planes, { on: true, text: 'Sketch' }),
+  const st = MD.stage;
+  if (st === 'plane') {
+    tools.append(h('b', { class: 'rt-tbname' }, 'Sketch'), sep(),
+      tmenu('sketch', 'A plane of the bench\u2019s own, through the point the view looks at', planes, { text: 'Plane' }),
       mdNum('Offset (mm)', () => MD.offset, v => { MD.offset = v; }), sep(),
       tbtn('cancel', 'Close the Model tools (Esc)', stopModel, { cls: 'rt-tbno' }));
-    sub.append(h('span', { class: 'rt-mdlnote' }, 'Click a flat face to sketch on (a part’s, or the table); empty space is the beam’s plane.'));
+    sub.append(h('span', { class: 'rt-mdlnote' }, 'Click a flat face to sketch on (a part\u2019s, or the table); empty space is the beam\u2019s plane. Or pick a plane.'));
     return;
   }
-  if (MD.stage === 'sketch') {
+  if (st === 'sketch') {
     const T = MD.tool, on = k => T === k;
     const holeItems = HOLE_SIZES.map(([n, d]) => [n + ' (' + d + ' mm)', () => { MD.holeStd = n; MD.holeD = d; setTool('hole'); }, MD.holeStd === n]).concat([['-'], ['A diameter of my own…', () => { MD.holeStd = ''; setTool('hole'); }, !MD.holeStd]]);
     const polyItems = [3, 4, 5, 6, 8, 10, 12].map(n => [n + ' sides', () => { MD.polyN = n; setTool('poly'); }, MD.polyN === n]);
     const gridItems = [0.1, 0.5, 1, 2, 5, 10, 25].map(g => [g + ' mm', () => { MD.grid = g; drawCard(); redraw(); }, MD.grid === g]);
     const selN = MD.sel.size;
-    bar.append(h('b', { class: 'rt-tbname' }, MD.edit ? 'Sketch: ' + ((getEl(MD.edit.id) || {}).name || '') : 'Sketch'), sep(),
+    tools.append(MD.edit ? [h('b', { class: 'rt-tbname' }, 'Editing: ' + ((getEl(MD.edit.id) || {}).name || '')), sep()] : null,
       tbtn('line', 'Line (L): click its points; its first again closes it', () => setTool('line'), { on: on('line') }),
       tmenu(T === 'carc' ? 'carc' : T === 'tarc' ? 'tarc' : 'arc', 'Arc (A): 3-point, centre-point or tangent', [['3-point arc', () => setTool('arc'), on('arc')], ['Centre-point arc', () => setTool('carc'), on('carc')], ['Tangent arc (from a line\u2019s end)', () => setTool('tarc'), on('tarc')]],
         { main: () => setTool(/^(arc|carc|tarc)$/.test(T) ? T : 'arc'), on: /^(arc|carc|tarc)$/.test(T) }),
@@ -1174,11 +1198,8 @@ function drawCard() {
       tbtn('undo', 'Undo in the sketch (Ctrl+Z)', () => sketchUndo(true), { disabled: !MD.undo.length }),
       tbtn('redo', 'Redo (Ctrl+Y)', () => sketchUndo(false), { disabled: !MD.redo.length }), sep());
     const { loops, open } = sketchLoops(MD.ents);
-    if (MD.edit) bar.append(tbtn('ok', 'Finish: make the part again from this sketch', () => commitEdit(), { cls: 'rt-tbok', text: 'Finish' }));
-    else bar.append(
-      tbtn('extrude', 'Extrude the sketch’s closed shapes', () => { if (!loops.length) { toast('Close a shape first'); return; } setStage('extrude'); manifoldLib().then(preview); }, { text: 'Extrude', disabled: !loops.length }),
-      tbtn('revolve', 'Revolve the sketch about one of its lines', () => { if (!loops.length) { toast('Close a shape first'); return; } const ax = MD.ents.find(e => MD.sel.has(e.id) && e.t === 'line') || MD.ents.find(e => e.k && e.t === 'line'); MD.ex.axis = ax ? ax.id : null; setStage('revolve'); manifoldLib().then(preview); }, { text: 'Revolve', disabled: !loops.length }));
-    bar.append(tbtn('cancel', 'Leave the sketch, making nothing', () => { MD.edit = null; MD.ents = []; setStage('plane'); }, { cls: 'rt-tbno' }));
+    tools.append(MD.edit ? tbtn('ok', 'Finish: make the part again from this sketch', () => commitEdit(), { cls: 'rt-tbok', text: 'Finish' }) : null,
+      tbtn('cancel', 'Leave the sketch, making nothing', () => { MD.edit = null; MD.ents = []; setStage('plane'); }, { cls: 'rt-tbno' }));
     // the strip: what the moment needs
     if (MD.draft.length) { const L = typedFields(); if (L.length) sub.append(h('div', { class: 'rt-mdlrow rt-mdltyped' }, ...L)); }
     if (T === 'hole') sub.append(h('span', { class: 'rt-mdlnote' }, 'Hole: ' + (MD.holeStd ? MD.holeStd + ', ' + MD.holeD + ' mm' : 'its diameter') + (MD.holes ? ' · snaps to the table’s holes' : '')), MD.holeStd ? null : mdNum('Diameter (mm)', () => MD.holeD, v => { MD.holeD = Math.max(0.05, v); }));
@@ -1210,18 +1231,18 @@ function drawCard() {
   const target = X.target && getEl(X.target), opText = X.op === 'new' || !target ? 'New part' : (X.op === 'cut' ? 'Cut from ' : 'Add to ') + target.name;
   const opItems = [['A new part', () => { X.op = 'new'; X.target = null; preview(); }, X.op === 'new']].concat(models.length ? [['-']] : [],
     models.flatMap(m => [['Add to ' + m.name, () => { X.op = 'add'; X.target = m.id; preview(); }, X.op === 'add' && X.target === m.id], ['Cut from ' + m.name, () => { X.op = 'cut'; X.target = m.id; preview(); }, X.op === 'cut' && X.target === m.id]]));
-  bar.append(h('b', { class: 'rt-tbname' }, rev ? 'Revolve' : 'Extrude'), sep(), tmenu(X.op === 'cut' ? 'through' : 'extrude', 'What it makes', opItems, { text: opText }), sep());
+  tools.append(h('b', { class: 'rt-tbname' }, rev ? 'Revolve' : 'Extrude'), sep(), tmenu(X.op === 'cut' ? 'through' : 'extrude', 'What it makes', opItems, { text: opText }), sep());
   if (!rev) {
-    if (!(X.through && X.op === 'cut')) bar.append(mdNum('Distance (mm)', () => X.d, (v, enter) => { if (v !== 0) X.d = v; preview(); if (enter) commitSolid(); }, { live: 'd' }));
-    bar.append(tbtn('flip', 'Flip: the other way', () => { X.d = -X.d; drawCard(); preview(); }),
+    if (!(X.through && X.op === 'cut')) tools.append(mdNum('Distance (mm)', () => X.d, (v, enter) => { if (v !== 0) X.d = v; preview(); if (enter) commitSolid(); }, { live: 'd' }));
+    tools.append(tbtn('flip', 'Flip: the other way', () => { X.d = -X.d; drawCard(); preview(); }),
       tbtn('both', 'Both ways: as far each side of the sketch', () => { X.both = !X.both; preview(); }, { on: X.both }),
       X.op === 'cut' ? tbtn('through', 'Through all: right through the part', () => { X.through = !X.through; preview(); }, { on: X.through }) : null);
   } else {
     const lines0 = MD.ents.filter(e => e.t === 'line'), axis = lines0.find(e => e.id === X.axis);
-    bar.append(tmenu('constr', 'Axis: the line to revolve about', lines0.map((e, i) => ['Line ' + (i + 1) + (e.k ? ' (construction)' : '') + ', ' + (+Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(2)) + ' mm', () => { X.axis = e.id; preview(); }, X.axis === e.id]), { text: axis ? 'Axis: line ' + (lines0.indexOf(axis) + 1) : 'Pick an axis' }),
+    tools.append(tmenu('constr', 'Axis: the line to revolve about', lines0.map((e, i) => ['Line ' + (i + 1) + (e.k ? ' (construction)' : '') + ', ' + (+Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(2)) + ' mm', () => { X.axis = e.id; preview(); }, X.axis === e.id]), { text: axis ? 'Axis: line ' + (lines0.indexOf(axis) + 1) : 'Pick an axis' }),
       mdNum('Angle (°)', () => X.deg, v => { X.deg = Math.max(1, Math.min(360, v)); preview(); }, { raw: true }));
   }
-  bar.append(sep(), tbtn('ok', 'OK: make it (Enter)', () => commitSolid(), { cls: 'rt-tbok', text: 'OK' }), tbtn('cancel', 'Back to the sketch (Esc)', () => setStage('sketch'), { cls: 'rt-tbno' }));
+  tools.append(sep(), tbtn('ok', 'OK: make it (Enter)', () => commitSolid(), { cls: 'rt-tbok', text: 'OK' }), tbtn('cancel', 'Back to the sketch (Esc)', () => setStage('sketch'), { cls: 'rt-tbno' }));
   sub.append(h('span', { class: 'rt-mdlnote' + (MD.prevErr ? ' rt-mdlerr' : '') }, MD.prevErr || (rev ? 'Click the sketch\u2019s regions to take or leave out · green adds, red cuts' : 'Click the sketch\u2019s regions to take or leave out · drag the arrow, or type the distance (mm, or 1in) · green adds, red cuts')));
 }
 // the sizes of the shape being drawn: shown as the pointer moves, typed to set
@@ -1295,6 +1316,10 @@ function dragTargets(D, dq) { return D.pts.map(([r, p]) => ({ r, to: [p[0] + dq[
 const TOOL = {
   // the view closed, or another tab shown: the Model tools put away
   off() { stopModel(); },
+  // sketching, the view stays square on (it moves and zooms, it does not turn); and the bench's parts are not taken
+  // hold of, selected or given their arrows while the Model tools are out
+  lockView() { return MD.on && MD.stage === 'sketch'; },
+  noParts() { return MD.on; },
   // each frame drawn: the labels where the picture now has them
   frame() { if (MD.on && MD.ann && !MD.ann.hidden) annots(); },
   hintText() {
@@ -1308,7 +1333,7 @@ const TOOL = {
         slot: 'Slot: its two ends, then its width', poly: 'Polygon: its centre, then a corner', hole: 'Hole: click where it goes', point: 'Point: click where it goes',
         select: 'Select: click points and shapes (Shift: more); drag to move them; Delete removes; then a constraint', use: 'Use edges: click a part’s edge to bring it into the sketch',
         dim: 'Dimension: click a line, a circle, two points, a point and a line, or two lines; then type its value', trim: 'Trim: click the piece of a line, circle or arc to take away', fillet: 'Fillet: click a corner where two lines meet' }[MD.tool];
-      return t + ' · Snaps make constraints · Alt: no snapping · Right-drag: turn the view';
+      return t + ' · Snaps make constraints · Alt: no snapping · Right-drag: move the view, the wheel zooms';
     }
     if (MD.stage === 'extrude') return 'Extrude: click the regions to take (or leave out) · drag the arrow, or type its distance · Enter or OK makes it';
     if (MD.stage === 'revolve') return 'Revolve: click the regions to take · pick the axis and the angle';

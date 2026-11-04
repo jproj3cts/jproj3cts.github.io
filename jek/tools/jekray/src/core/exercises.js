@@ -120,6 +120,15 @@ export const EXERCISES = [
    A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
    own exercises with a `reel` stay in the course, and are those reels' challenges too. */
 export const CHALLENGES = [
+  { id: 'split-it-evenly', reel: 'ig-split-it-evenly', title: 'Can you split it evenly?',
+    start: { reel: 'ig-split-it-evenly' },
+    goal: 'Set the four splitters so every Target reads 0.2 mW.',
+    checks: [{ part: 'Target 1', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 2', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 3', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 4', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 5', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }],
+    unlocked: { 'Splitter 1': ['reflect'], 'Splitter 2': ['reflect'], 'Splitter 3': ['reflect'], 'Splitter 4': ['reflect'] },
+    hints: ['Each splitter takes a share of what is left: the first a fifth of everything, the second a quarter of the rest.', 'Reflect 20%, 25%, 33% and 50%.'],
+    answer: { 'Splitter 1': { reflect: 20 }, 'Splitter 2': { reflect: 25 }, 'Splitter 3': { reflect: 33.33 }, 'Splitter 4': { reflect: 50 } },
+    optimiser: { 'Splitter 1': { reflect: [0, 100] }, 'Splitter 2': { reflect: [0, 100] }, 'Splitter 3': { reflect: [0, 100] }, 'Splitter 4': { reflect: [0, 100] } },
+    result: v => 'five beams of ' + fix(v[0], 2) + ' mW' },
   { id: 'hit-the-target', reel: 'ig-hit-the-target', title: 'Can you hit the target?',
     start: { reel: 'ig-hit-the-target' },
     goal: 'Turn Mirror 3 so the beam reaches the Target.',

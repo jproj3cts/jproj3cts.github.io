@@ -56,6 +56,10 @@ export const V3D = (() => {
   const st = new Map();                                   // per tab: { on, cam: { p, t } }
   let ctrl = (() => { try { return localStorage.getItem('jek-3d-mouse') === 'trackpad' ? 'trackpad' : 'default'; } catch (e) { return 'default'; } })();
   let names = true;
+  // a tool of the view's own (the Model tools, ui/model3d.js): it sees the canvas's presses and the keys first, and takes
+  // those it wants (the left button, as a rule: turning and panning stay the view's); and what it adds to the bar
+  let tool = null;
+  const barExtras = [];
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
   const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type));
@@ -105,6 +109,11 @@ export const V3D = (() => {
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
     stage.append(sw, bar, hint, flyHint, vkey);
     D = { stage, cv, sw, b2, b3, bar, hint, mouse, flyBtn, flyHint, vkey };
+    for (const n of barExtras) bar.prepend(n);
+    // the view's own tool first: a press it takes is not the view's
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'dblclick']) cv.addEventListener(type, e => {
+      if (tool && !fly && R && tool[type] && tool[type](e)) { e.stopImmediatePropagation(); e.preventDefault(); }
+    }, true);
     hintText();
     // flying, the mouse turns the view and the wheel sets the speed: the canvas's own handlers stand aside
     cv.addEventListener('pointerdown', e => { if (!fly) return; e.stopImmediatePropagation(); e.preventDefault(); if (document.pointerLockElement !== cv) flyLock(); }, true);
@@ -118,6 +127,7 @@ export const V3D = (() => {
   }
   function hintText() {
     if (!D) return;
+    if (tool && tool.hintText) { D.hint.textContent = tool.hintText(); return; }
     const s = tabState();
     if (s && s.on && !R) { D.hint.textContent = 'Opening the 3D view…'; return; }
     const draw = project.elements.some(e => e.bench === project.tab && e.type === 'draw') ? ' · Drawings show in 2D only' : '';
@@ -142,6 +152,8 @@ export const V3D = (() => {
     if (on !== D.wasOn) { D.wasOn = on; if (on && palette === 'draw') setPalette('free'); else fillRail(); }
     if (!on) D.vkey.hidden = true;
     D.flyBtn.hidden = !flyOk();
+    for (const n of barExtras) if (n._shown) n.hidden = !n._shown();
+    if (tool && !on && tool.off) tool.off();
     if (fly && !on) flyStop();
     D.b2.classList.toggle('on', !on); D.b3.classList.toggle('on', on);
     D.b2.setAttribute('aria-pressed', String(!on)); D.b3.setAttribute('aria-pressed', String(on));
@@ -257,6 +269,7 @@ export const V3D = (() => {
     const dir = R.camera.position.clone().sub(R.target).normalize();
     R.cubeCam.position.copy(dir.multiplyScalar(3)); R.cubeCam.quaternion.copy(R.camera.quaternion); R.cubeCam.updateMatrixWorld();
   }
+  function need0() { if (R) need(); }
   function need() { if (!R || R.queued) return; R.queued = true; requestAnimationFrame(() => { R.queued = false; draw(); }); }
   const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9e3d8' : '#101417'; };   // a warm grey room round the paper bench, near-black round the dark
 
@@ -269,7 +282,7 @@ export const V3D = (() => {
     resize();
     const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
-    if (R.camTab !== project.tab) { R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
+    if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
     const sel1 = selection().length === 1 ? selection()[0] : null;
     const sk = selection().map(e => e.id).join() + '|' + gz.mode + (sel1 ? '|' + [sel1.x, sel1.y, zOf(sel1), sel1.angle, sel1.tip || 0, sel1.roll || 0, sel1.locked ? 1 : 0].join() : '');
@@ -1460,6 +1473,7 @@ export const V3D = (() => {
   function keys(e) {
     if (!active() || !R) return;
     const t = e.target;
+    if (tool && tool.key && tool.key(e)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.code, views = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
@@ -1634,6 +1648,13 @@ export const V3D = (() => {
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
+    // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
+    setTool(t) { tool = t || null; if (!tool) hintText(); need0(); },
+    tool: () => tool,
+    addBar(n) { barExtras.push(n); if (D) D.bar.prepend(n); },
+    // what a tool of the view's own works with: three.js, the renderer's scene and camera, the page's canvas and hint, picking,
+    // and the camera moved (null until the view has opened)
+    kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
     free: el => FREE_3D.has(el.type) && el.type !== 'draw',

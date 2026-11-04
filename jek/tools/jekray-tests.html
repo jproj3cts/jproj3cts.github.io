@@ -7394,6 +7394,127 @@ const TESTS = [
       let refused = false; try { await J.step(Array.from(new TextEncoder().encode('solid x\nendsolid x\n')), 'x.step'); } catch (e) { refused = /not a STEP file/.test(e.message); }
       return parts.bodies === 4 && parts.units === 'mm' && parts.declared && grouped && inPlace && hits === 2 && refused ? 1 : 0;
     },
+  },  { group: 'Modelling in 3D' },
+  {
+    name: 'The Model button: only with its experimental feature on; a wall sketched on the table and extruded is a part that stops the beam',
+    why: 'with 3D modelling switched on in Experimental, the 3D view’s bar has a Model button (off, none); started, a 4 × 40 mm rectangle sketched on the table across the beam and extruded 100 mm makes Model 1, an STL object 100 mm tall standing on the table with its features kept (a sketch and an extrude), drawn in 3D; the screen behind it gets no ray, and with the wall moved aside, all five (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const sleep = t => new Promise(r => setTimeout(r, t)), D = rigDoc(), M = J.model3d;
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 5, width: 2, pol: 's' }, { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 40 }] });
+      try {
+        await J.view3d.set(true); await sleep(100);
+        const btn = () => D.querySelector('.rt-v3dbar .rt-mdlbtn');
+        J.view3d.stats();
+        const hiddenOff = !!btn() && btn().hidden;
+        J.experimental(true); J.view3d.stats();
+        const shownOn = !!btn() && !btn().hidden;
+        M.start(); M.plane('table'); await sleep(400);
+        M.add({ t: 'rect', c: [0, 0], w: 4, h: 40, rot: 0 });
+        const pre = await M.extrude({ d: 100 }); const ok = await M.ok();
+        const el = J.byName('Model 1');
+        const made = ok && pre.prev && !pre.err && el && el.type === 'stl' && el.model.feats.map(f => f.t).join() === 'sketch,extrude' && Math.abs(el.z - 50) < 1e-6 && Math.abs(el.mesh.size[2] - 100) < 1e-3;
+        J.trace(); const blocked = J.lastTrace().screens.Sc.filter(h => !h.chief).length === 0;
+        const drawn = J.view3d.stats().kinds.stl === 1;
+        J.set('Model 1', { y: 300 }); J.trace(); const open = J.lastTrace().screens.Sc.filter(h => !h.chief).length === 5;
+        const ok2 = hiddenOff && shownOn && made && blocked && drawn && open;
+        if (!ok2) console.log('model wall', { hiddenOff, shownOn, made, blocked, drawn, open, el: el && { z: el.z, size: el.mesh.size } });
+        return ok2 ? 1 : 0;
+      } finally { M.stop(); J.experimental(false); await J.view3d.set(false); }
+    },
+  },
+  {
+    name: 'A sketch on a modelled part’s own face adds to it and cuts from it, and its panel changes a distance and makes it again',
+    why: 'a 40 × 30 × 8 mm plate on the table; its top face clicked (seen from above) is a sketch on it that adds to it by default; a 4 mm circle on it extruded 6 mm makes it 14 mm tall (its middle 7 mm up, base kept on the table); two M6 clearance holes on its top, cut through all, take their volume out; in its panel the first extrude’s distance typed as 10 makes it 16 mm tall (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const sleep = t => new Promise(r => setTimeout(r, t)), D = rigDoc(), M = J.model3d;
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      try {
+        await J.view3d.set(true); J.experimental(true); M.start(); M.plane('table'); await sleep(400);
+        M.add({ t: 'rect', c: [0, -40], w: 40, h: 30, rot: 0 }); await M.extrude({ d: 8 }); await M.ok();
+        J.view3d.view('top'); await sleep(200);
+        const p = J.view3d.pointOnScreen([10, -35, 8]), face = M.planeAt(p.x, p.y); await sleep(400);
+        const st = M.state(), onFace = !!face && face.src.kind === 'face' && st.ex.op === 'add' && Math.abs(st.plane.o[2] - 8) < 1e-6;
+        M.add({ t: 'circle', c: [10, -35], r: 2 }); await M.extrude({ d: 6 }); await M.ok();
+        const el = J.byName('Model 1'), boss = Math.abs(el.mesh.size[2] - 14) < 1e-3 && Math.abs(el.z - 7) < 1e-6;
+        const n0 = el.mesh.n;
+        J.view3d.view('top'); await sleep(200);
+        const q = J.view3d.pointOnScreen([-10, -45, 8]); M.planeAt(q.x, q.y); await sleep(400);
+        M.add({ t: 'hole', c: [-10, -45], d: 6.6, std: 'M6 clearance' }); M.add({ t: 'hole', c: [0, -45], d: 6.6, std: 'M6 clearance' });
+        const cut = await M.extrude({ op: 'cut', target: el.id, through: true, d: 1 }); await M.ok();
+        const el2 = J.byName('Model 1'), holes = el2.model.feats.length === 6 && el2.mesh.n > n0 && Math.abs(el2.mesh.size[2] - 14) < 1e-3 && !cut.err;
+        // a sketch on its top again: its edges in that plane brought in (the plate's outline and its holes' rims at least)
+        J.view3d.view('top'); await sleep(200);
+        const t = J.view3d.pointOnScreen([15, -50, 8]); M.planeAt(t.x, t.y); await sleep(400); M.useInPlane();
+        const used = M.state().ents.filter(e => e.t === 'line').length >= 4; M.stop(); M.start();
+        // its panel: the first extrude's distance, typed
+        J.select('Model 1'); await sleep(50);
+        const inp = D.querySelector('#panel .rt-mfeat input[type=text]'); inp.value = '10'; inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
+        await sleep(300);
+        const el3 = J.byName('Model 1'), taller = Math.abs(el3.mesh.size[2] - 16) < 1e-3 && Math.abs(el3.z - 8) < 1e-6;
+        const ok = onFace && boss && holes && used && taller;
+        if (!ok) console.log('model face', JSON.stringify({ onFace, boss, holes, used, taller, size: el3.mesh.size, z: el3.z, feats: el3.model.feats.map(f => [f.t, f.d, f.op]), inp: inp && inp.outerHTML.slice(0, 160) }));
+        return ok ? 1 : 0;
+      } finally { M.stop(); J.experimental(false); await J.view3d.set(false); }
+    },
+  },
+  {
+    name: 'The light crossing a sketch’s plane is a snap: a baffle across the beam, its hole on the beam, lets it through',
+    why: 'on the side plane (y and up) between the laser and the screen, the beam’s middle is where it crosses (0, 75 mm), and a point near it snaps there; a 40 mm square baffle with a 6 mm hole there, extruded 3 mm both ways, passes all five rays of a 2 mm beam; with no hole it stops them all (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const sleep = t => new Promise(r => setTimeout(r, t)), M = J.model3d;
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 5, width: 2, pol: 's' }, { type: 'screen', id: 'Sc', name: 'Sc', x: 60, y: 0, angle: 180, length: 40 }] });
+      try {
+        await J.view3d.set(true); J.experimental(true); J.trace(); M.start();
+        J.view3d.look([0, -200, 75], [0, 0, 75]); await sleep(100);
+        M.plane('side'); await sleep(500);
+        const st = M.state(), mid = st.beam && st.beam.mids[0], atBeam = !!mid && Math.abs(mid[0]) < 1e-6 && Math.abs(mid[1] - 75) < 1e-6;
+        const sn = M.snap(mid[0] + 0.3, mid[1] - 0.2), snapped = Math.abs(sn[0] - mid[0]) < 1e-9 && Math.abs(sn[1] - mid[1]) < 1e-9;
+        M.add({ t: 'rect', c: mid, w: 40, h: 40, rot: 0 }); M.add({ t: 'hole', c: mid, d: 6 });
+        await M.extrude({ d: 6, both: true }); await M.ok();
+        J.trace(); const through = J.lastTrace().screens.Sc.filter(h => !h.chief).length === 5;
+        M.plane('side'); await sleep(400); M.add({ t: 'rect', c: [0, 75], w: 40, h: 40, rot: 0 }); await M.extrude({ d: 6, both: true, op: 'new' }); await M.ok();
+        J.trace(); const stopped = J.lastTrace().screens.Sc.filter(h => !h.chief).length === 0;
+        const ok = atBeam && snapped && through && stopped;
+        if (!ok) console.log('model beam', { atBeam, mid, sn, snapped, through, stopped });
+        return ok ? 1 : 0;
+      } finally { M.stop(); J.experimental(false); await J.view3d.set(false); }
+    },
+  },
+  {
+    name: 'Sketching: sizes typed, mirror and patterns, a revolve, a part’s sketch edited, Undo, and the .stl',
+    why: 'a rectangle with its width and height typed (25 × 12.5 mm); a circle mirrored across a construction line; a hole repeated four times round a centre; extruded, its .stl the right length; a tube revolved about a construction axis is 28 mm across and 30 tall; the plate’s sketch opened again, a second rectangle added and finished, the part made again larger, and the page’s Undo takes that back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const sleep = t => new Promise(r => setTimeout(r, t)), M = J.model3d;
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      try {
+        await J.view3d.set(true); J.experimental(true); M.start(); M.plane('table'); await sleep(400);
+        M.tool('rect'); M.click(0, 0, true); M.type('w', 25); M.type('h', 12.5); M.enter();
+        const r = M.state().ents.find(e => e.t === 'rect'), typed = !!r && r.w === 25 && r.h === 12.5;
+        const ln = M.add({ t: 'line', a: [40, -50], b: [40, 50], k: true }), c = M.add({ t: 'circle', c: [30, 5], r: 3 });
+        M.select([c]); M.mirror(ln);
+        const circles = M.state().ents.filter(e => e.t === 'circle').map(e => Math.round(e.c[0])).sort().join(), mirrored = circles === '30,50';
+        const hole = M.add({ t: 'hole', c: [12, 30], d: 3.4 }); M.select([hole]); M.circular(4, 360, [12, 22]);
+        const pattern = M.state().ents.filter(e => e.t === 'hole').length === 4;
+        await M.extrude({ d: 5 }); await M.ok();
+        const el = J.byName('Model 1'), stl = M.stlBytes('Model 1') === 84 + 50 * el.mesh.n;
+        M.plane('front'); await sleep(400);
+        const ax = M.add({ t: 'line', a: [100, 0], b: [100, 30], k: true }); M.add({ t: 'rect', c: [112, 15], w: 4, h: 30, rot: 0 });
+        await M.revolve({ axis: ax, deg: 360, op: 'new' }); await M.ok();
+        const tube = J.byName('Model 2'), revolved = !!tube && Math.abs(tube.mesh.size[0] - 28) < 0.01 && Math.abs(tube.mesh.size[2] - 30) < 1e-3;
+        const before = J.byName('Model 1').mesh.size.slice();
+        await M.edit('Model 1', 0); await sleep(400);
+        M.add({ t: 'rect', c: [0, -40], w: 10, h: 10, rot: 0 }); await M.finish();
+        const after = J.byName('Model 1').mesh.size, edited = after[1] > before[1] + 30;
+        J.view3d.undo(); const back = J.byName('Model 1').mesh.size, undone = Math.abs(back[1] - before[1]) < 1e-6;
+        const ok = typed && mirrored && pattern && stl && revolved && edited && undone;
+        if (!ok) console.log('model sketch', { typed, r, circles, pattern, stl, revolved, size: tube && tube.mesh.size, before, after, back });
+        return ok ? 1 : 0;
+      } finally { M.stop(); J.experimental(false); await J.view3d.set(false); }
+    },
   },  { group: 'The field in 3D' },
   {
     name: 'The 3D view\u2019s field is in W/cm\u00b2: a Gaussian beam peaks at 2P/\u03c0w\u00b2, an unpolarised one\u2019s halves added',

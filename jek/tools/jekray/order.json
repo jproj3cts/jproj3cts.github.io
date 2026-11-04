@@ -195,6 +195,7 @@
   "io/cad-export.js",
   "ui/part-uses.js",
   "ui/experimental.js",
+  "io/step-reader.js",
   "io/step.js",
   "ui/picker.js",
   "ui/rail.js",

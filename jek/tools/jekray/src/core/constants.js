@@ -25,6 +25,7 @@ export const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keep
 export const FAR = 2e4;          // mm: how far an escaping ray is drawn
 export const BEAM_Z = 75;        // mm: the beam's height above the breadboard, where parts sit unless moved
 export const EPS = 1e-6;         // mm
+export const STL_KEEP = 40000;   // triangles kept with the bench from a .stl or STEP file (core/stl.js, core/step.js; JEKion shares it)
 
 export const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 

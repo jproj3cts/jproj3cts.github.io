@@ -1,0 +1,104 @@
+{
+  "format": "jekion",
+  "version": 1,
+  "name": "Quadrupole deflector",
+  "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 8,
+    "plane": "xy",
+    "slice": 0
+  },
+  "grid": {
+    "sym": "planar",
+    "h": 0.25,
+    "x0": -40,
+    "x1": 40,
+    "y0": -40,
+    "y1": 40,
+    "bc": {
+      "xlo": "ground",
+      "xhi": "ground",
+      "ylo": "ground",
+      "yhi": "ground"
+    }
+  },
+  "electrodes": [
+    {
+      "name": "Rod top right",
+      "shape": "rod",
+      "axis": "z",
+      "x": 11.314,
+      "y": 11.314,
+      "z": 0,
+      "r": 6,
+      "L": 40,
+      "V": -500,
+      "colour": "#e0742f"
+    },
+    {
+      "name": "Rod bottom left",
+      "shape": "rod",
+      "axis": "z",
+      "x": -11.314,
+      "y": -11.314,
+      "z": 0,
+      "r": 6,
+      "L": 40,
+      "V": -500,
+      "colour": "#e0742f"
+    },
+    {
+      "name": "Rod bottom right",
+      "shape": "rod",
+      "axis": "z",
+      "x": 11.314,
+      "y": -11.314,
+      "z": 0,
+      "r": 6,
+      "L": 40,
+      "V": 500,
+      "colour": "#5b8def"
+    },
+    {
+      "name": "Rod top left",
+      "shape": "rod",
+      "axis": "z",
+      "x": -11.314,
+      "y": 11.314,
+      "z": 0,
+      "r": 6,
+      "L": 40,
+      "V": 500,
+      "colour": "#5b8def"
+    }
+  ],
+  "ions": [
+    {
+      "name": "Ar+ beam",
+      "species": "Ar+",
+      "n": 9,
+      "ke": 1000,
+      "x": -38,
+      "y": 0,
+      "z": 0,
+      "dist": "grid",
+      "size": 1.5,
+      "dirAz": 0,
+      "cone": 0,
+      "colour": "#e8402a"
+    }
+  ],
+  "detectors": [
+    {
+      "name": "Exit",
+      "axis": "y",
+      "x": 0,
+      "y": -38,
+      "z": 0,
+      "half": 0,
+      "stop": true
+    }
+  ],
+  "notes": "Four rods on the diagonals (16 mm from the centre, at ±500 V in planar symmetry: they run without end along z) make a quadrupole field, φ ∝ xy, with a saddle at the centre. A 1 keV Ar⁺ beam entering along the x axis is bent through 90° and leaves along −y, about 10 mm to one side of the centre: the electrostatic turn used in ion beam lines to select a beam or fold an instrument. Raise the voltage and the turn tightens until the beam clips the inner rod; lower it and the beam leaves at a shallower angle. Change the energy to see the chromatic spread, and add a cone to the group for the lens action across the beam."
+}

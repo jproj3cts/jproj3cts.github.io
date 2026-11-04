@@ -1,3 +1,4 @@
+import { STL_KEEP } from './constants.js';
 import { ffList } from './freeform.js';
 import { CRYSTALS, bireMat } from './crystals.js';
 import { deg, num } from '../state/project.js';
@@ -49,7 +50,6 @@ const bytesOfB64 = b => { const s = atob(b), u8 = new Uint8Array(s.length); for 
    indices into them ('q16'). A mesh of more than `budget` triangles is simplified first, by
    merging the corners in each cell of a grid made coarser until it fits; an STL object only
    stops light, so its outline is what matters, and the grid is as fine as the budget allows. */
-export const STL_KEEP = 40000;                   // triangles kept with the bench
 export function meshEncode(T, file, budget) {
   budget = budget || STL_KEEP;
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];

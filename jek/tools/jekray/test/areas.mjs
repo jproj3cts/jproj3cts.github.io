@@ -55,7 +55,7 @@ export const AREAS = {
   },
   view3d: {
     what: 'the 3D view, STL objects and the field drawn in 3D',
-    src: ['src/ui/view3d.js', 'src/ui/rf-lens3d.js', 'src/core/stl.js', 'src/core/step.js', 'src/io/step.js', 'src/parts/stl.js', 'src/ui/parts/stl.js', '../../assets/vendor/occt-import-js/',
+    src: ['src/ui/view3d.js', 'src/ui/rf-lens3d.js', 'src/core/stl.js', 'src/core/step.js', 'src/io/step-reader.js', 'src/io/step.js', 'src/parts/stl.js', 'src/ui/parts/stl.js', '../../assets/vendor/occt-import-js/',
       'src/core/model.js', 'src/ui/model3d.js', '../../assets/vendor/manifold-3d/'],
     node: ['zoned.test.mjs', 'step-import.test.mjs', 'pro-gate.test.mjs', 'model.test.mjs'],
     browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Modelling in 3D'],   // The 3D view is two groups of that name

@@ -12,7 +12,7 @@ import { IW, iwRequest } from '../page/workers.js';
    here for the renderer, the panels and the export. Solving and flying happen after a pause, so a value typed
    digit by digit is run once; the bar on the bench says what is going on.
    ========================================================================== */
-export const SIM = { result: null, slice: null, trap: null, status: '', busy: false, gkey: '', vkey: '', skey: '', seq: 0, when: 0, stale: false, info: null, wanted: null };
+export const SIM = { get pickedLine() { return pickedLine; }, result: null, slice: null, trap: null, status: '', busy: false, gkey: '', vkey: '', skey: '', seq: 0, when: 0, stale: false, info: null, wanted: null };
 let timer = 0, sliceTimer = 0;
 const bar = () => document.getElementById('simBar'), text = () => document.getElementById('simText');
 function say(msg, busy) {
@@ -86,6 +86,10 @@ export async function trapNow() {
 /* the potential along a line, for a plot */
 export const potentialLine = (a, b, n) => iwRequest('line', projData(), { a, b, n }, 'line');
 export const probeAt = p => iwRequest('probe', projData(), { p }, 'probe');
+export const potentialAtPoints = (pts, t, ts) => iwRequest('probes', projData(), { pts, t: t || 0, ts: ts || null }, 'probes');
+/* the line picked on the bench for a potential plot (ui/panels.js), drawn there while it stands: { a, b } or null */
+export let pickedLine = null;
+export function setPickedLine(v) { pickedLine = v; hooks.requestRender(); return v; }
 export function stopFly() {
   clearTimeout(timer);
   if (IW.busy && IW.busy.kind === 'fly') { if (IW.w) IW.w.postMessage({ cancel: IW.busy.id }); else if (IW.busy.local) IW.busy.local.cancelled = true; }

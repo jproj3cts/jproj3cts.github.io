@@ -15,7 +15,7 @@ import { fitView, requestRender, setDrawnOnce, setTheme, themePref, wireRender }
 import { wirePointer } from './pointer.js';
 import { changed, toast, updateUndoButtons, viewMenuShown, wireActions, addElectrode, addIon, addDetector, selectOne } from './actions.js';
 import { SIM, flyNow, requestSlice, stopFly, trapNow, wireSim } from './sim.js';
-import { wirePanels } from './panels.js';
+import { setPotPlot, wirePanels } from './panels.js';
 import { wirePicker } from './picker.js';
 import { wireNews, openGallery, APP_VERSION } from './news.js';
 import { wireScripts, runScript } from './scripts.js';
@@ -107,5 +107,5 @@ window.JEKion = {
   // the page's own run: a promise of the results, as the worker (or the page without one) gives them
   flyPage: async () => { await flyNow(); return SIM.result; },
   trapPage: () => trapNow(), sim: SIM, data: kinds => gatherIonData(project, SIM.result, SIM.trap, kinds), exportData,
-  bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave,
+  bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot,
 };

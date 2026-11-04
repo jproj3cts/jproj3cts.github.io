@@ -64,6 +64,7 @@ export function stopModel() {
   if (K && MD.group) { clearGroup(); dropPrev(); K.R.scene.remove(MD.group); }
   if (MD.card) { MD.card.remove(); MD.card = null; }
   if (MD.tip) { MD.tip.remove(); MD.tip = null; }
+  closeMdMenu(); if (K) K.D.stage.classList.remove('rt-mdlon');
   V3D.setTool(null);
   if (K) K.need();
 }
@@ -576,7 +577,10 @@ export function exportModelStl(el) {
   toast('Exported ' + name + ' (' + Math.floor(T.length / 9) + ' triangles, mm)');
 }
 
-/* ---------- the card: what the stage offers ---------- */
+/* ---------- the toolbar across the top, as a CAD program's: icons, menus, and a strip under it ----------
+   The bar: what the stage offers (picking a plane, sketching, an extrude or a revolve), each tool an icon with its name
+   on hover, some with a menu (▾); under it, a strip with what the moment needs (a shape's sizes as it is drawn, the
+   selection's sizes, a pattern's counts, the sketch's closed shapes) */
 const mdNum = (label, get, set, opts) => {
   opts = opts || {};
   const inp = h('input', { type: 'text', inputmode: 'decimal', spellcheck: 'false', 'aria-label': label, value: get() === undefined || get() === null ? '' : String(+(+get()).toFixed(4)), placeholder: opts.placeholder || '' });
@@ -585,90 +589,155 @@ const mdNum = (label, get, set, opts) => {
   if (opts.live) inp.dataset.live = opts.live;
   return h('label', { class: 'rt-mdlf' }, h('span', null, label), inp);
 };
-const btn = (label, fn, opts) => h('button', Object.assign({ type: 'button', class: 'rt-btn' + (opts && opts.on ? ' on' : ''), onclick: fn }, opts && opts.title ? { title: opts.title } : {}), label);
+// the icons: 20 px line drawings in the ink's colour
+const ICO = {
+  sketch: '<path d="M3 17h14M4 13l8.5-8.5 3 3L7 16H4z"/><path d="M11 6l3 3"/>',
+  line: '<path d="M4 16L16 4"/><circle cx="4" cy="16" r="1.6"/><circle cx="16" cy="4" r="1.6"/>',
+  arc: '<path d="M4 15a8 8 0 0 1 12-10"/><circle cx="4" cy="15" r="1.6"/><circle cx="16" cy="5" r="1.6"/>',
+  rect: '<rect x="3.5" y="5.5" width="13" height="9" rx="0.5"/>',
+  circle: '<circle cx="10" cy="10" r="6.5"/><circle cx="10" cy="10" r="0.9" fill="currentColor"/>',
+  slot: '<rect x="2.5" y="6.5" width="15" height="7" rx="3.5"/><circle cx="6" cy="10" r="0.8" fill="currentColor"/><circle cx="14" cy="10" r="0.8" fill="currentColor"/>',
+  poly: '<path d="M10 3l6 3.5v7L10 17l-6-3.5v-7z"/>',
+  hole: '<circle cx="10" cy="10" r="5"/><path d="M10 2.5v4M10 13.5v4M2.5 10h4M13.5 10h4"/>',
+  select: '<path d="M5 3l10 6.5-4.5 1L13 16l-2 1-2.5-5.5L5 15z"/>',
+  use: '<rect x="3.5" y="3.5" width="13" height="13" stroke-dasharray="2 2"/><path d="M3.5 16.5h13" stroke-width="2.4"/>',
+  mirror: '<path d="M10 2.5v15" stroke-dasharray="2 1.6"/><path d="M8 5L3 14h5zM12 5l5 9h-5z"/>',
+  pattern: '<rect x="3" y="3" width="4" height="4"/><rect x="13" y="3" width="4" height="4"/><rect x="3" y="13" width="4" height="4"/><rect x="13" y="13" width="4" height="4"/>',
+  constr: '<path d="M3 17L17 3" stroke-dasharray="2.5 2"/>',
+  grid: '<path d="M3 7h14M3 13h14M7 3v14M13 3v14"/>',
+  undo: '<path d="M7 5L3 9l4 4"/><path d="M3 9h9a4.5 4.5 0 0 1 0 9H8"/>',
+  redo: '<path d="M13 5l4 4-4 4"/><path d="M17 9H8a4.5 4.5 0 0 0 0 9h4"/>',
+  extrude: '<path d="M4 15l6 3 6-3-6-3z"/><path d="M10 12V3M7 6l3-3 3 3"/>',
+  revolve: '<path d="M10 2v16" stroke-dasharray="2 1.6"/><path d="M5 7a6 3 0 1 0 10 0"/><path d="M13 4l2 3-3 1"/>',
+  ok: '<path d="M4 10.5l4 4 8-9" stroke-width="2.2"/>',
+  cancel: '<path d="M5 5l10 10M15 5L5 15" stroke-width="2"/>',
+  flip: '<path d="M7 3v14M4 6l3-3 3 3M13 17V3M10 14l3 3 3-3"/>',
+  both: '<path d="M10 2v16M7 5l3-3 3 3M7 15l3 3 3-3M4 10h12"/>',
+  through: '<path d="M3 10h14M14 7l3 3-3 3"/><path d="M8 4v12M12 4v12" stroke-dasharray="1.6 1.6"/>',
+  plane: '<path d="M2.5 13l5-6h10l-5 6z"/>',
+};
+const icon = k => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 20 20'); s.setAttribute('width', '20'); s.setAttribute('height', '20'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.5'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.innerHTML = ICO[k] || ''; return s; };
+// a tool's button: its icon (and its word, where it helps), its name on hover; on, pressed
+function tbtn(ic, title, fn, o) {
+  o = o || {};
+  const b = h('button', { type: 'button', class: 'rt-tb' + (o.on ? ' on' : '') + (o.cls ? ' ' + o.cls : '') + (o.text ? ' wide' : ''), title, 'aria-label': title, 'aria-pressed': o.on === undefined ? undefined : String(!!o.on), onclick: fn }, icon(ic), o.text ? h('span', null, o.text) : null);
+  if (o.disabled) b.disabled = true;
+  return b;
+}
+// a menu under a button (▾): its items [label, do, on?]; one open at a time, closed by a click anywhere else
+let mdMenuOpen = null;
+function closeMdMenu() { if (mdMenuOpen) { mdMenuOpen.remove(); mdMenuOpen = null; } }
+function tmenu(ic, title, items, o) {
+  o = o || {};
+  const main = o.main ? tbtn(ic, title, o.main, { on: o.on, text: o.text }) : null;
+  const car = h('button', { type: 'button', class: 'rt-tb rt-tbcar' + (!main && o.on ? ' on' : '') + (!main && o.text ? ' wide' : ''), title: main ? title + ': more' : title, 'aria-label': main ? title + ': more' : title, 'aria-haspopup': 'true' },
+    main ? null : icon(ic), !main && o.text ? h('span', null, o.text) : null, h('span', { class: 'rt-car', 'aria-hidden': 'true' }, '▾'));
+  car.addEventListener('click', e => {
+    e.stopPropagation();
+    if (mdMenuOpen && mdMenuOpen._for === car) { closeMdMenu(); return; }
+    closeMdMenu();
+    const m = h('div', { class: 'rt-tbmenu', role: 'menu' }, ...items.map(([label, fn, on]) => label === '-' ? h('hr') : h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': on ? 'true' : 'false', class: on ? 'on' : '', onclick: ev => { ev.stopPropagation(); closeMdMenu(); fn(); } }, label)));
+    m._for = car;
+    const K = kit(), r = car.getBoundingClientRect(), sr = K.D.stage.getBoundingClientRect();
+    m.style.left = (r.left - sr.left) + 'px'; m.style.top = (r.bottom - sr.top + 2) + 'px';
+    K.D.stage.append(m); mdMenuOpen = m;
+  });
+  return h('div', { class: 'rt-tbgrp' }, main, car);
+}
+const sep = () => h('span', { class: 'rt-tbsep', 'aria-hidden': 'true' });
+const setTool = k => { MD.tool = k; MD.draft = []; MD.typed = {}; MD.pickFor = null; drawCard(); redraw(); const K = kit(); if (K) K.hint(); };
 function drawCard() {
   const K = kit(); if (!K) return;
-  if (!MD.card) { MD.card = h('div', { class: 'rt-mdlcard', role: 'region', 'aria-label': 'Model' }); K.D.stage.append(MD.card); }
+  if (!MD.card) {
+    MD.card = h('div', { class: 'rt-mdltop', role: 'toolbar', 'aria-label': 'Model' });
+    K.D.stage.append(MD.card);
+    // a click away from an open menu closes it, and only that (on the 3D view it draws nothing)
+    document.addEventListener('pointerdown', e => {
+      if (!mdMenuOpen || mdMenuOpen.contains(e.target) || (mdMenuOpen._for && mdMenuOpen._for.contains(e.target))) return;
+      closeMdMenu();
+      const K2 = kit(); if (K2 && e.target === K2.D.cv) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+  }
   if (!MD.tip) { MD.tip = h('div', { class: 'rt-mdltip', hidden: true }); K.D.stage.append(MD.tip); }
+  closeMdMenu();
   const C = MD.card; C.replaceChildren();
-  C.hidden = !MD.on;
+  C.hidden = !MD.on; K.D.stage.classList.toggle('rt-mdlon', MD.on);
   if (!MD.on) return;
+  const bar = h('div', { class: 'rt-tbar' }), sub = h('div', { class: 'rt-tbsub' });
+  // (what is not there, null, is left out: append would write it as text)
+  for (const box of [bar, sub]) { const add = box.append.bind(box); box.append = (...n) => add(...n.flat().filter(x => x !== null && x !== undefined && x !== false)); }
+  C.append(bar, sub);
+  const planes = [['Table top', () => enterSketch(namedPlane('table'))], ['Beam plane', () => enterSketch(namedPlane('beam'))], ['Front plane (x, up)', () => enterSketch(namedPlane('front'))], ['Side plane (y, up)', () => enterSketch(namedPlane('side'))]];
   if (MD.stage === 'plane') {
-    C.append(h('b', null, 'Model: pick a plane'),
-      h('p', null, 'Click a flat face to sketch on: a part’s, or the table. Empty space is the beam’s plane. Or:'),
-      h('div', { class: 'rt-mdlrow' }, ...[['table', 'Table top'], ['beam', 'Beam plane'], ['front', 'Front (x, up)'], ['side', 'Side (y, up)']].map(([k, t]) => btn(t, () => enterSketch(namedPlane(k))))),
-      h('div', { class: 'rt-mdlrow' }, mdNum('Offset (mm)', () => MD.offset, v => { MD.offset = v; })),
-      h('div', { class: 'rt-mdlrow' }, btn('Close', stopModel)));
+    bar.append(h('b', { class: 'rt-tbname' }, 'Model'), sep(),
+      tmenu('sketch', 'New sketch: click a flat face, or pick a plane', planes, { on: true, text: 'Sketch' }),
+      mdNum('Offset (mm)', () => MD.offset, v => { MD.offset = v; }), sep(),
+      tbtn('cancel', 'Close the Model tools (Esc)', stopModel, { cls: 'rt-tbno' }));
+    sub.append(h('span', { class: 'rt-mdlnote' }, 'Click a flat face to sketch on (a part’s, or the table); empty space is the beam’s plane.'));
     return;
   }
   if (MD.stage === 'sketch') {
-    C.append(h('b', null, MD.edit ? 'Sketch of ' + (getEl(MD.edit.id) || {}).name : 'Sketch'));
-    const tb = h('div', { class: 'rt-mdltools' }, ...TOOLS.map(([k, t]) => btn(t, () => { MD.tool = k; MD.draft = []; MD.typed = {}; drawCard(); redraw(); K.hint(); }, { on: MD.tool === k })));
-    C.append(tb);
-    const cb = h('input', { type: 'checkbox' }); cb.checked = MD.constr;
-    cb.addEventListener('change', () => { MD.constr = cb.checked; if (MD.sel.size) { push(); for (const e of mdSelected()) { if (cb.checked) e.k = true; else delete e.k; } } redraw(); });
-    C.append(h('label', { class: 'rt-check', title: 'Construction shapes guide (a revolve’s axis, a mirror’s line) but make no solid' }, cb, 'Construction'));
-    // the tool's own settings, and the sizes of the shape being drawn
-    if (MD.tool === 'hole') {
-      const sel = h('select', { 'aria-label': 'Hole size' }, ...HOLE_SIZES.map(([n, d]) => h('option', { value: n }, n + ' (' + d + ' mm)')), h('option', { value: 'custom' }, 'Custom'));
-      sel.value = MD.holeStd || 'custom';
-      sel.addEventListener('change', () => { const hs = HOLE_SIZES.find(q => q[0] === sel.value); MD.holeStd = hs ? hs[0] : ''; if (hs) MD.holeD = hs[1]; drawCard(); });
-      C.append(h('div', { class: 'rt-mdlrow' }, sel, MD.holeStd ? null : mdNum('Diameter (mm)', () => MD.holeD, v => { MD.holeD = Math.max(0.05, v); })));
-      if (MD.holes) C.append(h('p', { class: 'rt-mdlnote' }, 'On the table top it snaps to its holes, 25 mm apart.'));
-    }
-    if (MD.tool === 'poly') C.append(h('div', { class: 'rt-mdlrow' }, mdNum('Sides', () => MD.polyN, v => { MD.polyN = Math.max(3, Math.min(64, Math.round(v))); redraw(); }, { raw: true })));
-    if (MD.draft.length) {
-      const L = typedFields(); if (L.length) C.append(h('div', { class: 'rt-mdlrow rt-mdltyped' }, ...L));
-    }
-    // the selection: its sizes, and what can be done with it
-    const S = mdSelected();
-    if (MD.tool === 'select' && S.length === 1) C.append(selFields(S[0]));
-    if (MD.tool === 'select' && S.length) {
-      C.append(h('div', { class: 'rt-mdlrow' }, btn('Delete', () => { push(); MD.ents = MD.ents.filter(e => !MD.sel.has(e.id)); MD.sel.clear(); drawCard(); redraw(); }),
-        btn(MD.pickFor === 'mirror' ? 'Click a line…' : 'Mirror', () => { MD.pickFor = 'mirror'; drawCard(); K.hint(); }, { title: 'Mirror the selected shapes across a line: click the line next' }),
-        btn(MD.pickFor === 'centre' ? 'Click its centre…' : 'Circular pattern', () => { MD.pickFor = 'centre'; drawCard(); K.hint(); }, { title: 'Repeat the selected shapes round a centre: click the centre next' })));
-      const P = MD.pat || (MD.pat = { n: 3, dx: 10, dy: 0, cn: 6, ang: 360 });
-      C.append(h('div', { class: 'rt-mdlrow' }, mdNum('Copies', () => P.n, v => { P.n = Math.max(2, Math.min(100, Math.round(v))); }, { raw: true }), mdNum('Step x (mm)', () => P.dx, v => { P.dx = v; }), mdNum('Step y (mm)', () => P.dy, v => { P.dy = v; }),
-        btn('Linear pattern', () => patternLinear(P.n, P.dx, P.dy))));
-      C.append(h('div', { class: 'rt-mdlrow' }, mdNum('Round copies', () => P.cn, v => { P.cn = Math.max(2, Math.min(360, Math.round(v))); }, { raw: true }), mdNum('Over (°)', () => P.ang, v => { P.ang = Math.max(1, Math.min(360, v)); }, { raw: true })));
-    }
-    if (MD.tool === 'use') C.append(h('div', { class: 'rt-mdlrow' }, btn('Use the edges in this plane', useEdgesInPlane, { title: 'Bring in every edge of the parts that lies in the sketch’s plane: the outline of the face sketched on' })));
-    C.append(h('div', { class: 'rt-mdlrow' }, mdNum('Grid (mm)', () => MD.grid, v => { MD.grid = Math.max(0.01, v); redraw(); }), mdNum('Offset (mm)', () => MD.offset, v => { MD.offset = v; workSnaps(); redraw(); })));
+    const T = MD.tool, on = k => T === k;
+    const holeItems = HOLE_SIZES.map(([n, d]) => [n + ' (' + d + ' mm)', () => { MD.holeStd = n; MD.holeD = d; setTool('hole'); }, MD.holeStd === n]).concat([['-'], ['A diameter of my own…', () => { MD.holeStd = ''; setTool('hole'); }, !MD.holeStd]]);
+    const polyItems = [3, 4, 5, 6, 8, 10, 12].map(n => [n + ' sides', () => { MD.polyN = n; setTool('poly'); }, MD.polyN === n]);
+    const gridItems = [0.1, 0.5, 1, 2, 5, 10, 25].map(g => [g + ' mm', () => { MD.grid = g; drawCard(); redraw(); }, MD.grid === g]);
+    const selN = MD.sel.size;
+    bar.append(h('b', { class: 'rt-tbname' }, MD.edit ? 'Sketch: ' + ((getEl(MD.edit.id) || {}).name || '') : 'Sketch'), sep(),
+      tbtn('line', 'Line (L): click its points; its first again closes it', () => setTool('line'), { on: on('line') }),
+      tbtn('arc', 'Arc (A): its start, its end, a point on it', () => setTool('arc'), { on: on('arc') }),
+      tbtn('rect', 'Rectangle (R): two corners', () => setTool('rect'), { on: on('rect') }),
+      tbtn('circle', 'Circle (C): its centre, then its edge', () => setTool('circle'), { on: on('circle') }),
+      tbtn('slot', 'Slot (O): its two ends, then its width', () => setTool('slot'), { on: on('slot') }),
+      tmenu('poly', 'Polygon (P): its centre, then a corner', polyItems, { main: () => setTool('poly'), on: on('poly') }),
+      tmenu('hole', 'Hole (H): where it goes; its size from the menu', holeItems, { main: () => setTool('hole'), on: on('hole') }), sep(),
+      tbtn('select', 'Select (S): click a shape (Shift: more), drag to move it, Delete to remove it', () => setTool('select'), { on: on('select') }),
+      tmenu('use', 'Use edges (U): bring parts’ edges into the sketch', [['Click an edge to bring it in', () => setTool('use'), on('use')], ['All the edges in this plane', useEdgesInPlane]], { main: () => setTool('use'), on: on('use') }),
+      tbtn('mirror', 'Mirror the selected shapes: then click the line to mirror across', () => { if (!selN) { toast('Select shapes first'); return; } MD.pickFor = 'mirror'; drawCard(); K.hint(); }, { on: MD.pickFor === 'mirror', disabled: !selN }),
+      tmenu('pattern', 'Pattern the selected shapes', [['Linear pattern…', () => { MD.patMode = 'linear'; drawCard(); }], ['Circular pattern…', () => { MD.patMode = 'circular'; drawCard(); }]], { disabled: !selN }),
+      tbtn('constr', 'Construction: new shapes (and the selected ones) guide, and make no solid', () => { MD.constr = !MD.constr; if (MD.sel.size) { push(); for (const e of mdSelected()) { if (MD.constr) e.k = true; else delete e.k; } } drawCard(); redraw(); }, { on: MD.constr }), sep(),
+      tmenu('grid', 'Grid: the step points snap to (now ' + MD.grid + ' mm)', gridItems, {}),
+      mdNum('Offset (mm)', () => MD.offset, v => { MD.offset = v; workSnaps(); redraw(); }),
+      tbtn('undo', 'Undo in the sketch (Ctrl+Z)', () => sketchUndo(true), { disabled: !MD.undo.length }),
+      tbtn('redo', 'Redo (Ctrl+Y)', () => sketchUndo(false), { disabled: !MD.redo.length }), sep());
     const { loops, open } = sketchLoops(MD.ents);
-    C.append(h('p', { class: 'rt-mdlnote' }, loops.length + ' closed shape' + (loops.length === 1 ? '' : 's') + (open.length ? ', ' + open.length + ' open (not made into the solid)' : '') + (MD.beam && MD.beam.mids.length ? ' · red: where the light crosses' : '')));
-    const row = h('div', { class: 'rt-mdlrow' });
-    if (MD.edit) row.append(btn('Finish', () => commitEdit(), { title: 'Make the part again from this sketch' }));
-    else row.append(btn('Extrude…', () => { if (!loops.length) { toast('Close a shape first'); return; } setStage('extrude'); manifoldLib().then(preview); }),
-      btn('Revolve…', () => { if (!loops.length) { toast('Close a shape first'); return; } const ax = MD.ents.find(e => MD.sel.has(e.id) && e.t === 'line') || MD.ents.find(e => e.k && e.t === 'line'); MD.ex.axis = ax ? ax.id : null; setStage('revolve'); manifoldLib().then(preview); }));
-    row.append(btn('Undo', () => sketchUndo(true), { title: 'Undo in the sketch (Ctrl+Z)' }), btn('Cancel', () => { MD.edit = null; MD.ents = []; setStage('plane'); }));
-    C.append(row);
+    if (MD.edit) bar.append(tbtn('ok', 'Finish: make the part again from this sketch', () => commitEdit(), { cls: 'rt-tbok', text: 'Finish' }));
+    else bar.append(
+      tbtn('extrude', 'Extrude the sketch’s closed shapes', () => { if (!loops.length) { toast('Close a shape first'); return; } setStage('extrude'); manifoldLib().then(preview); }, { text: 'Extrude', disabled: !loops.length }),
+      tbtn('revolve', 'Revolve the sketch about one of its lines', () => { if (!loops.length) { toast('Close a shape first'); return; } const ax = MD.ents.find(e => MD.sel.has(e.id) && e.t === 'line') || MD.ents.find(e => e.k && e.t === 'line'); MD.ex.axis = ax ? ax.id : null; setStage('revolve'); manifoldLib().then(preview); }, { text: 'Revolve', disabled: !loops.length }));
+    bar.append(tbtn('cancel', 'Leave the sketch, making nothing', () => { MD.edit = null; MD.ents = []; setStage('plane'); }, { cls: 'rt-tbno' }));
+    // the strip: what the moment needs
+    if (MD.draft.length) { const L = typedFields(); if (L.length) sub.append(h('div', { class: 'rt-mdlrow rt-mdltyped' }, ...L)); }
+    if (T === 'hole') sub.append(h('span', { class: 'rt-mdlnote' }, 'Hole: ' + (MD.holeStd ? MD.holeStd + ', ' + MD.holeD + ' mm' : 'its diameter') + (MD.holes ? ' · snaps to the table’s holes' : '')), MD.holeStd ? null : mdNum('Diameter (mm)', () => MD.holeD, v => { MD.holeD = Math.max(0.05, v); }));
+    if (T === 'select' && selN === 1) sub.append(selFields(mdSelected()[0]));
+    if (selN && MD.patMode) {
+      const P = MD.pat || (MD.pat = { n: 3, dx: 10, dy: 0, cn: 6, ang: 360 });
+      if (MD.patMode === 'linear') sub.append(h('div', { class: 'rt-mdlrow' }, h('b', null, 'Linear pattern'), mdNum('Copies', () => P.n, v => { P.n = Math.max(2, Math.min(100, Math.round(v))); }, { raw: true }), mdNum('Step x (mm)', () => P.dx, v => { P.dx = v; }), mdNum('Step y (mm)', () => P.dy, v => { P.dy = v; }),
+        tbtn('ok', 'Make the copies', () => { patternLinear(P.n, P.dx, P.dy); MD.patMode = null; drawCard(); }, { cls: 'rt-tbok' }), tbtn('cancel', 'No pattern', () => { MD.patMode = null; drawCard(); })));
+      else sub.append(h('div', { class: 'rt-mdlrow' }, h('b', null, 'Circular pattern'), mdNum('Copies', () => P.cn, v => { P.cn = Math.max(2, Math.min(360, Math.round(v))); }, { raw: true }), mdNum('Over (°)', () => P.ang, v => { P.ang = Math.max(1, Math.min(360, v)); }, { raw: true }),
+        tbtn('ok', 'Then click its centre', () => { MD.pickFor = 'centre'; MD.patMode = null; drawCard(); K.hint(); }, { cls: 'rt-tbok', text: 'Pick centre' }), tbtn('cancel', 'No pattern', () => { MD.patMode = null; drawCard(); })));
+    }
+    sub.append(h('span', { class: 'rt-mdlnote' }, loops.length + ' closed shape' + (loops.length === 1 ? '' : 's') + (open.length ? ', ' + open.length + ' open' : '') + (selN ? ' · ' + selN + ' selected' : '') + (MD.beam && MD.beam.mids.length ? ' · red: where the light crosses' : '')));
     return;
   }
-  // extrude or revolve
+  // extrude or revolve: the feature's own bar
   const X = MD.ex, rev = MD.stage === 'revolve';
-  C.append(h('b', null, rev ? 'Revolve' : 'Extrude'));
   const models = project.elements.filter(e => e.bench === project.tab && e.type === 'stl' && e.model);
-  const op = h('select', { 'aria-label': 'Make' }, h('option', { value: 'new' }, 'A new part'), ...models.flatMap(m => [h('option', { value: 'add:' + m.id }, 'Add to ' + m.name), h('option', { value: 'cut:' + m.id }, 'Cut from ' + m.name)]));
-  op.value = X.op === 'new' || !X.target ? 'new' : X.op + ':' + X.target;
-  op.addEventListener('change', () => { const [o, id] = op.value.split(':'); X.op = o; X.target = id || null; preview(); });
-  C.append(h('div', { class: 'rt-mdlrow' }, op));
+  const target = X.target && getEl(X.target), opText = X.op === 'new' || !target ? 'New part' : (X.op === 'cut' ? 'Cut from ' : 'Add to ') + target.name;
+  const opItems = [['A new part', () => { X.op = 'new'; X.target = null; preview(); }, X.op === 'new']].concat(models.length ? [['-']] : [],
+    models.flatMap(m => [['Add to ' + m.name, () => { X.op = 'add'; X.target = m.id; preview(); }, X.op === 'add' && X.target === m.id], ['Cut from ' + m.name, () => { X.op = 'cut'; X.target = m.id; preview(); }, X.op === 'cut' && X.target === m.id]]));
+  bar.append(h('b', { class: 'rt-tbname' }, rev ? 'Revolve' : 'Extrude'), sep(), tmenu(X.op === 'cut' ? 'through' : 'extrude', 'What it makes', opItems, { text: opText }), sep());
   if (!rev) {
-    const thr = h('input', { type: 'checkbox' }); thr.checked = X.through;
-    thr.addEventListener('change', () => { X.through = thr.checked; preview(); });
-    const both = h('input', { type: 'checkbox' }); both.checked = X.both;
-    both.addEventListener('change', () => { X.both = both.checked; preview(); });
-    C.append(h('div', { class: 'rt-mdlrow' }, X.through && X.op === 'cut' ? null : mdNum('Distance (mm)', () => X.d, (v, enter) => { if (v !== 0) X.d = v; preview(); if (enter) commitSolid(); }, { live: 'd' }),
-      btn('Flip', () => { X.d = -X.d; drawCard(); preview(); }, { title: 'Extrude the other way' })),
-      h('div', { class: 'rt-mdlrow' }, h('label', { class: 'rt-check' }, both, 'Both ways (symmetric)'), X.op === 'cut' ? h('label', { class: 'rt-check' }, thr, 'Through all') : null));
+    if (!(X.through && X.op === 'cut')) bar.append(mdNum('Distance (mm)', () => X.d, (v, enter) => { if (v !== 0) X.d = v; preview(); if (enter) commitSolid(); }, { live: 'd' }));
+    bar.append(tbtn('flip', 'Flip: the other way', () => { X.d = -X.d; drawCard(); preview(); }),
+      tbtn('both', 'Both ways: as far each side of the sketch', () => { X.both = !X.both; preview(); }, { on: X.both }),
+      X.op === 'cut' ? tbtn('through', 'Through all: right through the part', () => { X.through = !X.through; preview(); }, { on: X.through }) : null);
   } else {
-    const lines0 = MD.ents.filter(e => e.t === 'line');
-    const ax = h('select', { 'aria-label': 'Axis' }, h('option', { value: '' }, 'Axis: pick a line…'), ...lines0.map((e, i) => h('option', { value: e.id }, 'Line ' + (i + 1) + (e.k ? ' (construction)' : '') + ', ' + (+Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(2)) + ' mm')));
-    ax.value = X.axis || '';
-    ax.addEventListener('change', () => { X.axis = ax.value || null; preview(); });
-    C.append(h('div', { class: 'rt-mdlrow' }, ax, mdNum('Angle (°)', () => X.deg, v => { X.deg = Math.max(1, Math.min(360, v)); preview(); }, { raw: true })));
+    const lines0 = MD.ents.filter(e => e.t === 'line'), axis = lines0.find(e => e.id === X.axis);
+    bar.append(tmenu('constr', 'Axis: the line to revolve about', lines0.map((e, i) => ['Line ' + (i + 1) + (e.k ? ' (construction)' : '') + ', ' + (+Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(2)) + ' mm', () => { X.axis = e.id; preview(); }, X.axis === e.id]), { text: axis ? 'Axis: line ' + (lines0.indexOf(axis) + 1) : 'Pick an axis' }),
+      mdNum('Angle (°)', () => X.deg, v => { X.deg = Math.max(1, Math.min(360, v)); preview(); }, { raw: true }));
   }
-  if (MD.prevErr) C.append(h('p', { class: 'rt-mdlnote rt-mdlerr' }, MD.prevErr));
-  C.append(h('div', { class: 'rt-mdlrow' }, btn('OK', () => commitSolid()), btn('Back to the sketch', () => { setStage('sketch'); })));
+  bar.append(sep(), tbtn('ok', 'OK: make it (Enter)', () => commitSolid(), { cls: 'rt-tbok', text: 'OK' }), tbtn('cancel', 'Back to the sketch (Esc)', () => setStage('sketch'), { cls: 'rt-tbno' }));
+  sub.append(h('span', { class: 'rt-mdlnote' + (MD.prevErr ? ' rt-mdlerr' : '') }, MD.prevErr || (rev ? 'Green: what it adds; red: what it cuts.' : 'Drag the arrow, or type the distance (mm, or 1in) · green adds, red cuts')));
 }
 // the sizes of the shape being drawn: shown as the pointer moves, typed to set
 function typedFields() {
@@ -814,6 +883,7 @@ const TOOL = {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y') && MD.stage === 'sketch' && !typing) { sketchUndo(!(e.key === 'y' || e.shiftKey)); return true; }
     if (typing) return false;
     if (e.key === 'Escape') {
+      if (mdMenuOpen) { closeMdMenu(); return true; }
       if (MD.pickFor) { MD.pickFor = null; drawCard(); kit().hint(); return true; }
       if (MD.stage === 'sketch' && MD.draft.length) { MD.draft = []; MD.chain0 = null; MD.typed = {}; drawCard(); redraw(); return true; }
       if (MD.stage === 'extrude' || MD.stage === 'revolve') { setStage('sketch'); return true; }

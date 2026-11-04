@@ -1867,26 +1867,43 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-poldiag { flex: none; width: 96px; height: 96px; }
 .rt-polcap { margin: 0 !important; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
-/* the 3D view's Model tools (ui/model3d.js): their card down the left, under the hint; a size typed beside the pointer */
-.rt-mdlcard { position: absolute; left: 60px; top: 4.6rem; z-index: 7; width: 17.5rem; max-height: calc(100% - 6rem); overflow: auto; box-sizing: border-box;
-  padding: 0.55rem 0.65rem 0.6rem; font: 0.75rem/1.35 var(--jek-sans); color: var(--jek-ink); background: var(--jek-panel); border: 1px solid var(--jek-line);
-  border-left: 3px solid #1d6fd8; border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
-.rt-mdlcard[hidden] { display: none; }
-.rt-mdlcard > b { display: block; font-size: 0.82rem; margin-bottom: 0.3rem; }
-.rt-mdlcard p { margin: 0.2rem 0 0.35rem; }
-.rt-mdlcard .rt-btn { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
-.rt-mdlcard .rt-btn.on { background: #1d6fd8; color: #fff; border-color: #1d6fd8; }
-.rt-mdltools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0.1rem 0 0.35rem; }
-.rt-mdltools .rt-btn { width: 100%; }
-.rt-mdlrow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.3rem 0.4rem; margin: 0.3rem 0; }
-.rt-mdlrow select { max-width: 100%; font-size: 0.75rem; }
+/* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
+   under it with what the moment needs; the hint goes to the bottom while they are on */
+.rt-mdltop { position: absolute; left: 60px; right: 124px; top: 34px; z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+.rt-mdltop[hidden] { display: none; }
+.rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
+.rt-tbar { padding: 3px 4px; }
+.rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
+.rt-tbsub:empty { display: none; }
+.rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
+.rt-tbsep { width: 1px; align-self: stretch; margin: 3px 4px; background: var(--jek-line); }
+.rt-tb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--jek-ink); cursor: pointer; font: 600 0.74rem var(--jek-sans); }
+.rt-tb.wide { padding: 0 8px; }
+.rt-tb:hover:not(:disabled) { background: rgba(127, 127, 127, 0.14); }
+.rt-tb.on { background: rgba(29, 111, 216, 0.16); color: #1d6fd8; border-color: rgba(29, 111, 216, 0.45); }
+.rt-tb:disabled { opacity: 0.38; cursor: default; }
+.rt-tb.rt-tbok { color: #fff; background: #2a8a4a; }
+.rt-tb.rt-tbok:hover { background: #237a40; }
+.rt-tb.rt-tbno { color: var(--jek-red, #b3261e); }
+.rt-tbgrp { display: inline-flex; align-items: center; }
+.rt-tbgrp > .rt-tb:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.rt-tbcar { min-width: 0; padding: 0 3px; }
+.rt-tbgrp > .rt-tb + .rt-tbcar { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.rt-car { font-size: 0.65rem; color: var(--jek-ink-soft); }
+.rt-tbmenu { position: absolute; z-index: 9; min-width: 11rem; max-height: 60vh; overflow: auto; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22); font: 0.76rem var(--jek-sans); }
+.rt-tbmenu button { display: block; width: 100%; text-align: left; padding: 5px 12px 5px 24px; border: 0; background: none; color: var(--jek-ink); cursor: pointer; position: relative; font: inherit; white-space: nowrap; }
+.rt-tbmenu button:hover { background: rgba(29, 111, 216, 0.12); }
+.rt-tbmenu button.on::before { content: '\2713'; position: absolute; left: 8px; color: #1d6fd8; }
+.rt-tbmenu hr { border: 0; border-top: 1px solid var(--jek-line); margin: 4px 0; }
+.rt-tbar .rt-mdlf, .rt-tbsub .rt-mdlf { flex-direction: row; align-items: center; gap: 5px; padding: 0 4px; }
 .rt-mdlf { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.rt-mdlf > span { font-size: 0.68rem; font-weight: 600; color: var(--jek-ink-soft); }
-.rt-mdlf > input { width: 5.2rem; box-sizing: border-box; height: 1.6rem; padding: 0.1rem 0.35rem; font: 0.75rem var(--jek-mono); }
+.rt-mdlf > span { font-size: 0.68rem; font-weight: 600; color: var(--jek-ink-soft); white-space: nowrap; }
+.rt-mdlf > input { width: 4.8rem; box-sizing: border-box; height: 1.6rem; padding: 0.1rem 0.35rem; font: 0.75rem var(--jek-mono); }
+.rt-mdlrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .rt-mdltyped .rt-mdlf > input { border-color: #1d6fd8; }
 .rt-mdlnote { font-size: 0.7rem; color: var(--jek-ink-soft); }
 .rt-mdlerr { color: var(--jek-red, #b3261e); }
-.rt-mdlcard .rt-check { font-size: 0.72rem; }
+.rt-mdlon .rt-v3dhint { top: auto; bottom: 46px; }
 .rt-mdltip { position: absolute; z-index: 7; pointer-events: none; font: 600 0.66rem var(--jek-sans); color: #fff; background: #f28a1a; padding: 1px 5px; border-radius: 3px; }
 .rt-mdltip[hidden] { display: none; }
 .rt-v3dbar .rt-mdlbtn.on { background: #1d6fd8; color: #fff; border-color: #1d6fd8; }

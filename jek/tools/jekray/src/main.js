@@ -195,6 +195,7 @@ import './io/zmx-export.js';
 import './io/cad-export.js';
 import './ui/part-uses.js';
 import './ui/experimental.js';
+import './io/step-reader.js';
 import './io/step.js';
 import './ui/picker.js';
 import './ui/rail.js';

@@ -27,6 +27,8 @@ export const hooks = {
   tasterLeft: () => null, tasterUse: () => false, tasterOut: () => false, tasterRefresh() {},
   // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
+  // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
+  apiBase: () => '', usageTier: () => 'anon',
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };

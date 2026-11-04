@@ -1,0 +1,17 @@
+{
+  "format": "jekion", "version": 1, "name": "Paul trap",
+  "view": { "cx": 0, "cy": 0, "scale": 22, "plane": "xy", "slice": 0 },
+  "grid": { "sym": "cyl", "h": 0.1, "x0": -14, "x1": 14, "y0": 0, "y1": 16, "bc": { "xlo": "open", "xhi": "open", "yhi": "ground" } },
+  "electrodes": [
+    { "name": "Ring", "shape": "ring", "axis": "x", "x": 0, "y": 0, "z": 0, "r0": 7.071, "rMax": 15, "L": 12, "V": 0, "rf": { "on": true, "amp": 150, "mhz": 1, "phase": 0 }, "colour": "#e0742f" },
+    { "name": "Endcap +", "shape": "endcap", "axis": "x", "x": 0, "y": 0, "z": 0, "z0": 5, "rMax": 12, "L": 8, "side": 1, "V": 0, "colour": "#5b8def" },
+    { "name": "Endcap -", "shape": "endcap", "axis": "x", "x": 0, "y": 0, "z": 0, "z0": 5, "rMax": 12, "L": 8, "side": -1, "V": 0, "colour": "#5b8def" }
+  ],
+  "ions": [{ "name": "Ca+", "species": "Ca+", "n": 3, "ke": 0.2, "x": 0.8, "y": 0.5, "z": 0, "dist": "point", "size": 0, "dirAz": 40, "dirEl": 20, "cone": 0, "colour": "#e8402a" }],
+  "detectors": [],
+  "species": { "name": "Ca+", "mass": 39.962, "charge": 1 },
+  "gas": { "on": false, "mass": 4.0026, "pressure": 1, "temp": 300, "sigma": 30 },
+  "fly": { "tMax": 100, "quality": 0.5, "maxPts": 6000, "spaceCharge": false, "seed": 1, "auto": true },
+  "show": { "pot": "map", "contours": 24, "traj": true, "colourBy": "group", "grid": true, "efield": false },
+  "notes": "The classic trap: a hyperbolic ring (r0 = 7.07 mm) and two endcaps (z0 = 5 mm, so r0² = 2z0²) with 150 V of RF at 1 MHz on the ring. Inside, the potential is the ideal quadrupole, φ ∝ r² − 2z²; Tools › Trap analysis gives q_z = 0.73 along the axis and q_r = 0.37 across it, both stable, with the secular frequencies. The paths show the slow secular motion with the fast micromotion riding on it. Turn on the helium buffer gas (Bench settings, 1 Pa) and watch the orbit shrink over the 100 µs; raise the RF to 200 V and the axial q passes 0.908, so the ion is lost."
+}

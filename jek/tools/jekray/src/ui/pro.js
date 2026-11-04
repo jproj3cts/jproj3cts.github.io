@@ -1,5 +1,4 @@
 import { hooks } from '../core/hooks.js';
-import { toast } from './actions.js';
 
 /* ==========================================================================
    The designers' work as JEKrayPro's
@@ -27,7 +26,7 @@ export function designPro(what) {
   // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
   if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
   // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
-  if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) toast(why, true);
+  if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) hooks.toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
 }

@@ -1,5 +1,6 @@
 import { V, extraSel, project, selectedId, setExtraSel, setSelectedId, typeLabel } from '../state/project.js';
-import { STL_KEEP, meshEncode, meshTris } from '../core/stl.js';
+import { STL_KEEP } from '../core/constants.js';
+import { meshEncode, meshTris } from '../core/stl.js';
 import { exporting, setExporting } from '../engines/trace.js';
 import {
   DPR, H, W, canvas, ctx, draw, getCss, halfSize, requestRender, selection, setCtx, setDPR, setH, setW,

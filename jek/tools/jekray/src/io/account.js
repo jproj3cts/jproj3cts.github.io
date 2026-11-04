@@ -953,6 +953,7 @@ export function accountShown() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireAccount() {
   hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown }); hooks.exportSignIn = exportSignIn;
+  hooks.apiBase = () => API_BASE; hooks.usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
   document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
   document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());

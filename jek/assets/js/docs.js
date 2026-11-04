@@ -50,7 +50,7 @@
   const input = document.getElementById('dxSearch'), out = document.getElementById('dxResults');
   if (!input || !out) return;
   let index = null, loading = null, sel = -1;
-  const load = () => loading || (loading = fetch('/jek/docs/jekray/search.json').then(r => r.json()).then(d => { index = d; }).catch(() => { index = []; }));
+  const load = () => loading || (loading = fetch(location.pathname.replace(/^(\/jek\/docs\/[a-z0-9]+\/).*$/, '$1') + 'search.json').then(r => r.json()).then(d => { index = d; }).catch(() => { index = []; }));
   const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const snippet = (text, words) => {
     const low = text.toLowerCase();

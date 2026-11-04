@@ -1,0 +1,182 @@
+{
+  "format": "jekion",
+  "version": 1,
+  "name": "Quadrupole mass filter",
+  "view": {
+    "cx": 0,
+    "cy": 0,
+    "scale": 18,
+    "plane": "xy",
+    "slice": 0
+  },
+  "grid": {
+    "sym": "planar",
+    "h": 0.2,
+    "x0": -14,
+    "x1": 14,
+    "y0": -14,
+    "y1": 14,
+    "bc": {
+      "xlo": "ground",
+      "xhi": "ground",
+      "ylo": "ground",
+      "yhi": "ground"
+    }
+  },
+  "electrodes": [
+    {
+      "name": "Rod +x",
+      "shape": "rod",
+      "axis": "z",
+      "x": 6.9,
+      "y": 0,
+      "z": 0,
+      "r": 3.45,
+      "L": 200,
+      "V": 12.64,
+      "rf": {
+        "on": true,
+        "amp": 89,
+        "mhz": 1,
+        "phase": 0
+      },
+      "colour": "#e0742f"
+    },
+    {
+      "name": "Rod -x",
+      "shape": "rod",
+      "axis": "z",
+      "x": -6.9,
+      "y": 0,
+      "z": 0,
+      "r": 3.45,
+      "L": 200,
+      "V": 12.64,
+      "rf": {
+        "on": true,
+        "amp": 89,
+        "mhz": 1,
+        "phase": 0
+      },
+      "colour": "#e0742f"
+    },
+    {
+      "name": "Rod +y",
+      "shape": "rod",
+      "axis": "z",
+      "x": 0,
+      "y": 6.9,
+      "z": 0,
+      "r": 3.45,
+      "L": 200,
+      "V": -12.64,
+      "rf": {
+        "on": true,
+        "amp": 89,
+        "mhz": 1,
+        "phase": 180
+      },
+      "colour": "#5b8def"
+    },
+    {
+      "name": "Rod -y",
+      "shape": "rod",
+      "axis": "z",
+      "x": 0,
+      "y": -6.9,
+      "z": 0,
+      "r": 3.45,
+      "L": 200,
+      "V": -12.64,
+      "rf": {
+        "on": true,
+        "amp": 89,
+        "mhz": 1,
+        "phase": 180
+      },
+      "colour": "#5b8def"
+    }
+  ],
+  "ions": [
+    {
+      "name": "m = 100 u",
+      "species": "custom",
+      "mass": 100,
+      "charge": 1,
+      "n": 12,
+      "ke": 5,
+      "x": 0.1,
+      "y": 0.1,
+      "z": 0,
+      "dist": "disc",
+      "size": 0.2,
+      "dirAz": 0,
+      "dirEl": 90,
+      "cone": 0,
+      "t0": 0,
+      "tSpread": 1,
+      "colour": "#1f9d55"
+    },
+    {
+      "name": "m = 88 u",
+      "species": "custom",
+      "mass": 88,
+      "charge": 1,
+      "n": 12,
+      "ke": 5,
+      "x": 0.1,
+      "y": 0.1,
+      "z": 0,
+      "dist": "disc",
+      "size": 0.2,
+      "dirAz": 0,
+      "dirEl": 90,
+      "cone": 0,
+      "t0": 0,
+      "tSpread": 1,
+      "colour": "#e8402a"
+    },
+    {
+      "name": "m = 112 u",
+      "species": "custom",
+      "mass": 112,
+      "charge": 1,
+      "n": 12,
+      "ke": 5,
+      "x": 0.1,
+      "y": 0.1,
+      "z": 0,
+      "dist": "disc",
+      "size": 0.2,
+      "dirAz": 0,
+      "dirEl": 90,
+      "cone": 0,
+      "t0": 0,
+      "tSpread": 1,
+      "colour": "#2a7de8"
+    }
+  ],
+  "detectors": [],
+  "species": {
+    "name": "custom",
+    "mass": 100,
+    "charge": 1
+  },
+  "fly": {
+    "tMax": 60,
+    "quality": 0.5,
+    "maxPts": 4000,
+    "spaceCharge": false,
+    "seed": 1,
+    "auto": true
+  },
+  "show": {
+    "pot": "map",
+    "contours": 24,
+    "traj": true,
+    "colourBy": "group",
+    "grid": true,
+    "efield": false
+  },
+  "notes": "Four round rods (r = 1.148 r₀, r₀ = 3.45 mm) with U ± V cos Ωt at 1 MHz, chosen so m = 100 u sits inside the tip of the first stability region (a ≈ 0.20, q ≈ 0.69): the planar array is the cross-section, and the ions start moving along z (out of the plane) at 5 eV, so the trajectories are their transverse motion over 60 µs. Mass 100 stays near the axis; 88 and 112 are thrown onto the rods within a few RF cycles. Tools › Trap analysis gives a and q for the species set under Bench settings (change the mass there to see each). Lower the DC (the ±12.64 V) to widen the pass band until all three come through; raise it to 14 V and even 100 is lost."
+}

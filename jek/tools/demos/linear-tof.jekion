@@ -1,0 +1,168 @@
+{
+  "format": "jekion",
+  "version": 1,
+  "name": "Linear time-of-flight",
+  "view": {
+    "cx": 100,
+    "cy": 0,
+    "scale": 4,
+    "plane": "xy",
+    "slice": 0
+  },
+  "grid": {
+    "sym": "cyl",
+    "h": 0.5,
+    "x0": -5,
+    "x1": 260,
+    "y0": 0,
+    "y1": 25,
+    "bc": {
+      "xlo": "ground",
+      "xhi": "open",
+      "yhi": "ground"
+    }
+  },
+  "electrodes": [
+    {
+      "name": "Repeller",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 22,
+      "L": 1,
+      "V": 2000,
+      "colour": "#e0742f"
+    },
+    {
+      "name": "Extraction grid",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 12,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 22,
+      "L": 0.5,
+      "V": 1500,
+      "colour": "#d9b32a",
+      "transparent": true
+    },
+    {
+      "name": "Acceleration grid",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 30,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 22,
+      "L": 0.5,
+      "V": 0,
+      "colour": "#3aa66a",
+      "transparent": true
+    },
+    {
+      "name": "Drift tube",
+      "shape": "tube",
+      "axis": "x",
+      "x": 140,
+      "y": 0,
+      "z": 0,
+      "rIn": 15,
+      "rOut": 17,
+      "L": 210,
+      "V": 0,
+      "colour": "#5b8def"
+    }
+  ],
+  "ions": [
+    {
+      "name": "m = 100 u",
+      "species": "custom",
+      "mass": 100,
+      "charge": 1,
+      "n": 15,
+      "ke": 0.1,
+      "keSpread": 0.05,
+      "x": 6,
+      "y": 0,
+      "z": 0,
+      "dist": "line",
+      "size": 1.5,
+      "dirAz": 0,
+      "cone": 180,
+      "t0": 0,
+      "tSpread": 0.02,
+      "colour": "#e8402a"
+    },
+    {
+      "name": "m = 101 u",
+      "species": "custom",
+      "mass": 101,
+      "charge": 1,
+      "n": 15,
+      "ke": 0.1,
+      "keSpread": 0.05,
+      "x": 6,
+      "y": 0,
+      "z": 0,
+      "dist": "line",
+      "size": 1.5,
+      "dirAz": 0,
+      "cone": 180,
+      "t0": 0,
+      "tSpread": 0.02,
+      "colour": "#2a7de8"
+    },
+    {
+      "name": "m = 200 u",
+      "species": "custom",
+      "mass": 200,
+      "charge": 1,
+      "n": 15,
+      "ke": 0.1,
+      "keSpread": 0.05,
+      "x": 6,
+      "y": 0,
+      "z": 0,
+      "dist": "line",
+      "size": 1.5,
+      "dirAz": 0,
+      "cone": 180,
+      "t0": 0,
+      "tSpread": 0.02,
+      "colour": "#1f9d55"
+    }
+  ],
+  "detectors": [
+    {
+      "name": "MCP",
+      "axis": "x",
+      "x": 250,
+      "y": 0,
+      "z": 0,
+      "half": 14,
+      "stop": true
+    }
+  ],
+  "fly": {
+    "tMax": 80,
+    "quality": 0.5,
+    "maxPts": 3000,
+    "spaceCharge": false,
+    "seed": 1,
+    "auto": true
+  },
+  "show": {
+    "pot": "contours",
+    "contours": 24,
+    "traj": true,
+    "colourBy": "group",
+    "grid": true,
+    "efield": false
+  },
+  "notes": "A Wiley–McLaren source with transparent grids (electrodes the ions pass through, as a fine mesh is): ions born between the repeller (2 kV) and the extraction grid (1.5 kV) across a 1.5 mm line, accelerated to 2 keV by the second gap and flown down a 220 mm field-free tube to the MCP. Masses 100, 101 and 200 u arrive at times in the ratio √m. The two-stage source puts the space focus near the detector: ions born nearer the repeller gain more energy and catch up. Open the MCP for the time-of-flight spectrum; shrink the start line and the energy spread to see the resolution improve."
+}

@@ -1331,6 +1331,16 @@
   .rt-rail { position: absolute; left: 0; top: 0; z-index: 4; height: 52px; max-width: calc(100% - 2rem); box-sizing: border-box; padding: 4px 5px; display: flex; flex-direction: row; align-items: center; gap: 4px;
     overflow-x: auto; overflow-y: hidden; scrollbar-width: none; background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-top: 0; border-radius: 0 0 2px 0; }
   .rt-rail .rt-rpals { display: flex; align-items: center; }
+  /* the bar: + Add, the mode, then every palette's groups as small icons, a line between palettes; wrapping when narrow */
+  .rt-rail { height: auto; min-height: 42px; flex-wrap: wrap; row-gap: 3px; column-gap: 2px; padding: 4px 6px; }
+  .rt-rail .rt-radd { flex-direction: row; width: auto; height: 32px; padding: 0 10px 0 8px; gap: 4px; font-size: 0.72rem; margin-right: 2px; }
+  .rt-rail .rt-rswitch { flex-direction: row; width: auto; min-height: 32px; height: 32px; padding: 0 17px 0 7px; gap: 5px; font-size: 0.72rem; margin-right: 4px; }
+  .rt-rail .rt-rswitch::after { right: 6px; bottom: auto; top: calc(50% - 1px); }
+  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 32px; height: 32px; padding: 2px; }
+  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 26px; height: 26px; }
+  .rt-rail .rt-rgroup.rt-rtool:not(.rt-rmfeat) svg { width: 20px; height: 20px; }
+  .rt-rail .rt-rgroup.rt-rall { font-size: 1rem; }
+  .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 4px; background: var(--rt-over-line); }
   .rt-rail[hidden] { display: none; }
   /* Add part, the rail's topmost button: the strong (black) one, as the main action */
   .rt-radd { flex: none; width: 44px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
@@ -1338,7 +1348,7 @@
   .rt-radd:hover, .rt-radd[aria-expanded="true"] { background: var(--rt-strong-hover); }
   .rt-radd:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .rt-radd svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-  .rt-rpals { display: flex; justify-content: center; width: 100%; padding-bottom: 5px; margin-bottom: 1px; border-bottom: 1px solid var(--rt-over-line); }
+  .rt-rpals { display: flex; align-items: center; flex: none; padding-right: 4px; margin-right: 2px; border-right: 1px solid var(--rt-over-line); }
   /* the palette switcher: the palette in use, its icon in its colour over its name; it opens the list beside the rail */
   .rt-rswitch { --c: var(--jek-orange); position: relative; width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 1px 6px;
     font: 700 0.56rem/1.05 var(--jek-sans); color: var(--rt-over-ink); background: var(--rt-surface); border: 1px solid var(--rt-over-line); border-radius: 5px; cursor: pointer; text-align: center; }
@@ -1415,7 +1425,7 @@
   .rt-flyout { position: absolute; left: 0; z-index: 6; width: min(19rem, calc(100% - 1rem)); max-height: calc(100% - var(--rt-top) - 1rem); overflow-y: auto; box-sizing: border-box; padding: 0 0.55rem 0.55rem;
     background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
   .rt-flyout[hidden] { display: none; }
-  .rt-stage.rail { --rt-top: 52px; }
+  .rt-stage.rail { --rt-top: 42px; }
   body.rt-embed .rt-rail, body.rt-embed .rt-flyout, body.rt-embed .rt-picker { display: none !important; }
   @media (max-width: 960px) {
     .rt-file .rt-name { width: var(--name-w, 9rem); flex: 0 1 auto; min-width: 7rem; max-width: calc(100vw - 7.5rem); }

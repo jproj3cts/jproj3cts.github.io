@@ -8100,8 +8100,8 @@ const TESTS = [
       const both = ['Add a note here', 'Add an arrow here'].every(t => items.some(b => b.textContent.includes(t)));
       const add = items.find(b => b.textContent.includes('Add an arrow here')); if (add) add.click();
       const last = draws()[draws().length - 1], added = draws().length === n0 + 1 && last.endMark === 'arrow';
-      // the palette as it was: the drawing keys turned to Draw
-      D.getElementById('palSwitch').click(); [...D.querySelectorAll('.rt-palmenu button')].find(b => /^Free space/.test(b.textContent)).click();
+      // the mode as it was: the drawing keys turned to Draw
+      D.getElementById('palSwitch').click(); [...D.querySelectorAll('.rt-palmenu button')].find(b => /^Parts/.test(b.textContent)).click();
       if (!(lineOk && arrowOk && both && added)) console.log('line tools', { ln, ar, both, added, items: items.map(b => b.textContent) });
       return lineOk && arrowOk && both && added ? 1 : 0;
     },
@@ -8129,21 +8129,25 @@ const TESTS = [
     },
   },
   {
-    name: 'The palette switcher shows the palette in use and changes it from its list',
-    why: 'the rail’s switcher names the palette in use; its list holds every palette with a line of what each holds; choosing Fibre makes the switcher show Fibre and the rail show fibre parts; Free space goes back (1 when all hold)',
+    name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode',
+    why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits, RF), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const D = rigDoc(), sw = () => D.getElementById('palSwitch');
-      const start = sw() && /Free space/.test(sw().textContent);
+      const pals = ['free', 'fibre', 'elec', 'rf'].every(p => D.querySelectorAll('#rail .rt-rgroup.' + p).length > 0) && D.querySelectorAll('#rail .rt-rsep').length >= 3;
+      const start = sw() && /Parts/.test(sw().textContent) && pals;
       sw().click();
       const menu = D.querySelector('.rt-palmenu'), items = [...menu.querySelectorAll('button')];
-      const listed = !menu.hidden && items.some(b => /Circuits/.test(b.textContent)) && items.every(b => b.querySelector('small') && b.querySelector('small').textContent.length > 5);
-      items.find(b => /^Fibre/.test(b.textContent)).click();
-      const fibre = menu.hidden && /Fibre/.test(sw().textContent) && D.querySelectorAll('#rail .rt-rgroup.fibre').length > 0;
-      sw().click(); [...D.querySelectorAll('.rt-palmenu button')].find(b => /^Free space/.test(b.textContent)).click();
-      const back = /Free space/.test(sw().textContent);
-      if (!(start && listed && fibre && back)) console.log('palette switcher', { start, listed, fibre, back });
-      return start && listed && fibre && back ? 1 : 0;
+      const listed = !menu.hidden && items.length === 2 && /^Parts/.test(items[0].textContent) && /^Draw/.test(items[1].textContent) && items.every(b => b.querySelector('small') && b.querySelector('small').textContent.length > 5);
+      items[1].click();
+      const draw = menu.hidden && /Draw/.test(sw().textContent) && D.querySelectorAll('#rail [data-dtool]').length > 3 && !D.querySelector('#rail .rt-rgroup.free');
+      sw().click(); [...D.querySelectorAll('.rt-palmenu button')].find(b => /^Parts/.test(b.textContent)).click();
+      const back = /Parts/.test(sw().textContent) && D.querySelectorAll('#rail .rt-rgroup.fibre').length > 0;
+      D.querySelector('#rail .rt-rgroup.fibre').click();
+      const fly = D.querySelector('.rt-flyout'), opened = !fly.hidden && fly.querySelectorAll('[data-add]').length > 0 && /Parts/.test(sw().textContent);
+      D.querySelector('#rail .rt-rgroup.fibre').click();
+      if (!(start && listed && draw && back && opened)) console.log('mode switcher', { start, listed, draw, back, opened });
+      return start && listed && draw && back && opened ? 1 : 0;
     },
   },  { group: 'Scripts' },
   {

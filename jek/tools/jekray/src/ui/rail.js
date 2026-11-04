@@ -37,12 +37,16 @@ export function flyShown(btn, g) {
   flyout.style.top = (br.bottom - sr.top + 4) + 'px';
   flyout.style.left = Math.max(0, Math.min(br.left - sr.left, sr.width - flyout.offsetWidth - 8)) + 'px';
 }
+/* the bar's modes: Parts (every palette's groups along it), Draw (2D) and Model (3D); a parts palette is the one in use
+   for the picker's first tab and the like, kept as the palette while in Parts */
+const MODE_NAMES = { parts: 'Parts', draw: 'Draw', model: 'Model' };
+const MODE_ABOUT = { parts: 'every palette\u2019s parts along the bar', draw: 'shapes, arrows and text on the bench (2D)', model: 'sketch and extrude parts of your own (3D)' };
+const modeOf = pal => (pal === 'draw' || pal === 'model' ? pal : 'parts');
+let lastParts = 'free';                                                   // the parts palette to come back to from Draw or Model
 /* the palettes: an icon and a line of what each holds, for the switcher and its list */
-const PAL_ABOUT = { free: 'lenses, mirrors, lasers, screens', fibre: 'fibres, couplers, amplifiers, detectors', elec: 'sources, amplifiers, filters, scopes',
-  rf: 'horns, RF lenses, reflectors', pic: 'waveguides, rings, couplers on a chip', draw: 'shapes, arrows and text', model: 'sketch and extrude parts of your own (3D)' };
 const PAL_ICON = { free: 'M2 10H18 M10 4C12 6 12 14 10 16C8 14 8 6 10 4Z', fibre: 'M2 14C6 14 6 6 10 6S14 14 18 14 M2.5 12.8A1.2 1.2 0 1 0 2.51 12.8 M17.5 12.8A1.2 1.2 0 1 0 17.51 12.8',
   elec: 'M2 10H5L7 6L10 14L13 6L15 10H18', rf: 'M3 7L9 10L3 13Z M12 6.5A5 5 0 0 1 12 13.5 M15 4.5A8 8 0 0 1 15 15.5',
-  pic: 'M4 4H16V16H4Z M4 10H8A2 2 0 0 1 12 10H16 M10 8V4', draw: 'M4 16L5 12L13 4L16 7L8 15Z M11 6L14 9', model: 'M3 14L10 17L17 14L10 11Z M10 11V3 M7 6L10 3L13 6' };
+  pic: 'M4 4H16V16H4Z M4 10H8A2 2 0 0 1 12 10H16 M10 8V4', parts: 'M3 3H9V9H3Z M11 3H17V9H11Z M3 11H9V17H3Z M11 11H17V17H11Z', draw: 'M4 16L5 12L13 4L16 7L8 15Z M11 6L14 9', model: 'M3 14L10 17L17 14L10 11Z M10 11V3 M7 6L10 3L13 6' };
 function palIcon(pal) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   svg.setAttribute('viewBox', '0 0 20 20'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -55,17 +59,17 @@ function palMenuShown(on) {
   if (!on || !sw) { palMenu.hidden = true; if (sw) sw.setAttribute('aria-expanded', 'false'); return; }
   flyShown(null);
   // drawings are 2D's; the Model tools 3D's
-  const list = [...palettesOn(), ...(V3D.active() ? ['model'] : ['draw'])];
-  palMenu.replaceChildren(...list.map(pal => {
-    const b = h('button', { type: 'button', role: 'menuitemradio', class: pal + (pal === palette ? ' on' : ''), 'aria-checked': pal === palette ? 'true' : 'false' },
-      palIcon(pal), h('span', null, h('b', null, PALETTE_NAMES[pal]), h('small', null, PAL_ABOUT[pal])));
-    b.addEventListener('click', e => { e.stopPropagation(); palMenuShown(false); setPalette(pal); const n = document.getElementById('palSwitch'); if (n) n.focus(); });
+  const list = ['parts', V3D.active() ? 'model' : 'draw'], cur = modeOf(palette);
+  palMenu.replaceChildren(...list.map(m => {
+    const b = h('button', { type: 'button', role: 'menuitemradio', class: m + (m === cur ? ' on' : ''), 'aria-checked': m === cur ? 'true' : 'false' },
+      palIcon(m), h('span', null, h('b', null, MODE_NAMES[m]), h('small', null, MODE_ABOUT[m])));
+    b.addEventListener('click', e => { e.stopPropagation(); palMenuShown(false); setPalette(m === 'parts' ? (modeOf(palette) === 'parts' ? palette : lastParts) : m); const n = document.getElementById('palSwitch'); if (n) n.focus(); });
     return b;
   }));
   const sr = stage.getBoundingClientRect(), br = sw.getBoundingClientRect();
   palMenu.style.top = (br.bottom - sr.top + 4) + 'px'; palMenu.style.left = Math.max(0, br.left - sr.left) + 'px';
   palMenu.hidden = false; sw.setAttribute('aria-expanded', 'true');
-  const cur = palMenu.querySelector('.on') || palMenu.querySelector('button'); if (cur) cur.focus();
+  const first = palMenu.querySelector('.on') || palMenu.querySelector('button'); if (first) first.focus();
 }
 export function railRecent() { /* the rail's recent part, kept current as parts are added */ if (railOn) fillRail(); }
 export function fillRail() {
@@ -74,11 +78,12 @@ export function fillRail() {
   rail.hidden = !railOn; flyout.hidden = true; flyFor = null;
   document.getElementById('btnRailToggle').setAttribute('aria-checked', railOn ? 'true' : 'false');
   stage.classList.toggle('rail', railOn);
-  if (!railOn) return;
+  if (!railOn) { railHeight(); return; }
   // its palette, a coloured button for each; then a button for each of that palette's groups, showing its first part
   // its palette: one switcher showing the one in use, opening a list of them, each with a line of what it holds
-  const sw = h('button', { type: 'button', class: 'rt-rswitch ' + palette, id: 'palSwitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
-    title: PALETTE_NAMES[palette] + ': ' + PAL_ABOUT[palette] + ' (change the palette)', 'aria-label': 'Palette: ' + PALETTE_NAMES[palette] + '. Change it' }, palIcon(palette), h('span', null, PALETTE_NAMES[palette]));
+  const mode = modeOf(palette);
+  const sw = h('button', { type: 'button', class: 'rt-rswitch ' + mode, id: 'palSwitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
+    title: MODE_NAMES[mode] + ': ' + MODE_ABOUT[mode] + ' (change the mode)', 'aria-label': 'Mode: ' + MODE_NAMES[mode] + '. Change it' }, palIcon(mode), h('span', null, MODE_NAMES[mode]));
   sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
   const pals = h('div', { class: 'rt-rpals' }, sw);
   // the Draw palette: its tools instead of groups of parts; the Model palette: its tools are its toolbar, over the 3D view
@@ -86,11 +91,14 @@ export function fillRail() {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); setDrawTool(k); });
     return b;
-  }) : partGroups(palette).map(g => {
-    const b = h('button', { type: 'button', class: 'rt-rgroup ' + palette, title: g.name, 'aria-label': g.name }, h('img', { alt: '', src: partIcon(g.parts[0].key), width: '36', height: '36' }));
-    b.addEventListener('click', e => { e.stopPropagation(); flyShown(b, g); });
-    return b;
-  });
+  }) : palettesOn().flatMap((pal, i) => [
+    // every palette's groups, one after another, a line between palettes, each group its palette's colour
+    i ? h('span', { class: 'rt-rsep ' + pal, 'aria-hidden': 'true' }) : null,
+    ...partGroups(pal).map(g => {
+      const b = h('button', { type: 'button', class: 'rt-rgroup ' + pal, title: PALETTE_NAMES[pal] + ': ' + g.name, 'aria-label': PALETTE_NAMES[pal] + ': ' + g.name }, h('img', { alt: '', src: partIcon(g.parts[0].key), width: '26', height: '26' }));
+      b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem('jek-raytracer-palette', pal); } catch (err) { /* fine */ } } flyShown(b, g); });
+      return b;
+    })]).filter(Boolean);
   // My parts, for the signed in
   let star = null;
   if (mineOn()) {
@@ -99,6 +107,7 @@ export function fillRail() {
   }
   rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
   drawToolsShown();
+  railHeight();
 }
 // the Model palette's features down the rail, each an icon and its name; kept current as the Model tools change stage
 function modelRailButtons() {
@@ -116,7 +125,10 @@ function modelRailSyncNow() {
   const now = modelRailButtons();
   old.forEach((b, i) => { if (now[i]) b.replaceWith(now[i]); });
 }
+// what the bar covers of the bench (it wraps to a second row when the bench is narrow): the overlays at the top sit under it
+function railHeight() { stage.style.setProperty('--rt-top', railOn && !rail.hidden ? rail.offsetHeight + 'px' : '0px'); }
 export function setPalette(pal) {
+  if (modeOf(pal) === 'parts') lastParts = pal;
   // the Model palette: its tools on while it is the palette, in the 3D view only
   if (pal === 'model' && !V3D.active()) pal = 'free';
   const was = palette;
@@ -143,8 +155,9 @@ export function layoutPalette() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 export function wireRail() {
   stage.append(rail);
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => railHeight()).observe(rail);
   // the Model tools put away (their ×, Esc, the 3D view closed): back to the free-space palette
-  setModelExit(() => { if (palette === 'model') setPalette('free'); }, () => setPalette('model'), modelRailSyncNow);
+  setModelExit(() => { if (palette === 'model') setPalette(lastParts); }, () => setPalette('model'), modelRailSyncNow);
 
   stage.append(flyout);
 

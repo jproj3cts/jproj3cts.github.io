@@ -30,7 +30,7 @@ import { volData, volDisp, volDispLine, volMerge, volPartners, volRay, volShare,
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
 import { phosphorCanvas, phosphorForget, phosphorRoll, phosphorTexture } from './phosphor.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
-import { acctMark, accountGate } from './pro.js';
+import { accountGate } from './pro.js';
 import { checkpoint, undo } from './tabs.js';
 import { qrLink } from '../io/share.js';
 import { exp, palette } from './experimental.js';
@@ -61,7 +61,6 @@ export const V3D = (() => {
   let tool = null;
   // what the tool asks of the view: no turning it (sketching, square on), no parts taken hold of (the Model tools)
   const lockView = () => !!(tool && tool.lockView && tool.lockView()), noParts = () => !!(tool && tool.noParts && tool.noParts());
-  const barExtras = [];
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
   const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type));
@@ -94,24 +93,22 @@ export const V3D = (() => {
     const b2 = h('button', { type: 'button', class: 'on', 'aria-pressed': 'true', title: 'The bench, from above (2D)', onclick: () => setOn(false) }, '2D');
     const b3 = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => setOn(true) }, '3D');
     const sw = h('div', { class: 'rt-v3dswitch', role: 'group', 'aria-label': 'View: 2D or 3D' }, b2, b3);
-    const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
-    const mouse = h('select', { 'aria-label': 'Mouse', title: 'How the mouse turns and pans the view' },
-      h('option', { value: 'default' }, 'Mouse: default'), h('option', { value: 'trackpad' }, 'Mouse: trackpad'));
-    mouse.value = ctrl;
-    mouse.addEventListener('change', () => { ctrl = mouse.value; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } hintText(); });
-    const nm = btn('Names', 'Show or hide the parts’ names', () => { names = !names; nm.classList.toggle('off', !names); nm.setAttribute('aria-pressed', String(names)); if (R) R.key = null; requestRender(); });
-    // Fly: a bird in flight
-    const flyBtn = btn('', 'Fly through the bench, full screen: W A S D and the mouse, Esc to land', () => flyStart());
-    flyBtn.setAttribute('aria-label', 'Fly'); flyBtn.classList.add('rt-flybird');
-    flyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2 7c3.5 0 6.4 1.7 8.3 4.6C11.6 7.4 14.6 4.6 19 3.5c-2 2.4-3 4.9-3 7.6 1.4-.7 3-.9 4.8-.6L23 12l-2.5.5c-1.3 3.3-4.2 5.4-8.3 5.9L9 21l.6-3.6C5.6 15.6 3 12 2 7z"/></svg>';
-    // (the views are on the cube, the keys Shift+1 to 7, and the right-click menu)
-    const bar = h('div', { class: 'rt-v3dbar', hidden: true }, flyBtn, btn('Fit', 'Zoom to fit (F)', () => fit(null, true)), nm, mouse, acctMark(btn('PNG', 'Save this view as a picture', png), 'save a picture of the 3D view'));
+    // the view's buttons, in the page's bar (page.html: Fly, the mouse, a picture); its parts' names in View; Fit is the bar's own
+    const byId = id => document.getElementById(id) || h('button', { type: 'button', hidden: true });
+    const flyBtn = byId('btn3dFly'), mouse = byId('btn3dMouse'), pngBtn = byId('btn3dPng'), nm = byId('btnNames3d');
+    const mouseSet = () => { mouse.setAttribute('aria-pressed', String(ctrl === 'trackpad')); mouse.classList.toggle('on', ctrl === 'trackpad');
+      mouse.title = ctrl === 'trackpad' ? 'Mouse: trackpad (drag turns the view, Shift-drag pans). Click for a mouse' : 'Mouse: default (right-drag turns the view). Click for a trackpad'; };
+    mouseSet();
+    mouse.addEventListener('click', () => { ctrl = ctrl === 'trackpad' ? 'default' : 'trackpad'; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } mouseSet(); hintText(); });
+    nm.addEventListener('click', () => { names = !names; nm.setAttribute('aria-checked', String(names)); if (R) R.key = null; requestRender(); });
+    flyBtn.addEventListener('click', () => flyStart());
+    pngBtn.addEventListener('click', png);
+    const bar = [byId('v3dSep'), flyBtn, mouse, pngBtn];
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
-    stage.append(sw, bar, hint, flyHint, vkey);
-    D = { stage, cv, sw, b2, b3, bar, hint, mouse, flyBtn, flyHint, vkey };
-    for (const n of barExtras) bar.prepend(n);
+    stage.append(sw, hint, flyHint, vkey);
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, flyBtn, flyHint, vkey };
     // the view's own tool first: a press it takes is not the view's
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'dblclick']) cv.addEventListener(type, e => {
       if (tool && !fly && R && tool[type] && tool[type](e)) { e.stopImmediatePropagation(); e.preventDefault(); }
@@ -134,7 +131,7 @@ export const V3D = (() => {
     if (s && s.on && !R) { D.hint.textContent = 'Opening the 3D view…'; return; }
     const draw = project.elements.some(e => e.bench === project.tab && e.type === 'draw') ? ' · Drawings show in 2D only' : '';
     const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-    D.mouse.hidden = touch;
+    D.touch = touch;
     const parts = 'Click a part: arrows to move it (orange x, green y, blue up) · Click it again: rings to turn it (blue: facing, green: tip, orange: roll; Alt: fine, Shift: 15°) · Drag a part: move it on the table · ';
     if (touch) { D.hint.textContent = 'Tap a part: arrows to move it · Tap again: rings to turn it · One finger: turn the view · Two: pan and zoom' + draw; return; }
     D.hint.textContent = parts + (ctrl === 'default'
@@ -149,12 +146,14 @@ export const V3D = (() => {
     const mi = document.getElementById('btnView3d');
     if (mi) mi.hidden = !there;
     D.stage.classList.toggle('v3d', on);
-    D.cv.hidden = !on || !R; D.bar.hidden = !on || !R; D.hint.hidden = !on;
+    D.cv.hidden = !on || !R; D.hint.hidden = !on;
+    for (const n of D.bar) n.hidden = !on || !R;
+    if (D.touch) D.mouse.hidden = true;
+    D.nm.hidden = !there;
     // drawings are 2D only: the rail's Draw palette goes while the 3D view shows, and comes back after
     if (on !== D.wasOn) { D.wasOn = on; if (on && palette === 'draw') setPalette('free'); else fillRail(); }
     if (!on) D.vkey.hidden = true;
-    D.flyBtn.hidden = !flyOk();
-    for (const n of barExtras) if (n._shown) n.hidden = !n._shown();
+    if (!flyOk()) D.flyBtn.hidden = true;
     if (tool && !on && tool.off) tool.off();
     if (fly && !on) flyStop();
     D.b2.classList.toggle('on', !on); D.b3.classList.toggle('on', on);
@@ -1677,7 +1676,6 @@ export const V3D = (() => {
     // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
     setTool(t) { tool = t || null; if (R) R.selKey = null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
     tool: () => tool,
-    addBar(n) { barExtras.push(n); if (D) D.bar.prepend(n); },
     // what a tool of the view's own works with: three.js, the renderer's scene and camera, the page's canvas and hint, picking,
     // and the camera moved (null until the view has opened)
     kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, setFlat, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),

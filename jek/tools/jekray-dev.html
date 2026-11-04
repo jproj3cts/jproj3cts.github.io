@@ -122,6 +122,7 @@
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
+            <button type="button" role="menuitemcheckbox" id="btnNames3d" aria-checked="true" data-icon="check" hidden title="The parts' names over them in the 3D view">Names in 3D</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
@@ -203,6 +204,11 @@
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Fit the view to the bench" aria-label="Fit view"></button>
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnMeasure" data-icon="ruler" title="Measure distances, angles and optical paths (M)" aria-label="Measure"></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnCmd" type="button" data-icon="search" title="Search commands (Ctrl+K)" aria-label="Search commands" aria-haspopup="dialog"></button>
+          <!-- the 3D view's own, shown while it is -->
+          <span class="rt-qsep rt-v3donly" id="v3dSep" aria-hidden="true" hidden></span>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dFly" type="button" data-icon="fly" hidden title="Fly through the bench, full screen: W A S D and the mouse, Esc to land" aria-label="Fly"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dMouse" type="button" data-icon="mouse" hidden aria-pressed="false" title="Mouse: default (right-drag turns the view). Click for a trackpad" aria-label="Trackpad controls"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dPng" type="button" data-icon="camera" hidden data-need="account" data-what="save a picture of the 3D view" title="Save the 3D view as a picture" aria-label="Save the 3D view as a picture"></button>
         </div>
         <div class="rt-more rt-file">
           <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>

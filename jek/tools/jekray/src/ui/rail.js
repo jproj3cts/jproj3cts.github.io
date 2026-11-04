@@ -33,7 +33,9 @@ export function flyShown(btn, g) {
   else flyout.replaceChildren(h('h4', null, g.name), h('div', { class: 'rt-pgrid' }, ...g.parts.map(p => partTile(p, (key, e) => { addPart(key); if (!e.shiftKey) flyShown(null); }))));
   const sr = stage.getBoundingClientRect(), br = btn.getBoundingClientRect();
   flyout.hidden = false;
-  flyout.style.top = Math.max(4, Math.min(br.top - sr.top, sr.height - flyout.offsetHeight - 8)) + 'px';
+  // under its button, the rail being across the top; kept on the bench
+  flyout.style.top = (br.bottom - sr.top + 4) + 'px';
+  flyout.style.left = Math.max(0, Math.min(br.left - sr.left, sr.width - flyout.offsetWidth - 8)) + 'px';
 }
 /* the palettes: an icon and a line of what each holds, for the switcher and its list */
 const PAL_ABOUT = { free: 'lenses, mirrors, lasers, screens', fibre: 'fibres, couplers, amplifiers, detectors', elec: 'sources, amplifiers, filters, scopes',
@@ -61,7 +63,7 @@ function palMenuShown(on) {
     return b;
   }));
   const sr = stage.getBoundingClientRect(), br = sw.getBoundingClientRect();
-  palMenu.style.top = Math.max(4, br.top - sr.top) + 'px';
+  palMenu.style.top = (br.bottom - sr.top + 4) + 'px'; palMenu.style.left = Math.max(0, br.left - sr.left) + 'px';
   palMenu.hidden = false; sw.setAttribute('aria-expanded', 'true');
   const cur = palMenu.querySelector('.on') || palMenu.querySelector('button'); if (cur) cur.focus();
 }

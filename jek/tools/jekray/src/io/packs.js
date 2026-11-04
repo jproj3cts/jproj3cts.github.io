@@ -371,6 +371,9 @@ export const MENU_ICONS = {
   share: 'M4 6.2A1.8 1.8 0 1 1 3.99 6.2 M12 2.2A1.8 1.8 0 1 1 11.99 2.2 M12 10.2A1.8 1.8 0 1 1 11.99 10.2 M5.6 7.1L10.4 4.9 M5.6 8.9L10.4 11.1',
   theme: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 1.5V14.5 M8 4H12.5 M8 7H14 M8 10H13.5',
   sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M10.5 6.5V9.5 M7 10.5V13.5',
+  fly: 'M1.5 5.5C4 5.5 6 6.8 7.3 9C8.2 6 10.3 4 13.5 3.2C12 5 11.3 6.8 11.3 8.7L14.5 8.6L12.6 9.6C11.7 12 9.6 13.4 6.7 13.8L4.6 15L5 12.6C2.9 11.2 1.9 8.8 1.5 5.5Z',
+  mouse: 'M8 1.5A4 4 0 0 1 12 5.5V10.5A4 4 0 0 1 4 10.5V5.5A4 4 0 0 1 8 1.5Z M8 1.5V6.5 M4 6.5H12',
+  camera: 'M1.5 5H4.5L5.8 3H10.2L11.5 5H14.5V13H1.5Z M8 6.6A2.6 2.6 0 1 1 7.99 6.6',
 };
 export function menuIcons(root) {
   for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {

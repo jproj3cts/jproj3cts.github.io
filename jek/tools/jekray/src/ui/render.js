@@ -980,7 +980,7 @@ export function niceStep(target) {
 function drawScaleBar() {
   const mm = niceStep(90 / V().scale);
   const px = mm * V().scale;
-  const x = 14 + (stage.classList.contains('rail') && !exporting ? 52 : 0), y = H - 16;     // clear of the parts rail
+  const x = 14, y = H - (exporting ? 16 : 44);                                           // above the bench's tabs
   ctx.strokeStyle = lightLayer ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';           // dark with its words on a light bench
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + px, y); ctx.lineTo(x + px, y - 5); ctx.stroke();

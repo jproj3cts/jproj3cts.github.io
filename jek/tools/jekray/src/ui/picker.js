@@ -10,7 +10,7 @@ import { partWords } from './part-uses.js';
 
 /* ---------- the picker ---------- */
 export const picker = h('div', { class: 'rt-picker', id: 'picker', role: 'dialog', 'aria-label': 'Add a part', hidden: '' });
-// Add part: the topmost button of the parts rail (ui/rail.js puts it there), the picker opening beside it
+// Add part: the first button of the parts rail (ui/rail.js puts it there), the picker opening under it
 export const addBtn = h('button', { type: 'button', class: 'rt-radd', id: 'btnAddPart', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', title: 'Add a part (A): every part, with a search', 'aria-label': 'Add part' });
 export let pickTab = 'free';
 export function setPickTab(v) { return (pickTab = v); }
@@ -22,10 +22,11 @@ export function pickerShown(on) {
   if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = 'free';
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
-  const r = addBtn.isConnected && addBtn.getClientRects().length ? addBtn.getBoundingClientRect() : (() => { const s = document.getElementById('stage').getBoundingClientRect(); return { top: s.top + 8, right: s.left }; })();
+  // (under it, the rail being across the top of the bench)
+  const r = addBtn.isConnected && addBtn.getClientRects().length ? addBtn.getBoundingClientRect() : (() => { const s = document.getElementById('stage').getBoundingClientRect(); return { bottom: s.top, left: s.left + 8 }; })();
   const w = Math.min(660, window.innerWidth - 16), ph = Math.min(window.innerHeight * 0.72, 640);
-  picker.style.top = Math.round(Math.max(8, Math.min(r.top, window.innerHeight - ph - 8))) + 'px';
-  picker.style.left = Math.round(Math.max(8, Math.min(r.right + 8, window.innerWidth - w - 8))) + 'px';
+  picker.style.top = Math.round(Math.max(8, Math.min(r.bottom + 6, window.innerHeight - ph - 8))) + 'px';
+  picker.style.left = Math.round(Math.max(8, Math.min(r.left, window.innerWidth - w - 8))) + 'px';
   picker.hidden = false; addBtn.setAttribute('aria-expanded', 'true');
   fillPicker('');
 }

@@ -322,7 +322,7 @@ function drawScaleBar(c) {
   c.fillText(mm >= 1 ? nf(mm) + ' mm' : nf(mm * 1000) + ' µm', x, y - 5);
   // the cut
   const [, , ip] = PLANES[V().plane], G = project.grid;
-  c.textAlign = 'right'; c.fillText(G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.replace('', '').split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' = ' + nf(V().slice) + ' mm', W - 14, y);
+  c.textAlign = 'right'; c.fillText(G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.replace('', '').split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' = ' + nf(V().slice) + ' mm', W - 104, y);   // (beside the 2D / 3D switch, in the corner)
   c.restore();
 }
 export function wireRender() {

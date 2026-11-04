@@ -11,7 +11,6 @@ import { V3D } from './view3d.js';
 import { h, renderPanel } from './panel.js';
 import { changed, downloadFile, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
-import { exp } from './experimental.js';
 import { accountGate } from './pro.js';
 
 /* ==========================================================================
@@ -40,15 +39,14 @@ const kit = () => V3D.kit();
 const LIFT = 0.02;                              // mm: the sketch drawn this far off its plane, over the face it is on
 
 /* ---------- the button, and starting and stopping ---------- */
-export function wireModel3d() {
-  const btn = h('button', { type: 'button', class: 'rt-btn rt-mdlbtn', title: 'Model a part: sketch on a flat face, then extrude or revolve it into a beam block (Experimental)', 'aria-pressed': 'false', onclick: () => (MD.on ? stopModel() : startModel()) }, 'Model');
-  btn._shown = () => exp('model') || MD.on;
-  MD.btn = btn;
-  V3D.addBar(btn);
-}
+// what to do once the tools are put away (the rail: back to the free-space palette)
+let modelExit = () => {}, modelEnter = () => startModel();
+export function setModelExit(exit, enter) { modelExit = exit; if (enter) modelEnter = enter; }
+export function wireModel3d() { /* the tools are opened from the rail's palettes (Model, in 3D) */ }
 export function startModel() {
   const K = kit(); if (!K) return false;
-  MD.on = true; if (MD.btn) { MD.btn.hidden = false; MD.btn.classList.add('on'); MD.btn.setAttribute('aria-pressed', 'true'); }
+  if (MD.on) return true;
+  MD.on = true;
   manifoldLib().catch(() => toast('The modelling library could not be loaded', true));
   if (!MD.group) { MD.group = new K.T.Group(); MD.group.matrixAutoUpdate = false; }
   if (!MD.group.parent) K.R.scene.add(MD.group);
@@ -59,14 +57,15 @@ export function startModel() {
 }
 export function stopModel() {
   const K = kit();
+  if (!MD.on) return;
   MD.on = false; MD.stage = 'off'; MD.edit = null; MD.draft = []; MD.ents = []; MD.sel.clear();
-  if (MD.btn) { MD.btn.classList.remove('on'); MD.btn.setAttribute('aria-pressed', 'false'); MD.btn.hidden = !MD.btn._shown(); }
   if (K && MD.group) { clearGroup(); dropPrev(); K.R.scene.remove(MD.group); }
   if (MD.card) { MD.card.remove(); MD.card = null; }
   if (MD.tip) { MD.tip.remove(); MD.tip = null; }
   closeMdMenu(); if (K) K.D.stage.classList.remove('rt-mdlon');
   V3D.setTool(null);
   if (K) K.need();
+  modelExit();
 }
 function setStage(s) {
   MD.stage = s; MD.draft = []; MD.typed = {}; MD.pickFor = null;
@@ -551,7 +550,7 @@ export async function editSketch(el, skId) {
   const sk = el.model && el.model.feats.find(f => f.id === skId); if (!sk) return;
   if (!V3D.active()) await V3D.setOn(true);
   if (!kit()) return;
-  if (!MD.on) startModel();
+  if (!MD.on) modelEnter();
   const P = planeToWorld(el, sk.plane);
   MD.offset = 0;
   enterSketch({ plane: normPlane(P), p: modelToWorld(el, sk.plane.o), src: { kind: 'face', id: el.id } }, sk.ents, { id: el.id, sk: skId });
@@ -908,7 +907,7 @@ function liveDist() { if (!MD.card) return; const inp = MD.card.querySelector('i
 
 /* ---------- for the tests (J.model3d) ---------- */
 export const MODEL3D_API = {
-  start: () => startModel(),
+  start: () => { modelEnter(); return MD.on; },
   stop: () => stopModel(),
   state: () => ({ on: MD.on, stage: MD.stage, tool: MD.tool, ents: MD.ents.map(e => Object.assign({}, e)), draft: MD.draft.slice(), sel: [...MD.sel], plane: MD.plane, beam: MD.beam ? { n: MD.beam.pts.length, mids: MD.beam.mids } : null, holes: !!MD.holes, edges: (MD.edges || []).length, ex: Object.assign({}, MD.ex), err: MD.prevErr || '', last: MD.lastMade ? (getEl(MD.lastMade) || {}).name : null, card: MD.card ? MD.card.textContent : '' }),
   plane: k => { enterSketch(namedPlane(k)); return MD.plane; },

@@ -9,8 +9,8 @@ import { checkpoint } from '../tabs.js';
 import { importStl } from '../experimental.js';
 import { saveToMine } from '../myparts.js';
 import { proMark } from '../pro.js';
-import { editSketch, exportModelStl, rebuildLater, startModel } from '../model3d.js';
-import { exp } from '../experimental.js';
+import { editSketch, exportModelStl, rebuildLater } from '../model3d.js';
+import { setPalette } from '../rail.js';
 import { extrudeTo } from '../../core/model.js';
 import { V3D } from '../view3d.js';
 
@@ -64,7 +64,7 @@ function modelPanel(el) {
   for (const f of F) {
     if (f.t === 'sketch') {
       list.append(h('div', { class: 'rt-mfeat' }, h('b', null, f.name || 'Sketch'), h('span', null, f.ents.length + ' shape' + (f.ents.length === 1 ? '' : 's')),
-        exp('model') ? h('button', { type: 'button', class: 'rt-link', onclick: () => editSketch(el, f.id) }, 'Edit sketch\u2026') : null, x(f)));
+        h('button', { type: 'button', class: 'rt-link', onclick: () => editSketch(el, f.id) }, 'Edit sketch\u2026'), x(f)));
       continue;
     }
     const op = h('select', { 'aria-label': (f.name || 'Feature') + ': add or cut' }, h('option', { value: 'add' }, 'Add'), h('option', { value: 'cut' }, 'Cut'));
@@ -91,7 +91,7 @@ function modelPanel(el) {
   ci.addEventListener('change', () => { checkpoint(); el.colour = ci.value; changed(false); });
   panel.append(h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f' }, h('label', { for: cid }, 'Colour'), ci)));
   panel.append(h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' },
-    exp('model') ? h('button', { type: 'button', class: 'rt-btn', title: 'Sketch on one of its faces (or anywhere) in the 3D view, and add to it or cut from it', onclick: async () => { if (!V3D.active()) await V3D.setOn(true); startModel(); } }, 'Add a sketch\u2026') : null,
+    h('button', { type: 'button', class: 'rt-btn', title: 'Sketch on one of its faces (or anywhere) in the 3D view, and add to it or cut from it', onclick: async () => { if (!V3D.active()) await V3D.setOn(true); setPalette('model'); } }, 'Add a sketch\u2026'),
     h('button', { type: 'button', class: 'rt-btn', title: 'Its triangles as a .stl file, in millimetres, to make it (a 3D printer, a machinist)', onclick: () => exportModelStl(el) }, 'Export .stl\u2026')));
   panel.append(readoutBox('stl'));
   const M = el.mesh;

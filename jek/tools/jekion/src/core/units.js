@@ -57,8 +57,11 @@ export function fmtUs(v) {
 }
 export function fmtMHz(v) {
   const a = Math.abs(v);
-  return a >= 1e3 ? nf(v / 1e3) + ' GHz' : a >= 1 ? nf(v) + ' MHz' : nf(v * 1e3) + ' kHz';
+  return a >= 1e3 ? nf(v / 1e3) + ' GHz' : a >= 1 ? nf(v) + ' MHz' : a >= 1e-3 ? nf(v * 1e3) + ' kHz' : nf(v * 1e6) + ' Hz';
 }
+/* the unit an RF frequency is shown in, by its size: [key, mhz a unit, label] */
+export const FREQ_UNITS = [['hz', 1e-6, 'Hz'], ['khz', 1e-3, 'kHz'], ['mhz', 1, 'MHz'], ['ghz', 1e3, 'GHz']];
+export const freqUnitOf = mhz => (mhz >= 1e3 ? 'ghz' : mhz >= 1 ? 'mhz' : mhz >= 1e-3 ? 'khz' : 'hz');
 export function fmtVolt(v) {
   const a = Math.abs(v);
   return a >= 1e3 ? nf(v / 1e3) + ' kV' : a >= 0.1 || a === 0 ? nf(v) + ' V' : nf(v * 1e3) + ' mV';

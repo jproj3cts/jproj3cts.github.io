@@ -10,7 +10,7 @@ description: "Every electrode shape JEKion has, its settings, its voltage and RF
 
 ## Voltage and RF
 
-**Voltage** is the static part. With **RF** on, an amplitude, frequency and phase add amp · cos(2πft + φ) to it: an electrode of a Paul trap, a quadrupole mass filter's rods (the opposite pair at phase 180°), an RF funnel. The voltage changes fly the ions again at once; the shape and place solve the array again.
+**Voltage** is the static part. With **RF** on, an amplitude, frequency (in Hz, kHz, MHz or GHz, down to single hertz for a slow drive) and phase add amp · cos(2πft + φ) to it: an electrode of a Paul trap, a quadrupole mass filter's rods (the opposite pair at phase 180°), an RF funnel. The voltage changes fly the ions again at once; the shape and place solve the array again.
 
 ## The shapes
 

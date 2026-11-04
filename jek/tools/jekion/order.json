@@ -43,5 +43,6 @@
   "ui/view3d.js",
   "io/account.js",
   "io/data-export.js",
+  "io/share.js",
   "ui/boot.js"
 ]

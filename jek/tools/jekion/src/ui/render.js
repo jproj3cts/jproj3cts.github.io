@@ -2,7 +2,7 @@ import { TEST_MODE, clamp } from '../../../jekray/src/core/constants.js';
 import { fmtVolt, nf } from '../core/units.js';
 import { PLANES, meshSections, shapeSections } from '../core/geom.js';
 import { project, selectedId, V } from '../state/project.js';
-import { SIM } from './sim.js';
+import { SIM, pickedLine } from './sim.js';
 import { viridis } from '../core/colour.js';
 
 /* ==========================================================================
@@ -236,6 +236,8 @@ export function render() {
     c.fillText(text, sx(lu), sy(lv) - 10);
   }
   c.restore();
+  // a line a potential is plotted along
+  if (pickedLine) { const [a, b] = [uvOf(pickedLine.a), uvOf(pickedLine.b)]; c.save(); c.strokeStyle = getCss('--jek-orange'); c.lineWidth = 2; c.setLineDash([6, 4]); c.beginPath(); c.moveTo(sx(a[0]), sy(a[1])); c.lineTo(sx(b[0]), sy(b[1])); c.stroke(); c.setLineDash([]); c.fillStyle = getCss('--jek-orange'); for (const q of [a, b]) { c.beginPath(); c.arc(sx(q[0]), sy(q[1]), 3.5, 0, 2 * Math.PI); c.fill(); } c.restore(); }
   // the analysis point
   if (project.point) { const [u, v] = uvOf(project.point); c.save(); c.strokeStyle = getCss('--jek-orange'); c.lineWidth = 1.5; c.beginPath(); c.moveTo(sx(u) - 7, sy(v)); c.lineTo(sx(u) + 7, sy(v)); c.moveTo(sx(u), sy(v) - 7); c.lineTo(sx(u), sy(v) + 7); c.stroke(); c.restore(); }
   // the trajectories

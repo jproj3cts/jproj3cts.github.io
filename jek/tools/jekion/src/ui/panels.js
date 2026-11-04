@@ -9,7 +9,9 @@ import { DISTS } from '../parts/ions.js';
 import { END_WORDS } from '../engines/fly.js';
 import { checkField, colourField, h, helpLine, param, readout, rows, section, selectField, setPanelBody, panelClosed } from './panel.js';
 import { changed, duplicateSel, removeSel } from './actions.js';
-import { SIM, flyNow, trapNow, potentialLine } from './sim.js';
+import { SIM, flyNow, trapNow, potentialLine, potentialAtPoints, pickedLine, setPickedLine } from './sim.js';
+import { setPointTool } from './pointer.js';
+import { toast } from './actions.js';
 import { histogram, linePlot, scatter } from './plots.js';
 import { arrayBox } from './render.js';
 
@@ -140,6 +142,8 @@ function benchPanel() {
   if (!SPECIES[sp.name]) spF.push(param('Mass (u)', sp, 'mass', { min: 1e-6 }), param('Charge (e)', sp, 'charge'));
   spF.push(h('p', { class: 'note' }, project.point ? 'Analysis point at ' + project.point.map(v => nf(v, 4)).join(', ') + ' mm (right-click the bench to move it).' : 'Analysis point: the array’s centre (right-click the bench to set one).'));
   box.append(section('Trap analysis', 'bench.trap', [rows(spF), trapBlock(), h('div', { class: 'rt-actions', style: 'margin-top:0.4rem' }, h('button', { type: 'button', class: 'rt-btn', onclick: () => trapNow().then(() => hooks.renderPanel()) }, 'Analyse now'))]));
+  // potential plots
+  box.append(potentialSection());
   // display
   const S = project.show;
   box.append(section('Display', 'bench.show', [rows(selectField('Potential', Object.entries(POT_SHOWS), () => S.pot, v => { S.pot = v; }, { rebuild: false }), param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }),
@@ -161,6 +165,47 @@ export function fitArray() {
   if (G.sym === 'cyl') { G.y0 = 0; G.y1 = +(Math.max(Math.abs(lo[1]), Math.abs(hi[1]), Math.abs(lo[2]), Math.abs(hi[2])) + m).toPrecision(6); }
   else { G.y0 = +(lo[1] - m).toPrecision(6); G.y1 = +(hi[1] + m).toPrecision(6); }
   if (G.sym === '3d') { G.z0 = +(lo[2] - m).toPrecision(6); G.z1 = +(hi[2] + m).toPrecision(6); }
+}
+/* ---------- potential plots ----------
+   The potential along the axis, across it at an x, along a line picked with two clicks on the bench, or along a flown
+   particle's path against time; the last one asked for is drawn again when the panel is rebuilt. */
+let potPlot = null;                 // { kind: 'axis' | 'across' | 'line' | 'path', x, a, b, gi, i }
+export function setPotPlot(v) { potPlot = v; hooks.renderPanel(); }
+function potentialSection() {
+  const G = project.grid, out = h('div'), plotBox = h('div');
+  const [u0, u1] = arrayBox(), yMid = G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, zMid = G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0;
+  const across = { x: potPlot && potPlot.kind === 'across' ? potPlot.x : +(((G.x0 + G.x1) / 2).toPrecision(4)) };
+  const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
+  const acts = h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' },
+    btn('Along the x axis', 'The potential along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + ' from one edge of the array to the other', () => setPotPlot({ kind: 'axis' })),
+    btn('Across, at x', 'The potential along y (the radius, in a cylindrical array) at the x given', () => setPotPlot({ kind: 'across', x: across.x })),
+    btn('Along a line…', 'Click two points on the bench: the potential along the line between them', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
+  out.append(rows(param('x for the plot across (mm)', across, 'x', { after: v => { if (potPlot && potPlot.kind === 'across') potPlot.x = v; } })), acts);
+  if (SIM.result && SIM.result.particles.length) {
+    const ps = SIM.result.particles.slice(0, 200), sel = selectField('Along a particle\u2019s path', ps.map((p, k) => [String(k), ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i]), () => String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0), v => { setPotPlot({ kind: 'path', k: +v }); }, { wide: true, rebuild: false });
+    out.append(rows(sel), h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' }, btn('Plot along the path', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.querySelector('select').value }))));
+  }
+  out.append(plotBox);
+  if (potPlot) drawPotPlot(potPlot, plotBox, u0, u1, yMid, zMid);
+  else if (pickedLine) setPickedLine(null);
+  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along the axis and across it the line runs from edge to edge of the array; a picked line is kept on the bench (dashed) until another plot is asked for. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
+  return section('Potential plots', 'bench.pot', [out], true);
+}
+const rfNote = () => (project.electrodes.some(e => e.on !== false && e.rf && e.rf.on) ? ', at t = 0 (the RF at its peak)' : '');
+async function drawPotPlot(spec, box, u0, u1, yMid, zMid) {
+  box.replaceChildren(h('p', { class: 'note' }, 'Plotting\u2026'));
+  try {
+    if (spec.kind === 'axis') { const L = await potentialLine([u0, yMid, zMid], [u1, yMid, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => u0 + s), L.v, { title: 'Potential along the x axis', xl: 'x (mm)', yl: 'V', note: 'along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + rfNote() })); }
+    else if (spec.kind === 'across') { const G = project.grid, lo = G.sym === 'cyl' ? -G.y1 : G.y0, hi = G.y1; const L = await potentialLine([spec.x, lo, zMid], [spec.x, hi, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential across, at x = ' + nf(spec.x, 4) + ' mm', xl: (G.sym === 'cyl' ? 'r' : 'y') + ' (mm)', yl: 'V', note: 'at x = ' + nf(spec.x, 4) + ', z = ' + nf(zMid, 3) + rfNote() })); }
+    else if (spec.kind === 'line') { const L = await potentialLine(spec.a, spec.b, 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s, L.v, { title: 'Potential along the line', xl: 'distance (mm)', yl: 'V', note: 'from ' + spec.a.map(v => nf(v, 4)).join(', ') + ' to ' + spec.b.map(v => nf(v, 4)).join(', ') + rfNote() })); if (!pickedLine) setPickedLine({ a: spec.a, b: spec.b }); }
+    else if (spec.kind === 'path') {
+      const p = SIM.result && SIM.result.particles[spec.k]; if (!p) { box.replaceChildren(); return; }
+      const pts = [], ts = []; for (let i = 0; i < p.pts.length; i += 4) { pts.push([p.pts[i], p.pts[i + 1], p.pts[i + 2]]); ts.push(p.pts[i + 3]); }
+      // the potential at the time it was there (an RF electrode swings): one request a time
+      const vs = []; for (let i = 0; i < pts.length; i += 400) { const R = await potentialAtPoints(pts.slice(i, i + 400), 0, ts.slice(i, i + 400)); if (!R) return; vs.push(...R.v); }
+      if (potPlot === spec) box.replaceChildren(linePlot(ts, vs, { title: 'Potential along the path of ' + ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i, xl: 't (\u00b5s)', yl: 'V', note: 'the potential at each kept point of the path, at the time it was there; ' + (p.end ? END_WORDS[p.end.why] : '') }));
+    }
+  } catch (err) { box.replaceChildren(h('p', { class: 'note' }, 'Could not plot: ' + err.message)); }
 }
 /* the trap analysis as a block (the dialog shows the same) */
 export function trapBlock() {
@@ -189,13 +234,7 @@ function resultsSection() {
   const live = project.electrodes.filter(e => e.on !== false), perEl = live.map((el, k) => [el, P.filter(p => (p.end.why === 'splat' || p.end.why === 'start') && p.end.el === k).length]).filter(x => x[1]);
   const body = [h('div', { class: 'ion-res' }, readout([['Ions flown', n + ' in ' + nf(R.ms / 1000, 2) + ' s'], ...Object.entries(ends).map(([w, k]) => [END_WORDS[w], k + ' (' + nf(100 * k / n, 3) + '%)'])]), bar)];
   if (perEl.length) body.push(h('table', { class: 'ion-table' }, h('tr', null, h('th', null, 'Electrode'), h('th', null, 'Hit by')), ...perEl.map(([el, k]) => h('tr', null, h('td', null, h('span', { class: 'ion-sw', style: 'background:' + el.colour }), el.name), h('td', { class: 'n' }, String(k))))));
-  const times = P.map(p => p.end.t), lineBtn = h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
-    const [u0, u1] = arrayBox(), G = project.grid, y = G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, z = G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0;
-    const L = await potentialLine([u0, y, z], [u1, y, z], 300);
-    if (!L) return;
-    lineBox.replaceChildren(linePlot(L.s.map(s => u0 + s), L.v, { title: 'Potential along the axis', xl: 'x (mm)', yl: 'V', note: 'along y = ' + nf(y, 3) + ', z = ' + nf(z, 3) }));
-  } }, 'Plot the potential along the axis'), lineBox = h('div');
-  body.push(histogram(times, { title: 'Time at the end', unit: 'µs' }), h('div', { class: 'rt-actions', style: 'margin:0.4rem 0' }, lineBtn), lineBox);
+  body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));
   return section('Results of the last flight', 'bench.res', body);
 }
 /* what the panel shows: the selection's panel, else the bench's unless it was put away */

@@ -30,7 +30,9 @@ function axes(c, w, hgt, xr, yr, xl, yl) {
   c.stroke();
   c.strokeStyle = inkA(0.45); c.beginPath(); c.moveTo(l - 0.5, tp); c.lineTo(l - 0.5, tp + ph + 0.5); c.lineTo(l + pw, tp + ph + 0.5); c.stroke();
   c.fillStyle = getCss('--jek-ink-soft'); c.textAlign = 'center'; c.textBaseline = 'top';
-  for (const t of tx) c.fillText(t.text, X(t.at), tp + ph + 4);
+  // the across ticks' labels, clear of the title at the right end
+  const titleW = c.measureText(xl).width + 10;
+  for (const t of tx) { const half = c.measureText(t.text).width / 2; if (X(t.at) + half < l + pw - titleW) c.fillText(t.text, X(t.at), tp + ph + 4); }
   c.textAlign = 'right'; c.textBaseline = 'middle';
   for (const t of ty) c.fillText(t.text, l - 4, Y(t.at));
   c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText(xl, l + pw, hgt - 1);

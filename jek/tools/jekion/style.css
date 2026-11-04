@@ -34,3 +34,4 @@
   .ion-gcard .ion-gtag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-cyan-dark); }
   .rt-imenu .ion-mshape { display: flex; flex-direction: column; align-items: flex-start; }
   .rt-imenu .ion-mshape small { font-size: 0.72rem; color: var(--jek-ink-soft); font-weight: 400; }
+  .rt-stage canvas.picking { cursor: crosshair; }

@@ -16,6 +16,9 @@ import { openDropped, scheduleSave } from '../io/open.js';
    ========================================================================== */
 export let drag = null;
 let spaceDown = false;
+/* a tool that takes points clicked on the bench: { n, pts, done(pts) }; set by a panel, cleared when done or on Escape */
+export let pointTool = null;
+export function setPointTool(v) { pointTool = v; canvas.classList.toggle('picking', !!v); return v; }
 /* what is at a bench point (in the plane): an electrode (its section), an ion group's start or a detector's line */
 export function hitTest(px, py) {
   const u = wx(px), v = wy(py), tol = 7 / V().scale, p = pointOf(u, v), G = project.grid, [iu, iv, ip] = PLANES[V().plane];
@@ -71,6 +74,7 @@ export function wirePointer() {
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* a synthetic pointer */ }
     if (e.button === 1 || e.button === 2 || spaceDown || (e.pointerType === 'touch' && false)) { drag = { mode: 'pan', x0: px, y0: py, cx: V().cx, cy: V().cy, button: e.button, moved: 0 }; canvas.classList.add('dragging'); return; }
     if (e.button !== 0) return;
+    if (pointTool) { pointTool.pts.push(pointOf(snapTo(wx(px), e), snapTo(wy(py), e))); if (pointTool.pts.length >= pointTool.n) { const T = pointTool; setPointTool(null); T.done(T.pts); } else requestRender(); drag = { mode: 'none' }; return; }
     const hit = hitTest(px, py);
     if (hit) {
       if (hit.id !== selectedId) { setSelectedId(hit.id); renderPanel(); requestRender(); }
@@ -125,6 +129,7 @@ export function wirePointer() {
   }, { passive: false });
   document.addEventListener('keydown', e => { if (e.key === ' ' && !(e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) && !document.querySelector('dialog[open]')) { spaceDown = true; } });
   document.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; canvas.classList.remove('dragging'); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && pointTool) { setPointTool(null); requestRender(); } });
   window.addEventListener('blur', () => { spaceDown = false; });
   // files dropped on the bench
   const stage = document.getElementById('stage');

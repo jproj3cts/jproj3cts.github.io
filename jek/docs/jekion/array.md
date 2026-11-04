@@ -26,6 +26,10 @@ The Laplace equation ∇²φ = 0 is written by finite differences at each free n
 
 Between electrodes the potential is second-order accurate in the spacing. On a curved or slanted electrode the grid makes a staircase, and the field near it is first-order: the Node tests put a 3 mm sphere in a grounded shell and find the potential at r = 4.5 mm 7% low at h = 0.5 mm, 4.7% at 0.25 and 2.1% at 0.125, and a Paul trap's *q* 3% low at h = 0.2 mm (r₀ = 7 mm) and 1.5% at 0.1. Halve the spacing and see what moves; what does not move is right. The browser suite ([checks](/jek/tools/jekion-tests.html)) puts parallel plates, coaxial cylinders, concentric spheres and the hyperbolic trap against their closed forms.
 
+## Plotting the potential
+
+The Bench panel's **Potential plots** section plots the potential along the x axis, across it at a given x, along any line picked with two clicks on the bench (kept dashed on the bench while the plot stands), or along a flown particle's path against time, each with PNG and CSV buttons. The pointer's coordinates at the bottom of the bench read the potential and the field strength under it too.
+
 ## Between the nodes
 
 The potential at a point is interpolated linearly in its cell (trilinearly in three dimensions) and the field is the interpolant's own slope, so the field is piecewise constant within a cell along each axis. The flying step is kept to a fraction of a cell so a particle sees every cell it crosses. The trap analysis takes second derivatives by a five-point difference at the node nearest the analysis point, not from the interpolant.

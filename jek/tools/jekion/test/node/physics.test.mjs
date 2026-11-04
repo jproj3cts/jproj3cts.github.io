@@ -7,6 +7,7 @@ import { flyAll } from '../../src/engines/fly.js';
 import { trapAnalysis } from '../../src/engines/trap.js';
 import { potentialAt } from '../../src/engines/fields.js';
 import { speedOfKE, QE, AMU } from '../../src/core/units.js';
+import { makeGrid, gGrad, gNodePos } from '../../src/core/grid.js';
 
 const ion = o => Object.assign({ id: 'i1', name: 'ions', colour: '#f00', n: 1, mass: 39.962, charge: 1, ke: 10, keSpread: 0, x: 0, y: 0, z: 0, dist: 'point', size: 0, dirAz: 0, dirEl: 0, cone: 0, t0: 0, tSpread: 0, weight: 1 }, o);
 const el = o => Object.assign({ id: 'e', name: 'E', colour: '#888', V: 0, rf: { on: false, amp: 0, mhz: 1, phase: 0 }, axis: 'x', x: 0, y: 0, z: 0 }, o);
@@ -101,4 +102,35 @@ test('space charge flies the particles together and pushes them apart; a transpa
   const F2 = solved(Q), R2 = flyAll(F2, Q);
   assert.equal(R2.particles[0].end.why, 'det');
   assert.ok(Math.abs(R2.particles[0].end.ke - R1.particles[0].end.ke) < 2, 'the same field either side of the grid: ' + R1.particles[0].end.ke + ' vs ' + R2.particles[0].end.ke);
+});
+
+test('the trap analysis takes its axes from the field: a quadrupole on the diagonals reads the same as one on the axes', () => {
+  const rods = (turn, amp) => { const a = 8 / Math.SQRT2, pos = turn ? [[a, a], [-a, -a], [a, -a], [-a, a]] : [[8, 0], [-8, 0], [0, 8], [0, -8]];
+    return pos.map(([x, y], k) => el({ id: 'r' + k, shape: 'rod', axis: 'z', x, y, r: 3, L: 40, V: 0, rf: { on: true, amp, mhz: 1, phase: k < 2 ? 0 : 180 } })); };
+  const P = turn => ({ grid: { sym: 'planar', h: 0.25, x0: -16, x1: 16, y0: -16, y1: 16, bc: { xlo: 'ground', xhi: 'ground', ylo: 'ground', yhi: 'ground' } }, electrodes: rods(turn, 50), ions: [], detectors: [] });
+  const A = trapAnalysis(solved(P(false)), P(false), [0, 0, 0], { mass: 100, charge: 1 }), B = trapAnalysis(solved(P(true)), P(true), [0, 0, 0], { mass: 100, charge: 1 });
+  assert.equal(A.axes.length, 2); assert.equal(B.axes.length, 2);
+  const qA = A.axes.map(x => Math.abs(x.q)).sort(), qB = B.axes.map(x => Math.abs(x.q)).sort();
+  assert.ok(qA[1] > 0.1 && Math.abs(qA[0] - qA[1]) < 0.03 * qA[1], 'on the axes: ' + qA);
+  assert.ok(Math.abs(qB[1] - qA[1]) < 0.03 * qA[1], 'turned 45°, the same q: ' + qB + ' vs ' + qA);
+  assert.ok(B.axes.every(x => /^\(/.test(x.axis)), 'the turned axes are named by direction: ' + B.axes.map(x => x.axis));
+  assert.ok(A.axes.every(x => x.axis === 'x' || x.axis === 'y'), 'the aligned ones by name: ' + A.axes.map(x => x.axis));
+});
+
+test('the field between the nodes is continuous and exact for a quadratic potential: a quadrupole\'s null is a null', () => {
+  // a quadrupole potential sampled on the nodes: the field is its exact gradient anywhere inside, including at a node
+  const g = makeGrid({ sym: '3d', h: 0.25, x0: -2, x1: 2, y0: -2, y1: 2, z0: -2, z1: 2 }), A = new Float64Array(g.n);
+  const phi = (x, y, z) => 100 * (x * x - y * y) + 7 * (x + 2 * y - z) + 3;
+  for (let o = 0; o < g.n; o++) { const [x, y, z] = gNodePos(g, o); A[o] = phi(x, y, z); }
+  const E = [0, 0, 0];
+  for (const [x, y, z] of [[0, 0, 0], [0.1, -0.2, 0.3], [0.5, 0.5, 0], [0.37, 1.12, -0.81], [-1.5, 0.25, 1]]) {
+    assert.ok(gGrad(g, A, x, y, z, E));
+    const ex = [200 * x + 7, -200 * y + 14, -7];
+    for (let i = 0; i < 3; i++) assert.ok(Math.abs(E[i] - ex[i]) < 1e-9, 'at ' + [x, y, z] + ': ' + E + ' vs ' + ex);
+  }
+  // the null of the quadrupole part alone is a null, and the field is continuous across a cell face
+  for (let o = 0; o < g.n; o++) { const [x, y] = gNodePos(g, o); A[o] = 100 * (x * x - y * y); }
+  gGrad(g, A, 0, 0, 0, E); assert.ok(Math.hypot(...E) < 1e-9, 'the null: ' + E);
+  const a = [0, 0, 0], b = [0, 0, 0]; gGrad(g, A, 0.25 - 1e-9, 0.1, 0.1, a); gGrad(g, A, 0.25 + 1e-9, 0.1, 0.1, b);
+  assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1e-6, 'across a face: ' + a + ' vs ' + b);
 });

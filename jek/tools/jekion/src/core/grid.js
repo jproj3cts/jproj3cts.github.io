@@ -61,24 +61,24 @@ export function gInterp(g, A, x, y, z) {
   const q = o + nxy, b00 = A[q] + (A[q + 1] - A[q]) * fx, b10 = A[q + nx] + (A[q + nx + 1] - A[q + nx]) * fx, a1 = b00 + (b10 - b00) * fy;
   return a0 + (a1 - a0) * c.fz;
 }
-/* the gradient of the array at a point (the interpolant's own slope within the cell), per mm, as bench components
-   in out[0..2]; false outside. A cylindrical array's radial slope is turned into y and z components. */
+/* the gradient of the array at a point, per mm, as bench components in out[0..2]; false outside. The gradient is
+   taken at each corner of the cell by central differences on the nodes (one-sided at the array's edges, zero across
+   the axis of a cylindrical array) and interpolated linearly within the cell: so the field is continuous, a
+   quadrupole's null is a null, and a quadratic potential's field is exact (the interpolant's own slope would be
+   constant across each cell and step at its faces). A cylindrical array's radial slope is turned into y and z. */
 export function gGrad(g, A, x, y, z, out) {
   const c = gCell(g, x, y, z); if (!c) return false;
-  const o = gIdx(g, c.i, c.j, c.k), nx = g.nx, nxy = g.nx * g.ny, fx = c.fx, fy = c.fy, fz = c.fz, h = g.h;
-  const a = A[o], b = A[o + 1], cc = A[o + nx], d = A[o + nx + 1];
-  let gx, gy, gz = 0;
-  if (g.nz === 1) {
-    gx = ((b - a) * (1 - fy) + (d - cc) * fy) / h;
-    gy = ((cc - a) * (1 - fx) + (d - b) * fx) / h;
-  } else {
-    const q = o + nxy, e = A[q], f = A[q + 1], gg = A[q + nx], hh = A[q + nx + 1];
-    gx = (((b - a) * (1 - fy) + (d - cc) * fy) * (1 - fz) + ((f - e) * (1 - fy) + (hh - gg) * fy) * fz) / h;
-    gy = (((cc - a) * (1 - fx) + (d - b) * fx) * (1 - fz) + ((gg - e) * (1 - fx) + (hh - f) * fx) * fz) / h;
-    const lo = a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + cc * (1 - fx) * fy + d * fx * fy, hi = e * (1 - fx) * (1 - fy) + f * fx * (1 - fy) + gg * (1 - fx) * fy + hh * fx * fy;
-    gz = (hi - lo) / h;
+  const nx = g.nx, ny = g.ny, nz = g.nz, nxy = nx * ny, h = g.h, h2 = 2 * h, flat = nz === 1, cyl = g.sym === 'cyl';
+  let gx = 0, gy = 0, gz = 0;
+  for (let dk = 0; dk <= (flat ? 0 : 1); dk++) for (let dj = 0; dj <= 1; dj++) for (let di = 0; di <= 1; di++) {
+    const w = (di ? c.fx : 1 - c.fx) * (dj ? c.fy : 1 - c.fy) * (flat ? 1 : dk ? c.fz : 1 - c.fz);
+    if (w === 0) continue;
+    const i = c.i + di, j = c.j + dj, k = c.k + dk, o = i + nx * (j + ny * k);
+    gx += w * (i === 0 ? (A[o + 1] - A[o]) / h : i === nx - 1 ? (A[o] - A[o - 1]) / h : (A[o + 1] - A[o - 1]) / h2);
+    gy += w * (j === 0 ? (cyl ? 0 : (A[o + nx] - A[o]) / h) : j === ny - 1 ? (A[o] - A[o - nx]) / h : (A[o + nx] - A[o - nx]) / h2);
+    if (!flat) gz += w * (k === 0 ? (A[o + nxy] - A[o]) / h : k === nz - 1 ? (A[o] - A[o - nxy]) / h : (A[o + nxy] - A[o - nxy]) / h2);
   }
-  if (g.sym === 'cyl') {
+  if (cyl) {
     const r = Math.hypot(y, z);
     if (r > 1e-12) { out[0] = gx; out[1] = gy * y / r; out[2] = gy * z / r; } else { out[0] = gx; out[1] = 0; out[2] = 0; }
   } else { out[0] = gx; out[1] = gy; out[2] = gz; }

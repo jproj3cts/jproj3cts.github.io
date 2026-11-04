@@ -10916,8 +10916,9 @@ function demoProject() {
 const fieldDec = sc => sc === 'log60' ? 6 : sc === 'log' ? 3 : 0;
 /* what the bench's Light sends from its sources: the ray fans (Show the rays) and the Gaussian beams (their envelope or
    their field shown); a source has no ticks of its own */
-const raysOn = src => !!src && src.traceRays !== false && lightOf().rays !== false;
 const beamOn = src => !!src && !!src.gauss && (lightOf().envelope !== false || !!lightOf().field);
+// (a source with no beam, its field from even illumination, carries its light in its rays alone: they are traced, if hidden)
+const raysOn = src => !!src && src.traceRays !== false && (lightOf().rays !== false || !beamOn(src));
 function normLight(L, els) {
   L = L && typeof L === 'object' ? L : null;
   const any = k => (els || []).some(e => e && (e.beamView === k || e.emitView === k));
@@ -22199,6 +22200,8 @@ const V3D = (() => {
   const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9e3d8' : '#101417'; };   // a warm grey room round the paper bench, near-black round the dark
 
   /* ---------- keeping up with the bench ---------- */
+  // what the network's parts and their fibres look like on this tab (moving them changes no light, so not the trace)
+  const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb])]);
   function sync() {
     init();
     // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
@@ -22207,7 +22210,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
+    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
@@ -23116,7 +23119,7 @@ const V3D = (() => {
     if (!one || gz.id !== one.id) gz = { id: one ? one.id : null, mode: 'move' };
     if (P && !one.locked) {
       const b = new T.Box3().setFromObject(P), rr = Math.max(10, Math.hypot(b.max.x - b.min.x, b.max.y - b.min.y) / 2 + 6);
-      const c = new T.Vector3(one.x, one.y, z3(one)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
+      const c = new T.Vector3(one.x, one.y, z3(one) + (NET_3D.has(one.type) ? netBox(one).h / 2 : 0)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
       const ORANGE = 0xf47742, GREEN = 0x3a9d5d, BLUE = 0x0092b2;
       // drawn over the parts, so a handle behind a part still shows and can be taken hold of
       const mat = (color, op) => new T.MeshBasicMaterial({ color, transparent: true, opacity: op || 1, depthTest: false, depthWrite: false });
@@ -23769,6 +23772,8 @@ const V3D = (() => {
       flyTurn(dx, dy) { if (fly) flyTurn(dx, dy); },
       menuShown() { const m = document.getElementById('ctxMenu'); return m && !m.hidden ? [...m.querySelectorAll('button')].map(x => x.textContent) : null; },
       // where on the canvas a part's centre is drawn, css px
+      // where a part's model is drawn (x, y, z of its group), as the scene has it now
+      meshAt(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); return p ? p.position.toArray() : null; },
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
@@ -25483,6 +25488,8 @@ const INST = (() => {
       const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, flat ? Math.max(0.1 * Math.abs(mid), 1e-3) : 0.01 * Math.abs(mid), 1e-9 * Math.max(1, Math.abs(mid)));
       const r = half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
       r.swing = hi - lo; r.mid = mid;
+      // (the scale it chose, kept out of the saved settings: an offset typed with it on auto holds it there)
+      if (set) for (const [k, v] of [['autoDiv', (r[1] - r[0]) / DIV_Y], ['autoMid', mid]]) Object.defineProperty(set, k, { value: v, writable: true, configurable: true, enumerable: false });
       return r;
     };
     const rg = tr.map((T, i) => T ? range(T, st.ch && st.ch[i]) : null), fi = tr.findIndex(Boolean);
@@ -25615,8 +25622,19 @@ const INST = (() => {
     st.ch = st.ch || [];
     for (let i = 0; i < nCh; i++) {
       const c = st.ch[i] || (st.ch[i] = { vdiv: 0, off: 0 }), nm = nCh > 1 ? 'Ch' + (i + 1) + ' ' : '';
-      rows.append(field(nm + 'Per division', blankNum('rtf' + (setFid(fid + 1)), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); })),
-        field(nm + 'Offset', plainNum('rtf' + (setFid(fid + 1)), () => c.off, v => { c.off = v; redraw(); })));
+      const pdIn = blankNum('rtf' + (setFid(fid + 1)), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); });
+      rows.append(field(nm + 'Per division', pdIn),
+        // an offset moves the trace against a set scale, as on a bench scope: typed while the scale is automatic, the scale
+        // on the screen is kept as Per division, so the trace moves by it
+        field(nm + 'Offset', plainNum('rtf' + (setFid(fid + 1)), () => c.off, v => {
+          if (!(c.vdiv > 0) && c.autoDiv > 0) {
+            // a scale that keeps the trace on the screen about the new middle: the automatic one, or wider, in 1-2-5 steps
+            const need = Math.max(c.autoDiv, isFinite(c.autoMid) ? 2.5 * Math.abs(c.autoMid - v) / DIV_Y : 0), p10 = Math.pow(10, Math.floor(Math.log10(need)));
+            c.vdiv = [1, 2, 5, 10].map(m => m * p10).find(x => x >= need * 0.999);
+            pdIn.value = String(+c.vdiv.toPrecision(6));
+          }
+          c.off = v; redraw();
+        })));
     }
     return rows;
   }
@@ -29792,7 +29810,7 @@ function renderPanelBody(el) {
   const rows = h('div', { class: 'rt-rows' });
   // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
   // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
-  const noSw = el.type === 'draw', hasZ = V3D.free(el), tips = tippable(el);
+  const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
   const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw }, pc);
   const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw }, ac);
@@ -55891,6 +55909,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>No ticks for a source\u2019s light</b>: a source always traces its rays, and a new one propagates a Gaussian beam; its panel\u2019s <b>Field</b> says what its field starts from, the Gaussian beam or even illumination across the fan (a uniform pupil, for a lens\u2019s Airy pattern, Strehl and MTF). A fibre tip always sends both. The bench\u2019s <b>Light</b> turns the rays, or the beams, off for every source at once. The look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
+    'A scope\u2019s <b>Offset</b> works with its scale on auto: typing one keeps the scale on the screen as Per division (wide enough to keep the trace in view), so the trace moves as on a bench scope; before, it was ignored until Per division was set. In 3D, a fibre component or circuit part dragged across the table now moves with its fibres (and Ctrl+Z puts it back), its arrows from the middle of its body.',
     '<b>Fibres and circuits in 3D</b>: fibre components, circuit parts and chips stand on the table in the 3D view, each a box with its symbol on its top, ferrules and pins at its ports, and their fibres, wires and waveguides laid along their routes, rising to each port (a fibre glows the colour of its light). No tab stays in 2D now. The parts\u2019 names in 3D are off to start with (View \u203a Names in 3D).',
     '<b>More room on the bench</b>: the parts rail is a bar across the top, every palette\u2019s groups along it as small icons (free space, fibre, circuits and RF at once), its switcher now changing the mode: Parts, Draw (2D) or Model (3D); the bench\u2019s tabs sit at the bottom left and the 2D / 3D switch at the bottom right. The Bench panel lists each bench\u2019s parts on a tab of its own. The 3D view\u2019s Fly, mouse and picture buttons are icons in the bar beside Fit, Measure and Search, and its names are under View. Free space\u2019s mirrors and lenses are two groups, and <b>+ Add</b> keeps the parts added lately in a <b>Recent</b> tab of their own.',
     '<b>Modelling in 3D</b>: <b>Model</b> (in 3D, from the parts bar\u2019s switcher) makes parts as a CAD program does. Click a flat face (a part\u2019s, the table, or empty space for the beam\u2019s plane) and sketch on it: lines, arcs (3-point, centre, tangent), rectangles, circles, slots, polygons, points and holes of the usual screw sizes. The sketch is <b>parametric</b>: snaps make constraints (coincident, on a curve, midpoint, horizontal, vertical), more are a click away (parallel, perpendicular, tangent, equal, concentric, fix, symmetric), <b>dimensions</b> size it and are changed later with a double-click (or in the part\u2019s panel), shapes turn black once fully defined, and drags keep the constraints; trim and fillet too. Points snap to where the light crosses the plane and the table\u2019s holes. The features (Sketch, Extrude, Revolve) are on the rail, the tools of the one in hand in a bar under it; sketching, the view stays square on (it moves and zooms, it does not turn), and the bench\u2019s parts are left alone while you model. Then extrude or revolve <b>the regions you click</b>, into a part of its own or added to a modelled part or cut from one. The part is a beam block that keeps how it was made; <b>Export .stl</b> to make it.',

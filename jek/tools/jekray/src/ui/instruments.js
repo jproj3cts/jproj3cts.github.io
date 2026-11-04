@@ -122,6 +122,8 @@ export const INST = (() => {
       const mid = (lo + hi) / 2, half = Math.max((hi - lo) / 2, flat ? Math.max(0.1 * Math.abs(mid), 1e-3) : 0.01 * Math.abs(mid), 1e-9 * Math.max(1, Math.abs(mid)));
       const r = half > (hi - lo) / 2 ? [mid - half, mid + half] : [lo - 0.08 * (hi - lo), hi + 0.08 * (hi - lo)];
       r.swing = hi - lo; r.mid = mid;
+      // (the scale it chose, kept out of the saved settings: an offset typed with it on auto holds it there)
+      if (set) for (const [k, v] of [['autoDiv', (r[1] - r[0]) / DIV_Y], ['autoMid', mid]]) Object.defineProperty(set, k, { value: v, writable: true, configurable: true, enumerable: false });
       return r;
     };
     const rg = tr.map((T, i) => T ? range(T, st.ch && st.ch[i]) : null), fi = tr.findIndex(Boolean);
@@ -254,8 +256,19 @@ export const INST = (() => {
     st.ch = st.ch || [];
     for (let i = 0; i < nCh; i++) {
       const c = st.ch[i] || (st.ch[i] = { vdiv: 0, off: 0 }), nm = nCh > 1 ? 'Ch' + (i + 1) + ' ' : '';
-      rows.append(field(nm + 'Per division', blankNum('rtf' + (setFid(fid + 1)), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); })),
-        field(nm + 'Offset', plainNum('rtf' + (setFid(fid + 1)), () => c.off, v => { c.off = v; redraw(); })));
+      const pdIn = blankNum('rtf' + (setFid(fid + 1)), () => c.vdiv, v => { c.vdiv = Math.max(0, v); redraw(); });
+      rows.append(field(nm + 'Per division', pdIn),
+        // an offset moves the trace against a set scale, as on a bench scope: typed while the scale is automatic, the scale
+        // on the screen is kept as Per division, so the trace moves by it
+        field(nm + 'Offset', plainNum('rtf' + (setFid(fid + 1)), () => c.off, v => {
+          if (!(c.vdiv > 0) && c.autoDiv > 0) {
+            // a scale that keeps the trace on the screen about the new middle: the automatic one, or wider, in 1-2-5 steps
+            const need = Math.max(c.autoDiv, isFinite(c.autoMid) ? 2.5 * Math.abs(c.autoMid - v) / DIV_Y : 0), p10 = Math.pow(10, Math.floor(Math.log10(need)));
+            c.vdiv = [1, 2, 5, 10].map(m => m * p10).find(x => x >= need * 0.999);
+            pdIn.value = String(+c.vdiv.toPrecision(6));
+          }
+          c.off = v; redraw();
+        })));
     }
     return rows;
   }

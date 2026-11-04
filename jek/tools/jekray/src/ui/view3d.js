@@ -283,6 +283,8 @@ export const V3D = (() => {
   const sceneBg = () => { const c = new T.Color(benchBg()); const hsl = {}; c.getHSL(hsl); return hsl.l > 0.5 ? '#e9e3d8' : '#101417'; };   // a warm grey room round the paper bench, near-black round the dark
 
   /* ---------- keeping up with the bench ---------- */
+  // what the network's parts and their fibres look like on this tab (moving them changes no light, so not the trace)
+  const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb])]);
   function sync() {
     init();
     // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
@@ -291,7 +293,7 @@ export const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
+    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
@@ -1200,7 +1202,7 @@ export const V3D = (() => {
     if (!one || gz.id !== one.id) gz = { id: one ? one.id : null, mode: 'move' };
     if (P && !one.locked) {
       const b = new T.Box3().setFromObject(P), rr = Math.max(10, Math.hypot(b.max.x - b.min.x, b.max.y - b.min.y) / 2 + 6);
-      const c = new T.Vector3(one.x, one.y, z3(one)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
+      const c = new T.Vector3(one.x, one.y, z3(one) + (NET_3D.has(one.type) ? netBox(one).h / 2 : 0)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
       const ORANGE = 0xf47742, GREEN = 0x3a9d5d, BLUE = 0x0092b2;
       // drawn over the parts, so a handle behind a part still shows and can be taken hold of
       const mat = (color, op) => new T.MeshBasicMaterial({ color, transparent: true, opacity: op || 1, depthTest: false, depthWrite: false });
@@ -1853,6 +1855,8 @@ export const V3D = (() => {
       flyTurn(dx, dy) { if (fly) flyTurn(dx, dy); },
       menuShown() { const m = document.getElementById('ctxMenu'); return m && !m.hidden ? [...m.querySelectorAll('button')].map(x => x.textContent) : null; },
       // where on the canvas a part's centre is drawn, css px
+      // where a part's model is drawn (x, y, z of its group), as the scene has it now
+      meshAt(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); return p ? p.position.toArray() : null; },
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },

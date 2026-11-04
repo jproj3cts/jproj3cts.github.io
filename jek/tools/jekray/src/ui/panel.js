@@ -5,7 +5,7 @@ import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { V, extraSel, project, selectOne, typeLabel } from '../state/project.js';
-import { getEl, selected } from '../state/elements.js';
+import { getEl, selected, NET_3D } from '../state/elements.js';
 import { tippable } from '../engines/trace.js';
 import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './render.js';
 import { drawBarShown } from './drawings.js';
@@ -650,7 +650,7 @@ function renderPanelBody(el) {
   const rows = h('div', { class: 'rt-rows' });
   // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
   // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
-  const noSw = el.type === 'draw', hasZ = V3D.free(el), tips = tippable(el);
+  const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
   const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw }, pc);
   const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw }, ac);

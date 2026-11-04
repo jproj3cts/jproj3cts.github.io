@@ -4054,7 +4054,7 @@ const TESTS = [
   },
   {
     name: 'A fibre tip sends its rays and its beam, and the bench\u2019s Light turns either off',
-    why: 'a fibre laser into a tip facing a screen: the bench showing rays and beams, rays land and a beam arrives; its rays off, no rays land but the beam still arrives; its beams off (envelope and field), rays land and nothing arrives as a field; both off, nothing; and the tip keeps no switch of its own (1 when all hold)',
+    why: 'a fibre laser into a tip facing a screen: the bench showing rays and beams, rays land and a beam arrives; its rays off, no rays land but the beam still arrives; its beams off (envelope and field), rays land and nothing arrives as a field; both off, the rays still carry the light (hidden), with no field; and the tip keeps no switch of its own (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const mk = (light, o) => bench('ftick', [fc('laser', 'L', { x: -60, y: 40, wavelength: 1550, power: 1 }),
@@ -4065,7 +4065,7 @@ const TESTS = [
       const both = look(L(true, true)), noRays = look(L(false, true)), noBeam = look(L(true, false)), none = look(L(false, false));
       look(L(true, true), { emitTraceRays: false, emitGauss: false });                            // (switches from before: dropped)
       const kept = J.serialize().elements.find(e => e.id === 'T');
-      return both[0] && both[1] && !noRays[0] && noRays[1] && noBeam[0] && !noBeam[1] && !none[0] && !none[1] && kept.emitTraceRays === undefined && kept.emitGauss === undefined ? 1 : 0;
+      return both[0] && both[1] && !noRays[0] && noRays[1] && noBeam[0] && !noBeam[1] && none[0] && !none[1] && kept.emitTraceRays === undefined && kept.emitGauss === undefined ? 1 : 0;
     },
   },
   {
@@ -7101,7 +7101,7 @@ const TESTS = [
   },
   {
     name: 'Fibre components and circuit parts stand on the table in 3D, their fibres and wires laid between them',
-    why: 'the fibre Michelson in 3D: every fibre component is drawn (no part left in 2D), each fibre a tube; its top shows its symbol; the lock-in bench: its circuit parts and their wires too, a wire rising to a detector at the beam height (1 when all hold)',
+    why: 'the fibre Michelson in 3D: every fibre component is drawn (no part left in 2D), each fibre a tube; its top shows its symbol; moved, its body follows (no light changes), and back again; the lock-in bench: its circuit parts and their wires too, a wire rising to a detector at the beam height (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const V = J.view3d;
@@ -7110,10 +7110,13 @@ const TESTS = [
         const s = V.stats(), els = J.serialize().elements, nf = els.filter(e => e.type === 'fcomp').length, F = J.serialize().fibres || [];
         const fc = els.find(e => e.type === 'fcomp'), body = V.netBody(fc.name);
         const ok1 = s.kinds.fcomp === nf && s.wires === F.length && s.wireKinds.every(k => k === 'fibre') && body && body.h > 0 && /^data:image\/png/.test(body.top) && body.top.length > 500 && V.blockers().length === 0;
+        // moved (no change to the light), its body follows it, and back
+        const x0 = fc.x, at0 = V.meshAt(fc.name); J.set(fc.name, { x: x0 + 30 }); const at1 = V.meshAt(fc.name); J.set(fc.name, { x: x0 }); const at2 = V.meshAt(fc.name);
+        const follows = at0 && at1 && Math.abs(at1[0] - at0[0] - 30) < 1e-6 && Math.abs(at2[0] - at0[0]) < 1e-6 && at0[2] === 0;
         J.load(JSON.parse(getDemo('lockin-absorption'))); await V.set(true);
         const s2 = V.stats(), ne = J.serialize().elements.filter(e => e.type === 'elec').length;
-        const ok2 = s2.kinds.elec === ne && s2.wireKinds.filter(k => k === 'wire').length > 0;
-        if (!(ok1 && ok2)) console.log('networks in 3D', JSON.stringify({ s, nf, F: F.length, body: body && { hx: body.hx, hy: body.hy, h: body.h }, s2, ne, bl: V.blockers() }));
+        const ok2 = follows && s2.kinds.elec === ne && s2.wireKinds.filter(k => k === 'wire').length > 0;
+        if (!(ok1 && ok2)) console.log('networks in 3D', JSON.stringify({ at0, at1, at2, s, nf, F: F.length, body: body && { hx: body.hx, hy: body.hy, h: body.h }, s2, ne, bl: V.blockers() }));
         return ok1 && ok2 ? 1 : 0;
       } finally { await V.set(false); }
     },

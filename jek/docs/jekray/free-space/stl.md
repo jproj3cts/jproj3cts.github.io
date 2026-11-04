@@ -11,7 +11,7 @@ element: { palette: Free space, type: stl }
 
 ## Bringing one in
 
-Choose **File › Import an object (.stl, .step)…**, or drop the .stl, .step or .stp file onto the bench (in 2D or 3D). The object lands where it was dropped, or in the middle of the view, resting on the breadboard. Binary and text .stl files are both read, up to 200,000 triangles.
+Choose **File › Import an object (.stl, .step)…**, or drop the .stl, .step or .stp file onto the bench (in 2D or 3D). Or make one on the bench: see [Modelling in 3D](/jek/docs/jekray/free-space/model/). The object lands where it was dropped, or in the middle of the view, resting on the breadboard. Binary and text .stl files are both read, up to 200,000 triangles.
 
 An STL file carries no units. JEKray takes them as millimetres, as most CAD exports are; set **Units of the file** to centimetres, metres, inches or any scale if yours are not. The object is centred on its bounding box, and placed and turned as any part: by its **X**, **Y** and **Z** (the height of its centre), and its **Angle**, **Tip** and **Roll**, or with its arrows and rings in the 3D view. **Replace its shape** loads another file into the same place.
 

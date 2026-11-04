@@ -14,7 +14,7 @@ The state is the position **x** (mm) and the proper velocity **u** = γ**v** (mm
 
 $$\frac{d\mathbf{x}}{dt} = \frac{\mathbf{u}}{\gamma}, \qquad \frac{d\mathbf{u}}{dt} = \frac{q}{m}\left(\mathbf{E} + \frac{\mathbf{u}}{\gamma} \times \mathbf{B}\right), \qquad \gamma = \sqrt{1 + u^2/c^2}.$$
 
-**E** is the gradient of the interpolated potential at the point and time (the static array and each RF group's array times its cosine); **B** is the uniform field set under Bench settings. An electron at 100 keV moves at 0.55 c and comes out right.
+**E** is the field at the point and time, the node-centred gradient interpolated within the cell ([the array](/jek/docs/jekion/array/)) (the static array and each RF group's array times its cosine); **B** is the uniform field set under Bench settings. An electron at 100 keV moves at 0.55 c and comes out right.
 
 ## The step
 

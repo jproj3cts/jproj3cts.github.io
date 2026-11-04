@@ -35,24 +35,25 @@ export function eFieldAt(G, g, x, y, z, t, out) {
   for (const R of G.rf) { const c = Math.cos(R.w * t + R.ph); gGrad(g, R.A, x, y, z, GR); out[0] -= c * GR[0]; out[1] -= c * GR[1]; out[2] -= c * GR[2]; }
   return true;
 }
-/* the static potential's and each RF group's second derivatives at the node nearest a point, by the five-point
-   difference along each axis (an axis of symmetry reflects): { at: [x, y, z] of the node, dc: [fxx, fyy, fzz],
-   rf: [{ mhz, w, f: [fxx, fyy, fzz] }] }, in V/mm²; a planar array has none along z */
+/* the static potential's and each RF group's second derivatives at the node nearest a point: the full Hessian
+   [fxx, fyy, fzz, fxy, fxz, fyz] by five-point (straight) and four-point (mixed) differences on the nodes (an axis of
+   symmetry reflects): { at: [x, y, z] of the node, dc: H, rf: [{ mhz, w, ph, f: H }] }, in V/mm²; a planar array
+   has nothing along z, a cylindrical one takes y as the radius (and nothing along z) */
 export function curvatures(G, g, x, y, z) {
   const o = gNode(g, x, y, z);
   if (o < 0) return null;
   const i = o % g.nx, j = Math.floor(o / g.nx) % g.ny, k = Math.floor(o / (g.nx * g.ny)), h2 = g.h * g.h;
   const at = [g.x0 + i * g.h, g.y0 + j * g.h, g.z0 + k * g.h];
   if (g.sym === 'cyl') { at[1] = (g.y0 + j * g.h) * (y >= 0 ? 1 : -1); at[2] = 0; }
-  const d2 = (A, ax) => {
-    const n = [g.nx, g.ny, g.nz][ax], c = [i, j, k][ax], stride = [1, g.nx, g.nx * g.ny][ax];
-    if (n === 1) return 0;
-    const refl = ax === 1 && g.sym === 'cyl';
-    const val = m => { let q = c + m; if (q < 0) q = refl ? -q : 0; if (q > n - 1) q = n - 1; return A[o + (q - c) * stride]; };
-    if (n < 5) return (val(1) - 2 * val(0) + val(-1)) / h2;
-    return (-val(-2) + 16 * val(-1) - 30 * val(0) + 16 * val(1) - val(2)) / (12 * h2);
+  const n = [g.nx, g.ny, g.nz], c = [i, j, k], stride = [1, g.nx, g.nx * g.ny], flat = g.nz === 1;
+  // the value m nodes along axis ax (and m2 along ax2), the axis of symmetry reflecting, the edges clamped
+  const idx = (ax, m) => { let q = c[ax] + m; if (q < 0) q = ax === 1 && g.sym === 'cyl' ? -q : 0; if (q > n[ax] - 1) q = n[ax] - 1; return (q - c[ax]) * stride[ax]; };
+  const H = A => {
+    const d2 = ax => { if (n[ax] === 1) return 0; if (n[ax] < 5) return (A[o + idx(ax, 1)] - 2 * A[o] + A[o + idx(ax, -1)]) / h2; return (-A[o + idx(ax, -2)] + 16 * A[o + idx(ax, -1)] - 30 * A[o] + 16 * A[o + idx(ax, 1)] - A[o + idx(ax, 2)]) / (12 * h2); };
+    const dxy = (a, b) => (n[a] === 1 || n[b] === 1 ? 0 : (A[o + idx(a, 1) + idx(b, 1)] - A[o + idx(a, 1) + idx(b, -1)] - A[o + idx(a, -1) + idx(b, 1)] + A[o + idx(a, -1) + idx(b, -1)]) / (4 * h2));
+    return [d2(0), d2(1), flat ? 0 : d2(2), dxy(0, 1), flat ? 0 : dxy(0, 2), flat ? 0 : dxy(1, 2)];
   };
-  return { at, dc: [0, 1, 2].map(ax => d2(G.stat, ax)), rf: G.rf.map(R => ({ mhz: R.mhz, w: R.w, ph: R.ph, f: [0, 1, 2].map(ax => d2(R.A, ax)) })) };
+  return { at, dc: H(G.stat), rf: G.rf.map(R => ({ mhz: R.mhz, w: R.w, ph: R.ph, f: H(R.A) })) };
 }
 /* the potential along a line of n points from a to b (bench points), at time t */
 export function potentialAlong(G, g, a, b, n, t) {

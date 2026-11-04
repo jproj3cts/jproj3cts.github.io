@@ -3493,24 +3493,24 @@ function gInterp(g, A, x, y, z) {
   const q = o + nxy, b00 = A[q] + (A[q + 1] - A[q]) * fx, b10 = A[q + nx] + (A[q + nx + 1] - A[q + nx]) * fx, a1 = b00 + (b10 - b00) * fy;
   return a0 + (a1 - a0) * c.fz;
 }
-/* the gradient of the array at a point (the interpolant's own slope within the cell), per mm, as bench components
-   in out[0..2]; false outside. A cylindrical array's radial slope is turned into y and z components. */
+/* the gradient of the array at a point, per mm, as bench components in out[0..2]; false outside. The gradient is
+   taken at each corner of the cell by central differences on the nodes (one-sided at the array's edges, zero across
+   the axis of a cylindrical array) and interpolated linearly within the cell: so the field is continuous, a
+   quadrupole's null is a null, and a quadratic potential's field is exact (the interpolant's own slope would be
+   constant across each cell and step at its faces). A cylindrical array's radial slope is turned into y and z. */
 function gGrad(g, A, x, y, z, out) {
   const c = gCell(g, x, y, z); if (!c) return false;
-  const o = gIdx(g, c.i, c.j, c.k), nx = g.nx, nxy = g.nx * g.ny, fx = c.fx, fy = c.fy, fz = c.fz, h = g.h;
-  const a = A[o], b = A[o + 1], cc = A[o + nx], d = A[o + nx + 1];
-  let gx, gy, gz = 0;
-  if (g.nz === 1) {
-    gx = ((b - a) * (1 - fy) + (d - cc) * fy) / h;
-    gy = ((cc - a) * (1 - fx) + (d - b) * fx) / h;
-  } else {
-    const q = o + nxy, e = A[q], f = A[q + 1], gg = A[q + nx], hh = A[q + nx + 1];
-    gx = (((b - a) * (1 - fy) + (d - cc) * fy) * (1 - fz) + ((f - e) * (1 - fy) + (hh - gg) * fy) * fz) / h;
-    gy = (((cc - a) * (1 - fx) + (d - b) * fx) * (1 - fz) + ((gg - e) * (1 - fx) + (hh - f) * fx) * fz) / h;
-    const lo = a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + cc * (1 - fx) * fy + d * fx * fy, hi = e * (1 - fx) * (1 - fy) + f * fx * (1 - fy) + gg * (1 - fx) * fy + hh * fx * fy;
-    gz = (hi - lo) / h;
+  const nx = g.nx, ny = g.ny, nz = g.nz, nxy = nx * ny, h = g.h, h2 = 2 * h, flat = nz === 1, cyl = g.sym === 'cyl';
+  let gx = 0, gy = 0, gz = 0;
+  for (let dk = 0; dk <= (flat ? 0 : 1); dk++) for (let dj = 0; dj <= 1; dj++) for (let di = 0; di <= 1; di++) {
+    const w = (di ? c.fx : 1 - c.fx) * (dj ? c.fy : 1 - c.fy) * (flat ? 1 : dk ? c.fz : 1 - c.fz);
+    if (w === 0) continue;
+    const i = c.i + di, j = c.j + dj, k = c.k + dk, o = i + nx * (j + ny * k);
+    gx += w * (i === 0 ? (A[o + 1] - A[o]) / h : i === nx - 1 ? (A[o] - A[o - 1]) / h : (A[o + 1] - A[o - 1]) / h2);
+    gy += w * (j === 0 ? (cyl ? 0 : (A[o + nx] - A[o]) / h) : j === ny - 1 ? (A[o] - A[o - nx]) / h : (A[o + nx] - A[o - nx]) / h2);
+    if (!flat) gz += w * (k === 0 ? (A[o + nxy] - A[o]) / h : k === nz - 1 ? (A[o] - A[o - nxy]) / h : (A[o + nxy] - A[o - nxy]) / h2);
   }
-  if (g.sym === 'cyl') {
+  if (cyl) {
     const r = Math.hypot(y, z);
     if (r > 1e-12) { out[0] = gx; out[1] = gy * y / r; out[2] = gy * z / r; } else { out[0] = gx; out[1] = 0; out[2] = 0; }
   } else { out[0] = gx; out[1] = gy; out[2] = gz; }
@@ -4068,24 +4068,25 @@ function eFieldAt(G, g, x, y, z, t, out) {
   for (const R of G.rf) { const c = Math.cos(R.w * t + R.ph); gGrad(g, R.A, x, y, z, GR); out[0] -= c * GR[0]; out[1] -= c * GR[1]; out[2] -= c * GR[2]; }
   return true;
 }
-/* the static potential's and each RF group's second derivatives at the node nearest a point, by the five-point
-   difference along each axis (an axis of symmetry reflects): { at: [x, y, z] of the node, dc: [fxx, fyy, fzz],
-   rf: [{ mhz, w, f: [fxx, fyy, fzz] }] }, in V/mm²; a planar array has none along z */
+/* the static potential's and each RF group's second derivatives at the node nearest a point: the full Hessian
+   [fxx, fyy, fzz, fxy, fxz, fyz] by five-point (straight) and four-point (mixed) differences on the nodes (an axis of
+   symmetry reflects): { at: [x, y, z] of the node, dc: H, rf: [{ mhz, w, ph, f: H }] }, in V/mm²; a planar array
+   has nothing along z, a cylindrical one takes y as the radius (and nothing along z) */
 function curvatures(G, g, x, y, z) {
   const o = gNode(g, x, y, z);
   if (o < 0) return null;
   const i = o % g.nx, j = Math.floor(o / g.nx) % g.ny, k = Math.floor(o / (g.nx * g.ny)), h2 = g.h * g.h;
   const at = [g.x0 + i * g.h, g.y0 + j * g.h, g.z0 + k * g.h];
   if (g.sym === 'cyl') { at[1] = (g.y0 + j * g.h) * (y >= 0 ? 1 : -1); at[2] = 0; }
-  const d2 = (A, ax) => {
-    const n = [g.nx, g.ny, g.nz][ax], c = [i, j, k][ax], stride = [1, g.nx, g.nx * g.ny][ax];
-    if (n === 1) return 0;
-    const refl = ax === 1 && g.sym === 'cyl';
-    const val = m => { let q = c + m; if (q < 0) q = refl ? -q : 0; if (q > n - 1) q = n - 1; return A[o + (q - c) * stride]; };
-    if (n < 5) return (val(1) - 2 * val(0) + val(-1)) / h2;
-    return (-val(-2) + 16 * val(-1) - 30 * val(0) + 16 * val(1) - val(2)) / (12 * h2);
+  const n = [g.nx, g.ny, g.nz], c = [i, j, k], stride = [1, g.nx, g.nx * g.ny], flat = g.nz === 1;
+  // the value m nodes along axis ax (and m2 along ax2), the axis of symmetry reflecting, the edges clamped
+  const idx = (ax, m) => { let q = c[ax] + m; if (q < 0) q = ax === 1 && g.sym === 'cyl' ? -q : 0; if (q > n[ax] - 1) q = n[ax] - 1; return (q - c[ax]) * stride[ax]; };
+  const H = A => {
+    const d2 = ax => { if (n[ax] === 1) return 0; if (n[ax] < 5) return (A[o + idx(ax, 1)] - 2 * A[o] + A[o + idx(ax, -1)]) / h2; return (-A[o + idx(ax, -2)] + 16 * A[o + idx(ax, -1)] - 30 * A[o] + 16 * A[o + idx(ax, 1)] - A[o + idx(ax, 2)]) / (12 * h2); };
+    const dxy = (a, b) => (n[a] === 1 || n[b] === 1 ? 0 : (A[o + idx(a, 1) + idx(b, 1)] - A[o + idx(a, 1) + idx(b, -1)] - A[o + idx(a, -1) + idx(b, 1)] + A[o + idx(a, -1) + idx(b, -1)]) / (4 * h2));
+    return [d2(0), d2(1), flat ? 0 : d2(2), dxy(0, 1), flat ? 0 : dxy(0, 2), flat ? 0 : dxy(1, 2)];
   };
-  return { at, dc: [0, 1, 2].map(ax => d2(G.stat, ax)), rf: G.rf.map(R => ({ mhz: R.mhz, w: R.w, ph: R.ph, f: [0, 1, 2].map(ax => d2(R.A, ax)) })) };
+  return { at, dc: H(G.stat), rf: G.rf.map(R => ({ mhz: R.mhz, w: R.w, ph: R.ph, f: H(R.A) })) };
 }
 /* the potential along a line of n points from a to b (bench points), at time t */
 function potentialAlong(G, g, a, b, n, t) {
@@ -4357,42 +4358,73 @@ const manyOf = P => P.length > 1;
    ω_c = qB/m, the axial ω_z from the curvature along B, the modified cyclotron and magnetron
    ω± = ω_c/2 ± √(ω_c²/4 − ω_z²/2), stable while ω_c² > 2ω_z². In planar symmetry there is nothing along z.
    ========================================================================== */
+/* a symmetric 3×3 [xx, yy, zz, xy, xz, yz] diagonalised by Jacobi rotations: { vals, vecs } (vecs[i] the unit vector of vals[i]) */
+function eigSym3(H) {
+  const M = [[H[0], H[3], H[4]], [H[3], H[1], H[5]], [H[4], H[5], H[2]]], V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let sweep = 0; sweep < 50; sweep++) {
+    let off = 0; for (let p = 0; p < 3; p++) for (let q = p + 1; q < 3; q++) off += M[p][q] * M[p][q];
+    if (off < 1e-30) break;
+    for (let p = 0; p < 3; p++) for (let q = p + 1; q < 3; q++) {
+      if (Math.abs(M[p][q]) < 1e-300) continue;
+      const th = (M[q][q] - M[p][p]) / (2 * M[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < 3; k++) { const a = M[k][p], b = M[k][q]; M[k][p] = c * a - s * b; M[k][q] = s * a + c * b; }
+      for (let k = 0; k < 3; k++) { const a = M[p][k], b = M[q][k]; M[p][k] = c * a - s * b; M[q][k] = s * a + c * b; }
+      for (let k = 0; k < 3; k++) { const a = V[k][p], b = V[k][q]; V[k][p] = c * a - s * b; V[k][q] = s * a + c * b; }
+    }
+  }
+  return { vals: [M[0][0], M[1][1], M[2][2]], vecs: [0, 1, 2].map(i => [V[0][i], V[1][i], V[2][i]]) };
+}
+const quad = (H, v) => H[0] * v[0] * v[0] + H[1] * v[1] * v[1] + H[2] * v[2] * v[2] + 2 * (H[3] * v[0] * v[1] + H[4] * v[0] * v[2] + H[5] * v[1] * v[2]);
+/* an axis's name: x, y or z when it lies along one, else its direction */
+function axisName(v, cyl) {
+  const n = cyl ? ['x (axial)', 'r (radial)', 'z'] : ['x', 'y', 'z'];
+  for (let i = 0; i < 3; i++) if (Math.abs(v[i]) > 0.98) return n[i];
+  return '(' + v.map(c => (Math.abs(c) < 0.005 ? '0' : (+c.toFixed(2)).toString())).join(', ') + ')';
+}
 function trapAnalysis(F, S, p, species) {
   const g = F.g, q = species.charge, m = species.mass, qm = qmOf(q, m);   // C/kg
   const C = curvatures(F.G, g, p[0], p[1], p[2]), E = [0, 0, 0];
   if (!C) return null;
   eFieldAt(F.G, g, C.at[0], C.at[1], C.at[2], 0, E);
   const B = S.bfield || { bx: 0, by: 0, bz: 0 }, Bmag = Math.hypot(B.bx || 0, B.by || 0, B.bz || 0);
-  // a planar array has no z; a cylindrical one's y is the radius, and z is the same
-  const names = g.sym === 'cyl' ? ['x (axial)', 'r (radial)', 'z'] : ['x', 'y', 'z'], axes = [];
-  for (let i = 0; i < (g.sym === '3d' ? 3 : 2); i++) {
-    const dc = C.dc[i] * 1e6;                       // V/m²
-    const ax = { axis: names[i], dc: C.dc[i], a: null, q: null, beta: null, secMHz: null, harmMHz: null, stable: null };
-    if (C.rf.length) {
-      // the groups at one frequency add as phasors (rods at 0° and 180° are one quadrupole): the in-phase and
-      // quadrature parts of the curvature, its size with the in-phase sign; the strongest frequency sets Ω
-      const byF = new Map();
-      for (const R of C.rf) { const ph = (R.ph || 0); let e = byF.get(R.mhz); if (!e) { e = { mhz: R.mhz, w: R.w, A: 0, B: 0 }; byF.set(R.mhz, e); } e.A += R.f[i] * Math.cos(ph); e.B += R.f[i] * Math.sin(ph); }
-      const R = [...byF.values()].map(e => ({ mhz: e.mhz, w: e.w, f: (e.A < 0 ? -1 : 1) * Math.hypot(e.A, e.B) })).reduce((a, b) => (Math.abs(b.f) > Math.abs(a.f) ? b : a));
-      const W = R.w * 1e6;   // rad/s
-      ax.rfMHz = R.mhz;
-      ax.a = 4 * qm * dc / (W * W);
-      ax.q = -2 * qm * R.f * 1e6 / (W * W);
+  // the axes: with RF, the RF curvature's principal axes (the groups at one frequency added as phasors, in-phase
+  // and quadrature, the larger taken with the in-phase sign); without, the static potential's. A planar array has
+  // no z; a cylindrical one's y is the radius, and z is the same.
+  const cyl = g.sym === 'cyl', dims = g.sym === '3d' ? 3 : 2;
+  let rfH = null, rfW = 0, rfMHz = null;
+  if (C.rf.length) {
+    const byF = new Map();
+    for (const R of C.rf) { let e = byF.get(R.mhz); if (!e) { e = { mhz: R.mhz, w: R.w, A: [0, 0, 0, 0, 0, 0], B: [0, 0, 0, 0, 0, 0] }; byF.set(R.mhz, e); } for (let i = 0; i < 6; i++) { e.A[i] += R.f[i] * Math.cos(R.ph || 0); e.B[i] += R.f[i] * Math.sin(R.ph || 0); } }
+    const norm = H => Math.hypot(...H), best = [...byF.values()].reduce((a, b) => (Math.max(norm(b.A), norm(b.B)) > Math.max(norm(a.A), norm(a.B)) ? b : a));
+    rfH = norm(best.A) >= norm(best.B) ? best.A : best.B.map((v, i) => (best.A[i] < 0 ? -v : v)); rfW = best.w * 1e6; rfMHz = best.mhz;
+  }
+  const basis = eigSym3(rfH || C.dc), axes = [];
+  for (let i = 0; i < 3; i++) {
+    const v = basis.vecs[i];
+    if (dims === 2 && Math.abs(v[2]) > 0.5) continue;            // the axis out of a planar or cylindrical array
+    const dc = quad(C.dc, v) * 1e6;                               // V/m²
+    const ax = { axis: axisName(v, cyl), dir: v, dc: quad(C.dc, v), a: null, q: null, beta: null, secMHz: null, harmMHz: null, stable: null };
+    if (rfH) {
+      ax.rfMHz = rfMHz;
+      ax.a = 4 * qm * dc / (rfW * rfW);
+      ax.q = -2 * qm * quad(rfH, v) * 1e6 / (rfW * rfW);
       const b2 = ax.a + ax.q * ax.q / 2;
       ax.beta = b2 > 0 ? Math.sqrt(b2) : 0;
       ax.stable = b2 > 0 && ax.beta < 1 && Math.abs(ax.q) < 0.908;
-      ax.secMHz = ax.beta * R.mhz / 2;
+      ax.secMHz = ax.beta * rfMHz / 2;
     } else {
-      const w2 = qm * dc;                           // rad²/s²
+      const w2 = qm * dc;
       ax.harmMHz = w2 > 0 ? Math.sqrt(w2) / (2 * Math.PI) / 1e6 : null;
       ax.stable = w2 > 0;
     }
     axes.push(ax);
   }
+  // in the order x-like, y-like, z-like, as the panels list them
+  axes.sort((a, b) => [0, 1, 2].findIndex(i => Math.abs(a.dir[i]) === Math.max(...a.dir.map(Math.abs))) - [0, 1, 2].findIndex(i => Math.abs(b.dir[i]) === Math.max(...b.dir.map(Math.abs))));
   let penning = null;
   if (Bmag > 0 && !C.rf.length) {
     const bhat = [B.bx / Bmag, B.by / Bmag, B.bz / Bmag], wc = qm * Bmag * 1e-4;   // rad/s
-    let fz = 0; for (let i = 0; i < 3; i++) fz += bhat[i] * bhat[i] * (C.dc[i] || 0) * 1e6;
+    const fz = quad(C.dc, bhat) * 1e6;
     const wz2 = qm * fz, disc = wc * wc / 4 - wz2 / 2;
     penning = { cyclMHz: Math.abs(wc) / (2 * Math.PI) / 1e6, axialMHz: wz2 > 0 ? Math.sqrt(wz2) / (2 * Math.PI) / 1e6 : null, stable: wz2 > 0 && disc > 0,
       plusMHz: disc > 0 ? (Math.abs(wc) / 2 + Math.sqrt(disc)) / (2 * Math.PI) / 1e6 : null, minusMHz: disc > 0 ? (Math.abs(wc) / 2 - Math.sqrt(disc)) / (2 * Math.PI) / 1e6 : null };
@@ -6464,6 +6496,7 @@ const NEWS = [
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
+    'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
   ]],
 ];
 /* the examples: [id, title, blurb, tag] */

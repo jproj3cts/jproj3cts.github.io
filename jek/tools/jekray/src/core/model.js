@@ -2,6 +2,7 @@ import { deg, num } from '../state/project.js';
 import { meshEncode } from './stl.js';
 import { zOf } from '../engines/trace.js';
 import { cross3, dot3, unit3 } from './numeric.js';
+import { inRegion, normCons, normDims, sketchRegions } from './sketch.js';
 
 /* ---------- Modelled parts: sketches on flat planes, extruded and revolved into solids ----------
    A modelled part is an STL object (type 'stl') that keeps how it was made beside its triangles: its
@@ -39,7 +40,7 @@ const ID_RE = /^[A-Za-z0-9_-]{1,24}$/, mIdOk = v => typeof v === 'string' && ID_
 let idN = 0;
 export const modelId = () => 'f' + Date.now().toString(36).slice(-4) + (idN++).toString(36) + Math.floor(Math.random() * 1296).toString(36);
 /* a sketch's shapes, each checked: { id, t, k (construction) , ...its own } */
-export const ENT_KINDS = ['line', 'arc', 'circle', 'rect', 'slot', 'poly', 'hole'];
+export const ENT_KINDS = ['line', 'arc', 'circle', 'rect', 'slot', 'poly', 'hole', 'point'];
 export function normEnt(e) {
   if (!e || typeof e !== 'object' || !ENT_KINDS.includes(e.t)) return null;
   const o = { id: mIdOk(e.id) ? e.id : modelId(), t: e.t };
@@ -53,6 +54,7 @@ export function normEnt(e) {
     case 'slot': o.a = p2(e.a); o.b = p2(e.b); o.r = pos(e.r, 1); break;
     case 'poly': o.c = p2(e.c); o.r = pos(e.r, 1); o.n = Math.max(3, Math.min(64, Math.round(mfin(e.n, 6)))); o.rot = mfin(e.rot, 0); break;
     case 'hole': o.c = p2(e.c); o.d = pos(e.d, 3); if (typeof e.std === 'string' && e.std.length < 24) o.std = e.std; break;
+    case 'point': o.c = p2(e.c); break;
   }
   return o;
 }
@@ -73,10 +75,14 @@ export function normFeat(f) {
   const id = mIdOk(f.id) ? f.id : modelId(), name = typeof f.name === 'string' ? f.name.slice(0, 40) : '';
   if (f.t === 'sketch') {
     const ents = (Array.isArray(f.ents) ? f.ents : []).slice(0, MODEL_MAX_ENTS).map(normEnt).filter(Boolean);
-    return { id, t: 'sketch', name, plane: normPlane(f.plane), ents };
+    // its constraints and dimensions (core/sketch.js), kept when it has any
+    const cons = normCons(f.cons, ents), dims = normDims(f.dims, ents);
+    return Object.assign({ id, t: 'sketch', name, plane: normPlane(f.plane), ents }, cons.length ? { cons } : {}, dims.length ? { dims } : {});
   }
   if (f.t === 'extrude' || f.t === 'revolve') {
     const o = { id, t: f.t, name, sk: mIdOk(f.sk) ? f.sk : '', op: f.op === 'cut' ? 'cut' : 'add' };
+    // the sketch's regions it is made of, each by a point inside it (none given: its closed shapes, holes kept out)
+    if (Array.isArray(f.regions) && f.regions.length) o.regions = f.regions.slice(0, 200).filter(p => Array.isArray(p) && p.length === 2).map(p => [mfin(p[0], 0), mfin(p[1], 0)]);
     if (f.t === 'extrude') {
       o.d = Math.max(-1e4, Math.min(1e4, mfin(f.d, 10))); if (o.d === 0) o.d = 10;
       if (f.both) o.both = true;
@@ -190,26 +196,28 @@ export function sketchLoops(ents) {
 /* ---------- solids, with Manifold ---------- */
 // a plane as a matrix (column-major 4x4): its x, y and normal, then its origin
 const planeMat = P => { const n = planeNormal(P); return [P.x[0], P.x[1], P.x[2], 0, P.y[0], P.y[1], P.y[2], 0, n[0], n[1], n[2], 0, P.o[0], P.o[1], P.o[2], 1]; };
-/* the sketch's region as a cross-section: its outer loops, less the holes in them, with islands in the holes again; and
-   its holes (the Hole tool's) never material: taken out of what is added, or (cut) what is cut */
-export function sketchSection(W, ents, cut) {
-  const { CrossSection } = W, { loops } = sketchLoops(ents), out = { cs: null, loops: loops.length };
-  const holes = loops.filter(q => q.hole), L = loops.filter(q => !q.hole).sort((a, b) => a.depth - b.depth);
+/* the sketch's regions (core/sketch.js: the plane cut by every curve), and which a feature is made of: those it chose
+   (each by a point in it), or, when it chose none, as a sketch was taken before regions could be chosen: a region inside
+   an odd number of closed shapes (an outline, not the holes in it, an island in a hole again), the Hole tool's holes
+   left out of what is added and cut in a cut */
+export function sketchChosen(ents, cut, pts) {
+  const R = sketchRegions(ents, entOutline);
+  if (pts && pts.length) return { regions: R, chosen: R.filter(q => pts.some(p => inRegion(q, p))) };
+  const { loops } = sketchLoops(ents), shapes = loops.filter(q => !q.hole), holes = loops.filter(q => q.hole);
+  const chosen = R.filter(q => {
+    const inHole = holes.some(L => inPoly(L.pts, q.pt));
+    if (inHole) return !!cut;
+    return shapes.filter(L => inPoly(L.pts, q.pt)).length % 2 === 1;
+  });
+  return { regions: R, chosen };
+}
+/* the chosen regions as one cross-section */
+export function sketchSection(W, ents, cut, pts) {
+  const { CrossSection } = W, { regions, chosen } = sketchChosen(ents, cut, pts), out = { cs: null, loops: regions.length, chosen: chosen.length };
   let cs = null;
-  const union = q => { const piece = new CrossSection([q.pts], 'NonZero'); const nx = cs ? cs.add(piece) : piece; if (cs) { cs.delete(); piece.delete(); } cs = nx; };
-  if (cut) {
-    // a cut: its shapes as drawn, and its holes, all cut
-    for (const q of L) { if (q.depth % 2 === 0) union(q); else if (cs) { const piece = new CrossSection([q.pts], 'NonZero'), nx = cs.subtract(piece); cs.delete(); piece.delete(); cs = nx; } }
-    for (const q of holes) union(q);
-    out.cs = cs; return out;
-  }
-  for (const q of holes) q.depth = 1;
-  for (const q of L.concat(holes)) {
-    if (q.hole) { if (cs) { const piece = new CrossSection([q.pts], 'NonZero'), nx = cs.subtract(piece); cs.delete(); piece.delete(); cs = nx; } continue; }
-    const piece = new CrossSection([q.pts], 'NonZero');
-    if (q.depth % 2 === 0) { const nx = cs ? cs.add(piece) : piece; if (cs) { cs.delete(); piece.delete(); } cs = nx; }
-    else if (cs) { const nx = cs.subtract(piece); cs.delete(); piece.delete(); cs = nx; }
-    else piece.delete();
+  for (const q of chosen) {
+    const piece = new CrossSection([q.outer, ...q.holes], 'EvenOdd');
+    const nx = cs ? cs.add(piece) : piece; if (cs) { cs.delete(); piece.delete(); } cs = nx;
   }
   out.cs = cs;
   return out;
@@ -218,8 +226,8 @@ export function sketchSection(W, ents, cut) {
 function featSolid(W, f, sk, sizeNow) {
   if (!sk) return { error: 'its sketch is missing' };
   if (f.t === 'extrude') {
-    const S = sketchSection(W, sk.ents, f.op === 'cut');
-    if (!S.cs || S.cs.isEmpty()) { if (S.cs) S.cs.delete(); return { error: 'its sketch has no closed shape to extrude' }; }
+    const S = sketchSection(W, sk.ents, f.op === 'cut', f.regions);
+    if (!S.cs || S.cs.isEmpty()) { if (S.cs) S.cs.delete(); return { error: f.regions ? 'the sketch\u2019s regions it was made of are gone' : 'its sketch has no closed shape to extrude' }; }
     let h = Math.abs(f.d), z0 = f.d < 0 ? -h : 0;
     if (f.both) z0 = -h / 2;
     if (f.through) { const L = 2 * (sizeNow + Math.hypot(...sk.plane.o)) + 100; h = 2 * L; z0 = -L; }
@@ -234,8 +242,8 @@ function featSolid(W, f, sk, sizeNow) {
   const rest = sk.ents.filter(e => e.id !== f.axis);
   const A = ax.a, D0 = [ax.b[0] - ax.a[0], ax.b[1] - ax.a[1]], dl = Math.hypot(...D0), D = [D0[0] / dl, D0[1] / dl];
   let P = [D[1], -D[0]];
-  const S = sketchSection(W, rest, f.op === 'cut');
-  if (!S.cs || S.cs.isEmpty()) { if (S.cs) S.cs.delete(); return { error: 'its sketch has no closed shape to revolve' }; }
+  const S = sketchSection(W, rest, f.op === 'cut', f.regions);
+  if (!S.cs || S.cs.isEmpty()) { if (S.cs) S.cs.delete(); return { error: f.regions ? 'the sketch\u2019s regions it was made of are gone' : 'its sketch has no closed shape to revolve' }; }
   // the profile on the axis's +x side (Manifold turns only that half): the side most of it is on
   const bb = S.cs.bounds(), cx = (bb.min[0] + bb.max[0]) / 2, cy = (bb.min[1] + bb.max[1]) / 2;
   let Dv = D;
@@ -330,8 +338,10 @@ export function rebuildPart(W, el, setZ) {
 }
 /* a new modelled part from a sketch on a plane of the bench: its frame the bench's axes, from the sketch plane's
    origin; with its first solid (an extrude or a revolve) of that sketch */
-export function newModelPart(planeWorld, ents, solid, name) {
-  const P = normPlane(planeWorld), sk = { id: modelId(), t: 'sketch', name: 'Sketch 1', plane: { o: [0, 0, 0], x: P.x, y: P.y }, ents: ents.map(normEnt).filter(Boolean) };
+export function newModelPart(planeWorld, ents, solid, name, extra) {
+  const P = normPlane(planeWorld), E = ents.map(normEnt).filter(Boolean);
+  const sk = Object.assign({ id: modelId(), t: 'sketch', name: 'Sketch 1', plane: { o: [0, 0, 0], x: P.x, y: P.y }, ents: E },
+    extra && extra.cons && extra.cons.length ? { cons: normCons(extra.cons, E) } : {}, extra && extra.dims && extra.dims.length ? { dims: normDims(extra.dims, E) } : {});
   const f = normFeat(Object.assign({ id: modelId(), name: (solid.t === 'revolve' ? 'Revolve' : 'Extrude') + ' 1' }, solid, { sk: sk.id, op: 'add' }));
   return { type: 'stl', name: name || 'Model', x: P.o[0], y: P.o[1], z: P.o[2], angle: 0, units: 'mm', colour: '#7d8794', model: { feats: [sk, f], c: [0, 0, 0] } };
 }

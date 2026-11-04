@@ -2526,6 +2526,8 @@ const hooks = {
   tasterLeft: () => null, tasterUse: () => false, tasterOut: () => false, tasterRefresh() {},
   // the account as an export asks after it (ui/pro.js): accounts here, signed in, known (the API has said); and its sign-in prompt
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
+  // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
+  apiBase: () => '', usageTier: () => 'anon',
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -28304,7 +28306,7 @@ function designPro(what) {
   // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
   if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
   // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
-  if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) toast(why, true);
+  if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) hooks.toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
 }
@@ -49716,6 +49718,7 @@ function partTile(p, onAdd, where) {
 }
 /* ==========================================================================
    STEP import: a .step or .stp file as STL objects
+   The reader alone, with nothing of the page in it (JEKion shares it; io/step.js is the page's side).
    OpenCascade reads the file (occt-import-js 0.0.23, LGPL-2.1, vendored as it was published under
    jek/assets/vendor/occt-import-js/: its script and its WebAssembly, separate files, replaceable). It is fetched
    only when a STEP file is first brought in, and runs in a worker of its own (a classic worker made from the
@@ -49726,7 +49729,6 @@ function partTile(p, onAdd, where) {
 
 const OCCT_DIR = '../assets/vendor/occt-import-js/0.0.23/';
 const OCCT_WASM_BYTES = 7604031;            // the reader's size, to say how far its download has come
-const STEP_AS_KEY = 'jek-raytracer-step-as';
 
 /* the worker's code (a classic worker: importScripts, then OpenCascade's module), sent as its text */
 function stepWorker() {
@@ -49803,6 +49805,12 @@ async function stepImportBytes(bytes, fileName, say) {
     return out;
   } finally { clearInterval(tick); reader.close(); }
 }
+
+const STEP_AS_KEY = 'jek-raytracer-step-as';
+
+/* ==========================================================================
+   STEP import: a .step or .stp file as STL objects (the reader itself: io/step-reader.js)
+   ========================================================================== */
 
 /* the STL objects for what was read, onto the bench at (x, y): 'one' object, or 'parts' (one each, grouped) */
 function stepElements(res, fileName, x, y, as) {
@@ -51950,6 +51958,7 @@ function accountShown() {
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 function wireAccount() {
   hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown }); hooks.exportSignIn = exportSignIn;
+  hooks.apiBase = () => API_BASE; hooks.usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
   document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
   document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());
@@ -52003,7 +52012,7 @@ function track(event, prop) {
   usageQ.set(k, (usageQ.get(k) || 0) + 1);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }
-const usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
+const usageTier = () => hooks.usageTier();
 function usageFlush() {
   clearTimeout(usageTimer); usageTimer = 0;
   if (!usageOn() || (!usageQ.size && !usageErrs.length)) return;
@@ -52011,7 +52020,7 @@ function usageFlush() {
   const body = JSON.stringify({ tier: usageTier(), ev: ev.slice(0, 200), err: usageErrs.splice(0, 20) });
   usageQ.clear();
   // text/plain, without credentials: a simple request, with nothing that says who
-  try { fetch(API_BASE + '/v1/events', { method: 'POST', body, credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {}); } catch (err) { /* not sent: fine */ }
+  try { fetch(hooks.apiBase() + '/v1/events', { method: 'POST', body, credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {}); } catch (err) { /* not sent: fine */ }
 }
 // the tool's own errors: the message with anything quoted and every number taken out, and where in the tool
 function usageError(msg, file, line) {
@@ -52021,7 +52030,7 @@ function usageError(msg, file, line) {
   // only the tool's own scripts: not extensions, not mods, and not what a browser runs in the page itself, which
   // reports the page's line 1 (an in-app browser's injected autofill script) or no line at all (a ResizeObserver
   // loop notice); the tool's own code starts well below the head
-  if (!/jekray/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
+  if (!/jek(ray|ion)/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
   usageSeen.add(m + src); usageErrs.push([m, src]);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }

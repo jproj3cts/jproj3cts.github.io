@@ -1,4 +1,4 @@
-import { TEST_MODE, clamp } from '../../../jekray/src/core/constants.js';
+import { clamp } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { fmtVolt, nf } from '../core/units.js';
 import { PLANES, meshSections, shapeSections } from '../core/geom.js';

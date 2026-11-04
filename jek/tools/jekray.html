@@ -9403,7 +9403,7 @@ const STL = {
     fields: { mesh: 'its triangles, written by the tool when a .stl file is imported: leave it out.', model: 'a part modelled in the 3D view (its sketches, extrudes and revolves, in order), written by the tool with its mesh: leave it out, or keep it as it is.', units: 'the file\u2019s units: "mm", "cm", "m", "in", or "other" with "scale" (a STEP file\u2019s own, as it declares them).', scale: 'mm per unit of the file, with "units": "other".', colour: '"#rrggbb": how it is drawn.' },
   },
 };
-/* Source: A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown. */
+/* Source: A light source: a fan of rays and a Gaussian beam (or even illumination across the fan) whose diffracted field can be shown. */
 const SOURCE = {
   type: 'source', label: 'Source',
   picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines every way, in 3D)' }, { key: 'lamp2d', short: 'Circular lamp', long: 'Circular lamp (2D: in the bench plane only, fast)' }],
@@ -9413,13 +9413,13 @@ const SOURCE = {
   // a point shining round the bench plane only, the quick flat fan of a 2D bench
   make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 500, lampD: 1, lampShape: 'sphere', elev: 90, rings: 0 }
     : kind === 'lamp2d' ? { type: 'source', lamp: true, lampFlat: true, name: nextName('Circular lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
-    : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11, pattern: 'hex' },
+    : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11, pattern: 'hex', gauss: true, w0: 2, z0: 0 },
   norm(e, base) {
     const wl = e.mmw ? num(e.wavelength, 633) : Math.min(1e6, Math.max(100, num(e.wavelength, 633)));
     const lamp = e.lamp === true || e.type === 'lamp';
     // a circular lamp (flat, in the plane): so made, or a point lamp saved before lamps shone in 3D (no size, no light up)
     const flat = lamp && (e.lampFlat === true || (e.lampFlat === undefined && !(+e.lampD > 0) && !(+e.elev > 0)));
-    return Object.assign(base, {
+    const out = Object.assign(base, {
       wavelength: wl,
       colourAuto: e.colourAuto !== false,
       colour: /^#[0-9a-f]{6}$/i.test(e.colour) ? e.colour : wavelengthColour(wl),
@@ -9433,12 +9433,14 @@ const SOURCE = {
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
       // a line of rays carrying a round beam's power: each as much as the ring of the beam it stands for (engines/trace.js roundWeights)
       ...(e.round === true ? { round: true } : {}),
+      // what its field starts from: its Gaussian beam (a new source's), or even illumination across the fan (a uniform pupil);
+      // its rays are always traced. The bench's Light turns the rays, or the beams, off for every source
       gauss: e.gauss === true,
       w0: Math.max(1e-4, num(e.w0, 0.35)),
       z0: num(e.z0, 0),
       popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
       popModel: e.popModel === '2d' ? '2d' : 'auto',
-      traceRays: e.traceRays !== false,
+      traceRays: true,
       pol: ['unpolarised', 's', 'p', 'linear'].includes(e.pol) ? e.pol : 'unpolarised',
       polAngle: num(e.polAngle, 45),
       lines: Array.isArray(e.lines) ? e.lines.map(Number).filter(v => isFinite(v) && v >= 100 && v <= 20000).slice(0, 12) : [],
@@ -9473,18 +9475,19 @@ const SOURCE = {
       lampRays: clamp(Math.round(num(e.lampRays, 3)), 1, 15) } : {},
     // a circular lamp: a point, flat in the plane, the plain fan of rays 360/N apart
     flat ? { lampFlat: true, lampD: 0, elev: 0, lampShape: 'sphere' } : lamp ? { lampFlat: false } : {});
+    return out;
   },
   guide: {
-    what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
+    what: 'A light source: a fan of rays and, its field starting from a Gaussian beam ("gauss": true, a new source\u2019s) or from even illumination across the fan, a diffracted field that can be shown; the bench\u2019s light turns the rays or the beams off.',
     angle: 'the direction the light leaves in (0 = travelling +x).',
     fields: {
       round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
     divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): it shines all round from its surface; width and divergence are not used. lampShape "sphere", "cylinder" (standing up) or "tube" (lying along its direction); lampD its diameter, mm (1; 0 is a point); lampL a cylinder\u2019s height or a tube\u2019s length, mm (1); rays: its rays in all, spread evenly over the directions it shines in, each from across its face as seen that way, in 3D (a glowing surface, Lambertian). Its body absorbs light that comes back to it.', lampShape: 'a Lamp\u2019s shape: "sphere" or "cylinder".', lampD: 'a Lamp\u2019s diameter, mm.', lampL: 'a cylinder Lamp\u2019s length, mm.', lampTip: 'a cylinder Lamp\u2019s axis tipped up from lying along its direction, degrees (90: standing up).', elev: 'a Lamp\u2019s light up and down, degrees (90, the default: every way): its rays spread over rings at k/rings of this above and below the bench plane, each ring\u2019s share by its cosine, every other ring turned half a step.', rings: 'how many rings of rays above (and below) the plane, 1 to 40; 0 (the default): as many as spaces its rays evenly.', lampFlat: 'true: a Circular lamp, a point shining round the bench plane only (its rays 360/N apart): quick, for 2D benches. A point lamp saved with no light up and down opens as one.',
-    gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
+    traceRays: 'always true: the bench\u2019s light (rays) turns the rays off, for every source.', gauss: 'true (a new source\u2019s): its field starts from a Gaussian beam, w0 and z0; false: from even illumination across the fan (a uniform pupil, its edge soft).', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
-    traceRays: 'false hides the ray fan.', pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
+    pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
     polAngle: 'degrees from p, for pol "linear".', lines: 'extra wavelengths in nm, up to 12.', power: 'mW.',
     coh: 'coherence length in mm, with cmode "line"; 0 for a single frequency.', lineshape: '"lorentz" or "gauss": the laser line’s shape, with coh.',
     cmode: '"single" (one frequency: every path interferes), "line" (a line of its own, from coh and lineshape) or "broad" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere).',
@@ -9900,8 +9903,6 @@ const FIBRE = {
       na: clamp(num(e.na, 0.12), 0.01, 0.9),
       emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
       // what the light it sends out is drawn and worked out as, as a source's ticks: the ray fan, the Gaussian beam (its field)
-      ...(e.emitTraceRays === false ? { emitTraceRays: false } : {}),
-      ...(e.emitGauss === false ? { emitGauss: false } : {}),
       ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
       mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
       coll: Math.max(0, num(e.coll, 0)),               // a collimator's focal length, mm; 0 for a bare tip
@@ -9915,7 +9916,7 @@ const FIBRE = {
     what: 'A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fibre network’s light out.',
     angle: 'the direction its face points: towards the light it takes in, and the way it sends light out. Its fibre port is on the back.',
     fields: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
-    emitRays: 'rays in the fan it sends out, 0 to 51.', emitTraceRays: 'false: no ray fan is traced from it (the Gaussian beam still is).', emitGauss: 'false: no Gaussian beam or field is propagated from it, rays only (nothing downstream can then couple or interfere with its light).', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
+    emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
     popN: 'grid points for the field of the beam it sends out: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d" (always 2D, with polarisation).',
     coll: 'mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam\'s mode.',
     mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
@@ -10913,6 +10914,10 @@ function demoProject() {
    every beam's field.) */
 /* how many decades a log scale of the field spans: 0 for linear, 3 (30 dB) or 6 (60 dB) */
 const fieldDec = sc => sc === 'log60' ? 6 : sc === 'log' ? 3 : 0;
+/* what the bench's Light sends from its sources: the ray fans (Show the rays) and the Gaussian beams (their envelope or
+   their field shown); a source has no ticks of its own */
+const raysOn = src => !!src && src.traceRays !== false && lightOf().rays !== false;
+const beamOn = src => !!src && !!src.gauss && (lightOf().envelope !== false || !!lightOf().field);
 function normLight(L, els) {
   L = L && typeof L === 'object' ? L : null;
   const any = k => (els || []).some(e => e && (e.beamView === k || e.emitView === k));
@@ -13458,7 +13463,7 @@ function roundWeights(n) {
 /* how many rays a source launches across its beam, for each of its wavelengths: its pattern's (a hexapolar fan of 11
    across is 91), not its rays setting; each carries that share of the power (a ray's own amplitude carries the rest:
    an angular size's or a lamp's rays from one point share that point's) */
-const raysLaunched = src => Math.max(1, src.traceRays === false ? 0 : lampEmits(src) ? lampRaysOf(src).length : rayPattern(src, src.rays).length);
+const raysLaunched = src => Math.max(1, !raysOn(src) ? 0 : lampEmits(src) ? lampRaysOf(src).length : rayPattern(src, src.rays).length);
 function rayPattern(src, n) {
   const pat = src.pattern || 'line', out = [], at = i => n === 1 ? 0 : i / (n - 1) - 0.5;
   if (pat === 'line' || n <= 1) { for (let i = n - 1; i >= 0; i--) out.push([at(i), 0, i]); return out; }
@@ -13797,7 +13802,7 @@ function traceSceneOnce() {
         id: src.id + '::pulse' + pj + ':' + si0, fam: 'pulse', k: 0, path: '', chief: true, qr: 0, qi: 1, bn: src.bench, fo: src.vFo || 0, ...tipped }));
     } else {
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
-    const n = src.traceRays === false ? 0 : src.rays;
+    const n = raysOn(src) ? src.rays : 0;
     // across the beam as the source's pattern lays them out: a line in the bench plane, or
     // spread up and down it too (each then starting off the beam height, with its slope)
     const pat = rayPattern(src, n);
@@ -13857,15 +13862,15 @@ function traceSceneOnce() {
     // One extra ray down the axis per polarisation state carries the beam parameter q; it is
     // not drawn. Its branches form the beam tree whose fields add coherently within a state.
     // A ray fan is a uniform pupil: its hidden axis ray carries the pilot the same way.
-    const fanQ = src.gauss ? null : fanPilot(src, nm);
+    const gB = beamOn(src), fanQ = gB ? null : fanPilot(src, nm);
     // a beam of M^2 above 1 is traced as its embedded Gaussian, 1/M the width of the real one
-    const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
+    const q0 = gB ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
     if (q0) states.forEach((st, si0) => {
       const a = src.angle * deg, fam = famAt(famOf(si0, true), src.vFo || 0);
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a) * ce0, dy: Math.sin(a) * ce0,
         sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3], bounce: 0, last: null, opl: 0, nCur: 1,
         id: src.id + ':' + wi + ':q' + si0, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
-        bid: -1, evt: null, fan: !src.gauss, pol: si0, bn: src.bench, fo: src.vFo || 0, ...tipped });
+        bid: -1, evt: null, fan: !gB, pol: si0, bn: src.bench, fo: src.vFo || 0, ...tipped });
     });
     }
     while (stack.length) {
@@ -13934,7 +13939,7 @@ function traceSceneOnce() {
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
-        const splits = isQ && src.gauss && !pls;
+        const splits = isQ && beamOn(src) && !pls;
         // and, a ray fan's as well as a beam's, the rings of a face it meets (stackZones)
         const zsplits = isQ && !pls;
         let near = null, nearT = Infinity, holeS = null, holeT = Infinity;
@@ -18501,7 +18506,7 @@ const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e
   (e.id === selectedId || pins.includes(e.id)));
 const fieldWanted = () => popSources().length > 0 || openScreens().length > 0;
 /* a sweep can work out the diffracted field (slow) wherever there is a Gaussian beam to diffract */
-const fieldPossible = () => fieldWanted() || allSources().some(e => e.gauss) || project.elements.some(e => e.type === 'fcomp' && e.kind === 'laser');
+const fieldPossible = () => fieldWanted() || allSources().some(beamOn) || project.elements.some(e => e.type === 'fcomp' && e.kind === 'laser');
 /* While sweeps play and none of them has "Render the diffracted field" ticked, the field is held:
    nothing new is worked out (the bench shows the beams' outlines, screens and photodiodes keep
    their last field), so a sweep is quick unless the slow field is asked for. It is worked out
@@ -18893,7 +18898,7 @@ function faceArrivals(el) {
   B.forEach((b, i) => {
     if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;
     const src = getEl(b.src);
-    if (!src || !src.gauss) return;
+    if (!src || !beamOn(src)) return;
     const lam0 = b.nm * 1e-6;
     const chain = [];
     for (let j = i; j >= 0; j = B[j].parent) chain.push(j);
@@ -19192,7 +19197,7 @@ function detectorReading(el) {
     const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
     for (const t of hits) {
       const src = getEl(t.id.split(':')[0]);
-      if (!src || src.gauss) continue;
+      if (!src || beamOn(src)) continue;
       const mw = t.w * splitRoot(src).power / (raysLaunched(src) * sourceLines(src).length);
       P += mw; I += mw * responsivity(el, t.nm);
     }
@@ -19798,8 +19803,8 @@ function tipSources(net) {
           x: tip.x, y: tip.y, ...(tip.z !== undefined ? { z: tip.z } : {}), ...(tip.tip ? { tip: tip.tip } : {}), ...(tip.roll ? { roll: tip.roll } : {}), angle: tip.angle, wavelength: nm, lines: [], colourAuto: true, colour: wavelengthColour(nm),
           // single mode: the fibre's mode; multimode: a filled core, waist the core's radius
           // and M^2 = pi a NA / lambda so it leaves at the NA (partly coherent across itself)
-          gauss: tip.emitGauss !== false, w0: tip.mm ? tip.core / 2e3 : tipModeW(tip, nm), z0: 0,
-          m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitTraceRays !== false && tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
+          gauss: true, w0: tip.mm ? tip.core / 2e3 : tipModeW(tip, nm), z0: 0,
+          m2: tip.mm ? clamp(Math.PI * tip.core / 2e3 * tip.na / (nm * 1e-6), 1, 30) : 1, rays: tip.emitRays, traceRays: tip.emitRays > 0, ...(tip.emitPattern ? { pattern: tip.emitPattern } : {}),
           popN: tip.popN || 256, popModel: tip.popModel || 'auto', pol: 's', polAngle: 0,
           coh: K.root.coh || 0, lineshape: K.root.lineshape || 'lorentz', power: P * (K.lp || 0), vLp: K.lp,
           // a pulsed fibre laser's pulse, chirped by the fibres it came through
@@ -21831,7 +21836,7 @@ function specLines(el) {
     for (const t of (lastTrace.screens[el.id] || [])) {
       if (t.chief) continue;
       const src = getEl(t.id.split(':')[0]);
-      if (!src || src.gauss) continue;
+      if (!src || beamOn(src)) continue;
       const root = splitRoot(src), mw = t.w * (root.power || 0) / (raysLaunched(src) * sourceLines(src).length);
       face += mw;
       const sz = t.dz ? t.dz / Math.hypot(1, t.dz) : 0, sinA = Math.hypot(t.dly || 0, sz);
@@ -22312,7 +22317,7 @@ const V3D = (() => {
   /* A fibre component, a circuit part or a chip, on the table: a box as big as its symbol on the bench (out to its
      ports), its symbol on its top; a ferrule out of each fibre port, a pin out of each electrical one. A node of a
      circuit is a post; a chip is thin, on a carrier */
-  const NET_H = { fcomp: 10, elec: 14, pic: 3 };
+  const NET_H = { fcomp: 10, elec: 14, pic: 3 }, NET_FERRULE = 4, NET_PIN = 3;
   function netBox(el) {
     const P = portsOf(el), hs = halfSize(el);
     const hx = Math.max(3, ...P.map(q => Math.abs(q.x)), el.type === 'elec' ? hs - 1 : 0), hy = Math.max(2.5, hs - 1, ...P.map(q => Math.abs(q.y)));
@@ -22329,7 +22334,7 @@ const V3D = (() => {
     const top = new T.Mesh(new T.PlaneGeometry(2 * hx, 2 * hy).translate(0, 0, h + 0.02), new T.MeshStandardMaterial({ map: tex, color: 0xc8c8c8, roughness: 0.85, metalness: 0 }));
     top.receiveShadow = true; top.userData.texs = [tex]; add(top);
     P.forEach((q, i) => {
-      const len = i < nOpt ? 4 : 3, r = i < nOpt ? 1.1 : 0.45, a = Math.atan2(q.dy || 0, q.dx || 0);
+      const len = i < nOpt ? NET_FERRULE : NET_PIN, r = i < nOpt ? 1.25 : 0.45, a = Math.atan2(q.dy || 0, q.dx || 0);
       const c = new T.CylinderGeometry(r, r, len, 14); c.rotateZ(-Math.PI / 2); c.translate(len / 2, 0, 0); c.rotateZ(a); c.translate(q.x, q.y, (z0 + h) / 2);
       add(mesh(c, i < nOpt ? mat.metal(0xcfd8dc, 0.3) : mat.metal(0xd8a650, 0.3)));
     });
@@ -22352,16 +22357,47 @@ const V3D = (() => {
         const t = k / 16, u = 1 - t, b = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
         xy.push([b[0] * p0[0] + b[1] * c1[0] + b[2] * c2[0] + b[3] * p3[0], b[0] * p0[1] + b[1] * c1[1] + b[2] * c2[1] + b[3] * p3[1]]);
       }
-      const sAt = [0]; for (let k = 1; k < xy.length; k++) sAt.push(sAt[k - 1] + Math.hypot(xy[k][0] - xy[k - 1][0], xy[k][1] - xy[k - 1][1]));
-      const S = sAt[sAt.length - 1]; if (!(S > 0.05)) return;
-      const zA = portZ(getEl(F.a[0])), zB = portZ(getEl(F.b[0])), r = F.wg ? 0.45 : F.wire ? 0.6 : 1.1;
-      const zT = F.wg ? Math.min(zA, zB) : r + 0.05;
-      const fall = (d, dz) => { const L = Math.min(S / 2, Math.max(15, dz * 0.8)); return d >= L ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L)); };
-      const pts = xy.map(([x, y], k) => new T.Vector3(x, y, zT + (zA - zT) * fall(sAt[k], zA - zT) + (zB - zT) * fall(S - sAt[k], zB - zT)));
+      const A = getEl(F.a[0]), B = getEl(F.b[0]), zA = portZ(A), zB = portZ(B), r = F.wg ? 0.45 : F.wire ? 0.6 : 0.9;
+      // its ends: from the end of a component's ferrule or pin (the route begins at the body's face), or from the back of
+      // a fibre tip's ferrule (the route begins further back, at the tail the bench draws), straight along the port
+      const endOf = (el, port) => {
+        if (NET_3D.has(el.type)) return { trim: (el.type === 'elec' ? 0 : portsOfOptic(el).length) > port ? NET_FERRULE : NET_PIN };
+        if (el.type !== 'fibre') return { trim: 0 };
+        const back = el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10, tail = -((portsOf(el)[0] || {}).x || -back), a = el.angle * deg;
+        return tail >= back ? { pre: [el.x - Math.cos(a) * back, el.y - Math.sin(a) * back] } : { trim: back - tail };
+      };
+      const cut = (pts, d) => {                       // the route less its first d mm
+        let k = 0, acc = 0;
+        while (k < pts.length - 1) {
+          const l = Math.hypot(pts[k + 1][0] - pts[k][0], pts[k + 1][1] - pts[k][1]);
+          if (acc + l >= d) { const t = (d - acc) / (l || 1); return [[pts[k][0] + t * (pts[k + 1][0] - pts[k][0]), pts[k][1] + t * (pts[k + 1][1] - pts[k][1])], ...pts.slice(k + 1)]; }
+          acc += l; k++;
+        }
+        return pts.slice(-1);
+      };
+      const eA = endOf(A, F.a[1]), eB = endOf(B, F.b[1]);
+      let run = xy;
+      if (eA.trim) run = cut(run, eA.trim);
+      if (eB.trim) run = cut(run.slice().reverse(), eB.trim).reverse();
+      if (eA.pre) run = [eA.pre, ...run];
+      if (eB.pre) run = [...run, eB.pre];
+      const sAt = [0]; for (let k = 1; k < run.length; k++) sAt.push(sAt[k - 1] + Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]));
+      const S = sAt[sAt.length - 1]; if (!(S > 0.05) || run.length < 2) return;
+      // its height along it: a long run lies on the table, rising to each port over a smooth bend; a short one (or a
+      // waveguide, between chips) runs from port to port, sagging a little in the middle as a cable does
+      const zT = r + 0.05, lin = u => zA + (zB - zA) * u;
+      const rise = dz => Math.max(15, dz * 0.8), lies = !F.wg && S > rise(zA - zT) + rise(zB - zT) + 10;
+      const zAt = s0 => {
+        const u = s0 / S;
+        if (!lies) return Math.max(zT, lin(u) - Math.min(S * 0.08, Math.max(0, Math.min(zA, zB) - zT)) * Math.sin(Math.PI * u));
+        const f = (d, dz) => { const L2 = rise(dz); return d >= L2 ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L2)); };
+        return zT + (zA - zT) * f(s0, zA - zT) + (zB - zT) * f(S - s0, zB - zT);
+      };
+      const pts = run.map(([x, y], k) => new T.Vector3(x, y, zAt(sAt[k])));
       const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw;
       const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
         emissive: lit ? col(L.colour) : col(0x000000), emissiveIntensity: lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
-      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(400, Math.max(8, Math.round(S / 2))), r, 10, false), m);
+      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m);
       o.userData.fibre = F.id; G.add(o);
     });
   }
@@ -22480,8 +22516,8 @@ const V3D = (() => {
         const r = Math.max(L, 1.25), len = el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10;
         add(mesh(disc(len, r, -len / 2), mat.metal(0xcfd8dc, 0.3)));
         if (el.coll > 0) add(mesh(disc(0.6, r * 0.85, 0.05), mat.glass(0x8fd3e8, 0.4)));
-        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-len - 20, 0, 0);
-        add(mesh(j, mat.matte(FIBRE_COLOUR)), mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
+        // (its fibre is laid from the back of the ferrule, along its route: see wires)
+        add(mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
         return g;
       }
       case 'waveplate': case 'polariser': {
@@ -26395,19 +26431,14 @@ function sourcePanel(el) {
   col.setAttribute('aria-label', 'Colour');
   panel.append(h('p', null, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 
-  // the ray fan: on its own, and hidden with its settings when it is off
+  // the ray fan (always traced; the bench's Light turns the rays off for every source)
   panel.append(h('h3', null, 'Rays'));
-  const tr = h('input', { type: 'checkbox' });
-  tr.checked = el.traceRays;
-  tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
-  panel.append(h('label', { class: 'rt-check' }, tr, 'Trace the ray fan'));
-  if (el.traceRays) {
+  {
     const dv = param('Divergence (°)', el, 'divergence'); dv.title = 'Its full angle of spread: 0 collimated, negative converging';
     panel.append(grid2(param('Beam width (mm)', el, 'width'), dv, param('Rays', el, 'rays'),
       // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
       param('Angular size (°)', el, 'angularSize', { placeholder: 'a point', blank: 0 }),
       el.angularSize > 0 ? param('Rays across it', el, 'angularRays') : null));
-    if (!el.gauss && lightOf().field) panel.append(h('div', { class: 'rt-rows' }, ...edgeRows(el)));
     if (Math.abs(el.divergence) >= 360) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, 'A lamp: its rays all round, evenly spaced.'));
     if (el.angularSize > 0) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, (el.angularRays || 5) + ' rays across its ' + el.angularSize + '\u00b0 from each point: ' + rayPattern(el, el.rays).length * (el.angularRays || 5) + ' in all.'));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
@@ -26422,24 +26453,17 @@ function sourcePanel(el) {
     bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = N + ' rays' + (el.pattern ? ' across the beam, up and down it too' : ' in the bench plane') + ', each traced in 3D; a screen\u2019s Rays tab shows where they land.'; });
     panel.append(pn);
   }
-  else if (!el.gauss) {
-    // without a Gaussian beam the fan's width and divergence still shape the diffracted field
-    panel.append(grid2(param('Beam width (mm)', el, 'width'), param('Divergence (°)', el, 'divergence')));
+  // what its field starts from: a Gaussian beam along its axis (a new source's), or even illumination across the fan (a
+  // uniform pupil: a lens's Airy pattern, Strehl and MTF); the bench's Light turns the rays, or the beams, off for every source
+  panel.append(h('h3', null, 'Field'));
+  panel.append(h('div', { class: 'rt-rows' }, selectField('Starts from', [['gauss', 'A Gaussian beam'], ['flat', 'Even illumination (a uniform pupil)']],
+    () => (el.gauss ? 'gauss' : 'flat'), v => { el.gauss = v === 'gauss'; if (el.gauss) gaussFromFan(el); }, { wide: true })));
+  if (!el.gauss) {
+    // the fan's width and divergence shape the field: a top-hat of its width, its edge soft enough for the grid
     if (lightOf().field) panel.append(h('div', { class: 'rt-rows' }, ...edgeRows(el)));
-    panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
-  } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
-
-  panel.append(h('h3', null, 'Gaussian beam'));
-  const gb = h('input', { type: 'checkbox' });
-  gb.checked = el.gauss;
-  gb.addEventListener('change', () => {
-    checkpoint();
-    el.gauss = gb.checked;
-    if (el.gauss) gaussFromFan(el);    // start from the fan that is already there
-    changed(true);
-  });
-  panel.append(h('label', { class: 'rt-check' }, gb, 'Propagate a Gaussian beam along the axis'));
-  if (el.gauss) {
+    panel.append(helpLine('The field starts as even illumination across the fan.', ['The field starts as even illumination across the ray fan: a uniform pupil of its width (its edge soft just enough for the grid) and its divergence, as a lens\u2019s textbook Airy pattern, Strehl ratio and diffraction-limited MTF assume. Choose A Gaussian beam for a laser.'], 'note', 'margin-top:0.4rem'));
+  }
+  else {
     const fb = h('input', { type: 'checkbox' });
     fb.checked = !!el.fibre;
     fb.addEventListener('change', () => {
@@ -27450,26 +27474,15 @@ function fibrePanel(el) {
     bindSync(note, () => { note.textContent = 'Collimated beam out: 1/e\u00b2 radius ' + (+(1550e-6 * el.coll / (Math.PI * fibreMode(el.core, el.na, 1550).w)).toPrecision(3)) + ' mm at 1550 nm.'; });
     panel.append(note);
   }
-  // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
-  panel.append(h('h3', el.emitTraceRays === false || el.emitGauss === false || el.emitPattern || el.emitRays !== undefined && el.emitRays !== 5 ? null : { 'data-shut': '' }, 'Light from the fibre network'));
-  const tick = (key, label) => {
-    const c = h('input', { type: 'checkbox' });
-    c.checked = el[key] !== false;
-    c.addEventListener('change', () => { checkpoint(); if (c.checked) delete el[key]; else el[key] = false; changed(true); });
-    return h('label', { class: 'rt-check' }, c, label);
-  };
-  panel.append(tick('emitTraceRays', 'Trace the ray fan'));
-  if (el.emitTraceRays !== false) panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
+  // the light it sends out, as a source's: its ray fan and its Gaussian beam (both always; the bench's Light turns them off)
+  panel.append(h('h3', el.emitPattern || el.emitRays !== undefined && el.emitRays !== 5 || el.popModel === '2d' || el.popN && el.popN !== 256 ? null : { 'data-shut': '' }, 'Light from the fibre network'));
+  panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
     param('Rays', el, 'emitRays'),
     // across the beam: the line of the 2D bench, or up and down it too (in 3D), as a source's
-    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true })));
-  panel.append(tick('emitGauss', 'Propagate a Gaussian beam along the axis'));
-  if (el.emitGauss !== false) panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
+    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true }),
     // its beam's diffracted field, worked out as a source's is
     selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel || 'auto', v => { el.popModel = v; }),
     selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
-  else panel.append(h('p', { class: 'note' }, 'Rays only: with no Gaussian beam, nothing downstream can couple into a fibre, read a field or interfere with this light.'));
-  if (el.emitTraceRays === false && el.emitGauss === false) panel.append(h('p', { class: 'note' }, 'Nothing leaves the tip: tick the ray fan, the Gaussian beam, or both.'));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
@@ -27953,7 +27966,7 @@ function nlcPanel(el) {
       rows.push(['Phase matching', (el.period > 0 ? 'period ' + el.period + ' µm' : 'period ' + (+r.period.toPrecision(5)) + ' µm, the best for this beam') + ' (' + (+r.periodPW.toPrecision(5)) + ' µm for a plane wave at ' + el.temp + ' °C); n = ' + r.n1.toFixed(4) + ', ' + r.n2.toFixed(4)]);
       rows.push(['Focusing', 'ξ = L/b = ' + (+r.xi.toPrecision(3)) + ' (best 2.84), h = ' + (+r.h.toPrecision(3)) + ' of Boyd and Kleinman’s 1.068' + (Math.abs(r.mu) > 0.2 ? '; the waist sits ' + (+(r.mu * 50).toPrecision(2)) + '% of the length from the middle' : '')]);
     }
-    if (!hits.length) rows.push(['', 'No Gaussian beam crosses it. Send a laser through it (a source with “Propagate a Gaussian beam”) focused near its middle.']);
+    if (!hits.length) rows.push(['', 'No Gaussian beam crosses it. Send a laser through it focused near its middle (the bench’s Light showing the beams’ envelope or field).']);
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     drawNlcTuning(cv, el, hits);
@@ -30026,11 +30039,11 @@ function readoutTabs(el, stabs) {
   bindSync(tabs, () => {
     const all = (lastTrace.screens && lastTrace.screens[el.id]) || [];
     const why = {
-      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' (a source with \u201cTrace the ray fan\u201d on)',
+      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' (the bench\u2019s Light, Show the rays, on)',
       aber: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' to sweep across the field',
       plots: all.length ? '' : 'Nothing reaches ' + what,
       pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
-      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (a source with \u201cPropagate a Gaussian beam\u201d on)',
+      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
     };
     for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });
@@ -39996,7 +40009,7 @@ const POP_SLICES = 1800;           // slices drawn over the whole scene
 const POP_MAX_SEGS = 300;
 const popState = { key: '', result: null, timer: null, job: null };
 
-const popSources = () => lightOf().field ? allSources().filter(e => e.gauss) : [];
+const popSources = () => lightOf().field ? allSources().filter(beamOn) : [];
 /* The element a beam's surface belongs to, for the keys that say whether a field must be
    worked out again: the tracer's description of the surface leaves out what only the field
    sees (a mask's formula, a coating), so the element's own settings go in with it */
@@ -41055,7 +41068,7 @@ function volDispLine(V) {
    close-up would show it */
 const fieldPointCache = { key: '', R: null };
 function fieldAtPoint(X, Y) {
-  const srcs = allSources().filter(e => e.gauss);
+  const srcs = allSources().filter(beamOn);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, X, Y, 1e-3);
@@ -41063,14 +41076,14 @@ function fieldAtPoint(X, Y) {
 }
 /* The close-up's caption numbers for a square view span mm across, centred on (X, Y) */
 function closeupInfoAt(X, Y, span) {
-  const srcs = allSources().filter(e => e.gauss);
+  const srcs = allSources().filter(beamOn);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   return closeupImage(fieldPointCache.R.segs, { cx: X, cy: Y, s: 240 / span, W: 240, H: 240, tab: project.tab }, 2, false).info;
 }
 /* Intensities along a line, prepared once for the whole of it */
 function fieldAlongLine(x0, y0, x1, y1, n) {
-  const srcs = allSources().filter(e => e.gauss);
+  const srcs = allSources().filter(beamOn);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, 0.5 * (x0 + x1), 0.5 * (y0 + y1), 0.5 * Math.hypot(x1 - x0, y1 - y0) + 1e-4);
@@ -41697,7 +41710,7 @@ function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
+  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
   return { keep, srcs, key };
 }
 
@@ -55877,7 +55890,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>A calmer start</b>: the look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
+    '<b>No ticks for a source\u2019s light</b>: a source always traces its rays, and a new one propagates a Gaussian beam; its panel\u2019s <b>Field</b> says what its field starts from, the Gaussian beam or even illumination across the fan (a uniform pupil, for a lens\u2019s Airy pattern, Strehl and MTF). A fibre tip always sends both. The bench\u2019s <b>Light</b> turns the rays, or the beams, off for every source at once. The look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
     '<b>Fibres and circuits in 3D</b>: fibre components, circuit parts and chips stand on the table in the 3D view, each a box with its symbol on its top, ferrules and pins at its ports, and their fibres, wires and waveguides laid along their routes, rising to each port (a fibre glows the colour of its light). No tab stays in 2D now. The parts\u2019 names in 3D are off to start with (View \u203a Names in 3D).',
     '<b>More room on the bench</b>: the parts rail is a bar across the top, every palette\u2019s groups along it as small icons (free space, fibre, circuits and RF at once), its switcher now changing the mode: Parts, Draw (2D) or Model (3D); the bench\u2019s tabs sit at the bottom left and the 2D / 3D switch at the bottom right. The Bench panel lists each bench\u2019s parts on a tab of its own. The 3D view\u2019s Fly, mouse and picture buttons are icons in the bar beside Fit, Measure and Search, and its names are under View. Free space\u2019s mirrors and lenses are two groups, and <b>+ Add</b> keeps the parts added lately in a <b>Recent</b> tab of their own.',
     '<b>Modelling in 3D</b>: <b>Model</b> (in 3D, from the parts bar\u2019s switcher) makes parts as a CAD program does. Click a flat face (a part\u2019s, the table, or empty space for the beam\u2019s plane) and sketch on it: lines, arcs (3-point, centre, tangent), rectangles, circles, slots, polygons, points and holes of the usual screw sizes. The sketch is <b>parametric</b>: snaps make constraints (coincident, on a curve, midpoint, horizontal, vertical), more are a click away (parallel, perpendicular, tangent, equal, concentric, fix, symmetric), <b>dimensions</b> size it and are changed later with a double-click (or in the part\u2019s panel), shapes turn black once fully defined, and drags keep the constraints; trim and fillet too. Points snap to where the light crosses the plane and the table\u2019s holes. The features (Sketch, Extrude, Revolve) are on the rail, the tools of the one in hand in a bar under it; sketching, the view stays square on (it moves and zooms, it does not turn), and the bench\u2019s parts are left alone while you model. Then extrude or revolve <b>the regions you click</b>, into a part of its own or added to a modelled part or cut from one. The part is a beam block that keeps how it was made; <b>Export .stl</b> to make it.',

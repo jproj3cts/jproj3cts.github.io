@@ -42,7 +42,7 @@ export function nlcPanel(el) {
       rows.push(['Phase matching', (el.period > 0 ? 'period ' + el.period + ' µm' : 'period ' + (+r.period.toPrecision(5)) + ' µm, the best for this beam') + ' (' + (+r.periodPW.toPrecision(5)) + ' µm for a plane wave at ' + el.temp + ' °C); n = ' + r.n1.toFixed(4) + ', ' + r.n2.toFixed(4)]);
       rows.push(['Focusing', 'ξ = L/b = ' + (+r.xi.toPrecision(3)) + ' (best 2.84), h = ' + (+r.h.toPrecision(3)) + ' of Boyd and Kleinman’s 1.068' + (Math.abs(r.mu) > 0.2 ? '; the waist sits ' + (+(r.mu * 50).toPrecision(2)) + '% of the length from the middle' : '')]);
     }
-    if (!hits.length) rows.push(['', 'No Gaussian beam crosses it. Send a laser through it (a source with “Propagate a Gaussian beam”) focused near its middle.']);
+    if (!hits.length) rows.push(['', 'No Gaussian beam crosses it. Send a laser through it focused near its middle (the bench’s Light showing the beams’ envelope or field).']);
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
     drawNlcTuning(cv, el, hits);

@@ -3,7 +3,7 @@
  "free": {
   "source": {
    "label": "Source",
-   "what": "A light source: a fan of rays and, with \"gauss\": true, a Gaussian beam whose diffracted field can be shown.",
+   "what": "A light source: a fan of rays and, its field starting from a Gaussian beam (\"gauss\": true, a new source’s) or from even illumination across the fan, a diffracted field that can be shown; the bench’s light turns the rays or the beams off.",
    "angle": "the direction the light leaves in (0 = travelling +x).",
    "fields": [
     {
@@ -34,7 +34,7 @@
     {
      "k": "gauss",
      "def": "false",
-     "meaning": "true for a Gaussian beam: then set w0 and z0."
+     "meaning": "true (a new source’s): its field starts from a Gaussian beam, w0 and z0; false: from even illumination across the fan (a uniform pupil, its edge soft)."
     },
     {
      "k": "w0",
@@ -59,7 +59,7 @@
     {
      "k": "traceRays",
      "def": "true",
-     "meaning": "false hides the ray fan."
+     "meaning": "always true: the bench’s light (rays) turns the rays off, for every source."
     },
     {
      "k": "pol",

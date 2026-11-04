@@ -4,8 +4,6 @@ import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS } from '../../engines/trace.js';
 import { bodyFill, ctx, drawPorts, pathLocal, selInk } from '../render.js';
 import { bindSync, h, panel, param, selectField } from '../panel.js';
-import { changed } from '../actions.js';
-import { checkpoint } from '../tabs.js';
 import { fibreMode } from '../../engines/fibre-face.js';
 import { anyPulse, pulseSection, pulseSectionEmpty, readoutBox } from '../panels.js';
 
@@ -49,26 +47,15 @@ function fibrePanel(el) {
     bindSync(note, () => { note.textContent = 'Collimated beam out: 1/e\u00b2 radius ' + (+(1550e-6 * el.coll / (Math.PI * fibreMode(el.core, el.na, 1550).w)).toPrecision(3)) + ' mm at 1550 nm.'; });
     panel.append(note);
   }
-  // the light it sends out, as a source's: the ray fan and the Gaussian beam each on their own tick, their settings under it
-  panel.append(h('h3', el.emitTraceRays === false || el.emitGauss === false || el.emitPattern || el.emitRays !== undefined && el.emitRays !== 5 ? null : { 'data-shut': '' }, 'Light from the fibre network'));
-  const tick = (key, label) => {
-    const c = h('input', { type: 'checkbox' });
-    c.checked = el[key] !== false;
-    c.addEventListener('change', () => { checkpoint(); if (c.checked) delete el[key]; else el[key] = false; changed(true); });
-    return h('label', { class: 'rt-check' }, c, label);
-  };
-  panel.append(tick('emitTraceRays', 'Trace the ray fan'));
-  if (el.emitTraceRays !== false) panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
+  // the light it sends out, as a source's: its ray fan and its Gaussian beam (both always; the bench's Light turns them off)
+  panel.append(h('h3', el.emitPattern || el.emitRays !== undefined && el.emitRays !== 5 || el.popModel === '2d' || el.popN && el.popN !== 256 ? null : { 'data-shut': '' }, 'Light from the fibre network'));
+  panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
     param('Rays', el, 'emitRays'),
     // across the beam: the line of the 2D bench, or up and down it too (in 3D), as a source's
-    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true })));
-  panel.append(tick('emitGauss', 'Propagate a Gaussian beam along the axis'));
-  if (el.emitGauss !== false) panel.append(h('div', { class: 'rt-rows', style: 'margin: 0.4rem 0 0.6rem' },
+    selectField('Rays across the beam', RAY_PATTERNS, () => el.emitPattern || 'line', v => { if (v === 'line') delete el.emitPattern; else el.emitPattern = v; }, { wide: true }),
     // its beam's diffracted field, worked out as a source's is
     selectField('Field model', [['auto', 'Round when it can be'], ['2d', 'Always 2D, with polarisation']], () => el.popModel || 'auto', v => { el.popModel = v; }),
     selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
-  else panel.append(h('p', { class: 'note' }, 'Rays only: with no Gaussian beam, nothing downstream can couple into a fibre, read a field or interfere with this light.'));
-  if (el.emitTraceRays === false && el.emitGauss === false) panel.append(h('p', { class: 'note' }, 'Nothing leaves the tip: tick the ray fan, the Gaussian beam, or both.'));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
   if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));

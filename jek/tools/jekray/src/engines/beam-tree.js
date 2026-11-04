@@ -5,7 +5,7 @@ import { cohGamma, cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { m2Of } from '../core/pulses.js';
 import { cavLine, isHigherMode, srcModes } from '../core/beams-hom.js';
 import { project } from '../state/project.js';
-import { allSources, getEl, lightOf } from '../state/elements.js';
+import { allSources, beamOn, getEl, lightOf } from '../state/elements.js';
 import { popMaskRound } from '../core/mask.js';
 import { lastTrace, zOf } from './trace.js';
 import { popGaussian, popLeg, popStats, popSurface, popW } from './field.js';
@@ -23,7 +23,7 @@ export const POP_SLICES = 1800;           // slices drawn over the whole scene
 export const POP_MAX_SEGS = 300;
 export const popState = { key: '', result: null, timer: null, job: null };
 
-export const popSources = () => lightOf().field ? allSources().filter(e => e.gauss) : [];
+export const popSources = () => lightOf().field ? allSources().filter(beamOn) : [];
 /* The element a beam's surface belongs to, for the keys that say whether a field must be
    worked out again: the tracer's description of the surface leaves out what only the field
    sees (a mask's formula, a coating), so the element's own settings go in with it */

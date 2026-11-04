@@ -4,7 +4,7 @@ import { AMU, C_SI } from '../core/cells.js';
 import { EPS0, TRAP_ATOMS, airIndex, sphereAlpha, trapAlpha } from '../core/traps.js';
 import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { deg, project } from '../state/project.js';
-import { allSources, getEl } from '../state/elements.js';
+import { allSources, beamOn, getEl } from '../state/elements.js';
 import { frame, toLocal } from '../core/mask.js';
 import { lastTrace } from './trace.js';
 import { arrival3 } from './fibre-face.js';
@@ -128,7 +128,7 @@ export function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, e.gauss])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
+  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
   return { keep, srcs, key };
 }
 

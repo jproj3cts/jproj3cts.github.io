@@ -5,7 +5,7 @@ import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { hermite, m2Of } from '../core/pulses.js';
 import { fanFromGauss, srcModes } from '../core/beams-hom.js';
 import { deg } from '../state/project.js';
-import { benchNms, getEl } from '../state/elements.js';
+import { beamOn, benchNms, getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
 import { lastTrace, raysLaunched, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
 import { QEig, QRot, beamQ, beamQM, cavEventABCD, ccInv, mfree, qThrough } from './cavity.js';
@@ -73,7 +73,7 @@ export function faceArrivals(el) {
   B.forEach((b, i) => {
     if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;
     const src = getEl(b.src);
-    if (!src || !src.gauss) return;
+    if (!src || !beamOn(src)) return;
     const lam0 = b.nm * 1e-6;
     const chain = [];
     for (let j = i; j >= 0; j = B[j].parent) chain.push(j);
@@ -372,7 +372,7 @@ export function detectorReading(el) {
     const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
     for (const t of hits) {
       const src = getEl(t.id.split(':')[0]);
-      if (!src || src.gauss) continue;
+      if (!src || beamOn(src)) continue;
       const mw = t.w * splitRoot(src).power / (raysLaunched(src) * sourceLines(src).length);
       P += mw; I += mw * responsivity(el, t.nm);
     }

@@ -244,11 +244,11 @@ export function readoutTabs(el, stabs) {
   bindSync(tabs, () => {
     const all = (lastTrace.screens && lastTrace.screens[el.id]) || [];
     const why = {
-      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' (a source with \u201cTrace the ray fan\u201d on)',
+      rays: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' (the bench\u2019s Light, Show the rays, on)',
       aber: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' to sweep across the field',
       plots: all.length ? '' : 'Nothing reaches ' + what,
       pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
-      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (a source with \u201cPropagate a Gaussian beam\u201d on)',
+      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
     };
     for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });

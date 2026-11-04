@@ -17,7 +17,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
-import { FREE_3D, VSRC, applySpins, getEl, lampBody, lampEmits, lampRaysOf, setVSRC } from '../state/elements.js';
+import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, raysOn, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
 import { stackMet, stackOrder } from '../core/sag.js';
@@ -464,7 +464,7 @@ export function roundWeights(n) {
 /* how many rays a source launches across its beam, for each of its wavelengths: its pattern's (a hexapolar fan of 11
    across is 91), not its rays setting; each carries that share of the power (a ray's own amplitude carries the rest:
    an angular size's or a lamp's rays from one point share that point's) */
-export const raysLaunched = src => Math.max(1, src.traceRays === false ? 0 : lampEmits(src) ? lampRaysOf(src).length : rayPattern(src, src.rays).length);
+export const raysLaunched = src => Math.max(1, !raysOn(src) ? 0 : lampEmits(src) ? lampRaysOf(src).length : rayPattern(src, src.rays).length);
 export function rayPattern(src, n) {
   const pat = src.pattern || 'line', out = [], at = i => n === 1 ? 0 : i / (n - 1) - 0.5;
   if (pat === 'line' || n <= 1) { for (let i = n - 1; i >= 0; i--) out.push([at(i), 0, i]); return out; }
@@ -803,7 +803,7 @@ function traceSceneOnce() {
         id: src.id + '::pulse' + pj + ':' + si0, fam: 'pulse', k: 0, path: '', chief: true, qr: 0, qi: 1, bn: src.bench, fo: src.vFo || 0, ...tipped }));
     } else {
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
-    const n = src.traceRays === false ? 0 : src.rays;
+    const n = raysOn(src) ? src.rays : 0;
     // across the beam as the source's pattern lays them out: a line in the bench plane, or
     // spread up and down it too (each then starting off the beam height, with its slope)
     const pat = rayPattern(src, n);
@@ -863,15 +863,15 @@ function traceSceneOnce() {
     // One extra ray down the axis per polarisation state carries the beam parameter q; it is
     // not drawn. Its branches form the beam tree whose fields add coherently within a state.
     // A ray fan is a uniform pupil: its hidden axis ray carries the pilot the same way.
-    const fanQ = src.gauss ? null : fanPilot(src, nm);
+    const gB = beamOn(src), fanQ = gB ? null : fanPilot(src, nm);
     // a beam of M^2 above 1 is traced as its embedded Gaussian, 1/M the width of the real one
-    const q0 = src.gauss ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
+    const q0 = gB ? [-src.z0, Math.PI * src.w0 * src.w0 / (m2Of(src) * nm * 1e-6)] : fanQ;
     if (q0) states.forEach((st, si0) => {
       const a = src.angle * deg, fam = famAt(famOf(si0, true), src.vFo || 0);
       stack.push({ px: src.x, py: src.y, dx: Math.cos(a) * ce0, dy: Math.sin(a) * ce0,
         sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3], bounce: 0, last: null, opl: 0, nCur: 1,
         id: src.id + ':' + wi + ':q' + si0, fam, k: 0, path: '', chief: true, aCur: 0, qr: q0[0], qi: q0[1],
-        bid: -1, evt: null, fan: !src.gauss, pol: si0, bn: src.bench, fo: src.vFo || 0, ...tipped });
+        bid: -1, evt: null, fan: !gB, pol: si0, bn: src.bench, fo: src.vFo || 0, ...tipped });
     });
     }
     while (stack.length) {
@@ -940,7 +940,7 @@ function traceSceneOnce() {
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
-        const splits = isQ && src.gauss && !pls;
+        const splits = isQ && beamOn(src) && !pls;
         // and, a ray fan's as well as a beam's, the rings of a face it meets (stackZones)
         const zsplits = isQ && !pls;
         let near = null, nearT = Infinity, holeS = null, holeT = Infinity;

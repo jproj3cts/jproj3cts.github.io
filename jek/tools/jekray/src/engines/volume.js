@@ -1,7 +1,7 @@
 import { BEAM_Z, clamp, mkCanvas } from '../core/constants.js';
 import { splitRoot } from '../core/coherence.js';
 import { deg, project } from '../state/project.js';
-import { allSources, fieldDec, lightOf } from '../state/elements.js';
+import { allSources, beamOn, fieldDec, lightOf } from '../state/elements.js';
 import { lastTrace } from './trace.js';
 import { interpL, popInside, popRadii, popStats, qdht } from './field.js';
 import { field2I, field2Propagate, field2Slope, fieldComps, popStats2 } from './field2d.js';
@@ -418,7 +418,7 @@ export function volDispLine(V) {
    close-up would show it */
 const fieldPointCache = { key: '', R: null };
 export function fieldAtPoint(X, Y) {
-  const srcs = allSources().filter(e => e.gauss);
+  const srcs = allSources().filter(beamOn);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, X, Y, 1e-3);
@@ -426,14 +426,14 @@ export function fieldAtPoint(X, Y) {
 }
 /* The close-up's caption numbers for a square view span mm across, centred on (X, Y) */
 export function closeupInfoAt(X, Y, span) {
-  const srcs = allSources().filter(e => e.gauss);
+  const srcs = allSources().filter(beamOn);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   return closeupImage(fieldPointCache.R.segs, { cx: X, cy: Y, s: 240 / span, W: 240, H: 240, tab: project.tab }, 2, false).info;
 }
 /* Intensities along a line, prepared once for the whole of it */
 export function fieldAlongLine(x0, y0, x1, y1, n) {
-  const srcs = allSources().filter(e => e.gauss);
+  const srcs = allSources().filter(beamOn);
   const key = popKeyOf(lastTrace.beams, srcs);
   if (fieldPointCache.key !== key) { fieldPointCache.key = key; fieldPointCache.R = popRun(lastTrace.beams, srcs); }
   const parts = closeupPrep(fieldPointCache.R.segs, 0.5 * (x0 + x1), 0.5 * (y0 + y1), 0.5 * Math.hypot(x1 - x0, y1 - y0) + 1e-4);

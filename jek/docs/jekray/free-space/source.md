@@ -54,7 +54,7 @@ $$
 
 ### The Gaussian beam
 
-With **Propagate a Gaussian beam** on, one more ray, not drawn, goes down the axis carrying the beam parameter
+A source always traces its fan of rays. Under **Field**, **Starts from** says what its light is for the diffracted field: **A Gaussian beam** (a new source's, for a laser) or **Even illumination**, a uniform pupil across the fan, as a lens's Airy pattern, Strehl ratio and diffraction-limited MTF assume (above). The bench's **Light** settings turn the rays off for every source at once (**Show the rays**), and the beams (the envelope and the field both off). With a Gaussian beam, one more ray, not drawn, goes down the axis carrying the beam parameter
 
 $$
 q_0 = -z_0 + i\,\frac{\pi w_0^2}{M^2 \lambda},

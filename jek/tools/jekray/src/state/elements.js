@@ -139,6 +139,10 @@ export function demoProject() {
    every beam's field.) */
 /* how many decades a log scale of the field spans: 0 for linear, 3 (30 dB) or 6 (60 dB) */
 export const fieldDec = sc => sc === 'log60' ? 6 : sc === 'log' ? 3 : 0;
+/* what the bench's Light sends from its sources: the ray fans (Show the rays) and the Gaussian beams (their envelope or
+   their field shown); a source has no ticks of its own */
+export const raysOn = src => !!src && src.traceRays !== false && lightOf().rays !== false;
+export const beamOn = src => !!src && !!src.gauss && (lightOf().envelope !== false || !!lightOf().field);
 export function normLight(L, els) {
   L = L && typeof L === 'object' ? L : null;
   const any = k => (els || []).some(e => e && (e.beamView === k || e.emitView === k));

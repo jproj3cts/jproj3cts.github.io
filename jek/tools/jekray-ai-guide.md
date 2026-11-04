@@ -135,7 +135,7 @@ Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "a
 
 ### "source": Source
 
-A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.
+A light source: a fan of rays and, its field starting from a Gaussian beam ("gauss": true, a new source’s) or from even illumination across the fan, a diffracted field that can be shown; the bench’s light turns the rays or the beams off.
 
 **angle:** the direction the light leaves in (0 = travelling +x).
 
@@ -146,12 +146,12 @@ A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose dif
 | softAuto | `true` | true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given. |
 | soft | `0` | mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge. |
 | divergence | `0` | degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges. |
-| gauss | `false` | true for a Gaussian beam: then set w0 and z0. |
+| gauss | `false` | true (a new source’s): its field starts from a Gaussian beam, w0 and z0; false: from even illumination across the fan (a uniform pupil, its edge soft). |
 | w0 | `0.35` | mm: the 1/e² waist radius. |
 | z0 | `0` | mm: how far ahead of the source the waist is (negative: behind it). |
 | popN | `256` | grid points for the field: 128, 256, 512 or 1024. |
 | popModel | `"auto"` | "auto" (round when it can be) or "2d". |
-| traceRays | `true` | false hides the ray fan. |
+| traceRays | `true` | always true: the bench’s light (rays) turns the rays off, for every source. |
 | pol | `"unpolarised"` | "unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle). |
 | polAngle | `45` | degrees from p, for pol "linear". |
 | lines | `[]` | extra wavelengths in nm, up to 12. |

@@ -2978,10 +2978,10 @@ const TESTS = [
   },
   {
     name: 'The diffracted field needs no ray fan',
-    why: 'the same Michelson with the source\u2019s rays switched off: no rays drawn, the same light at the output',
+    why: 'the same Michelson with the bench\u2019s rays switched off (its Light): no rays traced, the same light at the output',
     want: 1, tol: 1e-3, unit: '',
     run: J => {
-      J.load(michelsonCube(0, 0, { traceRays: false }));
+      J.load(Object.assign(michelsonCube(0), { light: { rays: false, envelope: true, field: false } }));
       return J.lastTrace().rays.length === 0 ? J.diffraction('Out').power : NaN;
     },
   },
@@ -2991,7 +2991,7 @@ const TESTS = [
     want: null, tol: 1e-12, rel: true, unit: ' mm',
     run: J => {
       J.load(michelsonCube(0)); TESTS_EXPECT.bwOn = J.stats('Out').beam.w;
-      J.load(michelsonCube(0, 0, { traceRays: false }));
+      J.load(Object.assign(michelsonCube(0), { light: { rays: false, envelope: true, field: false } }));
       return J.stats('Out').beam ? J.stats('Out').beam.w : NaN;
     },
     wantFrom: () => TESTS_EXPECT.bwOn,
@@ -4053,17 +4053,19 @@ const TESTS = [
     },
   },
   {
-    name: 'A fibre tip’s ticks: the ray fan and the Gaussian beam each leave on their own',
-    why: 'a fibre laser into a tip facing a screen: both on, rays land and a beam arrives; the fan off, no rays land but the beam still arrives; the beam off, rays land and nothing arrives as a field; both off, nothing (1 when all hold)',
+    name: 'A fibre tip sends its rays and its beam, and the bench\u2019s Light turns either off',
+    why: 'a fibre laser into a tip facing a screen: the bench showing rays and beams, rays land and a beam arrives; its rays off, no rays land but the beam still arrives; its beams off (envelope and field), rays land and nothing arrives as a field; both off, nothing; and the tip keeps no switch of its own (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
-      const mk = o => bench('ftick', [fc('laser', 'L', { x: -60, y: 40, wavelength: 1550, power: 1 }),
-        Object.assign({ type: 'fibre', id: 'T', name: 'T', x: 0, y: 0, angle: 0, core: 8.2, na: 0.14, emitRays: 3 }, o), screen({ name: 'S', x: 30, length: 20 })],
-        { minPower: 1e-6, fibres: [{ a: ['L', 0], b: ['T', 0], len: 1, loss: 0 }] });
-      const look = o => { J.load(mk(o)); J.trace(); const st = J.stats('S'); return [!!(st && st.count > 0), J.arrivals('S').length > 0]; };
-      const both = look({}), noRays = look({ emitTraceRays: false }), noBeam = look({ emitGauss: false }), none = look({ emitTraceRays: false, emitGauss: false });
+      const mk = (light, o) => bench('ftick', [fc('laser', 'L', { x: -60, y: 40, wavelength: 1550, power: 1 }),
+        Object.assign({ type: 'fibre', id: 'T', name: 'T', x: 0, y: 0, angle: 0, core: 8.2, na: 0.14, emitRays: 3 }, o || {}), screen({ name: 'S', x: 30, length: 20 })],
+        { minPower: 1e-6, fibres: [{ a: ['L', 0], b: ['T', 0], len: 1, loss: 0 }], light });
+      const look = (light, o) => { J.load(mk(light, o)); J.trace(); const st = J.stats('S'); return [!!(st && st.count > 0), J.arrivals('S').length > 0]; };
+      const L = (rays, beams) => ({ rays, envelope: beams, field: false });
+      const both = look(L(true, true)), noRays = look(L(false, true)), noBeam = look(L(true, false)), none = look(L(false, false));
+      look(L(true, true), { emitTraceRays: false, emitGauss: false });                            // (switches from before: dropped)
       const kept = J.serialize().elements.find(e => e.id === 'T');
-      return both[0] && both[1] && !noRays[0] && noRays[1] && noBeam[0] && !noBeam[1] && !none[0] && !none[1] && kept.emitTraceRays === false && kept.emitGauss === false ? 1 : 0;
+      return both[0] && both[1] && !noRays[0] && noRays[1] && noBeam[0] && !noBeam[1] && !none[0] && !none[1] && kept.emitTraceRays === undefined && kept.emitGauss === undefined ? 1 : 0;
     },
   },
   {

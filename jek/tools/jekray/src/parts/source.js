@@ -4,7 +4,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { nextName, num } from '../state/project.js';
 import { RAY_PATTERNS } from '../engines/trace.js';
 
-/* Source: A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown. */
+/* Source: A light source: a fan of rays and a Gaussian beam (or even illumination across the fan) whose diffracted field can be shown. */
 export const SOURCE = {
   type: 'source', label: 'Source',
   picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines every way, in 3D)' }, { key: 'lamp2d', short: 'Circular lamp', long: 'Circular lamp (2D: in the bench plane only, fast)' }],
@@ -14,13 +14,13 @@ export const SOURCE = {
   // a point shining round the bench plane only, the quick flat fan of a 2D bench
   make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 500, lampD: 1, lampShape: 'sphere', elev: 90, rings: 0 }
     : kind === 'lamp2d' ? { type: 'source', lamp: true, lampFlat: true, name: nextName('Circular lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
-    : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11, pattern: 'hex' },
+    : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11, pattern: 'hex', gauss: true, w0: 2, z0: 0 },
   norm(e, base) {
     const wl = e.mmw ? num(e.wavelength, 633) : Math.min(1e6, Math.max(100, num(e.wavelength, 633)));
     const lamp = e.lamp === true || e.type === 'lamp';
     // a circular lamp (flat, in the plane): so made, or a point lamp saved before lamps shone in 3D (no size, no light up)
     const flat = lamp && (e.lampFlat === true || (e.lampFlat === undefined && !(+e.lampD > 0) && !(+e.elev > 0)));
-    return Object.assign(base, {
+    const out = Object.assign(base, {
       wavelength: wl,
       colourAuto: e.colourAuto !== false,
       colour: /^#[0-9a-f]{6}$/i.test(e.colour) ? e.colour : wavelengthColour(wl),
@@ -34,12 +34,14 @@ export const SOURCE = {
       ...(RAY_PATTERNS.some(([k]) => k === e.pattern) && e.pattern !== 'line' ? { pattern: e.pattern } : {}),
       // a line of rays carrying a round beam's power: each as much as the ring of the beam it stands for (engines/trace.js roundWeights)
       ...(e.round === true ? { round: true } : {}),
+      // what its field starts from: its Gaussian beam (a new source's), or even illumination across the fan (a uniform pupil);
+      // its rays are always traced. The bench's Light turns the rays, or the beams, off for every source
       gauss: e.gauss === true,
       w0: Math.max(1e-4, num(e.w0, 0.35)),
       z0: num(e.z0, 0),
       popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
       popModel: e.popModel === '2d' ? '2d' : 'auto',
-      traceRays: e.traceRays !== false,
+      traceRays: true,
       pol: ['unpolarised', 's', 'p', 'linear'].includes(e.pol) ? e.pol : 'unpolarised',
       polAngle: num(e.polAngle, 45),
       lines: Array.isArray(e.lines) ? e.lines.map(Number).filter(v => isFinite(v) && v >= 100 && v <= 20000).slice(0, 12) : [],
@@ -74,18 +76,19 @@ export const SOURCE = {
       lampRays: clamp(Math.round(num(e.lampRays, 3)), 1, 15) } : {},
     // a circular lamp: a point, flat in the plane, the plain fan of rays 360/N apart
     flat ? { lampFlat: true, lampD: 0, elev: 0, lampShape: 'sphere' } : lamp ? { lampFlat: false } : {});
+    return out;
   },
   guide: {
-    what: 'A light source: a fan of rays and, with "gauss": true, a Gaussian beam whose diffracted field can be shown.',
+    what: 'A light source: a fan of rays and, its field starting from a Gaussian beam ("gauss": true, a new source\u2019s) or from even illumination across the fan, a diffracted field that can be shown; the bench\u2019s light turns the rays or the beams off.',
     angle: 'the direction the light leaves in (0 = travelling +x).',
     fields: {
       round: 'true: the line of rays carries power as across a round beam (each ray the ring it stands for), so an iris at half the width passes a quarter, and one f-stop halves the light, as in 3D. Left out: each ray the same share, as a 2D bench.',
     wavelength: 'nm, 100 to 1000000 (1 mm); longer waves come from an RF feed horn (mmw).', width: 'mm: the full width of the ray fan (follows the beam when gauss is true).', softAuto: 'true (the default) sets soft for the field grid: 8% of the width at popN 256, in proportion to 256/popN; false keeps soft as given.', soft: 'mm: without gauss, the field of the fan is a uniform top-hat of its width whose edge rises over this distance (10% to 90%); 0 is a hard edge.',
     divergence: 'degrees, full angle of the fan, up to 360 (a lamp shining all round: its rays evenly spaced, none doubled); negative converges.', rays: 'number of rays in the fan, 1 to 501 (use 1 to 11 with gauss).', angularSize: 'degrees: the source seen from far away is this wide (the sun 0.53°): from each point of its beam, angularRays rays (2 to 21, 5 if left out) across that angle, sharing its power. 0 or left out: a point at infinity.', angularRays: 'rays across the angular size, from each point of the beam (2 to 21).', lamp: 'true: a Lamp, its own part on the page (or write "type": "lamp"): it shines all round from its surface; width and divergence are not used. lampShape "sphere", "cylinder" (standing up) or "tube" (lying along its direction); lampD its diameter, mm (1; 0 is a point); lampL a cylinder\u2019s height or a tube\u2019s length, mm (1); rays: its rays in all, spread evenly over the directions it shines in, each from across its face as seen that way, in 3D (a glowing surface, Lambertian). Its body absorbs light that comes back to it.', lampShape: 'a Lamp\u2019s shape: "sphere" or "cylinder".', lampD: 'a Lamp\u2019s diameter, mm.', lampL: 'a cylinder Lamp\u2019s length, mm.', lampTip: 'a cylinder Lamp\u2019s axis tipped up from lying along its direction, degrees (90: standing up).', elev: 'a Lamp\u2019s light up and down, degrees (90, the default: every way): its rays spread over rings at k/rings of this above and below the bench plane, each ring\u2019s share by its cosine, every other ring turned half a step.', rings: 'how many rings of rays above (and below) the plane, 1 to 40; 0 (the default): as many as spaces its rays evenly.', lampFlat: 'true: a Circular lamp, a point shining round the bench plane only (its rays 360/N apart): quick, for 2D benches. A point lamp saved with no light up and down opens as one.',
-    gauss: 'true for a Gaussian beam: then set w0 and z0.', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
+    traceRays: 'always true: the bench\u2019s light (rays) turns the rays off, for every source.', gauss: 'true (a new source\u2019s): its field starts from a Gaussian beam, w0 and z0; false: from even illumination across the fan (a uniform pupil, its edge soft).', w0: 'mm: the 1/e² waist radius.', z0: 'mm: how far ahead of the source the waist is (negative: behind it).',
     m2: 'beam quality M² ≥ 1.', tem: '"gauss" (TEM00), "hg" (a Hermite–Gauss mode HG_mn) or "lg" (a Laguerre–Gauss mode LG_pl, a vortex of charge l when l ≠ 0), built on a Gaussian of waist w0; a higher-order mode uses the 2D field model and ignores m2.', hm: 'HG m: nodes across the beam in the bench plane, 0–10.', hn: 'HG n: nodes out of the bench plane, 0–10.', lp: 'LG p: radial order (rings), 0–10.', ll: 'LG l: vortex charge, −10 to 10; its phase is a delay of l·theta/2π waves, as a vortex mask of charge l writes it.',
     popN: 'grid points for the field: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d".',
-    traceRays: 'false hides the ray fan.', pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
+    pol: '"unpolarised", "s" (out of the bench plane), "p" (in the plane) or "linear" (then polAngle).',
     polAngle: 'degrees from p, for pol "linear".', lines: 'extra wavelengths in nm, up to 12.', power: 'mW.',
     coh: 'coherence length in mm, with cmode "line"; 0 for a single frequency.', lineshape: '"lorentz" or "gauss": the laser line’s shape, with coh.',
     cmode: '"single" (one frequency: every path interferes), "line" (a line of its own, from coh and lineshape) or "broad" (incoherent, broadband light of bandwidth bw: only near-equal paths interfere).',

@@ -401,7 +401,7 @@ export const V3D = (() => {
   /* A fibre component, a circuit part or a chip, on the table: a box as big as its symbol on the bench (out to its
      ports), its symbol on its top; a ferrule out of each fibre port, a pin out of each electrical one. A node of a
      circuit is a post; a chip is thin, on a carrier */
-  const NET_H = { fcomp: 10, elec: 14, pic: 3 };
+  const NET_H = { fcomp: 10, elec: 14, pic: 3 }, NET_FERRULE = 4, NET_PIN = 3;
   function netBox(el) {
     const P = portsOf(el), hs = halfSize(el);
     const hx = Math.max(3, ...P.map(q => Math.abs(q.x)), el.type === 'elec' ? hs - 1 : 0), hy = Math.max(2.5, hs - 1, ...P.map(q => Math.abs(q.y)));
@@ -418,7 +418,7 @@ export const V3D = (() => {
     const top = new T.Mesh(new T.PlaneGeometry(2 * hx, 2 * hy).translate(0, 0, h + 0.02), new T.MeshStandardMaterial({ map: tex, color: 0xc8c8c8, roughness: 0.85, metalness: 0 }));
     top.receiveShadow = true; top.userData.texs = [tex]; add(top);
     P.forEach((q, i) => {
-      const len = i < nOpt ? 4 : 3, r = i < nOpt ? 1.1 : 0.45, a = Math.atan2(q.dy || 0, q.dx || 0);
+      const len = i < nOpt ? NET_FERRULE : NET_PIN, r = i < nOpt ? 1.25 : 0.45, a = Math.atan2(q.dy || 0, q.dx || 0);
       const c = new T.CylinderGeometry(r, r, len, 14); c.rotateZ(-Math.PI / 2); c.translate(len / 2, 0, 0); c.rotateZ(a); c.translate(q.x, q.y, (z0 + h) / 2);
       add(mesh(c, i < nOpt ? mat.metal(0xcfd8dc, 0.3) : mat.metal(0xd8a650, 0.3)));
     });
@@ -441,16 +441,47 @@ export const V3D = (() => {
         const t = k / 16, u = 1 - t, b = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
         xy.push([b[0] * p0[0] + b[1] * c1[0] + b[2] * c2[0] + b[3] * p3[0], b[0] * p0[1] + b[1] * c1[1] + b[2] * c2[1] + b[3] * p3[1]]);
       }
-      const sAt = [0]; for (let k = 1; k < xy.length; k++) sAt.push(sAt[k - 1] + Math.hypot(xy[k][0] - xy[k - 1][0], xy[k][1] - xy[k - 1][1]));
-      const S = sAt[sAt.length - 1]; if (!(S > 0.05)) return;
-      const zA = portZ(getEl(F.a[0])), zB = portZ(getEl(F.b[0])), r = F.wg ? 0.45 : F.wire ? 0.6 : 1.1;
-      const zT = F.wg ? Math.min(zA, zB) : r + 0.05;
-      const fall = (d, dz) => { const L = Math.min(S / 2, Math.max(15, dz * 0.8)); return d >= L ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L)); };
-      const pts = xy.map(([x, y], k) => new T.Vector3(x, y, zT + (zA - zT) * fall(sAt[k], zA - zT) + (zB - zT) * fall(S - sAt[k], zB - zT)));
+      const A = getEl(F.a[0]), B = getEl(F.b[0]), zA = portZ(A), zB = portZ(B), r = F.wg ? 0.45 : F.wire ? 0.6 : 0.9;
+      // its ends: from the end of a component's ferrule or pin (the route begins at the body's face), or from the back of
+      // a fibre tip's ferrule (the route begins further back, at the tail the bench draws), straight along the port
+      const endOf = (el, port) => {
+        if (NET_3D.has(el.type)) return { trim: (el.type === 'elec' ? 0 : portsOfOptic(el).length) > port ? NET_FERRULE : NET_PIN };
+        if (el.type !== 'fibre') return { trim: 0 };
+        const back = el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10, tail = -((portsOf(el)[0] || {}).x || -back), a = el.angle * deg;
+        return tail >= back ? { pre: [el.x - Math.cos(a) * back, el.y - Math.sin(a) * back] } : { trim: back - tail };
+      };
+      const cut = (pts, d) => {                       // the route less its first d mm
+        let k = 0, acc = 0;
+        while (k < pts.length - 1) {
+          const l = Math.hypot(pts[k + 1][0] - pts[k][0], pts[k + 1][1] - pts[k][1]);
+          if (acc + l >= d) { const t = (d - acc) / (l || 1); return [[pts[k][0] + t * (pts[k + 1][0] - pts[k][0]), pts[k][1] + t * (pts[k + 1][1] - pts[k][1])], ...pts.slice(k + 1)]; }
+          acc += l; k++;
+        }
+        return pts.slice(-1);
+      };
+      const eA = endOf(A, F.a[1]), eB = endOf(B, F.b[1]);
+      let run = xy;
+      if (eA.trim) run = cut(run, eA.trim);
+      if (eB.trim) run = cut(run.slice().reverse(), eB.trim).reverse();
+      if (eA.pre) run = [eA.pre, ...run];
+      if (eB.pre) run = [...run, eB.pre];
+      const sAt = [0]; for (let k = 1; k < run.length; k++) sAt.push(sAt[k - 1] + Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]));
+      const S = sAt[sAt.length - 1]; if (!(S > 0.05) || run.length < 2) return;
+      // its height along it: a long run lies on the table, rising to each port over a smooth bend; a short one (or a
+      // waveguide, between chips) runs from port to port, sagging a little in the middle as a cable does
+      const zT = r + 0.05, lin = u => zA + (zB - zA) * u;
+      const rise = dz => Math.max(15, dz * 0.8), lies = !F.wg && S > rise(zA - zT) + rise(zB - zT) + 10;
+      const zAt = s0 => {
+        const u = s0 / S;
+        if (!lies) return Math.max(zT, lin(u) - Math.min(S * 0.08, Math.max(0, Math.min(zA, zB) - zT)) * Math.sin(Math.PI * u));
+        const f = (d, dz) => { const L2 = rise(dz); return d >= L2 ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L2)); };
+        return zT + (zA - zT) * f(s0, zA - zT) + (zB - zT) * f(S - s0, zB - zT);
+      };
+      const pts = run.map(([x, y], k) => new T.Vector3(x, y, zAt(sAt[k])));
       const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw;
       const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
         emissive: lit ? col(L.colour) : col(0x000000), emissiveIntensity: lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
-      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(400, Math.max(8, Math.round(S / 2))), r, 10, false), m);
+      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m);
       o.userData.fibre = F.id; G.add(o);
     });
   }
@@ -569,8 +600,8 @@ export const V3D = (() => {
         const r = Math.max(L, 1.25), len = el.coll > 0 ? Math.max(el.coll * 1.4, 10) : 10;
         add(mesh(disc(len, r, -len / 2), mat.metal(0xcfd8dc, 0.3)));
         if (el.coll > 0) add(mesh(disc(0.6, r * 0.85, 0.05), mat.glass(0x8fd3e8, 0.4)));
-        const j = new T.CylinderGeometry(1.5, 1.5, 40, 24); j.rotateZ(-Math.PI / 2); j.translate(-len - 20, 0, 0);
-        add(mesh(j, mat.matte(FIBRE_COLOUR)), mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
+        // (its fibre is laid from the back of the ferrule, along its route: see wires)
+        add(mesh(disc(0.3, Math.max(0.3, el.core * 5e-4), 0.15), mat.glow('#ffb347')));
         return g;
       }
       case 'waveplate': case 'polariser': {

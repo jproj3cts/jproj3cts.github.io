@@ -3,19 +3,19 @@ import { FIBRE_NG, cohGamma, lagOf, splitChain, splitRoot } from '../../core/coh
 import { applyPulse, gsmModes, m2Of } from '../../core/pulses.js';
 import { fanFromGauss, isHigherMode, lgComps, modeM2 } from '../../core/beams-hom.js';
 import { wavelengthColour } from '../../core/colour.js';
-import { fanEdgeAuto } from '../../core/fan-edge.js';
 import { V, project } from '../../state/project.js';
 import { getEl, lampFootprint, lampRaysOf, lightOf, srcBody } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS, rayPattern } from '../../engines/trace.js';
 import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../render.js';
 import { applyFibre } from '../../engines/fibre-face.js';
+import { gaussFromFan } from '../../engines/cavity.js';
+import { fanEdgeAuto } from '../../core/fan-edge.js';
 import {
   beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, grid2, h, panel, param, renderPanel,
   selectField, setFid, textField, helpLine
 } from '../panel.js';
 import { pulseLine, pulseToggle } from '../panels.js';
-import { gaussFromFan } from '../../engines/cavity.js';
 import { popNote } from '../heavy.js';
 import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
@@ -193,19 +193,14 @@ function sourcePanel(el) {
   col.setAttribute('aria-label', 'Colour');
   panel.append(h('p', null, 'Each extra wavelength fires the same fan of rays, so chromatic focal shift and lateral colour show up directly. Set width to 0 for a point source, or divergence to 0 for a collimated beam.'));
 
-  // the ray fan: on its own, and hidden with its settings when it is off
+  // the ray fan (always traced; the bench's Light turns the rays off for every source)
   panel.append(h('h3', null, 'Rays'));
-  const tr = h('input', { type: 'checkbox' });
-  tr.checked = el.traceRays;
-  tr.addEventListener('change', () => { checkpoint(); el.traceRays = tr.checked; changed(true); });
-  panel.append(h('label', { class: 'rt-check' }, tr, 'Trace the ray fan'));
-  if (el.traceRays) {
+  {
     const dv = param('Divergence (°)', el, 'divergence'); dv.title = 'Its full angle of spread: 0 collimated, negative converging';
     panel.append(grid2(param('Beam width (mm)', el, 'width'), dv, param('Rays', el, 'rays'),
       // how wide the source looks (the sun, half a degree): rays across that angle from each point of the beam
       param('Angular size (°)', el, 'angularSize', { placeholder: 'a point', blank: 0 }),
       el.angularSize > 0 ? param('Rays across it', el, 'angularRays') : null));
-    if (!el.gauss && lightOf().field) panel.append(h('div', { class: 'rt-rows' }, ...edgeRows(el)));
     if (Math.abs(el.divergence) >= 360) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, 'A lamp: its rays all round, evenly spaced.'));
     if (el.angularSize > 0) panel.append(h('p', { class: 'note', style: 'margin-top:0.3rem' }, (el.angularRays || 5) + ' rays across its ' + el.angularSize + '\u00b0 from each point: ' + rayPattern(el, el.rays).length * (el.angularRays || 5) + ' in all.'));
     // the pattern across the beam: the line of the 2D bench, or spread up and down too
@@ -220,24 +215,17 @@ function sourcePanel(el) {
     bindSync(pn, () => { const N = rayPattern(el, el.rays).length; pn.textContent = N + ' rays' + (el.pattern ? ' across the beam, up and down it too' : ' in the bench plane') + ', each traced in 3D; a screen\u2019s Rays tab shows where they land.'; });
     panel.append(pn);
   }
-  else if (!el.gauss) {
-    // without a Gaussian beam the fan's width and divergence still shape the diffracted field
-    panel.append(grid2(param('Beam width (mm)', el, 'width'), param('Divergence (°)', el, 'divergence')));
+  // what its field starts from: a Gaussian beam along its axis (a new source's), or even illumination across the fan (a
+  // uniform pupil: a lens's Airy pattern, Strehl and MTF); the bench's Light turns the rays, or the beams, off for every source
+  panel.append(h('h3', null, 'Field'));
+  panel.append(h('div', { class: 'rt-rows' }, selectField('Starts from', [['gauss', 'A Gaussian beam'], ['flat', 'Even illumination (a uniform pupil)']],
+    () => (el.gauss ? 'gauss' : 'flat'), v => { el.gauss = v === 'gauss'; if (el.gauss) gaussFromFan(el); }, { wide: true })));
+  if (!el.gauss) {
+    // the fan's width and divergence shape the field: a top-hat of its width, its edge soft enough for the grid
     if (lightOf().field) panel.append(h('div', { class: 'rt-rows' }, ...edgeRows(el)));
-    panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The width and divergence still set the uniform pupil the diffracted field starts from; its numerical aperture, Airy radius and cut-off come from the rays and are not shown.'], 'note', 'margin-top:0.5rem'));
-  } else panel.append(helpLine('No rays are traced, so ray measurements are not available.', ['No rays are traced, so the ray measurements (spot, wavefront, ray interference) have nothing to go on. The Gaussian beam and the diffracted field still work, from their own reference rays.'], 'note', 'margin-top:0.5rem'));
-
-  panel.append(h('h3', null, 'Gaussian beam'));
-  const gb = h('input', { type: 'checkbox' });
-  gb.checked = el.gauss;
-  gb.addEventListener('change', () => {
-    checkpoint();
-    el.gauss = gb.checked;
-    if (el.gauss) gaussFromFan(el);    // start from the fan that is already there
-    changed(true);
-  });
-  panel.append(h('label', { class: 'rt-check' }, gb, 'Propagate a Gaussian beam along the axis'));
-  if (el.gauss) {
+    panel.append(helpLine('The field starts as even illumination across the fan.', ['The field starts as even illumination across the ray fan: a uniform pupil of its width (its edge soft just enough for the grid) and its divergence, as a lens\u2019s textbook Airy pattern, Strehl ratio and diffraction-limited MTF assume. Choose A Gaussian beam for a laser.'], 'note', 'margin-top:0.4rem'));
+  }
+  else {
     const fb = h('input', { type: 'checkbox' });
     fb.checked = !!el.fibre;
     fb.addEventListener('change', () => {

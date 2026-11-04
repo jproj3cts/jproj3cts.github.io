@@ -1,7 +1,7 @@
 import { IN_WORKER, TEST_MODE, clamp } from '../core/constants.js';
 import { spmAsked } from '../core/pulses.js';
 import { V, project, selectedId } from '../state/project.js';
-import { allSources, fieldDec, getEl, lightOf } from '../state/elements.js';
+import { allSources, beamOn, fieldDec, getEl, lightOf } from '../state/elements.js';
 import { dropTraceStore, lastTrace, setLastTraceKey, traceScene } from '../engines/trace.js';
 import { H, W, requestRender } from './render.js';
 import { getPath, setParam } from '../state/params.js';
@@ -232,7 +232,7 @@ const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e
   (e.id === selectedId || pins.includes(e.id)));
 const fieldWanted = () => popSources().length > 0 || openScreens().length > 0;
 /* a sweep can work out the diffracted field (slow) wherever there is a Gaussian beam to diffract */
-export const fieldPossible = () => fieldWanted() || allSources().some(e => e.gauss) || project.elements.some(e => e.type === 'fcomp' && e.kind === 'laser');
+export const fieldPossible = () => fieldWanted() || allSources().some(beamOn) || project.elements.some(e => e.type === 'fcomp' && e.kind === 'laser');
 /* While sweeps play and none of them has "Render the diffracted field" ticked, the field is held:
    nothing new is worked out (the bench shows the beams' outlines, screens and photodiodes keep
    their last field), so a sweep is quick unless the slow field is asked for. It is worked out

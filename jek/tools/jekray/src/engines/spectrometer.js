@@ -1,5 +1,5 @@
 import { splitRoot } from '../core/coherence.js';
-import { getEl } from '../state/elements.js';
+import { beamOn, getEl } from '../state/elements.js';
 import { lastTrace, raysLaunched, sourceLines } from './trace.js';
 import { arrivalField, arrivalWindow, deviceMemo, erfA, faceArrivals, groupsOf } from './fibre-face.js';
 import { SPEC_SENSORS } from '../parts/spectrometer.js';
@@ -73,7 +73,7 @@ export function specLines(el) {
     for (const t of (lastTrace.screens[el.id] || [])) {
       if (t.chief) continue;
       const src = getEl(t.id.split(':')[0]);
-      if (!src || src.gauss) continue;
+      if (!src || beamOn(src)) continue;
       const root = splitRoot(src), mw = t.w * (root.power || 0) / (raysLaunched(src) * sourceLines(src).length);
       face += mw;
       const sz = t.dz ? t.dz / Math.hypot(1, t.dz) : 0, sinA = Math.hypot(t.dly || 0, sz);

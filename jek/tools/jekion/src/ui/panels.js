@@ -1,5 +1,5 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
-import { fmtEv, fmtMHz, fmtMm, fmtUs, nf, SPECIES } from '../core/units.js';
+import { fmtEv, fmtMHz, fmtMm, fmtUs, nf, SPECIES, FREQ_UNITS, freqUnitOf } from '../core/units.js';
 import { SHAPES, AXES } from '../core/geom.js';
 import { BCS, FACES, SYMS } from '../core/grid.js';
 import { project, selectedItem, V } from '../state/project.js';
@@ -7,7 +7,7 @@ import { checkpoint, COLOUR_BYS, gridNodes, POT_SHOWS } from '../state/elements.
 import { SHAPE_FIELDS } from '../parts/electrodes.js';
 import { DISTS } from '../parts/ions.js';
 import { END_WORDS } from '../engines/fly.js';
-import { checkField, colourField, h, helpLine, param, readout, rows, section, selectField, setPanelBody, panelClosed } from './panel.js';
+import { checkField, colourField, h, helpLine, numInput, param, readout, rows, section, selectField, setPanelBody, panelClosed } from './panel.js';
 import { changed, duplicateSel, removeSel } from './actions.js';
 import { SIM, flyNow, trapNow, potentialLine, potentialAtPoints, pickedLine, setPickedLine } from './sim.js';
 import { setPointTool } from './pointer.js';
@@ -19,6 +19,9 @@ import { arrayBox } from './render.js';
    The panels: an electrode's, an ion group's, a detector's, and, with nothing selected, the bench's (the array,
    the gas, the magnetic field, flying, display) with the results of the last flight and the trap analysis.
    ========================================================================== */
+/* a panel's own choices for a thing (the unit a frequency is shown in), kept while the page lives */
+const viewState = new Map();
+const vsOf = el => { if (!viewState.has(el.id)) viewState.set(el.id, {}); return viewState.get(el.id); };
 const head = (kind, name, onName) => {
   const inp = h('input', { class: 'rt-name ion-pname', type: 'text', value: name, 'aria-label': 'Name', spellcheck: 'false' });
   inp.addEventListener('change', () => { checkpoint(); onName(inp.value.trim().slice(0, 60) || name); changed(true); });
@@ -39,7 +42,15 @@ function electrodePanel(el) {
   box.append(head(SHAPES[el.shape].label, el.name, v => { el.name = v; }));
   const volt = [param('Voltage (V)', el, 'V', { fmt: v => nf(v, 6) }),
     checkField('RF: swing about it', () => el.rf.on, v => { el.rf.on = v; }, { wide: true })];
-  if (el.rf.on) volt.push(param('Amplitude (V)', el.rf, 'amp', { min: 0 }), param('Frequency (MHz)', el.rf, 'mhz', { min: 1e-6 }), param('Phase (°)', el.rf, 'phase'));
+  if (el.rf.on) {
+    // the frequency in the unit that suits it (kept in MHz), the unit changeable: down to single hertz for a slow drive
+    const vs0 = vsOf(el), unit = () => vs0.fUnit || freqUnitOf(el.rf.mhz), k = () => FREQ_UNITS.find(u => u[0] === unit())[1];
+    volt.push(param('Amplitude (V)', el.rf, 'amp', { min: 0 }),
+      h('div', { class: 'rt-f rt-pair' }, h('label', null, 'Frequency'), h('div', { class: 'rt-pairbox', style: 'display:flex;gap:0.3rem' },
+        (() => { const inp = numInput(() => el.rf.mhz / k(), v => { el.rf.mhz = Math.max(1e-9, v * k()); }, { fmt: v => nf(v, 6) }); inp.style.flex = '1'; inp.style.minWidth = '0'; return inp; })(),
+        (() => { const sel = h('select', { 'aria-label': 'Frequency unit', style: 'width:5.2rem' }, ...FREQ_UNITS.map(u => h('option', { value: u[0] }, u[2]))); sel.value = unit(); sel.addEventListener('change', () => { vs0.fUnit = sel.value; hooks.renderPanel(); }); return sel; })())),
+      param('Phase (°)', el.rf, 'phase'));
+  }
   box.append(section('Voltage', 'el.volt', [rows(volt), helpLine('The static voltage, and an RF swing added to it.', 'The potential is solved once for the geometry, each electrode at 1 V in turn; a voltage changes nothing but a scale, so the ions fly again at once. The RF term is amp·cos(2πft + φ) on top of the voltage: an electrode of a Paul trap, a quadrupole mass filter, an RF funnel. Electrodes with the same frequency and phase are summed into one array for speed.')]));
   const G = project.grid;
   const geo = [];

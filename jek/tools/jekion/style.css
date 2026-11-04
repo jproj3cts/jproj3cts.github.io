@@ -1,0 +1,36 @@
+  /* JEKion: what it adds to JEKray's style (which it shares, loaded before this) */
+  .ion-simbar { position: absolute; left: 50%; bottom: 0.75rem; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem);
+    padding: 0.35rem 0.8rem; font-size: 0.8125rem; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 2px; pointer-events: none; white-space: nowrap; }
+  .ion-simbar:empty, .ion-simbar.quiet { display: none; }
+  .ion-simbar .rt-btn { pointer-events: auto; padding: 0.15rem 0.5rem; font-size: 0.75rem; }
+  .ion-simbar.busy::before { content: ''; width: 0.6rem; height: 0.6rem; border: 2px solid var(--jek-cyan); border-right-color: transparent; border-radius: 50%; animation: ion-spin 0.8s linear infinite; }
+  @keyframes ion-spin { to { transform: rotate(360deg); } }
+  .ion-legend { position: absolute; right: 0.6rem; bottom: 2.8rem; z-index: 4; padding: 0.3rem 0.5rem; font: 0.7rem var(--jek-mono); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 2px; pointer-events: none; }
+  .ion-legend canvas { display: block; width: 120px; height: 8px; margin: 0.2rem 0; }
+  .ion-legend .lr { display: flex; justify-content: space-between; }
+  .ion-flybtn { color: var(--jek-cyan-dark); }
+  .ion-scriptout { max-height: 14rem; overflow: auto; margin: 0.5rem 0 0; padding: 0.5rem 0.7rem; font: 0.78rem var(--jek-mono); white-space: pre-wrap; background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 2px; color: var(--jek-ink); }
+  .ion-scriptout:empty { display: none; }
+  dialog.rt-dialog #scriptText { width: 100%; box-sizing: border-box; font-family: var(--jek-mono); font-size: 0.8rem; }
+  .ion-res dl { margin: 0; }
+  .ion-res .ion-bar { display: flex; height: 0.55rem; margin: 0.3rem 0 0.5rem; border-radius: 2px; overflow: hidden; background: var(--jek-well); }
+  .ion-res .ion-bar span { display: block; height: 100%; }
+  .ion-table { width: 100%; border-collapse: collapse; margin: 0.3rem 0 0.5rem; font-size: 0.78rem; }
+  .ion-table th, .ion-table td { padding: 0.15rem 0.35rem; text-align: left; border-bottom: 1px solid var(--jek-line); font-variant-numeric: tabular-nums; }
+  .ion-table th { font-weight: 600; color: var(--jek-ink-soft); }
+  .ion-table td.n { font-family: var(--jek-mono); text-align: right; }
+  .ion-sw { display: inline-block; width: 0.7rem; height: 0.7rem; margin-right: 0.35rem; border-radius: 2px; vertical-align: -0.08rem; }
+  .ion-plot { display: block; width: 100%; height: 150px; margin: 0.3rem 0 0.2rem; background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: 2px; }
+  .ion-plotbar { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; margin: 0 0 0.5rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .ion-plotbar .rt-btn { padding: 0.1rem 0.45rem; font-size: 0.7rem; }
+  .ion-stab { font-weight: 700; }
+  .ion-stab.ok { color: var(--rt-good-ink); }
+  .ion-stab.no { color: var(--jek-red); }
+  .ion-ex { font-size: 0.78rem; color: var(--jek-ink-soft); margin: 0.2rem 0 0.4rem; }
+  .ion-gcard { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.6rem 0.7rem; text-align: left; font: inherit; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; }
+  .ion-gcard:hover, .ion-gcard:focus-visible { outline: none; border-color: var(--jek-orange); background: var(--jek-well); }
+  .ion-gcard b { font-size: 0.9rem; }
+  .ion-gcard small { font-size: 0.78rem; color: var(--jek-ink-soft); line-height: 1.4; }
+  .ion-gcard .ion-gtag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jek-cyan-dark); }
+  .rt-imenu .ion-mshape { display: flex; flex-direction: column; align-items: flex-start; }
+  .rt-imenu .ion-mshape small { font-size: 0.72rem; color: var(--jek-ink-soft); font-weight: 400; }

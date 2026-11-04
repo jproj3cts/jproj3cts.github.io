@@ -1,0 +1,19 @@
+{
+  "format": "jekion", "version": 1, "name": "Penning trap",
+  "view": { "cx": 0, "cy": 0, "scale": 22, "plane": "xy", "slice": 0 },
+  "grid": { "sym": "cyl", "h": 0.1, "x0": -12, "x1": 12, "y0": 0, "y1": 12, "bc": { "xlo": "open", "xhi": "open", "yhi": "ground" } },
+  "electrodes": [
+    { "name": "Ring", "shape": "tube", "axis": "x", "x": 0, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 4, "V": 0, "colour": "#e0742f" },
+    { "name": "Correction +", "shape": "tube", "axis": "x", "x": 3.1, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 2, "V": 4, "colour": "#d9b32a" },
+    { "name": "Correction -", "shape": "tube", "axis": "x", "x": -3.1, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 2, "V": 4, "colour": "#d9b32a" },
+    { "name": "Endcap +", "shape": "tube", "axis": "x", "x": 7.2, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 6, "V": 10, "colour": "#5b8def" },
+    { "name": "Endcap -", "shape": "tube", "axis": "x", "x": -7.2, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 6, "V": 10, "colour": "#5b8def" }
+  ],
+  "ions": [{ "name": "Ca+", "species": "Ca+", "n": 1, "ke": 0.05, "x": 0.5, "y": 1.5, "z": 0, "dist": "point", "size": 0, "dirAz": 90, "dirEl": 0, "cone": 0, "colour": "#e8402a" }],
+  "detectors": [],
+  "species": { "name": "Ca+", "mass": 39.962, "charge": 1 },
+  "bfield": { "bx": 10000, "by": 0, "bz": 0 },
+  "fly": { "tMax": 200, "quality": 0.3, "maxPts": 8000, "spaceCharge": false, "seed": 1, "auto": true },
+  "show": { "pot": "contours", "contours": 20, "traj": true, "colourBy": "time", "grid": true, "efield": false },
+  "notes": "A cylindrical Penning trap: a ring at 0 V, correction electrodes and endcaps at +10 V hold a Ca+ ion along the axis (x) electrostatically, and a 1 T field along x holds it radially. Tools › Trap analysis gives the cyclotron frequency (383 kHz for Ca+ at 1 T), the axial frequency from the curvature at the centre, and the modified cyclotron and magnetron frequencies; the path over 200 µs shows the fast cyclotron circles drifting slowly round the magnetron orbit. Raise the endcaps to 50 V and the axial frequency grows until ωz² > ωc²/2 and the trap fails."
+}

@@ -83,6 +83,15 @@
     return;
   }
 
+  /* A JEKion share link: /i/ then its id, opened by JEKion the same way. */
+  var ion = /^\/[iI]\/([A-Za-z2-7]{10})\/?$/.exec(path);
+  if (!target && ion) {
+    document.getElementById("missing").hidden = true;
+    document.getElementById("forwarding").hidden = false;
+    window.location.replace("/jek/tools/jekion.html#s=" + ion[1].toUpperCase());
+    return;
+  }
+
   /* A JEKray bench in a QR code: /R/ then the bench, deflated, in base 32 capitals (the QR
      code's compact alphanumeric mode). The tool reads it as #p=q followed by the same. */
   var bench = /^\/R\/([A-Za-z2-7]+)\/?$/.exec(path);

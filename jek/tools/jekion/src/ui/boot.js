@@ -23,8 +23,9 @@ import { V3D, wireView3d } from './view3d.js';
 import { openDemo, openProjectData, restoreSaved, scheduleSave, wireOpen } from '../io/open.js';
 import { wireAccount } from '../io/account.js';
 import { exportData, wireDataExport } from '../io/data-export.js';
+import { openShareHash, openShortLink, shareRoundTrip, wireShare } from '../io/share.js';
 import { bodiesToElectrodes } from '../io/step.js';
-import { mapRange } from './render.js';
+import { mapLog, mapRange } from './render.js';
 import { viridisCss } from '../core/colour.js';
 
 /* ==========================================================================
@@ -42,7 +43,7 @@ const MENU_ICONS = {
   keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H5 M7 6.5H8 M10 6.5H11 M4 9.5H12', book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z', star: 'M8 1.5L9.9 6.1L14.5 6.5L11 9.6L12.1 14.5L8 12L3.9 14.5L5 9.6L1.5 6.5L6.1 6.1Z',
   quote: 'M3 3H7V8H4.5Q3 8 3 9.5V11 M9.5 3H13.5V8H11Q9.5 8 9.5 9.5V11', bug: 'M8 4A3.5 3.5 0 0 1 11.5 7.5V11A3.5 3.5 0 0 1 4.5 11V7.5A3.5 3.5 0 0 1 8 4Z M5 2.5L6.5 4 M11 2.5L9.5 4 M1.5 8H4.5 M11.5 8H14.5 M2.5 12.5L4.5 11 M13.5 12.5L11.5 11',
   info: 'M8 1.5A6.5 6.5 0 1 0 8 14.5A6.5 6.5 0 1 0 8 1.5 M8 7V11.5 M8 4.5V5', pdf: 'M4 1.5h5.5L12.5 4.5V14.5H4Z', beam: 'M1.5 8H14.5 M10.5 4.5L14.5 8L10.5 11.5', home: 'M2 8L8 2.5L14 8 M4 7V13.5H12V7',
-  paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', eye: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M8 6A2 2 0 1 1 8 10A2 2 0 1 1 8 6', user: 'M8 2A3 3 0 1 0 8 8A3 3 0 1 0 8 2 M2.5 14Q2.5 9.5 8 9.5Q13.5 9.5 13.5 14', signin: 'M6 2.5H13.5V13.5H6 M2 8H9.5 M7 5.5L9.5 8L7 10.5', signout: 'M10 2.5H2.5V13.5H10 M14 8H6.5 M11.5 5.5L14 8L11.5 10.5',
+  paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', share: 'M12 2.5A1.5 1.5 0 1 0 12 5.5A1.5 1.5 0 1 0 12 2.5 M4 6.5A1.5 1.5 0 1 0 4 9.5A1.5 1.5 0 1 0 4 6.5 M12 10.5A1.5 1.5 0 1 0 12 13.5A1.5 1.5 0 1 0 12 10.5 M5.3 7.3L10.7 4.7 M5.3 8.7L10.7 11.3', link: 'M6.5 9.5L9.5 6.5 M7 11L5.5 12.5A2.1 2.1 0 0 1 2.5 9.5L4.5 7.5A2.1 2.1 0 0 1 7.5 7.5 M9 5L10.5 3.5A2.1 2.1 0 0 1 13.5 6.5L11.5 8.5A2.1 2.1 0 0 1 8.5 8.5', eye: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M8 6A2 2 0 1 1 8 10A2 2 0 1 1 8 6', user: 'M8 2A3 3 0 1 0 8 8A3 3 0 1 0 8 2 M2.5 14Q2.5 9.5 8 9.5Q13.5 9.5 13.5 14', signin: 'M6 2.5H13.5V13.5H6 M2 8H9.5 M7 5.5L9.5 8L7 10.5', signout: 'M10 2.5H2.5V13.5H10 M14 8H6.5 M11.5 5.5L14 8L11.5 10.5',
 };
 function menuIcons(root) {
   for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
@@ -62,7 +63,7 @@ function legendShown() {
   const cv = h('canvas', { width: 120, height: 8 }), c = cv.getContext('2d');
   for (let i = 0; i < 120; i++) { c.fillStyle = viridisCss(i / 119); c.fillRect(i, 0, 1, 8); }
   const f = v => (Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());
-  box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm)' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
+  box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm' + (mapLog ? ', log' : '') + ')' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
 }
 /* the theme menu */
 function themeMenu() {
@@ -80,13 +81,17 @@ installHooks({
 const saved = restoreSaved();
 loadProject(saved || demoProject());
 setHistory([]); setFuture([]);
-wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireView3d(); wireUsage();
+wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireShare(); wireView3d(); wireUsage();
 menuIcons(document); themeMenu(); viewMenuShown(); renderPanel(); updateUndoButtons();
 setDrawnOnce(() => { usageDrawn(); });
 usageStart(saved ? 'ion-restored' : 'ion-fresh');
 if (!saved) fitView(); else requestRender();
 requestSlice();
 if (project.fly.auto && !TEST_MODE) flyNow();
+// a share link opens the bench it names: #s=<id> (a short one, /i/<id> on the site) or #p=<the bench itself>
+const shortLinkAt = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/), longLinkAt = !TEST_MODE && location.hash.match(/^#p=([ik][A-Za-z0-9_-]+)/);
+if (shortLinkAt || longLinkAt) { window.history.replaceState(null, '', location.pathname); if (shortLinkAt) openShortLink(shortLinkAt[1]); else openShareHash(longLinkAt[1]); }
+if (!TEST_MODE) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([ik][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/); if (!sh && !ss) return; window.history.replaceState(null, '', location.pathname); if (sh) openShareHash(sh[1]); else openShortLink(ss[1]); });
 // ?demo=<name> or #demo=<name> opens an example; #examples the gallery
 const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. + Add puts in more.'), 600);
@@ -107,5 +112,5 @@ window.JEKion = {
   // the page's own run: a promise of the results, as the worker (or the page without one) gives them
   flyPage: async () => { await flyNow(); return SIM.result; },
   trapPage: () => trapNow(), sim: SIM, data: kinds => gatherIonData(project, SIM.result, SIM.trap, kinds), exportData,
-  bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot,
+  bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot, shareRoundTrip, openShareHash,
 };

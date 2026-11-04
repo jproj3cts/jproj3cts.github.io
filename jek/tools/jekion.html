@@ -1881,26 +1881,43 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-poldiag { flex: none; width: 96px; height: 96px; }
 .rt-polcap { margin: 0 !important; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
-/* the 3D view's Model tools (ui/model3d.js): their card down the left, under the hint; a size typed beside the pointer */
-.rt-mdlcard { position: absolute; left: 60px; top: 4.6rem; z-index: 7; width: 17.5rem; max-height: calc(100% - 6rem); overflow: auto; box-sizing: border-box;
-  padding: 0.55rem 0.65rem 0.6rem; font: 0.75rem/1.35 var(--jek-sans); color: var(--jek-ink); background: var(--jek-panel); border: 1px solid var(--jek-line);
-  border-left: 3px solid #1d6fd8; border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
-.rt-mdlcard[hidden] { display: none; }
-.rt-mdlcard > b { display: block; font-size: 0.82rem; margin-bottom: 0.3rem; }
-.rt-mdlcard p { margin: 0.2rem 0 0.35rem; }
-.rt-mdlcard .rt-btn { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
-.rt-mdlcard .rt-btn.on { background: #1d6fd8; color: #fff; border-color: #1d6fd8; }
-.rt-mdltools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0.1rem 0 0.35rem; }
-.rt-mdltools .rt-btn { width: 100%; }
-.rt-mdlrow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.3rem 0.4rem; margin: 0.3rem 0; }
-.rt-mdlrow select { max-width: 100%; font-size: 0.75rem; }
+/* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
+   under it with what the moment needs; the hint goes to the bottom while they are on */
+.rt-mdltop { position: absolute; left: 60px; right: 124px; top: 34px; z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+.rt-mdltop[hidden] { display: none; }
+.rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
+.rt-tbar { padding: 3px 4px; }
+.rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
+.rt-tbsub:empty { display: none; }
+.rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
+.rt-tbsep { width: 1px; align-self: stretch; margin: 3px 4px; background: var(--jek-line); }
+.rt-tb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--jek-ink); cursor: pointer; font: 600 0.74rem var(--jek-sans); }
+.rt-tb.wide { padding: 0 8px; }
+.rt-tb:hover:not(:disabled) { background: rgba(127, 127, 127, 0.14); }
+.rt-tb.on { background: rgba(29, 111, 216, 0.16); color: #1d6fd8; border-color: rgba(29, 111, 216, 0.45); }
+.rt-tb:disabled { opacity: 0.38; cursor: default; }
+.rt-tb.rt-tbok { color: #fff; background: #2a8a4a; }
+.rt-tb.rt-tbok:hover { background: #237a40; }
+.rt-tb.rt-tbno { color: var(--jek-red, #b3261e); }
+.rt-tbgrp { display: inline-flex; align-items: center; }
+.rt-tbgrp > .rt-tb:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.rt-tbcar { min-width: 0; padding: 0 3px; }
+.rt-tbgrp > .rt-tb + .rt-tbcar { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.rt-car { font-size: 0.65rem; color: var(--jek-ink-soft); }
+.rt-tbmenu { position: absolute; z-index: 9; min-width: 11rem; max-height: 60vh; overflow: auto; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22); font: 0.76rem var(--jek-sans); }
+.rt-tbmenu button { display: block; width: 100%; text-align: left; padding: 5px 12px 5px 24px; border: 0; background: none; color: var(--jek-ink); cursor: pointer; position: relative; font: inherit; white-space: nowrap; }
+.rt-tbmenu button:hover { background: rgba(29, 111, 216, 0.12); }
+.rt-tbmenu button.on::before { content: '\2713'; position: absolute; left: 8px; color: #1d6fd8; }
+.rt-tbmenu hr { border: 0; border-top: 1px solid var(--jek-line); margin: 4px 0; }
+.rt-tbar .rt-mdlf, .rt-tbsub .rt-mdlf { flex-direction: row; align-items: center; gap: 5px; padding: 0 4px; }
 .rt-mdlf { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.rt-mdlf > span { font-size: 0.68rem; font-weight: 600; color: var(--jek-ink-soft); }
-.rt-mdlf > input { width: 5.2rem; box-sizing: border-box; height: 1.6rem; padding: 0.1rem 0.35rem; font: 0.75rem var(--jek-mono); }
+.rt-mdlf > span { font-size: 0.68rem; font-weight: 600; color: var(--jek-ink-soft); white-space: nowrap; }
+.rt-mdlf > input { width: 4.8rem; box-sizing: border-box; height: 1.6rem; padding: 0.1rem 0.35rem; font: 0.75rem var(--jek-mono); }
+.rt-mdlrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .rt-mdltyped .rt-mdlf > input { border-color: #1d6fd8; }
 .rt-mdlnote { font-size: 0.7rem; color: var(--jek-ink-soft); }
 .rt-mdlerr { color: var(--jek-red, #b3261e); }
-.rt-mdlcard .rt-check { font-size: 0.72rem; }
+.rt-mdlon .rt-v3dhint { top: auto; bottom: 46px; }
 .rt-mdltip { position: absolute; z-index: 7; pointer-events: none; font: 600 0.66rem var(--jek-sans); color: #fff; background: #f28a1a; padding: 1px 5px; border-radius: 3px; }
 .rt-mdltip[hidden] { display: none; }
 .rt-v3dbar .rt-mdlbtn.on { background: #1d6fd8; color: #fff; border-color: #1d6fd8; }
@@ -1968,6 +1985,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImportCad" data-icon="cube" title="Each body of a STEP file becomes an electrode of its own; an STL file one electrode">Import electrodes (.step, .stl)…</button>
             <div class="sep"></div>
@@ -2058,6 +2076,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button class="rt-btn rt-tbl" id="btnAdd" type="button" data-icon="parts" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Add an electrode, an ion group or a detector (A)">+ Add</button>
             <div class="rt-menu rt-menu-right rt-imenu" id="addMenu" role="menu" hidden></div>
           </div>
+          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekion</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <div class="rt-more rt-phonegone" id="acct" hidden>
@@ -2076,6 +2095,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <button type="button" role="menuitem" data-click="btnTools" data-icon="flask">Tools…</button>
               <div class="sep"></div>
               <button type="button" role="menuitem" data-click="btnExamples" data-icon="gallery">Examples…</button>
+              <button type="button" role="menuitem" data-click="btnShare" data-icon="link" data-need="pro" data-what="share a link">Copy a share link</button>
               <button type="button" role="menuitem" data-click="btnAcct" data-icon="user" id="moreAcct"><span class="lbl">Sign in…</span></button>
               <button type="button" role="menuitem" data-click="btnHelpMenu" data-icon="info">Help and shortcuts…</button>
               <div class="sep"></div>
@@ -2114,6 +2134,17 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     </div>
     <div class="rt-gbody" id="galleryGrid"></div>
     <p class="rt-gfoot">Each example opens in place of your bench; Undo brings your bench back.</p>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Share this bench</h2>
+    <input type="text" id="shareUrl" readonly spellcheck="false" aria-label="Link to this bench">
+    <p class="note" id="shareNote"></p>
+    <div id="shareLinks"></div>
+    <div class="rt-actions">
+      <button class="rt-btn" id="shareClose">Close</button>
+      <button class="rt-btn primary" id="shareCopy">Copy link</button>
+    </div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">
@@ -3161,8 +3192,11 @@ function fmtUs(v) {
 }
 function fmtMHz(v) {
   const a = Math.abs(v);
-  return a >= 1e3 ? nf(v / 1e3) + ' GHz' : a >= 1 ? nf(v) + ' MHz' : nf(v * 1e3) + ' kHz';
+  return a >= 1e3 ? nf(v / 1e3) + ' GHz' : a >= 1 ? nf(v) + ' MHz' : a >= 1e-3 ? nf(v * 1e3) + ' kHz' : nf(v * 1e6) + ' Hz';
 }
+/* the unit an RF frequency is shown in, by its size: [key, mhz a unit, label] */
+const FREQ_UNITS = [['hz', 1e-6, 'Hz'], ['khz', 1e-3, 'kHz'], ['mhz', 1, 'MHz'], ['ghz', 1e3, 'GHz']];
+const freqUnitOf = mhz => (mhz >= 1e3 ? 'ghz' : mhz >= 1 ? 'mhz' : mhz >= 1e-3 ? 'khz' : 'hz');
 function fmtVolt(v) {
   const a = Math.abs(v);
   return a >= 1e3 ? nf(v / 1e3) + ' kV' : a >= 0.1 || a === 0 ? nf(v) + ' V' : nf(v * 1e3) + ' mV';
@@ -3511,49 +3545,65 @@ function paintShape(g, mask, el, value) {
   }
   return n;
 }
-/* the nodes of a CAD body: T its triangles (9 numbers each) about the centre c */
+/* the nodes of a CAD body: T its triangles (9 numbers each) about the centre c. Rows of nodes are cast along each axis in
+   turn; along a row the triangles' crossings are counted with their facing (the winding number), so a doubled face or a
+   shared edge does not break the fill, and the rows run a hair off the nodes so a face or an edge lying exactly on them
+   is not met head on. A node is inside when the casts along two of the three axes say so (a planar array has one
+   axis across it; a cylindrical one paints its half plane). */
 function paintMesh(g, mask, T, c, value) {
-  const h = g.h, nT = Math.floor(T.length / 9);
+  const nT = Math.floor(T.length / 9);
   if (!nT) return 0;
-  // each triangle into the buckets of the rows (j, k) its (y, z) extent covers
-  const buckets = new Map();
-  const jOf = y => (y - g.y0) / h, kOf = z => (g.nz === 1 ? 0 : (z - g.z0) / h);
-  for (let t = 0; t < nT; t++) {
-    const o = 9 * t;
-    const ys = [T[o + 1] + c[1], T[o + 4] + c[1], T[o + 7] + c[1]], zs = [T[o + 2] + c[2], T[o + 5] + c[2], T[o + 8] + c[2]];
-    let j0 = Math.ceil(jOf(Math.min(...ys)) - 1e-9), j1 = Math.floor(jOf(Math.max(...ys)) + 1e-9);
-    let k0 = Math.ceil(kOf(Math.min(...zs)) - 1e-9), k1 = Math.floor(kOf(Math.max(...zs)) + 1e-9);
-    if (g.nz === 1) { if (g.sym === 'planar' && (Math.min(...zs) > 0 || Math.max(...zs) < 0)) continue; k0 = 0; k1 = 0; }
-    if (g.sym === 'cyl') { j0 = Math.max(0, j0); }
-    j0 = Math.max(0, j0); j1 = Math.min(g.ny - 1, j1); k0 = Math.max(0, k0); k1 = Math.min(g.nz - 1, k1);
-    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) { const key = j + g.ny * k; let b = buckets.get(key); if (!b) { b = []; buckets.set(key, b); } b.push(t); }
-  }
+  const dims = g.nz === 1 ? [0, 1] : [0, 1, 2], votes = new Uint8Array(g.n);
+  for (const ax of dims) castAlong(g, votes, T, c, ax);
+  const need = g.nz === 1 ? 1 : 2;
   let n = 0;
-  const xs = [];
+  for (let o = 0; o < g.n; o++) if (votes[o] >= need) { mask[o] = value; n++; }
+  return n;
+}
+/* one vote for every node a cast along axis ax finds inside: the rows at the nodes of the other two axes */
+function castAlong(g, votes, T, c, ax) {
+  const h = g.h, nT = Math.floor(T.length / 9), N = [g.nx, g.ny, g.nz], O = [g.x0, g.y0, g.z0];
+  const bx = (ax + 1) % 3, cx = (ax + 2) % 3;           // the row's two fixed coordinates
+  const stride = [1, g.nx, g.nx * g.ny];
+  // the rows a hair off the nodes, so a face or an edge on a node is not met head on
+  const eb = 0.37e-3 * h, ec = 0.61e-3 * h;
+  const buckets = new Map(), nb = N[bx], nc = N[cx];
+  for (let t = 0; t < nT; t++) {
+    const o = 9 * t, lo = [1e300, 1e300, 1e300], hi = [-1e300, -1e300, -1e300];
+    for (let v = 0; v < 3; v++) for (let q = 0; q < 3; q++) { const x = T[o + 3 * v + q] + c[q]; if (x < lo[q]) lo[q] = x; if (x > hi[q]) hi[q] = x; }
+    if (g.nz === 1 && g.sym === 'planar' && (lo[2] > 0 || hi[2] < 0)) continue;
+    let j0 = Math.ceil((lo[bx] - O[bx] - eb) / h - 1e-9), j1 = Math.floor((hi[bx] - O[bx] - eb) / h + 1e-9), k0 = Math.ceil((lo[cx] - O[cx] - ec) / h - 1e-9), k1 = Math.floor((hi[cx] - O[cx] - ec) / h + 1e-9);
+    if (N[cx] === 1) { k0 = 0; k1 = 0; }
+    j0 = Math.max(0, j0); j1 = Math.min(nb - 1, j1); k0 = Math.max(0, k0); k1 = Math.min(nc - 1, k1);
+    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) { const key = j + nb * k; let b = buckets.get(key); if (!b) { b = []; buckets.set(key, b); } b.push(t); }
+  }
+  const xs = [], ws = [];
   for (const [key, tris] of buckets) {
-    const j = key % g.ny, k = Math.floor(key / g.ny), y = g.y0 + j * h, z = g.nz === 1 ? 0 : g.z0 + k * h;
-    xs.length = 0;
+    const j = key % nb, k = Math.floor(key / nb), yb = O[bx] + j * h + eb, zc = N[cx] === 1 ? (g.sym === 'planar' ? 0 : 0) + ec : O[cx] + k * h + ec;
+    xs.length = 0; ws.length = 0;
     for (const t of tris) {
-      const o = 9 * t;
-      const x1 = T[o] + c[0], y1 = T[o + 1] + c[1], z1 = T[o + 2] + c[2], x2 = T[o + 3] + c[0], y2 = T[o + 4] + c[1], z2 = T[o + 5] + c[2], x3 = T[o + 6] + c[0], y3 = T[o + 7] + c[1], z3 = T[o + 8] + c[2];
-      // the row's line, along x at (y, z), through the triangle: barycentric in (y, z)
+      const o = 9 * t, P = [[T[o] + c[0], T[o + 1] + c[1], T[o + 2] + c[2]], [T[o + 3] + c[0], T[o + 4] + c[1], T[o + 5] + c[2]], [T[o + 6] + c[0], T[o + 7] + c[1], T[o + 8] + c[2]]];
+      const y1 = P[0][bx], z1 = P[0][cx], y2 = P[1][bx], z2 = P[1][cx], y3 = P[2][bx], z3 = P[2][cx];
       const d = (y2 - y1) * (z3 - z1) - (z2 - z1) * (y3 - y1);
       if (Math.abs(d) < 1e-18) continue;
-      const l2 = ((y - y1) * (z3 - z1) - (z - z1) * (y3 - y1)) / d, l3 = ((y2 - y1) * (z - z1) - (z2 - z1) * (y - y1)) / d, l1 = 1 - l2 - l3;
-      if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) continue;
-      xs.push(l1 * x1 + l2 * x2 + l3 * x3);
+      const l2 = ((yb - y1) * (z3 - z1) - (zc - z1) * (y3 - y1)) / d, l3 = ((y2 - y1) * (zc - z1) - (z2 - z1) * (yb - y1)) / d, l1 = 1 - l2 - l3;
+      if (l1 < 0 || l2 < 0 || l3 < 0) continue;
+      xs.push(l1 * P[0][ax] + l2 * P[1][ax] + l3 * P[2][ax]); ws.push(d > 0 ? 1 : -1);    // the facing: the triangle's normal along the row
     }
     if (xs.length < 2) continue;
-    xs.sort((a, b) => a - b);
-    // crossings on an edge count twice: taken once
-    const u = [xs[0]];
-    for (let q = 1; q < xs.length; q++) if (xs[q] - u[u.length - 1] > 1e-7 * h) u.push(xs[q]);
-    for (let q = 0; q + 1 < u.length; q += 2) {
-      const i0 = Math.max(0, Math.ceil((u[q] - g.x0) / h - 1e-9)), i1 = Math.min(g.nx - 1, Math.floor((u[q + 1] - g.x0) / h + 1e-9));
-      for (let i = i0; i <= i1; i++) { mask[gIdx(g, i, j, k)] = value; n++; }
+    const idx = xs.map((x, q) => q).sort((a, b) => xs[a] - xs[b]);
+    let w = 0;
+    for (let q = 0; q + 1 < idx.length; q++) {
+      w += ws[idx[q]];
+      if (w === 0) continue;
+      const a = xs[idx[q]], b = xs[idx[q + 1]];
+      const i0 = Math.max(0, Math.ceil((a - O[ax]) / h - 1e-9)), i1 = Math.min(N[ax] - 1, Math.floor((b - O[ax]) / h + 1e-9));
+      for (let i = i0; i <= i1; i++) {
+        const node = ax === 0 ? i + stride[1] * j + stride[2] * k : ax === 1 ? j + stride[1] * i + stride[2] * k : j + stride[1] * k + stride[2] * i;
+        votes[node]++;
+      }
     }
   }
-  return n;
 }
 /* ==========================================================================
    The project: what is on the bench, the selection and the undo history. One module holds the bindings the rest
@@ -3611,7 +3661,7 @@ function normElectrode(e, k) {
     colour: /^#[0-9a-fA-F]{6}$/.test(e.colour) ? e.colour : ELECTRODE_COLOURS[(k || 0) % ELECTRODE_COLOURS.length],
     x: num(e.x, 0), y: num(e.y, 0), z: num(e.z, 0), axis: ['x', 'y', 'z'].includes(e.axis) ? e.axis : 'x',
     V: num(e.V, 0), on: e.on !== false, locked: !!e.locked, transparent: !!e.transparent,
-    rf: { on: !!(e.rf && e.rf.on), amp: Math.max(0, num(e.rf && e.rf.amp, 100)), mhz: Math.max(1e-6, num(e.rf && e.rf.mhz, 1)), phase: num(e.rf && e.rf.phase, 0) },
+    rf: { on: !!(e.rf && e.rf.on), amp: Math.max(0, num(e.rf && e.rf.amp, 100)), mhz: Math.max(1e-9, num(e.rf && e.rf.mhz, 1)), phase: num(e.rf && e.rf.phase, 0) },
   };
   for (const [key, d, lo, hi] of SHAPE_FIELDS[shape]) out[key] = Math.min(hi, Math.max(lo, num(e[key], d)));
   if (shape === 'endcap') out.side = out.side < 0 ? -1 : 1;
@@ -4466,8 +4516,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 /* the array solved for the project, kept; progress({ phase: 'solve', k, n, cycle }) */
 async function ensureSolved(St, P, ctx) {
   const key = geometryKey(P);
-  if (!St.A || St.key !== key) {
-    St.A = buildArray(P); St.key = key; St.F = null; St.vkey = null;
+  if (!St.A || St.key !== key) { St.A = buildArray(P); St.key = key; St.F = null; St.vkey = null; }
+  // an electrode still unsolved (a job cancelled part way through the solve keeps what it had): carry on from there
+  if (St.A.basis.some(b => !b)) {
+    St.F = null; St.vkey = null;
     const J = solveStartArray(St.A);
     let last = 0;
     while (!J.step()) {
@@ -5299,7 +5351,8 @@ function fitView() {
 
 /* ---------- the colour map's image, cached by its slice ---------- */
 let mapImg = null, mapKey = '';
-let mapRange = null;          // [lo, hi] of what the map shows
+let legendDirty = false;
+let mapRange = null, mapLog = false;          // [lo, hi] of what the map shows, and whether logarithmically
 const mapCanvasFor = (S, efield) => mapOf(S, efield);
 function mapOf(S, efield) {
   const key = S.id + '|' + efield + '|' + themeDark();
@@ -5308,12 +5361,15 @@ function mapOf(S, efield) {
   let lo = Infinity, hi = -Infinity;
   for (let i = 0; i < n; i++) { const v = A[i]; if (v === v && isFinite(v) && S.mask[i] < 0) { if (v < lo) lo = v; if (v > hi) hi = v; } }
   if (!(hi > lo)) { lo = Math.min(lo, 0); hi = lo + 1; }
-  mapRange = [lo, hi];
+  // the field's strength over four decades, logarithmic: its edges are far stronger than its middle
+  const logE = !!(efield && S.emag), lhi = logE ? Math.log10(Math.max(hi, 1e-30)) : 0, llo = logE ? lhi - 4 : 0;
+  if (logE) lo = Math.pow(10, llo);
+  mapRange = [lo, hi]; mapLog = logE; legendDirty = true;
   const img = new ImageData(S.nu, S.nv), d = img.data;
   for (let b = 0; b < S.nv; b++) for (let a = 0; a < S.nu; a++) {
     const i = a + S.nu * b, o = 4 * (a + S.nu * (S.nv - 1 - b)), v = A[i];
     if (!(v === v) || S.mask[i] >= 0) { d[o + 3] = 0; continue; }
-    const c = viridis((v - lo) / (hi - lo));
+    const c = viridis(logE ? (Math.log10(Math.max(v, 1e-30)) - llo) / 4 : (v - lo) / (hi - lo));
     d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 200;
   }
   const cv = document.createElement('canvas'); cv.width = S.nu; cv.height = S.nv;
@@ -5492,6 +5548,7 @@ function render() {
     c.restore();
   }
   drawScaleBar(c);
+  if (legendDirty) { legendDirty = false; hooks.ionLegend(); }        // the colour bar follows the map just drawn
   if (!lastDrawn) { lastDrawn = true; drawnOnce(); }
 }
 /* the paths flown, projected onto the plane; coloured by group, energy or time */
@@ -5537,7 +5594,8 @@ function drawScaleBar(c) {
   c.restore();
 }
 function wireRender() {
-  if (TEST_MODE) { /* no system theme changes to follow */ }
+  // the tool is the whole window: the page itself does not scroll (JEKray's style, html.rt-noscroll)
+  document.documentElement.classList.add('rt-noscroll');
   applyTheme();
   new ResizeObserver(resize).observe(stage);
   if (typeof matchMedia !== 'undefined') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -5999,6 +6057,9 @@ function coordsShow(px, py) {
    The panels: an electrode's, an ion group's, a detector's, and, with nothing selected, the bench's (the array,
    the gas, the magnetic field, flying, display) with the results of the last flight and the trap analysis.
    ========================================================================== */
+/* a panel's own choices for a thing (the unit a frequency is shown in), kept while the page lives */
+const viewState = new Map();
+const vsOf = el => { if (!viewState.has(el.id)) viewState.set(el.id, {}); return viewState.get(el.id); };
 const head = (kind, name, onName) => {
   const inp = h('input', { class: 'rt-name ion-pname', type: 'text', value: name, 'aria-label': 'Name', spellcheck: 'false' });
   inp.addEventListener('change', () => { checkpoint(); onName(inp.value.trim().slice(0, 60) || name); changed(true); });
@@ -6019,7 +6080,15 @@ function electrodePanel(el) {
   box.append(head(SHAPES[el.shape].label, el.name, v => { el.name = v; }));
   const volt = [param('Voltage (V)', el, 'V', { fmt: v => nf(v, 6) }),
     checkField('RF: swing about it', () => el.rf.on, v => { el.rf.on = v; }, { wide: true })];
-  if (el.rf.on) volt.push(param('Amplitude (V)', el.rf, 'amp', { min: 0 }), param('Frequency (MHz)', el.rf, 'mhz', { min: 1e-6 }), param('Phase (°)', el.rf, 'phase'));
+  if (el.rf.on) {
+    // the frequency in the unit that suits it (kept in MHz), the unit changeable: down to single hertz for a slow drive
+    const vs0 = vsOf(el), unit = () => vs0.fUnit || freqUnitOf(el.rf.mhz), k = () => FREQ_UNITS.find(u => u[0] === unit())[1];
+    volt.push(param('Amplitude (V)', el.rf, 'amp', { min: 0 }),
+      h('div', { class: 'rt-f wide' }, h('label', null, 'Frequency'), h('div', { style: 'display:flex;gap:0.3rem' },
+        (() => { const inp = numInput(() => el.rf.mhz / k(), v => { el.rf.mhz = Math.max(1e-9, v * k()); }, { fmt: v => nf(v, 6) }); inp.style.flex = '1'; inp.style.minWidth = '0'; return inp; })(),
+        (() => { const sel = h('select', { 'aria-label': 'Frequency unit', style: 'width:5.2rem' }, ...FREQ_UNITS.map(u => h('option', { value: u[0] }, u[2]))); sel.value = unit(); sel.addEventListener('change', () => { vs0.fUnit = sel.value; hooks.renderPanel(); }); return sel; })())),
+      param('Phase (°)', el.rf, 'phase'));
+  }
   box.append(section('Voltage', 'el.volt', [rows(volt), helpLine('The static voltage, and an RF swing added to it.', 'The potential is solved once for the geometry, each electrode at 1 V in turn; a voltage changes nothing but a scale, so the ions fly again at once. The RF term is amp·cos(2πft + φ) on top of the voltage: an electrode of a Paul trap, a quadrupole mass filter, an RF funnel. Electrodes with the same frequency and phase are summed into one array for speed.')]));
   const G = project.grid;
   const geo = [];
@@ -6394,6 +6463,7 @@ const NEWS = [
     '<b>JEKion, in open beta</b>: a charged-particle optics simulator in the browser, alongside JEKray. Electrodes as shapes or as the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
+    '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
   ]],
 ];
 /* the examples: [id, title, blurb, tag] */
@@ -6834,6 +6904,107 @@ function wireDataExport() {
   document.getElementById('dataAll').addEventListener('click', async () => { if (await exportEverything(fmt)) dlg.close(); });
 }
 /* ==========================================================================
+   Sharing a bench as a link, as JEKray does: the bench deflated and written after #p= ('i', or 'k' plain where the
+   browser cannot compress), or, with an account, kept by the API as a short link, /i/ and ten capitals on the site
+   (jek-api src/links.js, the same store as JEKray's links with JEKion's own prefix; the site's 404 page forwards
+   /i/<id> here as #s=<id>). Making a short link is JEKrayPro's (a free account keeps three); anyone opens one.
+   ========================================================================== */
+const b64u = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64u = t => { const s2 = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return u; };
+async function streamBytes(bytes, T) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(T)).arrayBuffer()); }
+/* the bench as a link carries it: as saved, its view with it */
+const shareData = () => serialize();
+/* the part after #p=: "i" then deflated JSON, or "k" then plain JSON where the browser cannot compress */
+async function shareHash(data) {
+  const json = new TextEncoder().encode(JSON.stringify(data || shareData()));
+  if (typeof CompressionStream !== 'undefined') { try { return 'i' + b64u(await streamBytes(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
+  return 'k' + b64u(json);
+}
+async function readShareHash(hash) {
+  const kind = hash[0], body = hash.slice(1);
+  if (kind === 'z' || kind === 'j') throw new Error('that is a JEKray bench: open the link in JEKray');
+  if (kind !== 'i' && kind !== 'k') throw new Error('the link is not one of JEKion’s');
+  let bytes;
+  try { bytes = unb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  if (kind === 'i') {
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekion file instead');
+    try { bytes = await streamBytes(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  }
+  let d;
+  try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a bench'); }
+  if (!d || d.format !== ION_FORMAT) throw new Error('the link does not hold a JEKion bench');
+  return d;
+}
+const shareBase = () => location.origin + location.pathname;
+const shortUrl = id => location.origin + '/i/' + id;
+const MADE = new Map();
+async function shortLink() {
+  const text = await shareHash();
+  if (MADE.has(text)) return MADE.get(text);
+  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: project.name || 'Untitled bench', data: text }) });
+  MADE.set(text, r.id);
+  return r.id;
+}
+async function shareLink() {
+  const short = accountsOn();
+  if (short && account === null) { showSignIn('export', 'share a link'); return; }
+  if (short && !designPro('share a link')) return;
+  const id = short ? await shortLink() : null, url = short ? shortUrl(id) : shareBase() + '#p=' + await shareHash();
+  const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl'), note = document.getElementById('shareNote');
+  box.value = url;
+  note.textContent = short ? 'Anyone with the link opens this bench as it is now. A copy of it is kept with your account until you delete it.'
+    : url.length.toLocaleString() + ' characters. ' + (url.length > 2000 ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekion file instead.' : 'Anyone with the link opens this bench as it is now; nothing is uploaded, the bench travels in the link itself.');
+  if (short) linksList(id); else document.getElementById('shareLinks').replaceChildren();
+  dlg.showModal(); box.focus(); box.select();
+  goal('share'); track('share', 'ion-link');
+  try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; } catch (err) { document.getElementById('shareCopy').textContent = 'Copy link'; }
+}
+/* the person's share links, in the dialog: to copy or delete (JEKray's and JEKion's together, each on its own address) */
+async function linksList(current) {
+  const box = document.getElementById('shareLinks');
+  box.replaceChildren(h('p', { class: 'note' }, 'Your share links…'));
+  let links;
+  try { links = (await api('/v1/me/links')).links; } catch (err) { box.replaceChildren(h('p', { class: 'note' }, 'Your share links could not be listed: ' + err.message)); return; }
+  const day = t => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const rows = links.map(l => h('li', { class: l.id === current ? 'cur' : '' }, h('span', { class: 'nm' }, l.name), h('span', { class: 'mono' }, '/i/' + l.id), h('span', { class: 'rt-lsub' }, day(l.created_at) + ' · opened ' + l.opens + (l.opens === 1 ? ' time' : ' times')),
+    h('button', { type: 'button', class: 'rt-link', onclick: e => { navigator.clipboard.writeText(shortUrl(l.id)).then(() => { e.target.textContent = 'Copied'; }, () => {}); } }, 'Copy'),
+    h('button', { type: 'button', class: 'rt-link', 'aria-label': 'Delete the link ' + l.id, onclick: async () => {
+      try { await api('/v1/links/' + l.id, { method: 'DELETE' }); } catch (err) { toast('Could not delete it: ' + err.message, true); return; }
+      for (const [k, v] of MADE) if (v === l.id) MADE.delete(k);
+      toast('Deleted: the link no longer opens.'); linksList(current);
+    } }, 'Delete')));
+  box.replaceChildren(h('details', { open: links.length <= 5 ? '' : null }, h('summary', null, 'Your share links (' + links.length + ', JEKray’s among them)'), links.length ? h('ul', { class: 'rt-sharelinks' }, ...rows) : h('p', { class: 'note' }, 'None yet.')));
+}
+/* a short link opened: its bench fetched, for anyone */
+async function openShortLink(id) {
+  let r;
+  try { r = await api('/v1/links/' + encodeURIComponent(id)); } catch (err) { toast('Could not open that link: ' + err.message, true); return; }
+  return openShareHash(r.data);
+}
+/* a link opened: its bench replaces this one (Ctrl+Z brings this one back) */
+async function openShareHash(hash) {
+  try {
+    const data = await readShareHash(hash);
+    openProjectData(data, 'the shared bench');
+    if (!EMBED) toast('Opened the shared bench. Undo brings yours back.');
+    track('import', 'ion-link');
+    return true;
+  } catch (err) { toast('Could not open that link: ' + err.message + '.', true); return false; }
+}
+/* the bench through a link and back (the tests): what came out */
+async function shareRoundTrip() {
+  const before = JSON.stringify(shareData()), hash = await shareHash();
+  const d = await readShareHash(hash); openProjectData(d, 'test');
+  return { same: JSON.stringify(shareData()) === before, length: hash.length, kind: hash[0] };
+}
+function wireShare() {
+  const dlg = document.getElementById('shareDialog');
+  document.getElementById('btnShare').addEventListener('click', () => { document.getElementById('shareCopy').textContent = 'Copy link'; shareLink().catch(err => toast('Could not make a link: ' + err.message, true)); });
+  document.getElementById('shareClose').addEventListener('click', () => dlg.close());
+  document.getElementById('shareCopy').addEventListener('click', e => { const box = document.getElementById('shareUrl'); box.select(); navigator.clipboard.writeText(box.value).then(() => { e.target.textContent = 'Copied'; }, () => { document.execCommand('copy'); e.target.textContent = 'Copied'; }); });
+  if (TEST_MODE) hooks.ionShare = shareRoundTrip;
+}
+/* ==========================================================================
    The page put together: the hooks the engines and the shared modules reach the page through, every module's wiring
    in order, the bench restored (or the first one), and window.JEKion for the tests and the console.
    ========================================================================== */
@@ -6848,7 +7019,7 @@ const MENU_ICONS = {
   keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H5 M7 6.5H8 M10 6.5H11 M4 9.5H12', book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z', star: 'M8 1.5L9.9 6.1L14.5 6.5L11 9.6L12.1 14.5L8 12L3.9 14.5L5 9.6L1.5 6.5L6.1 6.1Z',
   quote: 'M3 3H7V8H4.5Q3 8 3 9.5V11 M9.5 3H13.5V8H11Q9.5 8 9.5 9.5V11', bug: 'M8 4A3.5 3.5 0 0 1 11.5 7.5V11A3.5 3.5 0 0 1 4.5 11V7.5A3.5 3.5 0 0 1 8 4Z M5 2.5L6.5 4 M11 2.5L9.5 4 M1.5 8H4.5 M11.5 8H14.5 M2.5 12.5L4.5 11 M13.5 12.5L11.5 11',
   info: 'M8 1.5A6.5 6.5 0 1 0 8 14.5A6.5 6.5 0 1 0 8 1.5 M8 7V11.5 M8 4.5V5', pdf: 'M4 1.5h5.5L12.5 4.5V14.5H4Z', beam: 'M1.5 8H14.5 M10.5 4.5L14.5 8L10.5 11.5', home: 'M2 8L8 2.5L14 8 M4 7V13.5H12V7',
-  paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', eye: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M8 6A2 2 0 1 1 8 10A2 2 0 1 1 8 6', user: 'M8 2A3 3 0 1 0 8 8A3 3 0 1 0 8 2 M2.5 14Q2.5 9.5 8 9.5Q13.5 9.5 13.5 14', signin: 'M6 2.5H13.5V13.5H6 M2 8H9.5 M7 5.5L9.5 8L7 10.5', signout: 'M10 2.5H2.5V13.5H10 M14 8H6.5 M11.5 5.5L14 8L11.5 10.5',
+  paste: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', share: 'M12 2.5A1.5 1.5 0 1 0 12 5.5A1.5 1.5 0 1 0 12 2.5 M4 6.5A1.5 1.5 0 1 0 4 9.5A1.5 1.5 0 1 0 4 6.5 M12 10.5A1.5 1.5 0 1 0 12 13.5A1.5 1.5 0 1 0 12 10.5 M5.3 7.3L10.7 4.7 M5.3 8.7L10.7 11.3', link: 'M6.5 9.5L9.5 6.5 M7 11L5.5 12.5A2.1 2.1 0 0 1 2.5 9.5L4.5 7.5A2.1 2.1 0 0 1 7.5 7.5 M9 5L10.5 3.5A2.1 2.1 0 0 1 13.5 6.5L11.5 8.5A2.1 2.1 0 0 1 8.5 8.5', eye: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M8 6A2 2 0 1 1 8 10A2 2 0 1 1 8 6', user: 'M8 2A3 3 0 1 0 8 8A3 3 0 1 0 8 2 M2.5 14Q2.5 9.5 8 9.5Q13.5 9.5 13.5 14', signin: 'M6 2.5H13.5V13.5H6 M2 8H9.5 M7 5.5L9.5 8L7 10.5', signout: 'M10 2.5H2.5V13.5H10 M14 8H6.5 M11.5 5.5L14 8L11.5 10.5',
 };
 function menuIcons(root) {
   for (const n of root.querySelectorAll('.rt-imenu [data-icon], .rt-tbi[data-icon], .rt-tbl[data-icon]')) {
@@ -6868,7 +7039,7 @@ function legendShown() {
   const cv = h('canvas', { width: 120, height: 8 }), c = cv.getContext('2d');
   for (let i = 0; i < 120; i++) { c.fillStyle = viridisCss(i / 119); c.fillRect(i, 0, 1, 8); }
   const f = v => (Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());
-  box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm)' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
+  box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm' + (mapLog ? ', log' : '') + ')' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
 }
 /* the theme menu */
 function themeMenu() {
@@ -6886,13 +7057,17 @@ installHooks({
 const saved = restoreSaved();
 loadProject(saved || demoProject());
 setHistory([]); setFuture([]);
-wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireView3d(); wireUsage();
+wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireShare(); wireView3d(); wireUsage();
 menuIcons(document); themeMenu(); viewMenuShown(); renderPanel(); updateUndoButtons();
 setDrawnOnce(() => { usageDrawn(); });
 usageStart(saved ? 'ion-restored' : 'ion-fresh');
 if (!saved) fitView(); else requestRender();
 requestSlice();
 if (project.fly.auto && !TEST_MODE) flyNow();
+// a share link opens the bench it names: #s=<id> (a short one, /i/<id> on the site) or #p=<the bench itself>
+const shortLinkAt = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/), longLinkAt = !TEST_MODE && location.hash.match(/^#p=([ik][A-Za-z0-9_-]+)/);
+if (shortLinkAt || longLinkAt) { window.history.replaceState(null, '', location.pathname); if (shortLinkAt) openShortLink(shortLinkAt[1]); else openShareHash(longLinkAt[1]); }
+if (!TEST_MODE) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([ik][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/); if (!sh && !ss) return; window.history.replaceState(null, '', location.pathname); if (sh) openShareHash(sh[1]); else openShortLink(ss[1]); });
 // ?demo=<name> or #demo=<name> opens an example; #examples the gallery
 const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. + Add puts in more.'), 600);
@@ -6913,7 +7088,7 @@ window.JEKion = {
   // the page's own run: a promise of the results, as the worker (or the page without one) gives them
   flyPage: async () => { await flyNow(); return SIM.result; },
   trapPage: () => trapNow(), sim: SIM, data: kinds => gatherIonData(project, SIM.result, SIM.trap, kinds), exportData,
-  bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot,
+  bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot, shareRoundTrip, openShareHash,
 };
 })();
 </script>

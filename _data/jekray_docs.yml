@@ -69,6 +69,8 @@
       url: /jek/docs/jekray/free-space/link/
     - title: STL object
       url: /jek/docs/jekray/free-space/stl/
+    - title: Modelling in 3D
+      url: /jek/docs/jekray/free-space/model/
 - title: Fibre optics
   url: /jek/docs/jekray/fibre/
   cat: fibre

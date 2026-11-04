@@ -7493,7 +7493,8 @@ const TESTS = [
       try {
         await J.view3d.set(true); J.experimental(true); M.start(); M.plane('table'); await sleep(400);
         M.tool('rect'); M.click(0, 0, true); M.type('w', 25); M.type('h', 12.5); M.enter();
-        const r = M.state().ents.find(e => e.t === 'rect'), typed = !!r && r.w === 25 && r.h === 12.5;
+        const st0 = M.state(), lens = st0.ents.filter(e => e.t === 'line').map(e => +Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]).toFixed(6)).sort().join(), r = lens;
+        const typed = lens === '12.5,12.5,25,25' && st0.dims.map(d => d.t + d.v).sort().join() === 'len12.5,len25' && st0.cons.filter(c => c.t === 'horizontal' || c.t === 'vertical').length === 4;
         const ln = M.add({ t: 'line', a: [40, -50], b: [40, 50], k: true }), c = M.add({ t: 'circle', c: [30, 5], r: 3 });
         M.select([c]); M.mirror(ln);
         const circles = M.state().ents.filter(e => e.t === 'circle').map(e => Math.round(e.c[0])).sort().join(), mirrored = circles === '30,50';
@@ -7514,6 +7515,50 @@ const TESTS = [
         if (!ok) console.log('model sketch', { typed, r, circles, pattern, stl, revolved, size: tube && tube.mesh.size, before, after, back });
         return ok ? 1 : 0;
       } finally { M.stop(); J.experimental(false); await J.view3d.set(false); }
+    },
+  },
+  {
+    name: 'A parametric sketch: snaps make constraints, dimensions size it, a fillet keeps them, regions are chosen to extrude, and the panel changes a size',
+    why: 'a rectangle drawn from the origin is four lines held square by their constraints and tied to the origin by its snap; its two lengths dimensioned (40, 25) make it fully defined, and 50 typed for the width moves its far side alone; its top right corner filleted 4 mm keeps it 50 × 25 (a point kept where the corner was); a line drawn across it and trimmed above the rectangle stops at its edge, cutting it into two regions; a circle in it is a hole by default, and clicking its region takes it too; made, the part keeps its constraints, dimensions and regions, and in its panel the height typed as 30 makes the part again 30 mm deep (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const sleep = t => new Promise(r => setTimeout(r, t)), D = rigDoc(), M = J.model3d;
+      J.load({ format: 'jekray', version: 1, elements: [] });
+      try {
+        await J.view3d.set(true); M.start(); M.plane('table'); await sleep(500); J.view3d.look([25, 12.49, 160], [25, 12.5, 0]); await sleep(100);
+        M.tool('rect'); M.clickSnapped(0, 0); M.clickSnapped(30, 20);
+        let s = M.state();
+        const L = s.ents.filter(e => e.t === 'line'), cons = s.cons.map(c => c.t);
+        const drawn = L.length === 4 && cons.filter(t => t === 'horizontal').length === 2 && cons.filter(t => t === 'vertical').length === 2 && s.cons.some(c => c.r.some(r => r.e === 'origin'));
+        const bottom = L.find(e => Math.abs(e.a[1]) < 1e-9 && Math.abs(e.b[1]) < 1e-9), right = L.find(e => Math.abs(e.a[0] - 30) < 1e-9 && Math.abs(e.b[0] - 30) < 1e-9);
+        const d1 = M.dim([{ e: bottom.id }]); M.setDim(d1.id, 40); const d2 = M.dim([{ e: right.id }]); M.setDim(d2.id, 25);
+        const defined = M.state().defined.length === 4;
+        M.setDim(d1.id, 50); s = M.state(); const b2 = s.ents.find(e => e.id === bottom.id), wider = Math.abs(b2.b[0] - 50) < 1e-6 && Math.abs(b2.a[0]) < 1e-9;
+        M.fillet(50, 25, 4); s = M.state();
+        const box = () => { const P = M.state().ents.filter(e => e.t === 'line' && !e.k).flatMap(e => [e.a, e.b]); return [Math.max(...P.map(p => p[0])), Math.max(...P.map(p => p[1]))].map(v => +v.toFixed(6)).join(); };
+        const filleted = s.ents.some(e => e.t === 'arc') && box() === '50,25' && s.dims.some(d => d.t === 'rad' && d.v === 4);
+        // a line across, trimmed where it sticks out above the rectangle
+        M.tool('line'); M.click(20, -10, true); M.click(20, 35, true); M.tool('select');
+        s = M.state(); const cross = s.ents.filter(e => e.t === 'line' && Math.abs(e.a[0] - 20) < 1e-9 && Math.abs(e.b[0] - 20) < 1e-9)[0];
+        M.trim(20, 30); s = M.state(); const cut = s.ents.find(e => e.id === cross.id), trimmed = !!cut && Math.abs(Math.max(cut.a[1], cut.b[1]) - 25) < 1e-6;
+        // a circle in the right part: a hole by default; its region clicked, taken too
+        M.tool('circle'); M.click(35, 12, true); M.click(38, 12, true);
+        await M.extrude({ d: 5 }); s = M.state();
+        const holeDefault = s.regions.length === 3 && s.regions.filter(r => r.chosen).length === 2;
+        M.toggleRegion(35, 12); s = M.state(); const taken = s.regions.every(r => r.chosen);
+        await M.ok();
+        const el = J.byName('Model 1'), sk = el && el.model.feats[0], ex = el && el.model.feats[1];
+        const kept = !!sk && sk.cons.length > 8 && sk.dims.length === 3 && ex.regions.length === 3;
+        // its panel: the height, typed
+        J.select('Model 1'); await sleep(50);
+        const lab = [...D.querySelectorAll('#panel .rt-mdims label')].find(l => /Distance|Length/.test(l.textContent) && D.getElementById(l.htmlFor).value === '25');
+        const inp = lab && D.getElementById(lab.htmlFor); if (inp) { inp.value = '30'; inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true })); }
+        await sleep(400);
+        const el2 = J.byName('Model 1'), deeper = !!inp && Math.abs(el2.mesh.size[1] - 30) < 1e-3 && Math.abs(el2.mesh.size[0] - 50) < 1e-3;
+        const ok = drawn && defined && wider && filleted && trimmed && holeDefault && taken && kept && deeper;
+        if (!ok) console.log('model param', JSON.stringify({ drawn, defined, wider, filleted, box: box(), trimmed, holeDefault, taken, kept, deeper, size: el2 && el2.mesh.size, regions: s.regions && s.regions.map(r => [Math.round(r.area), r.chosen]) }));
+        return ok ? 1 : 0;
+      } finally { M.stop(); await J.view3d.set(false); }
     },
   },  { group: 'The field in 3D' },
   {

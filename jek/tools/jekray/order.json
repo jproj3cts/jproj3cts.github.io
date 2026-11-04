@@ -78,6 +78,7 @@
   "core/geometry.js",
   "core/stl.js",
   "core/step.js",
+  "core/sketch.js",
   "core/model.js",
   "core/mask.js",
   "engines/trace.js",

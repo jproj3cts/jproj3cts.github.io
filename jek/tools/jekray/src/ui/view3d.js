@@ -238,7 +238,7 @@ export const V3D = (() => {
     const w0 = R.w;
     R.w = w; R.h = hgt;
     R.gl.setSize(w, hgt, false);
-    R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix();
+    R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix(); if (R.persp && R.persp !== R.camera) { R.persp.aspect = w / hgt; R.persp.updateProjectionMatrix(); } camFit();
     // as in 2D, the view keeps its left edge when the bench grows or narrows (a panel opened)
     if (w0 > 0 && w !== w0) pan(-(w - w0) / 2, 0);
     R.key = null;                                         // the names are sized to the canvas
@@ -257,6 +257,8 @@ export const V3D = (() => {
     spreadNames(camera);
     volPass();
     gl.render(scene, camera);
+    // a tool's own overlay kept with the picture (the Model tools' labels, as the view turns)
+    if (tool && tool.frame) tool.frame();
     // the view cube, looking the way the camera looks
     const c = cubeRect();
     cubeAim();
@@ -298,9 +300,28 @@ export const V3D = (() => {
     else if (R.heading === undefined) R.heading = -Math.PI / 2;
     const th = Math.acos(clamp(d.z / r, -1, 1));
     cam.quaternion.setFromEuler(new T.Euler(th, 0, R.heading + Math.PI / 2, 'ZYX'));
-    cam.updateMatrixWorld();
+    cam.updateMatrixWorld(); camFit();
   }
   function setCam(p, t) { R.camera.position.fromArray(p); R.target.fromArray(t); aim(); }
+  /* a flat view (the Model tools' sketch, as a CAD program shows one square on): an orthographic camera in the
+     perspective one's place, as wide as the perspective one sees at the point it looks at, so turning, panning and
+     zooming (which move the camera) work as they do */
+  function camFit() {
+    const c = R && R.camera; if (!c || !c.isOrthographicCamera) return;
+    const d = c.position.distanceTo(R.target), hh = d * Math.tan(c.fov * deg / 2), hw = hh * (R.w / Math.max(1, R.h));
+    c.left = -hw; c.right = hw; c.top = hh; c.bottom = -hh; c.updateProjectionMatrix();
+  }
+  function setFlat(on) {
+    if (!R) return;
+    const P = R.persp || (R.persp = R.camera);
+    if (on && !R.camera.isOrthographicCamera) {
+      const O = R.ortho || (R.ortho = new T.OrthographicCamera(-1, 1, 1, -1, -2e5, 2e5));
+      O.fov = P.fov; O.up.copy(P.up); O.position.copy(P.position); O.quaternion.copy(P.quaternion); R.camera = O; camFit(); O.updateMatrixWorld();
+    } else if (!on && R.camera.isOrthographicCamera) {
+      P.position.copy(R.camera.position); P.quaternion.copy(R.camera.quaternion); P.updateMatrixWorld(); R.camera = P;
+    }
+    need();
+  }
   function keepCam() {
     const s = tabState(); if (s) s.cam = { p: R.camera.position.toArray(), t: R.target.toArray() };
     // the tab's 2D view centred where this one looks: a part added from the menu lands in sight
@@ -1286,12 +1307,12 @@ export const V3D = (() => {
     const cam = R.camera, d = depthAt ? cam.position.distanceTo(depthAt) : cam.position.distanceTo(R.target);
     const k = 2 * d * Math.tan(cam.fov * deg / 2) / R.h, right = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
     const m = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
-    cam.position.add(m); R.target.add(m); cam.updateMatrixWorld();
+    cam.position.add(m); R.target.add(m); cam.updateMatrixWorld(); camFit();
   }
   function zoom(f, at) {
     const P = at || R.target, cam = R.camera;
     if (cam.position.distanceTo(P) * f < 5 && f < 1) return;
-    cam.position.sub(P).multiplyScalar(f).add(P); R.target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld();
+    cam.position.sub(P).multiplyScalar(f).add(P); R.target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld(); camFit();
   }
   function events() {
     const cv = D.cv, P = new Map();
@@ -1649,12 +1670,12 @@ export const V3D = (() => {
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
     // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
-    setTool(t) { tool = t || null; if (!tool) hintText(); need0(); },
+    setTool(t) { tool = t || null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
     tool: () => tool,
     addBar(n) { barExtras.push(n); if (D) D.bar.prepend(n); },
     // what a tool of the view's own works with: three.js, the renderer's scene and camera, the page's canvas and hint, picking,
     // and the camera moved (null until the view has opened)
-    kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
+    kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, setFlat, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
     free: el => FREE_3D.has(el.type) && el.type !== 'draw',
@@ -1677,7 +1698,7 @@ export const V3D = (() => {
           box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
       },
       camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray(), up: new T.Vector3(0, 1, 0).applyQuaternion(R.camera.quaternion).toArray() } : null,
-      look(p, t) { if (!R) return; sync(); setCam(p, t); keepCam(); need(); },
+      look(p, t) { if (!R) return; sync(); R.anim = null; setCam(p, t); keepCam(); need(); },
       // the view cube under a canvas point: the signs of the place a click there looks from, and the cells it shades
       cubeAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), s = cubeRegion({ clientX: b.left + px, clientY: b.top + py }); cubeHover(s); return s && { s, cells: R.cubeHL ? R.cubeHL.geometry.attributes.position.count / 6 : 0 }; },
       cubeRect: () => R ? cubeRect() : null,

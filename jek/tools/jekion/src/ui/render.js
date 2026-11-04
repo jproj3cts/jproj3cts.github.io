@@ -1,4 +1,5 @@
-import { TEST_MODE, clamp } from '../../../jekray/src/core/constants.js';
+import { clamp } from '../../../jekray/src/core/constants.js';
+import { hooks } from '../../../jekray/src/core/hooks.js';
 import { fmtVolt, nf } from '../core/units.js';
 import { PLANES, meshSections, shapeSections } from '../core/geom.js';
 import { project, selectedId, V } from '../state/project.js';
@@ -82,7 +83,8 @@ export function fitView() {
 
 /* ---------- the colour map's image, cached by its slice ---------- */
 let mapImg = null, mapKey = '';
-export let mapRange = null;          // [lo, hi] of what the map shows
+let legendDirty = false;
+export let mapRange = null, mapLog = false;          // [lo, hi] of what the map shows, and whether logarithmically
 export const mapCanvasFor = (S, efield) => mapOf(S, efield);
 function mapOf(S, efield) {
   const key = S.id + '|' + efield + '|' + themeDark();
@@ -91,12 +93,15 @@ function mapOf(S, efield) {
   let lo = Infinity, hi = -Infinity;
   for (let i = 0; i < n; i++) { const v = A[i]; if (v === v && isFinite(v) && S.mask[i] < 0) { if (v < lo) lo = v; if (v > hi) hi = v; } }
   if (!(hi > lo)) { lo = Math.min(lo, 0); hi = lo + 1; }
-  mapRange = [lo, hi];
+  // the field's strength over four decades, logarithmic: its edges are far stronger than its middle
+  const logE = !!(efield && S.emag), lhi = logE ? Math.log10(Math.max(hi, 1e-30)) : 0, llo = logE ? lhi - 4 : 0;
+  if (logE) lo = Math.pow(10, llo);
+  mapRange = [lo, hi]; mapLog = logE; legendDirty = true;
   const img = new ImageData(S.nu, S.nv), d = img.data;
   for (let b = 0; b < S.nv; b++) for (let a = 0; a < S.nu; a++) {
     const i = a + S.nu * b, o = 4 * (a + S.nu * (S.nv - 1 - b)), v = A[i];
     if (!(v === v) || S.mask[i] >= 0) { d[o + 3] = 0; continue; }
-    const c = viridis((v - lo) / (hi - lo));
+    const c = viridis(logE ? (Math.log10(Math.max(v, 1e-30)) - llo) / 4 : (v - lo) / (hi - lo));
     d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 200;
   }
   const cv = document.createElement('canvas'); cv.width = S.nu; cv.height = S.nv;
@@ -275,6 +280,7 @@ export function render() {
     c.restore();
   }
   drawScaleBar(c);
+  if (legendDirty) { legendDirty = false; hooks.ionLegend(); }        // the colour bar follows the map just drawn
   if (!lastDrawn) { lastDrawn = true; drawnOnce(); }
 }
 /* the paths flown, projected onto the plane; coloured by group, energy or time */
@@ -320,7 +326,8 @@ function drawScaleBar(c) {
   c.restore();
 }
 export function wireRender() {
-  if (TEST_MODE) { /* no system theme changes to follow */ }
+  // the tool is the whole window: the page itself does not scroll (JEKray's style, html.rt-noscroll)
+  document.documentElement.classList.add('rt-noscroll');
   applyTheme();
   new ResizeObserver(resize).observe(stage);
   if (typeof matchMedia !== 'undefined') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);

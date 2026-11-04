@@ -43,4 +43,5 @@ import './ui/scripts.js';
 import './ui/view3d.js';
 import './io/account.js';
 import './io/data-export.js';
+import './io/share.js';
 import './ui/boot.js';

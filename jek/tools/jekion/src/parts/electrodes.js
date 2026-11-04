@@ -29,7 +29,7 @@ export function normElectrode(e, k) {
     colour: /^#[0-9a-fA-F]{6}$/.test(e.colour) ? e.colour : ELECTRODE_COLOURS[(k || 0) % ELECTRODE_COLOURS.length],
     x: num(e.x, 0), y: num(e.y, 0), z: num(e.z, 0), axis: ['x', 'y', 'z'].includes(e.axis) ? e.axis : 'x',
     V: num(e.V, 0), on: e.on !== false, locked: !!e.locked, transparent: !!e.transparent,
-    rf: { on: !!(e.rf && e.rf.on), amp: Math.max(0, num(e.rf && e.rf.amp, 100)), mhz: Math.max(1e-6, num(e.rf && e.rf.mhz, 1)), phase: num(e.rf && e.rf.phase, 0) },
+    rf: { on: !!(e.rf && e.rf.on), amp: Math.max(0, num(e.rf && e.rf.amp, 100)), mhz: Math.max(1e-9, num(e.rf && e.rf.mhz, 1)), phase: num(e.rf && e.rf.phase, 0) },
   };
   for (const [key, d, lo, hi] of SHAPE_FIELDS[shape]) out[key] = Math.min(hi, Math.max(lo, num(e[key], d)));
   if (shape === 'endcap') out.side = out.side < 0 ? -1 : 1;

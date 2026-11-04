@@ -85,7 +85,10 @@ describe('share links', () => {
       expect((await make(s, { name: 'x', data })).body.error.code).toBe('bad_link');
     }
     expect((await make(s, { name: 'x', data: 'z' + 'A'.repeat(1024 * 1024 + 10) })).status).toBe(413);
-    expect((await json(await call('/v1/me/links', { token: s.token }))).body.links).toEqual([]);
+    // a JEKion bench, with its own prefix, is a link too
+    expect((await make(s, { name: 'ion', data: 'i' + 'B'.repeat(40) })).status).toBe(201);
+    expect((await make(s, { name: 'ion', data: 'k' + 'B'.repeat(40) })).status).toBe(201);
+    expect((await json(await call('/v1/me/links', { token: s.token }))).body.links.length).toBe(2);
   });
 
   it('only its maker can delete a link; then it no longer opens', async () => {

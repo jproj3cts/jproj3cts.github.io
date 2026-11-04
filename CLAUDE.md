@@ -1,7 +1,8 @@
 # jeksys.net — working notes
 
-The repo is the jeksys.net site (GitHub Pages) plus JEKray, a browser optics/photonics/RF simulator, and its
-API. The root README has the site conventions; `jek/tools/jekray/README.md` has the tool's module rules.
+The repo is the jeksys.net site (GitHub Pages) plus JEKray, a browser optics/photonics/RF simulator, JEKion, a
+charged-particle optics simulator built the same way beside it, and their API. The root README has the site
+conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tools/jekion/README.md` JEKion's.
 
 ## Working rules
 - Develop on a feature branch and push it. **Ask before pushing to `main`** every time; an earlier "yes" does not carry over.
@@ -18,6 +19,7 @@ API. The root README has the site conventions; `jek/tools/jekray/README.md` has 
 | Physics validation against external references | `jek/tools/validation/` |
 | Docs (Jekyll, `layout: docs`) | `jek/docs/jekray/**.md`; sidebar/prev-next from `_data/jekray_docs.yml` |
 | Docs parameter tables / AI guide (generated) | `_data/jekray_params.json`, `jek/tools/jekray-ai-guide.md` |
+| JEKion (source) | `jek/tools/jekion/src/` — built into `jek/tools/jekion.html` (committed); shares JEKray's modules by path in its `order.json`; tests `jek/tools/jekion/test/` + `jek/tools/jekion-tests.html`; demos `jek/tools/demos/*.jekion`; docs `jek/docs/jekion/` (`_data/jekion_docs.yml`, `docs: jekion` in front matter) |
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
@@ -142,7 +144,14 @@ through `core/hooks.js`.
   (`test/node/nudge.test.mjs` checks). The notes share one weekly cap (`src/core/nudge.js`).
 - Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
   `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`
-  (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` (nav +
-  stamp) and `jekray/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs` checks all of it. Preview: README.
+  (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` and
+  `jekion-tests.html` (nav + stamp) and `jekray/page.html`, `jekion/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs`
+  checks all of it. Preview: README.
+- JEKion shares JEKray's modules as they are (`core/constants.js`, `hooks.js`, `numeric.js`, `datafiles.js`, `src-tag.js`,
+  `step.js`, `worker/shim.js`, `ui/pro.js`, `io/usage.js`, `io/step-reader.js`): a change to one of those is a change
+  to both tools, so rebuild and test both (`cd jek/tools/jekion && node build.mjs && node test/run.mjs`). A shared module
+  reaches the page only through `core/hooks.js` (JEKion installs its own entries: `ionChanged`, `apiBase`, `usageTier`…).
+  Top-level names must be unique across both tools' modules in JEKion's build. Accounts, usage counts and the data
+  writers are JEKray's; JEKion's usage tokens are prefixed `ion-`.
 - Site search only finds pages listed in `searchablePages` in `jek/index.html`.
 - Thorlabs/vendor files are not committed; reproduce them in tests with synthetic text.

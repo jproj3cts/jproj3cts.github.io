@@ -1,0 +1,167 @@
+{
+  "format": "jekion",
+  "version": 1,
+  "name": "Reflectron",
+  "view": {
+    "cx": 130,
+    "cy": 0,
+    "scale": 3.5,
+    "plane": "xy",
+    "slice": 0
+  },
+  "grid": {
+    "sym": "cyl",
+    "h": 0.5,
+    "x0": -5,
+    "x1": 300,
+    "y0": 0,
+    "y1": 44,
+    "bc": {
+      "xlo": "ground",
+      "xhi": "ground",
+      "yhi": "open"
+    }
+  },
+  "electrodes": [
+    {
+      "name": "Source back",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 40,
+      "L": 1,
+      "V": 1000,
+      "colour": "#e0742f"
+    },
+    {
+      "name": "Source grid",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 10,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 40,
+      "L": 0.5,
+      "V": 0,
+      "transparent": true,
+      "colour": "#d9b32a"
+    },
+    {
+      "name": "Mirror entrance grid",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 200,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 40,
+      "L": 0.5,
+      "V": 0,
+      "transparent": true,
+      "colour": "#3aa66a"
+    },
+    {
+      "name": "Mirror ring 1",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 220,
+      "y": 0,
+      "z": 0,
+      "rIn": 36,
+      "rOut": 40,
+      "L": 0.5,
+      "V": 250,
+      "colour": "#5b8def"
+    },
+    {
+      "name": "Mirror ring 2",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 240,
+      "y": 0,
+      "z": 0,
+      "rIn": 36,
+      "rOut": 40,
+      "L": 0.5,
+      "V": 500,
+      "colour": "#5b8def"
+    },
+    {
+      "name": "Mirror ring 3",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 260,
+      "y": 0,
+      "z": 0,
+      "rIn": 36,
+      "rOut": 40,
+      "L": 0.5,
+      "V": 750,
+      "colour": "#5b8def"
+    },
+    {
+      "name": "Mirror back",
+      "shape": "aperture",
+      "axis": "x",
+      "x": 280,
+      "y": 0,
+      "z": 0,
+      "rIn": 0,
+      "rOut": 40,
+      "L": 1,
+      "V": 1000,
+      "colour": "#c04fb0"
+    }
+  ],
+  "ions": [
+    {
+      "name": "m = 500 u",
+      "species": "custom",
+      "mass": 500,
+      "charge": 1,
+      "n": 21,
+      "ke": 1.2,
+      "keSpread": 0,
+      "x": 4,
+      "y": 10,
+      "z": 0,
+      "dist": "line",
+      "size": 0.5,
+      "dirAz": 90,
+      "cone": 0,
+      "colour": "#e8402a"
+    }
+  ],
+  "detectors": [
+    {
+      "name": "Detector",
+      "axis": "x",
+      "x": 25,
+      "y": 33,
+      "z": 0,
+      "half": 7,
+      "stop": true
+    }
+  ],
+  "fly": {
+    "tMax": 150,
+    "quality": 0.5,
+    "maxPts": 3000,
+    "spaceCharge": false,
+    "seed": 1,
+    "auto": true
+  },
+  "show": {
+    "pot": "contours",
+    "contours": 30,
+    "traj": true,
+    "colourBy": "group",
+    "grid": true,
+    "efield": false
+  },
+  "notes": "Ions born across a 1 mm line in the 1 kV source (the source grid is transparent: ions pass through it as through a fine mesh) leave with energies from 550 to 650 eV, the ones born nearer the back plate gaining more. In a linear instrument that spread would smear the arrival time; the ion mirror (its entrance grid at 0 V, rings stepping up to the 1 kV back plate, the chamber wall far enough away that the array’s outer edge is open) sends the faster ions deeper, so they take longer to turn round and arrive with the slower ones: the spread of arrival times is under 1%, against 8% in energy. The ions are born with 1.2 eV across the axis, so after acceleration they travel 2.5° off it and the returning beam lands on a detector 33 mm off the axis instead of back in the source. Open the Detector for the time spread; widen the birth line to 3 mm and the second-order spread shows; set the mirror back to 600 V and the fastest ions pass through it."
+}

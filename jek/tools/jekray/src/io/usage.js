@@ -1,5 +1,5 @@
 import { EMBED, TEST_MODE } from '../core/constants.js';
-import { API_BASE, account } from './account.js';
+import { hooks } from '../core/hooks.js';
 import { backMarks, deviceOf, loadBand, srcTag, visitorMarks } from '../core/src-tag.js';
 
 /* ---------- Usage counts ----------
@@ -30,7 +30,7 @@ export function track(event, prop) {
   usageQ.set(k, (usageQ.get(k) || 0) + 1);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }
-const usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
+const usageTier = () => hooks.usageTier();
 export function usageFlush() {
   clearTimeout(usageTimer); usageTimer = 0;
   if (!usageOn() || (!usageQ.size && !usageErrs.length)) return;
@@ -38,7 +38,7 @@ export function usageFlush() {
   const body = JSON.stringify({ tier: usageTier(), ev: ev.slice(0, 200), err: usageErrs.splice(0, 20) });
   usageQ.clear();
   // text/plain, without credentials: a simple request, with nothing that says who
-  try { fetch(API_BASE + '/v1/events', { method: 'POST', body, credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {}); } catch (err) { /* not sent: fine */ }
+  try { fetch(hooks.apiBase() + '/v1/events', { method: 'POST', body, credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {}); } catch (err) { /* not sent: fine */ }
 }
 // the tool's own errors: the message with anything quoted and every number taken out, and where in the tool
 function usageError(msg, file, line) {
@@ -48,7 +48,7 @@ function usageError(msg, file, line) {
   // only the tool's own scripts: not extensions, not mods, and not what a browser runs in the page itself, which
   // reports the page's line 1 (an in-app browser's injected autofill script) or no line at all (a ResizeObserver
   // loop notice); the tool's own code starts well below the head
-  if (!/jekray/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
+  if (!/jek(ray|ion)/.test(src) || !(line > 1) || usageSeen.has(m + src)) return;
   usageSeen.add(m + src); usageErrs.push([m, src]);
   if (!usageTimer) usageTimer = setTimeout(usageFlush, 30000);
 }

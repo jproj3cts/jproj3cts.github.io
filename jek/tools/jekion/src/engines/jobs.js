@@ -16,8 +16,10 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 /* the array solved for the project, kept; progress({ phase: 'solve', k, n, cycle }) */
 async function ensureSolved(St, P, ctx) {
   const key = geometryKey(P);
-  if (!St.A || St.key !== key) {
-    St.A = buildArray(P); St.key = key; St.F = null; St.vkey = null;
+  if (!St.A || St.key !== key) { St.A = buildArray(P); St.key = key; St.F = null; St.vkey = null; }
+  // an electrode still unsolved (a job cancelled part way through the solve keeps what it had): carry on from there
+  if (St.A.basis.some(b => !b)) {
+    St.F = null; St.vkey = null;
     const J = solveStartArray(St.A);
     let last = 0;
     while (!J.step()) {

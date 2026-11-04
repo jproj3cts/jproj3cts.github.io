@@ -5,7 +5,7 @@ Pages from this repository's default branch; `CNAME` carries the domain.
 
 | | | |
 |---|---|---|
-| **JEK Systems** | `/jek/` | Products, calculators, JEKray and its documentation |
+| **JEK Systems** | `/jek/` | Products, calculators, JEKray and JEKion (`jek/tools/`) and their documentation |
 | **μRPG** | `/urpg/` | The tabletop game, its catalogue and its tools |
 
 The two sides share nothing: separate stylesheets, assets and navigation.
@@ -48,9 +48,10 @@ contain a literal `{{` or `{%` elsewhere (wrap such text in
 `{% raw %}…{% endraw %}`).
 
 Two kinds of file are served without a build and keep literal copies:
-`jek/tools/jekray-tests.html` (opened unbuilt by the test runner) and the JEKray
-page (`jek/tools/jekray/page.html`, built into `jekray.html`). After changing
-the nav or `css_v`, update those by hand (and rebuild JEKray);
+the test pages (`jek/tools/jekray-tests.html` and `jek/tools/jekion-tests.html`,
+opened unbuilt by the test runners) and the tool pages (`jek/tools/jekray/page.html`
+and `jek/tools/jekion/page.html`, built into `jekray.html` and `jekion.html`). After
+changing the nav or `css_v`, update those by hand (and rebuild both tools);
 `jek/tools/jekray/test/node/site-nav.test.mjs` fails until they match.
 `card/` and `urpg/` have navs of their own and are not part of this.
 

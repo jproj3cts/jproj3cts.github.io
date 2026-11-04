@@ -1331,7 +1331,7 @@
   .rt-rswitch:hover, .rt-rswitch[aria-expanded="true"], .rt-rswitch:focus-visible { border-color: var(--c); outline: none; }
   .rt-rswitch .ic, .rt-palmenu .ic { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--c); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .rt-rswitch::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-top-color: var(--rt-over-mute); border-bottom: 0; }
-  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; }
+  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; } .model { --c: #1d6fd8; }
   .rt-palmenu { position: absolute; left: 56px; z-index: 7; width: 15rem; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
   .rt-palmenu[hidden] { display: none; }
   .rt-palmenu button { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.45rem 0.75rem; border: 0; background: none; text-align: left; font: inherit; color: var(--jek-ink); cursor: pointer; }
@@ -1869,7 +1869,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
 /* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
    under it with what the moment needs; the hint goes to the bottom while they are on */
-.rt-mdltop { position: absolute; left: 60px; right: 124px; top: 34px; z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+.rt-mdltop { position: absolute; left: 60px; right: 124px; top: 34px; z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
 .rt-mdltop[hidden] { display: none; }
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
@@ -1914,3 +1914,15 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-mfeat > span { color: var(--jek-ink-soft); }
 .rt-mfeat input[type=text] { width: 4.6rem; height: 1.6rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
 .rt-mfeat .rt-link:last-child { margin-left: auto; }
+/* the sketch's dimensions and constraints over the 3D view (ui/model3d.js annots) */
+.rt-mdlann { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.rt-mdlann[hidden] { display: none; }
+.rt-dimlbl, .rt-conglyph, .rt-dimin { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; font: 600 0.72rem var(--jek-mono); cursor: pointer; white-space: nowrap; }
+.rt-dimlbl { padding: 1px 5px; color: var(--jek-ink); background: var(--jek-panel); border: 1px solid #5b6670; border-radius: 3px; }
+.rt-dimlbl.on { border-color: #f28a1a; color: #f28a1a; }
+.rt-dimin { width: 5.5rem; padding: 2px 4px; border: 2px solid #1d6fd8; border-radius: 3px; background: var(--jek-panel); color: var(--jek-ink); cursor: text; }
+.rt-conglyph { min-width: 14px; height: 14px; padding: 0 2px; line-height: 12px; font: 700 0.6rem var(--jek-sans); color: #1d6fd8; background: var(--jek-panel); border: 1px solid rgba(29, 111, 216, 0.5); border-radius: 3px; transform: none; }
+.rt-conglyph.on { color: #fff; background: #f28a1a; border-color: #f28a1a; }
+.rt-mdldef { color: #2a8a4a; font-weight: 600; }
+.rt-mdims { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: 3px 8px; align-items: center; margin: -0.1rem 0 0.25rem 0.8rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+.rt-mdims input { height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }

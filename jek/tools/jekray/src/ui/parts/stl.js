@@ -9,9 +9,10 @@ import { checkpoint } from '../tabs.js';
 import { importStl } from '../experimental.js';
 import { saveToMine } from '../myparts.js';
 import { proMark } from '../pro.js';
-import { editSketch, exportModelStl, rebuildLater, startModel } from '../model3d.js';
-import { exp } from '../experimental.js';
+import { editSketch, exportModelStl, rebuildLater } from '../model3d.js';
+import { setPalette } from '../rail.js';
 import { extrudeTo } from '../../core/model.js';
+import { solveSketch } from '../../core/sketch.js';
 import { V3D } from '../view3d.js';
 
 /* STL object on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/stl.js */
@@ -63,14 +64,30 @@ function modelPanel(el) {
   const x = f => h('button', { type: 'button', class: 'rt-link', title: 'Remove ' + f.name + (f.t === 'sketch' ? ' and what is made from it' : ''), 'aria-label': 'Remove ' + f.name, onclick: () => del(f) }, '\u00d7');
   for (const f of F) {
     if (f.t === 'sketch') {
-      list.append(h('div', { class: 'rt-mfeat' }, h('b', null, f.name || 'Sketch'), h('span', null, f.ents.length + ' shape' + (f.ents.length === 1 ? '' : 's')),
-        exp('model') ? h('button', { type: 'button', class: 'rt-link', onclick: () => editSketch(el, f.id) }, 'Edit sketch\u2026') : null, x(f)));
+      list.append(h('div', { class: 'rt-mfeat' }, h('b', null, f.name || 'Sketch'), h('span', null, f.ents.length + ' shape' + (f.ents.length === 1 ? '' : 's') + (f.dims ? ', ' + f.dims.length + ' dimension' + (f.dims.length === 1 ? '' : 's') : '')),
+        h('button', { type: 'button', class: 'rt-link', onclick: () => editSketch(el, f.id) }, 'Edit sketch\u2026'), x(f)));
+      // its dimensions, each to change here: the sketch solved again with it, and the part made again
+      if (f.dims && f.dims.length) {
+        const NAMES = { dist: 'Distance', len: 'Length', pl: 'Distance', rad: 'Radius', dia: 'Diameter', ang: 'Angle' }, box = h('div', { class: 'rt-mdims' });
+        f.dims.forEach((d, i) => {
+          const did = 'rtf' + setFid(fid + 1);
+          box.append(h('label', { for: did }, NAMES[d.t] + ' ' + (i + 1) + (d.t === 'ang' ? ' (\u00b0)' : ' (mm)')), numInput(did, () => +d.v.toFixed(4), v => {
+            if (d.t !== 'ang' && !(v > 0)) return;
+            const keep = JSON.stringify(f), v0 = d.v; d.v = v;
+            const r = solveSketch(f.ents, f.cons || [], f.dims);
+            if (!r.ok) { Object.assign(f, JSON.parse(keep)); d.v = v0; toast('That size conflicts with the sketch\u2019s other constraints and dimensions', true); return; }
+            rebuildLater(el);
+          }, { commit: true }));
+        });
+        list.append(box);
+      }
       continue;
     }
     const op = h('select', { 'aria-label': (f.name || 'Feature') + ': add or cut' }, h('option', { value: 'add' }, 'Add'), h('option', { value: 'cut' }, 'Cut'));
     op.value = f.op;
     op.addEventListener('change', redo(() => { f.op = op.value; if (f.op !== 'cut') delete f.through; }));
-    const row = h('div', { class: 'rt-mfeat' }, h('b', null, f.name || (f.t === 'revolve' ? 'Revolve' : 'Extrude')), op);
+    const row = h('div', { class: 'rt-mfeat' }, h('b', null, f.name || (f.t === 'revolve' ? 'Revolve' : 'Extrude')), op,
+      f.regions ? h('span', { title: 'The regions of its sketch it is made of (chosen in the 3D view as it was made)' }, f.regions.filter(q => q[0] < 1e8).length + ' region' + (f.regions.length === 1 ? '' : 's')) : null);
     const nid = 'rtf' + setFid(fid + 1);
     if (f.t === 'extrude') {
       if (!f.through) row.append(h('label', { for: nid }, 'mm'), numInput(nid, () => f.d, v => { if (v !== 0) { extrudeTo(el.model, f.id, Math.max(-1e4, Math.min(1e4, v))); rebuildLater(el); } }, { commit: true }));
@@ -91,7 +108,7 @@ function modelPanel(el) {
   ci.addEventListener('change', () => { checkpoint(); el.colour = ci.value; changed(false); });
   panel.append(h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f' }, h('label', { for: cid }, 'Colour'), ci)));
   panel.append(h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' },
-    exp('model') ? h('button', { type: 'button', class: 'rt-btn', title: 'Sketch on one of its faces (or anywhere) in the 3D view, and add to it or cut from it', onclick: async () => { if (!V3D.active()) await V3D.setOn(true); startModel(); } }, 'Add a sketch\u2026') : null,
+    h('button', { type: 'button', class: 'rt-btn', title: 'Sketch on one of its faces (or anywhere) in the 3D view, and add to it or cut from it', onclick: async () => { if (!V3D.active()) await V3D.setOn(true); setPalette('model'); } }, 'Add a sketch\u2026'),
     h('button', { type: 'button', class: 'rt-btn', title: 'Its triangles as a .stl file, in millimetres, to make it (a 3D printer, a machinist)', onclick: () => exportModelStl(el) }, 'Export .stl\u2026')));
   panel.append(readoutBox('stl'));
   const M = el.mesh;

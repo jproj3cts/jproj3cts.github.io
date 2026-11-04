@@ -78,6 +78,7 @@ import './state/tabs.js';
 import './core/geometry.js';
 import './core/stl.js';
 import './core/step.js';
+import './core/sketch.js';
 import './core/model.js';
 import './core/mask.js';
 import './engines/trace.js';

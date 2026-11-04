@@ -33,7 +33,6 @@ export const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
-  { key: 'model', name: '3D modelling', what: 'a Model button on the 3D view\u2019s bar: pick a flat face (a part\u2019s, the table, the beam\u2019s plane), sketch on it (lines, arcs, rectangles, circles, slots, polygons, holes of the usual sizes, snapping to the grid, the table\u2019s holes and where the light crosses), then extrude or revolve it into a beam block of its own, or add it to a modelled part or cut it from one. The part keeps how it was made: its panel changes it, and it can be saved as a .stl file to make. New: its tools and their fit to optics benches are still being settled.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
@@ -79,7 +78,7 @@ export function assignPalette(v) { return (palette = v); }
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
-export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
+export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw', model: 'Model' };
 export const PART_GROUPS = {
   get free() { return FREE_GROUPS; },
   fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],

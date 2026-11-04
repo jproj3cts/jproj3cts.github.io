@@ -1331,7 +1331,7 @@
   .rt-rswitch:hover, .rt-rswitch[aria-expanded="true"], .rt-rswitch:focus-visible { border-color: var(--c); outline: none; }
   .rt-rswitch .ic, .rt-palmenu .ic { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--c); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .rt-rswitch::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-top-color: var(--rt-over-mute); border-bottom: 0; }
-  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; }
+  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; } .model { --c: #1d6fd8; }
   .rt-palmenu { position: absolute; left: 56px; z-index: 7; width: 15rem; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
   .rt-palmenu[hidden] { display: none; }
   .rt-palmenu button { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.45rem 0.75rem; border: 0; background: none; text-align: left; font: inherit; color: var(--jek-ink); cursor: pointer; }

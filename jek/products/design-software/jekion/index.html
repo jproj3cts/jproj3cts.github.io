@@ -1,0 +1,119 @@
+---
+# processed by Jekyll for the shared nav (_includes/site-nav.html) and the jek.css stamp (css_v in _config.yml)
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEK Systems | JEKion Charged-Particle Optics Simulator</title>
+<meta name="description" content="JEKion: a charged-particle optics simulator in the browser. Electrodes, ion traps, lenses, deflectors and time-of-flight instruments, solved on a grid and flown live, with CAD import of a trap's electrodes.">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
+<style>
+  .ion-examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+  .ion-example { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.9rem 1rem; color: inherit; text-decoration: none; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); transition: border-color 0.12s ease; }
+  .ion-example:hover { border-color: var(--jek-orange); text-decoration: none; }
+  .ion-example h3 { margin: 0; font-size: 1rem; color: var(--jek-ink); }
+  .ion-example p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); flex: 1; }
+  .ion-example .rt-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
+  .ion-models { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4rem 2rem; }
+  .ion-models h3 { margin: 0 0 0.45rem; font-size: 1rem; }
+  .ion-models ul { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
+  @media (max-width: 900px) { .ion-models { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .ion-models { grid-template-columns: 1fr; } }
+</style>
+</head>
+
+<body>
+
+{% include site-nav.html %}
+
+  <main class="main-content jek-flush">
+
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <div class="jek-eyebrow">Design software</div>
+          <h1>JEKion</h1>
+          <p class="jek-tag">A charged-particle optics simulator that solves the fields and flies the ions as you work.</p>
+          <p class="jek-lede">Lay out electrodes as shapes or bring in the bodies of a CAD file, set their voltages and RF, start ions or electrons with an energy, and see them fly: lenses, deflectors, time-of-flight instruments, mass filters, Paul and Penning traps, with detectors, spectra and a trap analysis. In your browser, nothing to install. JEKion is in open beta.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/tools/jekion.html">Launch JEKion</a>
+            <a class="jek-btn quiet" href="#examples">Try an example</a>
+            <a href="/jek/docs/jekion/">Documentation</a>
+          </div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span><span>Open beta</span><span>Best on a desktop or laptop</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-proof jek-band">
+      <div class="jek-wrap">
+        <div class="lead">Checked against closed forms</div>
+        <p><b>Fields</b>Parallel plates, coaxial cylinders and concentric spheres against their analytic potentials, in every symmetry; open, grounded and mirror edges.</p>
+        <p><b>Flight</b>The energy gained across a gap, the cyclotron radius of an electron in a magnetic field, a field-free time of flight, and a hyperbolic Paul trap&rsquo;s Mathieu <i>q</i> and secular frequency against the ideal quadrupole.</p>
+        <p><b>Live</b>Every check runs in your browser on the <a href="/jek/tools/jekion-tests.html">checks page</a>, with the examples: masses separating as &radic;m in a time-of-flight, a reflectron refocusing in time, a mass filter passing one mass.</p>
+      </div>
+    </section>
+
+    <section class="jek-section">
+      <div class="jek-wrap">
+        <h2>What it does</h2>
+        <div class="jek-cards">
+          <div class="jek-card"><h3>Fields on a grid</h3><p>Planar, cylindrical or three-dimensional arrays, solved by multigrid, each electrode&rsquo;s potential once and scaled: change a voltage and the ions fly again at once. RF on any electrode, at its frequency and phase; a uniform magnetic field over all of it.</p></div>
+          <div class="jek-card"><h3>Ions and electrons, flown</h3><p>Any mass and charge, relativistic, by an adaptive Runge&ndash;Kutta step; hard-sphere collisions on a background gas; space charge between the flying particles; splats, detectors, time-of-flight and energy spectra.</p></div>
+          <div class="jek-card"><h3>Traps, from CAD</h3><p>Each body of a STEP or STL file becomes an electrode, so a trap designed in CAD is simulated as drawn. The trap analysis reads the field&rsquo;s curvature: Mathieu <i>a</i> and <i>q</i>, stability, secular, cyclotron and magnetron frequencies.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section" id="examples" style="padding-top: 0">
+      <div class="jek-wrap">
+        <h2>Examples</h2>
+        <p style="color: var(--jek-ink-soft); max-width: 70ch">Each opens in JEKion, with notes saying what to try.</p>
+        <div class="ion-examples">
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=einzel-lens"><h3>Einzel lens</h3><p>Three tubes, the middle one negative: a 2 keV Ar&#8314; beam focused to a point. Change the focus voltage and watch the focal length move.</p><span class="rt-open">Open &rarr;</span></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=quadrupole-deflector"><h3>Quadrupole deflector</h3><p>Four rods at &plusmn;V bend a beam through 90&deg;: an electrostatic turn used in ion beam lines.</p><span class="rt-open">Open &rarr;</span></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=linear-tof"><h3>Linear time-of-flight</h3><p>A two-stage source, a drift tube and a detector: masses separate in time; the start spread sets the resolution.</p><span class="rt-open">Open &rarr;</span></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=reflectron"><h3>Reflectron</h3><p>A time-of-flight with an ion mirror: ions of one mass but different energies refocus in time at the detector.</p><span class="rt-open">Open &rarr;</span></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=quad-mass-filter"><h3>Quadrupole mass filter</h3><p>Four rods with RF and DC: the mass in the stability tip passes, masses 12% away are thrown out.</p><span class="rt-open">Open &rarr;</span></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=paul-trap"><h3>Paul trap</h3><p>A hyperbolic ring and two endcaps with RF: an ion held at the centre, its secular motion and micromotion; buffer gas cools it.</p><span class="rt-open">Open &rarr;</span></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=penning-trap"><h3>Penning trap</h3><p>A cylindrical trap in a 1 T field: the magnetron, modified cyclotron and axial motions of a single ion.</p><span class="rt-open">Open &rarr;</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section" style="padding-top: 0">
+      <div class="jek-wrap">
+        <div class="jek-feature" style="grid-template-columns: 1fr">
+          <div><span class="jek-eyebrow">The physics</span><h2>What it models, and what it does not</h2>
+            <div class="ion-models">
+              <div><h3>Fields</h3><ul><li>Finite differences, multigrid, in planar, cylindrical or 3D symmetry</li><li>Superposition: each electrode solved once</li><li>RF at any frequency and phase</li><li>Open, grounded or mirror edges</li><li>A uniform magnetic field</li></ul></div>
+              <div><h3>Particles</h3><ul><li>Relativistic equations of motion</li><li>Dormand&ndash;Prince 5(4) adaptive step</li><li>Hard-sphere background gas</li><li>Coulomb space charge</li><li>Splats, detectors, spectra</li></ul></div>
+              <div><h3>Not modelled</h3><ul><li>Shaped magnetic fields</li><li>Image charges, surface physics</li><li>Dielectrics</li><li>A moving or heated gas</li><li>The grid&rsquo;s staircase: make the spacing finer where it matters</li></ul></div>
+            </div>
+          </div>
+        </div>
+        <div class="jek-feature" id="pro" style="grid-template-columns: 1fr">
+          <div><span class="jek-eyebrow">JEKrayPro</span><h2>One account for both tools</h2><p>JEKion shares JEKray&rsquo;s accounts. A free account lets you export pictures and data; JEKrayPro adds scripts against the bench and the richer exports (Excel, NumPy, MATLAB, everything at once). Subscribe from <a href="/jek/products/design-software/jekray/#pro">JEKray</a>; it serves both.</p></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2026 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "format": "jekion", "version": 1, "name": "Einzel lens",
+  "view": { "cx": 20, "cy": 0, "scale": 9, "plane": "xy", "slice": 0 },
+  "grid": { "sym": "cyl", "h": 0.25, "x0": -30, "x1": 70, "y0": 0, "y1": 20, "bc": { "xlo": "open", "xhi": "open", "yhi": "ground" } },
+  "electrodes": [
+    { "name": "Entrance tube", "shape": "tube", "axis": "x", "x": -8, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 14, "V": 0, "colour": "#5b8def" },
+    { "name": "Focus tube", "shape": "tube", "axis": "x", "x": 8, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 14, "V": -1400, "colour": "#e0742f" },
+    { "name": "Exit tube", "shape": "tube", "axis": "x", "x": 24, "y": 0, "z": 0, "rIn": 5, "rOut": 7, "L": 14, "V": 0, "colour": "#5b8def" }
+  ],
+  "ions": [{ "name": "Ar+ beam", "species": "Ar+", "n": 11, "ke": 2000, "x": -28, "y": 0, "z": 0, "dist": "grid", "size": 3, "dirAz": 0, "cone": 0 }],
+  "detectors": [{ "name": "Screen", "axis": "x", "x": 65, "y": 0, "z": 0, "half": 0, "stop": true }],
+  "notes": "Three tubes on one axis; the middle one negative decelerates and refocuses a 2 keV Ar+ beam. The focal length shortens as the focus voltage grows (try -1000 to -1800 V): the lens is always converging, whatever the sign. Open the Screen for the spot."
+}

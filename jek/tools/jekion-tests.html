@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>JEKion regression tests</title>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261017">
+<style>
+  .tt-wrap { width: 100%; max-width: 1100px; text-align: left; }
+  .tt-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    padding: 0.7rem 0.85rem;
+    margin-bottom: 0.75rem;
+    background: var(--jek-panel);
+    border: 1px solid var(--jek-line);
+    border-radius: var(--jek-radius);
+    box-shadow: var(--jek-shadow);
+  }
+  .tt-btn {
+    padding: 0.4rem 0.7rem;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--jek-cyan);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .tt-btn:hover { background: var(--jek-cyan-dark); }
+  .tt-btn:disabled { opacity: 0.5; cursor: default; }
+  .tt-summary { font-weight: 600; }
+  .tt-summary.pass { color: var(--jek-green, #2e7d32); }
+  .tt-summary.fail { color: var(--jek-red); }
+  .tt-time { margin-left: auto; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+
+  table.tt {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--jek-panel);
+    border: 1px solid var(--jek-line);
+    border-radius: var(--jek-radius);
+    box-shadow: var(--jek-shadow);
+    overflow: hidden;
+    font-size: 0.875rem;
+  }
+  table.tt th, table.tt td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
+  table.tt th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--jek-ink-soft); }
+  table.tt td.num { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.tt tr.group td {
+    background: var(--jek-well);
+    font-weight: 700;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--jek-ink-soft);
+  }
+  .tt-flag { font-weight: 700; white-space: nowrap; }
+  .tt-flag.ok { color: #2e7d32; }
+  .tt-flag.no { color: var(--jek-red); }
+  tr.failed td { background: rgba(200, 40, 40, 0.06); }
+  .tt-note { font-size: 0.8125rem; color: var(--jek-ink-soft); margin: 0.75rem 0 1.25rem; max-width: 46rem; }
+  .tt-src { font-size: 0.75rem; color: var(--jek-ink-soft); }
+  iframe.tt-rig { position: absolute; width: 1200px; height: 800px; left: -4000px; top: 0; border: 0; }
+</style>
+</head>
+<body>
+
+<div class="top-container">
+  <div class="bar bar1"></div><div class="bar bar2"></div><div class="bar bar3"></div>
+  <div class="bar bar4"></div><div class="bar bar5"></div>
+  <div class="bar6">
+    <a href="/jek/products.html">Products</a> |
+    <a href="/jek/custom-solutions.html">Custom Solutions</a> |
+    <span class="nav-drop" data-nav-drop>
+      <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
+      <span class="nav-drop-menu">
+        <a href="/jek/calculators/">Calculators</a>
+        <a href="/jek/tools/jekray.html">JEKray</a>
+        <a href="/jek/tools/jekion.html">JEKion</a>
+      </span>
+    </span> |
+    <a href="/jek/bio.html">Bio</a> |
+    <a href="/jek/contact.html">Contact</a>
+    <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
+  </div>
+  <a class="text-overlay" href="/jek/">JEK Systems</a>
+</div>
+
+<main class="main-content">
+  <h1 class="page-title">JEKion regression tests</h1>
+
+  <div class="tt-wrap">
+    <p class="tt-note">Each check compares the solver and the tracer against a closed-form result, or runs an example and checks what it does. The checks run on a separate copy of <a href="/jek/tools/jekion.html">JEKion</a>, so they neither read nor write your saved bench.</p>
+
+    <div class="tt-bar">
+      <button class="tt-btn" id="run">Run again</button>
+      <span class="tt-summary" id="summary">Loading JEKion\u2026</span>
+      <span class="tt-time" id="time"></span>
+    </div>
+
+    <table class="tt">
+      <thead>
+        <tr><th>Check</th><th>Expected</th><th>Got</th><th>Tolerance</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <iframe class="tt-rig" id="rig" src="/jek/tools/jekion.html#test" title="Test rig"></iframe>
+  <script>
+    // ?dev=1: the suite against the modules loaded directly (jekion-dev.html) instead of the built page
+    if (/[?&]dev=1/.test(location.search)) document.getElementById('rig').src = '/jek/tools/jekion-dev.html#test';
+  </script>
+</main>
+
+<footer>
+  <span class="copyright" style="margin-top:1.5rem">&copy; 2025 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+'use strict';
+const QE = 1.602176634e-19, AMU = 1.66053906660e-27;
+const ion = o => Object.assign({ name: 'ions', n: 1, species: 'custom', mass: 39.962, charge: 1, ke: 10, keSpread: 0, x: 0, y: 0, z: 0, dist: 'point', size: 0, dirAz: 0, dirEl: 0, cone: 0, t0: 0, tSpread: 0 }, o);
+const el = o => Object.assign({ name: 'E', V: 0, axis: 'x', x: 0, y: 0, z: 0 }, o);
+const bench = (grid, electrodes, ions, detectors, extra) => Object.assign({ format: 'jekion', version: 1, name: 'test', grid, electrodes, ions: ions || [], detectors: detectors || [] }, extra || {});
+const speedOf = (ke, m) => { const g = 1 + ke * QE / (m * AMU * 299792458 ** 2); return 299792.458 * Math.sqrt(1 - 1 / (g * g)); };
+const demos = {};
+async function demo(J, name) {
+  if (!demos[name]) demos[name] = await (await fetch('/jek/tools/demos/' + name + '.jekion')).json();
+  J.load(JSON.parse(JSON.stringify(demos[name])));
+  return J.flyPage();
+}
+const ends = R => { const o = {}; for (const p of R.particles) o[p.end.why] = (o[p.end.why] || 0) + 1; return o; };
+const hitsOf = (J, R, name) => { const di = J.project().detectors.findIndex(d => d.name === name); return R.particles.flatMap(p => p.hits.filter(h => h.det === di)); };
+const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+
+const TESTS = [
+  { group: 'Page and files' },
+  { name: 'The page loads with its version and a bench', why: 'window.JEKion carries the version, the project has an array (1 when all hold)', run: J => (J.version && J.project() && J.project().grid ? 1 : 0), want: 1, tol: 0 },
+  { name: 'A saved bench reads back unchanged', why: 'the first bench serialised, loaded and serialised again is the same text (1)', run: J => { const a = JSON.stringify(J.demoProject()); J.load(JSON.parse(a)); const b = JSON.stringify(J.serialize()); J.load(JSON.parse(b)); return JSON.stringify(J.serialize()) === b ? 1 : 0; }, want: 1, tol: 0 },
+  { name: 'Every example loads and its file is already normalised', why: 'each demos/*.jekion opens, and loading it changes nothing but the view (count of examples that round-trip)', run: async J => { let n = 0; for (const k of ['einzel-lens', 'quadrupole-deflector', 'linear-tof', 'reflectron', 'quad-mass-filter', 'paul-trap', 'penning-trap']) { const d = await (await fetch('/jek/tools/demos/' + k + '.jekion')).json(); J.load(JSON.parse(JSON.stringify(d))); const s = J.serialize(); const same = s.electrodes.length === d.electrodes.length && s.ions.length === d.ions.length && s.grid.sym === d.grid.sym; if (same) n++; } return n; }, want: 7, tol: 0 },
+
+  { group: 'Solver' },
+  { name: 'Parallel plates: the potential is linear between them', why: 'planar array, plates at 0 and 20 mm at 1 and 0 V: the potential at x = 10 (V)', run: J => { const P = bench({ sym: 'planar', h: 0.5, x0: 0, x1: 20, y0: 0, y1: 10, bc: { ylo: 'mirror', yhi: 'mirror' } }, [el({ shape: 'box', x: 0.25, y: 5, sx: 0.5, sy: 30, sz: 30, V: 1 }), el({ shape: 'box', x: 19.75, y: 5, sx: 0.5, sy: 30, sz: 30, V: 0 })]); const S = J.solve(P); return J.potential(S.F, 10, 5, 0); }, want: 0.5, tol: 2e-3 },
+  { name: 'Coaxial cylinders: the potential goes as the logarithm of the radius', why: 'cylindrical array, a rod r = 2 at 1 V in a tube r = 8 at 0 V: the potential at r = 4 (V)', run: J => { const P = bench({ sym: 'cyl', h: 0.1, x0: 0, x1: 4, y0: 0, y1: 9, bc: { xlo: 'mirror', xhi: 'mirror' } }, [el({ shape: 'rod', x: 2, r: 2, L: 100, V: 1 }), el({ shape: 'tube', x: 2, rIn: 8, rOut: 9, L: 100, V: 0 })]); const S = J.solve(P); return J.potential(S.F, 2, 4, 0); }, want: Math.log(2) / Math.log(4), tol: 4e-3 },
+  { name: 'Concentric spheres in 3D: the potential goes as 1/r', why: 'a sphere r = 3 at 1 V inside a grounded shell at r = 8, h = 0.5: the potential at r = 5.5 (V), to the staircase', run: J => { const P = bench({ sym: '3d', h: 0.5, x0: -9, x1: 9, y0: -9, y1: 9, z0: -9, z1: 9, bc: {} }, [el({ shape: 'sphere', r: 3, V: 1 }), el({ shape: 'sphere', r: 20, V: 0 })]); P.electrodes[1].shape = 'tube'; P.electrodes[1].rIn = 8; P.electrodes[1].rOut = 20; P.electrodes[1].L = 40; const S = J.solve(P); return J.potential(S.F, 0, 5.5, 0); }, want: (1 / 5.5 - 1 / 8) / (1 / 3 - 1 / 8), tol: 0.07, rel: true },
+  { name: 'An electrode the array never touches has no field; an open array with one electrode floats at its voltage', why: 'a sphere far outside the array and a box inside at 1 V, every edge open: the potential at a corner (V)', run: J => { const P = bench({ sym: 'planar', h: 0.5, x0: 0, x1: 10, y0: 0, y1: 10, bc: {} }, [el({ shape: 'sphere', x: 100, r: 1, V: 5 }), el({ shape: 'box', x: 5, y: 5, sx: 2, sy: 2, sz: 2, V: 1 })]); const S = J.solve(P); return J.potential(S.F, 0, 0, 0); }, want: 1, tol: 1e-3 },
+
+  { group: 'Flying' },
+  { name: 'An ion gains the gap voltage in energy', why: 'a 100 V plate and a grounded aperture: the energy at a detector past the aperture, less the potential where it started (eV)', run: J => { const P = bench({ sym: 'planar', h: 0.25, x0: -5, x1: 45, y0: -10, y1: 10, bc: { ylo: 'mirror', yhi: 'mirror' } }, [el({ shape: 'box', x: -4, sx: 1, sy: 30, sz: 30, V: 100 }), el({ shape: 'aperture', x: 10, rIn: 2, rOut: 15, L: 1, V: 0 })], [ion({ x: -3, ke: 1 })], [{ name: 'd', axis: 'x', x: 40, half: 0, stop: true }]); const R = J.fly(P); return R.particles[0].end.ke - J.potential(R.F, -3, 0, 0); }, want: 1, tol: 0.3 },
+  { name: 'An electron circles in a magnetic field at the cyclotron radius', why: 'a 1 keV electron in 100 G: the largest distance from the orbit’s centre over the radius (1)', run: J => { const m = 5.48579909065e-4, v = speedOf(1000, m) * 1e3, r = m * AMU * v / (QE * 1e-2) * 1e3; const P = bench({ sym: '3d', h: 1, x0: -20, x1: 20, y0: -20, y1: 20, z0: -5, z1: 5, bc: {} }, [], [ion({ mass: m, charge: -1, ke: 1000, y: -10 })], [], { bfield: { bx: 0, by: 0, bz: 100 }, fly: { tMax: 0.01 } }); const R = J.fly(P), p = R.particles[0]; let mx = 0; for (let i = 0; i < p.pts.length; i += 4) mx = Math.max(mx, Math.hypot(p.pts[i], p.pts[i + 1] + 10 - r)); return mx / r; }, want: 1, tol: 0.02 },
+  { name: 'A field-free drift takes L / v', why: 'a 1 keV Ar+ over 100 mm in an empty array: time at the detector over L/v (1)', run: J => { const P = bench({ sym: 'planar', h: 1, x0: -5, x1: 110, y0: -5, y1: 5, bc: {} }, [], [ion({ ke: 1000, x: 0 })], [{ name: 'd', axis: 'x', x: 100, half: 0, stop: true }]); const R = J.fly(P); return R.particles[0].end.t / (100 / speedOf(1000, 39.962)); }, want: 1, tol: 1e-3 },
+  { name: 'A background gas collides and slows the ions', why: '20 Ar+ at 100 eV through helium at 50 Pa: the mean energy at the end (eV), below 95', run: J => { const P = bench({ sym: '3d', h: 1, x0: -30, x1: 30, y0: -30, y1: 30, z0: -30, z1: 30, bc: {} }, [], [ion({ n: 20, ke: 100, x: -25 })], [], { gas: { on: true, mass: 4, pressure: 50, temp: 300, sigma: 30 }, fly: { tMax: 50, seed: 3 } }); const R = J.fly(P); return mean(R.particles.map(p => p.end.ke)) < 95 && R.particles.some(p => p.collisions > 0) ? 1 : 0; }, want: 1, tol: 0 },
+  { name: 'Space charge pushes a bunch apart', why: 'two Ar+ at rest 1 mm apart, each standing for 10⁶ charges: their separation after 1 µs grows (1 when it more than doubles)', run: J => { const P = bench({ sym: '3d', h: 0.5, x0: -10, x1: 10, y0: -10, y1: 10, z0: -10, z1: 10, bc: {} }, [], [ion({ n: 2, ke: 0, dist: 'grid', size: 0.5, weight: 1e7 })], [], { fly: { tMax: 1, spaceCharge: true } }); const R = J.fly(P), a = R.particles[0].end, b = R.particles[1].end; return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) > 3 ? 1 : 0; }, want: 1, tol: 0 },
+
+  { group: 'Traps' },
+  { name: 'A Paul trap’s q along the axis follows the ideal quadrupole', why: 'hyperbolic ring and endcaps, r₀² = 2z₀² = 50 mm², 100 V RF at 1 MHz on the ring, m = 40 u: q_z over its closed form (1, to the staircase)', run: J => { const r0 = Math.sqrt(50); const P = bench({ sym: 'cyl', h: 0.2, x0: -16, x1: 16, y0: 0, y1: 16, bc: {} }, [el({ shape: 'ring', r0, rMax: 15, L: 20, rf: { on: true, amp: 100, mhz: 1, phase: 0 } }), el({ shape: 'endcap', z0: 5, rMax: 12, L: 8, side: 1 }), el({ shape: 'endcap', z0: 5, rMax: 12, L: 8, side: -1 })]); const T = J.trap(P, [0, 0, 0], { mass: 40, charge: 1 }); const qm = QE / (40 * AMU), W = 2 * Math.PI * 1e6; return T.axes[0].q / (-2 * qm * 100 * (-0.04e6) / (W * W)); }, want: 1, tol: 0.05 },
+  { name: 'A Penning trap’s cyclotron frequency is qB/2πm', why: 'Ca+ in 1 T, with endcaps holding it: the cyclotron frequency reported (MHz)', run: async J => { const T = await (async () => { await demo(J, 'penning-trap'); return J.trapPage(); })(); return T.penning.cyclMHz; }, want: QE * 1 / (2 * Math.PI * 39.962 * AMU) / 1e6, tol: 1e-3, rel: true },
+
+  { group: 'Examples' },
+  { name: 'Einzel lens: every ion reaches the screen', why: 'the 11 Ar+ of the example end at the Screen (count)', run: async J => (ends(await demo(J, 'einzel-lens')).det || 0), want: 11, tol: 0 },
+  { name: 'Einzel lens: the beam is focused', why: 'the rms radius of the spot on the screen is well under the 1.7 mm rms of the beam (mm)', run: async J => { const R = await demo(J, 'einzel-lens'), H = hitsOf(J, R, 'Screen'); return Math.sqrt(mean(H.map(h => h.y * h.y + h.z * h.z))); }, want: 0.6, tol: 0.6 },
+  { name: 'Quadrupole deflector: the beam turns through 90°', why: 'of the 9 Ar+ entering along x, those leaving through the Exit plane along −y (count, 7 or more)', run: async J => Math.min(7, ends(await demo(J, 'quadrupole-deflector')).det || 0), want: 7, tol: 0 },
+  { name: 'Linear time-of-flight: masses separate as √m', why: 'the mean arrival time of m = 200 over that of m = 100 (1.414)', run: async J => { const R = await demo(J, 'linear-tof'), H = hitsOf(J, R, 'MCP'), g = R.particles.map(p => p.group); const t = gi => mean(R.particles.filter(p => p.group === gi && p.end.why === 'det').map(p => p.end.t)); void H; void g; return t(2) / t(0); }, want: Math.SQRT2, tol: 0.02, rel: true },
+  { name: 'Reflectron: the mirror refocuses the energy spread in time', why: 'the spread (σ) of arrival times at the detector over the mean (under 1%)', run: async J => { const R = await demo(J, 'reflectron'), ts = R.particles.filter(p => p.end.why === 'det').map(p => p.end.t); const m = mean(ts); return ts.length >= 15 ? Math.sqrt(mean(ts.map(t => (t - m) ** 2))) / m : 9; }, want: 0.004, tol: 0.006 },
+  { name: 'Quadrupole mass filter: m = 100 passes, 88 and 112 are lost', why: 'ions still flying after 60 µs: m = 100 of 12, and 88 and 112 (count held of 100, minus those held of the others)', run: async J => { const R = await demo(J, 'quad-mass-filter'); const held = gi => R.particles.filter(p => p.group === gi && p.end.why === 'time').length; return held(0) - held(1) - held(2); }, want: 10, tol: 3 },
+  { name: 'Paul trap: the ion stays trapped', why: 'the 3 Ca+ are still flying at 100 µs, within 4 mm of the centre (count)', run: async J => { const R = await demo(J, 'paul-trap'); return R.particles.filter(p => p.end.why === 'time' && Math.hypot(p.end.x, p.end.y, p.end.z) < 4).length; }, want: 3, tol: 0 },
+
+  { group: 'CAD import' },
+  { name: 'A CAD body becomes an electrode and paints the array', why: 'a 6 mm cube of 12 triangles brought in as a body: its voxels hold 1 V at its centre, and the potential falls outside (1 when both hold)', run: J => { const T = []; const q = [[-3,-3,-3],[3,-3,-3],[3,3,-3],[-3,3,-3],[-3,-3,3],[3,-3,3],[3,3,3],[-3,3,3]]; const F = [[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[2,3,7],[2,7,6],[0,4,7],[0,7,3],[1,2,6],[1,6,5]]; for (const f of F) for (const v of f) T.push(...q[v]); const els = J.bodiesToElectrodes([{ name: 'Cube', T: Float32Array.from(T), colour: null }], 'cube.step', 1, [0, 0, 0]); const P = bench({ sym: '3d', h: 0.5, x0: -10, x1: 10, y0: -10, y1: 10, z0: -10, z1: 10, bc: { xlo: 'ground', xhi: 'ground', ylo: 'ground', yhi: 'ground', zlo: 'ground', zhi: 'ground' } }, els.map(e => Object.assign({}, e, { V: 1 }))); const S = J.solve(P); const inside = J.potential(S.F, 0, 0, 0), out = J.potential(S.F, 6, 0, 0); return Math.abs(inside - 1) < 1e-6 && out > 0.2 && out < 0.9 ? 1 : 0; }, want: 1, tol: 0 },
+
+  { group: 'Data export and scripts' },
+  { name: 'The data gathered has a row a particle and a table a detector', why: 'after the einzel lens flies: the ions table has 11 rows and the Screen table 11 (1 when both hold)', run: async J => { await demo(J, 'einzel-lens'); const items = J.data(['ions', 'hits']); const ions = items.find(i => i.name === 'ions'), det = items.find(i => i.name === 'detector Screen'); return ions && ions.cols[0].values.length === 11 && det && det.cols[0].values.length === 11 ? 1 : 0; }, want: 1, tol: 0 },
+  { name: 'A script sets a voltage, flies and reads the results', why: 'J.set on the focus tube, await J.fly(), J.results().n logged (11)', run: async J => { await demo(J, 'einzel-lens'); let out = ''; await J.runScript("J.set('Focus tube', 'V', -1000); const R = await J.fly(); J.log(R.n + ' ' + R.hits('Screen').length);", s => { out += s; }); return out.trim() === '11 11' ? 1 : 0; }, want: 1, tol: 0 },
+];
+
+/* ---------- Running and reporting ---------- */
+
+const rows = document.getElementById('rows');
+const summary = document.getElementById('summary');
+const timeEl = document.getElementById('time');
+const runBtn = document.getElementById('run');
+
+const fmt = (v, unit) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return 'n/a';
+  if (typeof v !== 'number') return String(v);
+  const a = Math.abs(v);
+  const s = (a !== 0 && (a < 1e-3 || a >= 1e6)) ? v.toExponential(4) : String(+v.toPrecision(7));
+  return s + (unit || '');
+};
+
+async function runAll() {
+  const J = document.getElementById('rig').contentWindow.JEKion;
+  rows.replaceChildren();
+  if (!J) {
+    summary.textContent = 'JEKion did not load its test hook.';
+    summary.className = 'tt-summary fail';
+    return;
+  }
+  const t0 = performance.now();
+  let pass = 0, fail = 0;
+
+  // ?only=text runs just the checks whose names hold it (for working on a few); ?groups=A|B just these groups
+  // (test/run.mjs picks them for the code a change touches); the results are left on window.__tt as well
+  const Q = new URLSearchParams(location.search), only = (Q.get('only') || '').toLowerCase(), groups = (Q.get('groups') || '').split('|').filter(Boolean);
+  const TT = { groups: {}, rows: [] }; window.__tt = TT;
+  let inGroup = '', tg0 = 0, ran = 0;
+  const closeGroup = () => { if (inGroup && ran) TT.groups[inGroup] = (TT.groups[inGroup] || 0) + performance.now() - tg0; ran = 0; };
+  for (const t of TESTS) {
+    if (t.group) { closeGroup(); inGroup = t.group; tg0 = performance.now(); if (groups.length && !groups.includes(t.group)) continue; }
+    else if (groups.length && !groups.includes(inGroup)) continue;
+    if (only && !t.group && !t.name.toLowerCase().includes(only)) continue;
+    if (t.group) {
+      const tr = document.createElement('tr');
+      tr.className = 'group';
+      const td = document.createElement('td');
+      td.colSpan = 5; td.textContent = t.group;
+      tr.append(td); rows.append(tr);
+      continue;
+    }
+    let got, err = null;
+    const tt0 = performance.now();
+    try { got = await t.run(J); } catch (e) { err = e; got = NaN; }
+    const want = t.wantFrom ? t.wantFrom() : t.want;
+    const tol = t.rel ? Math.abs(want * t.tol) : t.tol;
+    let ok = typeof got === 'number' && Number.isFinite(got) && Math.abs(got - want) <= tol;
+    let note = t.extra ? t.extra() : '';
+    if (note) ok = false;
+    ok ? pass++ : fail++;
+    TT.rows.push({ group: inGroup, name: t.name, ok, ms: Math.round(performance.now() - tt0) }); ran++;
+
+    const tr = document.createElement('tr');
+    if (!ok) tr.className = 'failed';
+    const cells = [
+      `<div>${t.name}${note}</div><div class="tt-src">${err ? 'threw: ' + err.message : t.why}</div>`,
+      fmt(want, t.unit),
+      fmt(got, t.unit),
+      (t.rel ? '\u00b1' + (t.tol * 100).toPrecision(2) + '%' : '\u00b1' + fmt(t.tol, t.unit)),
+      `<span class="tt-flag ${ok ? 'ok' : 'no'}">${ok ? 'pass' : 'FAIL'}</span>`,
+    ];
+    cells.forEach((html, i) => {
+      const td = document.createElement('td');
+      if (i > 0 && i < 4) td.className = 'num';
+      td.innerHTML = html;
+      tr.append(td);
+    });
+    rows.append(tr);
+  }
+
+  closeGroup();
+  const ms = Math.round(performance.now() - t0);
+  summary.textContent = fail ? `${fail} failed, ${pass} passed` : `all ${pass} checks passed`;
+  summary.className = 'tt-summary ' + (fail ? 'fail' : 'pass');
+  timeEl.textContent = ms + ' ms';
+}
+
+runBtn.addEventListener('click', () => { runBtn.disabled = true; setTimeout(async () => { await runAll(); runBtn.disabled = false; }, 10); });
+document.getElementById('rig').addEventListener('load', () => setTimeout(runAll, 150));
+})();
+</script>
+
+<script src="/jek/assets/js/cart.js?v=20261015b"></script>
+<script src="/jek/assets/js/account.js?v=20261017"></script>
+</body>
+</html>

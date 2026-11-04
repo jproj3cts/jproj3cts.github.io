@@ -1,0 +1,34 @@
+# The JEKion documentation's contents: the sidebar, the breadcrumbs and Previous / Next follow this order
+# (_layouts/docs.html, with `docs: jekion` in each page's front matter).
+- title: Introduction
+  url: /jek/docs/jekion/
+  group: Start here
+- title: Getting started
+  url: /jek/docs/jekion/getting-started/
+- title: Concepts and units
+  url: /jek/docs/jekion/concepts/
+- title: The array and the solver
+  url: /jek/docs/jekion/array/
+  group: The bench
+- title: Electrodes
+  url: /jek/docs/jekion/electrodes/
+- title: Ion groups
+  url: /jek/docs/jekion/ions/
+- title: Detectors
+  url: /jek/docs/jekion/detectors/
+- title: Flying
+  url: /jek/docs/jekion/flying/
+- title: Traps and the trap analysis
+  url: /jek/docs/jekion/traps/
+- title: CAD import
+  url: /jek/docs/jekion/cad-import/
+  group: In and out
+- title: Files and examples
+  url: /jek/docs/jekion/files/
+- title: Data export
+  url: /jek/docs/jekion/data-export/
+- title: Scripting
+  url: /jek/docs/jekion/scripting/
+- title: FAQ
+  url: /jek/docs/jekion/faq/
+  group: Help

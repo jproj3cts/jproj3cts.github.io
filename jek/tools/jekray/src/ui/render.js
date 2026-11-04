@@ -1,5 +1,5 @@
 import { hooks } from '../core/hooks.js';
-import { BEAM_Z, clamp } from '../core/constants.js';
+import { BEAM_Z, TEST_MODE, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen } from '../core/format.js';
 import { hornGeom } from '../core/rf.js';
 import { beamAt, m2Env } from '../core/beams-hom.js';
@@ -82,7 +82,10 @@ export function requestRender() {
    out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
 const BENCH_DEFAULT = '#1f2529', BENCH_PAPER = '#f3eee5';
 const THEME_KEY = 'jekray-theme';
-export let themePref = (() => { try { const v = localStorage.getItem(THEME_KEY); return v === 'dark' || v === 'system' ? v : 'light'; } catch (err) { return 'light'; } })();
+// Dark to start with (the tests keep Light, the page they check was made in it); Light or the computer's way once chosen
+const THEME_START = TEST_MODE ? 'light' : 'dark';
+const themeOk = v => (v === 'dark' || v === 'light' || v === 'system' ? v : THEME_START);
+export let themePref = (() => { try { return themeOk(localStorage.getItem(THEME_KEY)); } catch (err) { return THEME_START; } })();
 const sysDark = () => { try { return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches; } catch (err) { return false; } };
 export const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDark());
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
@@ -98,8 +101,8 @@ export const inkA = a => themeDark() ? 'rgba(231,227,219,' + a + ')' : 'rgba(0,0
 export const plotPaper = () => themeDark() ? '#242a2e' : '#fff';
 export const greyInk = c => !themeDark() ? c : ({ '#222': '#e7e3db', '#555': '#a29d95', '#888': '#77736d' })[c] || c;
 export function setTheme(v) {
-  themePref = v === 'dark' || v === 'system' ? v : 'light';
-  try { if (themePref === 'light') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
+  themePref = themeOk(v);
+  try { if (themePref === THEME_START) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
   themeShown();
 }
 // the page in the theme: its colours (style.css, under [data-rt-theme]), the menu's tick, the bench and the 3D view drawn again
@@ -208,6 +211,20 @@ export function benchStyleShown() {
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
   const nf = document.getElementById('btnNamesFixed'); if (nf) nf.setAttribute('aria-checked', project && project.labelFixed ? 'true' : 'false');
   stage.style.background = benchBg();
+}
+/* a part's symbol as the bench draws it, in its own frame (x along it, y across, mm), on a canvas hx by hy mm either
+   side of its centre at ppm pixels a millimetre: the top of a fibre component's, a circuit part's or a chip's body in
+   the 3D view. Drawn as another part (its id changed), so a selection's outline is not in it */
+export function symbolCanvas(el, hx, hy, ppm) {
+  const w = Math.max(8, Math.min(1024, Math.round(2 * hx * ppm))), hh = Math.max(8, Math.min(1024, Math.round(2 * hy * ppm)));
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+  const c = cv.getContext('2d'); c.fillStyle = benchBg(); c.fillRect(0, 0, w, hh);
+  const keep = { ctx, W, H, DPR, view: project.view };
+  try {
+    ctx = c; W = w; H = hh; DPR = 1; project.view = { cx: 0, cy: 0, scale: Math.min(w / (2 * hx), hh / (2 * hy)) };
+    asOnBench(() => draw(Object.assign({}, el, { id: el.id + '~3d', x: 0, y: 0, angle: 0 })));
+  } catch (err) { /* a symbol that cannot be drawn alone: the body plain */ } finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; }
+  return cv;
 }
 // a part drawn off the bench (its symbol in the rail or the picker), in the ink the bench draws it in
 export function asOnBench(fn) {
@@ -1416,7 +1433,7 @@ export function moveGrip(F, g, X, Y, free) {
 }
 export const bez = (C, t) => { const u = 1 - t; return [0, 1].map(k => u * u * u * C[0][k] + 3 * u * u * t * C[1][k] + 3 * u * t * t * C[2][k] + t * t * t * C[3][k]); };
 /* the light a fibre carries, both ways, in mW; and its colour */
-function fibreLight(F) {
+export function fibreLight(F) {
   const net = lastTrace.net;
   if (!net) return { mw: 0, colour: null };
   const mw = netPower(net.out.get(pkey(...F.a)), net.keys) + netPower(net.out.get(pkey(...F.b)), net.keys);

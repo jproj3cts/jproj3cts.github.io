@@ -1093,7 +1093,12 @@
   /* one bar: the logo, the menu bar (File, Edit, View, Tools, Sweeps, Help), the one-click icons (undo, redo,
      fit, measure, search), the bench's name in the middle; + Add part, Share, Save, Examples, the cart and the
      account at its right */
-  .rt-app .rt-toolbar { padding: 0.45rem 0.75rem; gap: 0; }
+  .rt-app .rt-toolbar { padding: 0.2rem 0.75rem; gap: 0; }
+  /* (a thin bar: its buttons a size smaller than the panels') */
+  .rt-app .rt-toolbar .rt-btn { padding-top: 0.22rem; padding-bottom: 0.22rem; }
+  .rt-app .rt-toolbar .rt-btn.rt-tbi { min-width: 1.9rem; height: 1.8rem; padding: 0; }
+  .rt-app .rt-toolbar .rt-menubar .rt-btn.rt-mbar { padding: 0.25rem 0.55rem; }
+  .rt-app .rt-toolbar .rt-name { padding-top: 0.2rem; padding-bottom: 0.2rem; }
   .rt-bar { flex-wrap: wrap; gap: 0.4rem 0.5rem; }
   .rt-file { display: flex; align-items: center; gap: 0.1rem; }
   .rt-file .rt-name { flex: 0 1 15rem; width: 15rem; }
@@ -1311,7 +1316,6 @@
   .rt-pkeeprow .rt-btn { color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); font-size: 0.8rem; }
   .rt-pkeeprow .rt-btn.rt-pzmx { color: var(--jek-ink); background: var(--rt-surface); border-color: var(--jek-line-2); }
   .rt-pkeeprow .rt-btn:disabled { color: var(--jek-ink-soft); background: none; border-color: var(--jek-line-2); cursor: default; }
-  .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #e0a91c; }
   .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
   /* the parts rail, down the bench's left edge below its tabs */
   .rt-rail { position: absolute; left: 0; top: 0; z-index: 4; height: 52px; max-width: calc(100% - 2rem); box-sizing: border-box; padding: 4px 5px; display: flex; flex-direction: row; align-items: center; gap: 4px;
@@ -1322,11 +1326,10 @@
   .rt-rail .rt-radd { flex-direction: row; width: auto; height: 32px; padding: 0 10px 0 8px; gap: 4px; font-size: 0.72rem; margin-right: 2px; }
   .rt-rail .rt-rswitch { flex-direction: row; width: auto; min-height: 32px; height: 32px; padding: 0 17px 0 7px; gap: 5px; font-size: 0.72rem; margin-right: 4px; }
   .rt-rail .rt-rswitch::after { right: 6px; bottom: auto; top: calc(50% - 1px); }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 32px; height: 32px; padding: 2px; }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 26px; height: 26px; }
+  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 30px; height: 30px; padding: 2px; }
+  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 24px; height: 24px; }
   .rt-rail .rt-rgroup.rt-rtool:not(.rt-rmfeat) svg { width: 20px; height: 20px; }
-  .rt-rail .rt-rgroup.rt-rall { font-size: 1rem; }
-  .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 4px; background: var(--rt-over-line); }
+  .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 3px; background: var(--rt-over-line); }
   .rt-rail[hidden] { display: none; }
   /* Add part, the rail's topmost button: the strong (black) one, as the main action */
   .rt-radd { flex: none; width: 44px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
@@ -1407,7 +1410,6 @@
   .rt-rgroup:hover, .rt-rgroup.on, .rt-rgroup:focus-visible { outline: none; border-color: var(--rt-over-mute); }
   .rt-rgroup.free.on { border-color: var(--jek-orange); } .rt-rgroup.fibre.on { border-color: var(--jek-red); }
   .rt-rgroup.pic.on { border-color: #3a9d5d; } .rt-rgroup.elec.on { border-color: #c08a12; } .rt-rgroup.rf.on { border-color: var(--jek-amber); }
-  .rt-rall { margin-top: 2px; font: 300 1.5rem/1 var(--jek-sans); color: var(--rt-over-ink); border-color: var(--rt-over-line); }
   .rt-flyout { position: absolute; left: 0; z-index: 6; width: min(19rem, calc(100% - 1rem)); max-height: calc(100% - var(--rt-top) - 1rem); overflow-y: auto; box-sizing: border-box; padding: 0 0.55rem 0.55rem;
     background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
   .rt-flyout[hidden] { display: none; }

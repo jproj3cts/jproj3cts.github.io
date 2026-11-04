@@ -1138,7 +1138,12 @@
   /* one bar: the logo, the menu bar (File, Edit, View, Tools, Sweeps, Help), the one-click icons (undo, redo,
      fit, measure, search), the bench's name in the middle; + Add part, Share, Save, Examples, the cart and the
      account at its right */
-  .rt-app .rt-toolbar { padding: 0.45rem 0.75rem; gap: 0; }
+  .rt-app .rt-toolbar { padding: 0.2rem 0.75rem; gap: 0; }
+  /* (a thin bar: its buttons a size smaller than the panels') */
+  .rt-app .rt-toolbar .rt-btn { padding-top: 0.22rem; padding-bottom: 0.22rem; }
+  .rt-app .rt-toolbar .rt-btn.rt-tbi { min-width: 1.9rem; height: 1.8rem; padding: 0; }
+  .rt-app .rt-toolbar .rt-menubar .rt-btn.rt-mbar { padding: 0.25rem 0.55rem; }
+  .rt-app .rt-toolbar .rt-name { padding-top: 0.2rem; padding-bottom: 0.2rem; }
   .rt-bar { flex-wrap: wrap; gap: 0.4rem 0.5rem; }
   .rt-file { display: flex; align-items: center; gap: 0.1rem; }
   .rt-file .rt-name { flex: 0 1 15rem; width: 15rem; }
@@ -1356,7 +1361,6 @@
   .rt-pkeeprow .rt-btn { color: var(--rt-on-strong); background: var(--rt-strong); border-color: var(--rt-strong); font-size: 0.8rem; }
   .rt-pkeeprow .rt-btn.rt-pzmx { color: var(--jek-ink); background: var(--rt-surface); border-color: var(--jek-line-2); }
   .rt-pkeeprow .rt-btn:disabled { color: var(--jek-ink-soft); background: none; border-color: var(--jek-line-2); cursor: default; }
-  .rt-rgroup.rt-rall.rt-rmine { font-size: 1.1rem; color: #e0a91c; }
   .rt-pfoot { margin: 0; padding: 0.45rem 0.7rem 0.55rem; border-top: 1px solid var(--jek-line); font-size: 0.75rem; color: var(--jek-ink-soft); }
   /* the parts rail, down the bench's left edge below its tabs */
   .rt-rail { position: absolute; left: 0; top: 0; z-index: 4; height: 52px; max-width: calc(100% - 2rem); box-sizing: border-box; padding: 4px 5px; display: flex; flex-direction: row; align-items: center; gap: 4px;
@@ -1367,11 +1371,10 @@
   .rt-rail .rt-radd { flex-direction: row; width: auto; height: 32px; padding: 0 10px 0 8px; gap: 4px; font-size: 0.72rem; margin-right: 2px; }
   .rt-rail .rt-rswitch { flex-direction: row; width: auto; min-height: 32px; height: 32px; padding: 0 17px 0 7px; gap: 5px; font-size: 0.72rem; margin-right: 4px; }
   .rt-rail .rt-rswitch::after { right: 6px; bottom: auto; top: calc(50% - 1px); }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 32px; height: 32px; padding: 2px; }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 26px; height: 26px; }
+  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 30px; height: 30px; padding: 2px; }
+  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 24px; height: 24px; }
   .rt-rail .rt-rgroup.rt-rtool:not(.rt-rmfeat) svg { width: 20px; height: 20px; }
-  .rt-rail .rt-rgroup.rt-rall { font-size: 1rem; }
-  .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 4px; background: var(--rt-over-line); }
+  .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 3px; background: var(--rt-over-line); }
   .rt-rail[hidden] { display: none; }
   /* Add part, the rail's topmost button: the strong (black) one, as the main action */
   .rt-radd { flex: none; width: 44px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
@@ -1452,7 +1455,6 @@
   .rt-rgroup:hover, .rt-rgroup.on, .rt-rgroup:focus-visible { outline: none; border-color: var(--rt-over-mute); }
   .rt-rgroup.free.on { border-color: var(--jek-orange); } .rt-rgroup.fibre.on { border-color: var(--jek-red); }
   .rt-rgroup.pic.on { border-color: #3a9d5d; } .rt-rgroup.elec.on { border-color: #c08a12; } .rt-rgroup.rf.on { border-color: var(--jek-amber); }
-  .rt-rall { margin-top: 2px; font: 300 1.5rem/1 var(--jek-sans); color: var(--rt-over-ink); border-color: var(--rt-over-line); }
   .rt-flyout { position: absolute; left: 0; z-index: 6; width: min(19rem, calc(100% - 1rem)); max-height: calc(100% - var(--rt-top) - 1rem); overflow-y: auto; box-sizing: border-box; padding: 0 0.55rem 0.55rem;
     background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 2px; box-shadow: 0 10px 28px rgba(0,0,0,0.3); }
   .rt-flyout[hidden] { display: none; }
@@ -2064,7 +2066,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
-            <button type="button" role="menuitemcheckbox" id="btnNames3d" aria-checked="true" data-icon="check" hidden title="The parts' names over them in the 3D view">Names in 3D</button>
+            <button type="button" role="menuitemcheckbox" id="btnNames3d" aria-checked="false" data-icon="check" hidden title="The parts' names over them in the 3D view">Names in 3D</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
@@ -11136,6 +11138,10 @@ function lensKind(el) {
 const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
   'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
+/* fibre components, circuit parts and chips: in the 3D view on the table, the fibres, wires and waveguides between
+   them laid as tubes (ui/view3d.js); the light of free space does not meet them */
+const NET_3D = new Set(['fcomp', 'elec', 'pic']);
+
 function loadProject(data) {
   hooks.view3dReset();        // another project: back to 2D, its views forgotten
   setLoadGen(loadGen + 1);
@@ -15183,7 +15189,10 @@ function requestRender() {
    out as they do on the dark. Exports (PNG, SVG, PDF) come out in the theme they were made in. */
 const BENCH_DEFAULT = '#1f2529', BENCH_PAPER = '#f3eee5';
 const THEME_KEY = 'jekray-theme';
-let themePref = (() => { try { const v = localStorage.getItem(THEME_KEY); return v === 'dark' || v === 'system' ? v : 'light'; } catch (err) { return 'light'; } })();
+// Dark to start with (the tests keep Light, the page they check was made in it); Light or the computer's way once chosen
+const THEME_START = TEST_MODE ? 'light' : 'dark';
+const themeOk = v => (v === 'dark' || v === 'light' || v === 'system' ? v : THEME_START);
+let themePref = (() => { try { return themeOk(localStorage.getItem(THEME_KEY)); } catch (err) { return THEME_START; } })();
 const sysDark = () => { try { return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches; } catch (err) { return false; } };
 const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDark());
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
@@ -15199,8 +15208,8 @@ const inkA = a => themeDark() ? 'rgba(231,227,219,' + a + ')' : 'rgba(0,0,0,' + 
 const plotPaper = () => themeDark() ? '#242a2e' : '#fff';
 const greyInk = c => !themeDark() ? c : ({ '#222': '#e7e3db', '#555': '#a29d95', '#888': '#77736d' })[c] || c;
 function setTheme(v) {
-  themePref = v === 'dark' || v === 'system' ? v : 'light';
-  try { if (themePref === 'light') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
+  themePref = themeOk(v);
+  try { if (themePref === THEME_START) localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* not kept: fine */ }
   themeShown();
 }
 // the page in the theme: its colours (style.css, under [data-rt-theme]), the menu's tick, the bench and the 3D view drawn again
@@ -15309,6 +15318,20 @@ function benchStyleShown() {
   document.getElementById('btnHoles').setAttribute('aria-checked', benchHoles() ? 'true' : 'false');
   const nf = document.getElementById('btnNamesFixed'); if (nf) nf.setAttribute('aria-checked', project && project.labelFixed ? 'true' : 'false');
   stage.style.background = benchBg();
+}
+/* a part's symbol as the bench draws it, in its own frame (x along it, y across, mm), on a canvas hx by hy mm either
+   side of its centre at ppm pixels a millimetre: the top of a fibre component's, a circuit part's or a chip's body in
+   the 3D view. Drawn as another part (its id changed), so a selection's outline is not in it */
+function symbolCanvas(el, hx, hy, ppm) {
+  const w = Math.max(8, Math.min(1024, Math.round(2 * hx * ppm))), hh = Math.max(8, Math.min(1024, Math.round(2 * hy * ppm)));
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+  const c = cv.getContext('2d'); c.fillStyle = benchBg(); c.fillRect(0, 0, w, hh);
+  const keep = { ctx, W, H, DPR, view: project.view };
+  try {
+    ctx = c; W = w; H = hh; DPR = 1; project.view = { cx: 0, cy: 0, scale: Math.min(w / (2 * hx), hh / (2 * hy)) };
+    asOnBench(() => draw(Object.assign({}, el, { id: el.id + '~3d', x: 0, y: 0, angle: 0 })));
+  } catch (err) { /* a symbol that cannot be drawn alone: the body plain */ } finally { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; project.view = keep.view; }
+  return cv;
 }
 // a part drawn off the bench (its symbol in the rail or the picker), in the ink the bench draws it in
 function asOnBench(fn) {
@@ -21946,7 +21969,7 @@ const V3D = (() => {
   let D = null, R = null;                                 // the page's parts, and the renderer's
   const st = new Map();                                   // per tab: { on, cam: { p, t } }
   let ctrl = (() => { try { return localStorage.getItem('jek-3d-mouse') === 'trackpad' ? 'trackpad' : 'default'; } catch (e) { return 'default'; } })();
-  let names = true;
+  let names = false;                                    // (the parts' names over them: View › Names in 3D)
   // a tool of the view's own (the Model tools, ui/model3d.js): it sees the canvas's presses and the keys first, and takes
   // those it wants (the left button, as a rule: turning and panning stay the view's); and what it adds to the bar
   let tool = null;
@@ -21954,7 +21977,10 @@ const V3D = (() => {
   const lockView = () => !!(tool && tool.lockView && tool.lockView()), noParts = () => !!(tool && tool.noParts && tool.noParts());
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
-  const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type));
+  const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type) && !NET_3D.has(e.type));
+  const shown3 = e => (FREE_3D.has(e.type) || NET_3D.has(e.type)) && e.type !== 'draw';
+  // where a part sits: free space at its height (the beam's, as a rule), a network's parts on the table
+  const z3 = el => NET_3D.has(el.type) ? 0 : zOf(el);
   const eligible = () => true;
   const tabState = () => st.get(project.tab) || null;
   // (a feature of the tool proper: always there for a tab it can show)
@@ -22092,7 +22118,7 @@ const V3D = (() => {
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005;
     const hemi = new T.HemisphereLight(0xffffff, 0x404850, 0.5);
     scene.add(sun, sun.target, hemi);
-    const groups = { board: new T.Group(), parts: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
+    const groups = { board: new T.Group(), parts: new T.Group(), wires: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
     for (const g of Object.values(groups)) scene.add(g);
     // a beam that is never rebuilt, too small to see, for each way beams are blended: it keeps the
     // shader every beam shares (cut by two planes, see segClip3) compiled while the beams are
@@ -22170,6 +22196,8 @@ const V3D = (() => {
   /* ---------- keeping up with the bench ---------- */
   function sync() {
     init();
+    // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
+    if (D && !st.has(project.tab) && !TEST_MODE && !EMBED) { st.set(project.tab, { on: false }); setOn(true); return; }
     const s = tabState();
     show();
     if (!active() || !R) return;
@@ -22281,6 +22309,62 @@ const V3D = (() => {
   }
   // (a freeform mirror's terms too, z up and y across; a freeform lens is drawn round, as its profile in the plane)
   const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0) + (s.FL ? ffSag(s.FL, z, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0);
+  /* A fibre component, a circuit part or a chip, on the table: a box as big as its symbol on the bench (out to its
+     ports), its symbol on its top; a ferrule out of each fibre port, a pin out of each electrical one. A node of a
+     circuit is a post; a chip is thin, on a carrier */
+  const NET_H = { fcomp: 10, elec: 14, pic: 3 };
+  function netBox(el) {
+    const P = portsOf(el), hs = halfSize(el);
+    const hx = Math.max(3, ...P.map(q => Math.abs(q.x)), el.type === 'elec' ? hs - 1 : 0), hy = Math.max(2.5, hs - 1, ...P.map(q => Math.abs(q.y)));
+    return { P, hx, hy, h: NET_H[el.type] || 10 };
+  }
+  function netPart(el, g) {
+    const add = (...o) => { for (const x of o) g.add(x); };
+    if (el.type === 'elec' && el.kind === 'node') { add(mesh(new T.CylinderGeometry(1.2, 1.2, 6, 16).rotateX(Math.PI / 2).translate(0, 0, 3), mat.metal(0xd8a650, 0.3))); return g; }
+    const { P, hx, hy, h } = netBox(el), nOpt = el.type === 'elec' ? 0 : portsOfOptic(el).length;
+    const side = el.type === 'pic' ? 0x2f3d33 : el.type === 'elec' ? 0x3a3a32 : 0x3a2f36, z0 = el.type === 'pic' ? 1.5 : 0;
+    if (el.type === 'pic') add(mesh(boxG(-hx - 1, hx + 1, -hy - 1, hy + 1, 0, z0), mat.body(0x8a7a5a)));
+    const body = mesh(boxG(-hx, hx, -hy, hy, z0, h), mat.body(side)); body.receiveShadow = false; add(body);     // (its own sides unshaded by it: no stripes)
+    const tex = new T.CanvasTexture(symbolCanvas(el, hx, hy, 14)); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
+    const top = new T.Mesh(new T.PlaneGeometry(2 * hx, 2 * hy).translate(0, 0, h + 0.02), new T.MeshStandardMaterial({ map: tex, color: 0xc8c8c8, roughness: 0.85, metalness: 0 }));
+    top.receiveShadow = true; top.userData.texs = [tex]; add(top);
+    P.forEach((q, i) => {
+      const len = i < nOpt ? 4 : 3, r = i < nOpt ? 1.1 : 0.45, a = Math.atan2(q.dy || 0, q.dx || 0);
+      const c = new T.CylinderGeometry(r, r, len, 14); c.rotateZ(-Math.PI / 2); c.translate(len / 2, 0, 0); c.rotateZ(a); c.translate(q.x, q.y, (z0 + h) / 2);
+      add(mesh(c, i < nOpt ? mat.metal(0xcfd8dc, 0.3) : mat.metal(0xd8a650, 0.3)));
+    });
+    return g;
+  }
+  /* where a fibre, wire or waveguide leaves a part, in 3D: at the part's height (a network's part's, half way up its body) */
+  function portZ(el) { if (!NET_3D.has(el.type)) return zOf(el); const B = netBox(el); return el.type === 'pic' ? (1.5 + B.h) / 2 : B.h / 2; }
+  /* the fibres, wires and waveguides of this tab, as tubes along their routes on the bench; between two ends they
+     lie on the table (a waveguide stays at its chips' height), rising to each port; a fibre carrying light glows its colour */
+  function wires(G) {
+    disposeAll(G);
+    const on = new Set(project.elements.filter(e => e.bench === project.tab && shown3(e) && !e.hide3d).map(e => e.id));
+    const list = (project.fibres || []).filter(F => on.has(F.a[0]) && on.has(F.b[0]));
+    const lights = list.map(F => F.wire || F.wg ? { mw: 0 } : fibreLight(F)), topMw = Math.max(1e-30, ...lights.map(l => l.mw));
+    list.forEach((F, i) => {
+      let segs = null; try { segs = fibreSegs(F); } catch (e) { segs = null; }
+      if (!segs || !segs.length) return;
+      const xy = [];
+      for (const [p0, c1, c2, p3] of segs) for (let k = xy.length ? 1 : 0; k <= 16; k++) {
+        const t = k / 16, u = 1 - t, b = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+        xy.push([b[0] * p0[0] + b[1] * c1[0] + b[2] * c2[0] + b[3] * p3[0], b[0] * p0[1] + b[1] * c1[1] + b[2] * c2[1] + b[3] * p3[1]]);
+      }
+      const sAt = [0]; for (let k = 1; k < xy.length; k++) sAt.push(sAt[k - 1] + Math.hypot(xy[k][0] - xy[k - 1][0], xy[k][1] - xy[k - 1][1]));
+      const S = sAt[sAt.length - 1]; if (!(S > 0.05)) return;
+      const zA = portZ(getEl(F.a[0])), zB = portZ(getEl(F.b[0])), r = F.wg ? 0.45 : F.wire ? 0.6 : 1.1;
+      const zT = F.wg ? Math.min(zA, zB) : r + 0.05;
+      const fall = (d, dz) => { const L = Math.min(S / 2, Math.max(15, dz * 0.8)); return d >= L ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L)); };
+      const pts = xy.map(([x, y], k) => new T.Vector3(x, y, zT + (zA - zT) * fall(sAt[k], zA - zT) + (zB - zT) * fall(S - sAt[k], zB - zT)));
+      const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw;
+      const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
+        emissive: lit ? col(L.colour) : col(0x000000), emissiveIntensity: lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
+      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(400, Math.max(8, Math.round(S / 2))), r, 10, false), m);
+      o.userData.fibre = F.id; G.add(o);
+    });
+  }
   /* one part, in its own frame: x along its axis (where it points), y across in the bench
      plane, z up. Returns a group, or null for a part with nothing to show */
   function part(el) {
@@ -22303,6 +22387,7 @@ const V3D = (() => {
       add(mesh(disc(Math.min(0.3, 0.1 * H.rg), H.rg * 0.95, -H.Lf), mat.glow(el.type === 'source' ? el.colour : '#3f9a63')));
       return g;
     }
+    if (NET_3D.has(el.type)) return netPart(el, g);
     switch (el.type) {
       case 'lens': {
         const ss = lensSurfaces(el), stacks = lensStacks(ss);
@@ -22590,7 +22675,7 @@ const V3D = (() => {
     // the parts and their names are taken down but kept: one whose model is unchanged goes back up
     for (const g of [G.parts, G.names]) for (const o of [...g.children]) g.remove(o);
     const parts = R.partCache || (R.partCache = new Map()), labels = R.labelCache || (R.labelCache = new Map()), used = new Set(), usedL = new Set();
-    const els = project.elements.filter(e => e.bench === project.tab && FREE_3D.has(e.type) && e.type !== 'draw' && !e.hide3d), box = new T.Box3();
+    const els = project.elements.filter(e => e.bench === project.tab && shown3(e) && !e.hide3d), box = new T.Box3();
     for (const el of els) {
       const k0 = shapeKey(el), k = k0 === null ? null : k0 + '|' + benchLight(), c = parts.get(el.id);   // a part made again in the other theme
       let p = null;
@@ -22602,7 +22687,7 @@ const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, zOf(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
@@ -22613,11 +22698,12 @@ const V3D = (() => {
         usedL.add(lk);
         p.updateMatrixWorld(true);
         const b = new T.Box3().setFromObject(p);
-        sp.position.set(el.x, el.y, (isFinite(b.max.z) ? b.max.z : zOf(el) + 10) + 4); sp.userData.id = el.id;
+        sp.position.set(el.x, el.y, (isFinite(b.max.z) ? b.max.z : z3(el) + 10) + 4); sp.userData.id = el.id;
         G.names.add(sp);
       }
     }
     for (const [id, c] of parts) if (!used.has(id)) { disposeObj(c.obj); parts.delete(id); }
+    wires(G.wires);
     for (const [lk, sp] of labels) if (!usedL.has(lk)) { disposeObj(sp); sp.material.map && sp.material.map.dispose(); labels.delete(lk); }
     G.parts.updateMatrixWorld(true);
     if (G.parts.children.length) box.setFromObject(G.parts);
@@ -22994,7 +23080,7 @@ const V3D = (() => {
     if (!one || gz.id !== one.id) gz = { id: one ? one.id : null, mode: 'move' };
     if (P && !one.locked) {
       const b = new T.Box3().setFromObject(P), rr = Math.max(10, Math.hypot(b.max.x - b.min.x, b.max.y - b.min.y) / 2 + 6);
-      const c = new T.Vector3(one.x, one.y, zOf(one)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
+      const c = new T.Vector3(one.x, one.y, z3(one)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
       const ORANGE = 0xf47742, GREEN = 0x3a9d5d, BLUE = 0x0092b2;
       // drawn over the parts, so a handle behind a part still shows and can be taken hold of
       const mat = (color, op) => new T.MeshBasicMaterial({ color, transparent: true, opacity: op || 1, depthTest: false, depthWrite: false });
@@ -23018,7 +23104,7 @@ const V3D = (() => {
         };
         R.moveX = arrow(new T.Vector3(1, 0, 0), ORANGE);
         R.moveY = arrow(new T.Vector3(0, 1, 0), GREEN);
-        R.lift = arrow(new T.Vector3(0, 0, 1), BLUE);
+        R.lift = NET_3D.has(one.type) ? null : arrow(new T.Vector3(0, 0, 1), BLUE);                // (a network's part stays on the table)
       } else {
         // the rings: one size, square to each other, so they cross where the axes meet the sphere
         const ring = (n, u, v, color, ang, off) => {
@@ -23237,7 +23323,7 @@ const V3D = (() => {
         const hk = handleAt(e);
         if (hk === 'lift' || hk === 'x' || hk === 'y') {
           // an arrow: along its picture on the screen, 10 mm of it
-          const G = hk === 'lift' ? R.lift : hk === 'x' ? R.moveX : R.moveY, el = getEl(G.el.id) || G.el, o = new T.Vector3(el.x, el.y, zOf(el));
+          const G = hk === 'lift' ? R.lift : hk === 'x' ? R.moveX : R.moveY, el = getEl(G.el.id) || G.el, o = new T.Vector3(el.x, el.y, z3(el));
           const a = o.clone().project(R.camera), b = o.clone().addScaledVector(G.dir, 10).project(R.camera);
           const vx = (b.x - a.x) / 2 * R.w, vy = -(b.y - a.y) / 2 * R.h, L2 = vx * vx + vy * vy;
           drag = { mode: hk === 'lift' ? 'lift' : 'axis', key: hk, el, v0: hk === 'lift' ? zOf(el) : el[hk], x: e.clientX, y: e.clientY, vx, vy, L2, moved: 0, started: false };
@@ -23249,7 +23335,7 @@ const V3D = (() => {
           return;
         }
         const el = !(e.shiftKey && ctrl === 'trackpad') && partAt(e);       // Shift-drag pans, on a trackpad
-        if (el) { drag = { mode: 'grab', el, p0: plane(e, zOf(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
+        if (el) { drag = { mode: 'grab', el, p0: plane(e, z3(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
       }
       let mode;
       if (touch) mode = 'orbit';
@@ -23284,7 +23370,7 @@ const V3D = (() => {
           drag.x0 = el.x; drag.y0 = el.y; drag.starts = drag.group.map(g => [g.x, g.y]);
           cv.style.cursor = 'grabbing';
         }
-        const p = plane(e, zOf(drag.el));
+        const p = plane(e, z3(drag.el));
         if (!p) return;
         // the grabbed part snaps, as on the bench; the rest keep their places against it
         const nx = snapVal(drag.x0 + p[0] - drag.p0[0], e), ny = snapVal(drag.y0 + p[1] - drag.p0[1], e), mx = nx - drag.x0, my = ny - drag.y0;
@@ -23572,7 +23658,7 @@ const V3D = (() => {
     kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, setFlat, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
-    free: el => FREE_3D.has(el.type) && el.type !== 'draw',
+    free: el => shown3(el),
     // for the tests: what the view holds
     api: {
       eligible: () => eligible(project.tab),
@@ -23588,7 +23674,7 @@ const V3D = (() => {
         let meshes = 0; R.groups.parts.traverse(o => { if (o.isMesh) meshes++; });
         const b = contentBox();
         const progs = (R.gl.info && R.gl.info.programs) || [];
-        return { programs: progs.reduce((m, q) => Math.max(m, q.id || 0), 0), parts: R.groups.parts.children.length, kinds, meshes, rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
+        return { programs: progs.reduce((m, q) => Math.max(m, q.id || 0), 0), parts: R.groups.parts.children.length, kinds, meshes, wires: R.groups.wires.children.length, wireKinds: R.groups.wires.children.map(o => { const F = (project.fibres || []).find(f => f.id === o.userData.fibre); return F ? (F.wg ? 'wg' : F.wire ? 'wire' : 'fibre') : '?'; }), rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
           box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
       },
       camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray(), up: new T.Vector3(0, 1, 0).applyQuaternion(R.camera.quaternion).toArray() } : null,
@@ -23647,7 +23733,9 @@ const V3D = (() => {
       flyTurn(dx, dy) { if (fly) flyTurn(dx, dy); },
       menuShown() { const m = document.getElementById('ctxMenu'); return m && !m.hidden ? [...m.querySelectorAll('button')].map(x => x.textContent) : null; },
       // where on the canvas a part's centre is drawn, css px
-      screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, zOf(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
+      // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
+      netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
+      screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };
 })();
@@ -29483,9 +29571,9 @@ function dragPinned(e, title, box, id) {
 }
 /* The main panel shows the selection, unless that is already pinned; pinned panels follow
    it to the right, newest first */
-// the main panel closed with its ×; the tool opens with it closed, the bench across the page
-// (the tests open it, as their checks read it)
-let panelClosed = !TEST_MODE;
+// the main panel closed with its ×; the tool opens with it open on the Bench panel (its settings, its parts), but on a
+// phone, where it would be a sheet over the bench
+let panelClosed = !TEST_MODE && typeof matchMedia === 'function' && matchMedia('(max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse)').matches;
 /* a phone: the panel is a sheet over the bottom of the bench (style.css), short unless made tall */
 let sheetTall = false, sheetFor = null;
 const phoneSheet = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse)').matches;
@@ -36676,12 +36764,14 @@ function renderOverview() {
     c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); renderPanel(); });
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
-  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'),
-    tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
-    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'));
-  // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
-  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-    selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
+  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
+  // how the rays look (for figures and recordings), folded: open to start with when any of it is set
+  const look = h('div', null, tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
+    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'),
+    // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
+    h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
+      selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
+  panel.append(moreFold('bench-look', 'How the rays look: brightness, trails, glow, width', !!(L.byPower || L.trail || L.glow || L.rayWidth), look));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
@@ -52577,13 +52667,8 @@ function fillRail() {
       b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem('jek-raytracer-palette', pal); } catch (err) { /* fine */ } } flyShown(b, g); });
       return b;
     })]).filter(Boolean);
-  // My parts, for the signed in
-  let star = null;
-  if (mineOn()) {
-    star = h('button', { type: 'button', class: 'rt-rgroup rt-rall rt-rmine', title: 'My parts: the parts you have kept', 'aria-label': 'My parts' }, '★');
-    star.addEventListener('click', e => { e.stopPropagation(); const open = flyFor !== star; flyShown(star, { mine: true }); if (open && MINE.list === null) loadMine().then(() => { if (flyFor === star) { flyFor = null; flyShown(star, { mine: true }); } }); });
-  }
-  rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
+  // (My parts are a tab of + Add's, not a button of the bar's)
+  rail.replaceChildren(addBtn, pals, ...groups);
   drawToolsShown();
   railHeight();
 }
@@ -55792,6 +55877,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A calmer start</b>: the look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
+    '<b>Fibres and circuits in 3D</b>: fibre components, circuit parts and chips stand on the table in the 3D view, each a box with its symbol on its top, ferrules and pins at its ports, and their fibres, wires and waveguides laid along their routes, rising to each port (a fibre glows the colour of its light). No tab stays in 2D now. The parts\u2019 names in 3D are off to start with (View \u203a Names in 3D).',
     '<b>More room on the bench</b>: the parts rail is a bar across the top, every palette\u2019s groups along it as small icons (free space, fibre, circuits and RF at once), its switcher now changing the mode: Parts, Draw (2D) or Model (3D); the bench\u2019s tabs sit at the bottom left and the 2D / 3D switch at the bottom right. The Bench panel lists each bench\u2019s parts on a tab of its own. The 3D view\u2019s Fly, mouse and picture buttons are icons in the bar beside Fit, Measure and Search, and its names are under View. Free space\u2019s mirrors and lenses are two groups, and <b>+ Add</b> keeps the parts added lately in a <b>Recent</b> tab of their own.',
     '<b>Modelling in 3D</b>: <b>Model</b> (in 3D, from the parts bar\u2019s switcher) makes parts as a CAD program does. Click a flat face (a part\u2019s, the table, or empty space for the beam\u2019s plane) and sketch on it: lines, arcs (3-point, centre, tangent), rectangles, circles, slots, polygons, points and holes of the usual screw sizes. The sketch is <b>parametric</b>: snaps make constraints (coincident, on a curve, midpoint, horizontal, vertical), more are a click away (parallel, perpendicular, tangent, equal, concentric, fix, symmetric), <b>dimensions</b> size it and are changed later with a double-click (or in the part\u2019s panel), shapes turn black once fully defined, and drags keep the constraints; trim and fillet too. Points snap to where the light crosses the plane and the table\u2019s holes. The features (Sketch, Extrude, Revolve) are on the rail, the tools of the one in hand in a bar under it; sketching, the view stays square on (it moves and zooms, it does not turn), and the bench\u2019s parts are left alone while you model. Then extrude or revolve <b>the regions you click</b>, into a part of its own or added to a modelled part or cut from one. The part is a beam block that keeps how it was made; <b>Export .stl</b> to make it.',
     '<b>A tidier Position section</b>: a part\u2019s place is two rows of three, X, Y, Z and Angle, Tip, Roll, each with its name over it and room for the whole number; its angle is called Angle on every part, a line under it saying what it means for that one.',
@@ -57251,7 +57338,7 @@ const TOURS = {
     { text: 'Click the screen: its plot shows the two beams interfering. Now nudge one mirror with the arrow keys, or give its position a sweep and press Play, and watch the output rise and fall.', final: true }] },
   periscope: { title: 'Build a periscope in 3D', tab: 'Tour: periscope', steps: [
     { text: 'Add a light source: <b>+ Add part</b> (or A), then <b>Source</b>. It sends its beam to the right, 75 mm above the breadboard.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
-    { text: 'Click <b>3D</b> at the bench\u2019s top right to see the bench in three dimensions. Right-drag to turn the view, scroll to zoom.', done: () => V3D.active() },
+    { text: 'Click <b>3D</b> at the bench\u2019s bottom right to see the bench in three dimensions (a bench opens in 3D; 2D, beside it, is the view from above). Right-drag to turn the view, scroll to zoom.', done: () => V3D.active() },
     { text: 'Add a <b>Mirror</b>. It lands in the beam, facing the source.', target: 'mirror', done: () => tourEls('mirror').some(tourLit), before: () => tourSet('mirror', 90, 0, { angle: 180 }) },
     { text: 'Click the mirror, then click it again: its arrows give way to three rings. Drag the <b>green</b> ring up to tip the mirror 45\u00b0 (hold Shift for 15\u00b0 steps), or type 45 in its <b>Tip</b>. The beam now goes straight up.', done: () => tourEls('mirror').some(e => Math.abs((e.tip || 0) - 45) < 0.5) },
     { text: 'Add a second <b>Mirror</b>. It goes straight over the first, 100 mm higher, where the beam meets it (its <b>blue arrow</b> raises and lowers it, or type its <b>z</b>).', target: 'mirror', done: () => tourEls('mirror').length >= 2, before: () => tourSet('mirror', 90, 0, { angle: 0, z: BEAM_Z + 100 }) },
@@ -59087,13 +59174,20 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
   } catch (err) { setProject(null); }
+  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
+  // a share link opened with nothing kept here: an empty bench while the link's own is fetched, not the example first
+  const blankFirst = !project && !!(shared || short);
   if (!project) demoProject();
+  if (blankFirst) { project.elements = []; project.name = 'Opening the shared bench\u2026'; }
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   if (EMBED) embedMode();
-  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
-  if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
+  if (shared || short) {
+    if (!EMBED) window.history.replaceState(null, '', location.pathname);
+    // (the link could not be opened: the example after all, rather than an empty bench)
+    Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !project.elements.length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
+  }
   // from an Instagram post: the reels' benches, in place of the welcome note
   else if (exArr) {
     if (/[?&]ex=/.test(location.search)) { const u = new URL(location.href); u.searchParams.delete('ex'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }

@@ -364,6 +364,10 @@ export function lensKind(el) {
 export const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
   'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
+/* fibre components, circuit parts and chips: in the 3D view on the table, the fibres, wires and waveguides between
+   them laid as tubes (ui/view3d.js); the light of free space does not meet them */
+export const NET_3D = new Set(['fcomp', 'elec', 'pic']);
+
 export function loadProject(data) {
   hooks.view3dReset();        // another project: back to 2D, its views forgotten
   setLoadGen(loadGen + 1);

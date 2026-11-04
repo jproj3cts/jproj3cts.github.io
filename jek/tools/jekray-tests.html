@@ -6956,27 +6956,28 @@ const TESTS = [
   },
   {
     name: 'A tab of free-space parts opens in 3D, each part a model, the light drawn',
-    why: 'the Michelson example in 3D: its six parts each made (a source, a cube, two mirrors, two screens), rays as lines and its Gaussian beams as tubes, a name over each, and a breadboard under them all; then back to 2D (1 when all hold)',
+    why: 'the Michelson example in 3D: its six parts each made (a source, a cube, two mirrors, two screens), rays as lines and its Gaussian beams as tubes, no names to start with and a name over each with View › Names in 3D, and a breadboard under them all; then back to 2D (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
       try {
         J.experimental(true); await J.view3d.set(true);
-        const s = J.view3d.stats();
-        const k = s && s.kinds, ok = s && s.parts === 6 && k.source === 1 && k.cube === 1 && k.mirror === 2 && k.screen === 2 && s.rays > 0 && s.beams > 0 && s.names === 6
+        const s = J.view3d.stats(), D = rigDoc(), unnamed = s && s.names === 0;
+        D.getElementById('btnNames3d').click(); const named = J.view3d.stats().names; D.getElementById('btnNames3d').click();
+        const k = s && s.kinds, ok = s && s.parts === 6 && k.source === 1 && k.cube === 1 && k.mirror === 2 && k.screen === 2 && s.rays > 0 && s.beams > 0 && unnamed && named === 6
           && s.board.min[0] < s.box.min[0] && s.board.min[1] < s.box.min[1] && s.board.max[0] > s.box.max[0] && s.board.max[1] > s.box.max[1] && s.board.max[2] === 0;
         return ok ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
   {
-    name: 'and a tab with fibre, electronic or chip parts opens in 3D too, those parts left out',
-    why: 'the fibre Michelson (fibre parts on its tab): the 3D view opens, and only its free-space parts are drawn (1 when it does)',
+    name: 'and a tab with fibre, electronic or chip parts opens in 3D too, every part drawn',
+    why: 'the fibre Michelson (fibre parts on its tab): the 3D view opens, no part is left in 2D, and every part on the tab is drawn (1 when it does)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('fibre-michelson')));
       const bl = J.view3d.blockers(), free = J.project().elements.filter(e => e.bench === J.project().tab && !bl.includes(e.name) && e.type !== 'draw').length;
-      try { await J.view3d.set(true); const st = J.view3d.stats(); return J.view3d.on() && bl.length > 0 && st && st.parts === free ? 1 : 0; }
+      try { await J.view3d.set(true); const st = J.view3d.stats(); return J.view3d.on() && bl.length === 0 && st && st.parts === free ? 1 : 0; }
       finally { await J.view3d.set(false); }
     },
   },
@@ -7093,6 +7094,25 @@ const TESTS = [
         V.undo();
         const s2 = V.stats();
         return eye.classList.contains('off') && s1.parts === s0.parts - 1 && n1 === n0 && s1.rays === s0.rays && s1.beams === s0.beams && saved && s2.parts === s0.parts ? 1 : 0;
+      } finally { await V.set(false); }
+    },
+  },
+  {
+    name: 'Fibre components and circuit parts stand on the table in 3D, their fibres and wires laid between them',
+    why: 'the fibre Michelson in 3D: every fibre component is drawn (no part left in 2D), each fibre a tube; its top shows its symbol; the lock-in bench: its circuit parts and their wires too, a wire rising to a detector at the beam height (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const V = J.view3d;
+      try {
+        J.load(JSON.parse(getDemo('fibre-michelson'))); await V.set(true);
+        const s = V.stats(), els = J.serialize().elements, nf = els.filter(e => e.type === 'fcomp').length, F = J.serialize().fibres || [];
+        const fc = els.find(e => e.type === 'fcomp'), body = V.netBody(fc.name);
+        const ok1 = s.kinds.fcomp === nf && s.wires === F.length && s.wireKinds.every(k => k === 'fibre') && body && body.h > 0 && /^data:image\/png/.test(body.top) && body.top.length > 500 && V.blockers().length === 0;
+        J.load(JSON.parse(getDemo('lockin-absorption'))); await V.set(true);
+        const s2 = V.stats(), ne = J.serialize().elements.filter(e => e.type === 'elec').length;
+        const ok2 = s2.kinds.elec === ne && s2.wireKinds.filter(k => k === 'wire').length > 0;
+        if (!(ok1 && ok2)) console.log('networks in 3D', JSON.stringify({ s, nf, F: F.length, body: body && { hx: body.hx, hy: body.hy, h: body.h }, s2, ne, bl: V.blockers() }));
+        return ok1 && ok2 ? 1 : 0;
       } finally { await V.set(false); }
     },
   },

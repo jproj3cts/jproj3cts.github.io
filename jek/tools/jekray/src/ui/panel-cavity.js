@@ -1,3 +1,4 @@
+import { moreFold } from './parts/lens.js';
 import { TEST_MODE, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen, fmtW } from '../core/format.js';
 import { cavLine } from '../core/beams-hom.js';
@@ -310,12 +311,14 @@ export function renderOverview() {
     c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); renderPanel(); });
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
-  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'),
-    tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
-    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'));
-  // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
-  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-    selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
+  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
+  // how the rays look (for figures and recordings), folded: open to start with when any of it is set
+  const look = h('div', null, tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
+    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'),
+    // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
+    h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
+      selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
+  panel.append(moreFold('bench-look', 'How the rays look: brightness, trails, glow, width', !!(L.byPower || L.trail || L.glow || L.rayWidth), look));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));

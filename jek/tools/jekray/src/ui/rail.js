@@ -15,7 +15,7 @@ import {
   partGroups, partIcon, partTile
 } from './experimental.js';
 import { addBtn, fillPicker, picker, pickerShown } from './picker.js';
-import { MINE, loadMine, mineBody, mineOn, placeMine } from './myparts.js';
+import { MINE, mineBody, placeMine } from './myparts.js';
 import { placePackPart } from '../io/packs.js';
 import { scheduleSave } from '../io/autosave.js';
 
@@ -99,13 +99,8 @@ export function fillRail() {
       b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem('jek-raytracer-palette', pal); } catch (err) { /* fine */ } } flyShown(b, g); });
       return b;
     })]).filter(Boolean);
-  // My parts, for the signed in
-  let star = null;
-  if (mineOn()) {
-    star = h('button', { type: 'button', class: 'rt-rgroup rt-rall rt-rmine', title: 'My parts: the parts you have kept', 'aria-label': 'My parts' }, '★');
-    star.addEventListener('click', e => { e.stopPropagation(); const open = flyFor !== star; flyShown(star, { mine: true }); if (open && MINE.list === null) loadMine().then(() => { if (flyFor === star) { flyFor = null; flyShown(star, { mine: true }); } }); });
-  }
-  rail.replaceChildren(addBtn, pals, ...groups, ...[star].filter(Boolean));
+  // (My parts are a tab of + Add's, not a button of the bar's)
+  rail.replaceChildren(addBtn, pals, ...groups);
   drawToolsShown();
   railHeight();
 }

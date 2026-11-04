@@ -1,21 +1,24 @@
 import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
-import { BEAM_Z, clamp } from '../core/constants.js';
+import { BEAM_Z, EMBED, TEST_MODE, clamp } from '../core/constants.js';
 import { fmtIrr, fmtLine } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
 import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
 import { RF_METALS, hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
-import { FIBRE_COLOUR, FREE_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
+import { FIBRE_COLOUR, FREE_3D, NET_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
+import { portsOf, portsOfOptic } from '../engines/fibre.js';
+import { ELEC_YELLOW } from '../engines/elec.js';
+import { PIC_GREEN } from '../engines/pic.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
 import { lensSurfaces, polyVerts, rawSag, sagFn, lensStacks } from '../core/geometry.js';
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, draw, filterColour, hornShape, rayAlpha, rayDensity, rayTops,
+  benchBg, benchHoles, benchLight, draw, fibreLight, fibreSegs, filterColour, halfSize, hornShape, symbolCanvas, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selection, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
@@ -55,7 +58,7 @@ export const V3D = (() => {
   let D = null, R = null;                                 // the page's parts, and the renderer's
   const st = new Map();                                   // per tab: { on, cam: { p, t } }
   let ctrl = (() => { try { return localStorage.getItem('jek-3d-mouse') === 'trackpad' ? 'trackpad' : 'default'; } catch (e) { return 'default'; } })();
-  let names = true;
+  let names = false;                                    // (the parts' names over them: View › Names in 3D)
   // a tool of the view's own (the Model tools, ui/model3d.js): it sees the canvas's presses and the keys first, and takes
   // those it wants (the left button, as a rule: turning and panning stay the view's); and what it adds to the bar
   let tool = null;
@@ -63,7 +66,10 @@ export const V3D = (() => {
   const lockView = () => !!(tool && tool.lockView && tool.lockView()), noParts = () => !!(tool && tool.noParts && tool.noParts());
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
-  const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type));
+  const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type) && !NET_3D.has(e.type));
+  const shown3 = e => (FREE_3D.has(e.type) || NET_3D.has(e.type)) && e.type !== 'draw';
+  // where a part sits: free space at its height (the beam's, as a rule), a network's parts on the table
+  const z3 = el => NET_3D.has(el.type) ? 0 : zOf(el);
   const eligible = () => true;
   const tabState = () => st.get(project.tab) || null;
   // (a feature of the tool proper: always there for a tab it can show)
@@ -201,7 +207,7 @@ export const V3D = (() => {
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005;
     const hemi = new T.HemisphereLight(0xffffff, 0x404850, 0.5);
     scene.add(sun, sun.target, hemi);
-    const groups = { board: new T.Group(), parts: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
+    const groups = { board: new T.Group(), parts: new T.Group(), wires: new T.Group(), light: new T.Group(), names: new T.Group(), sel: new T.Group() };
     for (const g of Object.values(groups)) scene.add(g);
     // a beam that is never rebuilt, too small to see, for each way beams are blended: it keeps the
     // shader every beam shares (cut by two planes, see segClip3) compiled while the beams are
@@ -279,6 +285,8 @@ export const V3D = (() => {
   /* ---------- keeping up with the bench ---------- */
   function sync() {
     init();
+    // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
+    if (D && !st.has(project.tab) && !TEST_MODE && !EMBED) { st.set(project.tab, { on: false }); setOn(true); return; }
     const s = tabState();
     show();
     if (!active() || !R) return;
@@ -390,6 +398,62 @@ export const V3D = (() => {
   }
   // (a freeform mirror's terms too, z up and y across; a freeform lens is drawn round, as its profile in the plane)
   const sag3 = s => (y, z) => (s.z || 0) + rawSag(s, Math.hypot(y + (s.y0 || 0), z)) - (s.y0 ? s.sag0 : 0) + (s.FL ? ffSag(s.FL, z, y + (s.y0 || 0)) - (s.y0 ? ffSag(s.FL, 0, s.y0) : 0) : 0);
+  /* A fibre component, a circuit part or a chip, on the table: a box as big as its symbol on the bench (out to its
+     ports), its symbol on its top; a ferrule out of each fibre port, a pin out of each electrical one. A node of a
+     circuit is a post; a chip is thin, on a carrier */
+  const NET_H = { fcomp: 10, elec: 14, pic: 3 };
+  function netBox(el) {
+    const P = portsOf(el), hs = halfSize(el);
+    const hx = Math.max(3, ...P.map(q => Math.abs(q.x)), el.type === 'elec' ? hs - 1 : 0), hy = Math.max(2.5, hs - 1, ...P.map(q => Math.abs(q.y)));
+    return { P, hx, hy, h: NET_H[el.type] || 10 };
+  }
+  function netPart(el, g) {
+    const add = (...o) => { for (const x of o) g.add(x); };
+    if (el.type === 'elec' && el.kind === 'node') { add(mesh(new T.CylinderGeometry(1.2, 1.2, 6, 16).rotateX(Math.PI / 2).translate(0, 0, 3), mat.metal(0xd8a650, 0.3))); return g; }
+    const { P, hx, hy, h } = netBox(el), nOpt = el.type === 'elec' ? 0 : portsOfOptic(el).length;
+    const side = el.type === 'pic' ? 0x2f3d33 : el.type === 'elec' ? 0x3a3a32 : 0x3a2f36, z0 = el.type === 'pic' ? 1.5 : 0;
+    if (el.type === 'pic') add(mesh(boxG(-hx - 1, hx + 1, -hy - 1, hy + 1, 0, z0), mat.body(0x8a7a5a)));
+    const body = mesh(boxG(-hx, hx, -hy, hy, z0, h), mat.body(side)); body.receiveShadow = false; add(body);     // (its own sides unshaded by it: no stripes)
+    const tex = new T.CanvasTexture(symbolCanvas(el, hx, hy, 14)); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
+    const top = new T.Mesh(new T.PlaneGeometry(2 * hx, 2 * hy).translate(0, 0, h + 0.02), new T.MeshStandardMaterial({ map: tex, color: 0xc8c8c8, roughness: 0.85, metalness: 0 }));
+    top.receiveShadow = true; top.userData.texs = [tex]; add(top);
+    P.forEach((q, i) => {
+      const len = i < nOpt ? 4 : 3, r = i < nOpt ? 1.1 : 0.45, a = Math.atan2(q.dy || 0, q.dx || 0);
+      const c = new T.CylinderGeometry(r, r, len, 14); c.rotateZ(-Math.PI / 2); c.translate(len / 2, 0, 0); c.rotateZ(a); c.translate(q.x, q.y, (z0 + h) / 2);
+      add(mesh(c, i < nOpt ? mat.metal(0xcfd8dc, 0.3) : mat.metal(0xd8a650, 0.3)));
+    });
+    return g;
+  }
+  /* where a fibre, wire or waveguide leaves a part, in 3D: at the part's height (a network's part's, half way up its body) */
+  function portZ(el) { if (!NET_3D.has(el.type)) return zOf(el); const B = netBox(el); return el.type === 'pic' ? (1.5 + B.h) / 2 : B.h / 2; }
+  /* the fibres, wires and waveguides of this tab, as tubes along their routes on the bench; between two ends they
+     lie on the table (a waveguide stays at its chips' height), rising to each port; a fibre carrying light glows its colour */
+  function wires(G) {
+    disposeAll(G);
+    const on = new Set(project.elements.filter(e => e.bench === project.tab && shown3(e) && !e.hide3d).map(e => e.id));
+    const list = (project.fibres || []).filter(F => on.has(F.a[0]) && on.has(F.b[0]));
+    const lights = list.map(F => F.wire || F.wg ? { mw: 0 } : fibreLight(F)), topMw = Math.max(1e-30, ...lights.map(l => l.mw));
+    list.forEach((F, i) => {
+      let segs = null; try { segs = fibreSegs(F); } catch (e) { segs = null; }
+      if (!segs || !segs.length) return;
+      const xy = [];
+      for (const [p0, c1, c2, p3] of segs) for (let k = xy.length ? 1 : 0; k <= 16; k++) {
+        const t = k / 16, u = 1 - t, b = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+        xy.push([b[0] * p0[0] + b[1] * c1[0] + b[2] * c2[0] + b[3] * p3[0], b[0] * p0[1] + b[1] * c1[1] + b[2] * c2[1] + b[3] * p3[1]]);
+      }
+      const sAt = [0]; for (let k = 1; k < xy.length; k++) sAt.push(sAt[k - 1] + Math.hypot(xy[k][0] - xy[k - 1][0], xy[k][1] - xy[k - 1][1]));
+      const S = sAt[sAt.length - 1]; if (!(S > 0.05)) return;
+      const zA = portZ(getEl(F.a[0])), zB = portZ(getEl(F.b[0])), r = F.wg ? 0.45 : F.wire ? 0.6 : 1.1;
+      const zT = F.wg ? Math.min(zA, zB) : r + 0.05;
+      const fall = (d, dz) => { const L = Math.min(S / 2, Math.max(15, dz * 0.8)); return d >= L ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L)); };
+      const pts = xy.map(([x, y], k) => new T.Vector3(x, y, zT + (zA - zT) * fall(sAt[k], zA - zT) + (zB - zT) * fall(S - sAt[k], zB - zT)));
+      const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw;
+      const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
+        emissive: lit ? col(L.colour) : col(0x000000), emissiveIntensity: lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
+      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(400, Math.max(8, Math.round(S / 2))), r, 10, false), m);
+      o.userData.fibre = F.id; G.add(o);
+    });
+  }
   /* one part, in its own frame: x along its axis (where it points), y across in the bench
      plane, z up. Returns a group, or null for a part with nothing to show */
   function part(el) {
@@ -412,6 +476,7 @@ export const V3D = (() => {
       add(mesh(disc(Math.min(0.3, 0.1 * H.rg), H.rg * 0.95, -H.Lf), mat.glow(el.type === 'source' ? el.colour : '#3f9a63')));
       return g;
     }
+    if (NET_3D.has(el.type)) return netPart(el, g);
     switch (el.type) {
       case 'lens': {
         const ss = lensSurfaces(el), stacks = lensStacks(ss);
@@ -699,7 +764,7 @@ export const V3D = (() => {
     // the parts and their names are taken down but kept: one whose model is unchanged goes back up
     for (const g of [G.parts, G.names]) for (const o of [...g.children]) g.remove(o);
     const parts = R.partCache || (R.partCache = new Map()), labels = R.labelCache || (R.labelCache = new Map()), used = new Set(), usedL = new Set();
-    const els = project.elements.filter(e => e.bench === project.tab && FREE_3D.has(e.type) && e.type !== 'draw' && !e.hide3d), box = new T.Box3();
+    const els = project.elements.filter(e => e.bench === project.tab && shown3(e) && !e.hide3d), box = new T.Box3();
     for (const el of els) {
       const k0 = shapeKey(el), k = k0 === null ? null : k0 + '|' + benchLight(), c = parts.get(el.id);   // a part made again in the other theme
       let p = null;
@@ -711,7 +776,7 @@ export const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, zOf(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
@@ -722,11 +787,12 @@ export const V3D = (() => {
         usedL.add(lk);
         p.updateMatrixWorld(true);
         const b = new T.Box3().setFromObject(p);
-        sp.position.set(el.x, el.y, (isFinite(b.max.z) ? b.max.z : zOf(el) + 10) + 4); sp.userData.id = el.id;
+        sp.position.set(el.x, el.y, (isFinite(b.max.z) ? b.max.z : z3(el) + 10) + 4); sp.userData.id = el.id;
         G.names.add(sp);
       }
     }
     for (const [id, c] of parts) if (!used.has(id)) { disposeObj(c.obj); parts.delete(id); }
+    wires(G.wires);
     for (const [lk, sp] of labels) if (!usedL.has(lk)) { disposeObj(sp); sp.material.map && sp.material.map.dispose(); labels.delete(lk); }
     G.parts.updateMatrixWorld(true);
     if (G.parts.children.length) box.setFromObject(G.parts);
@@ -1103,7 +1169,7 @@ export const V3D = (() => {
     if (!one || gz.id !== one.id) gz = { id: one ? one.id : null, mode: 'move' };
     if (P && !one.locked) {
       const b = new T.Box3().setFromObject(P), rr = Math.max(10, Math.hypot(b.max.x - b.min.x, b.max.y - b.min.y) / 2 + 6);
-      const c = new T.Vector3(one.x, one.y, zOf(one)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
+      const c = new T.Vector3(one.x, one.y, z3(one)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
       const ORANGE = 0xf47742, GREEN = 0x3a9d5d, BLUE = 0x0092b2;
       // drawn over the parts, so a handle behind a part still shows and can be taken hold of
       const mat = (color, op) => new T.MeshBasicMaterial({ color, transparent: true, opacity: op || 1, depthTest: false, depthWrite: false });
@@ -1127,7 +1193,7 @@ export const V3D = (() => {
         };
         R.moveX = arrow(new T.Vector3(1, 0, 0), ORANGE);
         R.moveY = arrow(new T.Vector3(0, 1, 0), GREEN);
-        R.lift = arrow(new T.Vector3(0, 0, 1), BLUE);
+        R.lift = NET_3D.has(one.type) ? null : arrow(new T.Vector3(0, 0, 1), BLUE);                // (a network's part stays on the table)
       } else {
         // the rings: one size, square to each other, so they cross where the axes meet the sphere
         const ring = (n, u, v, color, ang, off) => {
@@ -1346,7 +1412,7 @@ export const V3D = (() => {
         const hk = handleAt(e);
         if (hk === 'lift' || hk === 'x' || hk === 'y') {
           // an arrow: along its picture on the screen, 10 mm of it
-          const G = hk === 'lift' ? R.lift : hk === 'x' ? R.moveX : R.moveY, el = getEl(G.el.id) || G.el, o = new T.Vector3(el.x, el.y, zOf(el));
+          const G = hk === 'lift' ? R.lift : hk === 'x' ? R.moveX : R.moveY, el = getEl(G.el.id) || G.el, o = new T.Vector3(el.x, el.y, z3(el));
           const a = o.clone().project(R.camera), b = o.clone().addScaledVector(G.dir, 10).project(R.camera);
           const vx = (b.x - a.x) / 2 * R.w, vy = -(b.y - a.y) / 2 * R.h, L2 = vx * vx + vy * vy;
           drag = { mode: hk === 'lift' ? 'lift' : 'axis', key: hk, el, v0: hk === 'lift' ? zOf(el) : el[hk], x: e.clientX, y: e.clientY, vx, vy, L2, moved: 0, started: false };
@@ -1358,7 +1424,7 @@ export const V3D = (() => {
           return;
         }
         const el = !(e.shiftKey && ctrl === 'trackpad') && partAt(e);       // Shift-drag pans, on a trackpad
-        if (el) { drag = { mode: 'grab', el, p0: plane(e, zOf(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
+        if (el) { drag = { mode: 'grab', el, p0: plane(e, z3(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
       }
       let mode;
       if (touch) mode = 'orbit';
@@ -1393,7 +1459,7 @@ export const V3D = (() => {
           drag.x0 = el.x; drag.y0 = el.y; drag.starts = drag.group.map(g => [g.x, g.y]);
           cv.style.cursor = 'grabbing';
         }
-        const p = plane(e, zOf(drag.el));
+        const p = plane(e, z3(drag.el));
         if (!p) return;
         // the grabbed part snaps, as on the bench; the rest keep their places against it
         const nx = snapVal(drag.x0 + p[0] - drag.p0[0], e), ny = snapVal(drag.y0 + p[1] - drag.p0[1], e), mx = nx - drag.x0, my = ny - drag.y0;
@@ -1681,7 +1747,7 @@ export const V3D = (() => {
     kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, setFlat, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
-    free: el => FREE_3D.has(el.type) && el.type !== 'draw',
+    free: el => shown3(el),
     // for the tests: what the view holds
     api: {
       eligible: () => eligible(project.tab),
@@ -1697,7 +1763,7 @@ export const V3D = (() => {
         let meshes = 0; R.groups.parts.traverse(o => { if (o.isMesh) meshes++; });
         const b = contentBox();
         const progs = (R.gl.info && R.gl.info.programs) || [];
-        return { programs: progs.reduce((m, q) => Math.max(m, q.id || 0), 0), parts: R.groups.parts.children.length, kinds, meshes, rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
+        return { programs: progs.reduce((m, q) => Math.max(m, q.id || 0), 0), parts: R.groups.parts.children.length, kinds, meshes, wires: R.groups.wires.children.length, wireKinds: R.groups.wires.children.map(o => { const F = (project.fibres || []).find(f => f.id === o.userData.fibre); return F ? (F.wg ? 'wg' : F.wire ? 'wire' : 'fibre') : '?'; }), rays: R.nRays || 0, beams: R.nBeams || 0, names: R.groups.names.children.length, outlined: R.groups.sel.children.length,
           box: { min: b.min.toArray(), max: b.max.toArray() }, board: R.boardBox ? { min: R.boardBox.min.toArray(), max: R.boardBox.max.toArray() } : null };
       },
       camera: () => R ? { p: R.camera.position.toArray(), t: R.target.toArray(), up: new T.Vector3(0, 1, 0).applyQuaternion(R.camera.quaternion).toArray() } : null,
@@ -1756,7 +1822,9 @@ export const V3D = (() => {
       flyTurn(dx, dy) { if (fly) flyTurn(dx, dy); },
       menuShown() { const m = document.getElementById('ctxMenu'); return m && !m.hidden ? [...m.querySelectorAll('button')].map(x => x.textContent) : null; },
       // where on the canvas a part's centre is drawn, css px
-      screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, zOf(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
+      // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
+      netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
+      screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };
 })();

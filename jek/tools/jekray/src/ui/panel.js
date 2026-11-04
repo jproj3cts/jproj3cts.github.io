@@ -442,9 +442,9 @@ function dragPinned(e, title, box, id) {
 }
 /* The main panel shows the selection, unless that is already pinned; pinned panels follow
    it to the right, newest first */
-// the main panel closed with its ×; the tool opens with it closed, the bench across the page
-// (the tests open it, as their checks read it)
-export let panelClosed = !TEST_MODE;
+// the main panel closed with its ×; the tool opens with it open on the Bench panel (its settings, its parts), but on a
+// phone, where it would be a sheet over the bench
+export let panelClosed = !TEST_MODE && typeof matchMedia === 'function' && matchMedia('(max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse)').matches;
 /* a phone: the panel is a sheet over the bottom of the bench (style.css), short unless made tall */
 let sheetTall = false, sheetFor = null;
 export const phoneSheet = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px), (max-width: 960px) and (pointer: coarse), (max-height: 520px) and (pointer: coarse)').matches;

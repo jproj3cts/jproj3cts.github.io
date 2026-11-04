@@ -154,13 +154,20 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
     if (raw) { loadProject(JSON.parse(raw)); restored = true; }
   } catch (err) { setProject(null); }
+  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
+  // a share link opened with nothing kept here: an empty bench while the link's own is fetched, not the example first
+  const blankFirst = !project && !!(shared || short);
   if (!project) demoProject();
+  if (blankFirst) { project.elements = []; project.name = 'Opening the shared bench\u2026'; }
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   if (EMBED) embedMode();
-  const shared = !TEST_MODE && location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), short = !TEST_MODE && location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
-  if (shared || short) { if (!EMBED) window.history.replaceState(null, '', location.pathname); if (short) openShortLink(short[1]); else openShareHash(shared[1]); }
+  if (shared || short) {
+    if (!EMBED) window.history.replaceState(null, '', location.pathname);
+    // (the link could not be opened: the example after all, rather than an empty bench)
+    Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !project.elements.length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
+  }
   // from an Instagram post: the reels' benches, in place of the welcome note
   else if (exArr) {
     if (/[?&]ex=/.test(location.search)) { const u = new URL(location.href); u.searchParams.delete('ex'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }

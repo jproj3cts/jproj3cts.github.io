@@ -48,7 +48,7 @@ export function wireModel3d() {
 }
 export function startModel() {
   const K = kit(); if (!K) return false;
-  MD.on = true; MD.btn && MD.btn.classList.add('on'); MD.btn && MD.btn.setAttribute('aria-pressed', 'true');
+  MD.on = true; if (MD.btn) { MD.btn.hidden = false; MD.btn.classList.add('on'); MD.btn.setAttribute('aria-pressed', 'true'); }
   manifoldLib().catch(() => toast('The modelling library could not be loaded', true));
   if (!MD.group) { MD.group = new K.T.Group(); MD.group.matrixAutoUpdate = false; }
   if (!MD.group.parent) K.R.scene.add(MD.group);
@@ -60,7 +60,7 @@ export function startModel() {
 export function stopModel() {
   const K = kit();
   MD.on = false; MD.stage = 'off'; MD.edit = null; MD.draft = []; MD.ents = []; MD.sel.clear();
-  if (MD.btn) { MD.btn.classList.remove('on'); MD.btn.setAttribute('aria-pressed', 'false'); }
+  if (MD.btn) { MD.btn.classList.remove('on'); MD.btn.setAttribute('aria-pressed', 'false'); MD.btn.hidden = !MD.btn._shown(); }
   if (K && MD.group) { clearGroup(); dropPrev(); K.R.scene.remove(MD.group); }
   if (MD.card) { MD.card.remove(); MD.card = null; }
   if (MD.tip) { MD.tip.remove(); MD.tip = null; }

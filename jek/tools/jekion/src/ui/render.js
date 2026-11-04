@@ -320,7 +320,8 @@ function drawScaleBar(c) {
   c.restore();
 }
 export function wireRender() {
-  if (TEST_MODE) { /* no system theme changes to follow */ }
+  // the tool is the whole window: the page itself does not scroll (JEKray's style, html.rt-noscroll)
+  document.documentElement.classList.add('rt-noscroll');
   applyTheme();
   new ResizeObserver(resize).observe(stage);
   if (typeof matchMedia !== 'undefined') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);

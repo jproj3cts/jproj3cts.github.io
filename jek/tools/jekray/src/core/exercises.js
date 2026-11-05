@@ -120,6 +120,15 @@ export const EXERCISES = [
    A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
    own exercises with a `reel` stay in the course, and are those reels' challenges too. */
 export const CHALLENGES = [
+  { id: 'thread-three-irises', reel: 'ig-thread-three-irises', title: 'Can you thread three irises?',
+    start: { reel: 'ig-thread-three-irises' },
+    goal: 'Get the light through all three irises to the Detector.',
+    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
+    unlocked: { 'Mirror 1': ['angle'], 'Mirror 2': ['angle'], 'Mirror 3': ['angle'] },
+    hints: ['One mirror per job: Mirror 1 and Mirror 2 together set the line through Iris 1 and Iris 2; Mirror 3 then aims round the corner.', 'Walk Mirror 1 and Mirror 2 to about 133.57° and 313.57°, then set Mirror 3 to 135°.'],
+    answer: { 'Mirror 1': { angle: 133.567 }, 'Mirror 2': { angle: 313.567 }, 'Mirror 3': { angle: 135 } },
+    // no optimiser: the Detector reads 0 until all three irises pass, so it has nothing to climb
+    result: v => fix(v[0], 2) + ' mW through all three irises' },
   { id: 'split-it-evenly', reel: 'ig-split-it-evenly', title: 'Can you split it evenly?',
     start: { reel: 'ig-split-it-evenly' },
     goal: 'Set the four splitters so every Target reads 0.2 mW.',

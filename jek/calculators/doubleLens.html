@@ -25,34 +25,36 @@
   <h1 class="page-title" data-eyebrow="Calculators">Two-lens system</h1>
   <div class="calc-grid">
     <div class="calc-card">
-      <label>Lens 1 Focal Length (f₁)</label>
-      <input id="f1" type="number" step="any" value="50">
-      <select id="f1Unit">
+      <label for="f1">Lens 1 focal length (f₁)</label>
+      <input id="f1" type="number" step="any" value="100">
+      <select id="f1Unit" aria-label="f₁ unit">
         <option value="m">m</option>
-        <option value="cm" selected>cm</option>
-        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="mm" selected>mm</option>
       </select>
-      <label>Lens 2 Focal Length (f₂)</label>
+      <label for="f2">Lens 2 focal length (f₂)</label>
       <input id="f2" type="number" step="any" value="50">
-      <select id="f2Unit">
+      <select id="f2Unit" aria-label="f₂ unit">
         <option value="m">m</option>
-        <option value="cm" selected>cm</option>
-        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="mm" selected>mm</option>
       </select>
-      <label>Lens Separation (d)</label>
-      <input id="d" type="number" step="any" value="10">
-      <select id="dUnit">
+      <label for="d">Lens separation (d)</label>
+      <input id="d" type="number" step="any" value="30">
+      <select id="dUnit" aria-label="Separation unit">
         <option value="m">m</option>
-        <option value="cm" selected>cm</option>
-        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="mm" selected>mm</option>
       </select>
-      <button onclick="compute()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 100 mm lens and a 50 mm lens, 30 mm apart.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>f₁</strong> = Focal Length of Lens 1<br>
-          <strong>f₂</strong> = Focal Length of Lens 2<br>
-          <strong>d</strong> = Distance Between Lenses
+          <strong>Input parameters:</strong><br>
+          <strong>f₁</strong> = focal length of lens 1 (the first the light meets)<br>
+          <strong>f₂</strong> = focal length of lens 2<br>
+          <strong>d</strong> = distance between the lenses<br>
+          Both lenses are thin and in air. f is positive for a converging lens and negative for a diverging one.
         </div>
       </div>
     </div>
@@ -60,15 +62,22 @@
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$ \frac{1}{f_{eq}} = \frac{1}{f_1} + \frac{1}{f_2} - \frac{d}{f_1 f_2} $$</div>
-          <div class="eq-box" id="feqOut">\( f_{eq} \) = ?</div>
+          <div class="eq-box" id="feqOut">f_eq = —</div>
+        </div>
+        <div class="eq-column">
+          <div class="eq-box">$$ \text{BFL} = f_{eq}\left(1 - \frac{d}{f_1}\right) $$</div>
+          <div class="eq-box" id="bflOut">BFL = —</div>
         </div>
       </div>
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameter:</strong><br>
-          <strong>f<sub>eq</sub></strong> = Equivalent Focal Length
+          <strong>Output parameters:</strong><br>
+          <strong>f<sub>eq</sub></strong> = equivalent (effective) focal length of the pair<br>
+          <strong>BFL</strong> = back focal length, from lens 2 to the focus of a collimated beam entering lens 1<br>
+          Lengths are given in the unit chosen for f₁.
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: two thin lenses in combination, E. Hecht, Optics, 5th ed. (Pearson, 2017).</p>
     </div>
   </div>
 </main>
@@ -84,37 +93,50 @@
   </div>
 </footer>
 <script>
-const LENGTH_UNITS = { "m":1, "cm":0.01, "mm":0.001 };
-function toMeters(val, unit){ return val * LENGTH_UNITS[unit]; }
+const LEN = { m: 1, cm: 1e-2, mm: 1e-3 };
 
-// Automatically choose m, cm, or mm based on magnitude
-function formatAutoUnit(L){
-  if(Math.abs(L) >= 1) return L.toFixed(3) + " m";
-  if(Math.abs(L) >= 1e-3) return (L*100).toFixed(3) + " cm";
-  return (L*1000).toFixed(3) + " mm";
+function el(id){ return document.getElementById(id); }
+function num(id){ const s = el(id).value.trim(); return s === "" ? NaN : Number(s); }
+function fmt(x){
+  const a = Math.abs(x);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return x.toExponential(3);
+  return String(+x.toPrecision(5));
 }
 
 function compute(){
-  const f1v = toMeters(parseFloat(f1.value), f1Unit.value);
-  const f2v = toMeters(parseFloat(f2.value), f2Unit.value);
-  const dv = toMeters(parseFloat(d.value), dUnit.value);
-  if([f1v,f2v,dv].some(isNaN)){
-    alert("Please fill in all fields with valid numbers");
-    return;
+  const msg = document.querySelector(".calc-msg");
+  function fail(text, feq){
+    el("feqOut").textContent = "f_eq = " + (feq || "—");
+    el("bflOut").textContent = "BFL = —";
+    msg.textContent = text;
   }
-  const invFeq = 1/f1v + 1/f2v - dv/(f1v*f2v);
-  if(invFeq === 0){
-    feqOut.innerHTML = "\\( f_{eq} = \\infty \\text{ (collimated)} \\)";
-    MathJax.typesetPromise();
-    return;
+  const f1n = num("f1"), f2n = num("f2"), dn = num("d");
+  if (!isFinite(f1n)) return fail("Enter the focal length of lens 1.");
+  if (!isFinite(f2n)) return fail("Enter the focal length of lens 2.");
+  if (!isFinite(dn)) return fail("Enter the separation between the lenses.");
+  if (f1n === 0 || f2n === 0) return fail("A focal length cannot be zero.");
+  if (dn < 0) return fail("The separation cannot be negative.");
+
+  const unit = el("f1Unit").value;
+  const f1 = f1n * LEN[unit];
+  const f2 = f2n * LEN[el("f2Unit").value];
+  const d = dn * LEN[el("dUnit").value];
+  const invFeq = 1 / f1 + 1 / f2 - d / (f1 * f2);
+  if (Math.abs(invFeq) < 1e-12 * (Math.abs(1 / f1) + Math.abs(1 / f2))) {
+    return fail("The pair is afocal (d = f₁ + f₂): a collimated beam leaves collimated, so there is no focal length.", "∞");
   }
   const feq = 1 / invFeq;
-  feqOut.innerHTML = "\\( f_{eq} = " + formatAutoUnit(feq) + " \\)";
-  MathJax.typesetPromise();
+  const bfl = feq * (1 - d / f1);
+  el("feqOut").textContent = "f_eq = " + fmt(feq / LEN[unit]) + " " + unit;
+  el("bflOut").textContent = "BFL = " + fmt(bfl / LEN[unit]) + " " + unit;
+  msg.textContent = "";
 }
 
-// Render initial placeholder on page load
-window.addEventListener('load', compute);
+document.querySelectorAll(".calc-card input, .calc-card select").forEach(c => {
+  c.addEventListener("input", compute);
+  c.addEventListener("change", compute);
+});
+compute();
 </script>
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>
 <script src="/jek/assets/js/account.js?v=20261017"></script>

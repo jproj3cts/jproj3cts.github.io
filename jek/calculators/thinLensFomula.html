@@ -29,43 +29,57 @@
   <div class="calc-grid">
     <!-- Input Section -->
     <div class="calc-card">
-      <label>Focal Length (f)</label>
-      <input id="f" type="number" step="any"/>
-      <select id="fUnit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+      <label for="solve">Solve for</label>
+      <select id="solve">
+        <option value="f">Focal length (f)</option>
+        <option value="u">Object distance (u)</option>
+        <option value="v" selected>Image distance (v)</option>
+      </select>
 
-      <label>Object Distance (u)</label>
-      <input id="u" type="number" step="any"/>
-      <select id="uUnit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+      <label for="f">Focal length (f)</label>
+      <input id="f" type="number" step="any" value="100"/>
+      <select id="fUnit" aria-label="Focal length unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
 
-      <label>Image Distance (v)</label>
+      <label for="u">Object distance (u)</label>
+      <input id="u" type="number" step="any" value="150"/>
+      <select id="uUnit" aria-label="Object distance unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+
+      <label for="v">Image distance (v)</label>
       <input id="v" type="number" step="any"/>
-      <select id="vUnit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+      <select id="vUnit" aria-label="Image distance unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
 
-      <button onclick="computeThinLens()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 100 mm lens with an object 150 mm away.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Instructions:</strong><br>
-          Fill in two of the three parameters (f, u, v) to calculate the third.<br>
+          <strong>How to use:</strong><br>
+          Choose the quantity to solve for and enter the other two. The answer appears in its own box, in the unit chosen beside it.<br>
+          <strong>Sign convention:</strong> real is positive. u is positive for a real object, v for a real image on the far side of the lens, f for a converging lens.
         </div>
       </div>
     </div>
 
     <!-- Output Section -->
     <div class="diagram-area">
-      <img src="/jek/calculators/img/thin-lens.svg" alt="Thin Lens" />
+      <img src="/jek/calculators/img/thin-lens.svg" alt="Thin lens with object distance u, image distance v and focal length f" />
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$\frac{1}{f} = \frac{1}{u} + \frac{1}{v}$$</div>
-          <div class="eq-box" id="resultBox">Result = ?</div>
+          <div class="eq-box" id="resultBox">—</div>
+        </div>
+        <div class="eq-column">
+          <div class="eq-box">$$M = -\frac{v}{u}$$</div>
+          <div class="eq-box" id="magBox">—</div>
         </div>
       </div>
       <div class="param-box-wrapper">
         <div class="param-box">
           <strong>Output:</strong><br>
-          Computed value of the missing parameter
+          The missing one of f, u and v, and the lateral magnification M (negative for an inverted image).
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: the Gaussian thin-lens equation, E. Hecht, Optics, 5th ed. (Pearson, 2017).</p>
     </div>
   </div>
 </main>
@@ -83,60 +97,64 @@
 </footer>
 
 <script>
-function toMeters(value, unit){
-  if(unit==="m") return value;
-  if(unit==="cm") return value/100;
-  if(unit==="mm") return value/1000;
-}
+const LEN = { m: 1, cm: 1e-2, mm: 1e-3 };
+const NAMES = { f: "focal length", u: "object distance", v: "image distance" };
 
-function fromMeters(value, unit){
-  if(unit==="m") return value;
-  if(unit==="cm") return value*100;
-  if(unit==="mm") return value*1000;
+function el(id){ return document.getElementById(id); }
+function num(id){ const s = el(id).value.trim(); return s === "" ? NaN : Number(s); }
+function fmt(x){
+  const a = Math.abs(x);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return x.toExponential(3);
+  return String(+x.toPrecision(5));
 }
 
 function computeThinLens(){
-  let f = parseFloat(document.getElementById("f").value);
-  let u = parseFloat(document.getElementById("u").value);
-  let v = parseFloat(document.getElementById("v").value);
+  const solve = el("solve").value;
+  const msg = document.querySelector(".calc-msg");
+  const vals = {};
+  ["f", "u", "v"].forEach(k => { el(k).disabled = (k === solve); });
 
-  const fUnit = document.getElementById("fUnit").value;
-  const uUnit = document.getElementById("uUnit").value;
-  const vUnit = document.getElementById("vUnit").value;
-
-  let knowns = 0;
-  if(!isNaN(f)) knowns++;
-  if(!isNaN(u)) knowns++;
-  if(!isNaN(v)) knowns++;
-
-  if(knowns < 2){
-    alert("Please enter at least two values to compute the third.");
-    return;
+  function fail(text){
+    el(solve).value = "";
+    el("resultBox").textContent = solve + " = —";
+    el("magBox").textContent = "M = —";
+    msg.textContent = text;
   }
 
-  if(knowns === 3){
-    alert("Please leave **one field empty** to compute its value.");
-    return;
+  for (const k of ["f", "u", "v"]) {
+    if (k === solve) continue;
+    const x = num(k);
+    if (!isFinite(x)) return fail("Enter the " + NAMES[k] + ".");
+    if (x === 0) return fail("The " + NAMES[k] + " cannot be zero.");
+    vals[k] = x * LEN[el(k + "Unit").value];
   }
 
-  // Convert to meters
-  if(!isNaN(f)) f = toMeters(f, fUnit);
-  if(!isNaN(u)) u = toMeters(u, uUnit);
-  if(!isNaN(v)) v = toMeters(v, vUnit);
+  let r;
+  if (solve === "f") r = 1 / (1 / vals.u + 1 / vals.v);
+  else if (solve === "u") r = 1 / (1 / vals.f - 1 / vals.v);
+  else r = 1 / (1 / vals.f - 1 / vals.u);
 
-  if(isNaN(f)) f = 1/(1/u + 1/v);
-  else if(isNaN(u)) u = 1/(1/f - 1/v);
-  else if(isNaN(v)) v = 1/(1/f - 1/u);
+  const scale = Math.max(...Object.values(vals).map(Math.abs));
+  if (!isFinite(r) || Math.abs(r) > 1e12 * scale) {
+    if (solve === "f") return fail("With these distances the lens has no power (f is infinite).");
+    if (solve === "u") return fail("The image is at the focal point, so the object is at infinity.");
+    return fail("The object is at the focal point, so the image is at infinity.");
+  }
+  vals[solve] = r;
 
-  // Convert back to original units
-  if(isNaN(document.getElementById("f").value)) document.getElementById("f").value = fromMeters(f, fUnit).toFixed(3);
-  if(isNaN(document.getElementById("u").value)) document.getElementById("u").value = fromMeters(u, uUnit).toFixed(3);
-  if(isNaN(document.getElementById("v").value)) document.getElementById("v").value = fromMeters(v, vUnit).toFixed(3);
-
-  document.getElementById("resultBox").textContent = `f = ${fromMeters(f,fUnit).toFixed(3)} ${fUnit}, u = ${fromMeters(u,uUnit).toFixed(3)} ${uUnit}, v = ${fromMeters(v,vUnit).toFixed(3)} ${vUnit}`;
-
-  MathJax.typesetPromise();
+  const shown = fmt(r / LEN[el(solve + "Unit").value]);
+  el(solve).value = shown;
+  el("resultBox").textContent = solve + " = " + shown + " " + el(solve + "Unit").value;
+  const M = -vals.v / vals.u;
+  el("magBox").textContent = "M = " + fmt(M);
+  msg.textContent = "";
 }
+
+document.querySelectorAll(".calc-card input, .calc-card select").forEach(c => {
+  c.addEventListener("input", computeThinLens);
+  c.addEventListener("change", computeThinLens);
+});
+computeThinLens();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

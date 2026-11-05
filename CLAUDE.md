@@ -165,6 +165,10 @@ through `core/hooks.js`.
   '<where>.<answer>')`: share, save, return, shared, tour, menu; names in `PROMPT_NAMES`) with shown, each answer,
   sign-in clicks and click-through. A new prompt reuses the `prompt` event; its where goes in `PROMPT_NAMES`
   (`test/node/nudge.test.mjs` checks). The notes share one weekly cap (`src/core/nudge.js`).
+- Accounts report (who has an account, their plan, sign-ins, last active, benches, links, exercises): `GET /ops/users`
+  (`jek-api/src/opsusers.js`), read by `cd jek-api && JEK_OPS_TOKEN=… node scripts/users.mjs` (`--html`, `--csv`,
+  `--json`, `--sort active|joined|benches|plan|name`; `scripts\users-report.cmd` on Windows). Account records only: never
+  joined to the anonymous usage counts, and never a bench's contents.
 - Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
   `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`
   (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` and

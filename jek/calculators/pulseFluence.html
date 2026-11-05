@@ -27,50 +27,55 @@
   <h1 class="page-title" data-eyebrow="Calculators">Pulsed laser fluence</h1>
 
   <div class="calc-grid">
-    <!-- Input Card -->
+    <!-- Input card -->
     <div class="calc-card">
-      <label>Pulse Energy (<span>E<sub>pulse</sub></span>)</label>
-      <input id="Epulse" type="number" step="any"/>
-      <select id="EUnit">
-        <option value="J" selected>J</option>
-        <option value="mJ">mJ</option>
-        <option value="µJ">µJ</option>
-        <option value="nJ">nJ</option>
+      <label for="Epulse">Pulse energy (<span>E<sub>pulse</sub></span>)</label>
+      <input id="Epulse" type="number" step="any" min="0" value="100"/>
+      <select id="EUnit" aria-label="Pulse energy unit">
+        <option value="1">J</option>
+        <option value="1e-3" selected>mJ</option>
+        <option value="1e-6">µJ</option>
+        <option value="1e-9">nJ</option>
       </select>
 
-      <label>Beam Radius (<span>w<sub>0</sub></span>)</label>
-      <input id="w0" type="number" step="any"/>
-      <select id="wUnit">
-        <option value="m" selected>m</option>
-        <option value="cm">cm</option>
-        <option value="mm">mm</option>
+      <label for="w">Beam radius at 1/e² of peak intensity (<span>w</span>)</label>
+      <input id="w" type="number" step="any" min="0" value="3"/>
+      <select id="wUnit" aria-label="Beam radius unit">
+        <option value="1">m</option>
+        <option value="1e-2">cm</option>
+        <option value="1e-3" selected>mm</option>
+        <option value="1e-6">µm</option>
       </select>
 
-      <button onclick="computeFluence()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a Q-switched Nd:YAG laser, 100 mJ pulses in a beam of 3 mm radius.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
+          <strong>Input parameters</strong><br>
           <strong>E<sub>pulse</sub></strong> = Pulse energy<br>
-          <strong>w<sub>0</sub></strong> = Beam radius
+          <strong>w</strong> = Gaussian beam radius where the intensity falls to 1/e² (13.5%) of its peak; half the 1/e² diameter
         </div>
       </div>
     </div>
 
-    <!-- Output Card -->
+    <!-- Output card -->
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box">$$F = \frac{E_\mathrm{pulse}}{\pi w_0^2}$$</div>
-          <div class="eq-box" id="Fout">Fluence = ?</div>
+          <div class="eq-box">$$F_0 = \frac{2E_\mathrm{pulse}}{\pi w^2} \qquad \bar F = \frac{E_\mathrm{pulse}}{\pi w^2}$$</div>
+          <div class="eq-box" id="Fout">Peak fluence F₀ = —</div>
+          <div class="eq-box" id="Favg">Average fluence F̄ = —</div>
         </div>
       </div>
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameter:</strong><br>
-          <strong>F</strong> = Pulse fluence (J/m²)
+          <strong>Output parameters</strong><br>
+          <strong>F<sub>0</sub></strong> = Fluence on the axis of a Gaussian beam, the figure to compare with a damage threshold<br>
+          <strong>F̄</strong> = Pulse energy divided by the area πw², half the peak; 1 J/cm² = 10⁴ J/m²
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics, 3rd ed. (Wiley, 2019).</p>
     </div>
   </div>
 </main>
@@ -88,24 +93,44 @@
 </footer>
 
 <script>
-const energyPrefixes = { "J":1, "mJ":1e-3, "µJ":1e-6, "nJ":1e-9 };
-const lengthPrefixes = { "m":1, "cm":1e-2, "mm":1e-3 };
-
-function toSI(value, unit, dict){ return value*dict[unit]; }
-
-function computeFluence(){
-  const E = toSI(parseFloat(document.getElementById("Epulse").value), document.getElementById("EUnit").value, energyPrefixes);
-  const w0 = toSI(parseFloat(document.getElementById("w0").value), document.getElementById("wUnit").value, lengthPrefixes);
-
-  if(isNaN(E) || isNaN(w0)){ 
-    alert("Please fill in both input fields."); 
-    return; 
+(function(){
+  const card = document.querySelector(".calc-card");
+  const msg = card.querySelector(".calc-msg");
+  const $ = id => document.getElementById(id);
+  // A number from an input, or NaN when it is empty or not a number
+  function num(id){ const v = $(id).value.trim(); return v === "" ? NaN : Number(v); }
+  // Four significant figures with an SI prefix
+  function fmt(x, unit){
+    const pre = [[1e12,"T"],[1e9,"G"],[1e6,"M"],[1e3,"k"],[1,""],[1e-3,"m"],[1e-6,"µ"],[1e-9,"n"],[1e-12,"p"],[1e-15,"f"],[1e-18,"a"]];
+    if(x === 0) return "0 " + unit;
+    for(const [f, p] of pre){ if(Math.abs(x) >= f*0.99995) return (x/f).toPrecision(4) + " " + p + unit; }
+    return x.toExponential(3) + " " + unit;
   }
+  function wire(update){
+    card.querySelectorAll("input, select").forEach(el => {
+      el.addEventListener("input", update);
+      el.addEventListener("change", update);
+    });
+    update();
+  }
+  const out = $("Fout"), avg = $("Favg");
 
-  const F = E / (Math.PI * w0**2);
-
-  document.getElementById("Fout").textContent = "Fluence F = "+F.toExponential(3)+" J/m²";
-}
+  function update(){
+    const E = num("Epulse") * Number($("EUnit").value);
+    const w = num("w") * Number($("wUnit").value);
+    if(!(E > 0) || !(w > 0)){
+      out.textContent = "Peak fluence F₀ = —";
+      avg.textContent = "Average fluence F̄ = —";
+      msg.textContent = "Enter a pulse energy and a beam radius, both above zero.";
+      return;
+    }
+    msg.textContent = "";
+    const area = Math.PI * w*w * 1e4; // πw² in cm²
+    out.textContent = "Peak fluence F₀ = " + fmt(2*E/area, "J/cm²");
+    avg.textContent = "Average fluence F̄ = " + fmt(E/area, "J/cm²");
+  }
+  wire(update);
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

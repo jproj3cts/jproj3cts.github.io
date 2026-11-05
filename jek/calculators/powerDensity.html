@@ -27,51 +27,56 @@
   <h1 class="page-title" data-eyebrow="Calculators">Laser power density</h1>
 
   <div class="calc-grid">
-    <!-- Input Card -->
+    <!-- Input card -->
     <div class="calc-card">
-      <label>Laser Power (P)</label>
-      <input id="power" type="number" step="any" value="1">
-      <select id="powerUnit">
-        <option value="µW">µW</option>
-        <option value="mW">mW</option>
-        <option value="W" selected>W</option>
-        <option value="kW">kW</option>
+      <label for="power">Laser power (P)</label>
+      <input id="power" type="number" step="any" min="0" value="1">
+      <select id="powerUnit" aria-label="Laser power unit">
+        <option value="1e-6">µW</option>
+        <option value="1e-3">mW</option>
+        <option value="1" selected>W</option>
+        <option value="1e3">kW</option>
       </select>
 
-      <label>Beam Radius (r)</label>
-      <input id="radius" type="number" step="any" value="0.5">
-      <select id="radiusUnit">
-        <option value="µm">µm</option>
-        <option value="mm" selected>mm</option>
-        <option value="m">m</option>
+      <label for="radius">Beam radius at 1/e² of peak intensity (w)</label>
+      <input id="radius" type="number" step="any" min="0" value="0.5">
+      <select id="radiusUnit" aria-label="Beam radius unit">
+        <option value="1e-6">µm</option>
+        <option value="1e-3" selected>mm</option>
+        <option value="1e-2">cm</option>
+        <option value="1">m</option>
       </select>
 
-      <button onclick="compute()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 1 W continuous-wave laser with a beam of 0.5 mm radius.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>P</strong> = Laser Power<br>
-          <strong>r</strong> = Beam Radius
+          <strong>Input parameters</strong><br>
+          <strong>P</strong> = Laser power (for a pulsed laser, the peak power gives the peak intensity in the pulse)<br>
+          <strong>w</strong> = Gaussian beam radius where the intensity falls to 1/e² (13.5%) of its peak; half the 1/e² diameter
         </div>
       </div>
     </div>
 
-    <!-- Output Card -->
+    <!-- Output card -->
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box">$$ I = \frac{2 P}{\pi r^2} $$</div>
-          <div class="eq-box" id="powerDensityOut">Power Density = ?</div>
+          <div class="eq-box">$$ I_0 = \frac{2 P}{\pi w^2} \qquad \bar I = \frac{P}{\pi w^2} $$</div>
+          <div class="eq-box" id="powerDensityOut">Peak intensity I₀ = —</div>
+          <div class="eq-box" id="avgOut">Average intensity Ī = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameter:</strong><br>
-          <strong>I</strong> = Laser Power Density (W/m²)
+          <strong>Output parameters</strong><br>
+          <strong>I<sub>0</sub></strong> = Intensity on the axis of a Gaussian beam<br>
+          <strong>Ī</strong> = Power divided by the area πw², half the peak; 1 W/cm² = 10⁴ W/m²
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics, 3rd ed. (Wiley, 2019).</p>
     </div>
   </div>
 </main>
@@ -89,30 +94,44 @@
 </footer>
 
 <script>
-const P = { "W":1, "mW":1e-3, "kW":1e3, "µW":1e-6 };
-const R = { "m":1, "mm":1e-3, "µm":1e-6 };
+(function(){
+  const card = document.querySelector(".calc-card");
+  const msg = card.querySelector(".calc-msg");
+  const $ = id => document.getElementById(id);
+  // A number from an input, or NaN when it is empty or not a number
+  function num(id){ const v = $(id).value.trim(); return v === "" ? NaN : Number(v); }
+  // Four significant figures with an SI prefix
+  function fmt(x, unit){
+    const pre = [[1e12,"T"],[1e9,"G"],[1e6,"M"],[1e3,"k"],[1,""],[1e-3,"m"],[1e-6,"µ"],[1e-9,"n"],[1e-12,"p"],[1e-15,"f"],[1e-18,"a"]];
+    if(x === 0) return "0 " + unit;
+    for(const [f, p] of pre){ if(Math.abs(x) >= f*0.99995) return (x/f).toPrecision(4) + " " + p + unit; }
+    return x.toExponential(3) + " " + unit;
+  }
+  function wire(update){
+    card.querySelectorAll("input, select").forEach(el => {
+      el.addEventListener("input", update);
+      el.addEventListener("change", update);
+    });
+    update();
+  }
+  const out = $("powerDensityOut"), avg = $("avgOut");
 
-function toWatts(val, unit){ return val*P[unit]; }
-function toMeters(val, unit){ return val*R[unit]; }
-
-function formatPowerDensity(I){
-  if(I>=1e6) return (I/1e6).toFixed(3)+" MW/m²";
-  if(I>=1e3) return (I/1e3).toFixed(3)+" kW/m²";
-  return I.toFixed(3)+" W/m²";
-}
-
-function compute(){
-  const Pval = toWatts(parseFloat(power.value), powerUnit.value);
-  const rval = toMeters(parseFloat(radius.value), radiusUnit.value);
-
-  if([Pval,rval].some(isNaN)){ alert("Please fill in all fields"); return; }
-
-  const I = 2*Pval/(Math.PI*rval*rval);
-
-  powerDensityOut.textContent = "Power Density = "+formatPowerDensity(I);
-
-  MathJax.typeset();
-}
+  function update(){
+    const P = num("power") * Number($("powerUnit").value);
+    const w = num("radius") * Number($("radiusUnit").value);
+    if(!(P > 0) || !(w > 0)){
+      out.textContent = "Peak intensity I₀ = —";
+      avg.textContent = "Average intensity Ī = —";
+      msg.textContent = "Enter a power and a beam radius, both above zero.";
+      return;
+    }
+    msg.textContent = "";
+    const area = Math.PI * w*w * 1e4; // πw² in cm²
+    out.textContent = "Peak intensity I₀ = " + fmt(2*P/area, "W/cm²");
+    avg.textContent = "Average intensity Ī = " + fmt(P/area, "W/cm²");
+  }
+  wire(update);
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

@@ -29,29 +29,29 @@
   <div class="calc-grid">
 
     <div class="calc-card">
-      <label>Average Power</label>
+      <label for="avg-power">Average power (P<sub>avg</sub>)</label>
       <div class="input-row">
-        <input type="number" id="avg-power" step="0.01"/>
-        <select id="power-prefix">
-          <option value="1">W</option>
+        <input type="number" id="avg-power" step="any" min="0" value="1"/>
+        <select id="power-prefix" aria-label="Average power unit">
+          <option value="1" selected>W</option>
           <option value="1e-3">mW</option>
           <option value="1e-6">µW</option>
         </select>
       </div>
 
-      <label>Repetition Rate</label>
+      <label for="rep-rate">Repetition rate (f<sub>rep</sub>)</label>
       <div class="input-row">
-        <input type="number" id="rep-rate" step="1"/>
-        <select id="rep-prefix">
-          <option value="1">Hz</option>
+        <input type="number" id="rep-rate" step="any" min="0" value="10"/>
+        <select id="rep-prefix" aria-label="Repetition rate unit">
+          <option value="1" selected>Hz</option>
           <option value="1e3">kHz</option>
           <option value="1e6">MHz</option>
           <option value="1e9">GHz</option>
-          <option value="1e12">THz</option>
         </select>
       </div>
 
-      <button onclick="calculatePulseEnergy()">Calculate</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a flashlamp-pumped Q-switched Nd:YAG laser, 1 W average at 10 Hz.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
     </div>
 
     <div class="diagram-area">
@@ -59,19 +59,21 @@
         <div class="eq-column">
           <!-- Static equation -->
           <div class="eq-box">\(E_{\rm pulse} = \frac{P_{\rm avg}}{f_{\rm rep}}\)</div>
-          <!-- Dynamic result -->
-          <div class="eq-box" id="pulse-energy-result">\(E_{\rm pulse} = ?\)</div>
+          <!-- Results -->
+          <div class="eq-box" id="pulse-energy-result">Pulse energy = —</div>
+          <div class="eq-box" id="period-result">Time between pulses = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Parameter Key:</strong>
-          <span>\(P_{\rm avg}\) = Average Power</span>
-          <span>\(f_{\rm rep}\) = Repetition Rate</span>
-          <span>\(E_{\rm pulse}\) = Pulse Energy</span>
+          <strong>Parameters</strong>
+          <span>\(P_{\rm avg}\) = Average power</span>
+          <span>\(f_{\rm rep}\) = Repetition rate</span>
+          <span>\(E_{\rm pulse}\) = Energy per pulse, assuming all of the average power is in the pulses (no continuous leakage between them)</span>
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: O. Svelto, Principles of Lasers, 5th ed. (Springer, 2010).</p>
     </div>
   </div>
 </main>
@@ -89,36 +91,43 @@
 </footer>
 
 <script>
-function calculatePulseEnergy() {
-  let P_avg = parseFloat(document.getElementById('avg-power').value);
-  const powerPrefix = parseFloat(document.getElementById('power-prefix').value);
-  let f_rep = parseFloat(document.getElementById('rep-rate').value);
-  const repPrefix = parseFloat(document.getElementById('rep-prefix').value);
-
-  if (!P_avg || P_avg <= 0 || !f_rep || f_rep <= 0) {
-    alert("Please enter valid positive numbers for power and repetition rate.");
-    return;
+(function(){
+  const card = document.querySelector(".calc-card");
+  const msg = card.querySelector(".calc-msg");
+  const $ = id => document.getElementById(id);
+  // A number from an input, or NaN when it is empty or not a number
+  function num(id){ const v = $(id).value.trim(); return v === "" ? NaN : Number(v); }
+  // Four significant figures with an SI prefix
+  function fmt(x, unit){
+    const pre = [[1e12,"T"],[1e9,"G"],[1e6,"M"],[1e3,"k"],[1,""],[1e-3,"m"],[1e-6,"µ"],[1e-9,"n"],[1e-12,"p"],[1e-15,"f"],[1e-18,"a"]];
+    if(x === 0) return "0 " + unit;
+    for(const [f, p] of pre){ if(Math.abs(x) >= f*0.99995) return (x/f).toPrecision(4) + " " + p + unit; }
+    return x.toExponential(3) + " " + unit;
   }
+  function wire(update){
+    card.querySelectorAll("input, select").forEach(el => {
+      el.addEventListener("input", update);
+      el.addEventListener("change", update);
+    });
+    update();
+  }
+  const out = $("pulse-energy-result"), period = $("period-result");
 
-  // Apply prefix scaling
-  P_avg *= powerPrefix;
-  f_rep *= repPrefix;
-
-  const E_pulse = P_avg / f_rep;
-
-  let displayValue = E_pulse;
-  let unit = "J";
-
-  if (E_pulse < 1e-6) { displayValue *= 1e9; unit = "nJ"; }
-  else if (E_pulse < 1e-3) { displayValue *= 1e6; unit = "µJ"; }
-  else if (E_pulse < 1) { displayValue *= 1e3; unit = "mJ"; }
-
-  // Use innerHTML with \( ... \) for inline MathJax parsing
-  document.getElementById('pulse-energy-result').innerHTML =
-    `\\(E_{\\rm pulse} = ${displayValue.toFixed(3)}\\,${unit}\\)`;
-
-  MathJax.typesetPromise();
-}
+  function update(){
+    const P = num("avg-power") * Number($("power-prefix").value);
+    const f = num("rep-rate") * Number($("rep-prefix").value);
+    if(!(P > 0) || !(f > 0)){
+      out.textContent = "Pulse energy = —";
+      period.textContent = "Time between pulses = —";
+      msg.textContent = "Enter an average power and a repetition rate, both above zero.";
+      return;
+    }
+    msg.textContent = "";
+    out.textContent = "Pulse energy = " + fmt(P / f, "J");
+    period.textContent = "Time between pulses = " + fmt(1 / f, "s");
+  }
+  wire(update);
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

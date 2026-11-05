@@ -9,6 +9,10 @@ conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tool
 - Before pushing to main, merge `origin/main` into the branch (never rebase or force-push), rebuild, re-run the full suite.
 - CI (`.github/workflows/tests.yml`) runs the build/docs checks, the Node and browser suites and the API tests on pushes to
   `main` and `claude/**` and on PRs (~7 min). Still run the suites locally before pushing and report the counts.
+- **Commits are the owner's.** Before the first commit of a session run
+  `git config user.name "jproj3cts" && git config user.email "114860885+jproj3cts@users.noreply.github.com"`, and write
+  commit messages with no `Co-Authored-By`, `Claude-Session` or other assistant lines, session links or model names.
+  (main's history was rewritten to this once, on 5 Nov 2026; it is never force-pushed again.)
 
 ## Where things are
 | Area | Path |

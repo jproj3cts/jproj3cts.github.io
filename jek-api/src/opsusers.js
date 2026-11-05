@@ -16,7 +16,13 @@ export async function opsUsers(req, env) {
   requireOps(req, env);
   const t = now();
   const month = new Date(t).toISOString().slice(0, 7);
-  const all = (sql, ...b) => env.DB.prepare(sql).bind(...b).all().then((r) => r.results);
+  // each piece on its own: one the database cannot answer (a table a migration has not made yet) is left out
+  // and named in `problems`, and the rest still comes back
+  const problems = [];
+  const all = (sql, ...b) => env.DB.prepare(sql).bind(...b).all().then((r) => r.results, (err) => {
+    problems.push({ query: sql.replace(/\s+/g, ' ').slice(0, 90), error: String(err && err.message || err).slice(0, 200) });
+    return [];
+  });
   const [users, ids, sess, subs, lic, benches, saves, parts, links, ex, tast] = await Promise.all([
     all(`SELECT id, name, email, created_at, academic_until, academic_via FROM users
           WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ${MAX_USERS}`),
@@ -72,6 +78,7 @@ export async function opsUsers(req, env) {
   return {
     at: t,
     truncated: users.length >= MAX_USERS,
+    problems,
     summary: {
       people: out.length,
       joined_7d: count((u) => u.joined > t - 7 * DAY), joined_30d: count((u) => u.joined > t - 30 * DAY),

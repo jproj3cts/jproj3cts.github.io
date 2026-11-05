@@ -56,3 +56,21 @@ describe('people with accounts (ops)', () => {
     expect(h).not.toContain('<script>alert');
   });
 });
+
+describe('people with accounts, on a database a migration has not reached', () => {
+  it('still answers, leaving out what it could not read and saying so', async () => {
+    await signedIn('Still Listed');
+    await env.DB.prepare('ALTER TABLE taster_uses RENAME TO taster_uses_away').run();
+    try {
+      const res = await call('/ops/users', { origin: null, headers: { Authorization: `Bearer ${OPS}` } });
+      expect(res.status).toBe(200);
+      const r = await res.json();
+      expect(r.users.some((u) => u.name === 'Still Listed')).toBe(true);
+      expect(r.problems.length).toBe(1);
+      expect(r.problems[0].query).toContain('taster_uses');
+      expect(text(r)).toContain('Left out');
+    } finally {
+      await env.DB.prepare('ALTER TABLE taster_uses_away RENAME TO taster_uses').run();
+    }
+  });
+});

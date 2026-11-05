@@ -28,25 +28,28 @@
 
   <div class="calc-grid">
     <div class="calc-card">
-      <label>Initial Signal (Power)</label>
+      <label for="initialVal">Input power (P<sub>in</sub>)</label>
       <input id="initialVal" type="number" step="any" value="1">
 
-      <label>Unit</label>
+      <label for="unitType">Unit</label>
       <select id="unitType">
-        <option value="W" selected>W</option>
-        <option value="mW">mW</option>
+        <option value="W">W</option>
+        <option value="mW" selected>mW</option>
         <option value="uW">µW</option>
+        <option value="nW">nW</option>
       </select>
 
-      <label>Gain / Loss (dB)</label>
-      <input id="dbVal" type="number" step="any" value="0">
+      <label for="dbVal">Gain (G, in dB; negative for a loss)</label>
+      <input id="dbVal" type="number" step="any" value="20">
 
-      <button onclick="computeOutput()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: 1 mW into an amplifier with 20 dB of gain.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          Enter initial signal level and gain/loss in dB.
+          <strong>Input parameters:</strong><br>
+          <strong>P<sub>in</sub></strong> = power going in<br>
+          <strong>G</strong> = power gain in dB (10 log₁₀ of the power ratio); enter a loss as a negative number, e.g. −3 dB
         </div>
       </div>
     </div>
@@ -54,18 +57,24 @@
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box" id="finalOut">Signal Out = ?</div>
-          <div class="eq-box" id="dbmOut">dBm = ?</div>
+          <div class="eq-box">$$ P_\mathrm{out} = P_\mathrm{in} \, 10^{G/10} $$</div>
+          <div class="eq-box">$$ P_\mathrm{dBm} = 10 \log_{10} \frac{P}{1\ \mathrm{mW}} $$</div>
+          <div class="eq-box" id="ratioOut">Power ratio = —</div>
+          <div class="eq-box" id="finalOut">Output power = —</div>
+          <div class="eq-box" id="dbmInOut">Input power = — dBm</div>
+          <div class="eq-box" id="dbmOut">Output power = — dBm</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>Signal Out</strong> signal after gain/loss in linear units.<br>
- 	  <strong>dBm</strong> signal after gain/loss in dB units.
+          <strong>Output parameters:</strong><br>
+          <strong>Power ratio</strong> = P<sub>out</sub>/P<sub>in</sub> = 10<sup>G/10</sup><br>
+          <strong>Output power</strong> = power after the gain or loss<br>
+          <strong>dBm</strong> = power in decibels relative to 1 mW
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: P. Horowitz and W. Hill, The Art of Electronics, 3rd ed. (Cambridge University Press, 2015).</p>
     </div>
   </div>
 </main>
@@ -83,34 +92,58 @@
 </footer>
 
 <script>
-const prefixes = [{factor:1e-6,sym:'µ'},{factor:1e-3,sym:'m'},{factor:1,sym:''},{factor:1e3,sym:'k'},{factor:1e6,sym:'M'}];
-const unitFactors = {W:1, mW:1e-3, uW:1e-6};
+(function(){
+  const byId = id => document.getElementById(id);
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = id => { const v = byId(id).value.trim(); return v === '' ? NaN : Number(v); };
+  const unitFactors = { W: 1, mW: 1e-3, uW: 1e-6, nW: 1e-9 };
 
-function autoPrefix(val){
-  for(let i=prefixes.length-1;i>=0;i--){
-    if(Math.abs(val)>=prefixes[i].factor){
-      return {value: val/prefixes[i].factor, symbol: prefixes[i].sym};
-    }
+  function formatPower(W){
+    const steps = [[1e6, 'MW'], [1e3, 'kW'], [1, 'W'], [1e-3, 'mW'], [1e-6, 'µW'], [1e-9, 'nW'], [1e-12, 'pW'], [1e-15, 'fW']];
+    for (const [f, u] of steps) if (W >= f) return (W / f).toPrecision(4) + ' ' + u;
+    return W.toExponential(3) + ' W';
   }
-  return {value: val, symbol: ''};
-}
+  function fmt(x){
+    if (x !== 0 && (x >= 1e4 || x < 1e-3)) {
+      const [m, e] = x.toExponential(3).split('e');
+      const sup = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+      return m + ' × 10' + e.replace('+', '').replace('-', '⁻').replace(/\d/g, d => sup[d]);
+    }
+    return x.toPrecision(4);
+  }
 
-function computeOutput(){
-  const unit = document.getElementById('unitType').value;
-  let val = parseFloat(document.getElementById('initialVal').value);
-  let db = parseFloat(document.getElementById('dbVal').value);
-  if(isNaN(val)||isNaN(db)){ alert('Enter valid numbers'); return; }
+  function fail(text){
+    byId('ratioOut').textContent = 'Power ratio = —';
+    byId('finalOut').textContent = 'Output power = —';
+    byId('dbmInOut').textContent = 'Input power = — dBm';
+    byId('dbmOut').textContent = 'Output power = — dBm';
+    msg.textContent = text;
+  }
 
-  val = val * unitFactors[unit];
-  let linear = Math.pow(10, db/10);
-  let finalVal = val * linear;
+  function compute(){
+    const Pin = num('initialVal') * unitFactors[byId('unitType').value];
+    const G = num('dbVal');
+    if (![Pin, G].every(Number.isFinite)) return fail('Enter a number in each field.');
+    if (Pin <= 0) return fail('The input power must be greater than zero.');
 
-  let pref = autoPrefix(finalVal);
-  document.getElementById('finalOut').textContent = `Signal Out = ${pref.value.toFixed(6)} ${pref.symbol}W`;
+    const ratio = Math.pow(10, G / 10);
+    const Pout = Pin * ratio;
+    if (!Number.isFinite(Pout) || Pout === 0) return fail('That gain is too large to calculate.');
 
-  let dbm = 10*Math.log10(finalVal/0.001);
-  document.getElementById('dbmOut').textContent = `dBm = ${dbm.toFixed(3)} dBm`;
-}
+    byId('ratioOut').textContent = 'Power ratio = ' + fmt(ratio);
+    byId('finalOut').textContent = 'Output power = ' + formatPower(Pout);
+    byId('dbmInOut').textContent = 'Input power = ' + (10 * Math.log10(Pin / 1e-3)).toFixed(2).replace('-', '−') + ' dBm';
+    byId('dbmOut').textContent = 'Output power = ' + (10 * Math.log10(Pout / 1e-3)).toFixed(2).replace('-', '−') + ' dBm';
+    msg.textContent = '';
+  }
+
+  card.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  compute();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

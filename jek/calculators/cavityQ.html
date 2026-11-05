@@ -29,19 +29,9 @@
   <div class="calc-grid">
     <!-- Input Card -->
     <div class="calc-card">
-      <label><strong>Resonance Frequency ν₀</strong></label>
-      <input id="qFreq" type="number" step="any" value="3">
-      <select id="qFreqUnit">
-        <option value="1">Hz</option>
-        <option value="1e3">kHz</option>
-        <option value="1e6">MHz</option>
-        <option value="1e9" selected>GHz</option>
-        <option value="1e12">THz</option>
-      </select>
-
-      <label><strong>FWHM Bandwidth Δν</strong></label>
-      <input id="qBandwidth" type="number" step="any" value="1">
-      <select id="qBandwidthUnit">
+      <label for="qFreq"><strong>Resonance frequency (ν₀)</strong></label>
+      <input id="qFreq" type="number" step="any" value="281.8">
+      <select id="qFreqUnit" aria-label="Resonance frequency unit">
         <option value="1">Hz</option>
         <option value="1e3">kHz</option>
         <option value="1e6">MHz</option>
@@ -49,13 +39,24 @@
         <option value="1e12" selected>THz</option>
       </select>
 
-      <button onclick="computeQ()">Compute</button>
+      <label for="qBandwidth"><strong>Linewidth, full width at half maximum (Δν)</strong></label>
+      <input id="qBandwidth" type="number" step="any" value="4.8">
+      <select id="qBandwidthUnit" aria-label="Linewidth unit">
+        <option value="1">Hz</option>
+        <option value="1e3">kHz</option>
+        <option value="1e6" selected>MHz</option>
+        <option value="1e9">GHz</option>
+        <option value="1e12">THz</option>
+      </select>
+
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a cavity resonant at 1064 nm (281.8 THz) with a 4.8 MHz linewidth.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>ν₀</strong> = Resonance frequency<br>
-          <strong>Δν</strong> = FWHM bandwidth
+          <strong>Input parameters:</strong><br>
+          <strong>ν₀</strong> = resonance frequency<br>
+          <strong>Δν</strong> = full width at half maximum of the resonance
         </div>
       </div>
     </div>
@@ -65,20 +66,21 @@
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$ Q = \frac{\nu_0}{\Delta \nu} $$</div>
-          <div class="eq-box" id="QOut">Q = ?</div>
+          <div class="eq-box" id="QOut">Q = —</div>
 
-          <div class="eq-box">$$ \tau = \frac{Q}{2\pi \nu_0} $$</div>
-          <div class="eq-box" id="tauOut">τ = ?</div>
+          <div class="eq-box">$$ \tau = \frac{Q}{2\pi \nu_0} = \frac{1}{2\pi \Delta\nu} $$</div>
+          <div class="eq-box" id="tauOut">τ = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>Q</strong> = Cavity Q-factor<br>
-          <strong>τ</strong> = Photon lifetime
+          <strong>Output parameters:</strong><br>
+          <strong>Q</strong> = quality factor of the resonance<br>
+          <strong>τ</strong> = photon lifetime, the time for the stored energy to fall to 1/e
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics, 3rd ed. (Wiley, 2019).</p>
     </div>
   </div>
 </main>
@@ -96,41 +98,49 @@
 </footer>
 
 <script>
-// Function to format numbers with SI prefixes
-function formatSI(value, unit="") {
-  const prefixes = [
-    { value:1e12, symbol:"T" },
-    { value:1e9, symbol:"G" },
-    { value:1e6, symbol:"M" },
-    { value:1e3, symbol:"k" },
-    { value:1, symbol:"" },
-    { value:1e-3, symbol:"m" },
-    { value:1e-6, symbol:"µ" },
-    { value:1e-9, symbol:"n" },
-    { value:1e-12, symbol:"p" }
-  ];
-  for (let p of prefixes) {
-    if (Math.abs(value) >= p.value) {
-      return (value/p.value).toFixed(3)+" "+p.symbol+unit;
-    }
+(function(){
+  const byId = id => document.getElementById(id);
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = id => { const v = byId(id).value.trim(); return v === '' ? NaN : Number(v); };
+
+  function formatTime(s){
+    const steps = [[1, 's'], [1e-3, 'ms'], [1e-6, 'µs'], [1e-9, 'ns'], [1e-12, 'ps'], [1e-15, 'fs']];
+    for (const [f, u] of steps) if (s >= f) return (s / f).toPrecision(4) + ' ' + u;
+    return s.toExponential(3) + ' s';
   }
-  return value.toExponential(3)+" "+unit;
-}
+  function formatQ(q){
+    if (q < 1e5) return q.toPrecision(4);
+    const [m, e] = q.toExponential(3).split('e+');
+    const sup = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    return m + ' × 10' + e.replace(/\d/g, d => sup[d]);
+  }
 
-function computeQ(){
-  const nu0 = parseFloat(qFreq.value) * parseFloat(qFreqUnit.value);
-  const dnu = parseFloat(qBandwidth.value) * parseFloat(qBandwidthUnit.value);
+  function fail(text){
+    byId('QOut').textContent = 'Q = —';
+    byId('tauOut').textContent = 'τ = —';
+    msg.textContent = text;
+  }
 
-  if([nu0,dnu].some(isNaN) || dnu===0){ alert("Please fill valid numbers"); return; }
+  function compute(){
+    const nu0 = num('qFreq') * Number(byId('qFreqUnit').value);
+    const dnu = num('qBandwidth') * Number(byId('qBandwidthUnit').value);
+    if (![nu0, dnu].every(Number.isFinite)) return fail('Enter a number in each field.');
+    if (nu0 <= 0 || dnu <= 0) return fail('The frequency and linewidth must be greater than zero.');
 
-  const Q = nu0/dnu;
-  const tau = Q/(2*Math.PI*nu0);
+    const Q = nu0 / dnu;
+    const tau = 1 / (2 * Math.PI * dnu); // = Q / (2π ν0)
+    byId('QOut').textContent = 'Q = ' + formatQ(Q);
+    byId('tauOut').textContent = 'τ = ' + formatTime(tau);
+    msg.textContent = '';
+  }
 
-  QOut.textContent = "Q = "+formatSI(Q);
-  tauOut.textContent = "τ = "+formatSI(tau,"s");
-
-  MathJax.typeset();
-}
+  card.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  compute();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

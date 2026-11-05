@@ -27,19 +27,19 @@
   <h1 class="page-title" data-eyebrow="Calculators">Photon energy and wavelength</h1>
 
   <div class="calc-grid">
-    <!-- Input Card -->
+    <!-- Input card -->
     <div class="calc-card">
-      <label>Photon Energy (E)</label>
-      <input id="energy" type="number" step="any"/>
-      <select id="energyUnit">
+      <label for="energy">Photon energy (E)</label>
+      <input id="energy" type="number" step="any" min="0"/>
+      <select id="energyUnit" aria-label="Energy unit">
         <option value="aJ">aJ</option>
         <option value="fJ">fJ</option>
         <option value="pJ">pJ</option>
         <option value="nJ">nJ</option>
         <option value="µJ">µJ</option>
         <option value="mJ">mJ</option>
-        <option value="J" selected>J</option>
-        <option value="eV">eV</option>
+        <option value="J">J</option>
+        <option value="eV" selected>eV</option>
         <option value="meV">meV</option>
         <option value="µeV">µeV</option>
         <option value="neV">neV</option>
@@ -48,9 +48,9 @@
         <option value="GeV">GeV</option>
       </select>
 
-      <label>Wavelength (λ)</label>
-      <input id="wavelength" type="number" step="any"/>
-      <select id="waveUnit">
+      <label for="wavelength">Wavelength in vacuum (λ)</label>
+      <input id="wavelength" type="number" step="any" min="0" value="1550"/>
+      <select id="waveUnit" aria-label="Wavelength unit">
         <option value="pm">pm</option>
         <option value="nm" selected>nm</option>
         <option value="µm">µm</option>
@@ -61,40 +61,44 @@
         <option value="Mm">Mm</option>
       </select>
 
-      <button onclick="computePhoton()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 1550 nm photon from the telecom C-band. Type in either box and the other one follows.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>E</strong> = Photon Energy<br>
-          <strong>λ</strong> = Wavelength
+          <strong>Input parameters</strong><br>
+          <strong>E</strong> = photon energy<br>
+          <strong>λ</strong> = wavelength in vacuum
         </div>
       </div>
     </div>
 
-    <!-- Output Card -->
+    <!-- Output card -->
     <div class="diagram-area">
-      <img src="/jek/calculators/img/photon-diagram.svg" alt="Photon Diagram" />
+      <img src="/jek/calculators/img/photon-diagram.svg" alt="Photon diagram" />
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$E = \frac{hc}{\lambda}$$</div>
-          <div class="eq-box" id="Eout">E = ?</div>
+          <div class="eq-box" id="Eout">E = —</div>
         </div>
         <div class="eq-column">
           <div class="eq-box">$$\lambda = \frac{hc}{E}$$</div>
-          <div class="eq-box" id="lambdaOut">λ = ?</div>
+          <div class="eq-box" id="lambdaOut">λ = —</div>
         </div>
       </div>
-      <div class="eq-box" id="freqOut">ν = ?</div>
+      <div class="eq-box">$$\nu = \frac{c}{\lambda} = \frac{E}{h}$$</div>
+      <div class="eq-box" id="freqOut">ν = —</div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>E</strong> = Photon Energy<br>
-          <strong>λ</strong> = Wavelength<br>
-          <strong>ν</strong> = Frequency 
+          <strong>Output parameters</strong><br>
+          <strong>E</strong> = photon energy, in joules and electronvolts<br>
+          <strong>λ</strong> = wavelength in vacuum<br>
+          <strong>ν</strong> = frequency<br>
+          <strong>h</strong> = 6.62607015 × 10⁻³⁴ J s, <strong>c</strong> = 299 792 458 m/s, 1 eV = 1.602176634 × 10⁻¹⁹ J (exact SI values)
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics, 3rd ed. (Wiley, 2019).</p>
     </div>
   </div>
 </main>
@@ -112,78 +116,78 @@
 </footer>
 
 <script>
-const h = 6.62607015e-34;
-const c = 2.99792458e8;
-const eV_to_J = 1.602176634e-19;
+(function () {
+  const h = 6.62607015e-34;
+  const c = 299792458;
+  const eV = 1.602176634e-19;
+  const LEN = { pm: 1e-12, nm: 1e-9, 'µm': 1e-6, mm: 1e-3, cm: 1e-2, m: 1, km: 1e3, Mm: 1e6 };
+  const EN = {
+    aJ: 1e-18, fJ: 1e-15, pJ: 1e-12, nJ: 1e-9, 'µJ': 1e-6, mJ: 1e-3, J: 1,
+    neV: 1e-9 * eV, 'µeV': 1e-6 * eV, meV: 1e-3 * eV, eV: eV, keV: 1e3 * eV, MeV: 1e6 * eV, GeV: 1e9 * eV
+  };
+  const SI = [[1e-24, 'y'], [1e-21, 'z'], [1e-18, 'a'], [1e-15, 'f'], [1e-12, 'p'], [1e-9, 'n'], [1e-6, 'µ'], [1e-3, 'm'],
+    [1, ''], [1e3, 'k'], [1e6, 'M'], [1e9, 'G'], [1e12, 'T'], [1e15, 'P'], [1e18, 'E'], [1e21, 'Z']];
 
-const lengthPrefixes = {"pm":1e-12,"nm":1e-9,"µm":1e-6,"mm":1e-3,"cm":1e-2,"m":1,"km":1e3,"Mm":1e6};
-
-const energyPrefixes = {
-  aJ:1e-18,fJ:1e-15,pJ:1e-12,nJ:1e-9,µJ:1e-6,mJ:1e-3,J:1,
-  meV:1e-3*eV_to_J, µeV:1e-6*eV_to_J, neV:1e-9*eV_to_J,
-  eV:eV_to_J, keV:1e3*eV_to_J, MeV:1e6*eV_to_J, GeV:1e9*eV_to_J
-};
-
-function autoPrefixSI(value, unit){
-  const prefixes=[{f:1e-18,p:"a"},{f:1e-15,p:"f"},{f:1e-12,p:"p"},{f:1e-9,p:"n"},{f:1e-6,p:"µ"},{f:1e-3,p:"m"},{f:1,p:""},{f:1e3,p:"k"},{f:1e6,p:"M"},{f:1e9,p:"G"},{f:1e12,p:"T"}];
-  let chosen=prefixes[0];
-  for(let p of prefixes){if(value/p.f>=1 && value/p.f<1000){chosen=p; break;}}
-  return (value/chosen.f).toPrecision(4)+" "+chosen.p+unit;
-}
-
-function autoPrefixEnergy(E_J){
-  if(E_J<1e-18) return (E_J/1e-21).toPrecision(4)+" zJ";
-  if(E_J<1e-15) return (E_J/1e-18).toPrecision(4)+" aJ";
-  if(E_J<1e-12) return (E_J/1e-15).toPrecision(4)+" fJ";
-  if(E_J<1e-9) return (E_J/1e-12).toPrecision(4)+" pJ";
-  if(E_J<1e-6) return (E_J/1e-9).toPrecision(4)+" nJ";
-  if(E_J<1e-3) return (E_J/1e-6).toPrecision(4)+" µJ";
-  if(E_J<1) return (E_J/1e-3).toPrecision(4)+" mJ";
-  if(E_J<1e3) return E_J.toPrecision(4)+" J";
-  if(E_J<1e6) return (E_J/1e3).toPrecision(4)+" kJ";
-  if(E_J<1e9) return (E_J/1e6).toPrecision(4)+" MJ";
-  return (E_J/1e9).toPrecision(4)+" GJ";
-}
-
-function autoPrefixEnergyEV(E_J){
-  const eV = E_J/eV_to_J;
-  if(eV<1e-9) return (eV*1e9).toPrecision(4)+" neV";
-  if(eV<1e-6) return (eV*1e6).toPrecision(4)+" µeV";
-  if(eV<1e-3) return (eV*1e3).toPrecision(4)+" meV";
-  if(eV<1e3) return eV.toPrecision(4)+" eV";
-  if(eV<1e6) return (eV/1e3).toPrecision(4)+" keV";
-  if(eV<1e9) return (eV/1e6).toPrecision(4)+" MeV";
-  return (eV/1e9).toPrecision(4)+" GeV";
-}
-
-function computePhoton(){
-  let E = parseFloat(document.getElementById("energy").value);
-  let λ = parseFloat(document.getElementById("wavelength").value);
-  const Eunit = document.getElementById("energyUnit").value;
-  const λunit = document.getElementById("waveUnit").value;
-
-  const hasE = !isNaN(E), hasL = !isNaN(λ);
-  if(!hasE && !hasL){alert("Enter energy or wavelength."); return;}
-  if(hasE && hasL){alert("Enter only one value."); return;}
-
-  let λ_m,E_J;
-  if(hasE){
-    E_J = E*energyPrefixes[Eunit];
-    λ_m = h*c/E_J;
+  function si(x, unit) {
+    let p = SI[0];
+    for (const q of SI) { if (x >= q[0]) p = q; }
+    return (x / p[0]).toPrecision(4) + ' ' + p[1] + unit;
   }
-  if(hasL){
-    λ_m = λ*lengthPrefixes[λunit];
-    E_J = h*c/λ_m;
+  function inEV(J) {
+    const x = J / eV;
+    const steps = [[1e-9, 'neV'], [1e-6, 'µeV'], [1e-3, 'meV'], [1, 'eV'], [1e3, 'keV'], [1e6, 'MeV'], [1e9, 'GeV']];
+    let p = steps[0];
+    for (const q of steps) { if (x >= q[0]) p = q; }
+    return (x / p[0]).toPrecision(4) + ' ' + p[1];
+  }
+  const tidy = function (x) { return String(Number(x.toPrecision(6))); };
+
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const eIn = document.getElementById('energy');
+  const lIn = document.getElementById('wavelength');
+  const eUnit = document.getElementById('energyUnit');
+  const lUnit = document.getElementById('waveUnit');
+  let source = 'lambda'; // the box typed in last drives the other
+
+  function show(E, L, nu, problem) {
+    document.getElementById('Eout').textContent = 'E = ' + E;
+    document.getElementById('lambdaOut').textContent = 'λ = ' + L;
+    document.getElementById('freqOut').textContent = 'ν = ' + nu;
+    msg.textContent = problem || '';
   }
 
-  const ν = c/λ_m;
+  function run() {
+    const given = parseFloat((source === 'energy' ? eIn : lIn).value);
+    const other = source === 'energy' ? lIn : eIn;
+    if (!isFinite(given) || given <= 0) {
+      other.value = '';
+      show('—', '—', '—', 'Enter a ' + (source === 'energy' ? 'photon energy' : 'wavelength') + ' greater than zero.');
+      return;
+    }
+    let E, L;
+    if (source === 'energy') {
+      E = given * EN[eUnit.value];
+      L = h * c / E;
+      lIn.value = tidy(L / LEN[lUnit.value]);
+    } else {
+      L = given * LEN[lUnit.value];
+      E = h * c / L;
+      eIn.value = tidy(E / EN[eUnit.value]);
+    }
+    show(si(E, 'J') + ' = ' + inEV(E), si(L, 'm'), si(c / L, 'Hz'));
+  }
 
-  document.getElementById("Eout").textContent = "E = "+autoPrefixEnergy(E_J)+" = "+autoPrefixEnergyEV(E_J);
-  document.getElementById("lambdaOut").textContent = "λ = "+autoPrefixSI(λ_m,"m");
-  document.getElementById("freqOut").textContent = "ν = "+ν.toExponential(4)+" Hz";
-
-  MathJax.typesetPromise();
-}
+  card.querySelectorAll('input, select').forEach(function (el) {
+    el.addEventListener('input', function () {
+      if (el === eIn) source = 'energy';
+      if (el === lIn) source = 'lambda';
+      run();
+    });
+    el.addEventListener('change', run);
+  });
+  run();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

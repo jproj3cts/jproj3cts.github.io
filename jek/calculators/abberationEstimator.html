@@ -29,30 +29,30 @@
   <div class="calc-grid">
     <!-- Inputs -->
     <div class="calc-card">
-      <label>Focal Length (f)</label>
-      <input id="focalLength" type="number" step="any"/>
-      <select id="fUnit"><option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option></select>
+      <label for="focalLength">Focal length (f)</label>
+      <input id="focalLength" type="number" step="any" min="0" value="100"/>
+      <select id="fUnit" aria-label="Focal length unit"><option value="mm" selected>mm</option><option value="cm">cm</option><option value="m">m</option></select>
 
-      <label>Aperture (f-number, N)</label>
-      <input id="fNumber" type="number" step="any"/>
+      <label for="fNumber">f-number (N)</label>
+      <input id="fNumber" type="number" step="any" min="0" value="4"/>
 
-      <label>Wavelength (λ)</label>
-      <input id="wavelength" type="number" step="any"/>
-      <select id="lambdaUnit"><option value="nm">nm</option><option value="µm">µm</option><option value="mm">mm</option></select>
+      <label for="abbe">Abbe number of the glass (V)</label>
+      <input id="abbe" type="number" step="any" min="0" value="64.17"/>
 
-      <label>Δλ (Optional for Chromatic Aberration)</label>
-      <input id="deltaLambda" type="number" step="any" placeholder="nm"/>
-      <select id="deltaLambdaUnit"><option value="nm">nm</option><option value="µm">µm</option><option value="mm">mm</option></select>
+      <label for="wavelength">Wavelength (λ)</label>
+      <input id="wavelength" type="number" step="any" min="0" value="587.6"/>
+      <select id="lambdaUnit" aria-label="Wavelength unit"><option value="nm" selected>nm</option><option value="µm">µm</option></select>
 
-      <button onclick="computeAberrations()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 100 mm N-BK7 singlet (V = 64.17) at f/4, in yellow light at 587.6 nm.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>f</strong> = Focal length<br>
-          <strong>N</strong> = Aperture f-number<br>
-          <strong>λ</strong> = Wavelength<br>
-          <strong>Δλ</strong> = Wavelength range for chromatic aberration (optional)
+          <strong>Input parameters</strong><br>
+          <strong>f</strong> = focal length<br>
+          <strong>N</strong> = f-number, focal length over aperture diameter<br>
+          <strong>V</strong> = Abbe number of the lens glass (dispersion between the F and C lines)<br>
+          <strong>λ</strong> = wavelength, for the diffraction-limited spot
         </div>
       </div>
     </div>
@@ -61,17 +61,26 @@
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box" id="spherical">Spherical Aberration = ?</div>
-          <div class="eq-box" id="chromatic">Chromatic Aberration = ?</div>
+          <div class="eq-box">$$ d_{\mathrm{sph}} \approx \frac{0.067\,f}{N^3} $$</div>
+          <div class="eq-box" id="spherical">Spherical blur = —</div>
+
+          <div class="eq-box">$$ d_{\mathrm{chr}} \approx \frac{f}{2NV} $$</div>
+          <div class="eq-box" id="chromatic">Chromatic blur = —</div>
+
+          <div class="eq-box">$$ d_{\mathrm{Airy}} = 2.44\,\lambda N $$</div>
+          <div class="eq-box" id="airy">Airy disc = —</div>
         </div>
       </div>
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>Spherical Aberration</strong> ~ approximate<br>
-          <strong>Chromatic Aberration</strong> ~ computed if Δλ provided
+          <strong>Output parameters</strong><br>
+          <strong>d<sub>sph</sub></strong> = diameter of the smallest spot from third-order spherical aberration<br>
+          <strong>d<sub>chr</sub></strong> = diameter of the smallest spot from longitudinal colour across the F to C range<br>
+          <strong>d<sub>Airy</sub></strong> = diameter of the diffraction-limited spot (first dark ring), for comparison<br>
+          These estimates are for a single thin lens of index about 1.5, bent for least spherical aberration, with the object at infinity. A blur well below the Airy disc means the lens is close to diffraction-limited.
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: thin-lens third-order estimates as given in W. J. Smith, Modern Optical Engineering, 4th ed. (McGraw-Hill, 2008).</p>
     </div>
   </div>
 </main>
@@ -89,48 +98,48 @@
 </footer>
 
 <script>
-function toMeters(value, unit){
-  if(unit==="m") return value;
-  if(unit==="cm") return value/100;
-  if(unit==="mm") return value/1000;
-  if(unit==="µm") return value/1e6;
-  if(unit==="nm") return value/1e9;
-}
+(function () {
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const LEN = { m: 1, cm: 1e-2, mm: 1e-3, 'µm': 1e-6, nm: 1e-9 };
+  const val = function (id) { return parseFloat(document.getElementById(id).value); };
+  const unit = function (id) { return LEN[document.getElementById(id).value]; };
 
-function computeAberrations(){
-  let f = toMeters(parseFloat(document.getElementById("focalLength").value), document.getElementById("fUnit").value);
-  let N = parseFloat(document.getElementById("fNumber").value);
-  let lambda = toMeters(parseFloat(document.getElementById("wavelength").value), document.getElementById("lambdaUnit").value);
-
-  if(isNaN(f) || isNaN(N) || isNaN(lambda)){
-    alert("Please fill focal length, aperture, and wavelength.");
-    return;
+  function fmtLen(m) {
+    if (m >= 1) return m.toPrecision(4) + ' m';
+    if (m >= 1e-3) return (m * 1e3).toPrecision(4) + ' mm';
+    if (m >= 1e-6) return (m * 1e6).toPrecision(4) + ' µm';
+    return (m * 1e9).toPrecision(4) + ' nm';
   }
 
-  // Spherical Aberration (approx.)
-  let spherical = lambda * Math.pow(N,3) / f; // meters
-
-  // Chromatic Aberration (optional)
-  let deltaLambdaVal = parseFloat(document.getElementById("deltaLambda").value);
-  let deltaLambdaUnit = document.getElementById("deltaLambdaUnit").value;
-  let chromatic = null;
-
-  if(!isNaN(deltaLambdaVal) && deltaLambdaVal>0){
-    let deltaLambdaMeters = toMeters(deltaLambdaVal, deltaLambdaUnit);
-    chromatic = f * deltaLambdaMeters / lambda;
+  function show(sph, chr, airy, problem) {
+    document.getElementById('spherical').textContent = 'Spherical blur ≈ ' + sph;
+    document.getElementById('chromatic').textContent = 'Chromatic blur ≈ ' + chr;
+    document.getElementById('airy').textContent = 'Airy disc = ' + airy;
+    msg.textContent = problem || '';
   }
 
-  // Display outputs (meters → mm if <1m)
-  function display(val){
-    if(val>=1) return val.toFixed(3) + " m";
-    else if(val>=1e-3) return (val*1e3).toFixed(3) + " mm";
-    else if(val>=1e-6) return (val*1e6).toFixed(3) + " µm";
-    else return (val*1e9).toFixed(3) + " nm";
+  function run() {
+    const f = val('focalLength') * unit('fUnit');
+    const N = val('fNumber');
+    const V = val('abbe');
+    const lambda = val('wavelength') * unit('lambdaUnit');
+    if (![f, N, V, lambda].every(function (x) { return isFinite(x) && x > 0; })) {
+      show('—', '—', '—', 'Enter the focal length, f-number, Abbe number and wavelength as numbers greater than zero.');
+      return;
+    }
+    const sph = 0.067 * f / Math.pow(N, 3);
+    const chr = f / (2 * N * V);
+    const airy = 2.44 * lambda * N;
+    show(fmtLen(sph), fmtLen(chr), fmtLen(airy));
   }
 
-  document.getElementById("spherical").textContent = `Spherical Aberration ≈ ${display(spherical)}`;
-  document.getElementById("chromatic").textContent = chromatic!==null ? `Chromatic Aberration ≈ ${display(chromatic)}` : "Chromatic Aberration = (Δλ not provided)";
-}
+  card.querySelectorAll('input, select').forEach(function (el) {
+    el.addEventListener('input', run);
+    el.addEventListener('change', run);
+  });
+  run();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

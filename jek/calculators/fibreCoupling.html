@@ -27,58 +27,63 @@
   <h1 class="page-title" data-eyebrow="Calculators">Fibre coupling efficiency</h1>
 
   <div class="calc-grid">
-    <!-- Input Card -->
+    <!-- Input card -->
     <div class="calc-card">
-      <label>Beam Waist Radius (<span>w<sub>0</sub></span>)</label>
-      <input id="w0" type="number" step="any"/>
-      <select id="w0Unit">
-        <option value="nm" selected>nm</option>
-        <option value="µm">µm</option>
+      <label for="w0">Beam waist radius (<span>w<sub>0</sub></span>)</label>
+      <input id="w0" type="number" step="any" min="0" value="5"/>
+      <select id="w0Unit" aria-label="Beam waist unit">
+        <option value="nm">nm</option>
+        <option value="µm" selected>µm</option>
         <option value="mm">mm</option>
       </select>
 
-      <label>Fibre Mode Field Radius (<span>w<sub>f</sub></span>)</label>
-      <input id="wf" type="number" step="any"/>
-      <select id="wfUnit">
-        <option value="nm" selected>nm</option>
-        <option value="µm">µm</option>
+      <label for="wf">Fibre mode field radius (<span>w<sub>f</sub></span>)</label>
+      <input id="wf" type="number" step="any" min="0" value="5.2"/>
+      <select id="wfUnit" aria-label="Mode field radius unit">
+        <option value="nm">nm</option>
+        <option value="µm" selected>µm</option>
         <option value="mm">mm</option>
       </select>
 
-      <label>Lateral Offset (<span>r</span>)</label>
-      <input id="r" type="number" step="any"/>
-      <select id="rUnit">
-        <option value="nm" selected>nm</option>
-        <option value="µm">µm</option>
+      <label for="r">Lateral offset (<span>r</span>)</label>
+      <input id="r" type="number" step="any" value="1"/>
+      <select id="rUnit" aria-label="Offset unit">
+        <option value="nm">nm</option>
+        <option value="µm" selected>µm</option>
         <option value="mm">mm</option>
       </select>
 
-      <button onclick="computeCoupling()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 5 µm waist focused onto SMF-28 fibre at 1550 nm (mode field diameter 10.4 µm), 1 µm off axis.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>w<sub>0</sub></strong> = Beam Waist Radius<br>
-          <strong>w<sub>f</sub></strong> = Fibre Mode Field Radius<br>
-          <strong>r</strong> = Lateral Offset
+          <strong>Input parameters</strong><br>
+          <strong>w<sub>0</sub></strong> = beam waist radius (1/e² intensity), at the fibre face<br>
+          <strong>w<sub>f</sub></strong> = fibre mode field radius, half the mode field diameter on the datasheet<br>
+          <strong>r</strong> = lateral offset between the beam axis and the fibre axis
         </div>
       </div>
     </div>
 
-    <!-- Output Card -->
+    <!-- Output card -->
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$\eta = \left(\frac{2 w_0 w_f}{w_0^2 + w_f^2}\right)^2 \exp\left(-\frac{2 r^2}{w_0^2 + w_f^2}\right)$$</div>
-          <div class="eq-box" id="etaOut">η = ?</div>
+          <div class="eq-box" id="etaOut">η = —</div>
+          <div class="eq-box" id="lossOut">Loss = —</div>
         </div>
       </div>
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameter:</strong><br>
-          <strong>η</strong> = Fibre Coupling Efficiency (%)
+          <strong>Output parameters</strong><br>
+          <strong>η</strong> = fraction of the beam's power coupled into the fibre's fundamental mode<br>
+          <strong>Loss</strong> = −10 log₁₀ η, in dB<br>
+          This assumes Gaussian beam and mode, the beam waist at the fibre face, no tilt and no reflection loss.
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: overlap of two Gaussian modes with an offset, as in A. Ghatak and K. Thyagarajan, An Introduction to Fiber Optics (Cambridge University Press, 1998).</p>
     </div>
   </div>
 </main>
@@ -96,23 +101,37 @@
 </footer>
 
 <script>
-const lengthPrefixes = { "nm":1e-9, "µm":1e-6, "mm":1e-3 };
+(function () {
+  const L = { nm: 1e-9, 'µm': 1e-6, mm: 1e-3 };
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = function (id) { return parseFloat(document.getElementById(id).value) * L[document.getElementById(id + 'Unit').value]; };
 
-function toMeters(value, unit){ return value*lengthPrefixes[unit]; }
+  function show(eta, loss, problem) {
+    document.getElementById('etaOut').textContent = 'η = ' + eta;
+    document.getElementById('lossOut').textContent = 'Loss = ' + loss;
+    msg.textContent = problem || '';
+  }
 
-function computeCoupling(){
-  const w0 = toMeters(parseFloat(document.getElementById("w0").value), document.getElementById("w0Unit").value);
-  const wf = toMeters(parseFloat(document.getElementById("wf").value), document.getElementById("wfUnit").value);
-  const r = toMeters(parseFloat(document.getElementById("r").value), document.getElementById("rUnit").value);
+  function run() {
+    const w0 = num('w0');
+    const wf = num('wf');
+    const r = num('r');
+    if (!isFinite(w0) || w0 <= 0 || !isFinite(wf) || wf <= 0 || !isFinite(r)) {
+      show('—', '—', 'Enter the beam waist and mode field radius greater than zero, and the offset (0 for none).');
+      return;
+    }
+    const s = w0 * w0 + wf * wf;
+    const eta = (2 * w0 * wf / s) ** 2 * Math.exp(-2 * r * r / s);
+    show((eta * 100).toFixed(2) + ' %', (-10 * Math.log10(eta)).toFixed(3) + ' dB');
+  }
 
-  if([w0,wf,r].some(isNaN)){ alert("Please fill in all input fields."); return; }
-
-  const numerator = 2*w0*wf;
-  const denominator = w0**2 + wf**2;
-  const eta = (numerator/denominator)**2 * Math.exp(-2*r**2/denominator);
-
-  document.getElementById("etaOut").textContent = "η = "+(eta*100).toFixed(2)+" %";
-}
+  card.querySelectorAll('input, select').forEach(function (el) {
+    el.addEventListener('input', run);
+    el.addEventListener('change', run);
+  });
+  run();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Fiber Coupling Efficiency Calculator</title>
+<title>Fibre coupling efficiency calculator | JEK Systems</title>
+<meta name="description" content="Calculate how efficiently a Gaussian beam couples into a single-mode fibre. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Fibre coupling efficiency calculator">
+<meta property="og:description" content="Calculate how efficiently a Gaussian beam couples into a single-mode fibre. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/fibreCoupling.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,7 +24,7 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Fiber Coupling Efficiency Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Fibre coupling efficiency</h1>
 
   <div class="calc-grid">
     <!-- Input Card -->
@@ -29,7 +37,7 @@
         <option value="mm">mm</option>
       </select>
 
-      <label>Fiber Mode Field Radius (<span>w<sub>f</sub></span>)</label>
+      <label>Fibre Mode Field Radius (<span>w<sub>f</sub></span>)</label>
       <input id="wf" type="number" step="any"/>
       <select id="wfUnit">
         <option value="nm" selected>nm</option>
@@ -51,7 +59,7 @@
         <div class="param-box">
           <strong>Input Parameters:</strong><br>
           <strong>w<sub>0</sub></strong> = Beam Waist Radius<br>
-          <strong>w<sub>f</sub></strong> = Fiber Mode Field Radius<br>
+          <strong>w<sub>f</sub></strong> = Fibre Mode Field Radius<br>
           <strong>r</strong> = Lateral Offset
         </div>
       </div>
@@ -68,7 +76,7 @@
       <div class="param-box-wrapper">
         <div class="param-box">
           <strong>Output Parameter:</strong><br>
-          <strong>η</strong> = Fiber Coupling Efficiency (%)
+          <strong>η</strong> = Fibre Coupling Efficiency (%)
         </div>
       </div>
     </div>

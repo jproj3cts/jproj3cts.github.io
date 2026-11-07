@@ -39,7 +39,9 @@ Steps 1, 2, 4, 5 and 6 of the build order (benches and billing before teams), an
   `team_yearly` (the team prices are for one seat; the subscription's
   quantity is the seats). Each must exist in Stripe as an active recurring
   price with that lookup key. The academic price needs a university email
-  or a current university role on ORCID (`/v1/me/academic`).
+  or a current university role on ORCID (`/v1/me/academic`). A university email is one ending .ac/.edu (with a
+  country code or not), at a university in Hipo's public register (`src/academic-domains.js`, rebuilt with
+  `node scripts/academic-domains.mjs`, MIT licence) or on the short list of institutes in `src/academic.js`.
 - Teams (`src/teams.js`): `POST /v1/teams` makes a workspace of kind
   'team' owned by the caller; `GET/PATCH/DELETE /v1/teams/:id`; invitations
   by email (`POST /v1/teams/:id/invites` {email, role}, a link

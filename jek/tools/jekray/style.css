@@ -1123,6 +1123,7 @@
   .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
   .rt-tbl .ic { width: 15px; height: 15px; }
   .rt-bar .rt-file { margin: 0 auto; }
+  .rt-bar .rt-file.rt-squeezed { visibility: hidden; }
   /* centred on the page when it clears both sides (ui/tours.js centreName) */
   @media (min-width: 961px) {
     .rt-bar { position: relative; }
@@ -1208,11 +1209,12 @@
   .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
   .rt-imenu .sep { height: 1px; margin: 4px 0; background: var(--jek-line); }
   /* an item present but not possible now (not signed in, no plan): a greyed box that says why, and offers the way */
-  .rt-imenu > button.rt-off, .rt-ctx button.rt-off { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
-  .rt-imenu > button.rt-off:hover, .rt-imenu > button.rt-off:focus-visible, .rt-ctx button.rt-off:hover { background: var(--jek-well); color: var(--jek-ink-soft); }
-  .rt-imenu > button.rt-off .ic { opacity: 0.45; }
+  /* greyed only when it cannot be had: one with a Pro or Free account chip looks as any other, the chip saying what it needs */
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed), .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed) { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover, .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):focus-visible, .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover { background: var(--jek-well); color: var(--jek-ink-soft); }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed) .ic { opacity: 0.45; }
   .rt-menu.rt-imenu > button.rt-off .k.rt-why, .rt-ctx button.rt-off .k.rt-why { font: 600 0.68rem var(--jek-sans, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
-  .rt-btn.rt-off { opacity: 0.5; }
+  .rt-btn.rt-off:not(.rt-proneed):not(.rt-acctneed) { opacity: 0.5; }
   .rt-imenu .rt-menunote { padding: 0.25rem 0.9rem 0.2rem 2.35rem; font-size: 0.75rem; }
   .rt-imenu [aria-checked="false"] .ic { opacity: 0; }
   .rt-imenu .rt-dot { margin-left: 0.35rem; }

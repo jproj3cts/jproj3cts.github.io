@@ -1168,6 +1168,7 @@
   .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
   .rt-tbl .ic { width: 15px; height: 15px; }
   .rt-bar .rt-file { margin: 0 auto; }
+  .rt-bar .rt-file.rt-squeezed { visibility: hidden; }
   /* centred on the page when it clears both sides (ui/tours.js centreName) */
   @media (min-width: 961px) {
     .rt-bar { position: relative; }
@@ -1253,11 +1254,12 @@
   .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
   .rt-imenu .sep { height: 1px; margin: 4px 0; background: var(--jek-line); }
   /* an item present but not possible now (not signed in, no plan): a greyed box that says why, and offers the way */
-  .rt-imenu > button.rt-off, .rt-ctx button.rt-off { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
-  .rt-imenu > button.rt-off:hover, .rt-imenu > button.rt-off:focus-visible, .rt-ctx button.rt-off:hover { background: var(--jek-well); color: var(--jek-ink-soft); }
-  .rt-imenu > button.rt-off .ic { opacity: 0.45; }
+  /* greyed only when it cannot be had: one with a Pro or Free account chip looks as any other, the chip saying what it needs */
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed), .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed) { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover, .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):focus-visible, .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover { background: var(--jek-well); color: var(--jek-ink-soft); }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed) .ic { opacity: 0.45; }
   .rt-menu.rt-imenu > button.rt-off .k.rt-why, .rt-ctx button.rt-off .k.rt-why { font: 600 0.68rem var(--jek-sans, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
-  .rt-btn.rt-off { opacity: 0.5; }
+  .rt-btn.rt-off:not(.rt-proneed):not(.rt-acctneed) { opacity: 0.5; }
   .rt-imenu .rt-menunote { padding: 0.25rem 0.9rem 0.2rem 2.35rem; font-size: 0.75rem; }
   .rt-imenu [aria-checked="false"] .ic { opacity: 0; }
   .rt-imenu .rt-dot { margin-left: 0.35rem; }
@@ -10863,7 +10865,7 @@ function demoProject() {
   const p = { name: 'Untitled bench', view: { cx: 5, cy: 8, scale: 6 }, snap: 1, maxBounces: 200, minPower: 0.1, ghosts: false, library: [], elements: [] };
   setProject(p);
   p.elements.push(
-    normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15 }),
+    normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15, pattern: 'hex' }),
     normElement({ type: 'lens', name: 'f = 50 mm biconvex', x: 0, y: 0, angle: 0, diameter: 25.4,
       surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }),
     normElement({ type: 'mirror', name: 'Fold mirror', x: 25, y: 0, angle: 135, length: 25.4 }),
@@ -33220,7 +33222,7 @@ function rwDraw() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
     P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optical designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optical designer'),
-    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
+    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off rt-proneed' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
       RW.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -34652,7 +34654,7 @@ function drawWs() {
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); afterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); afterUndo(); } }, '↷'),
     ...(isRfAsm(asm) ? [h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the RF designer: the feed horn’s beam through them to its goal', onclick: () => { closeLensDesign(); openRfDesign(asm); } }, 'RF designer')] : []),
-    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
+    hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off rt-proneed' : ''), type: 'button', id: 'lensKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole design (its parts, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', title: 'The design as a PDF: its conditions, first order, layout, prescription, Seidel sums, analyses, tolerances and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveReport(asm); } }, 'Report (PDF)'), 'save a design report'),
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
@@ -55867,8 +55869,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>From Instagram</b>: every link from our Instagram posts now opens the Michelson interferometer example with its moving mirror sweeping, and the note listing our reels’ benches has gone.',
-    '<b>Getting JEKrayPro is simpler</b>: a <b>Get Pro</b> button in the bar, and every Pro feature, open the plans and prices, signed in or not. Pay straight away: your account is made from the address you pay with, and you are signed in when you come back. The <b>academic price</b> needs only your university email address, typed beside it (no code to wait for). Signing in by email sends a link you click (the code still works), and you stay signed in for a year. Checking for a university licence now says plainly when yours has none.',
+    '<b>From Instagram</b>: every link from our Instagram posts now opens the Michelson interferometer example with its moving mirror sweeping, and the note listing our reels’ benches has gone. The bench JEKray opens with sends its rays in hexapolar rings, a full beam in 3D.',
+    '<b>Getting JEKrayPro is simpler</b>: a <b>Get Pro</b> button in the bar, and every Pro feature, open the plans and prices, signed in or not. Pay straight away: your account is made from the address you pay with, and you are signed in when you come back. The <b>academic price</b> needs only your university email address, typed beside it (no code to wait for); any of the 10,000 universities in a public register counts. Menu items that need an account or JEKrayPro are no longer greyed: their badge says what they need. Signing in by email sends a link you click (the code still works), and you stay signed in for a year. Checking for a university licence now says plainly when yours has none.',
     '<b>No ticks for a source\u2019s light</b>: a source always traces its rays, and a new one propagates a Gaussian beam; its panel\u2019s <b>Field</b> says what its field starts from, the Gaussian beam or even illumination across the fan (a uniform pupil, for a lens\u2019s Airy pattern, Strehl and MTF). A fibre tip always sends both. The bench\u2019s <b>Light</b> turns the rays, or the beams, off for every source at once. The look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
     'A scope\u2019s <b>Offset</b> works with its scale on auto: typing one keeps the scale on the screen as Per division (wide enough to keep the trace in view), so the trace moves as on a bench scope; before, it was ignored until Per division was set. In 3D, a fibre component or circuit part dragged across the table now moves with its fibres (and Ctrl+Z puts it back), its arrows from the middle of its body.',
     '<b>Fibres and circuits in 3D</b>: fibre components, circuit parts and chips stand on the table in the 3D view, each a box with its symbol on its top, ferrules and pins at its ports, and their fibres, wires and waveguides laid along their routes, rising to each port (a fibre glows the colour of its light). No tab stays in 2D now. The parts\u2019 names in 3D are off to start with (View \u203a Names in 3D).',
@@ -57839,7 +57841,7 @@ function wireTours() {
        width), wherever it then clears both sides; else back in the gap */
     const centreName = () => {
       const file = nameInput.closest('.rt-file'), bar = file && file.parentElement;
-      if (!bar || window.innerWidth <= 960) { if (file) file.classList.remove('rt-centred'); return; }
+      if (!bar || window.innerWidth <= 960) { if (file) file.classList.remove('rt-centred', 'rt-squeezed'); return; }
       file.classList.remove('rt-centred');
       const B = bar.getBoundingClientRect(), F = file.getBoundingClientRect();
       const before = [...bar.children].slice(0, [...bar.children].indexOf(file)).filter(n => n.getClientRects().length);
@@ -57847,6 +57849,8 @@ function wireTours() {
       const right = bar.querySelector('.rt-right'), rightStart = right ? right.getBoundingClientRect().left : B.right;
       const l = B.left + B.width / 2 - F.width / 2;
       if (l > leftEnd + 12 && l + F.width < rightStart - 12) file.classList.add('rt-centred');
+      // too little room between the two sides to read it (a stub of the name helps no one): hidden till there is
+      file.classList.toggle('rt-squeezed', !file.classList.contains('rt-centred') && rightStart - leftEnd < 112 + 24);
     };
     // (worked out again when the bar or either side of it changes: Get Pro shown, the 3D view's icons)
     const ro = new ResizeObserver(centreName);

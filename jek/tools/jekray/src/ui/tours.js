@@ -575,7 +575,7 @@ export function wireTours() {
        width), wherever it then clears both sides; else back in the gap */
     const centreName = () => {
       const file = nameInput.closest('.rt-file'), bar = file && file.parentElement;
-      if (!bar || window.innerWidth <= 960) { if (file) file.classList.remove('rt-centred'); return; }
+      if (!bar || window.innerWidth <= 960) { if (file) file.classList.remove('rt-centred', 'rt-squeezed'); return; }
       file.classList.remove('rt-centred');
       const B = bar.getBoundingClientRect(), F = file.getBoundingClientRect();
       const before = [...bar.children].slice(0, [...bar.children].indexOf(file)).filter(n => n.getClientRects().length);
@@ -583,6 +583,8 @@ export function wireTours() {
       const right = bar.querySelector('.rt-right'), rightStart = right ? right.getBoundingClientRect().left : B.right;
       const l = B.left + B.width / 2 - F.width / 2;
       if (l > leftEnd + 12 && l + F.width < rightStart - 12) file.classList.add('rt-centred');
+      // too little room between the two sides to read it (a stub of the name helps no one): hidden till there is
+      file.classList.toggle('rt-squeezed', !file.classList.contains('rt-centred') && rightStart - leftEnd < 112 + 24);
     };
     // (worked out again when the bar or either side of it changes: Get Pro shown, the 3D view's icons)
     const ro = new ResizeObserver(centreName);

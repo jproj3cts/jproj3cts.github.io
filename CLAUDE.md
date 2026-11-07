@@ -14,6 +14,25 @@ conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tool
   commit messages with no `Co-Authored-By`, `Claude-Session` or other assistant lines, session links or model names.
   (main's history was rewritten to this once, on 5 Nov 2026; it is never force-pushed again.)
 
+## Site writing (the JEK pages, not the tool's own copy)
+The site should read as written by the people who build the things on it. Before changing a page's words:
+- **Evidence over description.** A number, a photo, a part, a paper or a result says more than an adjective. Cut
+  "precision", "cutting-edge", "solutions", "robust", "seamless", "hands-on expertise", "track record".
+- **Only what is true and checked.** No placeholder text, prices or part numbers on a published page; a product not on
+  sale says "in development". Specs come from the datasheet; when the datasheet and the page disagree, ask.
+- **Plain sentences.** One claim each; "we", not "JEK Systems takes on…"; British spelling (fibre, colour).
+- **None of these shapes:** "Not X, but Y" / "X, not just Y"; three-part lists and "from A to B to C"; opening with a
+  general truth ("Not every measurement…"); a colon before a reveal; a triple of negatives ("no seats, no software,
+  nothing to run"); taglines in pairs ("Designed together, built in-house").
+- **Headings name the page** ("Contact", "The team"), sentence case. One heading and one short line under it, not a
+  heading, tagline and lede stack. No small uppercase eyebrow above a heading unless it carries information (a
+  breadcrumb such as "Products · Photonics", a plan's name).
+- **Buttons say what happens** ("Email us about a project", not "Start a conversation").
+- Keep the sand, orange and five-colour stripe: they are the JEK identity. Vary layouts by content (tables for specs and
+  prices, a photo beside text for projects) rather than a grid of identical cards everywhere.
+- Each page has a `<title>` "Page | JEK Systems", a `<meta name="description">` and Open Graph tags (`og:title`,
+  `og:description`, `og:url`, `og:image`; `jek/assets/img/share-card.png` by default).
+
 ## Where things are
 | Area | Path |
 |---|---|
@@ -146,6 +165,10 @@ through `core/hooks.js`.
   '<where>.<answer>')`: share, save, return, shared, tour, menu; names in `PROMPT_NAMES`) with shown, each answer,
   sign-in clicks and click-through. A new prompt reuses the `prompt` event; its where goes in `PROMPT_NAMES`
   (`test/node/nudge.test.mjs` checks). The notes share one weekly cap (`src/core/nudge.js`).
+- Accounts report (who has an account, their plan, sign-ins, last active, benches, links, exercises): `GET /ops/users`
+  (`jek-api/src/opsusers.js`), read by `cd jek-api && JEK_OPS_TOKEN=… node scripts/users.mjs` (`--html`, `--csv`,
+  `--json`, `--sort active|joined|benches|plan|name`; `scripts\users-report.cmd` on Windows). Account records only: never
+  joined to the anonymous usage counts, and never a bench's contents.
 - Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
   `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`
   (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` and

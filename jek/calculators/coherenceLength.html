@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Coherence Length Calculator</title>
+<title>Coherence length calculator | JEK Systems</title>
+<meta name="description" content="Calculate the coherence length of a source from its linewidth. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Coherence length calculator">
+<meta property="og:description" content="Calculate the coherence length of a source from its linewidth. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/coherenceLength.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,53 +24,66 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Coherence Length Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Coherence length</h1>
 
   <div class="calc-grid">
-    <!-- Input Card -->
+    <!-- Input card -->
     <div class="calc-card">
-      <label>Central Wavelength (λ)</label>
-      <input id="wavelength" type="number" step="any" value="632.8">
-      <select id="wavelengthUnit">
-        <option value="nm" selected>nm</option>
-        <option value="µm">µm</option>
-        <option value="m">m</option>
+      <label for="wavelength">Centre wavelength (λ)</label>
+      <input id="wavelength" type="number" step="any" min="0" value="632.8">
+      <select id="wavelengthUnit" aria-label="Wavelength unit">
+        <option value="1e-9" selected>nm</option>
+        <option value="1e-6">µm</option>
       </select>
 
-      <label>Spectral Linewidth (Δλ)</label>
-      <input id="linewidth" type="number" step="any" value="0.1">
-      <select id="linewidthUnit">
-        <option value="nm" selected>nm</option>
-        <option value="µm">µm</option>
-        <option value="m">m</option>
+      <label for="linewidth">Spectral linewidth, FWHM (Δλ or Δν)</label>
+      <input id="linewidth" type="number" step="any" min="0" value="1.5">
+      <select id="linewidthUnit" aria-label="Linewidth unit">
+        <option value="l:1e-9">nm</option>
+        <option value="l:1e-12">pm</option>
+        <option value="f:1e9" selected>GHz</option>
+        <option value="f:1e6">MHz</option>
+        <option value="f:1e3">kHz</option>
       </select>
 
-      <button onclick="compute()">Compute</button>
+      <label for="lineshape">Line shape</label>
+      <select id="lineshape">
+        <option value="gauss" selected>Gaussian (a = 0.664)</option>
+        <option value="lorentz">Lorentzian (a = 0.318)</option>
+        <option value="rough">Rough estimate (a = 1)</option>
+      </select>
+
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a helium-neon laser at 632.8 nm running on several modes across its 1.5 GHz Doppler-broadened gain line.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>λ</strong> = Central Wavelength<br>
-          <strong>Δλ</strong> = Spectral Linewidth
+          <strong>Input parameters</strong><br>
+          <strong>λ</strong> = Centre wavelength in vacuum (needed for a linewidth in nm or pm)<br>
+          <strong>Δλ, Δν</strong> = Full width at half maximum of the spectrum, in wavelength or frequency (Δν = cΔλ/λ²)<br>
+          <strong>a</strong> = Line-shape factor: √(2 ln 2/π) ≈ 0.664 for a Gaussian line, 1/π ≈ 0.318 for a Lorentzian, 1 for the rough estimate λ²/Δλ
         </div>
       </div>
     </div>
 
-    <!-- Output Card -->
+    <!-- Output card -->
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box">$$ L_c = \frac{\lambda^2}{\Delta \lambda} $$</div>
-          <div class="eq-box" id="coherenceOut">Lₜ = ?</div>
+          <div class="eq-box">$$ L_c = a\,\frac{c}{\Delta \nu} = a\,\frac{\lambda^2}{\Delta \lambda} \qquad \tau_c = \frac{L_c}{c} $$</div>
+          <div class="eq-box" id="coherenceOut">Coherence length L<sub>c</sub> = —</div>
+          <div class="eq-box" id="timeOut">Coherence time τ<sub>c</sub> = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameter:</strong><br>
-          <strong>Lₜ</strong> = Coherence Length
+          <strong>Output parameters</strong><br>
+          <strong>L<sub>c</sub></strong> = Coherence length in vacuum, with the coherence time defined as τ<sub>c</sub> = ∫|g(τ)|² dτ; in a medium divide by its group index<br>
+          <strong>τ<sub>c</sub></strong> = Coherence time
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics, 3rd ed. (Wiley, 2019).</p>
     </div>
   </div>
 </main>
@@ -71,7 +92,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -80,29 +101,55 @@
 </footer>
 
 <script>
-const LENGTH_UNITS = { "m":1, "cm":0.01, "mm":0.001, "µm":1e-6, "nm":1e-9 };
+(function(){
+  const card = document.querySelector(".calc-card");
+  const msg = card.querySelector(".calc-msg");
+  const $ = id => document.getElementById(id);
+  // A number from an input, or NaN when it is empty or not a number
+  function num(id){ const v = $(id).value.trim(); return v === "" ? NaN : Number(v); }
+  // Four significant figures with an SI prefix
+  function fmt(x, unit){
+    const pre = [[1e12,"T"],[1e9,"G"],[1e6,"M"],[1e3,"k"],[1,""],[1e-3,"m"],[1e-6,"µ"],[1e-9,"n"],[1e-12,"p"],[1e-15,"f"],[1e-18,"a"]];
+    if(x === 0) return "0 " + unit;
+    for(const [f, p] of pre){ if(Math.abs(x) >= f*0.99995) return (x/f).toPrecision(4) + " " + p + unit; }
+    return x.toExponential(3) + " " + unit;
+  }
+  function wire(update){
+    card.querySelectorAll("input, select").forEach(el => {
+      el.addEventListener("input", update);
+      el.addEventListener("change", update);
+    });
+    update();
+  }
+  const C = 299792458;
+  const SHAPE = { gauss: Math.sqrt(2*Math.LN2/Math.PI), lorentz: 1/Math.PI, rough: 1 };
+  const out = $("coherenceOut"), tOut = $("timeOut");
 
-function toMeters(val, unit){ return val * LENGTH_UNITS[unit]; }
+  function fail(text){
+    out.innerHTML = "Coherence length L<sub>c</sub> = —";
+    tOut.innerHTML = "Coherence time τ<sub>c</sub> = —";
+    msg.textContent = text;
+  }
 
-function formatLength(L){
-  if(L>=1) return L.toFixed(3)+" m";
-  if(L>=1e-3) return (L*1e3).toFixed(3)+" mm";
-  if(L>=1e-6) return (L*1e6).toFixed(3)+" µm";
-  return (L*1e9).toFixed(3)+" nm";
-}
-
-function compute(){
-  const λ = toMeters(parseFloat(wavelength.value), wavelengthUnit.value);
-  const Δλ = toMeters(parseFloat(linewidth.value), linewidthUnit.value);
-
-  if([λ, Δλ].some(isNaN) || Δλ===0){ alert("Please fill in all fields with valid numbers"); return; }
-
-  const Lc = λ*λ/Δλ;
-
-  coherenceOut.textContent = "Lₜ = "+formatLength(Lc);
-
-  MathJax.typeset();
-}
+  function update(){
+    const width = num("linewidth");
+    const [kind, scale] = $("linewidthUnit").value.split(":");
+    if(!(width > 0)) return fail("Enter a linewidth above zero.");
+    let dnu;
+    if(kind === "l"){
+      const lam = num("wavelength") * Number($("wavelengthUnit").value);
+      if(!(lam > 0)) return fail("Enter the centre wavelength to use a linewidth in nm or pm.");
+      dnu = C * width*Number(scale) / (lam*lam);
+    } else {
+      dnu = width * Number(scale);
+    }
+    msg.textContent = "";
+    const Lc = SHAPE[$("lineshape").value] * C / dnu;
+    out.innerHTML = "Coherence length L<sub>c</sub> = " + fmt(Lc, "m");
+    tOut.innerHTML = "Coherence time τ<sub>c</sub> = " + fmt(Lc / C, "s");
+  }
+  wire(update);
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

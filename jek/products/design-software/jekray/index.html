@@ -6,10 +6,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>JEK Systems | JEKray Optical Bench Simulator</title>
+<title>JEKray, the optical bench simulator | JEK Systems</title>
+<meta name="description" content="Lay out an optical bench in your browser and see exact rays, Gaussian beams and the diffracted field; design lenses and RF lenses. Free, nothing to install.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="JEKray, the optical bench simulator">
+<meta property="og:description" content="Lay out an optical bench in your browser and see exact rays, Gaussian beams and the diffracted field; design lenses and RF lenses. Free, nothing to install.">
+<meta property="og:url" content="https://jeksys.net/jek/products/design-software/jekray/">
+<meta property="og:image" content="https://jeksys.net/jek/products/design-software/jekray/img/jekray-demo.jpg">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <style>
+  /* the hero's key phrase, underlined in the JEK stripe */
+  .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
+  .jek-hero .jek-shot video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #1f2529; }
   /* See it work: the recording, full width of the column */
   .rt-video > p { margin: 0 0 1rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
   .rt-video video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #1f2529; }
@@ -72,10 +83,9 @@
     <section class="jek-hero">
       <div class="jek-wrap">
         <div>
-          <div class="jek-eyebrow">Design software</div>
-          <h1>JEKray</h1>
-          <p class="jek-tag">An optical bench simulator and lens-design workspace that shows the waves as well as the rays.</p>
-          <p class="jek-lede">Lay out sources, lenses, mirrors, fibre and detectors on a virtual breadboard and see the light traced as you move them: exact rays through real glass, diffracted Gaussian beams with interference and polarisation, in 2D and 3D. Then design the lenses themselves: optimise them, analyse them, tolerance them, draw them for the workshop and send them to CAD.</p>
+          <div class="jek-eyebrow">JEKray</div>
+          <h1>A <span class="jek-twin">digital twin</span> of your optics bench.</h1>
+          <p class="jek-lede">Lay out lenses, mirrors, fibre and detectors on a virtual breadboard and the light is traced as you move them, in 2D and 3D. Then design, tolerance and draw the lenses themselves.</p>
           <div class="jek-acts">
             <a class="jek-btn primary" href="/jek/tools/jekray.html">Launch JEKray</a>
             <a class="jek-btn quiet" href="#examples">Try an example</a>
@@ -84,8 +94,9 @@
           <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span><span>Open beta</span><span>Best on a desktop or laptop</span></div>
         </div>
         <figure class="jek-shot cover">
-          <img src="img/jekray-demo.jpg" alt="The JEKray bench in its 3D view: a grating spectrometer, the mercury lines fanning out past the grating onto the detector plane" width="1280" height="800">
-          <figcaption>A grating spectrometer, turned in the 3D view. Drag any part and the light follows.</figcaption>
+          <video id="demoVideo" src="img/jekray-demo.webm" poster="img/jekray-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
+            aria-label="Screen recording: a grating spectrometer opened from the examples gallery, its lens dragged along the beam, the detector's spectrum plotted, the bench turned in the 3D view, the parts picker searched for fibre parts, and the bench saved to the cloud and listed in My benches beside a team's benches"></video>
+          <figcaption>Move a lens. Watch the light follow.</figcaption>
         </figure>
       </div>
     </section>
@@ -113,31 +124,31 @@
     <section class="jek-section" style="padding-top: 0">
       <div class="jek-wrap">
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">One bench</span><h2>Simulate the whole bench</h2><p>Free-space optics, fibre and the electronics after the detector, with photonic chips too, solved together on one bench across as many tabs as you like. Light leaves a fibre and enters free space, lands on a photodiode and carries on as a signal through amplifiers, mixers and lock-ins to an oscilloscope.</p></div>
+          <div><h2>Simulate the whole bench</h2><p>Free-space optics, fibre and the electronics after the detector, with photonic chips too, solved together on one bench across as many tabs as you like. Light leaves a fibre and enters free space, lands on a photodiode and carries on as a signal through amplifiers, mixers and lock-ins to an oscilloscope.</p></div>
           <figure class="jek-shot"><img src="img/fibre-michelson.png" alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">Waves, not just rays</span><h2>Rays, Gaussian beams and the full diffracted field</h2><p>Exact rays through real glass, each carrying its polarisation and optical path. Gaussian beams followed through every branch, so interferometers show fringes and cavities resonate. And the diffracted field where rays cannot tell the story: slits, masks, a tight focus, a vortex beam. Raise, tip and roll any part and the light follows in 3D, the field glowing along each beam in calibrated W/cm&sup2;.</p></div>
+          <div><h2>Rays, Gaussian beams and the diffracted field</h2><p>Exact rays through real glass, each carrying its polarisation and optical path. Gaussian beams through every branch, so interferometers show fringes and cavities resonate. The diffracted field where rays are not enough: slits, masks, a tight focus, a vortex beam. Parts can be raised, tipped and rolled, and the light follows them in 3D.</p></div>
           <figure class="jek-shot"><img src="img/field-3d.png" alt="The diffracted field drawn as a glowing volume in the 3D view" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">Optical design</span><h2>Design lenses from scratch</h2><p>From a singlet to a multi-element assembly: build the prescription with solves and pickups, aspheres, freeforms, diffractive surfaces and graded glass, and zooms as configurations. Optimise for a merit function you build, search for new starting points, and choose from some 1,200 glasses in the makers&rsquo; catalogues. Then look at it from every side: spots, fans, wavefront, PSF and MTF, relative illumination, ghosts, polarisation, temperature, and a picture as the lens would form it. Anyone can build and analyse a design; optimising, tolerancing, reports and drawings come with JEKrayPro.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <div><h2>Lens design</h2><p>From a singlet to a multi-element assembly, with aspheres, freeforms, diffractive surfaces and graded glass. Optimise against a merit function you build, with some 1,200 catalogue glasses, then check the spots, wavefront, MTF and ghosts, and the image the lens would form. Anyone can build and analyse a design; optimising, tolerancing, reports and drawings come with JEKrayPro.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
           <figure class="jek-shot"><img src="img/lens-design.png" alt="The whole lens-design workspace for a Cooke triplet: its design conditions, the layout with rays at three fields, its first-order figures, the tabs, and a test chart beside the same chart as the design forms it" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">To the workshop</span><h2>From design to drawing to CAD</h2><p>Tolerance it with sensitivity, Monte Carlo and inverse sensitivity, with compensators and a yield against your specification. Draw each lens in the manner of ISO 10110 and the whole design as a report. Export a .zmx file, or STEP solids and an STL mesh for the mechanical design. And bring your own stock lens files to find which could stand in for each lens, and how well.</p></div>
+          <div><h2>Tolerances, drawings and CAD</h2><p>Tolerance a design by sensitivity or Monte Carlo, with compensators and a yield against your specification. Draw each lens in the manner of ISO 10110, and export a .zmx file or STEP solids for the mechanical design. Load your own stock lens files to see which could stand in for each element.</p></div>
           <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, its surfaces, glass and tolerances, and a title block" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><span class="jek-eyebrow">RF and millimetre waves</span><h2>Quasi-optics from 1 GHz to 3 THz</h2><p>Feed horns, RF lenses, mirrors, wire grids and mesh filters, with the beam&rsquo;s diffraction worked out properly at these wavelengths. Plastic lenses made to order, solid or graded in density, show their loss, how well the beam fits them, and whether they are manufacturable. Sweep a link across frequency for its S21 and link budget, steer the beam off axis, and take the signal on to a mixer and a spectrum analyser.</p><p>The RF designer designs a whole system, from a feed horn&rsquo;s beam through its lenses to a collimated beam, a waist or a receiving horn: lenses made to suit the beam (hyperbolic, graded-index or cut in zones), every loss over the band, optimised and toleranced, then a drawing and a quote for each lens.</p><p><a href="/jek/docs/jekray/rf/">RF on the bench</a> &middot; <a href="/jek/docs/jekray/rf/designer/">The RF designer</a></p></div>
+          <div><h2>RF and millimetre waves, 1 GHz to 3 THz</h2><p>Feed horns, RF lenses, mirrors, wire grids and mesh filters, with the beam&rsquo;s diffraction worked out properly at these wavelengths. Plastic lenses made to order, solid or graded in density, show their loss, how well the beam fits them, and whether they are manufacturable. Sweep a link across frequency for its S21 and link budget, steer the beam off axis, and take the signal on to a mixer and a spectrum analyser.</p><p>The RF designer takes a feed horn&rsquo;s beam to a collimated beam, a waist or a receiving horn, designs the lenses for it, tolerances them over the band, and gives a drawing and a quote for each lens.</p><p><a href="/jek/docs/jekray/rf/">RF on the bench</a> &middot; <a href="/jek/docs/jekray/rf/designer/">The RF designer</a></p></div>
           <figure class="jek-shot"><img src="img/rf-grin-lens.png" alt="A 24 GHz feed horn and a graded-index RF lens focusing its beam onto a target 400 mm away" loading="lazy"></figure>
         </div>
         <div class="jek-feature" id="pro">
-          <div><span class="jek-eyebrow">JEKrayPro</span><h2>Your benches online, and the designers&rsquo; full work</h2><p>Optimise, tolerance, report on and draw your designs in the Optical and RF designers, and export them as lens files. Take a bench&rsquo;s numbers out as Excel, NumPy or MATLAB files, everything in one go. Share any bench as a short link, an embed or a QR code. Sign in with Google or Microsoft and benches save as you work, with their whole history. Fork one to try an idea and merge it back. Keep your own parts in My parts. A team shares one workspace with roles, invitations by email, one editor at a time and an activity record. Export everything at any time, and delete your account whenever you like.</p><p><a href="/jek/tools/jekray.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
+          <div><h2>JEKrayPro</h2><p>Benches save to the cloud as you work, with their history; fork one to try an idea and merge it back. Share a bench as a short link, an embed or a QR code. Optimise, tolerance and draw designs in the Optical and RF designers, and take a bench&rsquo;s numbers out as Excel, NumPy or MATLAB files. A team shares one workspace, with roles and an activity record. You can export everything, and delete your account, at any time.</p><p><a href="/jek/tools/jekray.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
           <figure class="jek-shot" style="background: var(--jek-panel)"><img src="img/jekray-pro.png" alt="My benches in JEKrayPro: folders down the side and saved benches as cards with their pictures" loading="lazy"></figure>
         </div>
         <div class="jek-feature rt-modelsfeat">
-          <div><span class="jek-eyebrow">The physics</span><h2>Everything else it models</h2><p>Beyond the rays and the field, each part carries the physics that makes it work, so a bench behaves as it would in the lab.</p></div>
+          <div><h2>Other physics it models</h2><p>Each part carries the physics that makes it work.</p></div>
           <div class="rt-models"><div><h3>Lasers and cavities</h3><ul><li>Gain media, laser threshold and the best output coupler</li><li>Cavity modes, finesse and linewidth, misaligned cavities included</li><li>A cavity finding its own mode, as Fox and Li found it</li><li>Line widths and coherence length: fringes that fade as they should</li></ul></div><div><h3>Pulses</h3><ul><li>Ultrafast pulses through glass, gratings and compressors</li><li>Dispersion and chirp, pulse by pulse</li><li>Self-phase modulation and solitons in fibre</li></ul></div><div><h3>Nonlinear and active optics</h3><ul><li>Frequency doubling in PPLN and PPKTP, by Boyd and Kleinman&rsquo;s theory</li><li>EOMs and AOMs with their sidebands and frequency shifts</li><li>Fibre amplifiers and semiconductor optical amplifiers</li></ul></div><div><h3>Atoms and traps</h3><ul><li>Rubidium, caesium and potassium vapour cells: hyperfine lines, Doppler broadening, saturated absorption and the Zeeman effect</li><li>Optical forces on atoms and particles: tweezers, dipole traps and lattices</li><li>Levitated nanoparticles, with their trap frequencies and damping</li></ul></div><div><h3>Polarisation and shaping</h3><ul><li>Waveplates, polarisers, Wollaston prisms and birefringent crystals</li><li>Faraday rotators and isolators</li><li>Masks, spatial light modulators and vortex beams</li><li>Vector fields at a tight focus</li></ul></div><div><h3>Signals and workflow</h3><ul><li>Photodiodes, transimpedance amplifiers, mixers, lock-ins, oscilloscopes and spectrum analysers, with their noise</li><li>Pound&ndash;Drever&ndash;Hall and other lock error signals</li><li>Sweep any setting and watch the bench change</li><li>Mounts from CAD as STL, part packs and your own models as mods</li></ul></div></div>
         </div>
       </div>
@@ -145,12 +156,8 @@
 
     <section class="jek-section jek-band rt-video">
       <div class="jek-wrap">
-        <h2>See it work</h2>
+        <h2>Try it</h2>
         <p>Open an example from the gallery and drag a lens: the light is traced again as you move. Read the spectrum on the detector, turn the bench in 3D, find any part in the picker, and save the bench to the cloud with JEKrayPro, beside your team&rsquo;s.</p>
-        <figure class="jek-shot">
-          <video id="demoVideo" src="img/jekray-demo.webm" poster="img/jekray-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
-            aria-label="Screen recording: a grating spectrometer opened from the examples gallery, its lens dragged along the beam, the detector's spectrum plotted, the bench turned in the 3D view, the parts picker searched for fibre parts, and the bench saved to the cloud and listed in My benches beside a team's benches"></video>
-        </figure>
         <p class="rt-links"><a href="/jek/tools/jekray.html#tour=focus">Take the two-minute tour &rarr;</a> &nbsp; <a href="/jek/tools/jekray.html#examples">Browse all the examples &rarr;</a></p>
       </div>
     </section>
@@ -159,13 +166,16 @@
       <div class="jek-wrap">
         <h2>Pricing</h2>
         <p class="jek-lede">The simulator is free, with or without an account, under the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>. JEKrayPro adds the cloud and the designers&rsquo; design work. Prices include VAT where it applies; payment is taken by Stripe and you can cancel any time. If a subscription ends, every bench can still be opened and exported.</p>
-        <div class="jek-plans">
-          <div class="jek-plan"><div class="jek-eyebrow">Free</div><div class="price">&pound;0</div><ul><li>The whole simulator</li><li>48 examples and a guided tour</li><li>Build and analyse designs in the Optical and RF designers</li><li>The coating designer, and RF lenses to a quote</li><li>Save .jekray files; open any share link</li><li>Import .zmx and .zar lens files</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html">Launch</a></div>
-          <div class="jek-plan featured"><div class="jek-eyebrow">Pro</div><div class="price">&pound;9.99 <small>a month, or &pound;99 a year</small></div><ul><li>Optimise, tolerance and draw designs</li><li>Design reports and lens-file export</li><li>Short share links, embeds and QR codes</li><li>Benches saved as you work</li><li>Version history, forks and merges</li><li>My parts on any bench</li><li>Scripts run against the bench</li><li>Any computer, any browser</li></ul><a class="jek-btn primary small" href="/jek/tools/jekray.html#pro">Subscribe</a></div>
-          <div class="jek-plan"><div class="jek-eyebrow">Academic</div><div class="price">&pound;4.99 <small>a month, or &pound;49 a year</small></div><ul><li>Everything in Pro</li><li>For students and university staff</li><li>Confirmed by a university address</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html#pro">Check I qualify</a></div>
-          <div class="jek-plan"><div class="jek-eyebrow">Team</div><div class="price">&pound;9.99 <small>a seat a month, or &pound;99 a year; at least 3</small></div><ul><li>One shared workspace</li><li>Owner, admins and editors; viewers free</li><li>Invitations by email</li><li>One editor at a time, activity record</li><li>Pro on each member&rsquo;s own benches</li></ul><a class="jek-btn quiet small" href="/jek/tools/jekray.html#pro">Create a team</a></div>
-          <div class="jek-plan"><div class="jek-eyebrow">University</div><div class="price">Per year <small>by invoice</small></div><ul><li>Everyone at the university</li><li>No seats to manage</li><li>Signs in with the university account</li><li>Data protection agreement</li></ul><a class="jek-btn quiet small" href="/jek/universities.html">Ask for a quote</a></div>
-        </div>
+        <table class="jek-pricing">
+          <thead><tr><th scope="col">Plan</th><th scope="col">Price</th><th scope="col">What you get</th><th scope="col"><span class="visually-hidden">Start</span></th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Free</th><td class="price">&pound;0</td><td class="what">The whole simulator, with 48 examples and a guided tour. Build and analyse designs in the Optical and RF designers, use the coating designer, and get RF lenses quoted. Save .jekray files, open any share link, and import .zmx and .zar lens files.</td><td><a class="jek-btn quiet small" href="/jek/tools/jekray.html">Launch</a></td></tr>
+            <tr class="featured"><th scope="row">Pro</th><td class="price">&pound;9.99 a month<small>or &pound;99 a year</small></td><td class="what">Optimise, tolerance and draw designs, with design reports and lens-file export. Benches save as you work, with version history, forks and merges. Short share links, embeds and QR codes; My parts on any bench; scripts run against the bench.</td><td><a class="jek-btn primary small" href="/jek/tools/jekray.html#pro">Subscribe</a></td></tr>
+            <tr><th scope="row">Academic</th><td class="price">&pound;4.99 a month<small>or &pound;49 a year</small></td><td class="what">Everything in Pro, for students and university staff, confirmed by a university address.</td><td><a class="jek-btn quiet small" href="/jek/tools/jekray.html#pro">Check I qualify</a></td></tr>
+            <tr><th scope="row">Team</th><td class="price">&pound;9.99 a seat a month<small>or &pound;99 a year; at least 3 seats</small></td><td class="what">One shared workspace, with owners, admins and editors (viewers are free), invitations by email, one editor at a time and an activity record. Pro on each member&rsquo;s own benches.</td><td><a class="jek-btn quiet small" href="/jek/tools/jekray.html#pro">Create a team</a></td></tr>
+            <tr><th scope="row">University</th><td class="price">Per year<small>by invoice</small></td><td class="what">Everyone at the university, signing in with their university account, with no seats to manage and a data protection agreement.</td><td><a class="jek-btn quiet small" href="/jek/universities.html">Ask for a quote</a></td></tr>
+          </tbody>
+        </table>
         <p class="jek-lede" style="margin: 1.2rem 0 0; font-size: 0.9rem"><a href="/jek/terms.html">JEKrayPro Terms</a> &middot; <a href="/jek/privacy.html">Privacy</a> &middot; <a href="/jek/security.html">Security</a> &middot; <a href="/jek/accessibility.html">Accessibility</a></p>
       </div>
     </section>
@@ -184,7 +194,7 @@
           <div class="rt-example-body">
             <h3>Michelson interferometer</h3>
             <p>A 50/50 cube with one fixed and one moving mirror. Sweep the moving mirror to see the output port go light and dark.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mach-zehnder">
@@ -192,7 +202,7 @@
           <div class="rt-example-body">
             <h3>Mach–Zehnder interferometer</h3>
             <p>Two arms recombined at a second cube, sharing the power between two outputs.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=fabry-perot">
@@ -200,7 +210,7 @@
           <div class="rt-example-body">
             <h3>Fabry–Perot cavity</h3>
             <p>Two mirrors with screens on the reflected and transmitted light. Shows finesse, linewidth and the resonance scan.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=fox-li">
@@ -208,7 +218,7 @@
           <div class="rt-example-body">
             <h3>Fox–Li resonator</h3>
             <p>Two flat mirrors whose edges shape the modes. The classic Fox and Li calculation, done by the solver.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=pdh-lock">
@@ -216,7 +226,7 @@
           <div class="rt-example-body">
             <h3>Pound–Drever–Hall lock</h3>
             <p>A 20 MHz EOM, a pick-off and a Fabry–Perot cavity. The photodiode’s mixer gives the PDH error signal: zero when locked, changing sign either side of resonance.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=laser-threshold">
@@ -224,7 +234,7 @@
           <div class="rt-example-body">
             <h3>Laser cavity with gain</h3>
             <p>A Nd:YAG gain sheet in a two-mirror cavity. Above threshold the gain saturates: the card gives circulating and output power and the best output coupler, and the output leaves as a beam.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -237,7 +247,7 @@
           <div class="rt-example-body">
             <h3>Young’s double slit</h3>
             <p>A laser through a double slit onto a screen 1 m away. The fringes come from the diffracted field.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=poissons-spot">
@@ -245,7 +255,7 @@
           <div class="rt-example-body">
             <h3>Poisson’s spot</h3>
             <p>A bright spot at the centre of a round beam block’s shadow.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=plano-convex">
@@ -253,7 +263,7 @@
           <div class="rt-example-body">
             <h3>Plano-convex: which way round?</h3>
             <p>The same lens facing each way. Compare the spherical aberration at the two foci.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=lens-aberrations">
@@ -261,7 +271,7 @@
           <div class="rt-example-body">
             <h3>Aberrations of a singlet across the field</h3>
             <p>A lens behind an aperture stop, swept to ±5°: spot diagrams, Seidel and Zernike terms, field curvature and barrel distortion.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=tight-focus">
@@ -269,7 +279,7 @@
           <div class="rt-example-body">
             <h3>Tight focus, vector</h3>
             <p>A perfect lens with a 3 mm focal length. At this numerical aperture the focal field is computed as a vector.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=maltese-cross">
@@ -277,7 +287,7 @@
           <div class="rt-example-body">
             <h3>Maltese cross</h3>
             <p>A steeply focusing lens between crossed polarisers. Fresnel coefficients leave a four-leaf pattern.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=off-axis-parabola">
@@ -285,7 +295,7 @@
           <div class="rt-example-body">
             <h3>Off-axis parabola</h3>
             <p>A 90° off-axis paraboloid focuses a collimated beam to a point with no aberration. Set the conic to 0 to see a sphere’s.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=bessel-beam">
@@ -293,7 +303,7 @@
           <div class="rt-example-body">
             <h3>Axicon: a Bessel beam</h3>
             <p>A 1° axicon turns a Gaussian beam into a line focus, a Bessel beam that keeps its narrow core for over 100 mm before opening into a ring.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=vortex-beams">
@@ -301,7 +311,7 @@
           <div class="rt-example-body">
             <h3>Vortex beams: mode converter and SLM</h3>
             <p>A Laguerre–Gauss vortex through a cylindrical-lens mode converter comes out as a Hermite–Gauss mode turned 45°. A fork hologram on an SLM focuses to a dark-centred ring.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=optical-differentiator">
@@ -309,7 +319,7 @@
           <div class="rt-example-body">
             <h3>Optical differentiator</h3>
             <p>A 4f system with a ramp in its Fourier plane: what comes out is the derivative of the light that went in.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=optical-integrator">
@@ -317,7 +327,7 @@
           <div class="rt-example-body">
             <h3>Optical integrator</h3>
             <p>The same 4f system with a 1/x mask in its Fourier plane integrates the light instead.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -330,7 +340,7 @@
           <div class="rt-example-body">
             <h3>Wollaston polarimeter</h3>
             <p>A half-wave plate and a calcite Wollaston prism split the light onto two photodiodes. Play the waveplate sweep to move power between them.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=optical-isolator">
@@ -338,7 +348,7 @@
           <div class="rt-example-body">
             <h3>Optical isolator</h3>
             <p>A retro-reflected beam, a pick-off and a Faraday isolator. Drag the isolator out and watch the back-reflection come back 40 dB stronger.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=grating-spectrometer">
@@ -346,7 +356,7 @@
           <div class="rt-example-body">
             <h3>Grating spectrometer</h3>
             <p>Mercury lines through a 600 l/mm grating and a 100 mm lens. Each colour lands at its own place; the yellow doublet, 2.1 nm apart, lands 0.1 mm apart.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=dispersing-prism">
@@ -354,7 +364,7 @@
           <div class="rt-example-body">
             <h3>Dispersing prism</h3>
             <p>White light through an N-SF11 prism at minimum deviation, near Brewster’s angle. Turn it to find the minimum, or change the glass.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=dichroic-combiner">
@@ -362,7 +372,7 @@
           <div class="rt-example-body">
             <h3>Dichroic combiner, two tables</h3>
             <p>A 532 nm and a 1064 nm laser combined on a dichroic, carried to a second tab by link planes, and focused by one lens.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -375,7 +385,7 @@
           <div class="rt-example-body">
             <h3>Fibre heterodyne</h3>
             <p>A fibre Mach–Zehnder with an 80 MHz AOM in one arm. The photodiode shows the beat note in its RF spectrum and on its oscilloscope.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=split-laser">
@@ -383,7 +393,7 @@
           <div class="rt-example-body">
             <h3>Two launches from one laser</h3>
             <p>One fibre laser split by a coupler into two collimated launches that meet on a cube. Change the fibre lengths or the coherence length and watch the fringe contrast.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=fibre-michelson">
@@ -391,7 +401,7 @@
           <div class="rt-example-body">
             <h3>Fibre Michelson, Faraday mirrors</h3>
             <p>A circulator, a coupler and two Faraday mirrors. Turn the polarisation controller: the fringes keep full contrast.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=fibre-amplifier">
@@ -399,7 +409,7 @@
           <div class="rt-example-body">
             <h3>Fibre amplifier and its noise</h3>
             <p>A weak signal through 20 km of fibre and an erbium amplifier. Its spontaneous emission reaches both photodiodes; a narrow filter takes out most of it.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
       </div>
@@ -412,7 +422,7 @@
           <div class="rt-example-body">
             <h3>Saturated absorption, rubidium</h3>
             <p>A weak probe and a strong pump through a rubidium cell: the Doppler-broadened D2 line, with sub-Doppler Lamb dips and crossovers where pump and probe meet the same atoms.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=polarisation-spectroscopy">
@@ -420,7 +430,7 @@
           <div class="rt-example-body">
             <h3>Polarisation spectroscopy<span class="rt-beta">Beta</span></h3>
             <p>A circularly polarised pump makes the cell birefringent for the probe at the sub-Doppler lines: a balanced pair of diodes reads a dispersive lock signal with no Doppler background.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=davll-lock">
@@ -428,7 +438,7 @@
           <div class="rt-example-body">
             <h3>DAVLL laser lock</h3>
             <p>A magnetic field splits the rubidium lines for the two hands of circular light; a quarter-wave plate, a polarising cube and two diodes turn that into an error signal across the whole line.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=faraday-filter">
@@ -436,7 +446,7 @@
           <div class="rt-example-body">
             <h3>Faraday filter</h3>
             <p>A hot rubidium cell in a field between crossed polarisers: Faraday rotation passes light only within a few GHz of the lines.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=dipole-trap">
@@ -444,7 +454,7 @@
           <div class="rt-example-body">
             <h3>Optical dipole trap, rubidium</h3>
             <p>2 W at 1064 nm focused to 34 µm: the screen’s Trap tab gives a 150 µK trap for ⁸⁷Rb, its trap frequencies and the photon scattering rate, from the diffracted field.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=optical-lattice">
@@ -452,7 +462,7 @@
           <div class="rt-example-body">
             <h3>Two-dimensional optical lattice<span class="rt-beta">Beta</span></h3>
             <p>Four beams from one laser, crossed at a point: a checkerboard of traps for rubidium, each site 0.3 mK deep with 160 kHz trap frequencies.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=optical-tweezers">
@@ -460,7 +470,7 @@
           <div class="rt-example-body">
             <h3>Optical tweezers in water</h3>
             <p>A water-immersion objective, NA 1.2, holding a 120 nm polystyrene bead: stiffer across the polarisation than along it, and overdamped by the water.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=levitated-nanoparticle">
@@ -468,7 +478,7 @@
           <div class="rt-example-body">
             <h3>Levitated nanoparticle in air<span class="rt-beta">Beta</span></h3>
             <p>A 150 nm silica sphere in an NA 0.8 tweezer at 5 mbar: trap frequencies near 180 kHz and the quality factor the gas leaves each motion.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -481,7 +491,7 @@
           <div class="rt-example-body">
             <h3>Grating pulse compressor</h3>
             <p>A chirped 100 fs pulse through a Treacy grating pair. The Pulse tab shows it compressed from 460 fs back to 102 fs.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=fibre-solitons">
@@ -489,28 +499,20 @@
           <div class="rt-example-body">
             <h3>Self-phase modulation and a soliton</h3>
             <p>One fibre laser, two spools: a soliton that arrives as short as it left, and a pulse whose spectrum self-phase modulation broadens while normal dispersion stretches it.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
       </div>
       </details>
       <details class="rt-exdrop">
-        <summary><span class="rt-exdrop-title">Nonlinear optics</span><span class="rt-exdrop-count">2 examples</span></summary>
+        <summary><span class="rt-exdrop-title">Nonlinear optics</span><span class="rt-exdrop-count">1 example</span></summary>
         <div class="rt-example-grid">
         <a class="rt-example" href="/jek/tools/jekray.html#demo=frequency-doubling">
           <img src="img/frequency-doubling.png" alt="" loading="lazy">
           <div class="rt-example-body">
             <h3>Frequency doubling</h3>
             <p>Two lasers doubled in periodically poled crystals: 1560 → 780 nm in PPLN and 1064 → 532 nm in PPKTP, with efficiency, phase matching and temperature tuning.</p>
-            <span class="rt-open">Open in JEKray →</span>
-          </div>
-        </a>
-        <a class="rt-example" href="/jek/tools/jekray.html#demo=fibre-solitons">
-          <img src="img/fibre-solitons.png" alt="" loading="lazy">
-          <div class="rt-example-body">
-            <h3>Self-phase modulation and a soliton</h3>
-            <p>One fibre laser, two spools: a soliton that arrives as short as it left, and a pulse whose spectrum self-phase modulation broadens while normal dispersion stretches it.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
       </div>
@@ -523,7 +525,7 @@
           <div class="rt-example-body">
             <h3>Lock-in absorption measurement</h3>
             <p>A sample’s transmission from two lock-in amplifiers, with the light square-wave modulated at 1 kHz.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -536,7 +538,7 @@
           <div class="rt-example-body">
             <h3>PLA lens, 10 GHz</h3>
             <p>A horn’s beam collimated by a PLA lens: its loss, its edge taper, and whether it is manufacturable.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-grin-lens">
@@ -544,7 +546,7 @@
           <div class="rt-example-body">
             <h3>Graded-index lens, 24 GHz</h3>
             <p>A flat disc whose density falls from its centre to its edge focuses a horn’s beam.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-abs-lens">
@@ -552,7 +554,7 @@
           <div class="rt-example-body">
             <h3>ABS lens, 24 GHz radar</h3>
             <p>A radar horn behind an ABS lens: the band where plastic RF lenses of this size work best.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-24ghz-lens-antenna">
@@ -560,7 +562,7 @@
           <div class="rt-example-body">
             <h3>Lens antenna, 24 GHz</h3>
             <p>A worked example of the RF designer: a PLA lens designed for its horn, its gain over the band, its tolerances and its quote.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=rf-150ghz-telescope">
@@ -568,7 +570,7 @@
           <div class="rt-example-body">
             <h3>Gaussian beam telescope, 150 GHz</h3>
             <p>A worked example of the RF designer: two hyperbolic lenses image a feed horn onto a receiver.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-link">
@@ -576,7 +578,7 @@
           <div class="rt-example-body">
             <h3>Millimetre-wave link, 150 GHz</h3>
             <p>Two feed horns and two HDPE lenses: the power a horn takes in, in dBm.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-mesh-filter">
@@ -584,7 +586,7 @@
           <div class="rt-example-body">
             <h3>Mesh filter, swept</h3>
             <p>A band-pass mesh in a Gaussian beam telescope: the receiver’s S21 against frequency, and its link budget.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-grid-diplexer">
@@ -592,7 +594,7 @@
           <div class="rt-example-body">
             <h3>Wire-grid diplexer, 150 GHz</h3>
             <p>A wire grid at 45° reflects the field along its wires and passes the other.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         <a class="rt-example" href="/jek/tools/jekray.html#demo=mm-wave-heterodyne">
@@ -600,7 +602,7 @@
           <div class="rt-example-body">
             <h3>Heterodyne link, 150 GHz</h3>
             <p>A 1 GHz tone up on a 150 GHz carrier, across two lenses and down through a mixer to a spectrum analyser.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -613,7 +615,7 @@
           <div class="rt-example-body">
             <h3>Ring filter on a chip</h3>
             <p>A ring between two waveguides drops one line of a laser tuned across it.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>
@@ -626,7 +628,7 @@
           <div class="rt-example-body">
             <h3>Levitated nanorod trap</h3>
             <p>The optics of Hu et al., Nat. Commun. 2023: two counter-propagating 1550 nm beams focused to a standing wave. Play the sweep to see it tilt.</p>
-            <span class="rt-open">Open in JEKray →</span>
+            <span class="rt-open">Open in JEKray</span>
           </div>
         </a>
         </div>

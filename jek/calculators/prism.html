@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Prism Deviation Calculator</title>
+<title>Prism deviation calculator | JEK Systems</title>
+<meta name="description" content="Calculate the deviation of a ray through a prism. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Prism deviation calculator">
+<meta property="og:description" content="Calculate the deviation of a ray through a prism. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/prism.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,68 +24,74 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Prism Deviation Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Prism deviation</h1>
 
   <div class="calc-grid">
     <!-- Input Card -->
     <div class="calc-card">
-      <label>Refractive Index (n)</label>
-      <input id="n" type="number" step="any" value="1.5">
+      <label for="n">Refractive index (n)</label>
+      <input id="n" type="number" step="any" value="1.5168">
 
-      <label>Apex Angle (A)</label>
+      <label for="A">Apex angle (A)</label>
       <input id="A" type="number" step="any" value="60">
-      <select id="AUnit">
+      <select id="AUnit" aria-label="Apex angle unit">
         <option value="deg" selected>°</option>
         <option value="rad">rad</option>
       </select>
 
-      <label>Incidence Angle (i)</label>
-      <input id="i" type="number" step="any" value="45">
-      <select id="iUnit">
+      <label for="i">Angle of incidence (i)</label>
+      <input id="i" type="number" step="any" value="50">
+      <select id="iUnit" aria-label="Angle of incidence unit">
         <option value="deg" selected>°</option>
         <option value="rad">rad</option>
       </select>
 
-      <button onclick="compute()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 60° N-BK7 prism (n = 1.5168 at 587.6 nm) in air, with light arriving at 50°, close to minimum deviation.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>n</strong> = Refractive index<br>
-          <strong>A</strong> = Apex angle<br>
-          <strong>i</strong> = Incidence angle
+          <strong>Input parameters:</strong><br>
+          <strong>n</strong> = refractive index of the prism (relative to the surrounding medium)<br>
+          <strong>A</strong> = apex angle<br>
+          <strong>i</strong> = angle of incidence on the first face, from the normal. Positive angles are on the side of the normal away from the apex.
         </div>
       </div>
     </div>
 
     <!-- Output Card -->
     <div class="diagram-area">
-      <div class="diagram-image">[Prism Diagram Placeholder]</div>
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$ r_1 = \arcsin\left(\frac{\sin i}{n}\right) $$</div>
-          <div class="eq-box" id="r1Out">r₁ = ?</div>
+          <div class="eq-box" id="r1Out">r₁ = —</div>
 
           <div class="eq-box">$$ r_2 = A - r_1 $$</div>
-          <div class="eq-box" id="r2Out">r₂ = ?</div>
+          <div class="eq-box" id="r2Out">r₂ = —</div>
 
           <div class="eq-box">$$ e = \arcsin(n \sin r_2) $$</div>
-          <div class="eq-box" id="eOut">e = ?</div>
+          <div class="eq-box" id="eOut">e = —</div>
 
           <div class="eq-box">$$ \delta = i + e - A $$</div>
-          <div class="eq-box" id="deltaOut">δ = ?</div>
+          <div class="eq-box" id="deltaOut">δ = —</div>
+
+          <div class="eq-box">$$ \delta_\text{min} = 2\arcsin\left(n \sin\frac{A}{2}\right) - A $$</div>
+          <div class="eq-box" id="dminOut">δ_min = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>r₁</strong> = First refraction angle<br>
-          <strong>r₂</strong> = Second internal angle<br>
-          <strong>e</strong> = Emergence angle<br>
-          <strong>δ</strong> = Deviation angle
+          <strong>Output parameters:</strong><br>
+          <strong>r₁</strong> = refraction angle inside the prism at the first face<br>
+          <strong>r₂</strong> = angle of incidence inside the prism at the second face<br>
+          <strong>e</strong> = angle of emergence from the second face<br>
+          <strong>δ</strong> = total deviation of the ray<br>
+          <strong>δ<sub>min</sub></strong> = minimum deviation, reached when the ray passes through symmetrically<br>
+          Angles are given in degrees.
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: deviation by a dispersing prism, E. Hecht, Optics, 5th ed. (Pearson, 2017).</p>
     </div>
   </div>
 </main>
@@ -86,7 +100,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -95,28 +109,51 @@
 </footer>
 
 <script>
-function toRad(val, unit){ return unit==="deg" ? val*Math.PI/180 : val; }
-function toDeg(rad){ return rad*180/Math.PI; }
+function el(id){ return document.getElementById(id); }
+function num(id){ const s = el(id).value.trim(); return s === "" ? NaN : Number(s); }
+function toRad(val, unit){ return unit === "deg" ? val * Math.PI / 180 : val; }
+function deg(rad){ return (rad * 180 / Math.PI).toFixed(3) + "°"; }
 
 function compute(){
-  const nVal = parseFloat(n.value);
-  const AVal = toRad(parseFloat(A.value), AUnit.value);
-  const iVal = toRad(parseFloat(i.value), iUnit.value);
+  const msg = document.querySelector(".calc-msg");
+  const outs = { r1Out: "r₁", r2Out: "r₂", eOut: "e", deltaOut: "δ", dminOut: "δ_min" };
+  function fail(text){
+    for (const id in outs) el(id).textContent = outs[id] + " = —";
+    msg.textContent = text;
+  }
+  const nVal = num("n"), Av = num("A"), iv = num("i");
+  if (!isFinite(nVal)) return fail("Enter the refractive index.");
+  if (!isFinite(Av)) return fail("Enter the apex angle.");
+  if (!isFinite(iv)) return fail("Enter the angle of incidence.");
+  if (nVal <= 0) return fail("The refractive index must be positive.");
+  const A = toRad(Av, el("AUnit").value);
+  const inc = toRad(iv, el("iUnit").value);
+  if (A <= 0 || A >= Math.PI) return fail("The apex angle must be between 0° and 180°.");
+  if (Math.abs(inc) > Math.PI / 2) return fail("The angle of incidence must be between −90° and 90°.");
 
-  if([nVal,AVal,iVal].some(isNaN)){ alert("Please fill in all fields"); return; }
+  const s1 = Math.sin(inc) / nVal;
+  if (Math.abs(s1) > 1) return fail("No ray enters the prism at this angle (sin i / n > 1).");
+  const r1 = Math.asin(s1);
+  const r2 = A - r1;
+  const s2 = nVal * Math.sin(r2);
+  if (Math.abs(s2) > 1) return fail("The ray is totally internally reflected at the second face (n sin r₂ > 1).");
+  const e = Math.asin(s2);
+  const delta = inc + e - A;
 
-  const r1 = Math.asin(Math.sin(iVal)/nVal);
-  const r2 = AVal - r1;
-  const e = Math.asin(nVal*Math.sin(r2));
-  const delta = iVal + e - AVal;
-
-  r1Out.textContent = "r₁ = "+toDeg(r1).toFixed(3)+" °";
-  r2Out.textContent = "r₂ = "+toDeg(r2).toFixed(3)+" °";
-  eOut.textContent = "e = "+toDeg(e).toFixed(3)+" °";
-  deltaOut.textContent = "δ = "+toDeg(delta).toFixed(3)+" °";
-
-  MathJax.typeset();
+  el("r1Out").textContent = "r₁ = " + deg(r1);
+  el("r2Out").textContent = "r₂ = " + deg(r2);
+  el("eOut").textContent = "e = " + deg(e);
+  el("deltaOut").textContent = "δ = " + deg(delta);
+  const sm = nVal * Math.sin(A / 2);
+  el("dminOut").textContent = "δ_min = " + (Math.abs(sm) <= 1 ? deg(2 * Math.asin(sm) - A) : "—");
+  msg.textContent = "";
 }
+
+document.querySelectorAll(".calc-card input, .calc-card select").forEach(c => {
+  c.addEventListener("input", compute);
+  c.addEventListener("change", compute);
+});
+compute();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

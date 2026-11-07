@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Noise and SNR Calculator</title>
+<title>Signal-to-noise ratio calculator | JEK Systems</title>
+<meta name="description" content="Calculate signal-to-noise ratio. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Signal-to-noise ratio calculator">
+<meta property="og:description" content="Calculate signal-to-noise ratio. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/SNR.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,40 +24,33 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">SNR Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Signal-to-noise ratio</h1>
 
   <div class="calc-grid">
     <!-- Input Card -->
     <div class="calc-card">
-      <label>Input Type</label>
-      <select id="inputType" onchange="updateInputLabels()">
+      <label for="inputType">Input type</label>
+      <select id="inputType">
         <option value="power" selected>Power</option>
-        <option value="amplitude">Amplitude</option>
+        <option value="amplitude">Amplitude (RMS voltage)</option>
       </select>
 
-      <label id="signalLabel">Signal Power</label>
-      <input id="Psignal" type="number" step="any" value="1">
-      <select id="PsignalUnit">
-        <option value="W" selected>W</option>
-        <option value="mW">mW</option>
-        <option value="µW">µW</option>
-      </select>
+      <label for="Psignal" id="signalLabel">Signal power</label>
+      <input id="Psignal" type="number" step="any" value="2">
+      <select id="PsignalUnit" aria-label="Signal unit"></select>
 
-      <label id="noiseLabel">Noise Power</label>
-      <input id="Pnoise" type="number" step="any" value="0.1">
-      <select id="PnoiseUnit">
-        <option value="W" selected>W</option>
-        <option value="mW">mW</option>
-        <option value="µW">µW</option>
-      </select>
+      <label for="Pnoise" id="noiseLabel">Noise power</label>
+      <input id="Pnoise" type="number" step="any" value="50">
+      <select id="PnoiseUnit" aria-label="Noise unit"></select>
 
-      <button onclick="compute()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 2 mW signal with 50 µW of noise.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>Signal</strong> = Signal Power or Amplitude<br>
-          <strong>Noise</strong> = Noise Power or Amplitude
+          <strong>Input parameters:</strong><br>
+          <strong>Signal</strong> = signal power, or RMS signal amplitude<br>
+          <strong>Noise</strong> = noise power, or RMS noise amplitude, in the same bandwidth (amplitudes measured across the same impedance)
         </div>
       </div>
     </div>
@@ -58,18 +59,23 @@
     <div class="diagram-area">
       <div class="eq-grid">
         <div class="eq-column">
-          <div class="eq-box" id="snrLinearBox">SNR (linear) = ?</div>
-          <div class="eq-box" id="snrDbBox">SNR (dB) = ?</div>
+          <div class="eq-box">$$ \mathrm{SNR} = \frac{P_s}{P_n} = \left(\frac{A_s}{A_n}\right)^2 $$</div>
+          <div class="eq-box">$$ \mathrm{SNR_{dB}} = 10\log_{10}\frac{P_s}{P_n} = 20\log_{10}\frac{A_s}{A_n} $$</div>
+          <div class="eq-box" id="snrLinearBox">SNR (power ratio) = —</div>
+          <div class="eq-box" id="snrAmpBox">Amplitude ratio = —</div>
+          <div class="eq-box" id="snrDbBox">SNR = — dB</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>SNR</strong> = Signal-to-noise ratio (linear scale)<br>
-          <strong>SNR (dB)</strong> = Signal-to-noise ratio in dB
+          <strong>Output parameters:</strong><br>
+          <strong>SNR (power ratio)</strong> = signal power over noise power<br>
+          <strong>Amplitude ratio</strong> = RMS signal amplitude over RMS noise amplitude, the square root of the power ratio<br>
+          <strong>SNR in dB</strong> = 10 log₁₀ of the power ratio, which equals 20 log₁₀ of the amplitude ratio
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: P. Horowitz and W. Hill, The Art of Electronics, 3rd ed. (Cambridge University Press, 2015).</p>
     </div>
   </div>
 </main>
@@ -78,7 +84,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -87,63 +93,79 @@
 </footer>
 
 <script>
-const Units = {
-  power: { "W":1, "mW":1e-3, "µW":1e-6 },
-  amplitude: { "arb":1, "mArb":1e-3, "µArb":1e-6 }
-};
+(function(){
+  const byId = id => document.getElementById(id);
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = id => { const v = byId(id).value.trim(); return v === '' ? NaN : Number(v); };
 
-function updateInputLabels(){
-  const type = document.getElementById("inputType").value;
-  const signalLabel = document.getElementById("signalLabel");
-  const noiseLabel = document.getElementById("noiseLabel");
-  const signalUnit = document.getElementById("PsignalUnit");
-  const noiseUnit = document.getElementById("PnoiseUnit");
+  // The two lists line up, so switching type keeps the same prefix.
+  const UNITS = {
+    power: [['W', 1], ['mW', 1e-3], ['µW', 1e-6], ['nW', 1e-9], ['pW', 1e-12]],
+    amplitude: [['V', 1], ['mV', 1e-3], ['µV', 1e-6], ['nV', 1e-9], ['pV', 1e-12]]
+  };
 
-  if(type === "power"){
-    signalLabel.textContent = "Signal Power";
-    noiseLabel.textContent = "Noise Power";
-    signalUnit.innerHTML = '<option value="W" selected>W</option><option value="mW">mW</option><option value="µW">µW</option>';
-    noiseUnit.innerHTML = '<option value="W" selected>W</option><option value="mW">mW</option><option value="µW">µW</option>';
-  } else {
-    signalLabel.textContent = "Signal Amplitude";
-    noiseLabel.textContent = "Noise Amplitude";
-    signalUnit.innerHTML = '<option value="arb" selected>arb</option><option value="mArb">mArb</option><option value="µArb">µArb</option>';
-    noiseUnit.innerHTML = '<option value="arb" selected>arb</option><option value="mArb">mArb</option><option value="µArb">µArb</option>';
+  function fillUnits(sel, type, index){
+    sel.innerHTML = '';
+    UNITS[type].forEach(([name, f], i) => {
+      const o = document.createElement('option');
+      o.value = String(f); o.textContent = name; o.selected = i === index;
+      sel.appendChild(o);
+    });
   }
-}
 
-function convertInput(val, unit){
-  const type = document.getElementById("inputType").value;
-  return val * Units[type][unit];
-}
+  let shownType = null;
+  function syncType(){
+    const type = byId('inputType').value;
+    if (type === shownType) return;
+    const word = type === 'power' ? 'power' : 'amplitude (RMS)';
+    byId('signalLabel').textContent = 'Signal ' + word;
+    byId('noiseLabel').textContent = 'Noise ' + word;
+    for (const id of ['PsignalUnit', 'PnoiseUnit']) {
+      const sel = byId(id);
+      fillUnits(sel, type, shownType === null ? (id === 'PsignalUnit' ? 1 : 2) : sel.selectedIndex);
+    }
+    shownType = type;
+  }
 
-function compute(){
-  const inputType = document.getElementById("inputType").value;
+  function fmt(x){
+    if (x !== 0 && (x >= 1e4 || x < 1e-3)) {
+      const [m, e] = x.toExponential(3).split('e');
+      const sup = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+      return m + ' × 10' + e.replace('+', '').replace('-', '⁻').replace(/\d/g, d => sup[d]);
+    }
+    return x.toPrecision(4);
+  }
 
-  let signal = parseFloat(document.getElementById("Psignal").value);
-  let noise = parseFloat(document.getElementById("Pnoise").value);
-  const signalUnit = document.getElementById("PsignalUnit").value;
-  const noiseUnit = document.getElementById("PnoiseUnit").value;
+  function fail(text){
+    byId('snrLinearBox').textContent = 'SNR (power ratio) = —';
+    byId('snrAmpBox').textContent = 'Amplitude ratio = —';
+    byId('snrDbBox').textContent = 'SNR = — dB';
+    msg.textContent = text;
+  }
 
-  if([signal, noise].some(isNaN)){ alert("Please fill in all fields"); return; }
+  function compute(){
+    syncType();
+    const amplitude = byId('inputType').value === 'amplitude';
+    const s = num('Psignal') * Number(byId('PsignalUnit').value);
+    const n = num('Pnoise') * Number(byId('PnoiseUnit').value);
+    if (![s, n].every(Number.isFinite)) return fail('Enter a number in each field.');
+    if (s <= 0 || n <= 0) return fail('The signal and noise must be greater than zero.');
 
-  signal = convertInput(signal, signalUnit);
-  noise = convertInput(noise, noiseUnit);
+    const powerRatio = amplitude ? Math.pow(s / n, 2) : s / n;
+    const db = 10 * Math.log10(powerRatio); // = 20 log10(amplitude ratio)
+    byId('snrLinearBox').textContent = 'SNR (power ratio) = ' + fmt(powerRatio);
+    byId('snrAmpBox').textContent = 'Amplitude ratio = ' + fmt(Math.sqrt(powerRatio));
+    byId('snrDbBox').textContent = 'SNR = ' + db.toFixed(2).replace('-', '−') + ' dB';
+    msg.textContent = '';
+  }
 
-  // Always power SNR
-  let snrLinear = (inputType === "power") ? signal/noise : Math.pow(signal/noise,2);
-  const snrDb = 10*Math.log10(snrLinear);
-
-  document.getElementById("snrLinearBox").textContent =
-    "SNR (linear) = " + snrLinear.toFixed(3);
-  document.getElementById("snrDbBox").textContent =
-    "SNR (dB) = " + snrDb.toFixed(3) + " dB";
-
-  MathJax.typeset();
-}
-
-// Initialize
-updateInputLabels();
+  card.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  compute();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

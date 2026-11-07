@@ -16,6 +16,7 @@ import * as L from './links.js';
 import * as K from './packs.js';
 import * as T from './teams.js';
 import * as U from './usage.js';
+import { opsUsers } from './opsusers.js';
 import { purgeTasters, tasters, useTaster } from './tasters.js';
 import { exercises, solveExercise } from './exercises.js';
 import { remind } from './remind.js';
@@ -226,6 +227,7 @@ const router = new Router()
   .on('POST', '/ops/packs/release', async (req, env) => json(await K.opsRelease(req, env)), { anyOrigin: true })
   .on('POST', '/ops/packs/sign', async (req, env) => json(await K.opsSign(req, env)), { anyOrigin: true, maxBody: K.SIGN_BODY_MAX })
   .on('GET', '/ops/usage', async (req, env) => json(await U.report(req, env)), { anyOrigin: true })
+  .on('GET', '/ops/users', async (req, env) => json(await opsUsers(req, env)), { anyOrigin: true })
   // Stripe proves itself by signature, not by Origin.
   .on('POST', '/stripe/webhook', async (req, env) => json(await webhook(req, env)), { anyOrigin: true })
   .on('POST', '/auth/password', async (req, env, ctx) => json(await passwordSignIn(req, env, ctx)))

@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Cavity Stability / g-factor</title>
+<title>Cavity stability and g-factors calculator | JEK Systems</title>
+<meta name="description" content="Calculate whether a two-mirror cavity is stable, from its g-factors. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Cavity stability and g-factors calculator">
+<meta property="og:description" content="Calculate whether a two-mirror cavity is stable, from its g-factors. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/cavityStability.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,69 +24,71 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Cavity Stability / g-factor</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Cavity stability and g-factors</h1>
 
   <div class="calc-grid">
     <!-- Input Card -->
     <div class="calc-card">
-      <label><strong>Cavity Length L</strong></label>
-      <input id="L" type="number" step="any" value="1">
-      <select id="LUnit">
+      <label for="L"><strong>Cavity length (L)</strong></label>
+      <input id="L" type="number" step="any" value="100">
+      <select id="LUnit" aria-label="Cavity length unit">
         <option value="1">m</option>
         <option value="1e-2">cm</option>
         <option value="1e-3" selected>mm</option>
         <option value="1e-6">µm</option>
       </select>
 
-      <label><strong>Mirror Radius R₁</strong></label>
-      <input id="R1" type="number" step="any" value="1">
-      <select id="R1Unit">
+      <label for="R1"><strong>Mirror 1 radius of curvature (R₁)</strong></label>
+      <input id="R1" type="number" step="any" value="500">
+      <select id="R1Unit" aria-label="Mirror 1 radius unit">
         <option value="1">m</option>
         <option value="1e-2">cm</option>
         <option value="1e-3" selected>mm</option>
         <option value="1e-6">µm</option>
       </select>
 
-      <label><strong>Mirror Radius R₂</strong></label>
-      <input id="R2" type="number" step="any" value="1">
-      <select id="R2Unit">
+      <label for="R2"><strong>Mirror 2 radius of curvature (R₂)</strong></label>
+      <input id="R2" type="number" step="any" value="500">
+      <select id="R2Unit" aria-label="Mirror 2 radius unit">
         <option value="1">m</option>
         <option value="1e-2">cm</option>
         <option value="1e-3" selected>mm</option>
         <option value="1e-6">µm</option>
       </select>
 
-      <button onclick="computeG()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 100 mm cavity with two 500 mm concave mirrors.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>L</strong> = Cavity length<br>
-          <strong>R₁</strong> = Mirror 1 radius of curvature<br>
-          <strong>R₂</strong> = Mirror 2 radius of curvature
+          <strong>Input parameters:</strong><br>
+          <strong>L</strong> = distance between the mirrors<br>
+          <strong>R₁, R₂</strong> = mirror radii of curvature: positive for a concave mirror (facing into the cavity), negative for a convex one, 0 for a flat mirror
         </div>
       </div>
     </div>
 
     <!-- Output Card -->
     <div class="diagram-area">
-      <div class="diagram-image">[Cavity Stability Diagram Placeholder]</div>
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$ g_1 = 1 - \frac{L}{R_1}, \quad g_2 = 1 - \frac{L}{R_2} $$</div>
-          <div class="eq-box" id="g1Out">g₁ = ?</div>
-          <div class="eq-box" id="g2Out">g₂ = ?</div>
-          <div class="eq-box" id="stabilityOut">Stability: ?</div>
+          <div class="eq-box">$$ 0 \le g_1 g_2 \le 1 $$</div>
+          <div class="eq-box" id="g1Out">g₁ = —</div>
+          <div class="eq-box" id="g2Out">g₂ = —</div>
+          <div class="eq-box" id="g1g2Out">g₁g₂ = —</div>
+          <div class="eq-box" id="stabilityOut">Stability: —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>g₁, g₂</strong> = Cavity g-factors<br>
-          <strong>Stability</strong> = True if 0 &lt; g₁·g₂ &lt; 1
+          <strong>Output parameters:</strong><br>
+          <strong>g₁, g₂</strong> = cavity g-factors<br>
+          <strong>Stability</strong> = stable if 0 &lt; g₁g₂ &lt; 1; at g₁g₂ = 0 or 1 the cavity is on the edge of stability (for example confocal, concentric or flat–flat)
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: A. E. Siegman, Lasers (University Science Books, 1986).</p>
     </div>
   </div>
 </main>
@@ -87,7 +97,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -96,23 +106,50 @@
 </footer>
 
 <script>
-function computeG(){
-  const Lval = parseFloat(L.value) * parseFloat(LUnit.value);
-  const R1val = parseFloat(R1.value) * parseFloat(R1Unit.value);
-  const R2val = parseFloat(R2.value) * parseFloat(R2Unit.value);
+(function(){
+  const byId = id => document.getElementById(id);
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = id => { const v = byId(id).value.trim(); return v === '' ? NaN : Number(v); };
 
-  if([Lval,R1val,R2val].some(isNaN)){ alert("Please fill valid numbers"); return; }
+  function fail(text){
+    byId('g1Out').textContent = 'g₁ = —';
+    byId('g2Out').textContent = 'g₂ = —';
+    byId('g1g2Out').textContent = 'g₁g₂ = —';
+    byId('stabilityOut').textContent = 'Stability: —';
+    msg.textContent = text;
+  }
 
-  const g1 = 1 - Lval/R1val;
-  const g2 = 1 - Lval/R2val;
-  const stability = (g1*g2 > 0 && g1*g2 < 1) ? "Stable" : "Unstable";
+  // R = 0 stands for a flat mirror (infinite radius), so L/R = 0 and g = 1.
+  function gOf(L, R){ return R === 0 ? 1 : 1 - L / R; }
 
-  g1Out.textContent = "g₁ = " + g1.toFixed(4);
-  g2Out.textContent = "g₂ = " + g2.toFixed(4);
-  stabilityOut.textContent = "Stability: " + stability;
+  function compute(){
+    const L = num('L') * Number(byId('LUnit').value);
+    const R1 = num('R1') * Number(byId('R1Unit').value);
+    const R2 = num('R2') * Number(byId('R2Unit').value);
+    if (![L, R1, R2].every(Number.isFinite)) return fail('Enter a number in each field.');
+    if (L <= 0) return fail('The cavity length must be greater than zero.');
 
-  MathJax.typeset();
-}
+    const g1 = gOf(L, R1), g2 = gOf(L, R2), p = g1 * g2;
+    const eps = 1e-9;
+    let verdict;
+    if (Math.abs(p) < eps || Math.abs(p - 1) < eps) verdict = 'on the edge of stability (g₁g₂ = ' + (Math.abs(p) < eps ? '0' : '1') + ')';
+    else if (p > 0 && p < 1) verdict = 'stable';
+    else verdict = 'unstable';
+
+    byId('g1Out').textContent = 'g₁ = ' + g1.toFixed(4);
+    byId('g2Out').textContent = 'g₂ = ' + g2.toFixed(4);
+    byId('g1g2Out').textContent = 'g₁g₂ = ' + p.toFixed(4);
+    byId('stabilityOut').textContent = 'Stability: ' + verdict;
+    msg.textContent = '';
+  }
+
+  card.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  compute();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

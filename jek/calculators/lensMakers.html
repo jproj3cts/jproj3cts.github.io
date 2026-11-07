@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Lens Maker's Equation Calculator</title>
+<title>Lens maker’s equation calculator | JEK Systems</title>
+<meta name="description" content="Calculate the focal length of a lens from its radii and index. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Lens maker’s equation calculator">
+<meta property="og:description" content="Calculate the focal length of a lens from its radii and index. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/lensMakers.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,72 +24,79 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Lens Maker's Equation Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Lens maker’s equation</h1>
 
   <div class="calc-grid">
     <!-- Input Section -->
     <div class="calc-card">
-      <label>Refractive Index (nₗ)</label>
-      <input id="nLens" type="number" step="0.0001" value="1.51"/>
-      
-      <label>Medium Refractive Index (nₘ)</label>
+      <label for="nLens">Lens refractive index (nₗ)</label>
+      <input id="nLens" type="number" step="0.0001" value="1.5168"/>
+
+      <label for="nMed">Medium refractive index (nₘ)</label>
       <input id="nMed" type="number" step="0.0001" value="1"/>
 
-      <label>R1</label>
-      <input id="r1" type="number" step="any" value="10"/>
-      <select id="r1Unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+      <label for="r1">First surface radius (R₁)</label>
+      <input id="r1" type="number" step="any" value="100"/>
+      <select id="r1Unit" aria-label="R₁ unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
 
-      <label>R2</label>
-      <input id="r2" type="number" step="any" value="-1"/>
-      <select id="r2Unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+      <label for="r2">Second surface radius (R₂)</label>
+      <input id="r2" type="number" step="any" value="-100"/>
+      <select id="r2Unit" aria-label="R₂ unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
 
-      <label>d</label>
-      <input id="d" type="number" step="any" value="0"/>
-      <select id="dUnit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
+      <label for="d">Centre thickness (d)</label>
+      <input id="d" type="number" step="any" value="5"/>
+      <select id="dUnit" aria-label="Thickness unit"><option value="m">m</option><option value="cm">cm</option><option value="mm" selected>mm</option></select>
 
-      <button onclick="computeLensMaker()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: an N-BK7 biconvex lens in air (n = 1.5168 at 587.6 nm), with radii of 100 mm and a 5 mm centre thickness.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          nₗ = Lens refractive index<br>
-          nₘ = Medium refractive index<br>
-          R₁ = First surface radius<br>
-          R₂ = Second surface radius<br>
-          d = Lens thickness
+          <strong>Input parameters:</strong><br>
+          nₗ = lens refractive index<br>
+          nₘ = refractive index of the medium around the lens<br>
+          R₁ = radius of the first surface the light meets<br>
+          R₂ = radius of the second surface<br>
+          d = centre thickness (0 for a thin lens)<br>
+          Sign convention: light travels left to right, and a radius is positive when its centre of curvature lies to the right of the surface. A biconvex lens has R₁ &gt; 0 and R₂ &lt; 0. For a flat surface enter a very large radius, such as 1e12.
         </div>
       </div>
     </div>
 
     <!-- Output Section -->
     <div class="diagram-area">
-      <img src="/jek/calculators/img/lens-makers-equation.svg" alt="diagram" />
+      <img src="/jek/calculators/img/lens-makers-equation.svg" alt="Thick lens with radii R₁ and R₂ and thickness d" />
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">
-            $$\frac{1}{f} = \frac{n_\text{lens}-n_\text{med}}{n_\text{med}}\left(\frac{1}{R_1}-\frac{1}{R_2}\right) + 
-            \frac{(n_\text{lens}-n_\text{med})d}{n_\text{lens} R_1 R_2}$$
+            $$\frac{1}{f} = \frac{n_l-n_m}{n_m}\left[\frac{1}{R_1}-\frac{1}{R_2} + \frac{(n_l-n_m)\,d}{n_l R_1 R_2}\right]$$
           </div>
-          <div class="eq-box" id="focalResult">f = ?</div>
+          <div class="eq-box" id="focalResult">f = —</div>
         </div>
         <div class="eq-column">
-          <div class="eq-box">$$\text{BFL|FFL} = f \left(1 \mp \frac{d(n_\text{lens}-n_\text{med})}{n_\text{lens} R_{2|1}}\right)$$</div>
-          <div class="eq-box" id="bffResult">BFL | FFL = ?</div>
+          <div class="eq-box">$$\text{BFL} = f\left(1 - \frac{(n_l-n_m)\,d}{n_l R_1}\right)$$</div>
+          <div class="eq-box" id="bflResult">BFL = —</div>
         </div>
         <div class="eq-column">
-          <div class="eq-box">$$P = \frac{1000 n_\text{med}}{f}$$</div>
-          <div class="eq-box" id="powerResult">P = ? D</div>
+          <div class="eq-box">$$\text{FFL} = f\left(1 + \frac{(n_l-n_m)\,d}{n_l R_2}\right)$$</div>
+          <div class="eq-box" id="fflResult">FFL = —</div>
+        </div>
+        <div class="eq-column">
+          <div class="eq-box">$$P = \frac{n_m}{f}\quad (f \text{ in metres})$$</div>
+          <div class="eq-box" id="powerResult">P = —</div>
         </div>
       </div>
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          f = Focal length<br>
-          BFL = Back focal length<br>
-          FFL = Front focal length<br>
-          P = Lens power (D)
+          <strong>Output parameters:</strong><br>
+          f = effective focal length, measured from the principal planes<br>
+          BFL = back focal length, from the second surface to the back focal point<br>
+          FFL = front focal length, from the front focal point to the first surface<br>
+          P = lens power in dioptres<br>
+          Lengths are given in the unit chosen for R₁.
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: the thick-lens maker’s equation, E. Hecht, Optics, 5th ed. (Pearson, 2017).</p>
     </div>
   </div>
 </main>
@@ -90,7 +105,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -99,33 +114,61 @@
 </footer>
 
 <script>
-function toMeters(value, unit){
-  if(unit==="m") return value;
-  if(unit==="cm") return value/100;
-  if(unit==="mm") return value/1000;
+const LEN = { m: 1, cm: 1e-2, mm: 1e-3 };
+
+function el(id){ return document.getElementById(id); }
+function num(id){ const s = el(id).value.trim(); return s === "" ? NaN : Number(s); }
+function fmt(x){
+  const a = Math.abs(x);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return x.toExponential(3);
+  return String(+x.toPrecision(5));
 }
 
 function computeLensMaker(){
-  const nLens = parseFloat(document.getElementById("nLens").value);
-  const nMed = parseFloat(document.getElementById("nMed").value) || 1;
-  const R1 = toMeters(parseFloat(document.getElementById("r1").value), document.getElementById("r1Unit").value);
-  const R2 = toMeters(parseFloat(document.getElementById("r2").value), document.getElementById("r2Unit").value);
-  const d = toMeters(parseFloat(document.getElementById("d").value), document.getElementById("dUnit").value);
+  const msg = document.querySelector(".calc-msg");
+  const outs = { focalResult: "f", bflResult: "BFL", fflResult: "FFL", powerResult: "P" };
+  function fail(text){
+    for (const id in outs) el(id).textContent = outs[id] + " = —";
+    msg.textContent = text;
+  }
 
-  let invF = (nLens - nMed)/nMed * ((1/R1)-(1/R2) + ((nLens - nMed)*d)/(nLens*R1*R2));
-  if(d === 0) invF = (nLens - nMed)/nMed * ((1/R1)-(1/R2));
+  const nLens = num("nLens"), nMed = num("nMed");
+  const r1v = num("r1"), r2v = num("r2"), dv = num("d");
+  if (!isFinite(nLens)) return fail("Enter the lens refractive index.");
+  if (!isFinite(nMed)) return fail("Enter the refractive index of the medium.");
+  if (!isFinite(r1v)) return fail("Enter the first surface radius.");
+  if (!isFinite(r2v)) return fail("Enter the second surface radius.");
+  if (!isFinite(dv)) return fail("Enter the centre thickness (0 for a thin lens).");
+  if (nLens <= 0 || nMed <= 0) return fail("Refractive indices must be positive.");
+  if (r1v === 0 || r2v === 0) return fail("A radius cannot be zero. For a flat surface enter a very large radius.");
+  if (dv < 0) return fail("The thickness cannot be negative.");
 
-  const f = 1/invF;
-  const BFL = f*(1 - (d*(nLens-nMed))/(nLens*R2));
-  const FFL = f*(1 + (d*(nLens-nMed))/(nLens*R1));
-  const P = 1000*nMed/f;
+  const unit = el("r1Unit").value;
+  const R1 = r1v * LEN[unit];
+  const R2 = r2v * LEN[el("r2Unit").value];
+  const d = dv * LEN[el("dUnit").value];
+  const dn = nLens - nMed;
 
-  document.getElementById("focalResult").textContent = `f = ${f.toFixed(3)} m`;
-  document.getElementById("bffResult").textContent = `BFL = ${BFL.toFixed(3)} m | FFL = ${FFL.toFixed(3)} m`;
-  document.getElementById("powerResult").textContent = `P = ${P.toFixed(1)} D`;
+  const invF = dn / nMed * ((1 / R1) - (1 / R2) + dn * d / (nLens * R1 * R2));
+  if (invF === 0 || !isFinite(invF)) return fail("This lens has no power: its focal length is infinite.");
 
-  MathJax.typesetPromise();
+  const f = 1 / invF;
+  const BFL = f * (1 - dn * d / (nLens * R1));
+  const FFL = f * (1 + dn * d / (nLens * R2));
+  const P = nMed / f;
+
+  el("focalResult").textContent = "f = " + fmt(f / LEN[unit]) + " " + unit;
+  el("bflResult").textContent = "BFL = " + fmt(BFL / LEN[unit]) + " " + unit;
+  el("fflResult").textContent = "FFL = " + fmt(FFL / LEN[unit]) + " " + unit;
+  el("powerResult").textContent = "P = " + fmt(P) + " D";
+  msg.textContent = "";
 }
+
+document.querySelectorAll(".calc-card input, .calc-card select").forEach(c => {
+  c.addEventListener("input", computeLensMaker);
+  c.addEventListener("change", computeLensMaker);
+});
+computeLensMaker();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

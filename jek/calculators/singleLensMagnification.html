@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Single Lens Magnification Calculator</title>
+<title>Single-lens magnification calculator | JEK Systems</title>
+<meta name="description" content="Calculate the magnification of a single lens. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Single-lens magnification calculator">
+<meta property="og:description" content="Calculate the magnification of a single lens. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/singleLensMagnification.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -17,37 +25,38 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Single Lens Magnification Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Single-lens magnification</h1>
 
   <div class="calc-grid">
 
     <!-- Inputs -->
     <div class="calc-card">
-      <label>Focal Length (f)</label>
-      <input type="number" id="focalLength" step="any"/>
-      <select id="focalLengthUnit">
+      <label for="focalLength">Focal length (f)</label>
+      <input type="number" id="focalLength" step="any" value="100"/>
+      <select id="focalLengthUnit" aria-label="Focal length unit">
         <option value="m">m</option>
         <option value="cm">cm</option>
         <option value="mm" selected>mm</option>
       </select>
 
-      <label>Object Distance (u)</label>
-      <input type="number" id="objectDistance" step="any"/>
-      <select id="objectDistanceUnit">
+      <label for="objectDistance">Object distance (u)</label>
+      <input type="number" id="objectDistance" step="any" value="150"/>
+      <select id="objectDistanceUnit" aria-label="Object distance unit">
         <option value="m">m</option>
         <option value="cm">cm</option>
         <option value="mm" selected>mm</option>
       </select>
 
-      <label>Object Height (h₀, optional)</label>
-      <input type="number" id="objectHeight" step="any"/>
-      <select id="objectHeightUnit">
+      <label for="objectHeight">Object height (hₒ, optional)</label>
+      <input type="number" id="objectHeight" step="any" value="10"/>
+      <select id="objectHeightUnit" aria-label="Object height unit">
         <option value="m">m</option>
         <option value="cm">cm</option>
         <option value="mm" selected>mm</option>
       </select>
 
-      <button onclick="computeLens()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 10 mm tall object 150 mm from a 100 mm lens.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
     </div>
 
     <!-- Outputs -->
@@ -55,33 +64,37 @@
 
       <!-- DIAGRAM IMAGE -->
       <img src="/jek/calculators/img/thin-lens-magnification.svg"
-           alt="Single Lens Diagram"
+           alt="Thin lens forming an image of an object, with heights hₒ and hᵢ"
            />
 
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$v = \frac{1}{\frac{1}{f} - \frac{1}{u}}$$</div>
-          <div class="eq-box" id="imageDistanceResult">v = ?</div>
+          <div class="eq-box" id="imageDistanceResult">v = —</div>
         </div>
         <div class="eq-column">
           <div class="eq-box">$$M = -\frac{v}{u}$$</div>
-          <div class="eq-box" id="magnificationResult">M = ?</div>
+          <div class="eq-box" id="magnificationResult">M = —</div>
+        </div>
+        <div class="eq-column">
+          <div class="eq-box">$$h_i = M\,h_o$$</div>
+          <div class="eq-box" id="imageHeightResult">hᵢ = —</div>
         </div>
       </div>
-
-      <div class="eq-box" id="imageHeightResult">hᵢ = ?</div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
           <strong>Parameters:</strong><br>
           <strong>f</strong> = focal length<br>
           <strong>u</strong> = object distance<br>
-          <strong>v</strong> = image distance<br>
-          <strong>M</strong> = magnification<br>
-          <strong>h₀</strong> = object height<br>
-          <strong>hᵢ</strong> = image height
+          <strong>v</strong> = image distance, in the unit of u<br>
+          <strong>M</strong> = lateral magnification<br>
+          <strong>hₒ</strong> = object height<br>
+          <strong>hᵢ</strong> = image height, in the unit of hₒ<br>
+          Sign convention: real is positive. u is positive for a real object, v for a real image on the far side of the lens, f for a converging lens. A negative M or hᵢ means the image is inverted.
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: the Gaussian thin-lens equation and lateral magnification, E. Hecht, Optics, 5th ed. (Pearson, 2017).</p>
     </div>
 
   </div>
@@ -91,7 +104,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -100,36 +113,55 @@
 </footer>
 
 <script>
-function toMeters(value, unit) {
-  if (unit === "m") return value;
-  if (unit === "cm") return value/100;
-  if (unit === "mm") return value/1000;
+const LEN = { m: 1, cm: 1e-2, mm: 1e-3 };
+
+function el(id){ return document.getElementById(id); }
+function num(id){ const s = el(id).value.trim(); return s === "" ? NaN : Number(s); }
+function fmt(x){
+  const a = Math.abs(x);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return x.toExponential(3);
+  return String(+x.toPrecision(5));
 }
 
-function computeLens() {
-  const fValue = parseFloat(document.getElementById("focalLength").value);
-  const uValue = parseFloat(document.getElementById("objectDistance").value);
-  const h0Value = parseFloat(document.getElementById("objectHeight").value);
-
-  if (isNaN(fValue) || isNaN(uValue)) {
-    alert("Enter focal length and object distance.");
-    return;
+function computeLens(){
+  const msg = document.querySelector(".calc-msg");
+  const vOut = el("imageDistanceResult"), mOut = el("magnificationResult"), hOut = el("imageHeightResult");
+  function fail(text){
+    vOut.textContent = "v = —"; mOut.textContent = "M = —"; hOut.textContent = "hᵢ = —";
+    msg.textContent = text;
   }
 
-  const f = toMeters(fValue, document.getElementById("focalLengthUnit").value);
-  const u = toMeters(uValue, document.getElementById("objectDistanceUnit").value);
-  const h0 = isNaN(h0Value) ? null : toMeters(h0Value, document.getElementById("objectHeightUnit").value);
+  const fValue = num("focalLength");
+  const uValue = num("objectDistance");
+  const hValue = num("objectHeight");
+  if (!isFinite(fValue)) return fail("Enter the focal length.");
+  if (!isFinite(uValue)) return fail("Enter the object distance.");
+  if (fValue === 0) return fail("The focal length cannot be zero.");
+  if (uValue === 0) return fail("The object distance cannot be zero.");
 
-  const v = 1 / (1/f - 1/u);
+  const uUnit = el("objectDistanceUnit").value, hUnit = el("objectHeightUnit").value;
+  const f = fValue * LEN[el("focalLengthUnit").value];
+  const u = uValue * LEN[uUnit];
+  const v = 1 / (1 / f - 1 / u);
+  if (!isFinite(v) || Math.abs(v) > 1e12 * Math.max(Math.abs(f), Math.abs(u))) return fail("The object is at the focal point, so the image is at infinity.");
   const M = -v / u;
-  const hi = h0 !== null ? h0 * M : null;
 
-  document.getElementById("imageDistanceResult").textContent = `v = ${v.toFixed(3)} m`;
-  document.getElementById("magnificationResult").textContent = `M = ${M.toFixed(3)}`;
-  document.getElementById("imageHeightResult").textContent = hi !== null ? `hᵢ = ${hi.toFixed(3)} m` : "hᵢ = (optional)";
-
-  MathJax.typesetPromise();
+  vOut.textContent = "v = " + fmt(v / LEN[uUnit]) + " " + uUnit + (v > 0 ? " (real image)" : " (virtual image)");
+  mOut.textContent = "M = " + fmt(M) + (M < 0 ? " (inverted)" : " (upright)");
+  if (isFinite(hValue)) {
+    hOut.textContent = "hᵢ = " + fmt(hValue * M) + " " + hUnit;
+    msg.textContent = "";
+  } else {
+    hOut.textContent = "hᵢ = —";
+    msg.textContent = "Enter an object height to get the image height.";
+  }
 }
+
+document.querySelectorAll(".calc-card input, .calc-card select").forEach(c => {
+  c.addEventListener("input", computeLens);
+  c.addEventListener("change", computeLens);
+});
+computeLens();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Gaussian Beam Calculator</title>
+<title>Gaussian beam calculator | JEK Systems</title>
+<meta name="description" content="Calculate the Rayleigh range, beam radius, divergence and wavefront curvature of a Gaussian beam. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Gaussian beam calculator">
+<meta property="og:description" content="Calculate the Rayleigh range, beam radius, divergence and wavefront curvature of a Gaussian beam. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/gaussianBeam.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,82 +24,83 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Gaussian Beam Calculator</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Gaussian beam</h1>
 
   <div class="calc-grid">
-    <!-- Input Card -->
+    <!-- Input card -->
     <div class="calc-card">
-      <label>Wavelength (λ)</label>
-      <input id="lambda" type="number" step="any" value="1550">
-      <select id="lambdaUnit">
+      <label for="lambda">Wavelength (λ)</label>
+      <input id="lambda" type="number" step="any" min="0" value="1550">
+      <select id="lambdaUnit" aria-label="Wavelength unit">
         <option value="nm" selected>nm</option>
-        <option value="µm">µm</option>
-        <option value="mm">mm</option>
-	<option value="m">m</option>
-      </select>
-
-      <label>Beam Waist (w₀)</label>
-      <input id="w0" type="number" step="any" value="2.5">
-      <select id="w0Unit">
-        <option value="µm" selected>µm</option>
-        <option value="nm">nm</option>
-        <option value="mm">mm</option>
-	<option value="m">m</option>
-      </select>
-
-      <label>Propagation Distance (z)</label>
-      <input id="z" type="number" step="any" value="10">
-      <select id="zUnit">
-        <option value="mm" selected>mm</option>
         <option value="µm">µm</option>
         <option value="mm">mm</option>
         <option value="m">m</option>
       </select>
 
-      <button onclick="compute()">Compute</button>
+      <label for="w0">Beam waist radius (w₀)</label>
+      <input id="w0" type="number" step="any" min="0" value="2.5">
+      <select id="w0Unit" aria-label="Beam waist unit">
+        <option value="nm">nm</option>
+        <option value="µm" selected>µm</option>
+        <option value="mm">mm</option>
+        <option value="m">m</option>
+      </select>
+
+      <label for="z">Distance from the waist (z)</label>
+      <input id="z" type="number" step="any" value="10">
+      <select id="zUnit" aria-label="Distance unit">
+        <option value="µm">µm</option>
+        <option value="mm" selected>mm</option>
+        <option value="cm">cm</option>
+        <option value="m">m</option>
+      </select>
+
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 1550 nm beam focused to a 2.5 µm waist, seen 10 mm past the focus.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>λ</strong> = Wavelength<br>
-          <strong>w₀</strong> = Beam waist radius<br>
-          <strong>z</strong> = Propagation distance
+          <strong>Input parameters</strong><br>
+          <strong>λ</strong> = wavelength in the medium the beam travels in (vacuum wavelength over n)<br>
+          <strong>w₀</strong> = beam waist radius, where the intensity falls to 1/e² of the peak<br>
+          <strong>z</strong> = distance along the axis from the waist (negative before the waist)
         </div>
       </div>
     </div>
 
-    <!-- Output Card -->
+    <!-- Output card -->
     <div class="diagram-area">
-      <div class="diagram-image">[Gaussian Beam Diagram Placeholder]</div>
       <div class="eq-grid">
         <div class="eq-column">
           <div class="eq-box">$$ z_R = \frac{\pi w_0^2}{\lambda} $$</div>
-          <div class="eq-box" id="zROut">z<sub>R</sub> = ?</div>
+          <div class="eq-box" id="zROut">z<sub>R</sub> = —</div>
 
           <div class="eq-box">$$ w(z) = w_0 \sqrt{1 + \left(\frac{z}{z_R}\right)^2} $$</div>
-          <div class="eq-box" id="wzOut">w(z) = ?</div>
+          <div class="eq-box" id="wzOut">w(z) = —</div>
 
           <div class="eq-box">$$ \theta = \frac{\lambda}{\pi w_0} $$</div>
-          <div class="eq-box" id="thetaOut">θ = ?</div>
+          <div class="eq-box" id="thetaOut">θ = —</div>
 
           <div class="eq-box">$$ R(z) = z \left[1 + \left(\frac{z_R}{z}\right)^2 \right] $$</div>
-          <div class="eq-box" id="RzOut">R(z) = ?</div>
+          <div class="eq-box" id="RzOut">R(z) = —</div>
 
-          <div class="eq-box">$$ \omega_R = \sqrt{2} \, w_0 $$</div>
-          <div class="eq-box" id="omegaROut">ω<sub>R</sub> = ?</div>
+          <div class="eq-box">$$ w(z_R) = \sqrt{2} \, w_0 $$</div>
+          <div class="eq-box" id="omegaROut">w(z<sub>R</sub>) = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>zR</strong> = Rayleigh range<br>
-          <strong>w(z)</strong> = Beam radius at distance z<br>
-          <strong>θ</strong> = Beam divergence<br>
-          <strong>R(z)</strong> = Radius of curvature at z<br>
-          <strong>ωR</strong> = Rayleigh Half Diameter
+          <strong>Output parameters</strong><br>
+          <strong>z<sub>R</sub></strong> = Rayleigh range<br>
+          <strong>w(z)</strong> = beam radius (1/e² intensity) at distance z<br>
+          <strong>θ</strong> = far-field half-angle divergence<br>
+          <strong>R(z)</strong> = wavefront radius of curvature at z (positive for a diverging wavefront, infinite at the waist)<br>
+          <strong>w(z<sub>R</sub>)</strong> = beam radius one Rayleigh range from the waist
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: paraxial Gaussian beam (TEM₀₀), A. E. Siegman, Lasers (University Science Books, 1986).</p>
     </div>
   </div>
 </main>
@@ -100,7 +109,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -109,42 +118,55 @@
 </footer>
 
 <script>
-const L = { "nm":1e-9, "µm":1e-6, "mm":1e-3, "m":1 };
+(function () {
+  const L = { nm: 1e-9, 'µm': 1e-6, mm: 1e-3, cm: 1e-2, m: 1 };
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = function (id) { return parseFloat(document.getElementById(id).value) * L[document.getElementById(id + 'Unit').value]; };
 
-function toMeters(val, unit){ return val*L[unit]; }
+  function fmtLen(m) {
+    const a = Math.abs(m);
+    if (a === 0) return '0 m';
+    if (a < 1e-6) return (m * 1e9).toPrecision(4) + ' nm';
+    if (a < 1e-3) return (m * 1e6).toPrecision(4) + ' µm';
+    if (a < 1) return (m * 1e3).toPrecision(4) + ' mm';
+    if (a < 1e3) return m.toPrecision(4) + ' m';
+    return (m / 1e3).toPrecision(4) + ' km';
+  }
+  function fmtAngle(rad) {
+    const deg = (rad * 180 / Math.PI).toPrecision(4) + '°';
+    if (rad >= 1e-3) return (rad * 1e3).toPrecision(4) + ' mrad (' + deg + ')';
+    return (rad * 1e6).toPrecision(4) + ' µrad (' + deg + ')';
+  }
 
-function formatLength(m){
-  if(m<1e-6) return (m*1e9).toFixed(3)+" nm";
-  if(m<1e-3) return (m*1e6).toFixed(3)+" µm";
-  if(m<1) return (m*1e3).toFixed(3)+" mm";
-  return m.toFixed(6)+" m";
-}
+  const ids = ['zROut', 'wzOut', 'thetaOut', 'RzOut', 'omegaROut'];
+  const names = ['z<sub>R</sub>', 'w(z)', 'θ', 'R(z)', 'w(z<sub>R</sub>)'];
+  function show(vals, problem) {
+    ids.forEach(function (id, i) { document.getElementById(id).innerHTML = names[i] + ' = ' + vals[i]; });
+    msg.textContent = problem || '';
+  }
 
-function formatAngle(rad){
-  return (rad*180/Math.PI).toFixed(3)+" °";
-}
+  function run() {
+    const lam = num('lambda');
+    const w0 = num('w0');
+    const z = num('z');
+    if (!isFinite(lam) || lam <= 0 || !isFinite(w0) || w0 <= 0 || !isFinite(z)) {
+      show(['—', '—', '—', '—', '—'], 'Enter a wavelength and a beam waist greater than zero, and a distance from the waist.');
+      return;
+    }
+    const zR = Math.PI * w0 * w0 / lam;
+    const wz = w0 * Math.sqrt(1 + (z / zR) ** 2);
+    const theta = lam / (Math.PI * w0);
+    const R = z === 0 ? '∞ (flat at the waist)' : fmtLen(z + zR * zR / z);
+    show([fmtLen(zR), fmtLen(wz), fmtAngle(theta), R, fmtLen(Math.SQRT2 * w0)]);
+  }
 
-function compute(){
-  const λ = toMeters(parseFloat(lambda.value), lambdaUnit.value);
-  const w0m = toMeters(parseFloat(w0.value), w0Unit.value);
-  const zm = toMeters(parseFloat(z.value), zUnit.value);
-
-  if([λ,w0m,zm].some(isNaN)){ alert("Please fill in all fields"); return; }
-
-  const zR = Math.PI*w0m*w0m/λ;
-  const wz = w0m*Math.sqrt(1 + (zm/zR)**2);
-  const theta = λ/(Math.PI*w0m);
-  const Rz = zm*(1 + (zR/zm)**2);
-  const omegaR = Math.SQRT2*w0m;
-
-  zROut.textContent = "zR = "+formatLength(zR);
-  wzOut.textContent = "w(z) = "+formatLength(wz);
-  thetaOut.textContent = "θ = "+formatAngle(theta);
-  RzOut.textContent = "R(z) = "+formatLength(Rz);
-  omegaROut.textContent = "ωR = "+formatLength(omegaR);
-
-  MathJax.typeset();
-}
+  card.querySelectorAll('input, select').forEach(function (el) {
+    el.addEventListener('input', run);
+    el.addEventListener('change', run);
+  });
+  run();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

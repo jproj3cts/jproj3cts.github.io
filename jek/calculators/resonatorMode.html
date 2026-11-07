@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Resonator Mode Spacing (Free Spectral Range)</title>
+<title>Free spectral range calculator | JEK Systems</title>
+<meta name="description" content="Calculate the mode spacing (free spectral range) of an optical resonator. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Free spectral range calculator">
+<meta property="og:description" content="Calculate the mode spacing (free spectral range) of an optical resonator. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/resonatorMode.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,38 +24,39 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Resonator Mode Spacing (Free Spectral Range)</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Free spectral range</h1>
 
   <div class="calc-grid">
 
     <!-- Input Card -->
     <div class="calc-card">
 
-      <label>Resonator Type</label>
-      <select id="resType" onchange="updateEquation()">
-        <option value="linear" selected>Linear (Fabry–Perot)</option>
-        <option value="ring">Ring Resonator</option>
+      <label for="resType">Resonator type</label>
+      <select id="resType">
+        <option value="linear" selected>Linear (Fabry–Pérot)</option>
+        <option value="ring">Ring</option>
       </select>
 
-      <label>Refractive Index (n)</label>
-      <input id="n" type="number" step="any" value="1.45">
+      <label for="n">Refractive index (n)</label>
+      <input id="n" type="number" step="any" value="1">
 
-      <label>Resonator Length (L)</label>
-      <input id="L" type="number" step="any" value="10">
-      <select id="LUnit">
+      <label for="L" id="LLabel">Mirror spacing (L)</label>
+      <input id="L" type="number" step="any" value="100">
+      <select id="LUnit" aria-label="Length unit">
         <option value="mm" selected>mm</option>
         <option value="µm">µm</option>
         <option value="cm">cm</option>
         <option value="m">m</option>
       </select>
 
-      <button onclick="computeFSR()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a 100 mm linear cavity in air.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          n = refractive index<br>
-          L = resonator length<br>
+          <strong>Input parameters:</strong><br>
+          <strong>n</strong> = refractive index of the medium filling the resonator (use the group index if it is dispersive)<br>
+          <strong>L</strong> = mirror spacing for a linear cavity; the full round-trip length (circumference) for a ring
         </div>
       </div>
     </div>
@@ -55,25 +64,24 @@
     <!-- Output Card -->
     <div class="diagram-area">
 
-      <div class="diagram-image">[Resonator Diagram Placeholder]</div>
-
       <div class="eq-grid">
         <div class="eq-column">
-          <!-- Dynamic Equation Box -->
-          <div class="eq-box" id="eqBox">
-            $$ \mathrm{FSR} = \frac{c}{2 n L} $$
-          </div>
+          <div class="eq-box" id="eqLinear">$$ \mathrm{FSR} = \frac{c}{2 n L} $$</div>
+          <div class="eq-box" id="eqRing" style="display:none">$$ \mathrm{FSR} = \frac{c}{n L} $$</div>
 
-          <div class="eq-box" id="fsrOut">FSR = ?</div>
+          <div class="eq-box" id="fsrOut">FSR = —</div>
+          <div class="eq-box" id="trtOut">Round-trip time = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameter:</strong><br>
-          <strong>FSR</strong> = Free spectral range (mode spacing)
+          <strong>Output parameters:</strong><br>
+          <strong>FSR</strong> = free spectral range, the frequency spacing between adjacent longitudinal modes<br>
+          <strong>Round-trip time</strong> = 1/FSR, the time light takes to go once round the resonator
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics, 3rd ed. (Wiley, 2019).</p>
 
     </div>
 
@@ -84,7 +92,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -93,53 +101,60 @@
 </footer>
 
 <script>
-const Lunits = { "µm":1e-6, "mm":1e-3, "cm":1e-2, "m":1 };
-const c = 299792458;
+(function(){
+  const byId = id => document.getElementById(id);
+  const card = document.querySelector('.calc-card');
+  const msg = card.querySelector('.calc-msg');
+  const num = id => { const v = byId(id).value.trim(); return v === '' ? NaN : Number(v); };
+  const Lunits = { 'µm': 1e-6, 'mm': 1e-3, 'cm': 1e-2, 'm': 1 };
+  const C = 299792458; // m/s
 
-function toMeters(val, unit){ return val * Lunits[unit]; }
-
-function formatFreq(Hz){
-  if(Hz > 1e12) return (Hz/1e12).toFixed(3)+" THz";
-  if(Hz > 1e9) return (Hz/1e9).toFixed(3)+" GHz";
-  if(Hz > 1e6) return (Hz/1e6).toFixed(3)+" MHz";
-  if(Hz > 1e3) return (Hz/1e3).toFixed(3)+" kHz";
-  return Hz.toFixed(3)+" Hz";
-}
-
-function updateEquation(){
-  const type = resType.value;
-
-  if(type === "linear"){
-    eqBox.innerHTML = "$$ \\mathrm{FSR} = \\frac{c}{2 n L} $$";
-  } else {
-    eqBox.innerHTML = "$$ \\mathrm{FSR} = \\frac{c}{n L} $$";
+  function formatFreq(Hz){
+    if (Hz >= 1e12) return (Hz / 1e12).toPrecision(4) + ' THz';
+    if (Hz >= 1e9) return (Hz / 1e9).toPrecision(4) + ' GHz';
+    if (Hz >= 1e6) return (Hz / 1e6).toPrecision(4) + ' MHz';
+    if (Hz >= 1e3) return (Hz / 1e3).toPrecision(4) + ' kHz';
+    return Hz.toPrecision(4) + ' Hz';
+  }
+  function formatTime(s){
+    if (s >= 1) return s.toPrecision(4) + ' s';
+    if (s >= 1e-3) return (s * 1e3).toPrecision(4) + ' ms';
+    if (s >= 1e-6) return (s * 1e6).toPrecision(4) + ' µs';
+    if (s >= 1e-9) return (s * 1e9).toPrecision(4) + ' ns';
+    if (s >= 1e-12) return (s * 1e12).toPrecision(4) + ' ps';
+    return (s * 1e15).toPrecision(4) + ' fs';
   }
 
-  MathJax.typeset();
-}
+  function fail(text){
+    byId('fsrOut').textContent = 'FSR = —';
+    byId('trtOut').textContent = 'Round-trip time = —';
+    msg.textContent = text;
+  }
 
-function computeFSR(){
-  const nVal = parseFloat(n.value);
-  const LVal = toMeters(parseFloat(L.value), LUnit.value);
-  const type = resType.value;
+  function compute(){
+    const ring = byId('resType').value === 'ring';
+    byId('eqLinear').style.display = ring ? 'none' : '';
+    byId('eqRing').style.display = ring ? '' : 'none';
+    byId('LLabel').textContent = ring ? 'Round-trip length (L)' : 'Mirror spacing (L)';
 
-  if([nVal, LVal].some(isNaN)){ alert("Please fill all fields."); return; }
+    const n = num('n');
+    const L = num('L') * Lunits[byId('LUnit').value];
+    if (![n, L].every(Number.isFinite)) return fail('Enter a number in each field.');
+    if (n <= 0 || L <= 0) return fail('The refractive index and length must be greater than zero.');
 
-  // Compute FSR
-  let FSR = (type === "linear")
-    ? c / (2 * nVal * LVal)
-    : c / (nVal * LVal);
+    // Linear cavity: light covers 2L per round trip; ring: L is already the round trip.
+    const FSR = ring ? C / (n * L) : C / (2 * n * L);
+    byId('fsrOut').textContent = 'FSR = ' + formatFreq(FSR);
+    byId('trtOut').textContent = 'Round-trip time = ' + formatTime(1 / FSR);
+    msg.textContent = '';
+  }
 
-  fsrOut.textContent = "FSR = " + formatFreq(FSR);
-
-  // Update equation on compute
-  updateEquation();
-
-  MathJax.typeset();
-}
-
-// Initialize equation on load
-updateEquation();
+  card.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  compute();
+})();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

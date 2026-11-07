@@ -6,7 +6,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Spherical Mirror Calculator</title>
+<title>Spherical mirror calculator | JEK Systems</title>
+<meta name="description" content="Calculate image position and magnification for a spherical mirror, from its radius of curvature. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="Spherical mirror calculator">
+<meta property="og:description" content="Calculate image position and magnification for a spherical mirror, from its radius of curvature. Free, from JEK Systems, with the formula it uses.">
+<meta property="og:url" content="https://jeksys.net/jek/calculators/sphericalMirror.html">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
@@ -16,54 +24,66 @@
 {% include site-nav.html %}
 
 <main class="main-content">
-  <h1 class="page-title" data-eyebrow="Calculators">Spherical Mirror Calculator (using Radius of Curvature)</h1>
+  <h1 class="page-title" data-eyebrow="Calculators">Spherical mirror</h1>
 
   <div class="calc-grid">
     <!-- Input Card -->
     <div class="calc-card">
-      <label>Radius of Curvature (R)</label>
-      <input id="R" type="number" step="any" value="20">
-      <select id="RUnit">
+      <label for="R">Radius of curvature (R)</label>
+      <input id="R" type="number" step="any" value="200">
+      <select id="RUnit" aria-label="Radius unit">
         <option value="mm" selected>mm</option>
         <option value="cm">cm</option>
         <option value="m">m</option>
       </select>
 
-      <label>Object Distance (u)</label>
-      <input id="u" type="number" step="any" value="30">
-      <select id="uUnit">
+      <label for="u">Object distance (u)</label>
+      <input id="u" type="number" step="any" value="300">
+      <select id="uUnit" aria-label="Object distance unit">
         <option value="mm" selected>mm</option>
         <option value="cm">cm</option>
         <option value="m">m</option>
       </select>
 
-      <button onclick="computeMirror()">Compute</button>
+      <p class="calc-note" style="margin:0.6rem 0 0;font-size:0.85rem;color:var(--jek-ink-soft)">The values filled in are an example: a concave mirror with a 200 mm radius and an object 300 mm in front of it.</p>
+      <p class="calc-msg" role="status" style="margin:0.6rem 0 0;font-size:0.85rem;color:#8a3b12"></p>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Input Parameters:</strong><br>
-          <strong>R</strong> = Radius of curvature<br>
-          <strong>u</strong> = Object distance
+          <strong>Input parameters:</strong><br>
+          <strong>R</strong> = radius of curvature: positive for a concave mirror, negative for a convex one<br>
+          <strong>u</strong> = object distance, positive for a real object in front of the mirror<br>
+          Sign convention: real is positive. v is positive for a real image in front of the mirror and negative for a virtual image behind it.
         </div>
       </div>
     </div>
 
     <!-- Output Card -->
     <div class="diagram-area">
-      <div class="diagram-image">[Mirror Diagram Placeholder]</div>
       <div class="eq-grid">
         <div class="eq-column">
+          <div class="eq-box">$$ \frac{1}{u} + \frac{1}{v} = \frac{2}{R} = \frac{1}{f} $$</div>
+          <div class="eq-box" id="fOut">f = —</div>
+        </div>
+        <div class="eq-column">
           <div class="eq-box">$$ v = \frac{u R}{2u - R} $$</div>
-          <div class="eq-box" id="vOut">v = ?</div>
+          <div class="eq-box" id="vOut">v = —</div>
+        </div>
+        <div class="eq-column">
+          <div class="eq-box">$$ M = -\frac{v}{u} $$</div>
+          <div class="eq-box" id="mOut">M = —</div>
         </div>
       </div>
 
       <div class="param-box-wrapper">
         <div class="param-box">
-          <strong>Output Parameters:</strong><br>
-          <strong>v</strong> = Image distance
+          <strong>Output parameters:</strong><br>
+          <strong>f</strong> = focal length (R/2), in the unit of R<br>
+          <strong>v</strong> = image distance, in the unit of u<br>
+          <strong>M</strong> = lateral magnification (negative for an inverted image)
         </div>
       </div>
+      <p class="calc-ref" style="margin:0.8rem 0 0;font-size:0.8rem;color:var(--jek-ink-soft)">Formula: the paraxial spherical-mirror equation, E. Hecht, Optics, 5th ed. (Pearson, 2017).</p>
     </div>
   </div>
 </main>
@@ -72,7 +92,7 @@
   <a href="/jek/">
     <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
   </a>
-  <span class="copyright">&copy; 2025 JEK Systems</span>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
   <div class="bar6">
     <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
     <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
@@ -81,34 +101,47 @@
 </footer>
 
 <script>
-const L = { "mm":1e-3, "cm":1e-2, "m":1 };
+const LEN = { mm: 1e-3, cm: 1e-2, m: 1 };
 
-// Convert input to meters
-function toMeters(val, unit){ return val*L[unit]; }
-
-// Format output with automatic SI prefix
-function formatLengthSI(m){
-    const absM = Math.abs(m);
-    if(absM < 1e-6) return (m*1e9).toFixed(3) + " nm";
-    if(absM < 1e-3) return (m*1e6).toFixed(3) + " µm";
-    if(absM < 1)    return (m*1e3).toFixed(3) + " mm";
-    if(absM < 1e3)  return m.toFixed(3) + " m";
-    return (m/1e3).toFixed(3) + " km";
+function el(id){ return document.getElementById(id); }
+function num(id){ const s = el(id).value.trim(); return s === "" ? NaN : Number(s); }
+function fmt(x){
+  const a = Math.abs(x);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return x.toExponential(3);
+  return String(+x.toPrecision(5));
 }
 
-// Compute image distance
 function computeMirror(){
-  const Rm = toMeters(parseFloat(document.getElementById("R").value), document.getElementById("RUnit").value);
-  const um = toMeters(parseFloat(document.getElementById("u").value), document.getElementById("uUnit").value);
-
-  if([Rm, um].some(isNaN)){ alert("Please fill in all fields"); return; }
-
-  const v = (um*Rm)/(2*um - Rm); // v = u*R/(2u - R)
-
-  document.getElementById("vOut").textContent = "v = " + formatLengthSI(v);
-
-  MathJax.typeset();
+  const msg = document.querySelector(".calc-msg");
+  function fail(text, keepF){
+    if (!keepF) el("fOut").textContent = "f = —";
+    el("vOut").textContent = "v = —";
+    el("mOut").textContent = "M = —";
+    msg.textContent = text;
+  }
+  const Rn = num("R"), un = num("u");
+  if (!isFinite(Rn)) return fail("Enter the radius of curvature.");
+  if (Rn === 0) return fail("The radius cannot be zero. A flat mirror has an infinite radius: enter a very large value.");
+  const RUnit = el("RUnit").value, uUnit = el("uUnit").value;
+  const R = Rn * LEN[RUnit];
+  el("fOut").textContent = "f = " + fmt(R / 2 / LEN[RUnit]) + " " + RUnit;
+  if (!isFinite(un)) return fail("Enter the object distance.", true);
+  if (un === 0) return fail("The object distance cannot be zero.", true);
+  const u = un * LEN[uUnit];
+  const den = 2 * u - R;
+  if (Math.abs(den) < 1e-12 * Math.abs(R)) return fail("The object is at the focal point, so the image is at infinity.", true);
+  const v = u * R / den;
+  const M = -v / u;
+  el("vOut").textContent = "v = " + fmt(v / LEN[uUnit]) + " " + uUnit + (v > 0 ? " (real image)" : " (virtual image)");
+  el("mOut").textContent = "M = " + fmt(M) + (M < 0 ? " (inverted)" : " (upright)");
+  msg.textContent = "";
 }
+
+document.querySelectorAll(".calc-card input, .calc-card select").forEach(c => {
+  c.addEventListener("input", computeMirror);
+  c.addEventListener("change", computeMirror);
+});
+computeMirror();
 </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

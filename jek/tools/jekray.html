@@ -1278,7 +1278,7 @@
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
-    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 8rem; max-width: 26rem; }
+    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
   @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
@@ -1986,6 +1986,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
 .rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
 .rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }
+/* Get Pro, in the bar: for anyone without JEKrayPro; the plans and prices, signed in or not */
+.rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
+.rt-btn.rt-getpro:hover { filter: brightness(1.08); }
+.rt-btn.rt-getpro[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -2159,6 +2163,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
+          <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
@@ -53732,6 +53737,7 @@ const AUTH_OUTCOMES = {
   orcid_closed: ['Signing in with ORCID has ended. Sign in with Google or Microsoft; if your account could only sign in with ORCID, email support@jeksys.net and we will move it for you.', true],
   consented: ['Thank you: JEKray is approved for your organisation, and everyone there can now sign in with Microsoft.'],
   consent_failed: ['JEKray was not approved for your organisation. Nothing has changed.', true],
+  link_expired: ['That sign-in link has been used or has run out. Ask for a new one from Sign in.', true],
 };
 function signIn(provider, link) {
   track('signin', provider); goal('signin'); usageFlush();
@@ -53770,16 +53776,14 @@ function planText(w) {
 }
 const money = (pence, cur) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: (cur || 'gbp').toUpperCase(), minimumFractionDigits: pence % 100 ? 2 : 0 }).format(pence / 100);
 let subInterval = 'month';
-const acCheck = { email: '', sent: false };   // a university address being confirmed by a code
 async function showSubscribe() {
-  track('subscribe', ''); goal('subscribe');
+  track('subscribe', account ? '' : 'out'); goal('subscribe');
   const dlg = document.getElementById('subDialog'), box = document.getElementById('subPlans');
   if (!dlg.open) dlg.showModal();
   box.replaceChildren(h('p', null, 'Loading prices…'));
   let prices;
   try { prices = await api('/v1/billing/prices'); }
   catch (err) { box.replaceChildren(h('p', null, 'Could not load prices: ' + err.message)); return; }
-  const mine = account && account.workspaces.find(w => w.kind === 'personal');
   const tabs = h('div', { class: 'rt-subtabs', role: 'radiogroup', 'aria-label': 'Billing period' },
     ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', { type: 'button', role: 'radio', 'aria-checked': subInterval === v ? 'true' : 'false', class: 'rt-btn', onclick: () => { subInterval = v; showSubscribe(); } }, label)));
   const card = (tier, title, blurb, extra = {}) => {
@@ -53787,73 +53791,63 @@ async function showSubscribe() {
     if (!p) return null;
     const month = prices[tier + '_monthly'];
     const saving = subInterval === 'year' && month ? Math.round(100 * (1 - p.amount / (12 * month.amount))) : 0;
-    const go = extra.go || h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(mine.id, tier, go) }, 'Continue to payment');
-    if (extra.locked) go.disabled = true;
+    const go = extra.go || h('button', { type: 'button', class: 'rt-btn primary', onclick: () => buyNow(tier, extra.email ? extra.email.value : '', go, extra.err) }, 'Continue to payment');
     return h('div', { class: 'rt-subcard' }, h('h3', null, title), h('p', { class: 'rt-subprice' }, h('b', null, money(p.amount, p.currency)), (extra.seat ? ' a seat' : '') + ' a ' + (subInterval === 'year' ? 'year' : 'month'), saving > 0 ? h('small', null, ' · save ' + saving + '%') : null),
-      h('p', null, blurb), extra.node || null, go);
+      h('p', null, blurb), extra.node || null, go, extra.err || null);
   };
-  // the team card: a team of theirs without a plan is subscribed for; else one is made first
-  const unpaid = (account ? account.workspaces : []).find(w => w.kind === 'team' && w.role === 'owner' && !w.active);
-  const teamGo = unpaid
-    ? h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(unpaid.id, 'team', teamGo) }, 'Subscribe for ' + unpaid.name)
-    : h('button', { type: 'button', class: 'rt-btn primary', onclick: () => { dlg.close(); createTeam(); } }, 'Create a team…');
+  // the academic price: a university address, typed here (or the one they sign in with), which Stripe then uses
   const ac = account && account.academic;
-  const check = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
-    check.disabled = true; check.textContent = 'Checking…';
-    try { const r = await api('/v1/me/academic', { method: 'POST' }); account.academic = r; toast('Academic price confirmed'); }
-    catch (err) { toast(err.message, true); }
-    showSubscribe();
-  } }, 'Check my sign-in');
-  // or a university address, proved by a 6-digit code emailed to it (which a university's licence counts too)
-  const post = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const acForm = () => {
-    const email = h('input', { type: 'email', class: 'rt-subinput', placeholder: 'you@university.ac.uk', 'aria-label': 'Your university email address', autocomplete: 'email', value: acCheck.email || '' });
-    const err = h('p', { class: 'rt-error', hidden: '' });
-    const fail = e => { err.textContent = e.message; err.hidden = false; };
-    if (!acCheck.sent) {
-      const go = h('button', { type: 'submit', class: 'rt-btn' }, 'Send a code');
-      return h('form', { class: 'rt-subform', onsubmit: async e => {
-        e.preventDefault(); go.disabled = true; go.textContent = 'Sending…'; err.hidden = true;
-        try { const r = await post('/v1/me/academic/email', { email: email.value }); Object.assign(acCheck, { email: r.email, sent: true }); showSubscribe(); }
-        catch (e2) { fail(e2); go.disabled = false; go.textContent = 'Send a code'; }
-      } }, h('label', null, 'Or confirm your university email address:'), h('span', { class: 'rt-subrow' }, email, go), err);
-    }
-    const code = h('input', { type: 'text', class: 'rt-subinput rt-subcode', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '7', placeholder: '123456', 'aria-label': 'The 6-digit code' });
-    const go = h('button', { type: 'submit', class: 'rt-btn primary' }, 'Confirm');
-    setTimeout(() => code.focus(), 0);
-    return h('form', { class: 'rt-subform', onsubmit: async e => {
-      e.preventDefault(); go.disabled = true; go.textContent = 'Checking…'; err.hidden = true;
-      try {
-        const r = await post('/v1/me/academic/code', { code: code.value });
-        Object.assign(acCheck, { email: '', sent: false });
-        await loadAccount();
-        if (account.licence) { dlg.close(); toast('Confirmed: you have JEKrayPro through ' + account.licence.name); return; }
-        account.academic = account.academic || r; toast('Academic price confirmed'); showSubscribe();
-      } catch (e2) {
-        if (/expired|too_many_tries|no_code/.test(e2.code || '')) acCheck.sent = false;
-        fail(e2); go.disabled = false; go.textContent = 'Confirm';
-        if (!acCheck.sent) setTimeout(showSubscribe, 1800);
-      }
-    } }, h('label', null, 'We have emailed a 6-digit code to ', h('b', null, acCheck.email), '. Type it here (it lasts 15 minutes):'),
-      h('span', { class: 'rt-subrow' }, code, go),
-      h('span', { class: 'rt-subsmall' }, 'Not there? Look in junk mail, or ', h('button', { type: 'button', class: 'rt-link', onclick: () => { acCheck.sent = false; showSubscribe(); } }, 'use another address or send again'), '.'), err);
-  };
-  const acNote = ac ? h('p', { class: 'rt-subok' }, '✓ Confirmed (' + (ac.email || ac.via) + ')') : h('div', { class: 'rt-subcheck' },
-    h('p', null, 'For current students and staff of a university or similar. ', check, ' to use the university address you sign in with.'),
-    acForm(),
-    h('p', { class: 'rt-subsmall' }, 'No university address? Email support@jeksys.net and we will check by hand.'));
+  const acMail = h('input', { type: 'email', class: 'rt-subinput', placeholder: 'you@university.ac.uk', 'aria-label': 'Your university email address', autocomplete: 'email',
+    value: (account && account.user && /\.(ac|edu)(\.[a-z]{2})?$/i.test((account.user.email || '').split('@')[1] || '') && account.user.email) || '' });
+  const acErr = h('p', { class: 'rt-error', hidden: '' });
+  const acNode = ac ? h('p', { class: 'rt-subok' }, '\u2713 Academic price confirmed (' + (ac.email || ac.via) + ')')
+    : h('label', { class: 'rt-subform' }, 'Your university email address (students and staff):', acMail);
+  // the team card: a team of theirs without a plan is subscribed for; else one is made first (signed in)
+  const unpaid = (account ? account.workspaces : []).find(w => w.kind === 'team' && w.role === 'owner' && !w.active);
+  const teamGo = !account
+    ? h('button', { type: 'button', class: 'rt-btn', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in to make a team')
+    : unpaid
+      ? h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startCheckout(unpaid.id, 'team', teamGo) }, 'Subscribe for ' + unpaid.name)
+      : h('button', { type: 'button', class: 'rt-btn primary', onclick: () => { dlg.close(); createTeam(); } }, 'Create a team…');
+  // a university licence: looked for (signed in); none is not an error, the academic price is the way then
+  const licNote = h('p', { class: 'rt-subcheck' });
   const uni = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
     uni.disabled = true; uni.textContent = 'Checking…';
     try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKrayPro through ' + account.licence.name); return; }
-    catch (err) { toast(err.message, true); }
-    uni.disabled = false; uni.textContent = 'Check for a university licence';
-  } }, 'Check for a university licence');
-  const uniNote = h('p', { class: 'rt-subcheck' }, 'Does your university have JEKrayPro for everyone? ', uni,
-    ': with your university Google or Microsoft account it shows on its own; or confirm your university email address under Academic below, or ask your university\u2019s licence administrator to invite you.');
-  box.replaceChildren(uniNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device.'),
-    card('academic', 'Academic', 'The same, at half the price.', { node: acNote, locked: !ac }),
+    catch (err) {
+      licNote.replaceChildren(err.code === 'no_licence' || err.status === 404
+        ? 'Your university has no JEKray licence yet. The academic price below is for you; and if your university would like one, ask it to email sales@jeksys.net.'
+        : 'We could not check just now (' + err.message + '). The academic price below works either way.');
+    }
+  } }, 'See if your university has a licence');
+  if (account) licNote.append('Does your university pay for JEKrayPro for everyone? ', uni, '.');
+  else licNote.append('Pay now and your account is made from the address you pay with; you are signed in when you come back. Already have an account? ',
+    h('button', { type: 'button', class: 'rt-link', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in'), ' first.');
+  box.replaceChildren(licNote, tabs, h('div', { class: 'rt-subcards' },
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device; the optimiser, tolerancing, reports, scripts and share links.'),
+    card('academic', 'Academic', 'The same, at half the price, for students and staff at a university.', { node: acNode, email: ac ? null : acMail, err: acErr }),
     card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
+}
+// Continue to payment: straight to Stripe, signed in or not (POST /v1/billing/checkout); an API from before it, signed in,
+// takes the account's own checkout instead
+async function buyNow(tier, email, btn, errBox) {
+  const was = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Opening secure payment…';
+  if (errBox) errBox.hidden = true;
+  const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekbilling'); ret.searchParams.delete('jekauth');
+  if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
+  try {
+    const mine = account && account.workspaces.find(w => w.kind === 'personal');
+    try { if (mine) sessionStorage.setItem('jekcheckout', mine.id); } catch (err) { /* the personal workspace is assumed on return */ }
+    track('subscribe', 'go.' + tier + (account ? '' : '.out'));
+    const { url } = await api('/v1/billing/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: tier, interval: subInterval, email: String(email || '').trim(), return: ret.toString() }) });
+    location.href = url;
+  } catch (err) {
+    const mine = account && account.workspaces.find(w => w.kind === 'personal');
+    if (err.status === 404 && mine && tier === 'pro') { btn.disabled = false; btn.textContent = was; startCheckout(mine.id, tier, btn); return; }
+    if (errBox) { errBox.textContent = err.message; errBox.hidden = false; } else toast(err.message, true);
+    btn.disabled = false; btn.textContent = was;
+  }
 }
 async function startCheckout(ws, tier, btn) {
   const was = btn.textContent;
@@ -53901,6 +53895,9 @@ async function awaitPlan(tries = 12) {
 }
 function fillAccount() {
   const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
+  // Get Pro in the bar: for anyone without JEKrayPro (signed out, or signed in with no plan, licence or team seat)
+  const gp = document.getElementById('btnGetPro');
+  if (gp) { const own = account && account.workspaces.find(w => w.kind === 'personal'); gp.hidden = EMBED || !accountsOn() || account === undefined || !!(own && own.active) || !!(account && (account.licence || account.team_seat)); }
   const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: fn }, label);
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
   // usage counts: on unless turned off here (or by the browser's Do Not Track or Global Privacy Control)
@@ -53986,7 +53983,7 @@ function showEmailSignIn(link) {
     okBtn.textContent = link ? 'Link it' : 'Sign in';
     other.hidden = !!link; other.textContent = code ? 'I have a password' : 'New here, or forgotten your password? Email me a code instead';
     note.textContent = link ? 'The address is added to this account as a way to sign in, and becomes its verified email. We send a 6-digit code to it; type the code here.'
-      : code ? 'We send a 6-digit code to the address; type it here and you are signed in. New here? That makes your account, and you may choose a password for next time. Forgotten a password? Sign in this way and choose a new one.'
+      : code ? 'We email you a link: click it and you are signed in (or type the 6-digit code in it here). New here? That makes your account, and you may choose a password for next time. Forgotten a password? Sign in this way and choose a new one.'
       : 'Your JEKray account: the address and the password you chose. If you have signed in with Google or Microsoft before, use those, or link the address from the account menu so your benches stay in one account.';
   };
   const finish = async r => {
@@ -54000,9 +53997,9 @@ function showEmailSignIn(link) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { fail('That does not look like an email address.'); email.focus(); return; }
     sendBtn.disabled = true;
     try {
-      await api('/auth/email/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ email: v }, link ? { link: true } : {})) });
+      await api('/auth/email/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ email: v, return: (() => { const u = new URL(location.href); u.hash = ''; u.searchParams.delete('jekauth'); return u.toString(); })() }, link ? { link: true } : {})) });
       codeRow.hidden = false; okBtn.hidden = false; sendBtn.textContent = 'Send another'; codeIn.focus();
-      toast('Code sent to ' + v.toLowerCase() + '. It lasts 15 minutes; check your spam folder if it is slow.');
+      toast('Sent to ' + v.toLowerCase() + ': click the link in it, or type its code here. It lasts 15 minutes; check your spam folder if it is slow.');
     } catch (e) { fail(e.message); }
     sendBtn.disabled = false;
   });
@@ -54499,12 +54496,12 @@ function gateSignIn(kind, what) {
   dlg.replaceChildren(h('h2', { id: 'gateSignInTitle' }, exp ? 'Experimental features need a free account' : 'Sign in first'),
     h('p', null, exp ? 'Sign in to try the experimental features: a free account is enough.'
       : acct ? 'Sign in to ' + (what || 'use that') + ': a free account is enough.'
-      : (what ? 'To ' + what + ', JEKrayPro is needed' : 'That is part of JEKrayPro') + ': sign in first (a free account), then choose a plan, or use a team\u2019s or your university\u2019s.'),
+      : (what ? 'To ' + what + ', JEKrayPro is needed' : 'That is part of JEKrayPro') + '. Choose a plan and pay: your account is made from the address you pay with. Or sign in, if you already have one through a team or your university.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(where, close)),
     h('div', { class: 'rt-actions' },
-      exp || acct ? null : h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'pro.plans'); close(); showSubscribe(); } }, 'See JEKrayPro'),
+      exp || acct ? null : h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', 'pro.plans'); close(); showSubscribe(); } }, 'See plans and prices'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', where + '.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
@@ -54632,10 +54629,12 @@ async function proLink() {
   await accountLoaded;
   const mine = account && account.workspaces.find(w => w.kind === 'personal');
   if (mine && mine.active) { toast(account.licence ? 'You have JEKrayPro through ' + account.licence.name : 'You already have JEKrayPro'); return; }
-  if (account) { showSubscribe(); return; }
+  showSubscribe();
+}
+// sign in from the plans (an existing account, or to make a team)
+function proSignIn() {
   const btn = document.getElementById('btnAcct');
   if (btn && document.getElementById('acctMenu').hidden) btn.click();
-  toast('Sign in to subscribe to JEKrayPro');
 }
 function accountShown() {
   const on = accountsOn();
@@ -54646,6 +54645,8 @@ function accountShown() {
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
 function wireAccount() {
+  const gp = document.getElementById('btnGetPro');
+  if (gp) gp.addEventListener('click', () => { track('prompt', 'getpro.plans'); showSubscribe(); });
   hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown }); hooks.exportSignIn = exportSignIn;
   hooks.apiBase = () => API_BASE; hooks.usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
   document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
@@ -55908,6 +55909,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Getting JEKrayPro is simpler</b>: a <b>Get Pro</b> button in the bar, and every Pro feature, open the plans and prices, signed in or not. Pay straight away: your account is made from the address you pay with, and you are signed in when you come back. The <b>academic price</b> needs only your university email address, typed beside it (no code to wait for). Signing in by email sends a link you click (the code still works), and you stay signed in for a year. Checking for a university licence now says plainly when yours has none.',
     '<b>No ticks for a source\u2019s light</b>: a source always traces its rays, and a new one propagates a Gaussian beam; its panel\u2019s <b>Field</b> says what its field starts from, the Gaussian beam or even illumination across the fan (a uniform pupil, for a lens\u2019s Airy pattern, Strehl and MTF). A fibre tip always sends both. The bench\u2019s <b>Light</b> turns the rays, or the beams, off for every source at once. The look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
     'A scope\u2019s <b>Offset</b> works with its scale on auto: typing one keeps the scale on the screen as Per division (wide enough to keep the trace in view), so the trace moves as on a bench scope; before, it was ignored until Per division was set. In 3D, a fibre component or circuit part dragged across the table now moves with its fibres (and Ctrl+Z puts it back), its arrows from the middle of its body.',
     '<b>Fibres and circuits in 3D</b>: fibre components, circuit parts and chips stand on the table in the 3D view, each a box with its symbol on its top, ferrules and pins at its ports, and their fibres, wires and waveguides laid along their routes, rising to each port (a fibre glows the colour of its light). No tab stays in 2D now. The parts\u2019 names in 3D are off to start with (View \u203a Names in 3D).',
@@ -57887,7 +57889,10 @@ function wireTours() {
       const l = B.left + B.width / 2 - F.width / 2;
       if (l > leftEnd + 12 && l + F.width < rightStart - 12) file.classList.add('rt-centred');
     };
-    new ResizeObserver(centreName).observe(document.querySelector('.rt-bar'));
+    // (worked out again when the bar or either side of it changes: Get Pro shown, the 3D view's icons)
+    const ro = new ResizeObserver(centreName);
+    ro.observe(document.querySelector('.rt-bar'));
+    for (const n of document.querySelectorAll('.rt-bar .rt-right, .rt-bar .rt-quick')) ro.observe(n);
     const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
     Object.defineProperty(nameInput, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); fit(); } });
     nameInput.addEventListener('input', fit);

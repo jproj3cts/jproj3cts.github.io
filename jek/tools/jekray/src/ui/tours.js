@@ -584,7 +584,10 @@ export function wireTours() {
       const l = B.left + B.width / 2 - F.width / 2;
       if (l > leftEnd + 12 && l + F.width < rightStart - 12) file.classList.add('rt-centred');
     };
-    new ResizeObserver(centreName).observe(document.querySelector('.rt-bar'));
+    // (worked out again when the bar or either side of it changes: Get Pro shown, the 3D view's icons)
+    const ro = new ResizeObserver(centreName);
+    ro.observe(document.querySelector('.rt-bar'));
+    for (const n of document.querySelectorAll('.rt-bar .rt-right, .rt-bar .rt-quick')) ro.observe(n);
     const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
     Object.defineProperty(nameInput, 'value', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); fit(); } });
     nameInput.addEventListener('input', fit);

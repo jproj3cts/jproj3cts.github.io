@@ -1,11 +1,11 @@
 // Sessions: a random token in an HttpOnly cookie on the API host only; D1
-// keeps its SHA-256 hash. 30 days, renewed on use (at most once a day).
+// keeps its SHA-256 hash. A year, renewed on use (at most once a day): people stay signed in.
 
 import { ApiError, cookie, newToken, now, sha256 } from './util.js';
 
 export const COOKIE = 'jek_session';
 const DAY = 24 * 60 * 60 * 1000;
-export const SESSION_MS = 30 * DAY;
+export const SESSION_MS = 365 * DAY;
 
 const setCookie = (value, maxAge) =>
   `${COOKIE}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;

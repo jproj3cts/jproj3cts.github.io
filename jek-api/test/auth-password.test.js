@@ -14,7 +14,7 @@ function resend() {
   });
   return sent;
 }
-const codeOf = (mail) => mail.text.match(/code is (\d{6})/)[1];
+const codeOf = (mail) => mail.text.match(/code into JEKray: (\d{6})/)[1];
 const start = (email) => send('/auth/email/start', 'POST', null, { email });
 const code = (email, c, extra = {}) => send('/auth/email/code', 'POST', null, { email, code: c, ...extra });
 const pw = (email, password, headers = {}) => send('/auth/password', 'POST', null, { email, password }, headers);

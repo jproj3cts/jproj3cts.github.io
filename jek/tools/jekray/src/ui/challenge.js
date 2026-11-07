@@ -7,20 +7,19 @@ import { h, renderPanel } from './panel.js';
 import { changed, fitView, toast } from './actions.js';
 import { metricRaw, optimiseMany } from './optimise.js';
 import { designPro } from './pro.js';
-import { REELS } from './reels.js';
+import { EXERCISE_BENCHES } from '../core/exercise-benches.js';
 import { requestRender, sx, sy } from './render.js';
 import { openProjectData } from '../io/open.js';
 import { account, accountLoaded, accountsOn, api, signInRow } from '../io/account.js';
 import { funnel, track } from '../io/usage.js';
 
-/* ---------- Exercises and the reels' challenges ----------
+/* ---------- Exercises and challenges ----------
    An exercise (core/exercises.js) on the bench: a bar at its top with the goal, the reading against it, hints and a
    way out. Only the parts it names can be changed, and only those settings: the rest are held in place (not dragged:
    a lock that is never saved) and anything else changed is put back. Solved, the bar says so, in how many changes,
    and offers the next one, a link to share it, and (signed out) a free account, which keeps the list of those solved
    in any browser (jek-api src/exercises.js; signed out, this browser's own list, sent once they sign in).
-   Started from Help › Exercises, from a reel's bench in the From Instagram note, from a link (?ex=<id>), or by
-   arriving from a reel that is a challenge (?src=ig-…). Nothing of it is in the bench: leave, and the bench is an
+   Started from Help › Exercises or from a link (?ex=<id>). Nothing of it is in the bench: leave, and the bench is an
    ordinary one, every part free. Counted as 'exercise' <id>.<step> and the funnel's 'solve'. */
 let EX = null;                   // { ex, from, snap: Map id -> JSON, fibres, ids: { id: fields }, names, changes, hints, solved, seen, values }
 const SOLVED_KEY = 'jek-exercises';             // this browser's list: { id: { at, changes } }
@@ -29,19 +28,19 @@ export function exSolvedList() { try { return JSON.parse(localStorage.getItem(SO
 let exServer = null;                             // the account's list, once read: { id: { at, changes } }
 const exSolved = () => Object.assign({}, exSolvedList(), exServer || {});
 
-/* an exercise put on the bench, from its reel's bench */
+/* an exercise put on the bench, from its own bench (core/exercise-benches.js) */
 export function startExercise(id, from) {
-  const ex = exerciseById(id), reel = ex && REELS.find(r => r.id === ex.start.reel);
-  if (!ex || !reel || !reel.bench) return false;
+  const ex = exerciseById(id), start = ex && EXERCISE_BENCHES[ex.start.reel];
+  if (!ex || !start) return false;
   if (EX) exerciseLeave(true);
-  const bench = exerciseBench(ex, reel.bench);
-  openProjectData(bench, ex.reel ? reel.title : ex.title);
+  const bench = exerciseBench(ex, start);
+  openProjectData(bench, ex.title);
   fitView();
   const byName = n => project.elements.find(e => e.name === n);
   const ids = {};
   for (const [n, f] of Object.entries(ex.unlocked)) { const e = byName(n); if (e) ids[e.id] = f; }
   EX = { ex, from: from || 'help', snap: new Map(project.elements.map(e => [e.id, JSON.stringify(e)])), fibres: JSON.stringify(project.fibres || []),
-    ids, changes: 0, hints: 0, solved: false, seen: null, values: [], title: ex.reel && from === 'reel' ? reel.title : ex.title };
+    ids, changes: 0, hints: 0, solved: false, seen: null, values: [], title: ex.title };
   exLocks();
   exBar();
   track('exercise', ex.id + '.start');
@@ -192,7 +191,7 @@ function exBar() {
   if (!bar) { bar = h('div', { class: 'rt-exbar', id: 'exBar', role: 'region', 'aria-label': 'Exercise' }); document.getElementById('stage').append(bar); }
   const E = EX.ex, n = EXERCISES.indexOf(E) + 1, ch = isChallenge(E);
   const head = h('div', { class: 'rt-exhead' },
-    h('span', { class: 'rt-exkind' }, ch || (EX.from === 'reel' && E.reel) ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
+    h('span', { class: 'rt-exkind' }, ch ? 'Challenge' : 'Exercise ' + n + ' of ' + EXERCISES.length),
     h('b', null, EX.title),
     h('button', { class: 'rt-wx', type: 'button', title: 'Leave the exercise: the bench stays, every part free', 'aria-label': 'Leave the exercise', onclick: () => exerciseLeave(false) }, '×'));
   const body = [head, h('p', { class: 'rt-exgoal' }, E.goal), h('div', { class: 'rt-exread', id: 'exRead' })];
@@ -204,7 +203,7 @@ function exBar() {
     acts.append(h('span', { class: 'rt-exmay' }, 'You can change ' + exAllowedText() + '.'));
     body.push(acts);
   } else {
-    const next = exerciseNext(E.id, EX.from === 'reel' || EX.from === 'link');
+    const next = exerciseNext(E.id, EX.from === 'link');
     body.push(h('p', { class: 'rt-exsolved' }, '✓ Solved: ' + E.result(EX.values) + ', in ' + EX.changes + ' ' + (EX.changes === 1 ? 'change' : 'changes') + '.'));
     if (accountsOn() && !account) {
       track('prompt', 'exercise.shown');
@@ -268,7 +267,7 @@ export function showExercises(from) {
     h('ol', { class: 'rt-exlist' }, ...EXERCISES.map(x => h('li', null, h('button', { type: 'button', class: 'rt-exitem' + (S[x.id] ? ' done' : ''), onclick: () => { dlg.close(); startExercise(x.id, 'help'); } },
       h('b', null, x.title, S[x.id] ? h('span', { class: 'rt-extick', title: 'Solved in ' + S[x.id].changes + ' changes' }, ' ✓') : null), h('small', null, x.teaches))))),
     CHALLENGES.length ? h('h3', { id: 'exChallenges' }, 'Challenges') : null,
-    CHALLENGES.length ? h('p', null, 'Puzzles from our Instagram reels, newest first: no lesson, just a goal to reach.' + (CHALLENGES.some(x => S[x.id]) ? ' Solved: ' + CHALLENGES.filter(x => S[x.id]).length + ' of ' + CHALLENGES.length + '.' : '')) : null,
+    CHALLENGES.length ? h('p', null, 'Puzzles, newest first: no lesson, just a goal to reach.' + (CHALLENGES.some(x => S[x.id]) ? ' Solved: ' + CHALLENGES.filter(x => S[x.id]).length + ' of ' + CHALLENGES.length + '.' : '')) : null,
     CHALLENGES.length ? chList : null,
     accountsOn() && !account ? h('p', { class: 'note' }, 'Signed out, the ones you solve are kept in this browser; a free account keeps them in any.') : null,
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));

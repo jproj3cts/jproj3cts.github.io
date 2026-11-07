@@ -27,7 +27,7 @@ import {
 import { wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
-  fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playing, renderedPeriod, showActivityNow,
+  fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playAll, playing, renderedPeriod, showActivityNow,
   stepValue, sweepJob, updateActivity
 } from './sweeps.js';
 import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
@@ -107,15 +107,15 @@ import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from 
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
-import { usageDrawn, usageStart, wireUsage } from '../io/usage.js';
-import { landingDue, showLanding } from './landing.js';
+import { goal, usageDrawn, usageStart, wireUsage } from '../io/usage.js';
+import { fromIgTag, srcTag } from '../core/src-tag.js';
 import { phosphorRead } from './phosphor.js';
 import { renderFrame } from '../io/figure.js';
 import { partHeadline } from './optimise.js';
 import { exerciseLeave, exerciseOn, exerciseOptimise, exerciseSync, exerciseTick, startExercise, wireChallenge } from './challenge.js';
 import { CHALLENGES, EXERCISES, exerciseArrival, exerciseById } from '../core/exercises.js';
 
-/* Recording mode (J.kiosk, ?kiosk): the busy banner, the side panel, the notes (welcome, empty bench, From Instagram,
+/* Recording mode (J.kiosk, ?kiosk): the busy banner, the side panel, the notes (welcome, empty bench,
    sign-in), toasts, the minimap and the coordinates hidden, nothing selected; opts.all hides the parts rail and the
    bench tabs too. The bench fills what is left. */
 function kioskSet(on, opts) {
@@ -147,8 +147,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a later visit, or a reload in this session (a tab's own store survives a reload and a sign-in's round trip)
   try { again = !!sessionStorage.getItem('jek-visit'); sessionStorage.setItem('jek-visit', '1'); } catch (err) { /* not told apart: taken as a reload */ }
   const arrived = location.hash + '&' + location.search;
-  const ig = landingDue();
-  // ?ex=<id>, or a reel that is a challenge: the visit starts in that exercise (ui/challenge.js)
+  // from an Instagram post (a tag starting "ig" on its link, any of them, or Instagram as the referrer): the Michelson
+  // example, as #demo=michelson opens it, its moving mirror's sweep playing; read before io/usage.js takes the tag off
+  const ig = !TEST_MODE && !EMBED && fromIgTag(srcTag(location.search, document.referrer));
+  // ?ex=<id>: the visit starts in that exercise (ui/challenge.js)
   const exArr = TEST_MODE || EMBED ? null : exerciseArrival(location.search);
   try {
     const raw = TEST_MODE || EMBED ? null : localStorage.getItem(STORE_KEY);
@@ -168,12 +170,16 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (the link could not be opened: the example after all, rather than an empty bench)
     Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !project.elements.length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
   }
-  // from an Instagram post: the reels' benches, in place of the welcome note
   else if (exArr) {
     if (/[?&]ex=/.test(location.search)) { const u = new URL(location.href); u.searchParams.delete('ex'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }
     setTimeout(() => startExercise(exArr.id, exArr.from), 300);
   }
-  else if (ig) { const dm = arrived.match(/[#?&]demo=([a-z0-9-]+)/); setTimeout(() => showLanding(dm && dm[1]), 400); }
+  else if (ig) {
+    // (an example named in the link as well gives way to it: every Instagram link opens the Michelson)
+    if (/[#?&]demo=/.test(location.hash) && !EMBED) window.history.replaceState(null, '', location.pathname + location.search);
+    goal('landing');
+    setTimeout(() => openDemo('michelson').then(() => playAll()), 300);
+  }
   else if (!restored && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b|ex=)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));
@@ -612,7 +618,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
 
   // #demo=<name> (or ?demo=<name>) opens that example; the link is then dropped from the
   // address so a reload keeps the bench as edited rather than opening the example again
-  const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
+  const demo = !TEST_MODE && !ig && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
   if (demo) {
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);

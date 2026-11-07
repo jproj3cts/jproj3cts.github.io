@@ -3,8 +3,8 @@
    on it (a key of the optimiser's measures, ui/optimise.js METRICS: key) or one of its own settings (field: x, y,
    angle…, so a part must be where it is wanted, not deleted), and above, below or within ± a value. Only the
    parts in `unlocked`, and only those settings, can be changed while one is on; everything else is held. Each starts
-   from one of our reels' benches (ui/reels.js), changed as `start` says. In order they make a short course (Help ›
-   Exercises); the ones with a `reel` are also that reel's challenge, offered to visitors who come from it. Nothing of
+   from its own bench (core/exercise-benches.js, by `start.reel`), changed as `start` says. In order they make a short
+   course (Help › Exercises). Nothing of
    this goes in a bench file: a bench saved during an exercise is an ordinary bench.
    optimiser: the range JEKrayPro's optimiser searches for each setting, offered after the second hint; left out where
    it cannot find the answer (thread-both-irises reads nothing until both irises pass, so it has nothing to climb).
@@ -114,55 +114,15 @@ export const EXERCISES = [
     optimiser: { 'Filter 2': { angle: [-40, 40] } },
     result: v => fix(v[0] * 100, 0) + '% back into fibre B' },
 ];
-/* The reels' challenges: one puzzle a "Can you…" reel, newest first, kept out of the course so it stays a course. Each
-   is an exercise in all but its place (the same fields, `teaches` left out) and always has its `reel`: offered to
-   visitors who come from that reel, marked in the From Instagram note, and listed under Help › Exercises' Challenges.
-   A new "Can you…" reel adds its challenge here, at the top (.claude/commands/instagram-conversion.md). The course's
-   own exercises with a `reel` stay in the course, and are those reels' challenges too. */
-export const CHALLENGES = [
-  { id: 'split-it-evenly', reel: 'ig-split-it-evenly', title: 'Can you split it evenly?',
-    start: { reel: 'ig-split-it-evenly' },
-    goal: 'Set the four splitters so every Target reads 0.2 mW.',
-    checks: [{ part: 'Target 1', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 2', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 3', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 4', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }, { part: 'Target 5', key: 'dmw', op: 'within', value: 0.2, tol: 0.012 }],
-    unlocked: { 'Splitter 1': ['reflect'], 'Splitter 2': ['reflect'], 'Splitter 3': ['reflect'], 'Splitter 4': ['reflect'] },
-    hints: ['Each splitter takes a share of what is left: the first a fifth of everything, the second a quarter of the rest.', 'Reflect 20%, 25%, 33% and 50%.'],
-    answer: { 'Splitter 1': { reflect: 20 }, 'Splitter 2': { reflect: 25 }, 'Splitter 3': { reflect: 33.33 }, 'Splitter 4': { reflect: 50 } },
-    optimiser: { 'Splitter 1': { reflect: [0, 100] }, 'Splitter 2': { reflect: [0, 100] }, 'Splitter 3': { reflect: [0, 100] }, 'Splitter 4': { reflect: [0, 100] } },
-    result: v => 'five beams of ' + fix(v[0], 2) + ' mW' },
-  { id: 'hit-the-target', reel: 'ig-hit-the-target', title: 'Can you hit the target?',
-    start: { reel: 'ig-hit-the-target' },
-    goal: 'Turn Mirror 3 so the beam reaches the Target.',
-    checks: [{ part: 'Target', key: 'power', op: 'above', value: 50 }],
-    unlocked: { 'Mirror 3': ['angle'] },
-    hints: ['After Mirror 3 the beam must run straight up to Mirror 4: a mirror turns light by twice its tilt.', 'A mirror at 45° turns the beam through a right angle: set Mirror 3 to 45°.'],
-    answer: { 'Mirror 3': { angle: 45 } },
-    // no optimiser: the Target reads 0 until the angle is within about 0.4° of the answer, so it has nothing to climb
-    result: v => fix(v[0], 0) + '% of the beam on the Target' },
-  { id: 'escape-the-box', reel: 'ig-escape-the-box', title: 'Can you escape the box?',
-    start: { reel: 'ig-escape-the-box' },
-    goal: 'Get the beam out through the gap in the right wall to the Target.',
-    checks: [{ part: 'Target', key: 'dmw', op: 'above', value: 0.9 }],
-    unlocked: { Laser: ['angle'] },
-    hints: ['The beam has to leave through the gap: find a route the mirrors allow, as in a game of pool.', 'Aim at the gap\'s reflection in the left wall: about 164°.'],
-    answer: { Laser: { angle: 163.75 } },
-    // no optimiser: the Target reads 0 until the angle is within about 0.25° of a solution, so it has nothing to climb
-    result: v => fix(v[0], 2) + ' mW out of the box' },
-  { id: 'hit-the-pinhole', reel: 'ig-hit-the-pinhole', title: 'Can you hit the pinhole?',
-    start: { reel: 'ig-hit-the-pinhole' },
-    goal: 'Get the light through the pinhole to the Detector.',
-    checks: [{ part: 'Detector', key: 'dmw', op: 'above', value: 0.9 }],
-    unlocked: { Pinhole: ['x', 'y'] },
-    hints: ['A tilted beam focuses off the axis: the pinhole has to move up as well as along.', 'The focus is about 50 mm from the lens and 0.53 mm above the axis.'],
-    answer: { Pinhole: { x: 49.85, y: 0.53 } },
-    // no optimiser: nothing reaches the Detector until the pinhole is within 0.05 mm, so it has nothing to climb
-    result: v => fix(v[0], 2) + ' mW through the pinhole' },
-];
+/* Challenges: puzzles kept out of the course so it stays a course, each an exercise in all but its place (the same
+   fields, `teaches` left out), listed under Help › Exercises' Challenges and opened from their own link (?ex=). The
+   reels' challenges are gone with the reels' benches; none for now. */
+export const CHALLENGES = [];
 export const isChallenge = ex => CHALLENGES.includes(ex);
-/* how many reels (the From Instagram note) and challenges (Help › Exercises) are listed, newest first, before a
-   "Show older" button; every one still opens from its own link (?src=ig-…, ?ex=), however old */
+/* how many challenges Help › Exercises lists, newest first, before a "Show older" button; every one still opens from
+   its own link (?ex=), however old */
 export const LISTED_NEWEST = 10;
 export const exerciseById = id => EXERCISES.find(x => x.id === id) || CHALLENGES.find(x => x.id === id) || null;
-export const exerciseOfReel = reel => CHALLENGES.find(x => x.reel === reel) || EXERCISES.find(x => x.reel === reel) || null;
 /* one check against its value (null: not measured yet, as when no light arrives) */
 export function checkPasses(c, v) {
   if (v === null || v === undefined || !isFinite(v)) return false;
@@ -170,7 +130,7 @@ export function checkPasses(c, v) {
 }
 /* what a check asks, in words: "above 0.9", "below 0.03", "4 ± 0.2" */
 export const checkWant = c => (c.op === 'above' ? 'above ' + c.value : c.op === 'below' ? 'below ' + c.value : c.value + ' ± ' + c.tol);
-/* the bench an exercise starts from: its reel's, changed as `start` says (a copy; the reel's own is left alone) */
+/* the bench an exercise starts from: its own (core/exercise-benches.js), changed as `start` says (a copy) */
 export function exerciseBench(ex, reelBench) {
   const b = JSON.parse(JSON.stringify(reelBench)), S = ex.start || {};
   b.elements = b.elements.filter(e => !(S.remove || []).includes(e.name));
@@ -180,10 +140,8 @@ export function exerciseBench(ex, reelBench) {
   return b;
 }
 
-/* where a visit came from, if it is to start in an exercise: ?ex=<id>, or a reel that is a challenge (?src=ig-…) */
+/* where a visit came from, if it is to start in an exercise: ?ex=<id> (an Instagram link opens the Michelson instead) */
 export function exerciseArrival(search) {
-  const m = /[?&]ex=([a-z0-9-]+)/.exec(search || ''), s = /[?&]src=([a-z0-9_-]+)/i.exec(search || '');
-  if (m && exerciseById(m[1])) return { id: m[1], from: 'link' };
-  const ex = s && exerciseOfReel(s[1].toLowerCase());
-  return ex ? { id: ex.id, from: 'reel' } : null;
+  const m = /[?&]ex=([a-z0-9-]+)/.exec(search || '');
+  return m && exerciseById(m[1]) ? { id: m[1], from: 'link' } : null;
 }

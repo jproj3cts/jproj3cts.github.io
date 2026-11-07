@@ -817,7 +817,7 @@ function nudgeCard(id, where, title, body, acts) {
   track('prompt', where + '.shown');
   document.getElementById('stage').append(card);
 }
-const nudgeUp = () => ['saveNudge', 'returnNudge', 'workNudge', 'igLanding', 'welcome', 'coach'].some(id => document.getElementById(id));
+const nudgeUp = () => ['saveNudge', 'returnNudge', 'workNudge', 'welcome', 'coach'].some(id => document.getElementById(id));
 export function saveNudge() {
   if (!accountsOn() || account !== null || !accountKnown || nudgeUp() || !nudgeAllowed()) return;     // signed out, once that is known
   nudgeTaken();
@@ -838,9 +838,8 @@ export function returnNudge(again, arrived) {
   close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
 }
 /* ---------- A free account offered in a note ----------
-   The first-visit welcome note (where 'welcome') and the From Instagram note (ui/landing.js, 'landing') offer a free
-   account, one click each way, to anyone signed out: a first visit may only look, and never edit enough to be asked
-   after its work. Counted as 'prompt' <where>.<answer>. */
+   The first-visit welcome note (where 'welcome') offers a free account, one click each way, to anyone signed out: a
+   first visit may only look, and never edit enough to be asked after its work. Counted as 'prompt' <where>.<answer>. */
 export function accountOffer(where) {
   if (!accountsOn() || account) return null;
   track('prompt', where + '.shown');
@@ -870,8 +869,8 @@ export function benchEdited() {
 }
 export function workNudge() {
   work.timer = 0;
-  const since = Date.now() - work.t0, notes = ['welcome', 'igLanding'].map(id => document.getElementById(id)).filter(Boolean);
-  // not mid-drag, nor over a dialog, a tour or another prompt: looked at again shortly (the welcome and Instagram notes give way)
+  const since = Date.now() - work.t0, notes = ['welcome'].map(id => document.getElementById(id)).filter(Boolean);
+  // not mid-drag, nor over a dialog, a tour or another prompt: looked at again shortly (the welcome note gives way)
   const due = workDue({ on: accountsOn(), signedOut: account === null && accountKnown, asked: !!workState(), parts: project ? project.elements.length : 0, edits: work.n, since,
     busy: !!drag || ['saveNudge', 'returnNudge', 'coach'].some(id => document.getElementById(id)) || !!document.querySelector('dialog[open]') || sheetUp() });
   if (due === 'later') { work.timer = setTimeout(workNudge, work.n < WORK_EDITS && since < WORK_MS ? WORK_MS - since : 5000); return; }

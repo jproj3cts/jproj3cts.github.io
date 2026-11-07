@@ -6119,32 +6119,17 @@ const TESTS = [
     },
   },
   {
-    name: 'and so does each reel’s challenge, apart from the course: its bar says Challenge and offers the next challenge',
-    why: 'the reels’ challenges (core/exercises.js CHALLENGES), each from its reel’s bench: unsolved at the start, solved with its answer, the bar saying Challenge (not Exercise n of 11) and, solved, All challenges; Help › Exercises lists them under Challenges, unnumbered, after the eleven: the newest ten, the rest behind Show older (1 when all hold)',
+    name: 'Help › Exercises lists the course alone: the reels’ challenges went with their benches',
+    why: 'no challenges (core/exercises.js CHALLENGES is empty): Help › Exercises shows the eleven exercises and no Challenges section (1 when it does)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
-      const ids = J.challenges(), bad = [];
-      for (const id of ids) {
-        J.exerciseStart(id); await frame();
-        const before = J.exerciseCheck(), kind = ((rigDoc().querySelector('#exBar .rt-exkind') || {}).textContent || '');
-        for (const [name, f] of Object.entries(J.exerciseAnswer(id))) J.set(name, f);
-        await frame(); await frame();
-        const after = J.exerciseCheck(), bar = (rigDoc().getElementById('exBar') || {}).textContent || '';
-        if (!(before === false && after === true && kind === 'Challenge' && /Solved: /.test(bar) && /All challenges/.test(bar) && !/Exercise \d+ of/.test(bar))) bad.push({ id, before, after, kind, bar });
-      }
-      J.exerciseLeave();
       rigDoc().getElementById('btnExercises').click(); await frame();
       const dlg = rigDoc().getElementById('exDialog'), lists = dlg ? dlg.querySelectorAll('.rt-exlist') : [];
-      // the newest ten listed, the rest behind Show older, which lists them all
-      const L = lists[1], older = L && L.querySelector('.rt-older button'), firstSeen = L ? L.querySelectorAll('.rt-exitem').length : 0;
-      if (older) { older.click(); await frame(); }
-      const listed = lists.length === 2 && lists[0].children.length === J.exercises().length && L.classList.contains('rt-chlist') && !!dlg.querySelector('#exChallenges')
-        && firstSeen === Math.min(10, ids.length) && !!older === (ids.length > 10) && L.querySelectorAll('.rt-exitem').length === ids.length && !L.querySelector('.rt-older');
+      const ok = J.challenges().length === 0 && lists.length === 1 && lists[0].children.length === J.exercises().length && !dlg.querySelector('#exChallenges') && !dlg.querySelector('.rt-chlist');
       if (dlg) dlg.close();
-      try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
-      if (bad.length || !listed) console.log('challenges', { bad, listed });
-      return ids.length && !bad.length && listed ? 1 : 0;
+      if (!ok) console.log('exercises dialog', { lists: lists.length, challenges: J.challenges() });
+      return ok ? 1 : 0;
     },
   },
   {

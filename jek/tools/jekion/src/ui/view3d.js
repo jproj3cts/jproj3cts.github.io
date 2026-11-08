@@ -92,8 +92,8 @@ export const V3D = (() => {
       groups.misc.add(m);
     }
     // the ion groups' starts
-    // a small sphere each: a third of a grid spacing, so it never hides a path a few cells across (a trapped ion's)
-    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(G.h * 0.35, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
+    // a unit sphere each, scaled every frame to a few pixels on screen (draw), so zooming in uncovers the path round it
+    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(1, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); m.userData.startMark = true; groups.misc.add(m); }
     // the paths
     if (project.show.traj && SIM.result) {
       for (const p of SIM.result.particles) {
@@ -111,6 +111,9 @@ export const V3D = (() => {
   function draw() {
     if (!on || !R) return;
     build();
+    // the start markers: 4 px of radius whatever the distance (a sphere of that many world units at its depth)
+    const cam = R.camera, perPx = 2 * Math.tan(cam.fov * Math.PI / 360) / Math.max(1, R.h);
+    for (const m of R.groups.misc.children) if (m.userData.startMark) m.scale.setScalar(Math.max(1e-6, 4 * perPx * cam.position.distanceTo(m.position)));
     R.gl.render(R.scene, R.camera);
   }
   function fit() {

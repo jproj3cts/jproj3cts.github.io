@@ -94,7 +94,7 @@ if (shortLinkAt || longLinkAt) { window.history.replaceState(null, '', location.
 if (!TEST_MODE) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([ik][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/); if (!sh && !ss) return; window.history.replaceState(null, '', location.pathname); if (sh) openShareHash(sh[1]); else openShortLink(ss[1]); });
 // ?demo=<name> or #demo=<name> opens an example; #examples the gallery
 const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
-if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. + Add puts in more.'), 600);
+if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
 // the tests' and the console's handle on the tool

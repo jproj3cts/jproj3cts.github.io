@@ -11,7 +11,7 @@ import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './rend
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  FIELD_FRAMES, WAVES, advOpen, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
+  WAVES, advOpen, fieldFramesOf, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
   swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { V3D } from './view3d.js';
@@ -250,7 +250,7 @@ function sweepControls(el, path, sw, label) {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
       setFieldRendered(null);
     }, { blank: null });
-    bindSync(inp, () => { inp.placeholder = sw.field ? String(FIELD_FRAMES) : 'smooth'; });
+    bindSync(inp, () => { inp.placeholder = sw.field ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
   }
   // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
@@ -261,7 +261,7 @@ function sweepControls(el, path, sw, label) {
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
-        : sw.field ? 'Play renders the field at ' + (sw.steps || FIELD_FRAMES) + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.'
+        : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;
     });

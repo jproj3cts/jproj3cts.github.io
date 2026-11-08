@@ -182,5 +182,6 @@ through `core/hooks.js`.
   reaches the page only through `core/hooks.js` (JEKion installs its own entries: `ionChanged`, `apiBase`, `usageTier`…).
   Top-level names must be unique across both tools' modules in JEKion's build. Accounts, usage counts and the data
   writers are JEKray's; JEKion's usage tokens are prefixed `ion-`.
-- Site search only finds pages listed in `searchablePages` in `jek/index.html`.
+- Site search: the box in the nav bar (`_includes/site-nav.html`, `.nav-search`) sends `?q=` to `jek/search-results.html`, which reads
+  only the pages listed in its `PAGES`: add a new page there.
 - Thorlabs/vendor files are not committed; reproduce them in tests with synthetic text.

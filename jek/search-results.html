@@ -6,7 +6,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>JEK Systems - Search Results</title>
+<title>Search | JEK Systems</title>
+<meta name="description" content="Search the JEK Systems site.">
+<meta name="robots" content="noindex">
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 </head>
@@ -17,9 +19,9 @@
 
   <!-- Main Content -->
   <main class="main-content">
-    <h1 class="page-title" data-eyebrow="Search">Search Results</h1>
-    <div id="results"></div>
-    <a href="/jek/" class="return">← Return to Home</a>
+    <h1 class="page-title">Search</h1>
+    <p id="status" class="search-status" role="status"></p>
+    <ol id="results" class="search-results"></ol>
   </main>
 
 <footer>
@@ -35,28 +37,53 @@
 </footer>
 
   <script>
-    // Retrieve results and query from sessionStorage
-    const stored = sessionStorage.getItem('siteSearchResults');
-    const query = sessionStorage.getItem('siteSearchQuery') || '';
-    let results = [];
-
-    try {
-      results = stored ? JSON.parse(stored) : [];
-    } catch {
-      results = [];
-    }
-
-    const container = document.getElementById('results');
-
-    if (!query) {
-      container.innerHTML = '<p class="noresults">No search term provided.</p>';
-    } else if (!results || results.length === 0) {
-      container.innerHTML = `<p class="noresults">No pages contain "<strong>${query}</strong>".</p>`;
-    } else {
-      container.innerHTML = results.map(r => 
-        `<div class="result"><a href="${r.url}">${r.title}</a></div>`
-      ).join('');
-    }
+    // The site search: the box in the nav bar sends ?q= here, and this reads the pages below for it.
+    // Add a line here when you add a page that should be found.
+    const PAGES = [
+      '/jek/', '/jek/products.html', '/jek/custom-solutions.html', '/jek/bio.html', '/jek/contact.html',
+      '/jek/universities.html', '/jek/calculators/',
+      '/jek/products/design-software/jekray/', '/jek/products/design-software/jekion/',
+      '/jek/products/signal-processing/custom-rf-lenses/', '/jek/products/signal-processing/',
+      '/jek/products/lab-accessories/cf40-sample-transport-rack/', '/jek/products/lab-accessories/',
+      '/jek/products/photodetectors/',
+      '/jek/security.html', '/jek/accessibility.html', '/jek/privacy.html', '/jek/terms.html',
+    ];
+    (async function () {
+      const q = (new URLSearchParams(location.search).get('q') || '').trim();
+      const status = document.getElementById('status'), list = document.getElementById('results');
+      const box = document.querySelector('.nav-search input');
+      if (box) box.value = q;
+      if (!q) { status.textContent = 'Type what you are looking for in the search box above.'; return; }
+      document.title = 'Search: ' + q + ' | JEK Systems';
+      status.textContent = 'Searching for “' + q + '”…';
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      const found = await Promise.all(PAGES.map(async (url) => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+          const main = doc.querySelector('main') || doc.body;
+          main.querySelectorAll('script, style, nav').forEach((n) => n.remove());
+          const parts = [], walk = doc.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+          while (walk.nextNode()) parts.push(walk.currentNode.nodeValue);
+          // text nodes joined with a space, so words in neighbouring elements stay apart
+          const text = parts.join(' ').replace(/\s+/g, ' ').replace(/ ([,.;:!?)])/g, '$1').trim(), low = text.toLowerCase();
+          if (!words.every((w) => low.includes(w))) return null;
+          const title = (doc.title || url).replace(/\s*\|\s*JEK Systems$/, '').replace(/^JEK Systems\s*\|\s*/, '');
+          const at = low.indexOf(words[0]), from = at > 70 ? text.lastIndexOf(' ', at - 70) + 1 : 0;
+          const end = text.indexOf(' ', at + 150), snip = (from ? '…' : '') + text.slice(from, end < 0 ? undefined : end).trim() + (end < 0 ? '' : '…');
+          const hits = words.reduce((n, w) => n + low.split(w).length - 1, 0);
+          return { url, title, snip, hits };
+        } catch { return null; }
+      }));
+      const results = found.filter(Boolean).sort((a, b) => b.hits - a.hits);
+      status.textContent = results.length ? results.length + (results.length === 1 ? ' page mentions' : ' pages mention') + ' “' + q + '”.' : 'No page mentions “' + q + '”. Try a shorter word, or email sales@jeksys.net.';
+      for (const r of results) {
+        const li = document.createElement('li'), a = document.createElement('a'), p = document.createElement('p');
+        a.href = r.url; a.textContent = r.title; p.textContent = r.snip;
+        li.append(a, p); list.append(li);
+      }
+    })();
   </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>

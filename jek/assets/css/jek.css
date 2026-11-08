@@ -739,12 +739,6 @@ a.jek-card:focus-visible { outline: none; box-shadow: var(--jek-focus); }
 .jek-member.open { border: 1px dashed var(--jek-line-2); border-radius: var(--jek-radius); padding: 1.1rem 1.2rem; align-self: start; }
 
 /* the home page's search: a quiet row under the masthead, set to the right */
-.jek-searchbar .jek-wrap { display: flex; justify-content: flex-end; padding-top: 0.45rem; }
-.jek-searchbar form#searchForm { width: auto; max-width: none; margin: 0; gap: 0; }
-.jek-searchbar #searchInput { width: 13rem; padding: 0.35rem 0.6rem; font-size: 0.86rem; border: 1px solid var(--jek-line-2); border-right: 0; border-radius: var(--jek-radius) 0 0 var(--jek-radius); background: var(--jek-panel); }
-.jek-searchbar #searchButton { padding: 0.35rem 0.7rem; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; color: var(--jek-ink-soft); background: transparent; border: 1px solid var(--jek-line-2); border-radius: 0 var(--jek-radius) var(--jek-radius) 0; }
-.jek-searchbar #searchButton:hover { background: var(--jek-panel); color: var(--jek-ink); }
-@media (max-width: 520px) { .jek-searchbar #searchInput { width: auto; flex: 1 1 auto; } }
 
 /* the products index: a category card with its picture, a line, and its sub-categories as
    rows in the category's colour (Photonics orange, Electronics red, Lab Accessories blue) */
@@ -2070,10 +2064,6 @@ button.buy-button {
   /* the JEKray page's checks: the lead reads as a heading over them, not a squeezed column */
   .jek-proof .lead { max-width: none; font-size: 1rem; }
 
-  /* the home page's search: input and button on one row */
-  .jek-searchbar form#searchForm { flex-wrap: nowrap; width: 100%; }
-  .jek-searchbar #searchInput { width: auto; flex: 1 1 auto; min-width: 0; font-size: 1rem; }
-  .jek-searchbar #searchButton { width: auto; flex: none; }
 }
 /* the smallest phones: the Menu button is its icon alone */
 @media (max-width: 380px) {
@@ -2167,3 +2157,32 @@ button.buy-button {
 .jek-hero .jek-facts { font-size: 0.9rem; }
 .jek-feature p { font-size: 1rem; }
 .jek-card p, .jek-card ul { font-size: 0.98rem; }
+
+/* ==========================================================================
+   Site search in the nav bar (_includes/site-nav.html); results on /jek/search-results.html
+   ========================================================================== */
+.nav-search { display: inline-flex; align-items: stretch; margin: 0 0.4rem 0 1rem; }
+.nav-search input { width: 10.5rem; height: 1.85rem; padding: 0 0.6rem; font: 400 0.82rem var(--jek-sans); letter-spacing: 0; text-transform: none; color: #fff;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.28); border-right: 0; border-radius: var(--jek-radius) 0 0 var(--jek-radius); outline: none; }
+.nav-search input::placeholder { color: rgba(255, 255, 255, 0.6); }
+.nav-search input:focus { background: rgba(255, 255, 255, 0.14); border-color: var(--jek-sky); }
+.nav-search input::-webkit-search-cancel-button { filter: invert(1); }
+.nav-search button { display: inline-flex; align-items: center; justify-content: center; width: 2rem; padding: 0; color: #fff; cursor: pointer;
+  background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.28); border-radius: 0 var(--jek-radius) var(--jek-radius) 0; }
+.nav-search button:hover { background: rgba(255, 255, 255, 0.24); }
+.nav-search button:focus-visible, .nav-search input:focus-visible { box-shadow: 0 0 0 2px var(--jek-sky); }
+@media (max-width: 1180px) { .nav-search input { width: 7.5rem; } }
+@media (max-width: 900px) {
+  .top-container .bar6 > .nav-search { display: none; }
+  .nav-open .bar6 > .nav-search { order: 3; display: flex; flex: 0 0 100%; margin: 0.6rem 0 0.3rem; }
+  .nav-open .bar6 > .nav-search input { flex: 1 1 auto; width: auto; height: 2.4rem; font-size: 1rem; }
+  .nav-open .bar6 > .nav-search button { width: 2.8rem; }
+  .nav-open .bar6 > a, .nav-open .bar6 > .nav-drop { order: 4; }
+}
+.search-status { margin: 0 0 1rem; color: var(--jek-ink-soft); }
+.search-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.1rem; max-width: 72ch; }
+.search-results a { font-size: 1.05rem; font-weight: 600; color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.search-results p { margin: 0.3rem 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--jek-ink-soft); }
+/* a product page: the details and the description beside the photo, from the top */
+.jek-wrap .product-wrap { align-items: start; }
+.jek-wrap .product-info .product-description { margin-top: 1.4rem; }

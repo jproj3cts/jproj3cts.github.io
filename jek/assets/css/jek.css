@@ -2218,4 +2218,4 @@ main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
 .jek-hero .jek-tag { max-width: 40ch; }
 .jek-hero .jek-lede { max-width: 62ch; }
 /* the picture at a page top a little smaller than the words beside it, so the two are closer in height */
-.jek-hero .jek-wrap { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); }
+.jek-hero .jek-wrap { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }

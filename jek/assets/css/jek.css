@@ -2198,3 +2198,13 @@ button.buy-button {
 /* a product page: the details and the description beside the photo, from the top */
 .jek-wrap .product-wrap { align-items: start; }
 .jek-wrap .product-info .product-description { margin-top: 1.4rem; }
+
+/* ==========================================================================
+   Text on the sand is near-black, not grey: grey on a mid-tone reads muddy.
+   On white surfaces (bands, cards, panels, captions) the grey stays for
+   secondary text.
+   ========================================================================== */
+/* site pages only (main.main-content): the apps keep their own palettes, light and dark */
+main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
+.jek-band, :not(.plain) > .jek-card, .jek-shot figcaption, .calc-card, .diagram-area, .acct-card, .jek-pricing,
+.dropdown-panel, .cart-panel, .quote-form, .contact-table, .tech-section, .product-wrap .gallery-frame { --jek-ink-soft: #4a4642; }

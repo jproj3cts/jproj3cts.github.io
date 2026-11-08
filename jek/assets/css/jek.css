@@ -2132,3 +2132,14 @@ button.buy-button {
 .jek-wrap .product-wrap { grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 3rem; }
 @media (max-width: 860px) { .jek-wrap .product-wrap { grid-template-columns: minmax(0, 1fr); } }
 .jek-hero .jek-acts a:not(.jek-btn) { padding: 0.62rem 0.2rem; font-size: 0.92rem; font-weight: 600; color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+/* ==========================================================================
+   Text without boxes: cards that hold only words (who it is for, ways to work,
+   contacts, capabilities, specifications, the calculators' lists) sit on the
+   page under a thin rule, as the team's bios do. Cards with a picture stay tiles.
+   ========================================================================== */
+.jek-cards.plain { gap: 1.5rem 2rem; }
+.jek-cards.plain > .jek-card { padding: 0.9rem 0 0; background: none; border: 0; border-top: 2px solid var(--jek-line); border-radius: 0; box-shadow: none; }
+/* these have their own rule under the heading, so no line above */
+.features-column, .link-section { padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+@media (max-width: 520px) { .features-column, .link-section { padding: 0; } }

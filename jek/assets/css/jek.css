@@ -2143,3 +2143,27 @@ button.buy-button {
 /* these have their own rule under the heading, so no line above */
 .features-column, .link-section { padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
 @media (max-width: 520px) { .features-column, .link-section { padding: 0; } }
+
+/* ==========================================================================
+   Legibility: readable line lengths, text colours that pass WCAG AA (4.5:1)
+   on the sand and on white, and no text smaller than 0.8rem. The brand colours
+   (the stripe, the accents' fills) stay; only text and button shades darken.
+   ========================================================================== */
+:root { --jek-ink-soft: #4a4642; --jek-cyan-dark: #006075; }
+.cat-orange { --jek-accent-ink: #884224; }
+.cat-red { --jek-accent-ink: #a6283c; }
+.cat-blue { --jek-accent-ink: #006075; }
+/* product buttons: a deeper shade of the category colour under white text, and dark text on the outlined one */
+.product-actions.accent-orange { --jek-accent: #bb5b32; --jek-accent-hover: #9c4b29; }
+.product-actions.accent-red { --jek-accent: #c42e48; --jek-accent-hover: #a6283c; }
+.product-actions.accent-blue { --jek-accent: #00819e; --jek-accent-hover: #006075; }
+.product-actions .quote-button { color: var(--jek-ink); }
+/* running text no wider than about 72 characters, however wide the page */
+.jek-wrap p, .jek-wrap li, .main-content > p, .product-description p { max-width: 72ch; }
+.jek-wrap p + p { margin-top: 0.8em; }
+/* small print up a step */
+.jek-eyebrow, .jek-pricing thead th, .jek-profile h3, .jek-member h3, .jek-wrap .product-description h2 { font-size: 0.8rem; letter-spacing: 0.06em; }
+.jek-shot figcaption { font-size: 0.88rem; }
+.jek-hero .jek-facts { font-size: 0.9rem; }
+.jek-feature p { font-size: 1rem; }
+.jek-card p, .jek-card ul { font-size: 0.98rem; }

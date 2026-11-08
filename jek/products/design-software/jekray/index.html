@@ -44,7 +44,7 @@
      resources in columns, a topic or a resource opened across the whole row */
   .jek-hero { padding-block: 2rem 1.6rem; }
   .jek-section { padding-block: 1.8rem; }
-  .rt-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
+  .rt-feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
   .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
   .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
   .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
@@ -69,7 +69,7 @@
   @media (max-width: 900px) { .rt-res { grid-template-columns: 1fr 1fr; gap: 1.8rem; } }
   @media (max-width: 560px) { .rt-res { grid-template-columns: 1fr; } }
 
-  @media (max-width: 980px) { .rt-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 1100px) { .rt-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 640px) { .rt-feats { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -104,16 +104,20 @@
     <section class="jek-section" style="padding-top: 0">
       <div class="jek-wrap rt-feats">
         <div class="jek-feature">
-          <div><h2>The whole experiment, light to oscilloscope</h2><p>Free-space optics, fibre, photodiodes, amplifiers, mixers and lock-ins are solved together on one bench. A fibre Mach&ndash;Zehnder with an 80&nbsp;MHz AOM shows its beat note on the oscilloscope and in the RF spectrum.</p><p><a href="/jek/tools/jekray.html#demo=fibre-heterodyne">Open the fibre heterodyne</a></p></div>
-          <figure class="jek-shot"><img src="img/fibre-heterodyne.png" alt="A fibre Mach&ndash;Zehnder interferometer with an AOM in one arm and a photodiode reading the beat note" loading="lazy"></figure>
+          <div><h2>The whole experiment, light to oscilloscope</h2><p>Free-space optics, fibre, photodiodes, amplifiers, mixers and lock-ins are solved together on one bench. Here a fibre laser, modulated at 1&nbsp;kHz, is split into two fibre launches, recombined on a cube and read by photodiodes wired to a scope and a spectrum analyser.</p><p><a href="/jek/tools/jekray.html#demo=fibre-heterodyne">Open the fibre heterodyne example</a></p></div>
+          <figure class="jek-shot"><img src="img/whole-bench.png" alt="A modulated fibre laser split into two fibre launches, recombined on a beam-splitter cube and read by photodiodes wired to an oscilloscope and a spectrum analyser" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Checked against the literature, live</h2><p>Fox and Li&rsquo;s resonator losses, Safronova&rsquo;s atomic polarisabilities and measured rubidium absorption are reproduced from the papers. The checks run again every time the validation page is opened.</p><p><a href="/jek/tools/jekray-validation.html">See the validation page</a></p></div>
+          <div><h2>Validated against 27 published papers</h2><p>Fox and Li&rsquo;s resonator losses, Safronova&rsquo;s atomic polarisabilities, Siddons&rsquo; measured rubidium absorption and Gieseler&rsquo;s measured gas damping are among them. ElecSus, Optiland and SAX check it as independent codes. Every check runs again in your browser when the validation page opens.</p><p><a href="/jek/tools/jekray-validation.html">See the validation page</a></p></div>
           <figure class="jek-shot"><img src="img/saturated-absorption.png" alt="Saturated absorption spectroscopy of a rubidium cell, the probe read on a photodiode" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>From a lens idea to a drawing the workshop can use</h2><p>Optimise against some 1,200 catalogue glasses and tolerance the design for yield. Then export an ISO&nbsp;10110 drawing, a .zmx file and STEP solids for the mechanical design.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <div><h2>Optimise your design parameters</h2><p>Free the parameters you are willing to change and say what the design must meet. The optimiser searches them, the glass included from some 1,200 in the catalogues. Tolerance the result for yield, then export an ISO&nbsp;10110 drawing, a .zmx file and STEP solids for the workshop.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
           <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, surfaces, glass and tolerances" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>Rays and the diffracted field</h2><p>Every part is traced with rays, and a Gaussian beam travels along each one. Switch on the diffracted field and the light is propagated as a wave too. Near a focus it moves by the angular spectrum, and far from one by a Fresnel transform that rescales its grid, so a tight focus and a long collimated beam both fit on a few hundred points.</p><p><a href="/jek/docs/jekray/concepts/">Read how the light is modelled</a></p></div>
+          <figure class="jek-shot"><img src="img/field-3d.png" alt="A Mach&ndash;Zehnder interferometer in 3D, the diffracted field drawn along each beam on a log scale" loading="lazy"></figure>
         </div>
       </div>
     </section>

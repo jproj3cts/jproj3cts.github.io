@@ -2219,3 +2219,6 @@ main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
 .jek-hero .jek-lede { max-width: 62ch; }
 /* the picture at a page top a little smaller than the words beside it, so the two are closer in height */
 .jek-hero .jek-wrap { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+/* every picture beside a feature the same shape (16:10, as the page-top recording), filled and centred */
+.jek-feature .jek-shot img { aspect-ratio: 16 / 10; width: 100%; height: auto; object-fit: cover; object-position: center; }
+.jek-feature .jek-shot img[src$="lens-design.png"], .jek-feature .jek-shot img[src$="lens-drawing.png"] { object-position: top; }

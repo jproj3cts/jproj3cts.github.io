@@ -367,10 +367,10 @@ export function pinTitle(title, id, onSelect) {
     onclick: () => togglePinId(id) });
   pinBtn.innerHTML = PIN_SVG;
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
-  // something is selected again (or View › Show the side panel). On a wide screen the main one's
-  // × is not shown: the tab on the bench's right edge (sideTab) closes it
+  // something is selected again (or View › Show the side panel). On a wide screen the Bench panel's
+  // × is not shown: the tab on the bench's left edge (sideTab) closes it
   const main = panel === mainPanel;
-  const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
+  const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : '') + (main && id === BENCH_PIN ? ' rt-benchclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
@@ -464,7 +464,7 @@ export function renderPanel() {
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
   // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
-  // the bench takes the page: the Bench panel opens only from the tab on the bench's right edge (or View › Show the
+  // the bench takes the page: the Bench panel opens only from the tab on the bench's left edge (or View › Show the
   // side panel), and stays until something is selected or the tab puts it away
   const picked = !!(sel || selFibre());
   if (picked) panelClosed = true;
@@ -474,6 +474,11 @@ export function renderPanel() {
   const cols = (mainShows ? 1 : 0) + pins.length;
   mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
   mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
+  // the Bench panel comes out on the bench's left, apart from the parts' panels on its right (not on a phone, where
+  // every panel is a sheet from below)
+  const benchLeft = mainShows && !picked && !phoneSheet();
+  mainPanel.parentElement.classList.toggle('rt-benchleft', benchLeft);
+  mainPanel.parentElement.style.gridTemplateColumns = benchLeft ? '330px minmax(240px, 1fr)' + (pins.length ? ' repeat(' + pins.length + ', 330px)' : '') : '';
   if (mainShows) renderInto(mainPanel, sel);
   mainPanel.classList.toggle('rt-tall', sheetTall);
   // newly selected on a phone: kept clear of the sheet
@@ -492,20 +497,21 @@ export function renderPanel() {
   stackLongSelects(document);
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
-  // the tab on the bench's right edge: pointing out (open the Bench panel) or in (put the panel away)
+  // the tab on the bench's left edge, the Bench panel's alone: pointing out (bring it out) or in (put it away)
   const tab = document.getElementById('btnSideTab');
   if (tab) {
-    const what = mainShows ? 'Hide the panel' : 'Bench settings: light, snapping, notes and the parts list';
-    tab.classList.toggle('open', mainShows); tab.setAttribute('aria-pressed', mainShows && !sel && !selFibre() ? 'true' : 'false');
-    tab.title = what; tab.setAttribute('aria-label', mainShows ? 'Hide the panel' : 'Bench settings');
+    const benchShown = mainShows && !picked;
+    tab.classList.toggle('open', benchShown); tab.setAttribute('aria-pressed', benchShown ? 'true' : 'false');
+    tab.title = benchShown ? 'Hide the Bench panel' : 'Bench settings: light, snapping and the parts list';
+    tab.setAttribute('aria-label', benchShown ? 'Hide the Bench panel' : 'Bench settings');
   }
 }
-/* the tab on the bench's right edge: the panel, put away (whatever was selected put down, as its × does), or,
-   with none shown, the Bench panel brought out */
+/* the tab on the bench's left edge: the Bench panel brought out (whatever was selected put down, its panel with it),
+   or put away */
 export function sideTab() {
-  const sel = selected(), shown = mainPanel.style.display !== 'none' && (!!(sel || selFibre()) || !panelClosed);
+  const sel = selected(), benchShown = mainPanel.style.display !== 'none' && !(sel || selFibre()) && !panelClosed;
   selectOne(null); setSelFibreId(null);
-  panelClosed = shown;
+  panelClosed = benchShown;
   renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
@@ -596,15 +602,30 @@ function sectionise(box, kind) {
     else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
   }
   if (about.length) {
-    const body = h('div', { class: 'rt-secbody rt-about' });
+    const body = h('div', { class: 'rt-aboutpart' });
     let last;
     for (const [head, p] of about) {
       if (head && head !== last && head !== 'Position') body.append(h('h4', null, head));
       last = head;
       body.append(p);
     }
-    box.append(makeSection(h('h3', null, 'About this part'), body, kind + '|About', false));
-  }
+    if (box === mainPanel) mainAbout = body;
+  } else if (box === mainPanel) mainAbout = null;
+}
+/* the main panel's longer explanations, kept out of the panel for Help › About the selected part */
+let mainAbout = null;
+/* a window of text: Help's Using the bench and About the selected part */
+export function infoDialog(title, nodes) {
+  const dlg = document.getElementById('infoDialog');
+  document.getElementById('infoTitle').textContent = title;
+  document.getElementById('infoBody').replaceChildren(...nodes);
+  if (!dlg.open) dlg.showModal();
+}
+export function showAboutPart() {
+  const sel = selected();
+  if (!sel) { infoDialog('About the selected part', [h('p', null, 'Select a part on the bench first: this tells you what it models and how to use it.')]); return; }
+  const name = sel.name || typeLabel(sel);
+  infoDialog('About ' + name, mainAbout ? [mainAbout.cloneNode(true)] : [h('p', null, 'Its panel says all there is to say about it.')]);
 }
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;

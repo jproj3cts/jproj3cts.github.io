@@ -1,4 +1,3 @@
-import { moreFold } from './parts/lens.js';
 import { TEST_MODE, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen, fmtW } from '../core/format.js';
 import { cavLine } from '../core/beams-hom.js';
@@ -9,7 +8,7 @@ import { lastTrace } from '../engines/trace.js';
 import { getCss, inkA, requestRender } from './render.js';
 import { V3D } from './view3d.js';
 import { updateReadouts } from './readouts.js';
-import { BENCH_PIN, bindSync, fid, h, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
+import { BENCH_PIN, bindSync, fid, h, infoDialog, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
 import {
   axisFont, drawAxes, magma, plotArea, plotCsv, plotFrame, plotZoom, updateSyncButtons, zoomControls,
   zoomRange
@@ -282,14 +281,6 @@ export function renderOverview() {
     panel.append(h('p', null, 'The bench is empty. Add a source and a few elements from the toolbar, or import a lens from a .zmx file.'));
   }
 
-  // what the bench is, where it came from, what was assumed: the author's, or an assistant's
-  const notes = h('textarea', { class: 'rt-notes', id: 'rtf' + (setFid(fid + 1)), rows: '3', spellcheck: 'true',
-    placeholder: 'What this bench is, where it comes from, what was assumed\u2026' });
-  notes.value = project.notes || '';
-  const fitH = () => { notes.style.height = 'auto'; notes.style.height = Math.min(320, notes.scrollHeight + 2) + 'px'; };
-  notes.addEventListener('input', () => { project.notes = notes.value.slice(0, 20000); fitH(); scheduleSave(); });
-  requestAnimationFrame(fitH);
-  panel.append(h('h3', null, h('label', { for: notes.id }, 'Notes')), notes);
 
   const limId = 'rtf' + (setFid(fid + 1));
   const lim = numInput(limId, () => project.maxBounces, v => { project.maxBounces = Math.round(clamp(v, 1, 100000)); });
@@ -312,13 +303,8 @@ export function renderOverview() {
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
   panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
-  // how the rays look (for figures and recordings), folded: open to start with when any of it is set
-  const look = h('div', null, tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
-    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'),
-    // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
-    h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-      selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
-  panel.append(moreFold('bench-look', 'How the rays look: brightness, trails, glow, width', !!(L.byPower || L.trail || L.glow || L.rayWidth), look));
+  // how the rays look (for figures and recordings): a window of its own, View › How the rays look…
+  panel.append(h('button', { type: 'button', class: 'rt-btn', style: 'margin-top:0.45rem', title: 'Brightness by power, fading trails, glow and width (also View \u203a How the rays look\u2026)', onclick: showRayLook }, 'How the rays look\u2026'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
@@ -329,22 +315,52 @@ export function renderOverview() {
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'The few percent a bare glass surface reflects. Its loss always counts against the power; with this on, the reflected light is followed too, which is how ghosts and back-reflections show up. Each one is another branch of a Gaussian beam to work out, so with the diffracted field shown it can slow the bench down a lot, a retroreflector\u2019s most of all.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'bench' }));
 
-  panel.append(h('h3', null, 'Using the bench'));
-  panel.append(h('ul', { class: 'rt-keys' },
-    h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
-    h('li', null, 'Choose \u223f at the end of any value\u2019s row to give it a range, then drag its slider or press Play.'),
-    h('li', null, 'Fibre components (switch the orange Free-space button at the start of Add to Fibre, which turns red) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
-    h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
-    h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
-    h('li', null, 'Drag with the middle button, or hold Space and drag, to pan (one finger on a touch screen). Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
-    h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
-    h('li', null, 'The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Pin as many as you like; click a pinned panel\u2019s title to select its element.'),
-    h('li', null, h('kbd', null, '←↑→↓'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.'),
-  ));
-  panel.append(h('p', { style: 'margin-top:0.75rem' }, 'Your work is kept in this browser automatically. To move a project to another browser or share it, use Save .jekray and open the file there.'));
   // what it models, and what it does not: the page's own note, moved to the foot of this panel
   aboutNode = aboutNode || document.querySelector('.rt-about');    // kept: a panel rebuilt drops it from the page
   if (aboutNode) panel.append(aboutNode);
   updateReadouts();
 }
 
+/* View › How the rays look…: for figures and recordings. Kept with the bench; they change only how the rays are
+   drawn, in the 2D view (the light is traced and measured the same) */
+export function showRayLook() {
+  const dlg = document.getElementById('rayDialog'), L = lightOf();
+  const tick = (key, text) => {
+    const c = h('input', { type: 'checkbox' });
+    c.checked = !!L[key];
+    c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); });
+    return h('label', { class: 'rt-check', style: 'margin-top:0.45rem' }, c, text);
+  };
+  document.getElementById('rayBody').replaceChildren(
+    tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest: split and weakened light fades, so you see where the power goes'),
+    tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged), for showing movement'),
+    tick('glow', 'Rays glow: a soft halo round each, for recordings and small screens'),
+    // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
+    h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
+      selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })),
+    h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Kept with this bench. They change how the rays are drawn in the 2D view; the light is traced and measured the same.'));
+  if (!dlg.open) dlg.showModal();
+}
+/* Help › Using the bench */
+export function showUsingBench() {
+  infoDialog('Using the bench', [h('ul', { class: 'rt-keys' },
+    h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
+    h('li', null, 'Choose \u223f at the end of any value\u2019s row to give it a range, then drag its slider or press Play.'),
+    h('li', null, 'Fibre components (switch the orange Free-space button at the start of Add to Fibre, which turns red) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
+    h('li', null, 'The tabs at the bottom left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
+    h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
+    h('li', null, 'Drag with the middle button, or hold Space and drag, to pan (one finger on a touch screen). Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
+    h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
+    h('li', null, 'The tab on the bench\u2019s left edge brings out the Bench panel (light, snapping and the parts list); a part\u2019s panel opens on the right. The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Click a pinned panel\u2019s title to select its element.'),
+    h('li', null, h('kbd', null, '\u2190\u2191\u2192\u2193'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.')),
+    h('p', { style: 'margin-top:0.75rem' }, 'Your work is kept in this browser automatically. To move a project to another browser or share it, use Save .jekray and open the file there.')]);
+}
+/* Edit › Bench notes…: what the bench is, where it came from, what was assumed (the author's, or an assistant's) */
+export function showNotes() {
+  const notes = h('textarea', { class: 'rt-notes', rows: '10', spellcheck: 'true', style: 'width:100%;box-sizing:border-box', 'aria-label': 'Notes on this bench',
+    placeholder: 'What this bench is, where it comes from, what was assumed\u2026' });
+  notes.value = project.notes || '';
+  notes.addEventListener('input', () => { project.notes = notes.value.slice(0, 20000); scheduleSave(); });
+  infoDialog('Bench notes', [notes, h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Kept with the bench, in its file and in the cloud.')]);
+  notes.focus();
+}

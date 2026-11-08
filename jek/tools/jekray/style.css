@@ -195,16 +195,18 @@
   .rt-stage canvas.rotate { cursor: crosshair; }
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
-  /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
-     chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
-  .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
-    box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
+  /* the tab on the bench's left edge, half way up: brings the Bench panel out on the left, or puts it away (its
+     chevron turns); the parts' panels open on the right, apart, each with its own × */
+  .rt-sidetab { position: absolute; left: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 6px 6px 0;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
-  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
-  .rt-sidetab.open .chev { transform: scaleX(-1); }
-  /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
-  .rt-pin.rt-mainclose { display: none; }
+  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; transform: scaleX(-1); }
+  .rt-sidetab.open .chev { transform: none; }
+  /* the Bench panel in the first column, the bench after it (renderPanel sets the columns) */
+  .rt-grid.rt-benchleft > #panel { order: -1; }
+  /* the Bench panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
+  .rt-pin.rt-benchclose { display: none; }
   body.rt-embed .rt-sidetab { display: none; }
   .rt-coords {
     position: absolute;
@@ -607,7 +609,9 @@
   .rt-secbtn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-sec.shut > .rt-secbody { display: none; }
   .rt-sec + .rt-tabs { margin-top: 0.7rem; padding-top: 0.35rem; border-top: 1px solid var(--jek-line); }
-  .rt-about h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-about h4, .rt-aboutpart h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-aboutpart h4 { font-size: 0.8rem; margin-top: 0.9rem; }
+  .rt-aboutpart p { line-height: 1.55; }
   .rt-sweep-toggle:focus-visible, .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-inline { display: flex; gap: 1rem; }
   .rt-stack {
@@ -1756,7 +1760,7 @@
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
-  .rt-pin.rt-mainclose { display: inline-grid; }
+  .rt-pin.rt-mainclose, .rt-pin.rt-benchclose { display: inline-grid; }
   .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 48px; height: 18px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
   .rt-sidetab .chev { transform: rotate(90deg); }
   .rt-sidetab.open { display: none; }

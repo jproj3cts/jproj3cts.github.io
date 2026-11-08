@@ -183,16 +183,19 @@ function potentialSection() {
   // the lines run from edge to edge of the array through the analysis point, or its centre without one
   const cyl = G.sym === 'cyl', c = plotCentre(), btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
   const thr = 'through ' + (project.point ? 'the analysis point' : 'the array\u2019s centre') + ' (' + c.map(v => nf(v, 4)).join(', ') + ' mm)';
-  const acts = h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' },
-    btn('Along x', 'The potential along x ' + thr, () => setPotPlot({ kind: 'axis', ax: 0 })),
-    btn(cyl ? 'Along r' : 'Along y', 'The potential along ' + (cyl ? 'the radius, across the axis,' : 'y') + ' ' + thr, () => setPotPlot({ kind: 'axis', ax: 1 })),
-    G.sym === '3d' ? btn('Along z', 'The potential along z ' + thr, () => setPotPlot({ kind: 'axis', ax: 2 })) : null,
-    btn('Along a line…', 'Click two points on the bench: the potential along the line between them', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }),
-    potPlot ? btn('Clear', 'Take the plot away, and the picked line off the bench', () => setPotPlot(null)) : null);
-  out.append(acts);
+  // one row: "Potential along" and a segmented choice, the current plot's button marked; the path's select and its button on the next
+  const cur = potPlot && potPlot.kind === 'axis' ? potPlot.ax : potPlot && potPlot.kind === 'line' ? 'line' : null;
+  const tab = (label, title, on, fn) => h('button', { type: 'button', class: 'rt-btn', 'aria-checked': String(on), title, onclick: fn }, label);
+  const group = h('div', { class: 'rt-subtabs', role: 'group', 'aria-label': 'The potential along' },
+    tab('x', 'The potential along x ' + thr, cur === 0, () => setPotPlot({ kind: 'axis', ax: 0 })),
+    tab(cyl ? 'r' : 'y', 'The potential along ' + (cyl ? 'the radius, across the axis,' : 'y') + ' ' + thr, cur === 1, () => setPotPlot({ kind: 'axis', ax: 1 })),
+    G.sym === '3d' ? tab('z', 'The potential along z ' + thr, cur === 2, () => setPotPlot({ kind: 'axis', ax: 2 })) : null,
+    tab('a line\u2026', 'Click two points on the bench: the potential along the line between them', cur === 'line', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
+  out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along'), group, potPlot ? h('button', { type: 'button', class: 'rt-btn quiet', title: 'Take the plot away, and the picked line off the bench', onclick: () => setPotPlot(null) }, 'Clear') : null));
   if (SIM.result && SIM.result.particles.length) {
-    const ps = SIM.result.particles.slice(0, 200), sel = selectField('Along a particle\u2019s path', ps.map((p, k) => [String(k), ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i]), () => String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0), v => { setPotPlot({ kind: 'path', k: +v }); }, { wide: true, rebuild: false });
-    out.append(rows(sel), h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' }, btn('Plot along the path', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.querySelector('select').value }))));
+    const ps = SIM.result.particles.slice(0, 200), sel = h('select', { 'aria-label': 'The particle whose path to plot along' }, ...ps.map((p, k) => h('option', { value: String(k) }, ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i)));
+    sel.value = String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0);
+    out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along the path of'), sel, btn('Plot', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.value }))));
   }
   out.append(plotBox);
   if (potPlot) drawPotPlot(potPlot, plotBox);

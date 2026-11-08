@@ -167,7 +167,9 @@ through `core/hooks.js`.
   (`test/node/nudge.test.mjs` checks). The notes share one weekly cap (`src/core/nudge.js`).
 - Accounts report (who has an account, their plan, sign-ins, last active, benches, links, exercises): `GET /ops/users`
   (`jek-api/src/opsusers.js`), read by `cd jek-api && JEK_OPS_TOKEN=… node scripts/users.mjs` (`--html`, `--csv`,
-  `--json`, `--sort active|joined|benches|plan|name`; `scripts\users-report.cmd` on Windows). Account records only: never
+  `--json`, `--sort active|joined|benches|plan|name`). Windows double-click files in `jek-api/scripts/`: `users-report.cmd`
+  (page), `users-spreadsheet.cmd` (CSV on the desktop), `users-list.cmd` (terminal), `usage-report.cmd`; copies work from
+  anywhere (they remember the jek-api folder as `JEK_API_DIR`). Account records only: never
   joined to the anonymous usage counts, and never a bench's contents.
 - Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
   `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`

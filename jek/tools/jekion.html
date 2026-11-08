@@ -10,7 +10,7 @@
 <meta name="description" content="JEKion: a charged-particle optics simulator in the browser. Electrodes, ion traps, lenses and time-of-flight, solved and flown live.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261105">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261108">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -1994,6 +1994,22 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .ion-plotrow .rt-subtabs .rt-btn { padding: 0.25rem 0.7rem; }
   .ion-plotrow .rt-btn.quiet { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
   .ion-plotrow select { flex: 1; min-width: 6rem; }
+  /* a row of small fields under one label: the start's x, y, z; a direction's two angles and cone */
+  .rt-pairbox.ion-multi { grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); column-gap: 0.4rem; align-items: end; }
+  .ion-multi .ion-mc { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .ion-multi .ion-mc > small { font-size: 0.7rem; line-height: 1.15; color: var(--jek-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ion-multi .ion-mc > input, .ion-multi .ion-mc > select { box-sizing: border-box; width: 100%; min-width: 0; height: 1.75rem; padding: 0.2rem 0.4rem; font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
+  .ion-multi .ion-mc > select { font-family: var(--jek-sans); cursor: pointer; }
+  .ion-multi .ion-mc > input:focus, .ion-multi .ion-mc > select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-rows > .rt-f.rt-pair > label { align-self: end; padding-bottom: 0.3rem; }
+  .rt-rows > .rt-f.rt-pair.ion-stack > label { grid-column: 1 / -1; grid-row: 1; padding-bottom: 0; }
+  .rt-rows > .rt-f.rt-pair.ion-stack > .rt-pairbox { grid-column: 1 / -1; grid-row: 2; }
+  /* JEKion's Bench panel is on the right, so its tab sits on the right edge, its chevron pointing in (JEKray's panel is on the left) */
+  @media (min-width: 761px) {
+    .rt-sidetab { left: auto; right: 0; border-left: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px; box-shadow: -2px 0 6px rgba(0,0,0,0.12); }
+    .rt-sidetab .chev { transform: none; }
+    .rt-sidetab.open .chev { transform: scaleX(-1); }
+  }
 </style>
 </head>
 <body>
@@ -2076,7 +2092,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           </div>
         </div>
         <div class="rt-more rt-phonegone">
-          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an electrode, a CAD body, an ion group or a detector on the bench (A)">Insert</button>
+          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an ion group or a detector on the bench (A)">Insert</button>
           <div class="rt-menu rt-imenu" id="addMenu" role="menu" hidden></div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -5836,7 +5852,7 @@ function showCtxMenu(x, y, items) {
 function benchMenu(X, Y, hit, at) {
   const point = { label: 'Analysis point here', fn: () => { checkpoint(); project.point = at.map(v => snapTo(v)); changed(true); toast('The trap analysis is done at this point'); } };
   if (!hit) {
-    showCtxMenu(X, Y, [{ label: 'Add an electrode here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
+    showCtxMenu(X, Y, [{ label: 'Insert here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
       { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitAny }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
     return;
   }
@@ -6206,11 +6222,21 @@ const actionsRow = () => h('div', { class: 'rt-actions', style: 'margin-top:0.6r
   h('button', { type: 'button', class: 'rt-btn', onclick: () => duplicateSel(false) }, 'Duplicate'),
   h('button', { type: 'button', class: 'rt-btn', onclick: () => duplicateSel(true), title: 'A copy mirrored through x = 0' }, 'Mirror in x'),
   h('button', { type: 'button', class: 'rt-btn danger', onclick: removeSel }, 'Delete'));
+/* a number bound to obj[key], clamped, for a cell of a multi-field row */
+const numCell = (obj, key, opts = {}) => { const inp = numInput(() => obj[key], v => { if (opts.min !== undefined) v = Math.max(opts.min, v); if (opts.max !== undefined) v = Math.min(opts.max, v); obj[key] = v; if (opts.after) opts.after(v); }, opts); inp.dataset.key = key; return inp; };
+/* one labelled row of several small fields, each with a word of its own under the label: [[word, input or select], …] */
+const multi = (label, cells, title, stack) => {
+  const box = h('div', { class: 'rt-pairbox ion-multi', style: '--n:' + cells.length }, ...cells.map(([w, inp]) => { inp.setAttribute('aria-label', label + ', ' + w); return h('div', { class: 'ion-mc' }, h('small', null, w), inp); }));
+  const wrap = h('div', { class: 'rt-f rt-pair' + (stack || cells.length >= 3 ? ' ion-stack' : '') }, h('label', null, label), box);    // three or more (or asked): the label on its own line
+  if (title) wrap.title = title;
+  return wrap;
+};
+/* the place: x, y, z on one row (what the symmetry allows) */
 const posFields = (el, isElectrode) => {
-  const G = project.grid, items = [param('x (mm)', el, 'x')];
-  if (!(G.sym === 'cyl' && isElectrode)) items.push(param(G.sym === 'cyl' ? 'y (mm, off the axis)' : 'y (mm)', el, 'y'));
-  if (G.sym === '3d') items.push(param('z (mm)', el, 'z'));
-  return items;
+  const G = project.grid, cells = [['x', numCell(el, 'x')]];
+  if (!(G.sym === 'cyl' && isElectrode)) cells.push([G.sym === 'cyl' ? 'y, off the axis' : 'y', numCell(el, 'y')]);
+  if (G.sym === '3d') cells.push(['z', numCell(el, 'z')]);
+  return [multi(isElectrode ? 'Place (mm)' : 'Start (mm)', cells)];
 };
 function electrodePanel(el) {
   const box = document.getElementById('panel');
@@ -6249,18 +6275,20 @@ function ionPanel(g) {
   box.append(head('Ion group', g.name, v => { g.name = v; }));
   const spOpts = [...Object.entries(SPECIES).map(([k, s]) => [k, s.label + ' (' + k + ')']), ['custom', 'Custom mass and charge']];
   const what = [selectField('Species', spOpts, () => g.species, v => { g.species = v; if (SPECIES[v]) { g.mass = SPECIES[v].mass; g.charge = SPECIES[v].charge; } }, { wide: true })];
-  if (g.species === 'custom') what.push(param('Mass (u)', g, 'mass', { min: 1e-6 }), param('Charge (e)', g, 'charge'));
-  what.push(param('Count', g, 'n', { min: 1, max: 5000, fmt: v => String(Math.round(v)) }), param('Energy (eV)', g, 'ke', { min: 0 }), param('Energy spread, FWHM (eV)', g, 'keSpread', { min: 0 }));
+  if (g.species === 'custom') what.push(multi('Mass and charge', [['u', numCell(g, 'mass', { min: 1e-6 })], ['e', numCell(g, 'charge')]], 'A 300 nm silica sphere is about 1.9e10 u; it carries from a few to a few hundred e', true));
+  what.push(multi('Count and energy', [['how many', numCell(g, 'n', { min: 1, max: 5000, fmt: v => String(Math.round(v)) })], ['eV', numCell(g, 'ke', { min: 0 })], ['± FWHM (eV)', numCell(g, 'keSpread', { min: 0 })]], 'How many start, with what energy each, spread as a Gaussian of that full width'));
   box.append(section('What flies', 'ion.what', [rows(what)]));
   const G = project.grid;
-  const where = [...posFields(g, false), selectField('Spread', Object.entries(DISTS), () => g.dist, v => { g.dist = v; }, { wide: true })];
-  if (g.dist !== 'point') where.push(param(g.dist === 'gauss' ? 'σ (mm)' : g.dist === 'line' || g.dist === 'grid' ? 'Half-length (mm)' : 'Radius (mm)', g, 'size', { min: 0 }));
-  where.push(param('Direction, in the x–y plane (°)', g, 'dirAz'));
-  if (G.sym === '3d') where.push(param('Direction, out of the plane (°)', g, 'dirEl'));
-  where.push(param('Cone half-angle (°)', g, 'cone', { min: 0, max: 180 }), param('Start time (µs)', g, 't0', { min: 0 }), param('Start spread (µs)', g, 'tSpread', { min: 0 }));
+  const sizeWord = g.dist === 'gauss' ? 'σ mm' : g.dist === 'line' || g.dist === 'grid' ? 'half-length mm' : 'radius mm';
+  const spread = h('select', null, ...Object.entries(DISTS).map(([v, t]) => h('option', { value: v }, t))); spread.value = g.dist;
+  spread.addEventListener('change', () => { checkpoint(); g.dist = spread.value; hooks.ionChanged(true); });
+  const where = [...posFields(g, false),
+    multi('Spread', g.dist === 'point' ? [['shape', spread]] : [['shape', spread], [sizeWord, numCell(g, 'size', { min: 0 })]], 'How the particles are spread about the start'),
+    multi('Direction (°)', [['in the x–y plane', numCell(g, 'dirAz')], ...(G.sym === '3d' ? [['out of the plane', numCell(g, 'dirEl')]] : []), ['cone half-angle', numCell(g, 'cone', { min: 0, max: 180 })]], 'Where they head: the angle in the x–y plane, the angle out of it, and a cone they are spread over'),
+    multi('Start time (µs)', [['at', numCell(g, 't0', { min: 0 })], ['± spread', numCell(g, 'tSpread', { min: 0 })]], 'When they start, spread uniformly over that span (a time-of-flight source)')];
   if (project.fly.spaceCharge) where.push(param('Real charges a particle', g, 'weight', { min: 0 }));
   box.append(section('Where from', 'ion.where', [rows(where), colourField('Colour', () => g.colour, v => { g.colour = v; }),
-    helpLine('Each particle starts at the group’s point, spread as chosen, heading along the direction within the cone.', 'The energies are Gaussian about the energy with that FWHM; the directions uniform over the cone’s solid angle; the start times uniform over the spread, so a time-of-flight spectrum shows its source’s width. The same seed gives the same particles each time (Bench settings › Flying).')]));
+    helpLine('Each particle starts at the start point, spread as chosen, heading along the direction within the cone.', 'The energies are Gaussian about the energy with that FWHM; the directions uniform over the cone’s solid angle; the start times uniform over the spread, so a time-of-flight spectrum shows its source’s width.')]));
   box.append(section('In the flight', 'ion.on', [rows(checkField('Flown', () => g.on !== false, v => { g.on = v; }), checkField('Locked in place', () => !!g.locked, v => { g.locked = v; }))], false));
   if (SIM.result) {
     const gi = project.ions.indexOf(g), P = SIM.result.particles.filter(p => p.group === gi);
@@ -6457,17 +6485,14 @@ function wirePanels() {
   document.getElementById('trapClose').addEventListener('click', () => document.getElementById('trapDialog').close());
 }
 /* ==========================================================================
-   The Add menu: an electrode of each shape, an ion group, a detector; from the toolbar, or at a point of the bench
+   The Insert menu: an ion group, a detector; from the bar, or at a point of the bench
    from the right-click menu.
    ========================================================================== */
 function fillAddMenu(at) {
   const menu = document.getElementById('addMenu');
   const item = (label, small, fn) => h('button', { type: 'button', role: 'menuitem', class: 'ion-mshape', onclick: () => { menu.hidden = true; document.getElementById('btnAdd').setAttribute('aria-expanded', 'false'); fn(); } }, h('span', null, label), small ? h('small', null, small) : null);
-  const cyl = project && project.grid.sym === 'cyl';
-  menu.replaceChildren(h('span', { class: 'rt-menunote' }, 'Electrodes' + (cyl ? ' (bodies of revolution about the x axis)' : '')),
-    ...SHAPE_ORDER.filter(s => !(cyl && s === 'box')).map(s => item(SHAPES[s].label, SHAPES[s].picker, () => addElectrode(s, at))),
-    item('CAD body…', 'Each body of a .step or .stl file, as an electrode', () => document.getElementById('fileCad').click()),
-    h('div', { class: 'sep' }), item('Ion group', 'Particles started together: species, energy, place, direction', () => addIon(at)), item('Detector', 'A plane that records every ion through it', () => addDetector(at)));
+  // the electrodes come from CAD, by File › Import; the primitive shapes (which the examples and old files still carry) are not offered
+  menu.replaceChildren(item('Ion group', 'Particles started together: species, energy, place, direction', () => addIon(at)), item('Detector', 'A plane that records every ion through it', () => addDetector(at)));
   hooks.ionMenuIcons(menu);
 }
 function wirePicker() {

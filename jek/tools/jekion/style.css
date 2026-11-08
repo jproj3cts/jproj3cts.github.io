@@ -42,3 +42,19 @@
   .ion-plotrow .rt-subtabs .rt-btn { padding: 0.25rem 0.7rem; }
   .ion-plotrow .rt-btn.quiet { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
   .ion-plotrow select { flex: 1; min-width: 6rem; }
+  /* a row of small fields under one label: the start's x, y, z; a direction's two angles and cone */
+  .rt-pairbox.ion-multi { grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); column-gap: 0.4rem; align-items: end; }
+  .ion-multi .ion-mc { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .ion-multi .ion-mc > small { font-size: 0.7rem; line-height: 1.15; color: var(--jek-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ion-multi .ion-mc > input, .ion-multi .ion-mc > select { box-sizing: border-box; width: 100%; min-width: 0; height: 1.75rem; padding: 0.2rem 0.4rem; font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
+  .ion-multi .ion-mc > select { font-family: var(--jek-sans); cursor: pointer; }
+  .ion-multi .ion-mc > input:focus, .ion-multi .ion-mc > select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
+  .rt-rows > .rt-f.rt-pair > label { align-self: end; padding-bottom: 0.3rem; }
+  .rt-rows > .rt-f.rt-pair.ion-stack > label { grid-column: 1 / -1; grid-row: 1; padding-bottom: 0; }
+  .rt-rows > .rt-f.rt-pair.ion-stack > .rt-pairbox { grid-column: 1 / -1; grid-row: 2; }
+  /* JEKion's Bench panel is on the right, so its tab sits on the right edge, its chevron pointing in (JEKray's panel is on the left) */
+  @media (min-width: 761px) {
+    .rt-sidetab { left: auto; right: 0; border-left: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px; box-shadow: -2px 0 6px rgba(0,0,0,0.12); }
+    .rt-sidetab .chev { transform: none; }
+    .rt-sidetab.open .chev { transform: scaleX(-1); }
+  }

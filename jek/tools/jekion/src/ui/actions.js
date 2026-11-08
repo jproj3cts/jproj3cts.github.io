@@ -125,7 +125,7 @@ export function showCtxMenu(x, y, items) {
 export function benchMenu(X, Y, hit, at) {
   const point = { label: 'Analysis point here', fn: () => { checkpoint(); project.point = at.map(v => snapTo(v)); changed(true); toast('The trap analysis is done at this point'); } };
   if (!hit) {
-    showCtxMenu(X, Y, [{ label: 'Add an electrode here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
+    showCtxMenu(X, Y, [{ label: 'Insert here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
       { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitAny }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
     return;
   }

@@ -2084,3 +2084,51 @@ button.buy-button {
 @media (max-width: 520px) {
   .jek-hero .jek-acts .jek-btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ==========================================================================
+   Buttons, one style across the site: the main action is a solid ink button;
+   every other action is an underlined link, the underline in JEK orange. A
+   product page's own buttons keep their category's colour (.product-actions).
+   ========================================================================== */
+.jek-btn, .buy-button, .acct-btn.primary, .product-actions .buy-button, .product-actions .quote-button {
+  padding: 0.62rem 1.1rem; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em; border-radius: var(--jek-radius);
+}
+.jek-btn.primary, .buy-button, button.buy-button, .acct-btn.primary {
+  background: var(--jek-ink); color: #fff; border: 1px solid var(--jek-ink);
+}
+.jek-btn.primary:hover, .buy-button:hover, .acct-btn.primary:hover {
+  background: #000; border-color: #000; color: #fff;
+}
+.jek-btn.quiet, .return {
+  padding: 0.62rem 0.2rem; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em; color: var(--jek-ink);
+  background: transparent; border: 0; border-radius: 0;
+  text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 2px; text-underline-offset: 4px;
+}
+.jek-btn.quiet:hover, .return:hover { background: transparent; color: #000; text-decoration-color: var(--jek-ink); }
+.jek-btn.small { padding: 0.45rem 0.85rem; font-size: 0.85rem; }
+.jek-btn.quiet.small { padding: 0.45rem 0.2rem; }
+@media (max-width: 520px) {
+  .jek-hero .jek-acts .jek-btn.quiet { flex: 0 0 auto; }
+}
+
+/* The team: publications and outreach as plain paragraphs, not boxes */
+.jek-member .jek-pubs { gap: 0.75rem; }
+.jek-member .jek-pubs .jek-card { padding: 0; background: none; border: 0; border-radius: 0; }
+
+/* ==========================================================================
+   Proportions after the big catalogue sites (Thorlabs): wider pages, smaller
+   page tops and tighter sections, so more fits on a screen; square pictures
+   for products and the cards that lead to them.
+   ========================================================================== */
+.jek-wrap { max-width: 1400px; }
+.jek-section { padding-block: 1.75rem; }
+.jek-hero { padding-block: 1.75rem 1.5rem; }
+.jek-hero .jek-wrap { gap: 2rem; }
+.jek-hero h1 { font-size: clamp(1.8rem, 2.8vw, 2.2rem); }
+.jek-hero .jek-tag { font-size: 1.1rem; }
+.jek-section > .jek-wrap > h2 { font-size: 1.4rem; margin-bottom: 1rem; }
+.jek-cards.four .jek-card img, .jek-wrap .gallery-frame { aspect-ratio: 1 / 1; }
+.jek-wrap .product-wrap, .jek-wrap .tech-section, .jek-wrap .product-description--full, .jek-wrap .features-columns { max-width: none; }
+.jek-wrap .product-wrap { grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 3rem; }
+@media (max-width: 860px) { .jek-wrap .product-wrap { grid-template-columns: minmax(0, 1fr); } }
+.jek-hero .jek-acts a:not(.jek-btn) { padding: 0.62rem 0.2rem; font-size: 0.92rem; font-weight: 600; color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 2px; text-underline-offset: 4px; }

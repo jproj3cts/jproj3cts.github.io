@@ -14,7 +14,7 @@ description: Your first bench in JEKion, the parts of the window, the 3D view, a
 2. Click the middle tube. Its panel opens on the right: change **Voltage** from −1400 to −1000 V and watch the focus move out along the axis; the ions fly again as you type.
 3. Drag a tube along the axis. The fields are solved again (a moment), then the ions fly.
 4. Click the **Screen** for the spot the beam makes on it, its time-of-flight and energy spectra.
-5. **+ Add › Ion group** puts a second beam on the bench; its panel sets the species, energy, place and direction.
+5. **Insert › Ion group** puts a second beam on the bench; its panel sets the species, energy, place and direction.
 
 <div class="dx-tip" markdown="1">
 Every bench in the **Examples** gallery works. Open one, change it, and press **Ctrl+Z** to undo. Your own bench comes back with Undo after an example has replaced it.
@@ -28,7 +28,7 @@ In a **planar** or **cylindrical** array the cut is the array itself (the x–y 
 
 **The panel** on the right shows whatever is selected: an electrode, an ion group or a detector. With nothing selected it shows the whole bench: the array, the background gas, the magnetic field, the flying settings, the trap analysis, the display and the results of the last flight. The tab half way up the bench's right edge puts it away and brings it back.
 
-**The bar** holds the menus, **File**, **Edit**, **View**, **Tools** and **Help**, then Undo, Redo, Fit and Fly, the bench's name, and **+ Add**, **Save**, Examples and your account at the right. The bar on the bench says what the simulation is doing (solving, flying, done) and stops a long flight.
+**The bar** holds the menus, **File**, **Edit**, **View**, **Insert** (an electrode of each shape, a CAD body, an ion group, a detector; the key **A**), **Tools** and **Help**, then Undo, Redo, Fit and Fly, the bench's name, and **Save**, Examples and your account at the right. The bar on the bench says what the simulation is doing (solving, flying, done) and stops a long flight.
 
 **Flying** happens after every change (Tools › *Fly after every change*); for a heavy three-dimensional array turn that off and press **Fly** (or **Space**) when ready. **Esc** stops a flight.
 

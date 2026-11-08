@@ -94,6 +94,10 @@
           </div>
         </div>
         <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an electrode, a CAD body, an ion group or a detector on the bench (A)">Insert</button>
+          <div class="rt-menu rt-imenu" id="addMenu" role="menu" hidden></div>
+        </div>
+        <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu">Tools</button>
           <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFly" data-icon="play" title="Solve the fields if they have changed, then fly every ion group (Space)">Fly the ions<span class="k">Space</span></button>
@@ -135,10 +139,6 @@
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <div class="rt-more">
-            <button class="rt-btn rt-tbl" id="btnAdd" type="button" data-icon="parts" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Add an electrode, an ion group or a detector (A)">+ Add</button>
-            <div class="rt-menu rt-menu-right rt-imenu" id="addMenu" role="menu" hidden></div>
-          </div>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekion</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>

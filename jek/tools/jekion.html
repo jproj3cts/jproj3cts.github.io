@@ -2076,6 +2076,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           </div>
         </div>
         <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an electrode, a CAD body, an ion group or a detector on the bench (A)">Insert</button>
+          <div class="rt-menu rt-imenu" id="addMenu" role="menu" hidden></div>
+        </div>
+        <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu">Tools</button>
           <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFly" data-icon="play" title="Solve the fields if they have changed, then fly every ion group (Space)">Fly the ions<span class="k">Space</span></button>
@@ -2117,10 +2121,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <div class="rt-more">
-            <button class="rt-btn rt-tbl" id="btnAdd" type="button" data-icon="parts" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Add an electrode, an ion group or a detector (A)">+ Add</button>
-            <div class="rt-menu rt-menu-right rt-imenu" id="addMenu" role="menu" hidden></div>
-          </div>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekion</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
@@ -5744,6 +5744,16 @@ const safeFileName = name => (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').rep
 let unsaved = false;
 function markUnsaved(on) { unsaved = !!on; const d = document.getElementById('saveDot'); if (d) d.hidden = !on; }
 /* after any change: the panel (rebuilt or refreshed), the buttons, the autosave, a redraw, and the simulation told */
+/* the bench's name field is as wide as its text (within the bar's room), so a long name is read whole */
+let nameCtx = null;
+function fitName() {
+  const inp = document.getElementById('projName'); if (!inp) return;
+  nameCtx = nameCtx || document.createElement('canvas').getContext('2d');
+  nameCtx.font = getComputedStyle(inp).font;
+  const w = nameCtx.measureText(inp.value || inp.placeholder || '').width + 28;
+  const px = Math.max(96, Math.min(w, Math.max(160, window.innerWidth * 0.34))) + 'px';
+  inp.style.width = px; inp.style.flexBasis = px;
+}
 /* fit whichever view is showing: the 3D view when it is on (through its hook), else the bench */
 function fitAny() { if (!(hooks.ionFit3d && hooks.ionFit3d())) fitView(); }
 /* cut through another plane; a cut outside the array is brought inside by the slice request */
@@ -5884,7 +5894,7 @@ function wireActions() {
   document.getElementById('btnTraj').addEventListener('click', () => { checkpoint(); project.show.traj = !project.show.traj; viewMenuShown(); requestRender(); });
   document.getElementById('btnGridShow').addEventListener('click', () => { checkpoint(); project.show.grid = !project.show.grid; viewMenuShown(); requestRender(); });
   document.getElementById('btnAuto').addEventListener('click', () => { project.fly.auto = !project.fly.auto; viewMenuShown(); scheduleSave(); if (project.fly.auto) simChanged(); });
-  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); scheduleSave(); markUnsaved(true); });
+  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); fitName(); scheduleSave(); markUnsaved(true); });
   // the keyboard
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey;
@@ -5925,7 +5935,7 @@ function viewMenuShown() {
   document.getElementById('btnTraj').setAttribute('aria-checked', String(!!project.show.traj));
   document.getElementById('btnGridShow').setAttribute('aria-checked', String(!!project.show.grid));
   document.getElementById('btnAuto').setAttribute('aria-checked', String(!!project.fly.auto));
-  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name;
+  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name; fitName();
   const cyl = project.grid.sym !== '3d';
   for (const b of document.querySelectorAll('[data-plane]')) b.disabled = cyl && b.dataset.plane !== 'xy';
 }
@@ -6818,7 +6828,8 @@ const V3D = (() => {
       groups.misc.add(m);
     }
     // the ion groups' starts
-    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(Math.max(0.3, G.h * 0.8), 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
+    // a small sphere each: a third of a grid spacing, so it never hides a path a few cells across (a trapped ion's)
+    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(G.h * 0.35, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
     // the paths
     if (project.show.traj && SIM.result) {
       for (const p of SIM.result.particles) {
@@ -7183,7 +7194,7 @@ function legendShown() {
   box.hidden = false;
   const cv = h('canvas', { width: 120, height: 8 }), c = cv.getContext('2d');
   for (let i = 0; i < 120; i++) { c.fillStyle = viridisCss(i / 119); c.fillRect(i, 0, 1, 8); }
-  const f = v => (Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());
+  const span = Math.abs(mapRange[1] - mapRange[0]) || 1, f = v => (!mapLog && Math.abs(v) < 1e-4 * span ? '0' : Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());    // a 7e-9 floor reads 0
   box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm' + (mapLog ? ', log' : '') + ')' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
 }
 /* the theme menu */

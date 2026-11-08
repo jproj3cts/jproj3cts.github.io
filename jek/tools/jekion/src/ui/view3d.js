@@ -92,7 +92,8 @@ export const V3D = (() => {
       groups.misc.add(m);
     }
     // the ion groups' starts
-    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(Math.max(0.3, G.h * 0.8), 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
+    // a small sphere each: a third of a grid spacing, so it never hides a path a few cells across (a trapped ion's)
+    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(G.h * 0.35, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
     // the paths
     if (project.show.traj && SIM.result) {
       for (const p of SIM.result.particles) {

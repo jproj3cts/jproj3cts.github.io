@@ -33,6 +33,16 @@ export const safeFileName = name => (name || 'bench').replace(/[\\/:*?"<>|]+/g, 
 export let unsaved = false;
 export function markUnsaved(on) { unsaved = !!on; const d = document.getElementById('saveDot'); if (d) d.hidden = !on; }
 /* after any change: the panel (rebuilt or refreshed), the buttons, the autosave, a redraw, and the simulation told */
+/* the bench's name field is as wide as its text (within the bar's room), so a long name is read whole */
+let nameCtx = null;
+export function fitName() {
+  const inp = document.getElementById('projName'); if (!inp) return;
+  nameCtx = nameCtx || document.createElement('canvas').getContext('2d');
+  nameCtx.font = getComputedStyle(inp).font;
+  const w = nameCtx.measureText(inp.value || inp.placeholder || '').width + 28;
+  const px = Math.max(96, Math.min(w, Math.max(160, window.innerWidth * 0.34))) + 'px';
+  inp.style.width = px; inp.style.flexBasis = px;
+}
 /* fit whichever view is showing: the 3D view when it is on (through its hook), else the bench */
 export function fitAny() { if (!(hooks.ionFit3d && hooks.ionFit3d())) fitView(); }
 /* cut through another plane; a cut outside the array is brought inside by the slice request */
@@ -173,7 +183,7 @@ export function wireActions() {
   document.getElementById('btnTraj').addEventListener('click', () => { checkpoint(); project.show.traj = !project.show.traj; viewMenuShown(); requestRender(); });
   document.getElementById('btnGridShow').addEventListener('click', () => { checkpoint(); project.show.grid = !project.show.grid; viewMenuShown(); requestRender(); });
   document.getElementById('btnAuto').addEventListener('click', () => { project.fly.auto = !project.fly.auto; viewMenuShown(); scheduleSave(); if (project.fly.auto) simChanged(); });
-  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); scheduleSave(); markUnsaved(true); });
+  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); fitName(); scheduleSave(); markUnsaved(true); });
   // the keyboard
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey;
@@ -214,7 +224,7 @@ export function viewMenuShown() {
   document.getElementById('btnTraj').setAttribute('aria-checked', String(!!project.show.traj));
   document.getElementById('btnGridShow').setAttribute('aria-checked', String(!!project.show.grid));
   document.getElementById('btnAuto').setAttribute('aria-checked', String(!!project.fly.auto));
-  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name;
+  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name; fitName();
   const cyl = project.grid.sym !== '3d';
   for (const b of document.querySelectorAll('[data-plane]')) b.disabled = cyl && b.dataset.plane !== 'xy';
 }

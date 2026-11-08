@@ -24,7 +24,7 @@
   --jek-cyan:   #0092b2;
 
   /* Surfaces */
-  --jek-sand:   #e4cbb7;   /* page background */
+  --jek-sand:   #ebd8c8;   /* page background (lightened from #e4cbb7 for legibility) */
   --jek-panel:  #fffdfa;   /* card / panel fill */
   --jek-well:   #f6f1ea;   /* recessed areas: notes, diagrams */
   --jek-bar:    #000000;   /* nav + contact bars, matches the rest of the site */

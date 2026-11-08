@@ -2040,6 +2040,9 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Potential: both</button>
             <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential">Field strength |E|</button>
             <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Trajectories</button>
+            <button type="button" role="menuitemradio" data-colour="group" aria-checked="true" data-icon="check">Paths coloured by ion group</button>
+            <button type="button" role="menuitemradio" data-colour="ke" aria-checked="false" data-icon="check">Paths coloured by energy</button>
+            <button type="button" role="menuitemradio" data-colour="time" aria-checked="false" data-icon="check">Paths coloured by time</button>
             <button type="button" role="menuitemcheckbox" id="btnGridShow" aria-checked="true" data-icon="check">Array outline and nodes</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
@@ -3169,20 +3172,23 @@ const KCOUL = 8.9875517923e9;          // N m² / C²
 const qmOf = (charge, massU) => charge * QE / (Math.max(1e-12, massU) * AMU);
 /* the rest energy, eV */
 const restEv = massU => massU * AMU * (C_MMUS * 1e3) ** 2 / QE;
-/* a kinetic energy as a speed, mm/µs, relativistically (an electron at 100 keV: 0.55 c) */
+/* a kinetic energy as a speed, mm/µs, relativistically (an electron at 100 keV: 0.55 c). Written in x = KE / mc²
+   rather than γ = 1 + x, so a heavy particle, whose x is below the double's resolution of 1 (a nanosphere at
+   thermal energy: 1e-21), still moves: γ² − 1 = x (2 + x). */
 function speedOfKE(keEv, massU) {
-  const g = 1 + Math.max(0, keEv) / restEv(massU);
-  return C_MMUS * Math.sqrt(Math.max(0, 1 - 1 / (g * g)));
+  const x = Math.max(0, keEv) / restEv(massU);
+  return C_MMUS * Math.sqrt(x * (2 + x)) / (1 + x);
 }
 /* the proper speed u = γv of that kinetic energy, mm/µs: what the tracer integrates */
 function properSpeedOfKE(keEv, massU) {
-  const g = 1 + Math.max(0, keEv) / restEv(massU);
-  return C_MMUS * Math.sqrt(Math.max(0, g * g - 1));
+  const x = Math.max(0, keEv) / restEv(massU);
+  return C_MMUS * Math.sqrt(x * (2 + x));
 }
-/* the kinetic energy, eV, of a proper speed u (mm/µs) */
+/* the kinetic energy, eV, of a proper speed u (mm/µs): (γ − 1) mc² with γ − 1 = w / (γ + 1), w = (u/c)², exact for
+   the smallest speeds too */
 function keOfProper(u, massU) {
-  const g = Math.sqrt(1 + (u / C_MMUS) ** 2);
-  return (g - 1) * restEv(massU);
+  const w = (u / C_MMUS) ** 2;
+  return w / (Math.sqrt(1 + w) + 1) * restEv(massU);
 }
 const gammaOfProper = u => Math.sqrt(1 + (u / C_MMUS) ** 2);
 /* a few particles people fly, by name: mass in u, charge in e */
@@ -5262,6 +5268,7 @@ function requestSlice() {
   clearTimeout(sliceTimer);
   sliceTimer = setTimeout(async () => {
     if (!project) return;
+    cutInside();
     const key = geometryKey(project) + voltageKey(project) + V().plane + V().slice + project.show.efield;
     if (key === SIM.skey && SIM.slice) return;
     try {
@@ -5271,6 +5278,18 @@ function requestSlice() {
       hooks.requestRender(); hooks.ionLegend();
     } catch (err) { console.warn('JEKion slice:', err); say('Could not compute the fields: ' + err.message, false); }
   }, 60);
+}
+/* the cut's position along the plane's perpendicular is kept while it is within the array; outside (a file saved
+   on another plane, the array moved, Page down past the edge) it goes to the analysis point's coordinate there,
+   or failing that to the array's middle: a cut through nothing draws nothing, which reads as the fields missing */
+function cutInside() {
+  const G = project.grid;
+  if (G.sym !== '3d') return;
+  const [, , ip] = PLANES[V().plane], lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip];
+  if (V().slice >= lo && V().slice <= hi) return;
+  const pt = project.point && project.point[ip], at = pt >= lo && pt <= hi ? pt : (lo + hi) / 2;
+  V().slice = +(Math.round(at / G.h) * G.h).toPrecision(8);
+  hooks.requestRender();
 }
 function progress(p) {
   if (!p) return;
@@ -5357,7 +5376,7 @@ function setDrawnOnce(fn) { return (drawnOnce = fn); }
 function requestRender() {
   if (renderQueued || !canvas) return;
   renderQueued = true;
-  requestAnimationFrame(() => { renderQueued = false; render(); });
+  requestAnimationFrame(() => { renderQueued = false; render(); if (hooks.ionDraw3d) hooks.ionDraw3d(); });    // the 3D view follows every redraw: a new cut, a View option
 }
 /* ---------- theme ---------- */
 const THEME_KEY = 'jek-rt-theme';
@@ -5452,6 +5471,36 @@ function contoursOf(S, levels) {
   return out;
 }
 let contourCache = { key: '', list: [] };
+/* the slice's equipotentials at n nice levels over the map's range (cached by slice and count) */
+function contourList(S, n) {
+  const key = S.id + '|' + n;
+  if (contourCache.key !== key) {
+    // the potential's own range (the map may be |E|'s)
+    let lo = Infinity, hi = -Infinity; for (let i = 0; i < S.nu * S.nv; i++) { const v = S.pot[i]; if (v === v && S.mask[i] < 0) { if (v < lo) lo = v; if (v > hi) hi = v; } }
+    if (!(hi > lo)) { lo = Math.min(lo, 0); hi = lo + 1; }
+    const lv = [];
+    const st = niceStep((hi - lo) / n) || 1;
+    for (let L = Math.ceil(lo / st) * st; L <= hi; L += st) lv.push(L);
+    contourCache = { key, list: contoursOf(S, lv.length ? lv : [(lo + hi) / 2]) };
+  }
+  return contourCache.list;
+}
+/* the cut as the 3D view textures it: the map (or |E|) and/or the equipotentials as the View menu has them, drawn at
+   px pixels a node; null when nothing is to be drawn */
+function cutCanvasFor(S, show, px = 4) {
+  const efield = show.efield && S.emag, map = show.pot === 'map' || show.pot === 'both', lines = show.pot === 'contours' || show.pot === 'both';    // |E| takes the map's place; the equipotentials are the potential's whatever the map
+  if (!map && !lines) return null;
+  const img = mapCanvasFor(S, efield);    // sets the map's range, which the levels use
+  const cv = document.createElement('canvas'); cv.width = S.nu * px; cv.height = S.nv * px;
+  const c = cv.getContext('2d');
+  if (map) { c.imageSmoothingEnabled = true; c.drawImage(img, 0, 0, cv.width, cv.height); }
+  if (lines) {
+    c.lineWidth = Math.max(1, px / 3); c.strokeStyle = themeDark() ? 'rgba(255,255,255,0.8)' : 'rgba(40,30,20,0.8)'; c.beginPath();
+    for (const { segs } of contourList(S, show.contours)) for (const q of segs) { c.moveTo((q[0] + 0.5) * px, cv.height - (q[1] + 0.5) * px); c.lineTo((q[2] + 0.5) * px, cv.height - (q[3] + 0.5) * px); }
+    c.stroke();
+  }
+  return cv;
+}
 
 function render() {
   if (!W || !H || !project) return;
@@ -5480,15 +5529,9 @@ function render() {
       }
       c.restore();
     };
-    if (show.pot === 'map' || show.pot === 'both' || efield) { drawMap(false); if (mirror) drawMap(true); }
-    if ((show.pot === 'contours' || show.pot === 'both') && !efield && S.nv > 1) {
-      const key = S.id + '|' + show.contours;
-      if (contourCache.key !== key) {
-        const R = mapRange || [0, 1], lo = R[0], hi = R[1], n = show.contours, lv = [];
-        const st = niceStep((hi - lo) / n) || 1;
-        for (let L = Math.ceil(lo / st) * st; L <= hi; L += st) lv.push(L);
-        contourCache = { key, list: contoursOf(S, lv.length ? lv : [(lo + hi) / 2]) };
-      }
+    if (show.pot === 'map' || show.pot === 'both') { drawMap(false); if (mirror) drawMap(true); }    // as |E| when that is on
+    if ((show.pot === 'contours' || show.pot === 'both') && S.nv > 1) {
+      contourList(S, show.contours);
       c.save(); c.lineWidth = 1; c.strokeStyle = themeDark() ? 'rgba(255,255,255,0.55)' : 'rgba(40,30,20,0.55)';
       const draw = flip => { c.beginPath(); for (const { segs } of contourCache.list) for (const s of segs) { c.moveTo(sx(sU0 + s[0] * S.h), sy(flip ? -(sV0 + s[1] * S.h) : sV0 + s[1] * S.h)); c.lineTo(sx(sU0 + s[2] * S.h), sy(flip ? -(sV0 + s[3] * S.h) : sV0 + s[3] * S.h)); } c.stroke(); };
       draw(false); if (mirror) draw(true);
@@ -5549,6 +5592,7 @@ function render() {
   }
   // the electrodes' names and voltages
   c.save(); c.font = '600 11px ' + getCss('--jek-sans'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = inkA(0.85);
+  const placed = [];    // labels drawn so far, [x, y] in pixels: one on top of another steps down a line
   for (const el of project.electrodes) {
     if (el.on === false) continue;
     const [u, v] = uvOf([el.x, el.y, el.z]);
@@ -5556,7 +5600,10 @@ function render() {
     let lu = u, lv = v;
     if (polys && polys[0]) { let su = 0, sv = 0, n = 0; for (const [a, b] of polys[0]) { su += a; sv += b; n++; } lu = su / n; lv = sv / n; if (polys.length > 1) lv = Math.max(...polys[0].map(p => p[1])); }
     const text = el.name + ' · ' + fmtVolt(el.V) + (el.rf && el.rf.on ? ' ± ' + fmtVolt(el.rf.amp) + ' RF' : '');
-    c.fillText(text, sx(lu), sy(lv) - 10);
+    const w = c.measureText(text).width; let X = sx(lu), Y = sy(lv) - 10;
+    for (let k = 0; k < placed.length; k++) { const [px, py, pw] = placed[k]; if (Math.abs(py - Y) < 12 && Math.abs(px - X) < (w + pw) / 2) { Y = py + 13; k = -1; } }
+    placed.push([X, Y, w]);
+    c.fillText(text, X, Y);
   }
   c.restore();
   // a line a potential is plotted along
@@ -5673,6 +5720,10 @@ const safeFileName = name => (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').rep
 let unsaved = false;
 function markUnsaved(on) { unsaved = !!on; const d = document.getElementById('saveDot'); if (d) d.hidden = !on; }
 /* after any change: the panel (rebuilt or refreshed), the buttons, the autosave, a redraw, and the simulation told */
+/* fit whichever view is showing: the 3D view when it is on (through its hook), else the bench */
+function fitAny() { if (!(hooks.ionFit3d && hooks.ionFit3d())) fitView(); }
+/* cut through another plane; a cut outside the array is brought inside by the slice request */
+function setPlane(plane) { V().plane = plane; viewMenuShown(); changed(false); }
 function changed(rebuildPanel) {
   if (rebuildPanel) renderPanel(); else syncPanel();
   updateUndoButtons();
@@ -5752,7 +5803,7 @@ function benchMenu(X, Y, hit, at) {
   const point = { label: 'Analysis point here', fn: () => { checkpoint(); project.point = at.map(v => snapTo(v)); changed(true); toast('The trap analysis is done at this point'); } };
   if (!hit) {
     showCtxMenu(X, Y, [{ label: 'Add an electrode here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
-      { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitView }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
+      { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitAny }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
     return;
   }
   if (hit.id !== selectedId) selectOne(hit.id);
@@ -5796,13 +5847,14 @@ function wireActions() {
     const b = e.target.closest('[data-edit]'); if (!b) return;
     if (b.dataset.edit === 'dup') duplicateSel(false); else if (b.dataset.edit === 'mirror') duplicateSel(true); else if (b.dataset.edit === 'del') removeSel();
   });
-  document.getElementById('btnFit').addEventListener('click', fitView);
+  document.getElementById('btnFit').addEventListener('click', fitAny);
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); });
   document.getElementById('btnSideTab').addEventListener('click', () => { const open = document.getElementById('panel').style.display !== 'none'; if (open) { setSelectedId(null); setPanelClosed(true); } else { setSelectedId(null); setPanelClosed(false); } renderPanel(); requestRender(); });
   document.getElementById('viewMenu').addEventListener('click', e => {
-    const p = e.target.closest('[data-plane]'), q = e.target.closest('[data-pot]');
-    if (p) { V().plane = p.dataset.plane; viewMenuShown(); changed(false); }
+    const p = e.target.closest('[data-plane]'), q = e.target.closest('[data-pot]'), r = e.target.closest('[data-colour]');
+    if (p) { setPlane(p.dataset.plane); }
     if (q) { checkpoint(); project.show.pot = q.dataset.pot; viewMenuShown(); changed(false); }
+    if (r) { checkpoint(); project.show.colourBy = r.dataset.colour; viewMenuShown(); requestRender(); }
   });
   document.getElementById('btnEfield').addEventListener('click', () => { checkpoint(); project.show.efield = !project.show.efield; viewMenuShown(); changed(false); });
   document.getElementById('btnTraj').addEventListener('click', () => { checkpoint(); project.show.traj = !project.show.traj; viewMenuShown(); requestRender(); });
@@ -5822,10 +5874,10 @@ function wireActions() {
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId) { e.preventDefault(); removeSel(); } return; }
     if (e.key === 'Escape') { if (hooks.ionBusy()) hooks.ionStop(); else { setSelectedId(null); renderPanel(); requestRender(); } return; }
     if (e.key === ' ') { e.preventDefault(); flyNow(); return; }
-    if (e.key === 'f' || e.key === 'F') { fitView(); return; }
+    if (e.key === 'f' || e.key === 'F') { fitAny(); return; }
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }
-    if (e.key === '1' || e.key === '2' || e.key === '3') { V().plane = ['xy', 'xz', 'yz'][+e.key - 1]; viewMenuShown(); changed(false); return; }
+    if (e.key === '1' || e.key === '2' || e.key === '3') { setPlane(['xy', 'xz', 'yz'][+e.key - 1]); return; }
     if (e.key === 'PageUp' || e.key === 'PageDown') { V().slice = +(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h).toPrecision(8); changed(false); return; }
     if (/^Arrow/.test(e.key) && selectedId) {
       const s = selectedItem(); if (!s || s.el.locked) return;
@@ -5844,6 +5896,7 @@ function viewMenuShown() {
   if (!project) return;
   for (const b of document.querySelectorAll('[data-plane]')) b.setAttribute('aria-checked', String(b.dataset.plane === V().plane));
   for (const b of document.querySelectorAll('[data-pot]')) b.setAttribute('aria-checked', String(b.dataset.pot === project.show.pot));
+  for (const b of document.querySelectorAll('[data-colour]')) b.setAttribute('aria-checked', String(b.dataset.colour === project.show.colourBy));
   document.getElementById('btnEfield').setAttribute('aria-checked', String(!!project.show.efield));
   document.getElementById('btnTraj').setAttribute('aria-checked', String(!!project.show.traj));
   document.getElementById('btnGridShow').setAttribute('aria-checked', String(!!project.show.grid));
@@ -6245,11 +6298,8 @@ function benchPanel() {
   box.append(potentialSection());
   // display
   const S = project.show;
-  box.append(section('Display', 'bench.show', [rows(selectField('Potential', Object.entries(POT_SHOWS), () => S.pot, v => { S.pot = v; }, { rebuild: false }), param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }),
-    checkField('Field strength |E| instead', () => S.efield, v => { S.efield = v; }, { wide: true, rebuild: false }), checkField('Trajectories', () => S.traj, v => { S.traj = v; }, { rebuild: false }), selectField('Colour paths by', Object.entries(COLOUR_BYS), () => S.colourBy, v => { S.colourBy = v; }, { rebuild: false }), checkField('Array outline and nodes', () => S.grid, v => { S.grid = v; }, { rebuild: false }),
-    G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
-  // notes
-  box.append(section('Notes', 'bench.notes', [(() => { const ta = h('textarea', { rows: 4, spellcheck: 'true', style: 'width:100%;box-sizing:border-box;font:inherit;font-size:0.85rem' }); ta.value = project.notes; ta.addEventListener('change', () => { checkpoint(); project.notes = ta.value.slice(0, 4000); changed(false); }); return ta; })()], false));
+  // the display: the View menu holds the toggles (cut plane, potential, |E|, paths and their colouring, the outline); here only the numbers
+  box.append(section('Display', 'bench.show', [rows(param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }), G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
   // results
   if (SIM.result) box.append(resultsSection());
 }
@@ -6333,7 +6383,7 @@ function resultsSection() {
   const live = project.electrodes.filter(e => e.on !== false), perEl = live.map((el, k) => [el, P.filter(p => (p.end.why === 'splat' || p.end.why === 'start') && p.end.el === k).length]).filter(x => x[1]);
   const body = [h('div', { class: 'ion-res' }, readout([['Ions flown', n + ' in ' + nf(R.ms / 1000, 2) + ' s'], ...Object.entries(ends).map(([w, k]) => [END_WORDS[w], k + ' (' + nf(100 * k / n, 3) + '%)'])]), bar)];
   if (perEl.length) body.push(h('table', { class: 'ion-table' }, h('tr', null, h('th', null, 'Electrode'), h('th', null, 'Hit by')), ...perEl.map(([el, k]) => h('tr', null, h('td', null, h('span', { class: 'ion-sw', style: 'background:' + el.colour }), el.name), h('td', { class: 'n' }, String(k))))));
-  body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));
+  if (n >= 3) body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));    // a spread needs a few
   return section('Results of the last flight', 'bench.res', body);
 }
 /* what the panel shows: the selection's panel, else the bench's unless it was put away */
@@ -6515,6 +6565,7 @@ const NEWS = [
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
+    'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the Notes section is gone; the end-time histogram waits for three ions.',
   ]],
 ];
 /* the examples: [id, title, blurb, tag] */
@@ -6683,7 +6734,7 @@ const V3D = (() => {
   const dark = () => document.documentElement.dataset.rtTheme === 'dark';
   /* the scene rebuilt from the project and the last flight */
   function build() {
-    const k = JSON.stringify([project.electrodes.map(e => [e.id, e.shape, e.x, e.y, e.z, e.axis, e.sx, e.sy, e.sz, e.r, e.L, e.rIn, e.rOut, e.r1, e.r2, e.wall, e.r0, e.rMax, e.z0, e.side, e.colour, e.on, e.mesh && e.mesh.n]), selectedId, SIM.when, SIM.slice && SIM.slice.id, project.grid, V().plane, V().slice, project.show.pot, project.show.efield, project.show.traj, project.ions.map(g => [g.x, g.y, g.z, g.colour, g.on]), project.detectors.map(d => [d.axis, d.at, d.x, d.y, d.z, d.half, d.colour, d.on]), dark()]);
+    const k = JSON.stringify([project.electrodes.map(e => [e.id, e.shape, e.x, e.y, e.z, e.axis, e.sx, e.sy, e.sz, e.r, e.L, e.rIn, e.rOut, e.r1, e.r2, e.wall, e.r0, e.rMax, e.z0, e.side, e.colour, e.on, e.mesh && e.mesh.n]), selectedId, SIM.when, SIM.slice && SIM.slice.id, project.grid, V().plane, V().slice, project.show.pot, project.show.contours, project.show.efield, project.show.traj, project.ions.map(g => [g.x, g.y, g.z, g.colour, g.on]), project.detectors.map(d => [d.axis, d.at, d.x, d.y, d.z, d.half, d.colour, d.on]), dark()]);
     if (k === key) return;
     key = k;
     const { groups, scene } = R, dispose = g => { for (const c of g.children) { if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } } g.clear(); };
@@ -6704,8 +6755,9 @@ const V3D = (() => {
     R.box = box;
     // the cut plane with the potential map
     const S = SIM.slice;
-    if (S && S.plane === V().plane && project.show.pot !== 'none' && S.nv > 1) {
-      const cv = mapCanvasFor(S, project.show.efield && S.emag), tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+    const cutCv = S && S.plane === V().plane && S.nv > 1 ? cutCanvasFor(S, project.show) : null;
+    if (cutCv) {
+      const tex = new T.CanvasTexture(cutCv); tex.colorSpace = T.SRGBColorSpace;
       const du = S.h * S.nu, dv = S.h * S.nv, geo = new T.PlaneGeometry(du, dv), mat = new T.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: T.DoubleSide, depthWrite: false });
       const m = new T.Mesh(geo, mat), cu = S.u0 - S.h / 2 + du / 2, cvv = S.v0 - S.h / 2 + dv / 2;
       if (V().plane === 'xy') m.position.set(cu, cvv, G.sym === '3d' ? V().slice : 0);
@@ -6789,7 +6841,7 @@ const V3D = (() => {
       drag = null;
     });
     cv.addEventListener('wheel', e => { e.preventDefault(); if (!R) return; zoom(Math.exp(e.deltaY * 0.0015)); draw(); }, { passive: false });
-    document.addEventListener('keydown', e => { if (!on || !R || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'f' || e.key === 'F') fit(); });
+    
     new ResizeObserver(() => { if (on && R) { size(); draw(); } }).observe(D.stage);
   }
   async function setOn(v) {
@@ -7101,7 +7153,7 @@ function themeMenu() {
 
 installHooks({
   requestRender, renderPanel, syncPanel, toast,
-  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionHistory: () => ({ history, future }),
+  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionDraw3d: () => V3D.refresh(), ionFit3d: () => { if (!V3D.active()) return false; V3D.fit(); return true; }, ionHistory: () => ({ history, future }),
   ionViewMenu: viewMenuShown, ionBounds: shapeBounds, ionBusy: () => SIM.busy, ionStop: stopFly, ionMenuIcons: menuIcons, needsShown,
 });
 // the bench: restored from this browser, or the first one

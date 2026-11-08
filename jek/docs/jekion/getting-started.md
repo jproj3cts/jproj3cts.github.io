@@ -24,7 +24,7 @@ Every bench in the **Examples** gallery works. Open one, change it, and press **
 
 **The bench** is the large area under the bar: a cut through the array, with the electrodes' sections, the potential as a colour map or equipotentials, the ion groups' starts, the detectors and the flown paths. Drag an electrode to move it (snapped to the grid spacing; Shift drags freely), scroll to zoom, right-drag or middle-drag to pan. Right-click for a menu of what you can do with what is under the pointer, including setting the **analysis point** for the trap analysis. The coordinates and the potential under the pointer show at the bottom.
 
-In a **planar** or **cylindrical** array the cut is the array itself (the x–y plane, or the x–r plane drawn whole). In a **three-dimensional** array **View › Cut** chooses the x–y, x–z or y–z plane (keys **1**, **2**, **3**) and **Page up** / **Page down** move it a grid spacing at a time; the Bench panel's Display section types the position.
+In a **planar** or **cylindrical** array the cut is the array itself (the x–y plane, or the x–r plane drawn whole). In a **three-dimensional** array **View › Cut** chooses the x–y, x–z or y–z plane (keys **1**, **2**, **3**) and **Page up** / **Page down** move it a grid spacing at a time; the Bench panel's Display section types the position. A cut that would fall outside the array (a file saved on another plane) is moved to the analysis point, or the array's middle. The View menu holds what the bench shows: the cut, the potential as a map, equipotentials or both, the field strength |E| instead, the paths and what colours them (ion group, energy or time), the array's outline and nodes; the Display section has the numbers, how many equipotentials and the cut's position.
 
 **The panel** on the right shows whatever is selected: an electrode, an ion group or a detector. With nothing selected it shows the whole bench: the array, the background gas, the magnetic field, the flying settings, the trap analysis, the display and the results of the last flight. The tab half way up the bench's right edge puts it away and brings it back.
 
@@ -34,7 +34,7 @@ In a **planar** or **cylindrical** array the cut is the array itself (the x–y 
 
 ## The 3D view
 
-The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows the electrodes as solids, the array's box, the cut plane with its potential map, the detectors, the ion groups' starts and the paths. Right-drag turns, middle-drag pans, the wheel zooms, **F** fits; click an electrode to select it. **PNG** saves the view as a picture (a free account).
+The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows the electrodes as solids, the array's box, the cut plane with its potential map or equipotentials as the View menu has them, the detectors, the ion groups' starts and the paths. Right-drag turns, middle-drag pans, the wheel zooms, **F** fits; click an electrode to select it. **PNG** saves the view as a picture (a free account).
 
 ## Keeping your work
 

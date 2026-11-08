@@ -6,7 +6,7 @@ import { buildArray, solveArray, fieldSetOf } from '../../src/engines/session.js
 import { flyAll } from '../../src/engines/fly.js';
 import { trapAnalysis } from '../../src/engines/trap.js';
 import { potentialAt } from '../../src/engines/fields.js';
-import { speedOfKE, QE, AMU } from '../../src/core/units.js';
+import { speedOfKE, properSpeedOfKE, keOfProper, QE, AMU } from '../../src/core/units.js';
 import { makeGrid, gGrad, gNodePos } from '../../src/core/grid.js';
 
 const ion = o => Object.assign({ id: 'i1', name: 'ions', colour: '#f00', n: 1, mass: 39.962, charge: 1, ke: 10, keSpread: 0, x: 0, y: 0, z: 0, dist: 'point', size: 0, dirAz: 0, dirEl: 0, cone: 0, t0: 0, tSpread: 0, weight: 1 }, o);
@@ -133,4 +133,16 @@ test('the field between the nodes is continuous and exact for a quadratic potent
   gGrad(g, A, 0, 0, 0, E); assert.ok(Math.hypot(...E) < 1e-9, 'the null: ' + E);
   const a = [0, 0, 0], b = [0, 0, 0]; gGrad(g, A, 0.25 - 1e-9, 0.1, 0.1, a); gGrad(g, A, 0.25 + 1e-9, 0.1, 0.1, b);
   assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1e-6, 'across a face: ' + a + ' vs ' + b);
+});
+
+test('a heavy particle at thermal energy moves: the speed is taken in KE / mc², not from γ rounded to 1', () => {
+  // a 300 nm silica sphere, 1.87e10 u, at 0.026 eV: 16 mm/s, and the energy comes back from the proper speed
+  const m = 1.873e10, ke = 0.026, u = properSpeedOfKE(ke, m), v = speedOfKE(ke, m);
+  const want = Math.sqrt(2 * ke * QE / (m * AMU)) * 1e-3;    // mm/µs, non-relativistic
+  assert.ok(u > 0 && Math.abs(u - want) < 1e-9 * want, 'proper speed ' + u + ' vs ' + want);
+  assert.ok(Math.abs(v - want) < 1e-9 * want, 'speed ' + v + ' vs ' + want);
+  assert.ok(Math.abs(keOfProper(u, m) - ke) < 1e-9 * ke, 'energy back: ' + keOfProper(u, m));
+  // and the relativistic end is unchanged: an electron at 100 keV moves at 0.548 c
+  const ve = speedOfKE(1e5, 5.48579909065e-4) / 299792.458;
+  assert.ok(Math.abs(ve - 0.5482) < 5e-4, 'electron: ' + ve);
 });

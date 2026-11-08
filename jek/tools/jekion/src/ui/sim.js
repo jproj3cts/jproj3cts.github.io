@@ -1,6 +1,7 @@
 import { TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { nf } from '../core/units.js';
+import { PLANES } from '../core/geom.js';
 import { project, V } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { geometryKey, voltageKey } from '../engines/session.js';
@@ -40,6 +41,7 @@ export function requestSlice() {
   clearTimeout(sliceTimer);
   sliceTimer = setTimeout(async () => {
     if (!project) return;
+    cutInside();
     const key = geometryKey(project) + voltageKey(project) + V().plane + V().slice + project.show.efield;
     if (key === SIM.skey && SIM.slice) return;
     try {
@@ -49,6 +51,18 @@ export function requestSlice() {
       hooks.requestRender(); hooks.ionLegend();
     } catch (err) { console.warn('JEKion slice:', err); say('Could not compute the fields: ' + err.message, false); }
   }, 60);
+}
+/* the cut's position along the plane's perpendicular is kept while it is within the array; outside (a file saved
+   on another plane, the array moved, Page down past the edge) it goes to the analysis point's coordinate there,
+   or failing that to the array's middle: a cut through nothing draws nothing, which reads as the fields missing */
+export function cutInside() {
+  const G = project.grid;
+  if (G.sym !== '3d') return;
+  const [, , ip] = PLANES[V().plane], lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip];
+  if (V().slice >= lo && V().slice <= hi) return;
+  const pt = project.point && project.point[ip], at = pt >= lo && pt <= hi ? pt : (lo + hi) / 2;
+  V().slice = +(Math.round(at / G.h) * G.h).toPrecision(8);
+  hooks.requestRender();
 }
 function progress(p) {
   if (!p) return;

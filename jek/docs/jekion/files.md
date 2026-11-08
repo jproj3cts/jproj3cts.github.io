@@ -10,7 +10,7 @@ description: "The .jekion file, autosave, the examples, pictures, and what needs
 
 **Save** (Ctrl+S) writes the file; **File › Open** or a drop on the bench reads one back. A file from any version loads: every field is checked and given its default, so a hand-written or program-written file works too (an unknown shape becomes a box, a bad number its default). The bench is autosaved in this browser as you work and comes back on the next visit.
 
-**Examples** (the gallery button, or File › Open an example) hold a working bench for each kind of instrument: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap, each with notes in its Bench panel saying what to try. A link `jekion.html?demo=paul-trap` opens one.
+**Examples** (the gallery button, or File › Open an example) hold a working bench for each kind of instrument: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap, each described in the gallery. A link `jekion.html?demo=paul-trap` opens one.
 
 **Share links.** **Share** (or File › Copy a share link) copies a short link, `jeksys.net/i/` and ten capitals, that opens the bench as it is now for anyone, signed in or not; a copy of the bench is kept with your account until you delete it, from the links listed in the Share dialog. Making links is JEKrayPro's; a free account keeps three at once. Without an account the link carries the bench itself after `#p=`, which is long. The same account and links serve JEKray.
 

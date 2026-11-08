@@ -10887,7 +10887,7 @@ function demoProject() {
   const p = { name: 'Untitled bench', view: { cx: 5, cy: 8, scale: 6 }, snap: 1, maxBounces: 200, minPower: 0.1, ghosts: false, library: [], elements: [] };
   setProject(p);
   p.elements.push(
-    normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15, pattern: 'hex' }),
+    normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15, pattern: 'hex', gauss: true, w0: 5, z0: 0 }),
     normElement({ type: 'lens', name: 'f = 50 mm biconvex', x: 0, y: 0, angle: 0, diameter: 25.4,
       surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }),
     normElement({ type: 'mirror', name: 'Fold mirror', x: 25, y: 0, angle: 135, length: 25.4 }),
@@ -56004,6 +56004,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The bench JEKray opens with now has a Gaussian beam as well as its rays, so its envelope and diffracted field show (it was rays alone).',
     '<b>Fibres in 3D</b>: click a fibre, wire or waveguide in the 3D view to select it (its panel opens), and drag it across the table to shape it, as on the bench. A fibre now leaves each connector straight and level, its face square to the ferrule. The bench\u2019s <b>notes</b> moved to Edit \u203a Bench notes\u2026, and <b>My benches</b> is the cloud beside the bench\u2019s name, apart from Examples.',
     '<b>The Bench panel comes out on the left</b>, from the tab on the bench\u2019s left edge, so it is plain which panel is the bench\u2019s, and it stays out while you select parts; a part\u2019s panel opens on the right, and closes with its \u00d7. Opening or closing either no longer shifts the bench: what is drawn stays where it was. In Model, the sketch\u2019s tools hang from the parts rail. Fixed: <b>Show the rays</b> ticked on a bench saved with them off now shows them. <b>How the rays look</b> (brightness by power, fading trails, glow, width) has a window of its own, View \u203a How the rays look\u2026. The longer explanations left the panels for the Help menu: <b>Using the bench</b> and <b>About the selected part</b>.',
     '<b>From Instagram</b>: every link from our Instagram posts now opens the Michelson interferometer example with its moving mirror sweeping, and the note listing our reels’ benches has gone. The bench JEKray opens with sends its rays in hexapolar rings, a full beam in 3D.',
@@ -56374,7 +56375,7 @@ function showWelcome() {
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
       h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
     : h('ul', null,
-      h('li', null, 'Add parts with Add, the top button of the parts rail at the bench\u2019s left (or press A), or from the rail\u2019s own buttons; its switcher changes the palette: free space, fibre, circuits, RF or drawing.'),
+      h('li', null, 'Add parts with Add, the first button of the parts rail across the top of the bench (or press A), or from the rail\u2019s own buttons; its switcher changes the palette: free space, fibre, circuits, RF or drawing.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s left edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),

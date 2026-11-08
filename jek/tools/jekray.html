@@ -10887,7 +10887,7 @@ function demoProject() {
   const p = { name: 'Untitled bench', view: { cx: 5, cy: 8, scale: 6 }, snap: 1, maxBounces: 200, minPower: 0.1, ghosts: false, library: [], elements: [] };
   setProject(p);
   p.elements.push(
-    normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15, pattern: 'hex' }),
+    normElement({ type: 'source', name: 'HeNe 633 nm', x: -60, y: 0, angle: 0, wavelength: 632.8, width: 10, divergence: 0, rays: 15, pattern: 'hex', gauss: true, w0: 5, z0: 0 }),
     normElement({ type: 'lens', name: 'f = 50 mm biconvex', x: 0, y: 0, angle: 0, diameter: 25.4,
       surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] }),
     normElement({ type: 'mirror', name: 'Fold mirror', x: 25, y: 0, angle: 135, length: 25.4 }),
@@ -18452,12 +18452,15 @@ function syncPhases() {
    then plays by stepping between those samples, so every step finds its field ready, on
    whichever screen is opened. Whatever was not rendered (a change to the bench) is simply
    worked out live, as it always was. */
-const FIELD_FRAMES = 48;               // samples per cycle, unless a sweep sets its steps
+const FIELD_FRAMES = 48;               // samples per cycle at the least, unless a sweep sets its steps
+/* the samples a cycle a sweep's field is rendered at, unless it sets its own steps: enough to play at about 30
+   a second (a slow sweep needs more of them to glide rather than step), from FIELD_FRAMES to SWEEP_STEPS_MAX */
+const fieldFramesOf = sw => (sw && sw.steps) || clamp(Math.round(30 / ((sw && sw.freq) || 1)), FIELD_FRAMES, SWEEP_STEPS_MAX);
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
 const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };
 let framesLast = FIELD_FRAMES;         // samples a cycle in the render last run, for what is kept
 /* the samples a cycle for sweeps rendered together: the most any of them asks for */
-const sweepFrames = list => Math.max(...list.map(([el, path]) => (el.sweeps[path] && el.sweeps[path].steps) || FIELD_FRAMES));
+const sweepFrames = list => Math.max(...list.map(([el, path]) => fieldFramesOf(el.sweeps[path])));
 function keepFrame(map, key, v) {
   map.delete(key); map.set(key, v);
   // close-up pictures are big: two cycles' worth of them; the rest, a cycle at every readout at least
@@ -22388,17 +22391,21 @@ const V3D = (() => {
       // each end leaves its connector straight along the port (the way the route sets off from it), so the fibre's
       // face meets the ferrule square on, not cut across where the route has already begun to bend
       const unit = (p, q) => { const dx = p[0] - q[0], dy = p[1] - q[1], l = Math.hypot(dx, dy); return l > 1e-9 ? [dx / l, dy / l] : null; };
+      // (the way the port points, as its ferrule or pin is drawn; else the way the route sets off)
+      const portDir = (el, port) => { try { const q = portWorld(el, port), l = Math.hypot(q.dx, q.dy); return l > 1e-9 ? [q.dx / l, q.dy / l] : null; } catch (err) { return null; } };
       const sA = segs[0], sB = segs[segs.length - 1];
-      const dA = unit(sA[1], sA[0]) || unit(sA[3], sA[0]), dB = unit(sB[2], sB[3]) || unit(sB[0], sB[3]);
+      const dA = portDir(A, F.a[1]) || unit(sA[1], sA[0]) || unit(sA[3], sA[0]), dB = portDir(B, F.b[1]) || unit(sB[2], sB[3]) || unit(sB[0], sB[3]);
       const runLen = run.reduce((acc, q, k) => k ? acc + Math.hypot(q[0] - run[k - 1][0], q[1] - run[k - 1][1]) : 0, 0);
       const lead = Math.min(4 * r + 3, runLen / 4);
-      const straight = (pts, d) => {
+      // a network part's end: exactly at the tip of its ferrule or pin
+      const tipOf = (el, port, d) => { if (!NET_3D.has(el.type) || !d) return null; try { const q = portWorld(el, port), len = (el.type === 'elec' ? 0 : portsOfOptic(el).length) > port ? NET_FERRULE : NET_PIN; return [q.x + d[0] * len, q.y + d[1] * len]; } catch (err) { return null; } };
+      const straight = (pts, d, E0) => {
         if (!d || pts.length < 3) return pts;
-        const E = pts[0];
+        const E = E0 || pts[0];
         let k = 1; while (k < pts.length - 1 && Math.hypot(pts[k][0] - E[0], pts[k][1] - E[1]) < lead * 1.5) k++;
         return [E, [E[0] + d[0] * lead, E[1] + d[1] * lead], ...pts.slice(k)];
       };
-      if (lead > 0.5) { run = straight(run, dA); run = straight(run.slice().reverse(), dB).reverse(); }
+      if (lead > 0.5) { run = straight(run, dA, tipOf(A, F.a[1], dA)); run = straight(run.slice().reverse(), dB, tipOf(B, F.b[1], dB)).reverse(); }
       const sAt = [0]; for (let k = 1; k < run.length; k++) sAt.push(sAt[k - 1] + Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]));
       const S = sAt[sAt.length - 1]; if (!(S > 0.05) || run.length < 2) return;
       // its height along it: a long run lies on the table, rising to each port over a smooth bend; a short one (or a
@@ -29467,7 +29474,7 @@ function sweepControls(el, path, sw, label) {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
       setFieldRendered(null);
     }, { blank: null });
-    bindSync(inp, () => { inp.placeholder = sw.field ? String(FIELD_FRAMES) : 'smooth'; });
+    bindSync(inp, () => { inp.placeholder = sw.field ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
   }
   // the diffracted field, rendered ahead so the sweep can play it: offered where there is one
@@ -29478,7 +29485,7 @@ function sweepControls(el, path, sw, label) {
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
-        : sw.field ? 'Play renders the field at ' + (sw.steps || FIELD_FRAMES) + ' points of the cycle, on the bench and on every screen it reaches, then plays through them.'
+        : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;
     });
@@ -56004,6 +56011,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',
+    'The bench JEKray opens with now has a Gaussian beam as well as its rays, so its envelope and diffracted field show (it was rays alone).',
     '<b>Fibres in 3D</b>: click a fibre, wire or waveguide in the 3D view to select it (its panel opens), and drag it across the table to shape it, as on the bench. A fibre now leaves each connector straight and level, its face square to the ferrule. The bench\u2019s <b>notes</b> moved to Edit \u203a Bench notes\u2026, and <b>My benches</b> is the cloud beside the bench\u2019s name, apart from Examples.',
     '<b>The Bench panel comes out on the left</b>, from the tab on the bench\u2019s left edge, so it is plain which panel is the bench\u2019s, and it stays out while you select parts; a part\u2019s panel opens on the right, and closes with its \u00d7. Opening or closing either no longer shifts the bench: what is drawn stays where it was. In Model, the sketch\u2019s tools hang from the parts rail. Fixed: <b>Show the rays</b> ticked on a bench saved with them off now shows them. <b>How the rays look</b> (brightness by power, fading trails, glow, width) has a window of its own, View \u203a How the rays look\u2026. The longer explanations left the panels for the Help menu: <b>Using the bench</b> and <b>About the selected part</b>.',
     '<b>From Instagram</b>: every link from our Instagram posts now opens the Michelson interferometer example with its moving mirror sweeping, and the note listing our reels’ benches has gone. The bench JEKray opens with sends its rays in hexapolar rings, a full beam in 3D.',
@@ -56374,7 +56383,7 @@ function showWelcome() {
       h('li', null, 'Drag a part to move it; drag the blue handle to turn it. Drag the empty bench with one finger to pan, pinch to zoom.'),
       h('li', null, 'Tap a part for its settings and readings: they open at the bottom, \u2191 makes them taller. Tap the empty bench to close them.'))
     : h('ul', null,
-      h('li', null, 'Add parts with Add, the top button of the parts rail at the bench\u2019s left (or press A), or from the rail\u2019s own buttons; its switcher changes the palette: free space, fibre, circuits, RF or drawing.'),
+      h('li', null, 'Add parts with Add, the first button of the parts rail across the top of the bench (or press A), or from the rail\u2019s own buttons; its switcher changes the palette: free space, fibre, circuits, RF or drawing.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
       h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s left edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),

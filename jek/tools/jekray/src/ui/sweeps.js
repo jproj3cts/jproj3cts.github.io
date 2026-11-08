@@ -4,7 +4,7 @@ import { V, project, selectedId } from '../state/project.js';
 import { allSources, beamOn, fieldDec, getEl, lightOf } from '../state/elements.js';
 import { dropTraceStore, lastTrace, setLastTraceKey, traceScene } from '../engines/trace.js';
 import { H, W, requestRender } from './render.js';
-import { getPath, setParam } from '../state/params.js';
+import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import { MODS } from '../core/modulators.js';
 import { modDelta } from '../engines/mods.js';
 import { mcJob, tick, updateSweepButtons } from './optimise.js';
@@ -180,12 +180,15 @@ export function syncPhases() {
    then plays by stepping between those samples, so every step finds its field ready, on
    whichever screen is opened. Whatever was not rendered (a change to the bench) is simply
    worked out live, as it always was. */
-export const FIELD_FRAMES = 48;               // samples per cycle, unless a sweep sets its steps
+export const FIELD_FRAMES = 48;               // samples per cycle at the least, unless a sweep sets its steps
+/* the samples a cycle a sweep's field is rendered at, unless it sets its own steps: enough to play at about 30
+   a second (a slow sweep needs more of them to glide rather than step), from FIELD_FRAMES to SWEEP_STEPS_MAX */
+export const fieldFramesOf = sw => (sw && sw.steps) || clamp(Math.round(30 / ((sw && sw.freq) || 1)), FIELD_FRAMES, SWEEP_STEPS_MAX);
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
 export const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };
 let framesLast = FIELD_FRAMES;         // samples a cycle in the render last run, for what is kept
 /* the samples a cycle for sweeps rendered together: the most any of them asks for */
-const sweepFrames = list => Math.max(...list.map(([el, path]) => (el.sweeps[path] && el.sweeps[path].steps) || FIELD_FRAMES));
+const sweepFrames = list => Math.max(...list.map(([el, path]) => fieldFramesOf(el.sweeps[path])));
 function keepFrame(map, key, v) {
   map.delete(key); map.set(key, v);
   // close-up pictures are big: two cycles' worth of them; the rest, a cycle at every readout at least

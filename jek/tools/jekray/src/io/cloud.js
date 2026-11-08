@@ -433,7 +433,7 @@ const homeSay = (fn, ok) => async () => {
 // open a cloud bench on the bench, leaving this page
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
-const openInJekion = (b, version) => window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), '_blank', 'noopener');
+const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
 async function homeOpenBench(id, version, b) {
   if (b && b.tool === 'jekion') { openInJekion(b, version); return; }
   try {
@@ -873,8 +873,8 @@ export async function fillHome() {
       h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '”' + (b.tool === 'jekion' ? ' in JEKion' : ''), onclick: bin ? () => more.click() : () => homeOpenBench(b.id, null, b) },
         b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
       h('div', { class: 'rt-hinfo' },
-        h('b', { title: b.name }, b.tool === 'jekion' ? h('span', { class: 'rt-htool', title: 'A JEKion bench: it opens in JEKion' }, 'JEKion') : null, b.name),
-        h('small', null, [mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
+        h('b', { title: b.name }, h('span', { class: 'rt-htool' + (b.tool === 'jekion' ? ' ion' : ''), title: b.tool === 'jekion' ? 'A JEKion bench: it opens in JEKion' : 'A JEKray bench: it opens here' }, b.tool === 'jekion' ? 'JEKion' : 'JEKray'), b.name),
+        h('small', null, [b.tool === 'jekion' ? 'Opens in JEKion' : null, mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
         b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
         b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),
       more);

@@ -881,6 +881,7 @@
   .rt-hcard .rt-hinfo small.rt-hfork { display: flex; align-items: center; gap: 0.25rem; }
   /* the other tool's bench: a chip before its name (both tools' benches share the workspaces) */
   .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
+  .rt-hcard .rt-hinfo .rt-htool.ion { background: var(--jek-orange); }
   .rt-hcard .rt-hinfo small.rt-hfork .ic { width: 12px; height: 12px; }
   .rt-hcard .rt-hmore { position: absolute; right: 0.35rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid transparent; border-radius: 2px; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
   .rt-hcard .rt-hmore:hover, .rt-hcard .rt-hmore[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); color: var(--jek-ink); }

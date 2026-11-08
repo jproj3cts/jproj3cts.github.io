@@ -58,17 +58,3 @@
     .rt-sidetab .chev { transform: none; }
     .rt-sidetab.open .chev { transform: scaleX(-1); }
   }
-  /* My benches: the dialog's head (whose, search, bin, close) and the list below it (JEKray's card styles) */
-  .ion-cloudhead { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
-  .ion-cloudhead h2 { margin: 0 auto 0 0; }
-  .ion-cloudhead select, .ion-cloudhead input { font: inherit; font-size: 0.875rem; padding: 0.35rem 0.5rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
-  .ion-cloudhead input { width: 11rem; }
-  #cloudList { max-height: min(60vh, 34rem); overflow-y: auto; margin-top: 0.6rem; }
-  #cloudList .rt-hcard { margin-bottom: 0.5rem; }
-  #cloudList .rt-hcard .rt-hmore { font-size: 1.1rem; line-height: 1; }
-  #cloudList .rt-hcard .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-orange); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
-  #cloudList .ion-hev { display: grid; grid-template-columns: 7rem 1fr auto; gap: 0.6rem; align-items: baseline; padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--jek-line); font-size: 0.875rem; }
-  #cloudList .ion-hev.head { font-weight: 600; }
-  #cloudList .ion-hev small { color: var(--jek-ink-soft); font-weight: 400; }
-  #cloudList .ion-hev .acts button { margin-left: 0.6rem; font: inherit; font-size: 0.82rem; color: var(--jek-cyan-dark); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
-  #cloudList .rt-hmenu { position: fixed; }

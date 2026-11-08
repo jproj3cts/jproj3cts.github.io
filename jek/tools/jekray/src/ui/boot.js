@@ -655,6 +655,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     }, 0);
     return true;
   };
+  // this tab is the JEKray one: JEKion's My benches opens here rather than in a new tab each time
+  if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekray';
   if (!TEST_MODE && !EMBED) helpLink();
   // ?kiosk (or ?kiosk=all): recording, the page's notes and panels out of the way (J.kiosk does the same)
   if (/[?&]kiosk\b/.test(location.search)) kioskSet(true, { all: /[?&]kiosk=all\b/.test(location.search) });

@@ -22,7 +22,7 @@ import { wireScripts, runScript } from './scripts.js';
 import { V3D, wireView3d } from './view3d.js';
 import { openDemo, openProjectData, restoreSaved, scheduleSave, wireOpen } from '../io/open.js';
 import { accountLoaded, wireAccount } from '../io/account.js';
-import { cloudPush, fillCloudList, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
+import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
 import { exportData, wireDataExport } from '../io/data-export.js';
 import { openShareHash, openShortLink, shareRoundTrip, wireShare } from '../io/share.js';
 import { bodiesToElectrodes } from '../io/step.js';
@@ -78,6 +78,8 @@ installHooks({
   ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionDraw3d: () => V3D.refresh(), ionFit3d: () => { if (!V3D.active()) return false; V3D.fit(); return true; }, ionHistory: () => ({ history, future }),
   ionViewMenu: viewMenuShown, ionBounds: shapeBounds, ionBusy: () => SIM.busy, ionStop: stopFly, ionMenuIcons: menuIcons, needsShown,
 });
+// this tab is the JEKion one: JEKray's My benches opens a JEKion bench here rather than in a new tab each time
+if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekion';
 // the bench: restored from this browser, or the first one
 const saved = restoreSaved();
 loadProject(saved || demoProject());
@@ -119,5 +121,5 @@ window.JEKion = {
   flyPage: async () => { await flyNow(); return SIM.result; },
   trapPage: () => trapNow(), sim: SIM, data: kinds => gatherIonData(project, SIM.result, SIM.trap, kinds), exportData,
   bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot, shareRoundTrip, openShareHash,
-  cloud: { push: cloudPush, link: () => cloud, open: openCloudBench, list: openCloudList, fill: fillCloudList },
+  cloud: { push: cloudPush, link: () => cloud, open: openCloudBench, list: openCloudList },
 };

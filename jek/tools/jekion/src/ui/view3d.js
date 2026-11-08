@@ -5,7 +5,7 @@ import { shapeTriangles } from '../core/geom.js';
 import { project, selectedId, setSelectedId, V } from '../state/project.js';
 import { h, renderPanel } from './panel.js';
 import { downloadFile, hideCtxMenu, safeFileName, toast } from './actions.js';
-import { requestRender, mapCanvasFor } from './render.js';
+import { requestRender, cutCanvasFor } from './render.js';
 import { SIM } from './sim.js';
 
 /* ==========================================================================
@@ -50,7 +50,7 @@ export const V3D = (() => {
   const dark = () => document.documentElement.dataset.rtTheme === 'dark';
   /* the scene rebuilt from the project and the last flight */
   function build() {
-    const k = JSON.stringify([project.electrodes.map(e => [e.id, e.shape, e.x, e.y, e.z, e.axis, e.sx, e.sy, e.sz, e.r, e.L, e.rIn, e.rOut, e.r1, e.r2, e.wall, e.r0, e.rMax, e.z0, e.side, e.colour, e.on, e.mesh && e.mesh.n]), selectedId, SIM.when, SIM.slice && SIM.slice.id, project.grid, V().plane, V().slice, project.show.pot, project.show.efield, project.show.traj, project.ions.map(g => [g.x, g.y, g.z, g.colour, g.on]), project.detectors.map(d => [d.axis, d.at, d.x, d.y, d.z, d.half, d.colour, d.on]), dark()]);
+    const k = JSON.stringify([project.electrodes.map(e => [e.id, e.shape, e.x, e.y, e.z, e.axis, e.sx, e.sy, e.sz, e.r, e.L, e.rIn, e.rOut, e.r1, e.r2, e.wall, e.r0, e.rMax, e.z0, e.side, e.colour, e.on, e.mesh && e.mesh.n]), selectedId, SIM.when, SIM.slice && SIM.slice.id, project.grid, V().plane, V().slice, project.show.pot, project.show.contours, project.show.efield, project.show.traj, project.ions.map(g => [g.x, g.y, g.z, g.colour, g.on]), project.detectors.map(d => [d.axis, d.at, d.x, d.y, d.z, d.half, d.colour, d.on]), dark()]);
     if (k === key) return;
     key = k;
     const { groups, scene } = R, dispose = g => { for (const c of g.children) { if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } } g.clear(); };
@@ -71,8 +71,9 @@ export const V3D = (() => {
     R.box = box;
     // the cut plane with the potential map
     const S = SIM.slice;
-    if (S && S.plane === V().plane && project.show.pot !== 'none' && S.nv > 1) {
-      const cv = mapCanvasFor(S, project.show.efield && S.emag), tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+    const cutCv = S && S.plane === V().plane && S.nv > 1 ? cutCanvasFor(S, project.show) : null;
+    if (cutCv) {
+      const tex = new T.CanvasTexture(cutCv); tex.colorSpace = T.SRGBColorSpace;
       const du = S.h * S.nu, dv = S.h * S.nv, geo = new T.PlaneGeometry(du, dv), mat = new T.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: T.DoubleSide, depthWrite: false });
       const m = new T.Mesh(geo, mat), cu = S.u0 - S.h / 2 + du / 2, cvv = S.v0 - S.h / 2 + dv / 2;
       if (V().plane === 'xy') m.position.set(cu, cvv, G.sym === '3d' ? V().slice : 0);
@@ -91,7 +92,8 @@ export const V3D = (() => {
       groups.misc.add(m);
     }
     // the ion groups' starts
-    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(Math.max(0.3, G.h * 0.8), 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
+    // a small sphere each: a third of a grid spacing, so it never hides a path a few cells across (a trapped ion's)
+    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(G.h * 0.35, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
     // the paths
     if (project.show.traj && SIM.result) {
       for (const p of SIM.result.particles) {
@@ -156,7 +158,7 @@ export const V3D = (() => {
       drag = null;
     });
     cv.addEventListener('wheel', e => { e.preventDefault(); if (!R) return; zoom(Math.exp(e.deltaY * 0.0015)); draw(); }, { passive: false });
-    document.addEventListener('keydown', e => { if (!on || !R || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'f' || e.key === 'F') fit(); });
+    
     new ResizeObserver(() => { if (on && R) { size(); draw(); } }).observe(D.stage);
   }
   async function setOn(v) {

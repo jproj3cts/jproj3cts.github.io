@@ -105,6 +105,8 @@
             <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="editUndo">Undo<span class="k">Ctrl+Z</span></button>
             <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="editRedo">Redo<span class="k">Ctrl+Shift+Z</span></button>
             <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnNotes" data-icon="quote" title="What this bench is, where it comes from, what was assumed">Bench notes…</button>
+            <div class="sep"></div>
             <button type="button" role="menuitem" data-edit="cut" data-icon="cut">Cut<span class="k">Ctrl+X</span></button>
             <button type="button" role="menuitem" data-edit="copy" data-icon="copy">Copy<span class="k">Ctrl+C</span></button>
             <button type="button" role="menuitem" data-edit="paste" data-icon="paste">Paste<span class="k">Ctrl+V</span></button>
@@ -126,6 +128,7 @@
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
+            <button type="button" role="menuitem" data-icon="beam" id="btnRayLook" title="Brightness by power, fading trails, glow and width, for figures and recordings">How the rays look…</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
               <div class="rt-menu rt-imenu" role="menu" id="themeMenu"></div>
@@ -173,6 +176,8 @@
           <div class="rt-menu rt-imenu" id="helpMenu" role="menu" hidden>
             <button type="button" role="menuitem" data-click="btnCmd" data-icon="search">Search commands…<span class="k">Ctrl+K</span></button>
             <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
+            <button type="button" role="menuitem" id="btnUsing" data-icon="info">Using the bench…</button>
+            <button type="button" role="menuitem" id="btnAboutPart" data-icon="info" title="What the selected part models, and how to use it">About the selected part…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
               <div class="rt-menu rt-imenu" role="menu">
                 <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
@@ -211,10 +216,11 @@
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dPng" type="button" data-icon="camera" hidden data-need="account" data-what="save a picture of the 3D view" title="Save the 3D view as a picture" aria-label="Save the 3D view as a picture"></button>
         </div>
         <div class="rt-more rt-file">
-          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden></button>
         </div>
         <div class="rt-group rt-right">
+          <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
@@ -253,6 +259,7 @@
     </div>
 
     <div class="rt-grid">
+      <aside class="rt-panel rt-benchbox" id="benchPanel" aria-label="Bench settings" style="display:none"></aside>
       <div class="rt-stage" id="stage">
         <div class="rt-lock" id="cloudLock" hidden role="status">
           <span class="rt-lockwho" id="cloudLockWho"></span>
@@ -269,7 +276,7 @@
         <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
-        <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
+        <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
         <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
@@ -411,6 +418,18 @@
     <h3 class="rt-subhead">BibTeX</h3>
     <textarea id="citeBib" rows="8" readonly spellcheck="false"></textarea>
     <div class="rt-actions"><button class="rt-btn" data-copy="citeBib">Copy BibTeX</button><button class="rt-btn primary" id="citeClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="infoDialog" aria-labelledby="infoTitle">
+    <h2 id="infoTitle"></h2>
+    <div id="infoBody" style="text-align:left"></div>
+    <div class="rt-actions"><button class="rt-btn primary" type="button" id="infoClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="rayDialog" aria-labelledby="rayTitle">
+    <h2 id="rayTitle">How the rays look</h2>
+    <div id="rayBody" style="text-align:left"></div>
+    <div class="rt-actions"><button class="rt-btn primary" type="button" id="rayClose">Done</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="bugDialog" aria-labelledby="bugTitle">

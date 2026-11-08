@@ -290,6 +290,11 @@ describe('academic verification', () => {
     for (const e of ['a@gmail.com', 'a@education.com', 'a@notethz.ch', 'a@ac.uk.evil.com', '', null]) expect(academicEmail(e)).toBeNull();
   });
 
+  it('takes any university in the public register, and its departments, but no government or mail host', () => {
+    for (const e of ['a@unibo.it', 'a@studio.unibo.it', 'a@polito.it', 'a@univ-lyon1.fr', 'a@usp.br', 'a@unam.mx', 'a@uni.lu']) expect(academicEmail(e)).toBeTruthy();
+    for (const e of ['a@nt.gov.au', 'a@kidu-darululum.blogspot.com', 'a@outlook.com', 'a@notunibo.it', 'a@unibo.it.evil.com']) expect(academicEmail(e)).toBeNull();
+  });
+
   it('reads a current university affiliation from ORCID, not an ended one', () => {
     const org = (name, end) => ({ organization: { name }, 'end-date': end || null });
     expect(currentAcademic({ 'affiliation-group': [{ summaries: [{ 'employment-summary': org('University of Bath') }] }] })).toBe('University of Bath');

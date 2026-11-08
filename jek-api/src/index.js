@@ -6,7 +6,7 @@ import { overLimit, readCapped } from './limits.js';
 import { purgeOrcid } from './orcid.js';
 import { Router } from './router.js';
 import { deleteAccount } from './account.js';
-import { callback, emailCode, emailStart, start, unlink } from './auth.js';
+import { callback, emailCode, emailLink, emailStart, start, unlink } from './auth.js';
 import { passwordSignIn, removePassword, setPassword } from './passwords.js';
 import * as B from './benches.js';
 import { exportAll } from './export.js';
@@ -21,7 +21,7 @@ import { purgeTasters, tasters, useTaster } from './tasters.js';
 import { exercises, solveExercise } from './exercises.js';
 import { remind } from './remind.js';
 import { checkCode, sendCode, verify as verifyAcademic } from './academic.js';
-import { cancelAtPeriodEnd, checkout, portal, priceList, switchInterval, webhook } from './billing.js';
+import { cancelAtPeriodEnd, checkout, checkoutReturn, portal, priceList, quickCheckout, switchInterval, webhook } from './billing.js';
 import { clearCookie, endSession, listSessions, requireUser } from './sessions.js';
 import { requestQuote } from './quotes.js';
 import { me, patchMe } from './users.js';
@@ -177,6 +177,8 @@ const router = new Router()
   .on('POST', '/v1/quotes', async (req, env) => json(await requestQuote(req, env)))
   // billing
   .on('GET', '/v1/billing/prices', async (req, env) => json(await priceList(env)))
+  .on('POST', '/v1/billing/checkout', async (req, env, ctx) => json(await quickCheckout(req, env, ctx)))
+  .on('GET', '/auth/checkout', async (req, env) => checkoutReturn(req, env))
   .on('POST', '/v1/me/institution', async (req, env, ctx) => json(await I.checkInstitution(env, await requireUser(req, env, ctx))))
   // a university's licence, for its own administrators
   .on('GET', '/v1/institutions/:id', async (req, env, ctx, { id }) => json(await I.adminGet(env, await requireUser(req, env, ctx), id)))
@@ -233,6 +235,7 @@ const router = new Router()
   .on('DELETE', '/v1/me/password', async (req, env, ctx) => json(await removePassword(env, await requireUser(req, env, ctx))))
   .on('POST', '/auth/email/start', async (req, env, ctx) => json(await emailStart(req, env, ctx)))
   .on('POST', '/auth/email/code', async (req, env, ctx) => json(await emailCode(req, env, ctx)))
+  .on('GET', '/auth/email/link', async (req, env, ctx) => emailLink(req, env, ctx))
   .on('GET', '/auth/:provider/start', start)
   .on('GET', '/auth/:provider/callback', callback)
   .on('POST', '/auth/signout', async (req, env, ctx) => {

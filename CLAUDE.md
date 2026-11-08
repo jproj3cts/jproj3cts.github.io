@@ -152,14 +152,14 @@ through `core/hooks.js`.
   'cohort' <src>.<week> and 'back' ….d1/d7/d30 (`backMarks` in `core/src-tag.js`); the bench drawn 'load' drawn.<band>,
   and visits that end before it 'early.<band>', sent by page.html's early script (`#jekEarly`, kept like `deviceOf`
   by `test/node/usage-funnel.test.mjs`).
-- Exercises (Help › Exercises; `?ex=<id>`) and the reels' challenges (from a reel's link or the From Instagram note, and
-  listed under Help › Exercises' Challenges): data `core/exercises.js`, the course `EXERCISES` in teaching order and the
-  challenges `CHALLENGES` newest first, apart so reels do not grow the course (start = a reel's bench + changes, checks on
-  the optimiser's measures, unlocked settings, hints, answer, optimiser ranges), the bar/locks/checks `ui/challenge.js` (`exerciseTick` after each render puts back
-  what may not change; locks are non-enumerable so never saved), solved kept in `jek-exercises` and on the account
-  (`jek-api/src/exercises.js`, migration 0017). Each answer is checked by the browser group 'Exercises'. The From
-  Instagram note and the Challenges section list the newest `LISTED_NEWEST` (10), the rest behind Show older; every
-  reel and challenge keeps working from its own link.
+- Exercises (Help › Exercises; `?ex=<id>`): data `core/exercises.js`, the course `EXERCISES` in teaching order (start =
+  a bench from `core/exercise-benches.js` + changes, checks on the optimiser's measures, unlocked settings, hints,
+  answer, optimiser ranges); `CHALLENGES` is empty for now (reels no longer get a challenge). The bar/locks/checks
+  `ui/challenge.js` (`exerciseTick` after each render puts back what may not change; locks are non-enumerable so never
+  saved), solved kept in `jek-exercises` and on the account (`jek-api/src/exercises.js`, migration 0017). Each answer
+  is checked by the browser group 'Exercises'.
+- Instagram links (`?src=ig-…`, the bio's and any old per-reel one) all open the Michelson example with its sweep
+  playing (`ui/boot.js`, `fromIgTag`); the tag is still counted per link. Reels no longer get their own bench or note.
 - Usage report (baseline before a change meant to move a number): `cd jek-api && JEK_OPS_TOKEN=… node scripts/usage.mjs`
   (`--days 90`, `--html r.html`, `--json`). Its "Sign-in prompts" table has a row per prompt (`track('prompt',
   '<where>.<answer>')`: share, save, return, shared, tour, menu; names in `PROMPT_NAMES`) with shown, each answer,

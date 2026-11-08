@@ -28,7 +28,7 @@ Between electrodes the potential is second-order accurate in the spacing. On a c
 
 ## Plotting the potential
 
-The Bench panel's **Potential plots** section plots the potential along the x axis, across it at a given x, along any line picked with two clicks on the bench (kept dashed on the bench while the plot stands), or along a flown particle's path against time, each with PNG and CSV buttons. The pointer's coordinates at the bottom of the bench read the potential and the field strength under it too.
+The Bench panel's **Potential plots** section plots the potential along x, y (the radius in a cylindrical array) or z through the analysis point (or the array's centre), along any line picked with two clicks on the bench (kept dashed on the bench while the plot stands), or along a flown particle's path against time, each with PNG and CSV buttons. The pointer's coordinates at the bottom of the bench read the potential and the field strength under it too.
 
 ## Between the nodes
 

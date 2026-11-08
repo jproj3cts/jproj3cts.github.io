@@ -5291,7 +5291,7 @@ const TESTS = [
     want: 4, tol: 0, unit: ' of 4',
     run: J => [michelsonCube(0, 0), pdhBench(1.08), linkBench(true, 0),
       fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pd', 'P3'), fc('pd', 'P4')], [['L', 0, 'C', 0], ['C', 2, 'P3', 0], ['C', 3, 'P4', 0, 2, 0.5]])]
-      .reduce((n, b) => { J.load(b); return n + (J.shareRoundTrip().same ? 1 : 0); }, 0),
+      .reduce((n, b) => { J.load(b); const r = J.shareRoundTrip(); if (!r.same) { const A = r.before, B = r.after; let i = 0; while (i < A.length && A[i] === B[i]) i++; console.log('share diff', A.slice(Math.max(0, i - 80), i + 80), '||', B.slice(Math.max(0, i - 80), i + 80)); } return n + (r.same ? 1 : 0); }, 0),
   },
   {
     name: 'A link opens on the same panels: selection, pins and their tabs',
@@ -6119,32 +6119,17 @@ const TESTS = [
     },
   },
   {
-    name: 'and so does each reel’s challenge, apart from the course: its bar says Challenge and offers the next challenge',
-    why: 'the reels’ challenges (core/exercises.js CHALLENGES), each from its reel’s bench: unsolved at the start, solved with its answer, the bar saying Challenge (not Exercise n of 11) and, solved, All challenges; Help › Exercises lists them under Challenges, unnumbered, after the eleven: the newest ten, the rest behind Show older (1 when all hold)',
+    name: 'Help › Exercises lists the course alone: the reels’ challenges went with their benches',
+    why: 'no challenges (core/exercises.js CHALLENGES is empty): Help › Exercises shows the eleven exercises and no Challenges section (1 when it does)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
-      const ids = J.challenges(), bad = [];
-      for (const id of ids) {
-        J.exerciseStart(id); await frame();
-        const before = J.exerciseCheck(), kind = ((rigDoc().querySelector('#exBar .rt-exkind') || {}).textContent || '');
-        for (const [name, f] of Object.entries(J.exerciseAnswer(id))) J.set(name, f);
-        await frame(); await frame();
-        const after = J.exerciseCheck(), bar = (rigDoc().getElementById('exBar') || {}).textContent || '';
-        if (!(before === false && after === true && kind === 'Challenge' && /Solved: /.test(bar) && /All challenges/.test(bar) && !/Exercise \d+ of/.test(bar))) bad.push({ id, before, after, kind, bar });
-      }
-      J.exerciseLeave();
       rigDoc().getElementById('btnExercises').click(); await frame();
       const dlg = rigDoc().getElementById('exDialog'), lists = dlg ? dlg.querySelectorAll('.rt-exlist') : [];
-      // the newest ten listed, the rest behind Show older, which lists them all
-      const L = lists[1], older = L && L.querySelector('.rt-older button'), firstSeen = L ? L.querySelectorAll('.rt-exitem').length : 0;
-      if (older) { older.click(); await frame(); }
-      const listed = lists.length === 2 && lists[0].children.length === J.exercises().length && L.classList.contains('rt-chlist') && !!dlg.querySelector('#exChallenges')
-        && firstSeen === Math.min(10, ids.length) && !!older === (ids.length > 10) && L.querySelectorAll('.rt-exitem').length === ids.length && !L.querySelector('.rt-older');
+      const ok = J.challenges().length === 0 && lists.length === 1 && lists[0].children.length === J.exercises().length && !dlg.querySelector('#exChallenges') && !dlg.querySelector('.rt-chlist');
       if (dlg) dlg.close();
-      try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
-      if (bad.length || !listed) console.log('challenges', { bad, listed });
-      return ids.length && !bad.length && listed ? 1 : 0;
+      if (!ok) console.log('exercises dialog', { lists: lists.length, challenges: J.challenges() });
+      return ok ? 1 : 0;
     },
   },
   {
@@ -6910,30 +6895,33 @@ const TESTS = [
     },
   },
   {
-    name: 'The tab on the bench\u2019s right edge puts the panel away and brings the Bench panel out; a pinned panel closes with its \u00d7',
-    why: 'with the Bench panel out, the tab (turned in) hides it, the bench taking its width; the tab again brings the Bench panel out; a part selected opens its panel, and the tab puts that away too, the part put down; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
+    name: 'The tab on the bench\u2019s left edge brings the Bench panel out on the left and puts it away; a part\u2019s panel opens on the right beside it and closes with its \u00d7',
+    why: 'the Bench panel (its own column, left of the bench) comes out and goes with the tab; a part selected opens its panel on the right and the Bench panel stays; the part\u2019s \u00d7 puts it down, the Bench panel still out; the tab puts the Bench panel away with a part selected, the part kept; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
-      const doc = document.getElementById('rig').contentDocument, P = doc.getElementById('panel');
+      const doc = document.getElementById('rig').contentDocument, P = doc.getElementById('panel'), B = doc.getElementById('benchPanel');
       J.load(JSON.parse(getDemo('michelson'))); J.select(null);
-      const tab = doc.getElementById('btnSideTab');
-      if (getComputedStyle(P).display === 'none') tab.click();
-      const out = getComputedStyle(P).display !== 'none' && tab.classList.contains('open') && /Bench/.test(P.querySelector('h2').textContent);
+      const tab = doc.getElementById('btnSideTab'), shown = x => getComputedStyle(x).display !== 'none';
+      if (!shown(B)) tab.click();
+      const left = B.getBoundingClientRect().right <= doc.getElementById('stage').getBoundingClientRect().left + 1;
+      const out = shown(B) && !shown(P) && tab.classList.contains('open') && /Bench/.test(B.querySelector('h2').textContent) && left;
       tab.click();
-      const shut = getComputedStyle(P).display === 'none' && P.parentElement.classList.contains('rt-nopanel') && !tab.classList.contains('open');
+      const shut = !shown(B) && P.parentElement.classList.contains('rt-nopanel') && !tab.classList.contains('open');
       tab.click();
-      const again = getComputedStyle(P).display !== 'none';
       J.select('Laser');
-      const back = getComputedStyle(P).display !== 'none' && !P.parentElement.classList.contains('rt-nopanel') && tab.classList.contains('open');
-      tab.click();
-      const putDown = getComputedStyle(P).display === 'none' && !J.sel().length;
+      const both = shown(B) && shown(P) && /Laser/.test(P.querySelector('h2').textContent) && P.getBoundingClientRect().left >= doc.getElementById('stage').getBoundingClientRect().right - 1;
+      P.querySelector('.rt-mainclose').click();
+      const putDown = !shown(P) && !J.sel().length && shown(B);
+      J.select('Laser'); tab.click();
+      const kept = !shown(B) && shown(P) && J.sel().length === 1;
       J.select('Laser');
       P.querySelector('.rt-pin:not(.rt-close)').click();                   // pin the Laser
       const pinned = doc.querySelectorAll('.rt-pinned').length === 1;
       doc.querySelector('.rt-pinned .rt-close').click();
       const unpinned = doc.querySelectorAll('.rt-pinned').length === 0;
-      if (!(out && shut && again && back && putDown && pinned && unpinned)) console.log('side tab', { out, shut, again, back, putDown, pinned, unpinned });
-      return out && shut && again && back && putDown && pinned && unpinned ? 1 : 0;
+      tab.click();
+      if (!(out && shut && both && putDown && kept && pinned && unpinned)) console.log('side tab', { out, shut, both, putDown, kept, pinned, unpinned });
+      return out && shut && both && putDown && kept && pinned && unpinned ? 1 : 0;
     },
   },
   {
@@ -6946,13 +6934,33 @@ const TESTS = [
         J.experimental(true); await J.view3d.set(true);
         J.select(null);
         const doc = document.getElementById('rig').contentDocument;
-        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
-        const tick = i => doc.querySelectorAll('#panel .rt-check input')[i].click();
+        if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
+        const tick = i => doc.querySelectorAll('#benchPanel .rt-check input')[i].click();
         const s0 = J.view3d.stats();
         tick(0); const s1 = J.view3d.stats();
         tick(1); const s2 = J.view3d.stats();
         tick(0); tick(1); const s3 = J.view3d.stats();
         return s0.rays > 0 && s0.beams > 0 && s1.rays === 0 && s1.beams > 0 && s2.rays === 0 && s2.beams === 0 && s3.rays === s0.rays && s3.beams === s0.beams ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(false); }
+    },
+  },
+  {
+    name: 'Show the rays ticked on a bench opened with them off traces them',
+    why: 'the Michelson opened with Show the rays off (its Gaussian beam\u2019s rays then not traced at all): ticking it traces again, and the 3D view draws them; unticked, none (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const b = JSON.parse(getDemo('michelson')); b.light = { rays: false, envelope: true, field: false, scale: 'lin' };
+      J.load(b);
+      try {
+        J.experimental(true); await J.view3d.set(true);
+        J.select(null);
+        const doc = document.getElementById('rig').contentDocument;
+        if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();
+        const box = () => [...doc.querySelectorAll('#benchPanel label.rt-check')].find(l => /Show the rays/.test(l.textContent)).querySelector('input');
+        const s0 = J.view3d.stats().rays;
+        box().click(); J.trace(); const s1 = J.view3d.stats().rays;
+        box().click(); J.trace(); const s2 = J.view3d.stats().rays;
+        return s0 === 0 && s1 > 0 && s2 === 0 ? 1 : 0;
       } finally { await J.view3d.set(false); J.experimental(false); }
     },
   },
@@ -7000,7 +7008,7 @@ const TESTS = [
   },
   {
     name: 'Panels: one sweep open at a time, sections fold and stay folded',
-    why: 'the fixed mirror\u2019s panel: \u223f on X sweeps it and opens its controls; \u223f on z then sweeps z and folds X to its one-line summary; folding Position hides it and is remembered on the next panel; the long text is under About this part, folded (1 when all hold)',
+    why: 'the fixed mirror\u2019s panel: \u223f on X sweeps it and opens its controls; \u223f on z then sweeps z and folds X to its one-line summary; folding Position hides it and is remembered on the next panel; the long text is in Help \u203a About the selected part, not the panel (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
@@ -7017,8 +7025,12 @@ const TESTS = [
       const pos2 = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'Position');
       const c = pos2.closest('.rt-sec').classList.contains('shut');
       pos2.click();
-      const about = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'About this part');
-      const d = about && about.closest('.rt-sec').classList.contains('shut') && about.closest('.rt-sec').querySelector('p');
+      // the long text is in Help › About the selected part, not the panel
+      const inPanel = [...doc.querySelectorAll('#panel .rt-sech')].some(x => x.textContent.trim() === 'About this part');
+      doc.getElementById('btnAboutPart').click();
+      const dlg = doc.getElementById('infoDialog');
+      const d = !inPanel && dlg.open && /Moving mirror/.test(doc.getElementById('infoTitle').textContent) && doc.querySelector('#infoBody p');
+      dlg.close();
       return a && b && c && d ? 1 : 0;
     },
   },
@@ -7073,6 +7085,7 @@ const TESTS = [
         // landed: the picture's across direction lies level again (its up has no roll)
         const c4 = V.camera(), lk = c4.t.map((v, i) => v - c4.p[i]), acr = [lk[1] * c4.up[2] - lk[2] * c4.up[1], lk[2] * c4.up[0] - lk[0] * c4.up[2], lk[0] * c4.up[1] - lk[1] * c4.up[0]];
         const level = Math.abs(acr[2]) / Math.hypot(...acr) < 1e-6;
+        if (!(along && turned && still && unrolled && level && !V.flying())) console.log('Fly', JSON.stringify({ along, turned, still, unrolled, level, flying: V.flying(), M, c0: c0.p, c1: c1.p }));
         return along && turned && still && unrolled && level && !V.flying() ? 1 : 0;
       } finally { V.fly(false); J.experimental(false); await V.set(false); }
     },
@@ -7086,11 +7099,11 @@ const TESTS = [
       const V = J.view3d, doc = document.getElementById('rig').contentDocument;
       try {
         await V.set(true); J.select(null);
-        if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
+        if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
         const s0 = V.stats(), n0 = J.traceInfo().count;
-        const li = [...doc.querySelectorAll('#panel .rt-list li')].find(l => l.textContent.includes('Fixed mirror'));
+        const li = [...doc.querySelectorAll('#benchPanel .rt-list li')].find(l => l.textContent.includes('Fixed mirror'));
         li.querySelector('.rt-eye').click();
-        const eye = [...doc.querySelectorAll('#panel .rt-list li')].find(l => l.textContent.includes('Fixed mirror')).querySelector('.rt-eye');
+        const eye = [...doc.querySelectorAll('#benchPanel .rt-list li')].find(l => l.textContent.includes('Fixed mirror')).querySelector('.rt-eye');
         const s1 = V.stats(), n1 = J.traceInfo().count;
         const saved = J.serialize().elements.find(e => e.name === 'Fixed mirror').hide3d === true;
         V.undo();
@@ -7129,14 +7142,42 @@ const TESTS = [
       J.load(JSON.parse(getDemo('czerny-turner')));
       const doc = document.getElementById('rig').contentDocument;
       J.select(null);
-      if (doc.getElementById('panel').style.display === 'none') doc.getElementById('btnSideTab').click();
-      const tabs = [...doc.querySelectorAll('#panel .rt-listtabs .rt-tab')], cur = J.serialize().elements;
-      const names = () => [...doc.querySelectorAll('#panel .rt-list li > button:not(.rt-eye)')].map(b => b.textContent);
+      if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();
+      const tabs = [...doc.querySelectorAll('#benchPanel .rt-listtabs .rt-tab')], cur = J.serialize().elements;
+      const names = () => [...doc.querySelectorAll('#benchPanel .rt-list li > button:not(.rt-eye)')].map(b => b.textContent);
       const first = names();
       tabs[1].click();
-      const second = names(), tabs2 = [...doc.querySelectorAll('#panel .rt-listtabs .rt-tab')];
+      const second = names(), tabs2 = [...doc.querySelectorAll('#benchPanel .rt-listtabs .rt-tab')];
       return tabs.length === 2 && tabs[0].classList.contains('on') && /\((\d+)\)$/.test(tabs[0].textContent) && first.length > 0 && second.length > 0
         && !first.some(t => second.includes(t)) && tabs2[1].classList.contains('on') && first.length + second.length === cur.length ? 1 : 0;
+    },
+  },
+  {
+    name: 'A fibre in 3D: clicked it is selected, dragged it is pulled out at a new node',
+    why: 'the two-launch example in 3D: the splitter\u2019s fibre to Launch A found under the pointer; a click selects it (its panel, Fibre); a drag along the table puts a node into it where it was taken hold of and moves it, one Undo step (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('split-laser'))); J.select(null);
+      const V = J.view3d, raf = () => new Promise(r => requestAnimationFrame(() => r())), doc = rigDoc();
+      try {
+        await V.set(true); await raf(); await raf();
+        const cv = doc.querySelector('canvas.rt-v3d'), W = cv.clientWidth, H = cv.clientHeight;
+        const find = () => { for (let y = 8; y < H; y += 6) for (let x = 8; x < W; x += 6) { const id = V.fibreAt(x, y), F = id && J.project().fibres.find(g => g.id === id); if (F && F.b[0] === 'LaunchA') return { x, y, F }; } return null; };
+        let at = find();
+        if (!at) return 0;
+        V.pointer('pointerdown', at.x, at.y); V.pointer('pointerup', at.x, at.y, { buttons: 0 }); await raf(); await raf();
+        const picked = /Fibre/.test(doc.querySelector('#panel h2').textContent);
+        at = find(); if (!at) return 0;
+        const n0 = (at.F.path || []).length;
+        V.pointer('pointerdown', at.x, at.y);
+        for (let i = 1; i <= 8; i++) { V.pointer('pointermove', at.x - 4 * i, at.y + 6 * i, { buttons: 1 }); await raf(); }
+        V.pointer('pointerup', at.x - 32, at.y + 48, { buttons: 0 }); await raf();
+        const pulled = (at.F.path || []).length === n0 + 1;
+        V.undo();
+        const G = J.project().fibres.find(g => g.id === at.F.id), undone = !!G && (G.path || []).length === n0;
+        if (!(picked && pulled && undone)) console.log('3D fibre', { picked, pulled, undone });
+        return picked && pulled && undone ? 1 : 0;
+      } finally { await V.set(false); }
     },
   },
   {

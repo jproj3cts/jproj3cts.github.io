@@ -3,7 +3,7 @@ import { fmtEv, fmtMHz, fmtMm, fmtUs, nf, SPECIES, FREQ_UNITS, freqUnitOf } from
 import { SHAPES, AXES } from '../core/geom.js';
 import { BCS, FACES, SYMS } from '../core/grid.js';
 import { project, selectedItem, V } from '../state/project.js';
-import { checkpoint, COLOUR_BYS, gridNodes, POT_SHOWS } from '../state/elements.js';
+import { checkpoint, gridNodes } from '../state/elements.js';
 import { SHAPE_FIELDS } from '../parts/electrodes.js';
 import { DISTS } from '../parts/ions.js';
 import { END_WORDS } from '../engines/fly.js';
@@ -13,7 +13,6 @@ import { SIM, flyNow, trapNow, potentialLine, potentialAtPoints, pickedLine, set
 import { setPointTool } from './pointer.js';
 import { toast } from './actions.js';
 import { histogram, linePlot, scatter } from './plots.js';
-import { arrayBox } from './render.js';
 
 /* ==========================================================================
    The panels: an electrode's, an ion group's, a detector's, and, with nothing selected, the bench's (the array,
@@ -157,11 +156,8 @@ function benchPanel() {
   box.append(potentialSection());
   // display
   const S = project.show;
-  box.append(section('Display', 'bench.show', [rows(selectField('Potential', Object.entries(POT_SHOWS), () => S.pot, v => { S.pot = v; }, { rebuild: false }), param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }),
-    checkField('Field strength |E| instead', () => S.efield, v => { S.efield = v; }, { wide: true, rebuild: false }), checkField('Trajectories', () => S.traj, v => { S.traj = v; }, { rebuild: false }), selectField('Colour paths by', Object.entries(COLOUR_BYS), () => S.colourBy, v => { S.colourBy = v; }, { rebuild: false }), checkField('Array outline and nodes', () => S.grid, v => { S.grid = v; }, { rebuild: false }),
-    G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
-  // notes
-  box.append(section('Notes', 'bench.notes', [(() => { const ta = h('textarea', { rows: 4, spellcheck: 'true', style: 'width:100%;box-sizing:border-box;font:inherit;font-size:0.85rem' }); ta.value = project.notes; ta.addEventListener('change', () => { checkpoint(); project.notes = ta.value.slice(0, 4000); changed(false); }); return ta; })()], false));
+  // the display: the View menu holds the toggles (cut plane, potential, |E|, paths and their colouring, the outline); here only the numbers
+  box.append(section('Display', 'bench.show', [rows(param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }), G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
   // results
   if (SIM.result) box.append(resultsSection());
 }
@@ -178,36 +174,54 @@ export function fitArray() {
   if (G.sym === '3d') { G.z0 = +(lo[2] - m).toPrecision(6); G.z1 = +(hi[2] + m).toPrecision(6); }
 }
 /* ---------- potential plots ----------
-   The potential along the axis, across it at an x, along a line picked with two clicks on the bench, or along a flown
+   The potential along x, y (r) or z through the analysis point, along a line picked with two clicks on the bench, or along a flown
    particle's path against time; the last one asked for is drawn again when the panel is rebuilt. */
-let potPlot = null;                 // { kind: 'axis' | 'across' | 'line' | 'path', x, a, b, gi, i }
+let potPlot = null;                 // { kind: 'axis' | 'line' | 'path', ax, a, b, k }
 export function setPotPlot(v) { potPlot = v; hooks.renderPanel(); }
 function potentialSection() {
   const G = project.grid, out = h('div'), plotBox = h('div');
-  const [u0, u1] = arrayBox(), yMid = G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, zMid = G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0;
-  const across = { x: potPlot && potPlot.kind === 'across' ? potPlot.x : +(((G.x0 + G.x1) / 2).toPrecision(4)) };
-  const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
-  const acts = h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' },
-    btn('Along the x axis', 'The potential along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + ' from one edge of the array to the other', () => setPotPlot({ kind: 'axis' })),
-    btn('Across, at x', 'The potential along y (the radius, in a cylindrical array) at the x given', () => setPotPlot({ kind: 'across', x: across.x })),
-    btn('Along a line…', 'Click two points on the bench: the potential along the line between them', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
-  out.append(rows(param('x for the plot across (mm)', across, 'x', { after: v => { if (potPlot && potPlot.kind === 'across') potPlot.x = v; } })), acts);
+  // the lines run from edge to edge of the array through the analysis point, or its centre without one
+  const cyl = G.sym === 'cyl', c = plotCentre(), btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
+  const thr = 'through ' + (project.point ? 'the analysis point' : 'the array\u2019s centre') + ' (' + c.map(v => nf(v, 4)).join(', ') + ' mm)';
+  // one row: "Potential along" and a segmented choice, the current plot's button marked; the path's select and its button on the next
+  const cur = potPlot && potPlot.kind === 'axis' ? potPlot.ax : potPlot && potPlot.kind === 'line' ? 'line' : null;
+  const tab = (label, title, on, fn) => h('button', { type: 'button', class: 'rt-btn', 'aria-checked': String(on), title, onclick: fn }, label);
+  const group = h('div', { class: 'rt-subtabs', role: 'group', 'aria-label': 'The potential along' },
+    tab('x', 'The potential along x ' + thr, cur === 0, () => setPotPlot({ kind: 'axis', ax: 0 })),
+    tab(cyl ? 'r' : 'y', 'The potential along ' + (cyl ? 'the radius, across the axis,' : 'y') + ' ' + thr, cur === 1, () => setPotPlot({ kind: 'axis', ax: 1 })),
+    G.sym === '3d' ? tab('z', 'The potential along z ' + thr, cur === 2, () => setPotPlot({ kind: 'axis', ax: 2 })) : null,
+    tab('a line\u2026', 'Click two points on the bench: the potential along the line between them', cur === 'line', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
+  out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along'), group, potPlot ? h('button', { type: 'button', class: 'rt-btn quiet', title: 'Take the plot away, and the picked line off the bench', onclick: () => setPotPlot(null) }, 'Clear') : null));
   if (SIM.result && SIM.result.particles.length) {
-    const ps = SIM.result.particles.slice(0, 200), sel = selectField('Along a particle\u2019s path', ps.map((p, k) => [String(k), ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i]), () => String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0), v => { setPotPlot({ kind: 'path', k: +v }); }, { wide: true, rebuild: false });
-    out.append(rows(sel), h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' }, btn('Plot along the path', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.querySelector('select').value }))));
+    // choosing a particle plots the potential it saw against time; the plot follows each flight
+    const ps = SIM.result.particles.slice(0, 200), sel = h('select', { 'aria-label': 'The particle whose path to plot along', title: 'The potential the particle saw, against time' }, h('option', { value: '' }, '\u2014'), ...ps.map((p, k) => h('option', { value: String(k) }, ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i)));
+    sel.value = potPlot && potPlot.kind === 'path' ? String(potPlot.k) : '';
+    sel.addEventListener('change', () => { if (sel.value !== '') setPotPlot({ kind: 'path', k: +sel.value }); else if (potPlot && potPlot.kind === 'path') setPotPlot(null); });
+    out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along the path of'), sel));
   }
   out.append(plotBox);
-  if (potPlot) drawPotPlot(potPlot, plotBox, u0, u1, yMid, zMid);
+  if (potPlot) drawPotPlot(potPlot, plotBox);
   else if (pickedLine) setPickedLine(null);
-  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along the axis and across it the line runs from edge to edge of the array; a picked line is kept on the bench (dashed) until another plot is asked for. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
+  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along x, y (r) or z the line runs from edge to edge of the array through the analysis point (right-click the bench to set it), or the array\u2019s centre; a picked line is kept on the bench (dashed, orange) until another plot is asked for or Clear. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
   return section('Potential plots', 'bench.pot', [out], true);
 }
 const rfNote = () => (project.electrodes.some(e => e.on !== false && e.rf && e.rf.on) ? ', at t = 0 (the RF at its peak)' : '');
-async function drawPotPlot(spec, box, u0, u1, yMid, zMid) {
+/* the point the axis lines pass through: the analysis point, else the array's centre (on the axis of a cylindrical array) */
+function plotCentre() {
+  const G = project.grid, p = project.point;
+  if (p) return [p[0], G.sym === 'cyl' ? 0 : p[1], G.sym === '3d' ? p[2] : 0];
+  return [(G.x0 + G.x1) / 2, G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0];
+}
+async function drawPotPlot(spec, box) {
   box.replaceChildren(h('p', { class: 'note' }, 'Plotting\u2026'));
   try {
-    if (spec.kind === 'axis') { const L = await potentialLine([u0, yMid, zMid], [u1, yMid, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => u0 + s), L.v, { title: 'Potential along the x axis', xl: 'x (mm)', yl: 'V', note: 'along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + rfNote() })); }
-    else if (spec.kind === 'across') { const G = project.grid, lo = G.sym === 'cyl' ? -G.y1 : G.y0, hi = G.y1; const L = await potentialLine([spec.x, lo, zMid], [spec.x, hi, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential across, at x = ' + nf(spec.x, 4) + ' mm', xl: (G.sym === 'cyl' ? 'r' : 'y') + ' (mm)', yl: 'V', note: 'at x = ' + nf(spec.x, 4) + ', z = ' + nf(zMid, 3) + rfNote() })); }
+    if (spec.kind === 'axis') {
+      const G = project.grid, ax = spec.ax || 0, c = plotCentre(), lo = ax === 0 ? G.x0 : ax === 1 ? (G.sym === 'cyl' ? -G.y1 : G.y0) : G.z0, hi = ax === 0 ? G.x1 : ax === 1 ? G.y1 : G.z1;
+      const a = c.slice(), b = c.slice(); a[ax] = lo; b[ax] = hi;
+      const name = ax === 0 ? 'x' : ax === 1 ? (G.sym === 'cyl' ? 'r' : 'y') : 'z', others = [0, 1, 2].filter(k => k !== ax && (k < 2 || G.sym === '3d')).map(k => ['x', 'y', 'z'][k] + ' = ' + nf(c[k], 4)).join(', ');
+      const L = await potentialLine(a, b, 400);
+      if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential along ' + name, xl: name + ' (mm)', yl: 'V', note: 'along ' + others + rfNote() }));
+    }
     else if (spec.kind === 'line') { const L = await potentialLine(spec.a, spec.b, 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s, L.v, { title: 'Potential along the line', xl: 'distance (mm)', yl: 'V', note: 'from ' + spec.a.map(v => nf(v, 4)).join(', ') + ' to ' + spec.b.map(v => nf(v, 4)).join(', ') + rfNote() })); if (!pickedLine) setPickedLine({ a: spec.a, b: spec.b }); }
     else if (spec.kind === 'path') {
       const p = SIM.result && SIM.result.particles[spec.k]; if (!p) { box.replaceChildren(); return; }
@@ -245,7 +259,7 @@ function resultsSection() {
   const live = project.electrodes.filter(e => e.on !== false), perEl = live.map((el, k) => [el, P.filter(p => (p.end.why === 'splat' || p.end.why === 'start') && p.end.el === k).length]).filter(x => x[1]);
   const body = [h('div', { class: 'ion-res' }, readout([['Ions flown', n + ' in ' + nf(R.ms / 1000, 2) + ' s'], ...Object.entries(ends).map(([w, k]) => [END_WORDS[w], k + ' (' + nf(100 * k / n, 3) + '%)'])]), bar)];
   if (perEl.length) body.push(h('table', { class: 'ion-table' }, h('tr', null, h('th', null, 'Electrode'), h('th', null, 'Hit by')), ...perEl.map(([el, k]) => h('tr', null, h('td', null, h('span', { class: 'ion-sw', style: 'background:' + el.colour }), el.name), h('td', { class: 'n' }, String(k))))));
-  body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));
+  if (n >= 3) body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));    // a spread needs a few
   return section('Results of the last flight', 'bench.res', body);
 }
 /* what the panel shows: the selection's panel, else the bench's unless it was put away */

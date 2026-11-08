@@ -137,7 +137,7 @@ export function safeReturn(env, value) {
 }
 
 // Adds jekauth=<outcome> to the return address, for the app to report.
-const withOutcome = (url, outcome) => {
+export const withOutcome = (url, outcome) => {
   const u = new URL(url);
   u.searchParams.set('jekauth', outcome);
   return u.toString();
@@ -146,7 +146,7 @@ const withOutcome = (url, outcome) => {
 const stateCookie = (value, maxAge) =>
   `${STATE_COOKIE}=${value}; Path=/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 
-function redirect(location, cookies = []) {
+export function redirect(location, cookies = []) {
   const headers = new Headers({ Location: location });
   for (const c of cookies) headers.append('Set-Cookie', c);
   return new Response(null, { status: 302, headers });
@@ -330,15 +330,16 @@ async function emailBody(req) {
   try { return JSON.parse(new TextDecoder().decode(buf)) || {}; } catch (err) { throw new ApiError(400, 'bad_json', 'The body is not JSON.'); }
 }
 
-function signinEmail(code) {
-  const text = `Your JEKray sign-in code is ${code}\n\nType it into JEKray to sign in with this address. It lasts 15 minutes.\n\nIf you did not ask for it, ignore this email: nothing changes, and no one can sign in without the code.\n\nJEK Systems · support@jeksys.net`;
+function signinEmail(code, link) {
+  const text = `Sign in to JEKray: ${link}\n\nOr type this code into JEKray: ${code}\n\nThe link and the code last 15 minutes.\n\nIf you did not ask for it, ignore this email: nothing changes, and no one can sign in without it.\n\nJEK Systems · support@jeksys.net`;
   const html = `<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#111;">
 <div style="max-width:520px;margin:0 auto;background:#fff;padding:28px;border:1px solid #e3e3e3;border-radius:2px;">
 <div style="height:4px;background:linear-gradient(90deg,#ffb347 0 20%,#f47742 20% 40%,#db3550 40% 60%,#73b9ca 60% 80%,#0092b2 80% 100%);margin-bottom:22px;"></div>
-<p style="margin:0 0 10px;font-size:15px;">Your JEKray sign-in code is</p>
+<p style="margin:0 0 18px;"><a href="${link}" style="display:inline-block;padding:12px 22px;background:#111;color:#fff;text-decoration:none;font-weight:700;border-radius:2px;">Sign in to JEKray</a></p>
+<p style="margin:0 0 10px;font-size:15px;">Or type this code into JEKray:</p>
 <p style="margin:0 0 18px;font:700 32px/1.2 'Courier New',monospace;letter-spacing:6px;">${code}</p>
-<p style="margin:0 0 12px;line-height:1.6;">Type it into JEKray to sign in with this address. It lasts 15 minutes.</p>
-<p style="margin:0 0 12px;line-height:1.6;color:#555;">If you did not ask for it, ignore this email: nothing changes, and no one can sign in without the code.</p>
+<p style="margin:0 0 12px;line-height:1.6;">The link and the code last 15 minutes.</p>
+<p style="margin:0 0 12px;line-height:1.6;color:#555;">If you did not ask for it, ignore this email: nothing changes, and no one can sign in without it.</p>
 <p style="margin:20px 0 0;padding-top:14px;border-top:1px solid #e3e3e3;font-size:13px;color:#666;">JEK Systems &middot; <a href="mailto:support@jeksys.net" style="color:#0092b2;">support@jeksys.net</a></p>
 </div></body></html>`;
   return { text, html };
@@ -368,7 +369,9 @@ export async function emailStart(req, env, ctx) {
     throw new ApiError(429, 'too_many_codes', 'That is as many codes as we send in a day. Please try again tomorrow, or sign in another way.');
   }
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
-  await sendEmail(env, { to: email, subject: `Your JEKray sign-in code: ${code}`, ...signinEmail(code) });
+  // a link that signs in with one click (the code in it), back to the page it was asked from
+  const link = `${env.API_URL || new URL(req.url).origin}/auth/email/link?` + new URLSearchParams({ e: email, c: code, r: safeReturn(env, body.return) });
+  await sendEmail(env, { to: email, subject: `Sign in to JEKray (code ${code})`, ...signinEmail(code, link) });
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO signin_codes (email, code_hash, expires_at, tries, link_user) VALUES (?, ?, ?, 0, ?)
@@ -387,8 +390,27 @@ export async function emailCode(req, env, ctx) {
   const body = await emailBody(req);
   const email = String(body.email || '').trim().toLowerCase();
   const code = String(body.code || '').replace(/\s+/g, '');
-  if (!/^\d{6}$/.test(code)) throw new ApiError(400, 'bad_code', 'The code is the 6 digits in the email.');
   const newPw = body.password === undefined || body.password === null || body.password === '' ? null : String(body.password);
+  return emailVerify(req, env, ctx, email, code, newPw);
+}
+
+// GET /auth/email/link?e=<email>&c=<code>&r=<return> — the link in the email: signed in with one click, back to the page
+export async function emailLink(req, env, ctx) {
+  const url = new URL(req.url);
+  const ret = safeReturn(env, url.searchParams.get('r'));
+  try {
+    const r = await emailVerify(req, env, ctx, String(url.searchParams.get('e') || '').trim().toLowerCase(), String(url.searchParams.get('c') || ''), null);
+    return redirect(withOutcome(ret, r.linked ? 'linked' : 'signed_in'), ctx.setCookie ? [ctx.setCookie] : []);
+  } catch (err) {
+    const code = err && err.code;
+    return redirect(withOutcome(ret, code === 'code_expired' || code === 'no_code' || code === 'too_many_tries' ? 'link_expired' : code === 'signed_out' ? 'signed_out' : code === 'taken' ? 'taken' : 'failed'));
+  }
+}
+
+// The code checked (typed in, or in the link clicked): a session, or the address linked to the signed-in account
+async function emailVerify(req, env, ctx, email, code, newPw) {
+  code = String(code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(code)) throw new ApiError(400, 'bad_code', 'The code is the 6 digits in the email.');
   if (newPw !== null) { passwordsReady(env); checkPassword(newPw, email); }
   const row = email ? await env.DB.prepare('SELECT code_hash, expires_at, tries, link_user FROM signin_codes WHERE email = ?').bind(email).first() : null;
   if (!row) throw new ApiError(404, 'no_code', 'Ask for a code first.');

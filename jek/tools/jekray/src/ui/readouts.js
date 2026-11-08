@@ -27,7 +27,7 @@ import { ampASE, ampGain, netPower, pkey } from '../engines/fibre.js';
 import { ELEC } from '../engines/elec.js';
 import { pdNetMw, pdSignal } from '../engines/detector.js';
 import { PIC_UI } from './pic.js';
-import { h, mainPanel, pinBoxes } from './panel.js';
+import { benchBox, h, mainPanel, pinBoxes } from './panel.js';
 import { cellInfo, portPower, portRows } from './panels.js';
 import { blockedPct, pctOfSources, viaCavity } from '../engines/pd-cavity.js';
 import { screenStats } from '../engines/screen-stats.js';
@@ -39,6 +39,7 @@ import { screenStats } from '../engines/screen-stats.js';
 export function updateReadouts() {
   const sel = selected();
   if (mainPanel.style.display !== 'none') updateReadoutsIn(mainPanel, sel);
+  if (benchBox.style.display !== 'none') updateReadoutsIn(benchBox, null);
   for (const [id, box] of pinBoxes) updateReadoutsIn(box, getEl(id));
 }
 

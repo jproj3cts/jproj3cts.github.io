@@ -209,16 +209,16 @@
   .rt-stage canvas.rotate { cursor: crosshair; }
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
-  /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
-     chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
-  .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
-    box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
+  /* the tab on the bench's left edge, half way up: brings the Bench panel out on the left, or puts it away (its
+     chevron turns); the parts' panels open on the right, apart, each with its own × */
+  .rt-sidetab { position: absolute; left: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 6px 6px 0;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
-  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
-  .rt-sidetab.open .chev { transform: scaleX(-1); }
-  /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
-  .rt-pin.rt-mainclose { display: none; }
+  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; transform: scaleX(-1); }
+  .rt-sidetab.open .chev { transform: none; }
+  /* the Bench panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
+  .rt-pin.rt-benchclose { display: none; }
   body.rt-embed .rt-sidetab { display: none; }
   .rt-coords {
     position: absolute;
@@ -621,7 +621,9 @@
   .rt-secbtn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-sec.shut > .rt-secbody { display: none; }
   .rt-sec + .rt-tabs { margin-top: 0.7rem; padding-top: 0.35rem; border-top: 1px solid var(--jek-line); }
-  .rt-about h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-about h4, .rt-aboutpart h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-aboutpart h4 { font-size: 0.8rem; margin-top: 0.9rem; }
+  .rt-aboutpart p { line-height: 1.55; }
   .rt-sweep-toggle:focus-visible, .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-inline { display: flex; gap: 1rem; }
   .rt-stack {
@@ -1137,6 +1139,7 @@
   .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
   .rt-tbl .ic { width: 15px; height: 15px; }
   .rt-bar .rt-file { margin: 0 auto; }
+  .rt-bar .rt-file.rt-squeezed { visibility: hidden; }
   /* centred on the page when it clears both sides (ui/tours.js centreName) */
   @media (min-width: 961px) {
     .rt-bar { position: relative; }
@@ -1222,11 +1225,12 @@
   .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
   .rt-imenu .sep { height: 1px; margin: 4px 0; background: var(--jek-line); }
   /* an item present but not possible now (not signed in, no plan): a greyed box that says why, and offers the way */
-  .rt-imenu > button.rt-off, .rt-ctx button.rt-off { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
-  .rt-imenu > button.rt-off:hover, .rt-imenu > button.rt-off:focus-visible, .rt-ctx button.rt-off:hover { background: var(--jek-well); color: var(--jek-ink-soft); }
-  .rt-imenu > button.rt-off .ic { opacity: 0.45; }
+  /* greyed only when it cannot be had: one with a Pro or Free account chip looks as any other, the chip saying what it needs */
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed), .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed) { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover, .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):focus-visible, .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover { background: var(--jek-well); color: var(--jek-ink-soft); }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed) .ic { opacity: 0.45; }
   .rt-menu.rt-imenu > button.rt-off .k.rt-why, .rt-ctx button.rt-off .k.rt-why { font: 600 0.68rem var(--jek-sans, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
-  .rt-btn.rt-off { opacity: 0.5; }
+  .rt-btn.rt-off:not(.rt-proneed):not(.rt-acctneed) { opacity: 0.5; }
   .rt-imenu .rt-menunote { padding: 0.25rem 0.9rem 0.2rem 2.35rem; font-size: 0.75rem; }
   .rt-imenu [aria-checked="false"] .ic { opacity: 0; }
   .rt-imenu .rt-dot { margin-left: 0.35rem; }
@@ -1247,7 +1251,7 @@
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
-    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 8rem; max-width: 26rem; }
+    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
   @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
@@ -1768,7 +1772,7 @@
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
-  .rt-pin.rt-mainclose { display: inline-grid; }
+  .rt-pin.rt-mainclose, .rt-pin.rt-benchclose { display: inline-grid; }
   .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 48px; height: 18px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
   .rt-sidetab .chev { transform: rotate(90deg); }
   .rt-sidetab.open { display: none; }
@@ -1790,26 +1794,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 /* the university line under a prompt's account offer, and the tour's last step, whose buttons wrap */
 .rt-welcome.rt-nudge p.rt-uni, dialog.rt-dialog p.rt-uni { font-size: 0.8rem; }
 .rt-welcome.rt-coach .rt-actions { flex-wrap: wrap; }
-/* the note for a visit from Instagram (landing.js): the reels' benches, a row each, its picture then its words */
-.rt-welcome.rt-landing p { margin: 0 0 0.5rem; color: var(--jek-ink-soft); }
-.rt-welcome .rt-reels { margin: 0 0 0.6rem; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
-/* more than three: the three newest in view, the rest scrolled to (ui/landing.js reelsFit) */
-.rt-welcome .rt-reels.more { overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-width: thin; }
-.rt-welcome .rt-reels.more:not(.end) { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
-.rt-reel { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.3rem; text-align: left; font: inherit; color: var(--jek-ink); background: var(--jek-panel);
-  border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; transition: border-color 0.15s; }
-.rt-reel:hover, .rt-reel:focus-visible { border-color: var(--jek-cyan); outline: none; }
-.rt-reel.on { border-color: var(--jek-cyan); }
-.rt-reel img, .rt-reel i { flex: none; display: block; width: 4.8rem; height: 3rem; object-fit: cover; border-radius: 2px; background: #1f2529; }
-.rt-reel span { min-width: 0; }
-.rt-reel b { display: block; font-size: 0.85rem; line-height: 1.3; }
-.rt-reel small { display: block; font-size: 0.78rem; line-height: 1.35; color: var(--jek-ink-soft); }
-.rt-welcome.rt-landing .rt-actions { flex-wrap: wrap; }
-.rt-welcome.rt-landing, #welcome, .rt-coach { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
+#welcome, .rt-coach { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
 .rt-landacct { border-top: 1px solid var(--jek-line, #ddd5c6); padding-top: 0.55rem; margin-bottom: 0.4rem; }
 .rt-landacct p { font-size: 0.85rem; }
 /* Recording mode (ui/boot.js kioskSet): the bench alone */
-.rt-kiosk .rt-activity, .rt-kiosk #emptyHint, .rt-kiosk #igLanding, .rt-kiosk #welcome, .rt-kiosk .rt-nudge, .rt-kiosk .rt-coach, .rt-kiosk .rt-toast,
+.rt-kiosk .rt-activity, .rt-kiosk #emptyHint, .rt-kiosk #welcome, .rt-kiosk .rt-nudge, .rt-kiosk .rt-coach, .rt-kiosk .rt-toast,
 .rt-kiosk .rt-panel, .rt-kiosk #minimap, .rt-kiosk .rt-coords, .rt-kiosk .rt-sidetab, .rt-kiosk .rt-drawhint, .rt-kiosk .rt-picker { display: none !important; }
 .rt-kiosk .rt-grid { grid-template-columns: 1fr !important; }
 .rt-kiosk-all .rt-rail, .rt-kiosk-all .rt-flyout, .rt-kiosk-all .rt-benchtabs, .rt-kiosk-all .rt-v3dswitch { display: none !important; }
@@ -1895,10 +1884,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
 /* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
    under it with what the moment needs; the hint goes to the bottom while they are on */
-.rt-mdltop { position: absolute; left: 0.6rem; right: 124px; top: calc(var(--rt-top) + 6px); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+/* the sketch's tools hang from the parts rail, under its Model, Sketch, Extrude and Revolve: joined to it, as one piece */
+.rt-mdltop { position: absolute; left: 0; right: 124px; top: calc(var(--rt-top) - 1px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
 .rt-mdltop[hidden] { display: none; }
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
+.rt-mdltop > .rt-tbar { border-top-left-radius: 0; }
 .rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
 .rt-tbsub:empty, .rt-tbar:empty { display: none; }
 .rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
@@ -1955,6 +1946,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
 .rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
 .rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }
+/* Get Pro, in the bar: for anyone without JEKrayPro; the plans and prices, signed in or not */
+.rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
+.rt-btn.rt-getpro:hover { filter: brightness(1.08); }
+.rt-btn.rt-getpro[hidden] { display: none; }
   /* JEKion: what it adds to JEKray's style (which it shares, loaded before this) */
   .ion-simbar { position: absolute; left: 50%; bottom: 0.75rem; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem);
     padding: 0.35rem 0.8rem; font-size: 0.8125rem; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 2px; pointer-events: none; white-space: nowrap; }
@@ -1992,6 +1987,13 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .rt-imenu .ion-mshape { display: flex; flex-direction: column; align-items: flex-start; }
   .rt-imenu .ion-mshape small { font-size: 0.72rem; color: var(--jek-ink-soft); font-weight: 400; }
   .rt-stage canvas.picking { cursor: crosshair; }
+  /* the potential plots: a row of label, segmented choice and Clear; a row of label, select and Plot */
+  .ion-plotrow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.3rem 0 0.5rem; }
+  .ion-plotrow .ion-plotlbl { font-size: 0.85rem; color: var(--jek-ink-soft); }
+  .ion-plotrow .rt-subtabs { margin-bottom: 0; }
+  .ion-plotrow .rt-subtabs .rt-btn { padding: 0.25rem 0.7rem; }
+  .ion-plotrow .rt-btn.quiet { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
+  .ion-plotrow select { flex: 1; min-width: 6rem; }
 </style>
 </head>
 <body>
@@ -2039,16 +2041,32 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view<span class="k">F</span></button>
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" title="The electrodes and trajectories in three dimensions">3D view</button>
             <div class="sep"></div>
-            <button type="button" role="menuitemradio" data-plane="xy" aria-checked="true" data-icon="check">Cut: x–y plane</button>
-            <button type="button" role="menuitemradio" data-plane="xz" aria-checked="false" data-icon="check">Cut: x–z plane</button>
-            <button type="button" role="menuitemradio" data-plane="yz" aria-checked="false" data-icon="check">Cut: y–z plane</button>
-            <div class="sep"></div>
-            <button type="button" role="menuitemradio" data-pot="none" aria-checked="false" data-icon="check">Potential: not drawn</button>
-            <button type="button" role="menuitemradio" data-pot="map" aria-checked="true" data-icon="check">Potential: colour map</button>
-            <button type="button" role="menuitemradio" data-pot="contours" aria-checked="false" data-icon="check">Potential: equipotentials</button>
-            <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Potential: both</button>
-            <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential">Field strength |E|</button>
-            <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Trajectories</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="cut" id="cutItem" title="The plane the bench cuts through a three-dimensional array (keys 1, 2, 3; Page up and down move it)">Cut
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemradio" data-plane="xy" aria-checked="true" data-icon="check">x–y plane<span class="k">1</span></button>
+                <button type="button" role="menuitemradio" data-plane="xz" aria-checked="false" data-icon="check">x–z plane<span class="k">2</span></button>
+                <button type="button" role="menuitemradio" data-plane="yz" aria-checked="false" data-icon="check">y–z plane<span class="k">3</span></button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="pot" title="How the potential on the cut is drawn">Potential
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemradio" data-pot="none" aria-checked="false" data-icon="check">Not drawn</button>
+                <button type="button" role="menuitemradio" data-pot="map" aria-checked="true" data-icon="check">Colour map</button>
+                <button type="button" role="menuitemradio" data-pot="contours" aria-checked="false" data-icon="check">Equipotentials</button>
+                <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Map and equipotentials</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential; the equipotentials stay the potential’s">Field strength |E| as the map</button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="paths" title="The flown paths and what colours them">Paths
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Drawn</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitemradio" data-colour="group" aria-checked="true" data-icon="check">Coloured by ion group</button>
+                <button type="button" role="menuitemradio" data-colour="ke" aria-checked="false" data-icon="check">Coloured by energy</button>
+                <button type="button" role="menuitemradio" data-colour="time" aria-checked="false" data-icon="check">Coloured by time</button>
+              </div>
+            </div>
             <button type="button" role="menuitemcheckbox" id="btnGridShow" aria-checked="true" data-icon="check">Array outline and nodes</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
@@ -2056,6 +2074,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             </div>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
           </div>
+        </div>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an electrode, a CAD body, an ion group or a detector on the bench (A)">Insert</button>
+          <div class="rt-menu rt-imenu" id="addMenu" role="menu" hidden></div>
         </div>
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu">Tools</button>
@@ -2099,10 +2121,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <div class="rt-more">
-            <button class="rt-btn rt-tbl" id="btnAdd" type="button" data-icon="parts" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Add an electrode, an ion group or a detector (A)">+ Add</button>
-            <div class="rt-menu rt-menu-right rt-imenu" id="addMenu" role="menu" hidden></div>
-          </div>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekion</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
@@ -3178,20 +3196,23 @@ const KCOUL = 8.9875517923e9;          // N m² / C²
 const qmOf = (charge, massU) => charge * QE / (Math.max(1e-12, massU) * AMU);
 /* the rest energy, eV */
 const restEv = massU => massU * AMU * (C_MMUS * 1e3) ** 2 / QE;
-/* a kinetic energy as a speed, mm/µs, relativistically (an electron at 100 keV: 0.55 c) */
+/* a kinetic energy as a speed, mm/µs, relativistically (an electron at 100 keV: 0.55 c). Written in x = KE / mc²
+   rather than γ = 1 + x, so a heavy particle, whose x is below the double's resolution of 1 (a nanosphere at
+   thermal energy: 1e-21), still moves: γ² − 1 = x (2 + x). */
 function speedOfKE(keEv, massU) {
-  const g = 1 + Math.max(0, keEv) / restEv(massU);
-  return C_MMUS * Math.sqrt(Math.max(0, 1 - 1 / (g * g)));
+  const x = Math.max(0, keEv) / restEv(massU);
+  return C_MMUS * Math.sqrt(x * (2 + x)) / (1 + x);
 }
 /* the proper speed u = γv of that kinetic energy, mm/µs: what the tracer integrates */
 function properSpeedOfKE(keEv, massU) {
-  const g = 1 + Math.max(0, keEv) / restEv(massU);
-  return C_MMUS * Math.sqrt(Math.max(0, g * g - 1));
+  const x = Math.max(0, keEv) / restEv(massU);
+  return C_MMUS * Math.sqrt(x * (2 + x));
 }
-/* the kinetic energy, eV, of a proper speed u (mm/µs) */
+/* the kinetic energy, eV, of a proper speed u (mm/µs): (γ − 1) mc² with γ − 1 = w / (γ + 1), w = (u/c)², exact for
+   the smallest speeds too */
 function keOfProper(u, massU) {
-  const g = Math.sqrt(1 + (u / C_MMUS) ** 2);
-  return (g - 1) * restEv(massU);
+  const w = (u / C_MMUS) ** 2;
+  return w / (Math.sqrt(1 + w) + 1) * restEv(massU);
 }
 const gammaOfProper = u => Math.sqrt(1 + (u / C_MMUS) ** 2);
 /* a few particles people fly, by name: mass in u, charge in e */
@@ -5271,6 +5292,7 @@ function requestSlice() {
   clearTimeout(sliceTimer);
   sliceTimer = setTimeout(async () => {
     if (!project) return;
+    cutInside();
     const key = geometryKey(project) + voltageKey(project) + V().plane + V().slice + project.show.efield;
     if (key === SIM.skey && SIM.slice) return;
     try {
@@ -5280,6 +5302,18 @@ function requestSlice() {
       hooks.requestRender(); hooks.ionLegend();
     } catch (err) { console.warn('JEKion slice:', err); say('Could not compute the fields: ' + err.message, false); }
   }, 60);
+}
+/* the cut's position along the plane's perpendicular is kept while it is within the array; outside (a file saved
+   on another plane, the array moved, Page down past the edge) it goes to the analysis point's coordinate there,
+   or failing that to the array's middle: a cut through nothing draws nothing, which reads as the fields missing */
+function cutInside() {
+  const G = project.grid;
+  if (G.sym !== '3d') return;
+  const [, , ip] = PLANES[V().plane], lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip];
+  if (V().slice >= lo && V().slice <= hi) return;
+  const pt = project.point && project.point[ip], at = pt >= lo && pt <= hi ? pt : (lo + hi) / 2;
+  V().slice = +(Math.round(at / G.h) * G.h).toPrecision(8);
+  hooks.requestRender();
 }
 function progress(p) {
   if (!p) return;
@@ -5366,7 +5400,7 @@ function setDrawnOnce(fn) { return (drawnOnce = fn); }
 function requestRender() {
   if (renderQueued || !canvas) return;
   renderQueued = true;
-  requestAnimationFrame(() => { renderQueued = false; render(); });
+  requestAnimationFrame(() => { renderQueued = false; render(); if (hooks.ionDraw3d) hooks.ionDraw3d(); });    // the 3D view follows every redraw: a new cut, a View option
 }
 /* ---------- theme ---------- */
 const THEME_KEY = 'jek-rt-theme';
@@ -5461,6 +5495,36 @@ function contoursOf(S, levels) {
   return out;
 }
 let contourCache = { key: '', list: [] };
+/* the slice's equipotentials at n nice levels over the map's range (cached by slice and count) */
+function contourList(S, n) {
+  const key = S.id + '|' + n;
+  if (contourCache.key !== key) {
+    // the potential's own range (the map may be |E|'s)
+    let lo = Infinity, hi = -Infinity; for (let i = 0; i < S.nu * S.nv; i++) { const v = S.pot[i]; if (v === v && S.mask[i] < 0) { if (v < lo) lo = v; if (v > hi) hi = v; } }
+    if (!(hi > lo)) { lo = Math.min(lo, 0); hi = lo + 1; }
+    const lv = [];
+    const st = niceStep((hi - lo) / n) || 1;
+    for (let L = Math.ceil(lo / st) * st; L <= hi; L += st) lv.push(L);
+    contourCache = { key, list: contoursOf(S, lv.length ? lv : [(lo + hi) / 2]) };
+  }
+  return contourCache.list;
+}
+/* the cut as the 3D view textures it: the map (or |E|) and/or the equipotentials as the View menu has them, drawn at
+   px pixels a node; null when nothing is to be drawn */
+function cutCanvasFor(S, show, px = 4) {
+  const efield = show.efield && S.emag, map = show.pot === 'map' || show.pot === 'both', lines = show.pot === 'contours' || show.pot === 'both';    // |E| takes the map's place; the equipotentials are the potential's whatever the map
+  if (!map && !lines) return null;
+  const img = mapCanvasFor(S, efield);    // sets the map's range, which the levels use
+  const cv = document.createElement('canvas'); cv.width = S.nu * px; cv.height = S.nv * px;
+  const c = cv.getContext('2d');
+  if (map) { c.imageSmoothingEnabled = true; c.drawImage(img, 0, 0, cv.width, cv.height); }
+  if (lines) {
+    c.lineWidth = Math.max(1, px / 3); c.strokeStyle = themeDark() ? 'rgba(255,255,255,0.8)' : 'rgba(40,30,20,0.8)'; c.beginPath();
+    for (const { segs } of contourList(S, show.contours)) for (const q of segs) { c.moveTo((q[0] + 0.5) * px, cv.height - (q[1] + 0.5) * px); c.lineTo((q[2] + 0.5) * px, cv.height - (q[3] + 0.5) * px); }
+    c.stroke();
+  }
+  return cv;
+}
 
 function render() {
   if (!W || !H || !project) return;
@@ -5489,15 +5553,9 @@ function render() {
       }
       c.restore();
     };
-    if (show.pot === 'map' || show.pot === 'both' || efield) { drawMap(false); if (mirror) drawMap(true); }
-    if ((show.pot === 'contours' || show.pot === 'both') && !efield && S.nv > 1) {
-      const key = S.id + '|' + show.contours;
-      if (contourCache.key !== key) {
-        const R = mapRange || [0, 1], lo = R[0], hi = R[1], n = show.contours, lv = [];
-        const st = niceStep((hi - lo) / n) || 1;
-        for (let L = Math.ceil(lo / st) * st; L <= hi; L += st) lv.push(L);
-        contourCache = { key, list: contoursOf(S, lv.length ? lv : [(lo + hi) / 2]) };
-      }
+    if (show.pot === 'map' || show.pot === 'both') { drawMap(false); if (mirror) drawMap(true); }    // as |E| when that is on
+    if ((show.pot === 'contours' || show.pot === 'both') && S.nv > 1) {
+      contourList(S, show.contours);
       c.save(); c.lineWidth = 1; c.strokeStyle = themeDark() ? 'rgba(255,255,255,0.55)' : 'rgba(40,30,20,0.55)';
       const draw = flip => { c.beginPath(); for (const { segs } of contourCache.list) for (const s of segs) { c.moveTo(sx(sU0 + s[0] * S.h), sy(flip ? -(sV0 + s[1] * S.h) : sV0 + s[1] * S.h)); c.lineTo(sx(sU0 + s[2] * S.h), sy(flip ? -(sV0 + s[3] * S.h) : sV0 + s[3] * S.h)); } c.stroke(); };
       draw(false); if (mirror) draw(true);
@@ -5558,6 +5616,7 @@ function render() {
   }
   // the electrodes' names and voltages
   c.save(); c.font = '600 11px ' + getCss('--jek-sans'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = inkA(0.85);
+  const placed = [];    // labels drawn so far, [x, y] in pixels: one on top of another steps down a line
   for (const el of project.electrodes) {
     if (el.on === false) continue;
     const [u, v] = uvOf([el.x, el.y, el.z]);
@@ -5565,7 +5624,10 @@ function render() {
     let lu = u, lv = v;
     if (polys && polys[0]) { let su = 0, sv = 0, n = 0; for (const [a, b] of polys[0]) { su += a; sv += b; n++; } lu = su / n; lv = sv / n; if (polys.length > 1) lv = Math.max(...polys[0].map(p => p[1])); }
     const text = el.name + ' · ' + fmtVolt(el.V) + (el.rf && el.rf.on ? ' ± ' + fmtVolt(el.rf.amp) + ' RF' : '');
-    c.fillText(text, sx(lu), sy(lv) - 10);
+    const w = c.measureText(text).width; let X = sx(lu), Y = sy(lv) - 10;
+    for (let k = 0; k < placed.length; k++) { const [px, py, pw] = placed[k]; if (Math.abs(py - Y) < 12 && Math.abs(px - X) < (w + pw) / 2) { Y = py + 13; k = -1; } }
+    placed.push([X, Y, w]);
+    c.fillText(text, X, Y);
   }
   c.restore();
   // a line a potential is plotted along
@@ -5682,6 +5744,20 @@ const safeFileName = name => (name || 'bench').replace(/[\\/:*?"<>|]+/g, '').rep
 let unsaved = false;
 function markUnsaved(on) { unsaved = !!on; const d = document.getElementById('saveDot'); if (d) d.hidden = !on; }
 /* after any change: the panel (rebuilt or refreshed), the buttons, the autosave, a redraw, and the simulation told */
+/* the bench's name field is as wide as its text (within the bar's room), so a long name is read whole */
+let nameCtx = null;
+function fitName() {
+  const inp = document.getElementById('projName'); if (!inp) return;
+  nameCtx = nameCtx || document.createElement('canvas').getContext('2d');
+  nameCtx.font = getComputedStyle(inp).font;
+  const w = nameCtx.measureText(inp.value || inp.placeholder || '').width + 28;
+  const px = Math.max(96, Math.min(w, Math.max(160, window.innerWidth * 0.34))) + 'px';
+  inp.style.width = px; inp.style.flexBasis = px;
+}
+/* fit whichever view is showing: the 3D view when it is on (through its hook), else the bench */
+function fitAny() { if (!(hooks.ionFit3d && hooks.ionFit3d())) fitView(); }
+/* cut through another plane; a cut outside the array is brought inside by the slice request */
+function setPlane(plane) { V().plane = plane; viewMenuShown(); changed(false); }
 function changed(rebuildPanel) {
   if (rebuildPanel) renderPanel(); else syncPanel();
   updateUndoButtons();
@@ -5761,7 +5837,7 @@ function benchMenu(X, Y, hit, at) {
   const point = { label: 'Analysis point here', fn: () => { checkpoint(); project.point = at.map(v => snapTo(v)); changed(true); toast('The trap analysis is done at this point'); } };
   if (!hit) {
     showCtxMenu(X, Y, [{ label: 'Add an electrode here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
-      { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitView }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
+      { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitAny }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
     return;
   }
   if (hit.id !== selectedId) selectOne(hit.id);
@@ -5805,19 +5881,20 @@ function wireActions() {
     const b = e.target.closest('[data-edit]'); if (!b) return;
     if (b.dataset.edit === 'dup') duplicateSel(false); else if (b.dataset.edit === 'mirror') duplicateSel(true); else if (b.dataset.edit === 'del') removeSel();
   });
-  document.getElementById('btnFit').addEventListener('click', fitView);
+  document.getElementById('btnFit').addEventListener('click', fitAny);
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); });
   document.getElementById('btnSideTab').addEventListener('click', () => { const open = document.getElementById('panel').style.display !== 'none'; if (open) { setSelectedId(null); setPanelClosed(true); } else { setSelectedId(null); setPanelClosed(false); } renderPanel(); requestRender(); });
   document.getElementById('viewMenu').addEventListener('click', e => {
-    const p = e.target.closest('[data-plane]'), q = e.target.closest('[data-pot]');
-    if (p) { V().plane = p.dataset.plane; viewMenuShown(); changed(false); }
+    const p = e.target.closest('[data-plane]'), q = e.target.closest('[data-pot]'), r = e.target.closest('[data-colour]');
+    if (p) { setPlane(p.dataset.plane); }
     if (q) { checkpoint(); project.show.pot = q.dataset.pot; viewMenuShown(); changed(false); }
+    if (r) { checkpoint(); project.show.colourBy = r.dataset.colour; viewMenuShown(); requestRender(); }
   });
   document.getElementById('btnEfield').addEventListener('click', () => { checkpoint(); project.show.efield = !project.show.efield; viewMenuShown(); changed(false); });
   document.getElementById('btnTraj').addEventListener('click', () => { checkpoint(); project.show.traj = !project.show.traj; viewMenuShown(); requestRender(); });
   document.getElementById('btnGridShow').addEventListener('click', () => { checkpoint(); project.show.grid = !project.show.grid; viewMenuShown(); requestRender(); });
   document.getElementById('btnAuto').addEventListener('click', () => { project.fly.auto = !project.fly.auto; viewMenuShown(); scheduleSave(); if (project.fly.auto) simChanged(); });
-  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); scheduleSave(); markUnsaved(true); });
+  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); fitName(); scheduleSave(); markUnsaved(true); });
   // the keyboard
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey;
@@ -5831,10 +5908,10 @@ function wireActions() {
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId) { e.preventDefault(); removeSel(); } return; }
     if (e.key === 'Escape') { if (hooks.ionBusy()) hooks.ionStop(); else { setSelectedId(null); renderPanel(); requestRender(); } return; }
     if (e.key === ' ') { e.preventDefault(); flyNow(); return; }
-    if (e.key === 'f' || e.key === 'F') { fitView(); return; }
+    if (e.key === 'f' || e.key === 'F') { fitAny(); return; }
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }
-    if (e.key === '1' || e.key === '2' || e.key === '3') { V().plane = ['xy', 'xz', 'yz'][+e.key - 1]; viewMenuShown(); changed(false); return; }
+    if (e.key === '1' || e.key === '2' || e.key === '3') { setPlane(['xy', 'xz', 'yz'][+e.key - 1]); return; }
     if (e.key === 'PageUp' || e.key === 'PageDown') { V().slice = +(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h).toPrecision(8); changed(false); return; }
     if (/^Arrow/.test(e.key) && selectedId) {
       const s = selectedItem(); if (!s || s.el.locked) return;
@@ -5853,11 +5930,12 @@ function viewMenuShown() {
   if (!project) return;
   for (const b of document.querySelectorAll('[data-plane]')) b.setAttribute('aria-checked', String(b.dataset.plane === V().plane));
   for (const b of document.querySelectorAll('[data-pot]')) b.setAttribute('aria-checked', String(b.dataset.pot === project.show.pot));
+  for (const b of document.querySelectorAll('[data-colour]')) b.setAttribute('aria-checked', String(b.dataset.colour === project.show.colourBy));
   document.getElementById('btnEfield').setAttribute('aria-checked', String(!!project.show.efield));
   document.getElementById('btnTraj').setAttribute('aria-checked', String(!!project.show.traj));
   document.getElementById('btnGridShow').setAttribute('aria-checked', String(!!project.show.grid));
   document.getElementById('btnAuto').setAttribute('aria-checked', String(!!project.fly.auto));
-  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name;
+  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name; fitName();
   const cyl = project.grid.sym !== '3d';
   for (const b of document.querySelectorAll('[data-plane]')) b.disabled = cyl && b.dataset.plane !== 'xy';
 }
@@ -6254,11 +6332,8 @@ function benchPanel() {
   box.append(potentialSection());
   // display
   const S = project.show;
-  box.append(section('Display', 'bench.show', [rows(selectField('Potential', Object.entries(POT_SHOWS), () => S.pot, v => { S.pot = v; }, { rebuild: false }), param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }),
-    checkField('Field strength |E| instead', () => S.efield, v => { S.efield = v; }, { wide: true, rebuild: false }), checkField('Trajectories', () => S.traj, v => { S.traj = v; }, { rebuild: false }), selectField('Colour paths by', Object.entries(COLOUR_BYS), () => S.colourBy, v => { S.colourBy = v; }, { rebuild: false }), checkField('Array outline and nodes', () => S.grid, v => { S.grid = v; }, { rebuild: false }),
-    G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
-  // notes
-  box.append(section('Notes', 'bench.notes', [(() => { const ta = h('textarea', { rows: 4, spellcheck: 'true', style: 'width:100%;box-sizing:border-box;font:inherit;font-size:0.85rem' }); ta.value = project.notes; ta.addEventListener('change', () => { checkpoint(); project.notes = ta.value.slice(0, 4000); changed(false); }); return ta; })()], false));
+  // the display: the View menu holds the toggles (cut plane, potential, |E|, paths and their colouring, the outline); here only the numbers
+  box.append(section('Display', 'bench.show', [rows(param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }), G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
   // results
   if (SIM.result) box.append(resultsSection());
 }
@@ -6275,36 +6350,54 @@ function fitArray() {
   if (G.sym === '3d') { G.z0 = +(lo[2] - m).toPrecision(6); G.z1 = +(hi[2] + m).toPrecision(6); }
 }
 /* ---------- potential plots ----------
-   The potential along the axis, across it at an x, along a line picked with two clicks on the bench, or along a flown
+   The potential along x, y (r) or z through the analysis point, along a line picked with two clicks on the bench, or along a flown
    particle's path against time; the last one asked for is drawn again when the panel is rebuilt. */
-let potPlot = null;                 // { kind: 'axis' | 'across' | 'line' | 'path', x, a, b, gi, i }
+let potPlot = null;                 // { kind: 'axis' | 'line' | 'path', ax, a, b, k }
 function setPotPlot(v) { potPlot = v; hooks.renderPanel(); }
 function potentialSection() {
   const G = project.grid, out = h('div'), plotBox = h('div');
-  const [u0, u1] = arrayBox(), yMid = G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, zMid = G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0;
-  const across = { x: potPlot && potPlot.kind === 'across' ? potPlot.x : +(((G.x0 + G.x1) / 2).toPrecision(4)) };
-  const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
-  const acts = h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' },
-    btn('Along the x axis', 'The potential along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + ' from one edge of the array to the other', () => setPotPlot({ kind: 'axis' })),
-    btn('Across, at x', 'The potential along y (the radius, in a cylindrical array) at the x given', () => setPotPlot({ kind: 'across', x: across.x })),
-    btn('Along a line…', 'Click two points on the bench: the potential along the line between them', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
-  out.append(rows(param('x for the plot across (mm)', across, 'x', { after: v => { if (potPlot && potPlot.kind === 'across') potPlot.x = v; } })), acts);
+  // the lines run from edge to edge of the array through the analysis point, or its centre without one
+  const cyl = G.sym === 'cyl', c = plotCentre(), btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
+  const thr = 'through ' + (project.point ? 'the analysis point' : 'the array\u2019s centre') + ' (' + c.map(v => nf(v, 4)).join(', ') + ' mm)';
+  // one row: "Potential along" and a segmented choice, the current plot's button marked; the path's select and its button on the next
+  const cur = potPlot && potPlot.kind === 'axis' ? potPlot.ax : potPlot && potPlot.kind === 'line' ? 'line' : null;
+  const tab = (label, title, on, fn) => h('button', { type: 'button', class: 'rt-btn', 'aria-checked': String(on), title, onclick: fn }, label);
+  const group = h('div', { class: 'rt-subtabs', role: 'group', 'aria-label': 'The potential along' },
+    tab('x', 'The potential along x ' + thr, cur === 0, () => setPotPlot({ kind: 'axis', ax: 0 })),
+    tab(cyl ? 'r' : 'y', 'The potential along ' + (cyl ? 'the radius, across the axis,' : 'y') + ' ' + thr, cur === 1, () => setPotPlot({ kind: 'axis', ax: 1 })),
+    G.sym === '3d' ? tab('z', 'The potential along z ' + thr, cur === 2, () => setPotPlot({ kind: 'axis', ax: 2 })) : null,
+    tab('a line\u2026', 'Click two points on the bench: the potential along the line between them', cur === 'line', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
+  out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along'), group, potPlot ? h('button', { type: 'button', class: 'rt-btn quiet', title: 'Take the plot away, and the picked line off the bench', onclick: () => setPotPlot(null) }, 'Clear') : null));
   if (SIM.result && SIM.result.particles.length) {
-    const ps = SIM.result.particles.slice(0, 200), sel = selectField('Along a particle\u2019s path', ps.map((p, k) => [String(k), ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i]), () => String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0), v => { setPotPlot({ kind: 'path', k: +v }); }, { wide: true, rebuild: false });
-    out.append(rows(sel), h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' }, btn('Plot along the path', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.querySelector('select').value }))));
+    // choosing a particle plots the potential it saw against time; the plot follows each flight
+    const ps = SIM.result.particles.slice(0, 200), sel = h('select', { 'aria-label': 'The particle whose path to plot along', title: 'The potential the particle saw, against time' }, h('option', { value: '' }, '\u2014'), ...ps.map((p, k) => h('option', { value: String(k) }, ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i)));
+    sel.value = potPlot && potPlot.kind === 'path' ? String(potPlot.k) : '';
+    sel.addEventListener('change', () => { if (sel.value !== '') setPotPlot({ kind: 'path', k: +sel.value }); else if (potPlot && potPlot.kind === 'path') setPotPlot(null); });
+    out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along the path of'), sel));
   }
   out.append(plotBox);
-  if (potPlot) drawPotPlot(potPlot, plotBox, u0, u1, yMid, zMid);
+  if (potPlot) drawPotPlot(potPlot, plotBox);
   else if (pickedLine) setPickedLine(null);
-  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along the axis and across it the line runs from edge to edge of the array; a picked line is kept on the bench (dashed) until another plot is asked for. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
+  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along x, y (r) or z the line runs from edge to edge of the array through the analysis point (right-click the bench to set it), or the array\u2019s centre; a picked line is kept on the bench (dashed, orange) until another plot is asked for or Clear. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
   return section('Potential plots', 'bench.pot', [out], true);
 }
 const rfNote = () => (project.electrodes.some(e => e.on !== false && e.rf && e.rf.on) ? ', at t = 0 (the RF at its peak)' : '');
-async function drawPotPlot(spec, box, u0, u1, yMid, zMid) {
+/* the point the axis lines pass through: the analysis point, else the array's centre (on the axis of a cylindrical array) */
+function plotCentre() {
+  const G = project.grid, p = project.point;
+  if (p) return [p[0], G.sym === 'cyl' ? 0 : p[1], G.sym === '3d' ? p[2] : 0];
+  return [(G.x0 + G.x1) / 2, G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0];
+}
+async function drawPotPlot(spec, box) {
   box.replaceChildren(h('p', { class: 'note' }, 'Plotting\u2026'));
   try {
-    if (spec.kind === 'axis') { const L = await potentialLine([u0, yMid, zMid], [u1, yMid, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => u0 + s), L.v, { title: 'Potential along the x axis', xl: 'x (mm)', yl: 'V', note: 'along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + rfNote() })); }
-    else if (spec.kind === 'across') { const G = project.grid, lo = G.sym === 'cyl' ? -G.y1 : G.y0, hi = G.y1; const L = await potentialLine([spec.x, lo, zMid], [spec.x, hi, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential across, at x = ' + nf(spec.x, 4) + ' mm', xl: (G.sym === 'cyl' ? 'r' : 'y') + ' (mm)', yl: 'V', note: 'at x = ' + nf(spec.x, 4) + ', z = ' + nf(zMid, 3) + rfNote() })); }
+    if (spec.kind === 'axis') {
+      const G = project.grid, ax = spec.ax || 0, c = plotCentre(), lo = ax === 0 ? G.x0 : ax === 1 ? (G.sym === 'cyl' ? -G.y1 : G.y0) : G.z0, hi = ax === 0 ? G.x1 : ax === 1 ? G.y1 : G.z1;
+      const a = c.slice(), b = c.slice(); a[ax] = lo; b[ax] = hi;
+      const name = ax === 0 ? 'x' : ax === 1 ? (G.sym === 'cyl' ? 'r' : 'y') : 'z', others = [0, 1, 2].filter(k => k !== ax && (k < 2 || G.sym === '3d')).map(k => ['x', 'y', 'z'][k] + ' = ' + nf(c[k], 4)).join(', ');
+      const L = await potentialLine(a, b, 400);
+      if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential along ' + name, xl: name + ' (mm)', yl: 'V', note: 'along ' + others + rfNote() }));
+    }
     else if (spec.kind === 'line') { const L = await potentialLine(spec.a, spec.b, 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s, L.v, { title: 'Potential along the line', xl: 'distance (mm)', yl: 'V', note: 'from ' + spec.a.map(v => nf(v, 4)).join(', ') + ' to ' + spec.b.map(v => nf(v, 4)).join(', ') + rfNote() })); if (!pickedLine) setPickedLine({ a: spec.a, b: spec.b }); }
     else if (spec.kind === 'path') {
       const p = SIM.result && SIM.result.particles[spec.k]; if (!p) { box.replaceChildren(); return; }
@@ -6342,7 +6435,7 @@ function resultsSection() {
   const live = project.electrodes.filter(e => e.on !== false), perEl = live.map((el, k) => [el, P.filter(p => (p.end.why === 'splat' || p.end.why === 'start') && p.end.el === k).length]).filter(x => x[1]);
   const body = [h('div', { class: 'ion-res' }, readout([['Ions flown', n + ' in ' + nf(R.ms / 1000, 2) + ' s'], ...Object.entries(ends).map(([w, k]) => [END_WORDS[w], k + ' (' + nf(100 * k / n, 3) + '%)'])]), bar)];
   if (perEl.length) body.push(h('table', { class: 'ion-table' }, h('tr', null, h('th', null, 'Electrode'), h('th', null, 'Hit by')), ...perEl.map(([el, k]) => h('tr', null, h('td', null, h('span', { class: 'ion-sw', style: 'background:' + el.colour }), el.name), h('td', { class: 'n' }, String(k))))));
-  body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));
+  if (n >= 3) body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));    // a spread needs a few
   return section('Results of the last flight', 'bench.res', body);
 }
 /* what the panel shows: the selection's panel, else the bench's unless it was put away */
@@ -6524,6 +6617,7 @@ const NEWS = [
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
+    'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows, in three submenus, Cut, Potential and Paths (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the potential plots along x, y or z through the analysis point; the Notes section is gone; the end-time histogram waits for three ions.',
   ]],
 ];
 /* the examples: [id, title, blurb, tag] */
@@ -6692,7 +6786,7 @@ const V3D = (() => {
   const dark = () => document.documentElement.dataset.rtTheme === 'dark';
   /* the scene rebuilt from the project and the last flight */
   function build() {
-    const k = JSON.stringify([project.electrodes.map(e => [e.id, e.shape, e.x, e.y, e.z, e.axis, e.sx, e.sy, e.sz, e.r, e.L, e.rIn, e.rOut, e.r1, e.r2, e.wall, e.r0, e.rMax, e.z0, e.side, e.colour, e.on, e.mesh && e.mesh.n]), selectedId, SIM.when, SIM.slice && SIM.slice.id, project.grid, V().plane, V().slice, project.show.pot, project.show.efield, project.show.traj, project.ions.map(g => [g.x, g.y, g.z, g.colour, g.on]), project.detectors.map(d => [d.axis, d.at, d.x, d.y, d.z, d.half, d.colour, d.on]), dark()]);
+    const k = JSON.stringify([project.electrodes.map(e => [e.id, e.shape, e.x, e.y, e.z, e.axis, e.sx, e.sy, e.sz, e.r, e.L, e.rIn, e.rOut, e.r1, e.r2, e.wall, e.r0, e.rMax, e.z0, e.side, e.colour, e.on, e.mesh && e.mesh.n]), selectedId, SIM.when, SIM.slice && SIM.slice.id, project.grid, V().plane, V().slice, project.show.pot, project.show.contours, project.show.efield, project.show.traj, project.ions.map(g => [g.x, g.y, g.z, g.colour, g.on]), project.detectors.map(d => [d.axis, d.at, d.x, d.y, d.z, d.half, d.colour, d.on]), dark()]);
     if (k === key) return;
     key = k;
     const { groups, scene } = R, dispose = g => { for (const c of g.children) { if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } } g.clear(); };
@@ -6713,8 +6807,9 @@ const V3D = (() => {
     R.box = box;
     // the cut plane with the potential map
     const S = SIM.slice;
-    if (S && S.plane === V().plane && project.show.pot !== 'none' && S.nv > 1) {
-      const cv = mapCanvasFor(S, project.show.efield && S.emag), tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace;
+    const cutCv = S && S.plane === V().plane && S.nv > 1 ? cutCanvasFor(S, project.show) : null;
+    if (cutCv) {
+      const tex = new T.CanvasTexture(cutCv); tex.colorSpace = T.SRGBColorSpace;
       const du = S.h * S.nu, dv = S.h * S.nv, geo = new T.PlaneGeometry(du, dv), mat = new T.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: T.DoubleSide, depthWrite: false });
       const m = new T.Mesh(geo, mat), cu = S.u0 - S.h / 2 + du / 2, cvv = S.v0 - S.h / 2 + dv / 2;
       if (V().plane === 'xy') m.position.set(cu, cvv, G.sym === '3d' ? V().slice : 0);
@@ -6733,7 +6828,8 @@ const V3D = (() => {
       groups.misc.add(m);
     }
     // the ion groups' starts
-    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(Math.max(0.3, G.h * 0.8), 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
+    // a small sphere each: a third of a grid spacing, so it never hides a path a few cells across (a trapped ion's)
+    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(G.h * 0.35, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
     // the paths
     if (project.show.traj && SIM.result) {
       for (const p of SIM.result.particles) {
@@ -6798,7 +6894,7 @@ const V3D = (() => {
       drag = null;
     });
     cv.addEventListener('wheel', e => { e.preventDefault(); if (!R) return; zoom(Math.exp(e.deltaY * 0.0015)); draw(); }, { passive: false });
-    document.addEventListener('keydown', e => { if (!on || !R || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'f' || e.key === 'F') fit(); });
+    
     new ResizeObserver(() => { if (on && R) { size(); draw(); } }).observe(D.stage);
   }
   async function setOn(v) {
@@ -7074,7 +7170,7 @@ const MENU_ICONS = {
   image: 'M1.5 2.5H14.5V13.5H1.5Z M1.5 10.5L5.5 6.5L8.5 9.5L10.5 7.5L14.5 11.5', export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11',
   undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
   dup: 'M5 5H14V14H5Z M2 11V2H11', trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4 M6.5 6.5V11.5 M9.5 6.5V11.5', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10',
-  check: 'M3 8.5L6.5 12L13 4', theme: 'M8 1.5A6.5 6.5 0 1 0 8 14.5Z', parts: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', play: 'M4 2.5L13 8L4 13.5Z', pause: 'M4 2.5H6.5V13.5H4Z M9.5 2.5H12V13.5H9.5Z',
+  check: 'M3 8.5L6.5 12L13 4', theme: 'M8 1.5A6.5 6.5 0 1 0 8 14.5Z', cut: 'M2 12L14 12 M8 2L8 14 M2 4L14 4', pot: 'M2 13C5 13 5 3 8 3S11 13 14 13', paths: 'M2 12C5 12 5 4 8 8S11 12 14 4', parts: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', play: 'M4 2.5L13 8L4 13.5Z', pause: 'M4 2.5H6.5V13.5H4Z M9.5 2.5H12V13.5H9.5Z',
   target: 'M8 2A6 6 0 1 0 8 14A6 6 0 1 0 8 2 M8 5A3 3 0 1 0 8 11A3 3 0 1 0 8 5 M8 1V3 M8 13V15 M1 8H3 M13 8H15', flask: 'M6 1.5H10 M7 1.5V6L2.5 13.5H13.5L9 6V1.5', sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M11 6.5V9.5 M7 10.5V13.5',
   keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H5 M7 6.5H8 M10 6.5H11 M4 9.5H12', book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z', star: 'M8 1.5L9.9 6.1L14.5 6.5L11 9.6L12.1 14.5L8 12L3.9 14.5L5 9.6L1.5 6.5L6.1 6.1Z',
   quote: 'M3 3H7V8H4.5Q3 8 3 9.5V11 M9.5 3H13.5V8H11Q9.5 8 9.5 9.5V11', bug: 'M8 4A3.5 3.5 0 0 1 11.5 7.5V11A3.5 3.5 0 0 1 4.5 11V7.5A3.5 3.5 0 0 1 8 4Z M5 2.5L6.5 4 M11 2.5L9.5 4 M1.5 8H4.5 M11.5 8H14.5 M2.5 12.5L4.5 11 M13.5 12.5L11.5 11',
@@ -7098,7 +7194,7 @@ function legendShown() {
   box.hidden = false;
   const cv = h('canvas', { width: 120, height: 8 }), c = cv.getContext('2d');
   for (let i = 0; i < 120; i++) { c.fillStyle = viridisCss(i / 119); c.fillRect(i, 0, 1, 8); }
-  const f = v => (Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());
+  const span = Math.abs(mapRange[1] - mapRange[0]) || 1, f = v => (!mapLog && Math.abs(v) < 1e-4 * span ? '0' : Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());    // a 7e-9 floor reads 0
   box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm' + (mapLog ? ', log' : '') + ')' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
 }
 /* the theme menu */
@@ -7110,7 +7206,7 @@ function themeMenu() {
 
 installHooks({
   requestRender, renderPanel, syncPanel, toast,
-  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionHistory: () => ({ history, future }),
+  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionDraw3d: () => V3D.refresh(), ionFit3d: () => { if (!V3D.active()) return false; V3D.fit(); return true; }, ionHistory: () => ({ history, future }),
   ionViewMenu: viewMenuShown, ionBounds: shapeBounds, ionBusy: () => SIM.busy, ionStop: stopFly, ionMenuIcons: menuIcons, needsShown,
 });
 // the bench: restored from this browser, or the first one

@@ -15,7 +15,7 @@ function resend(status = 200) {
   });
   return sent;
 }
-const codeOf = (mail) => mail.text.match(/code is (\d{6})/)[1];
+const codeOf = (mail) => mail.text.match(/code into JEKray: (\d{6})/)[1];
 const start = (email, extra = {}, headers = {}) => send('/auth/email/start', 'POST', null, { email, ...extra }, headers);
 const code = (email, c, token) => send('/auth/email/code', 'POST', token, { email, code: c });
 const sessionOf = (res) => (res.headers.get('Set-Cookie') || '').match(/jek_session=([0-9a-f]{64})/);

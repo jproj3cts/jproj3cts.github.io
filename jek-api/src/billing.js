@@ -9,6 +9,10 @@
 // events arriving out of order cannot leave stale state behind.
 
 import { workspaceAccess } from './benches.js';
+import { academicEmail } from './academic.js';
+import { redirect, withOutcome } from './auth.js';
+import { createSession, currentUser } from './sessions.js';
+import { createUser } from './users.js';
 import { ApiError, now } from './util.js';
 
 const STRIPE = 'https://api.stripe.com/v1';
@@ -143,7 +147,7 @@ export async function checkout(req, env, user, wsId) {
     metadata: { workspace_id: a.ws, user_id: user.id },
     subscription_data: { metadata: { workspace_id: a.ws, user_id: user.id } },
     customer: customer || undefined,
-    customer_email: customer ? undefined : u && u.email ? u.email : undefined,
+    customer_email: customer ? undefined : body.email || (u && u.email) || undefined,
     allow_promotion_codes: 'true',
     consent_collection: { terms_of_service: 'required' },
     success_url: returnUrl(env, body.return, 'success'),
@@ -297,6 +301,8 @@ export async function webhook(req, env) {
   const event = JSON.parse(payload);
   const seen = `stripe:event:${event.id}`;
   if (await env.AUTH.get(seen)) return { received: true, duplicate: true };
+  const o = event.data && event.data.object;
+  if (event.type === 'checkout.session.completed' && o && o.metadata && o.metadata.guest === '1') await attachGuest(env, o);
   const id = subscriptionOf(event);
   if (id) {
     // Fetched afresh: the newest state, whatever order events arrive in.
@@ -306,4 +312,128 @@ export async function webhook(req, env) {
   // Marked only once handled, so a failure is retried by Stripe.
   await env.AUTH.put(seen, '1', { expirationTtl: EVENT_TTL });
   return { received: true };
+}
+
+// ---------- buying straight away: signed in or not ----------
+// The plans page's Continue goes here. Signed in, it is the account's own checkout. Signed out, Stripe takes the
+// address with the card, and on the way back (or on Stripe's webhook, whichever comes first) the account for that
+// address is found or made, the subscription put on it, and the person signed in. The academic price is for a
+// university address, given here and paid with (the receipt goes to it); no code is sent to prove it.
+
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+const QUICK_TIERS = ['pro', 'academic'];
+const EMAIL_OK = /^[^\s@<>()",;:]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/;
+
+async function personalWorkspace(env, userId) {
+  const w = await env.DB.prepare("SELECT id FROM workspaces WHERE owner_id = ? AND kind = 'personal' ORDER BY created_at LIMIT 1").bind(userId).first();
+  return w && w.id;
+}
+
+// the academic price, by the university address given at checkout: a year, as a confirmed one gives
+async function markAcademic(env, userId, email) {
+  const domain = academicEmail(email);
+  if (!domain) return;
+  await env.DB.prepare('UPDATE users SET academic_until = ?, academic_via = ? WHERE id = ?').bind(now() + YEAR_MS, `checkout: ${domain}`, userId).run();
+}
+
+// POST /v1/billing/checkout  {plan: 'pro'|'academic', interval: 'month'|'year', email?, return?}
+export async function quickCheckout(req, env, ctx) {
+  const body = await req.json().catch(() => ({}));
+  const tier = QUICK_TIERS.includes(body.plan) ? body.plan : null;
+  const interval = body.interval === 'year' ? 'year' : body.interval === 'month' ? 'month' : null;
+  if (!tier || !interval) throw new ApiError(400, 'bad_request', 'Choose a plan and monthly or yearly.');
+  const email = String(body.email || '').trim().toLowerCase();
+  if (email && (email.length > 254 || !EMAIL_OK.test(email))) throw new ApiError(400, 'bad_email', 'That does not look like an email address.');
+  const user = await currentUser(req, env, ctx);
+  if (tier === 'academic') {
+    // a university address given, or (signed in) the one they sign in with, or the academic price already confirmed
+    const had = user && await env.DB.prepare('SELECT academic_until FROM users WHERE id = ?').bind(user.id).first();
+    const ok = academicEmail(email) || (user && !email && (academicEmail(user.email) || (had && had.academic_until > now())));
+    if (!ok) {
+      throw new ApiError(400, 'not_academic_domain', email
+        ? 'That address is not at a university we recognise. If it should be, email support@jeksys.net from it and we will add your university.'
+        : 'Give your university email address for the academic price.');
+    }
+  }
+  if (user) {
+    // signed in: their own workspace's checkout, the university address (if any) taken as their academic one
+    if (tier === 'academic') await markAcademic(env, user.id, email || user.email);
+    const ws = await personalWorkspace(env, user.id);
+    const inner = new Request(req.url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: tier, interval, return: body.return, email: email || undefined }) });
+    return checkout(inner, env, user, ws);
+  }
+  const price = (await prices(env))[`${tier}_${interval === 'year' ? 'yearly' : 'monthly'}`];
+  if (!price) throw new ApiError(503, 'billing_off', 'That price is not available yet.');
+  const ret = returnUrl(env, body.return, null);
+  const api = env.API_URL || new URL(req.url).origin;
+  const session = await stripe(env, 'POST', '/checkout/sessions', {
+    mode: 'subscription',
+    line_items: [{ price: price.id, quantity: 1 }],
+    metadata: { guest: '1', plan: tier },
+    subscription_data: { metadata: { guest: '1', plan: tier } },
+    customer_email: email || undefined,
+    allow_promotion_codes: 'true',
+    consent_collection: { terms_of_service: 'required' },
+    // (Stripe fills in {CHECKOUT_SESSION_ID}: the braces must stay as they are)
+    success_url: `${api}/auth/checkout?session_id={CHECKOUT_SESSION_ID}&r=${encodeURIComponent(ret)}`,
+    cancel_url: returnUrl(env, body.return, 'cancelled'),
+  });
+  return { url: session.url };
+}
+
+// A guest's paid checkout put on an account: the one its address signs in to, or has as its email, or a new one.
+// Returns the user's id, or null while it is not paid. Done once; later calls find the subscription already there.
+export async function attachGuest(env, cs) {
+  if (!cs || !cs.metadata || cs.metadata.guest !== '1' || cs.status !== 'complete') return null;
+  const email = String((cs.customer_details && cs.customer_details.email) || cs.customer_email || '').trim().toLowerCase();
+  if (!EMAIL_OK.test(email)) return null;
+  const subId = typeof cs.subscription === 'string' ? cs.subscription : cs.subscription && cs.subscription.id;
+  let s = subId ? await stripe(env, 'GET', `/subscriptions/${subId}`) : null;
+  let userId = null;
+  if (s && s.metadata && s.metadata.user_id) {
+    const u = await env.DB.prepare('SELECT id FROM users WHERE id = ? AND deleted_at IS NULL').bind(s.metadata.user_id).first();
+    if (u) userId = u.id;
+  }
+  if (!userId) {
+    const byIdentity = await env.DB.prepare(
+      "SELECT u.id FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = 'email' AND i.subject = ? AND u.deleted_at IS NULL",
+    ).bind(email).first();
+    const byEmail = byIdentity || await env.DB.prepare('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL ORDER BY created_at LIMIT 1').bind(email).first();
+    if (byEmail) userId = byEmail.id;
+    else {
+      const name = email.split('@')[0].split(/[._\-+]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ').slice(0, 100) || 'JEKray user';
+      try { userId = (await createUser(env, { name, email, identity: { provider: 'email', subject: email } })).user.id; }
+      catch (err) {
+        const again = await env.DB.prepare("SELECT user_id FROM identities WHERE provider = 'email' AND subject = ?").bind(email).first();
+        if (!again) throw err;
+        userId = again.user_id;
+      }
+    }
+  }
+  if (cs.metadata.plan === 'academic') await markAcademic(env, userId, email);
+  if (s && !(s.metadata && s.metadata.workspace_id)) {
+    const ws = await personalWorkspace(env, userId);
+    s = await stripe(env, 'POST', `/subscriptions/${s.id}`, { metadata: { workspace_id: ws, user_id: userId, guest: '1', plan: cs.metadata.plan } });
+  }
+  if (s) await mirror(env, s);
+  return userId;
+}
+
+// GET /auth/checkout?session_id=<cs_…>&r=<return> — back from a guest's checkout: signed in to the account it paid
+// for (once; the link opened again only goes back to the page)
+export async function checkoutReturn(req, env) {
+  const url = new URL(req.url);
+  const ret = returnUrl(env, url.searchParams.get('r'), null);
+  const back = (outcome, cookies = []) => redirect(withOutcome(returnUrl(env, ret, outcome), outcome === 'success' ? 'signed_in' : 'failed'), cookies);
+  const id = String(url.searchParams.get('session_id') || '');
+  if (!/^cs_[A-Za-z0-9_]{1,250}$/.test(id)) return back('failed');
+  const cs = await stripe(env, 'GET', `/checkout/sessions/${id}`, null, { allow404: true });
+  const userId = await attachGuest(env, cs);
+  if (!userId) return back('failed');
+  const used = `checkout:signin:${id}`;
+  if (await env.AUTH.get(used)) return redirect(returnUrl(env, ret, 'success'));
+  await env.AUTH.put(used, '1', { expirationTtl: 30 * 24 * 3600 });
+  const session = await createSession(env, userId, req.headers.get('User-Agent'));
+  return back('success', [session.cookie]);
 }

@@ -33,6 +33,20 @@ export const safeFileName = name => (name || 'bench').replace(/[\\/:*?"<>|]+/g, 
 export let unsaved = false;
 export function markUnsaved(on) { unsaved = !!on; const d = document.getElementById('saveDot'); if (d) d.hidden = !on; }
 /* after any change: the panel (rebuilt or refreshed), the buttons, the autosave, a redraw, and the simulation told */
+/* the bench's name field is as wide as its text (within the bar's room), so a long name is read whole */
+let nameCtx = null;
+export function fitName() {
+  const inp = document.getElementById('projName'); if (!inp) return;
+  nameCtx = nameCtx || document.createElement('canvas').getContext('2d');
+  nameCtx.font = getComputedStyle(inp).font;
+  const w = nameCtx.measureText(inp.value || inp.placeholder || '').width + 28;
+  const px = Math.max(96, Math.min(w, Math.max(160, window.innerWidth * 0.34))) + 'px';
+  inp.style.width = px; inp.style.flexBasis = px;
+}
+/* fit whichever view is showing: the 3D view when it is on (through its hook), else the bench */
+export function fitAny() { if (!(hooks.ionFit3d && hooks.ionFit3d())) fitView(); }
+/* cut through another plane; a cut outside the array is brought inside by the slice request */
+export function setPlane(plane) { V().plane = plane; viewMenuShown(); changed(false); }
 export function changed(rebuildPanel) {
   if (rebuildPanel) renderPanel(); else syncPanel();
   updateUndoButtons();
@@ -112,7 +126,7 @@ export function benchMenu(X, Y, hit, at) {
   const point = { label: 'Analysis point here', fn: () => { checkpoint(); project.point = at.map(v => snapTo(v)); changed(true); toast('The trap analysis is done at this point'); } };
   if (!hit) {
     showCtxMenu(X, Y, [{ label: 'Add an electrode here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
-      { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitView }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
+      { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitAny }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
     return;
   }
   if (hit.id !== selectedId) selectOne(hit.id);
@@ -156,19 +170,20 @@ export function wireActions() {
     const b = e.target.closest('[data-edit]'); if (!b) return;
     if (b.dataset.edit === 'dup') duplicateSel(false); else if (b.dataset.edit === 'mirror') duplicateSel(true); else if (b.dataset.edit === 'del') removeSel();
   });
-  document.getElementById('btnFit').addEventListener('click', fitView);
+  document.getElementById('btnFit').addEventListener('click', fitAny);
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); });
   document.getElementById('btnSideTab').addEventListener('click', () => { const open = document.getElementById('panel').style.display !== 'none'; if (open) { setSelectedId(null); setPanelClosed(true); } else { setSelectedId(null); setPanelClosed(false); } renderPanel(); requestRender(); });
   document.getElementById('viewMenu').addEventListener('click', e => {
-    const p = e.target.closest('[data-plane]'), q = e.target.closest('[data-pot]');
-    if (p) { V().plane = p.dataset.plane; viewMenuShown(); changed(false); }
+    const p = e.target.closest('[data-plane]'), q = e.target.closest('[data-pot]'), r = e.target.closest('[data-colour]');
+    if (p) { setPlane(p.dataset.plane); }
     if (q) { checkpoint(); project.show.pot = q.dataset.pot; viewMenuShown(); changed(false); }
+    if (r) { checkpoint(); project.show.colourBy = r.dataset.colour; viewMenuShown(); requestRender(); }
   });
   document.getElementById('btnEfield').addEventListener('click', () => { checkpoint(); project.show.efield = !project.show.efield; viewMenuShown(); changed(false); });
   document.getElementById('btnTraj').addEventListener('click', () => { checkpoint(); project.show.traj = !project.show.traj; viewMenuShown(); requestRender(); });
   document.getElementById('btnGridShow').addEventListener('click', () => { checkpoint(); project.show.grid = !project.show.grid; viewMenuShown(); requestRender(); });
   document.getElementById('btnAuto').addEventListener('click', () => { project.fly.auto = !project.fly.auto; viewMenuShown(); scheduleSave(); if (project.fly.auto) simChanged(); });
-  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); scheduleSave(); markUnsaved(true); });
+  document.getElementById('projName').addEventListener('input', e => { project.name = e.target.value.slice(0, 80); fitName(); scheduleSave(); markUnsaved(true); });
   // the keyboard
   document.addEventListener('keydown', e => {
     const mod = e.ctrlKey || e.metaKey;
@@ -182,10 +197,10 @@ export function wireActions() {
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId) { e.preventDefault(); removeSel(); } return; }
     if (e.key === 'Escape') { if (hooks.ionBusy()) hooks.ionStop(); else { setSelectedId(null); renderPanel(); requestRender(); } return; }
     if (e.key === ' ') { e.preventDefault(); flyNow(); return; }
-    if (e.key === 'f' || e.key === 'F') { fitView(); return; }
+    if (e.key === 'f' || e.key === 'F') { fitAny(); return; }
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }
-    if (e.key === '1' || e.key === '2' || e.key === '3') { V().plane = ['xy', 'xz', 'yz'][+e.key - 1]; viewMenuShown(); changed(false); return; }
+    if (e.key === '1' || e.key === '2' || e.key === '3') { setPlane(['xy', 'xz', 'yz'][+e.key - 1]); return; }
     if (e.key === 'PageUp' || e.key === 'PageDown') { V().slice = +(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h).toPrecision(8); changed(false); return; }
     if (/^Arrow/.test(e.key) && selectedId) {
       const s = selectedItem(); if (!s || s.el.locked) return;
@@ -204,11 +219,12 @@ export function viewMenuShown() {
   if (!project) return;
   for (const b of document.querySelectorAll('[data-plane]')) b.setAttribute('aria-checked', String(b.dataset.plane === V().plane));
   for (const b of document.querySelectorAll('[data-pot]')) b.setAttribute('aria-checked', String(b.dataset.pot === project.show.pot));
+  for (const b of document.querySelectorAll('[data-colour]')) b.setAttribute('aria-checked', String(b.dataset.colour === project.show.colourBy));
   document.getElementById('btnEfield').setAttribute('aria-checked', String(!!project.show.efield));
   document.getElementById('btnTraj').setAttribute('aria-checked', String(!!project.show.traj));
   document.getElementById('btnGridShow').setAttribute('aria-checked', String(!!project.show.grid));
   document.getElementById('btnAuto').setAttribute('aria-checked', String(!!project.fly.auto));
-  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name;
+  const name = document.getElementById('projName'); if (name && name.value !== project.name) name.value = project.name; fitName();
   const cyl = project.grid.sym !== '3d';
   for (const b of document.querySelectorAll('[data-plane]')) b.disabled = cyl && b.dataset.plane !== 'xy';
 }

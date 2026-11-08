@@ -195,16 +195,16 @@
   .rt-stage canvas.rotate { cursor: crosshair; }
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
-  /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
-     chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
-  .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
-    box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
+  /* the tab on the bench's left edge, half way up: brings the Bench panel out on the left, or puts it away (its
+     chevron turns); the parts' panels open on the right, apart, each with its own × */
+  .rt-sidetab { position: absolute; left: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 6px 6px 0;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
-  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
-  .rt-sidetab.open .chev { transform: scaleX(-1); }
-  /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
-  .rt-pin.rt-mainclose { display: none; }
+  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; transform: scaleX(-1); }
+  .rt-sidetab.open .chev { transform: none; }
+  /* the Bench panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
+  .rt-pin.rt-benchclose { display: none; }
   body.rt-embed .rt-sidetab { display: none; }
   .rt-coords {
     position: absolute;
@@ -607,7 +607,9 @@
   .rt-secbtn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-sec.shut > .rt-secbody { display: none; }
   .rt-sec + .rt-tabs { margin-top: 0.7rem; padding-top: 0.35rem; border-top: 1px solid var(--jek-line); }
-  .rt-about h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-about h4, .rt-aboutpart h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-aboutpart h4 { font-size: 0.8rem; margin-top: 0.9rem; }
+  .rt-aboutpart p { line-height: 1.55; }
   .rt-sweep-toggle:focus-visible, .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-inline { display: flex; gap: 1rem; }
   .rt-stack {
@@ -1123,6 +1125,7 @@
   .rt-btn.rt-tbl { display: inline-flex; align-items: center; gap: 0.4rem; }
   .rt-tbl .ic { width: 15px; height: 15px; }
   .rt-bar .rt-file { margin: 0 auto; }
+  .rt-bar .rt-file.rt-squeezed { visibility: hidden; }
   /* centred on the page when it clears both sides (ui/tours.js centreName) */
   @media (min-width: 961px) {
     .rt-bar { position: relative; }
@@ -1208,11 +1211,12 @@
   .rt-imenu > button:disabled, .rt-imenu > button:disabled:hover { color: var(--jek-ink); background: none; opacity: 0.4; cursor: default; }
   .rt-imenu .sep { height: 1px; margin: 4px 0; background: var(--jek-line); }
   /* an item present but not possible now (not signed in, no plan): a greyed box that says why, and offers the way */
-  .rt-imenu > button.rt-off, .rt-ctx button.rt-off { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
-  .rt-imenu > button.rt-off:hover, .rt-imenu > button.rt-off:focus-visible, .rt-ctx button.rt-off:hover { background: var(--jek-well); color: var(--jek-ink-soft); }
-  .rt-imenu > button.rt-off .ic { opacity: 0.45; }
+  /* greyed only when it cannot be had: one with a Pro or Free account chip looks as any other, the chip saying what it needs */
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed), .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed) { color: var(--jek-ink-soft); background: var(--jek-well); box-shadow: inset 0 0 0 1px var(--jek-line); border-radius: 2px; cursor: default; }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover, .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed):focus-visible, .rt-ctx button.rt-off:not(.rt-proneed):not(.rt-acctneed):hover { background: var(--jek-well); color: var(--jek-ink-soft); }
+  .rt-imenu > button.rt-off:not(.rt-proneed):not(.rt-acctneed) .ic { opacity: 0.45; }
   .rt-menu.rt-imenu > button.rt-off .k.rt-why, .rt-ctx button.rt-off .k.rt-why { font: 600 0.68rem var(--jek-sans, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--jek-ink-soft); }
-  .rt-btn.rt-off { opacity: 0.5; }
+  .rt-btn.rt-off:not(.rt-proneed):not(.rt-acctneed) { opacity: 0.5; }
   .rt-imenu .rt-menunote { padding: 0.25rem 0.9rem 0.2rem 2.35rem; font-size: 0.75rem; }
   .rt-imenu [aria-checked="false"] .ic { opacity: 0; }
   .rt-imenu .rt-dot { margin-left: 0.35rem; }
@@ -1233,7 +1237,7 @@
     .rt-bar { flex-wrap: nowrap; }
     .rt-bar .rt-group { flex-wrap: nowrap; flex: none; }
     .rt-file { flex: 0 1 auto; min-width: 0; }
-    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 8rem; max-width: 26rem; }
+    .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
   @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
@@ -1754,7 +1758,7 @@
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
-  .rt-pin.rt-mainclose { display: inline-grid; }
+  .rt-pin.rt-mainclose, .rt-pin.rt-benchclose { display: inline-grid; }
   .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 48px; height: 18px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
   .rt-sidetab .chev { transform: rotate(90deg); }
   .rt-sidetab.open { display: none; }
@@ -1776,26 +1780,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 /* the university line under a prompt's account offer, and the tour's last step, whose buttons wrap */
 .rt-welcome.rt-nudge p.rt-uni, dialog.rt-dialog p.rt-uni { font-size: 0.8rem; }
 .rt-welcome.rt-coach .rt-actions { flex-wrap: wrap; }
-/* the note for a visit from Instagram (landing.js): the reels' benches, a row each, its picture then its words */
-.rt-welcome.rt-landing p { margin: 0 0 0.5rem; color: var(--jek-ink-soft); }
-.rt-welcome .rt-reels { margin: 0 0 0.6rem; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
-/* more than three: the three newest in view, the rest scrolled to (ui/landing.js reelsFit) */
-.rt-welcome .rt-reels.more { overflow-y: auto; overscroll-behavior: contain; padding-right: 0.25rem; scrollbar-width: thin; }
-.rt-welcome .rt-reels.more:not(.end) { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
-.rt-reel { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.3rem; text-align: left; font: inherit; color: var(--jek-ink); background: var(--jek-panel);
-  border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; transition: border-color 0.15s; }
-.rt-reel:hover, .rt-reel:focus-visible { border-color: var(--jek-cyan); outline: none; }
-.rt-reel.on { border-color: var(--jek-cyan); }
-.rt-reel img, .rt-reel i { flex: none; display: block; width: 4.8rem; height: 3rem; object-fit: cover; border-radius: 2px; background: #1f2529; }
-.rt-reel span { min-width: 0; }
-.rt-reel b { display: block; font-size: 0.85rem; line-height: 1.3; }
-.rt-reel small { display: block; font-size: 0.78rem; line-height: 1.35; color: var(--jek-ink-soft); }
-.rt-welcome.rt-landing .rt-actions { flex-wrap: wrap; }
-.rt-welcome.rt-landing, #welcome, .rt-coach { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
+#welcome, .rt-coach { max-height: calc(100% - 1rem); overflow-y: auto; overscroll-behavior: contain; }
 .rt-landacct { border-top: 1px solid var(--jek-line, #ddd5c6); padding-top: 0.55rem; margin-bottom: 0.4rem; }
 .rt-landacct p { font-size: 0.85rem; }
 /* Recording mode (ui/boot.js kioskSet): the bench alone */
-.rt-kiosk .rt-activity, .rt-kiosk #emptyHint, .rt-kiosk #igLanding, .rt-kiosk #welcome, .rt-kiosk .rt-nudge, .rt-kiosk .rt-coach, .rt-kiosk .rt-toast,
+.rt-kiosk .rt-activity, .rt-kiosk #emptyHint, .rt-kiosk #welcome, .rt-kiosk .rt-nudge, .rt-kiosk .rt-coach, .rt-kiosk .rt-toast,
 .rt-kiosk .rt-panel, .rt-kiosk #minimap, .rt-kiosk .rt-coords, .rt-kiosk .rt-sidetab, .rt-kiosk .rt-drawhint, .rt-kiosk .rt-picker { display: none !important; }
 .rt-kiosk .rt-grid { grid-template-columns: 1fr !important; }
 .rt-kiosk-all .rt-rail, .rt-kiosk-all .rt-flyout, .rt-kiosk-all .rt-benchtabs, .rt-kiosk-all .rt-v3dswitch { display: none !important; }
@@ -1881,10 +1870,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
 /* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
    under it with what the moment needs; the hint goes to the bottom while they are on */
-.rt-mdltop { position: absolute; left: 0.6rem; right: 124px; top: calc(var(--rt-top) + 6px); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+/* the sketch's tools hang from the parts rail, under its Model, Sketch, Extrude and Revolve: joined to it, as one piece */
+.rt-mdltop { position: absolute; left: 0; right: 124px; top: calc(var(--rt-top) - 1px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
 .rt-mdltop[hidden] { display: none; }
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
+.rt-mdltop > .rt-tbar { border-top-left-radius: 0; }
 .rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
 .rt-tbsub:empty, .rt-tbar:empty { display: none; }
 .rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
@@ -1941,3 +1932,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
 .rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
 .rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }
+/* Get Pro, in the bar: for anyone without JEKrayPro; the plans and prices, signed in or not */
+.rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
+.rt-btn.rt-getpro:hover { filter: brightness(1.08); }
+.rt-btn.rt-getpro[hidden] { display: none; }

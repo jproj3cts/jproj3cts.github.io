@@ -38,7 +38,7 @@ const MENU_ICONS = {
   image: 'M1.5 2.5H14.5V13.5H1.5Z M1.5 10.5L5.5 6.5L8.5 9.5L10.5 7.5L14.5 11.5', export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11',
   undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
   dup: 'M5 5H14V14H5Z M2 11V2H11', trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4 M6.5 6.5V11.5 M9.5 6.5V11.5', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10',
-  check: 'M3 8.5L6.5 12L13 4', theme: 'M8 1.5A6.5 6.5 0 1 0 8 14.5Z', parts: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', play: 'M4 2.5L13 8L4 13.5Z', pause: 'M4 2.5H6.5V13.5H4Z M9.5 2.5H12V13.5H9.5Z',
+  check: 'M3 8.5L6.5 12L13 4', theme: 'M8 1.5A6.5 6.5 0 1 0 8 14.5Z', cut: 'M2 12L14 12 M8 2L8 14 M2 4L14 4', pot: 'M2 13C5 13 5 3 8 3S11 13 14 13', paths: 'M2 12C5 12 5 4 8 8S11 12 14 4', parts: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', play: 'M4 2.5L13 8L4 13.5Z', pause: 'M4 2.5H6.5V13.5H4Z M9.5 2.5H12V13.5H9.5Z',
   target: 'M8 2A6 6 0 1 0 8 14A6 6 0 1 0 8 2 M8 5A3 3 0 1 0 8 11A3 3 0 1 0 8 5 M8 1V3 M8 13V15 M1 8H3 M13 8H15', flask: 'M6 1.5H10 M7 1.5V6L2.5 13.5H13.5L9 6V1.5', sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M11 6.5V9.5 M7 10.5V13.5',
   keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H5 M7 6.5H8 M10 6.5H11 M4 9.5H12', book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z', star: 'M8 1.5L9.9 6.1L14.5 6.5L11 9.6L12.1 14.5L8 12L3.9 14.5L5 9.6L1.5 6.5L6.1 6.1Z',
   quote: 'M3 3H7V8H4.5Q3 8 3 9.5V11 M9.5 3H13.5V8H11Q9.5 8 9.5 9.5V11', bug: 'M8 4A3.5 3.5 0 0 1 11.5 7.5V11A3.5 3.5 0 0 1 4.5 11V7.5A3.5 3.5 0 0 1 8 4Z M5 2.5L6.5 4 M11 2.5L9.5 4 M1.5 8H4.5 M11.5 8H14.5 M2.5 12.5L4.5 11 M13.5 12.5L11.5 11',
@@ -62,7 +62,7 @@ function legendShown() {
   box.hidden = false;
   const cv = h('canvas', { width: 120, height: 8 }), c = cv.getContext('2d');
   for (let i = 0; i < 120; i++) { c.fillStyle = viridisCss(i / 119); c.fillRect(i, 0, 1, 8); }
-  const f = v => (Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());
+  const span = Math.abs(mapRange[1] - mapRange[0]) || 1, f = v => (!mapLog && Math.abs(v) < 1e-4 * span ? '0' : Math.abs(v) >= 1000 ? (v / 1000).toPrecision(3) + ' k' : (+v.toPrecision(3)).toString());    // a 7e-9 floor reads 0
   box.replaceChildren(h('div', null, project.show.efield && S.emag ? '|E| (V/mm' + (mapLog ? ', log' : '') + ')' : 'potential (V)'), cv, h('div', { class: 'lr' }, h('span', null, f(mapRange[0])), h('span', null, f(mapRange[1]))));
 }
 /* the theme menu */
@@ -74,7 +74,7 @@ function themeMenu() {
 
 installHooks({
   requestRender, renderPanel, syncPanel, toast,
-  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionHistory: () => ({ history, future }),
+  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionDraw3d: () => V3D.refresh(), ionFit3d: () => { if (!V3D.active()) return false; V3D.fit(); return true; }, ionHistory: () => ({ history, future }),
   ionViewMenu: viewMenuShown, ionBounds: shapeBounds, ionBusy: () => SIM.busy, ionStop: stopFly, ionMenuIcons: menuIcons, needsShown,
 });
 // the bench: restored from this browser, or the first one

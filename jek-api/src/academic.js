@@ -5,6 +5,7 @@
 // current education or employment record on their public ORCID profile.)
 // Verification lasts a year.
 
+import { REGISTER_DOMAINS } from './academic-domains.js';
 import { readJson } from './benches.js';
 import { sendEmail } from './mail.js';
 import { orcidOn } from './orcid.js';
@@ -13,8 +14,8 @@ import { ApiError, now, sha256 } from './util.js';
 const YEAR = 365 * 24 * 60 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
 
-// .ac.uk, .edu, .edu.au, .ac.jp and the like, plus well-known universities
-// whose domains follow no such pattern.
+// .ac.uk, .edu, .edu.au, .ac.jp and the like; any university in a public register (src/academic-domains.js, from
+// Hipo's university-domains-list: scripts/academic-domains.mjs); and research institutes the register leaves out.
 const ACADEMIC_SUFFIX = /\.(ac|edu)(\.[a-z]{2})?$/i;
 const ACADEMIC_DOMAINS = [
   'ethz.ch', 'epfl.ch', 'uzh.ch', 'unibas.ch', 'unige.ch', 'tudelft.nl', 'uva.nl', 'tue.nl', 'utwente.nl', 'rug.nl', 'uu.nl', 'leidenuniv.nl',
@@ -31,6 +32,9 @@ export function academicEmail(email) {
   if (!domain) return null;
   if (ACADEMIC_SUFFIX.test(domain)) return domain;
   if (ACADEMIC_DOMAINS.some((d) => domain === d || domain.endsWith('.' + d))) return domain;
+  // the domain or any it sits under (dept.uni.lu under uni.lu), down to two labels
+  const parts = domain.split('.');
+  for (let i = 0; i <= parts.length - 2; i++) if (REGISTER_DOMAINS.has(parts.slice(i).join('.'))) return domain;
   if (/(^|\.)uni-[a-z-]+\.de$/.test(domain)) return domain;
   return null;
 }

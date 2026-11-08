@@ -49,12 +49,17 @@ export function setW(v) { return (W = v); }
 export function setH(v) { return (H = v); }
 export function setDPR(v) { return (DPR = v); }
 
+let benchMid = 0, benchMidView = null;       // where the bench's middle was on the page, and the view it showed, for resize
 export function resize() {
   const r = stage.getBoundingClientRect();
   DPR = window.devicePixelRatio || 1;
-  // the bench grown or narrowed (a side panel opened or closed, the window resized) keeps its
-  // left edge where it was: what is under the pointer stays there
-  if (W > 0 && r.width > 0 && r.width !== W) { try { const v = V(); if (v && v.scale > 0) v.cx += (r.width - W) / (2 * v.scale); } catch (err) { /* no bench yet */ } }
+  // the bench grown or narrowed (a side panel opened or closed on either side, the window resized): what is drawn
+  // stays where it was on the screen, the view moved by as much as the bench's middle moved
+  // (only a view already on the screen: one just opened, a file or a link, keeps the place it was saved with)
+  const mid = r.left + r.width / 2;
+  let v = null; try { v = V(); } catch (err) { /* no bench yet */ }
+  if (W > 0 && r.width > 0 && v && v === benchMidView && mid !== benchMid && v.scale > 0) v.cx += (mid - benchMid) / v.scale;
+  benchMid = mid; benchMidView = v;
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   requestRender();
@@ -1015,6 +1020,9 @@ export function getCss(v) {
 
 export function render() {
   if (!W || !H) return;
+  // a view newly on the screen (a bench opened, a tab switched to) is the one a later resize keeps in place, once the
+  // bench is the size it is drawn at (a resize still to come, as the panels change, leaves the new view as saved)
+  if (V() !== benchMidView) { const r = stage.getBoundingClientRect(); if (r.width === W && r.height === H) { benchMid = r.left + r.width / 2; benchMidView = V(); } }
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();

@@ -60,16 +60,32 @@
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view<span class="k">F</span></button>
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" title="The electrodes and trajectories in three dimensions">3D view</button>
             <div class="sep"></div>
-            <button type="button" role="menuitemradio" data-plane="xy" aria-checked="true" data-icon="check">Cut: x–y plane</button>
-            <button type="button" role="menuitemradio" data-plane="xz" aria-checked="false" data-icon="check">Cut: x–z plane</button>
-            <button type="button" role="menuitemradio" data-plane="yz" aria-checked="false" data-icon="check">Cut: y–z plane</button>
-            <div class="sep"></div>
-            <button type="button" role="menuitemradio" data-pot="none" aria-checked="false" data-icon="check">Potential: not drawn</button>
-            <button type="button" role="menuitemradio" data-pot="map" aria-checked="true" data-icon="check">Potential: colour map</button>
-            <button type="button" role="menuitemradio" data-pot="contours" aria-checked="false" data-icon="check">Potential: equipotentials</button>
-            <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Potential: both</button>
-            <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential">Field strength |E|</button>
-            <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Trajectories</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="cut" id="cutItem" title="The plane the bench cuts through a three-dimensional array (keys 1, 2, 3; Page up and down move it)">Cut
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemradio" data-plane="xy" aria-checked="true" data-icon="check">x–y plane<span class="k">1</span></button>
+                <button type="button" role="menuitemradio" data-plane="xz" aria-checked="false" data-icon="check">x–z plane<span class="k">2</span></button>
+                <button type="button" role="menuitemradio" data-plane="yz" aria-checked="false" data-icon="check">y–z plane<span class="k">3</span></button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="pot" title="How the potential on the cut is drawn">Potential
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemradio" data-pot="none" aria-checked="false" data-icon="check">Not drawn</button>
+                <button type="button" role="menuitemradio" data-pot="map" aria-checked="true" data-icon="check">Colour map</button>
+                <button type="button" role="menuitemradio" data-pot="contours" aria-checked="false" data-icon="check">Equipotentials</button>
+                <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Map and equipotentials</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential; the equipotentials stay the potential’s">Field strength |E| as the map</button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="paths" title="The flown paths and what colours them">Paths
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Drawn</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitemradio" data-colour="group" aria-checked="true" data-icon="check">Coloured by ion group</button>
+                <button type="button" role="menuitemradio" data-colour="ke" aria-checked="false" data-icon="check">Coloured by energy</button>
+                <button type="button" role="menuitemradio" data-colour="time" aria-checked="false" data-icon="check">Coloured by time</button>
+              </div>
+            </div>
             <button type="button" role="menuitemcheckbox" id="btnGridShow" aria-checked="true" data-icon="check">Array outline and nodes</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
@@ -77,6 +93,10 @@
             </div>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
           </div>
+        </div>
+        <div class="rt-more rt-phonegone">
+          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an electrode, a CAD body, an ion group or a detector on the bench (A)">Insert</button>
+          <div class="rt-menu rt-imenu" id="addMenu" role="menu" hidden></div>
         </div>
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu">Tools</button>
@@ -120,10 +140,6 @@
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <div class="rt-more">
-            <button class="rt-btn rt-tbl" id="btnAdd" type="button" data-icon="parts" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Add an electrode, an ion group or a detector (A)">+ Add</button>
-            <div class="rt-menu rt-menu-right rt-imenu" id="addMenu" role="menu" hidden></div>
-          </div>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
           <button class="rt-btn" id="btnSave" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekion</span></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>

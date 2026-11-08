@@ -59,7 +59,7 @@ async function benchAccess(env, user, benchId, { bin = false } = {}) {
   const row = await env.DB.prepare(
     `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
             b.updated_at, b.deleted_at, u.name AS updated_by_name, u.avatar_key AS updated_by_avatar, b.updated_by, b.thumb_key,
-            b.forked_from, b.forked_version, b.forked_name, w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer,
+            b.forked_from, b.forked_version, b.forked_name, b.tool, w.kind, m.role, s.plan, s.status, s.period_end, s.past_due_since, s.stripe_customer,
             l.user_id AS lease_user, l.since AS lease_since, l.until AS lease_until, lu.name AS lease_name, lu.avatar_key AS lease_avatar
        FROM benches b
        JOIN workspaces w ON w.id = b.workspace_id
@@ -100,6 +100,7 @@ const meta = (b) => ({
   // who holds its editing lease just now, if anyone
   editing: b.lease_user ? { ...person(b.lease_user, b.lease_name, b.lease_avatar), since: b.lease_since, until: b.lease_until } : null,
   deleted_at: b.deleted_at,
+  tool: b.tool || 'jekray',
   thumb: thumbPath(b.id, b.thumb_key),
   forked_from: b.forked_from ? { id: b.forked_from, version: b.forked_version, name: b.forked_name } : null,
 });
@@ -116,7 +117,16 @@ export async function readJson(req) {
   }
 }
 
-// The .jekray text, checked to be a JSON object of at most 2 MB.
+// Which tool a bench's content is for: a .jekion says format 'jekion'; anything else is JEKray's.
+export function toolOf(content) {
+  try {
+    return JSON.parse(content).format === 'jekion' ? 'jekion' : 'jekray';
+  } catch {
+    return 'jekray';
+  }
+}
+
+// The .jekray or .jekion text, checked to be a JSON object of at most 2 MB.
 function benchContent(body) {
   const c = body && body.content;
   if (typeof c !== 'string') throw new ApiError(400, 'bad_request', 'content must be the .jekray text.');
@@ -225,15 +235,20 @@ export async function list(req, env, user, wsId) {
   const bin = url.searchParams.get('bin') === '1';
   const q = (url.searchParams.get('q') || '').trim();
   const folder = url.searchParams.get('folder');
+  const tool = url.searchParams.get('tool');
   let sql = `SELECT b.id, b.workspace_id, b.folder_id, b.name, b.head_version, b.size_bytes, b.created_at,
                     b.updated_at, b.deleted_at, b.updated_by, u.name AS updated_by_name, u.avatar_key AS updated_by_avatar, b.thumb_key,
-                    b.forked_from, b.forked_version, b.forked_name,
+                    b.forked_from, b.forked_version, b.forked_name, b.tool,
                     l.user_id AS lease_user, l.since AS lease_since, l.until AS lease_until, lu.name AS lease_name, lu.avatar_key AS lease_avatar
                FROM benches b LEFT JOIN users u ON u.id = b.updated_by
                LEFT JOIN bench_leases l ON l.bench_id = b.id AND l.until > ?
                LEFT JOIN users lu ON lu.id = l.user_id
               WHERE b.workspace_id = ? AND b.deleted_at IS ${bin ? 'NOT NULL' : 'NULL'}`;
   const args = [now(), a.ws];
+  if (tool === 'jekray' || tool === 'jekion') {
+    sql += ' AND b.tool = ?';
+    args.push(tool);
+  }
   if (q) {
     sql += " AND b.name LIKE ? ESCAPE '\\'";
     args.push('%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%');
@@ -268,10 +283,10 @@ export async function create(req, env, user, wsId) {
   const t = now();
   await env.DB.prepare(
     `INSERT INTO benches (id, workspace_id, folder_id, name, head_json, head_version, size_bytes,
-                          created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+                          created_at, created_by, updated_at, updated_by, tool)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, a.ws, folder, name, content, bytes(content), t, user.id, t, user.id)
+    .bind(id, a.ws, folder, name, content, bytes(content), t, user.id, t, user.id, toolOf(content))
     .run();
   await cutVersion(env, a.ws, id, 1, content, user.id, body.label ? cleanName(body.label, null) : null);
   const { bench } = await benchAccess(env, user, id);
@@ -298,6 +313,9 @@ export async function save(req, env, user, benchId) {
   const body = await readJson(req);
   const content = benchContent(body);
   const b = a.bench;
+  if (toolOf(content) !== (b.tool || 'jekray')) {
+    throw new ApiError(400, 'bad_bench', b.tool === 'jekion' ? 'This is a JEKion bench: a .jekray cannot be saved over it.' : 'This is a JEKray bench: a .jekion cannot be saved over it.');
+  }
   // someone else is editing it: they hold its lease (take it over first, or open theirs)
   if (b.lease_user && b.lease_user !== user.id) {
     throw new ApiError(423, 'locked', `${b.lease_name} is editing this bench.`, { editing: meta(b).editing, version: b.head_version });
@@ -465,10 +483,10 @@ export async function fork(req, env, user, benchId) {
   const t = now();
   await env.DB.prepare(
     `INSERT INTO benches (id, workspace_id, folder_id, name, head_json, head_version, size_bytes,
-                          created_at, created_by, updated_at, updated_by, forked_from, forked_version, forked_name)
-     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          created_at, created_by, updated_at, updated_by, forked_from, forked_version, forked_name, tool)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, a.ws, folder, name, content, bytes(content), t, user.id, t, user.id, src.id, from, src.name)
+    .bind(id, a.ws, folder, name, content, bytes(content), t, user.id, t, user.id, src.id, from, src.name, src.tool || 'jekray')
     .run();
   await cutVersion(env, a.ws, id, 1, content, user.id, `Forked from “${src.name}”, version ${from}`);
   // the original's picture, when the fork is of how it is now

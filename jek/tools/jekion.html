@@ -893,6 +893,8 @@
   .rt-hcard .rt-hinfo b { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rt-hcard .rt-hinfo small { font-size: 0.76rem; color: var(--jek-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rt-hcard .rt-hinfo small.rt-hfork { display: flex; align-items: center; gap: 0.25rem; }
+  /* the other tool's bench: a chip before its name (both tools' benches share the workspaces) */
+  .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-hcard .rt-hinfo small.rt-hfork .ic { width: 12px; height: 12px; }
   .rt-hcard .rt-hmore { position: absolute; right: 0.35rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid transparent; border-radius: 2px; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
   .rt-hcard .rt-hmore:hover, .rt-hcard .rt-hmore[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); color: var(--jek-ink); }
@@ -2010,6 +2012,20 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     .rt-sidetab .chev { transform: none; }
     .rt-sidetab.open .chev { transform: scaleX(-1); }
   }
+  /* My benches: the dialog's head (whose, search, bin, close) and the list below it (JEKray's card styles) */
+  .ion-cloudhead { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+  .ion-cloudhead h2 { margin: 0 auto 0 0; }
+  .ion-cloudhead select, .ion-cloudhead input { font: inherit; font-size: 0.875rem; padding: 0.35rem 0.5rem; border: 1px solid var(--jek-line-2); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
+  .ion-cloudhead input { width: 11rem; }
+  #cloudList { max-height: min(60vh, 34rem); overflow-y: auto; margin-top: 0.6rem; }
+  #cloudList .rt-hcard { margin-bottom: 0.5rem; }
+  #cloudList .rt-hcard .rt-hmore { font-size: 1.1rem; line-height: 1; }
+  #cloudList .rt-hcard .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-orange); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
+  #cloudList .ion-hev { display: grid; grid-template-columns: 7rem 1fr auto; gap: 0.6rem; align-items: baseline; padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--jek-line); font-size: 0.875rem; }
+  #cloudList .ion-hev.head { font-weight: 600; }
+  #cloudList .ion-hev small { color: var(--jek-ink-soft); font-weight: 400; }
+  #cloudList .ion-hev .acts button { margin-left: 0.6rem; font: inherit; font-size: 0.82rem; color: var(--jek-cyan-dark); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  #cloudList .rt-hmenu { position: fixed; }
 </style>
 </head>
 <body>
@@ -2030,6 +2046,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Your benches in the cloud, and your teams’ (the same workspaces as JEKray’s)">My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this bench in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
+            <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImportCad" data-icon="cube" title="Each body of a STEP file becomes an electrode of its own; an STL file one electrode">Import electrodes (.step, .stl)…</button>
             <div class="sep"></div>
@@ -2270,6 +2290,38 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <h2 id="trapTitle">Trap analysis</h2>
     <div id="trapBody"></div>
     <div class="rt-actions"><button class="rt-btn primary" id="trapClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="cloudDialog" aria-labelledby="cloudTitle">
+    <div class="ion-cloudhead">
+      <h2 id="cloudTitle">Cloud benches</h2>
+      <select id="cloudWs" aria-label="Whose benches"></select>
+      <input type="search" id="cloudQ" placeholder="Search by name" aria-label="Search by name">
+      <button type="button" class="rt-btn" id="cloudBin" aria-pressed="false" title="Benches deleted in the last 30 days">Bin</button>
+      <button type="button" class="rt-btn" id="cloudClose">Close</button>
+    </div>
+    <p class="rt-subsmall" id="cloudNote"></p>
+    <div class="rt-hlist rows" id="cloudList" aria-live="polite"></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="cloudConflict" aria-labelledby="ccTitle">
+    <h2 id="ccTitle">Saved somewhere else</h2>
+    <p id="cloudConflictText"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="ccTheirs" type="button">Open the newer one</button>
+      <button class="rt-btn" id="ccCopy" type="button">Keep mine as a copy</button>
+      <button class="rt-btn primary" id="ccMine" type="button">Overwrite with mine</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="cloudLockDialog" aria-labelledby="clTitle">
+    <h2 id="clTitle">Someone is editing this bench</h2>
+    <p id="cloudLockText"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="clLook" type="button">Just look</button>
+      <button class="rt-btn" id="clCopy" type="button">Work on a copy</button>
+      <button class="rt-btn primary" id="clTake" type="button">Take over</button>
+    </div>
   </dialog>
 
   <dialog class="rt-dialog" id="newDialog">
@@ -5781,6 +5833,7 @@ function changed(rebuildPanel) {
   updateUndoButtons();
   scheduleSave();
   markUnsaved(true);
+  cloudChanged();
   requestRender();
   simChanged();
   goal('edit');
@@ -6515,7 +6568,7 @@ function scheduleSave() {
   if (TEST_MODE || EMBED || !project) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); setStatus('Autosaved in this browser'); }
+    try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); if (!cloud) setStatus('Autosaved in this browser'); }    // a cloud bench's status is the cloud's
     catch (err) { setStatus('This browser is blocking autosave. Use Save .jekion to keep your work.'); }
   }, 350);
 }
@@ -6643,6 +6696,7 @@ const NEWS = [
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
+    '<b>Cloud benches</b>, as JEKray\u2019s: File \u203a Save to cloud puts the bench in your cloud benches or a team\u2019s, where it saves as you work with its history; My benches lists them with a search, the bin, forks, renames and each bench\u2019s versions; Fork this bench carries on in a new one. Both tools share the workspaces: a JEKray bench is marked here and opens in JEKray, and JEKray\u2019s My benches marks and opens JEKion\u2019s. A link #cloud=<id> opens a bench; #benches the list. Saving there is JEKrayPro\u2019s.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
     'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows, in three submenus, Cut, Potential and Paths (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the potential plots along x, y or z through the analysis point; the Notes section is gone; the end-time histogram waits for three ions.',
   ]],
@@ -6957,12 +7011,14 @@ function wireView3d() {
    ========================================================================== */
 const ION_API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://api.jeksys.net';
 let account;                                   // undefined: not asked yet; null: signed out; else /v1/me
+function setAccount(v) { account = v; }
 let accountKnown = false;
+let accountLoaded = null;                      // the first look at the account, for what waits on it (#benches)
 const accountsOn = () => !TEST_MODE && !EMBED;
 async function api(path, opts = {}) {
   const res = await fetch(ION_API + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
   const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; throw e; }
+  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; if (body && body.error) for (const k of Object.keys(body.error)) if (k !== 'message') e[k] = body.error[k]; throw e; }
   return body;
 }
 const AUTH_OUTCOMES = { signed_in: ['Signed in'], linked: ['Sign-in linked to your account'], cancelled: ['Sign-in cancelled'], expired: ['That sign-in took too long or was opened in another browser. Please try again.', true],
@@ -6982,10 +7038,11 @@ async function loadAccount() {
   catch (err) { account = null; if (err.status === 401) accountKnown = true; }
   fillAccount();
   hooks.needsShown();
+  if (hooks.ionAccountChanged) hooks.ionAccountChanged();
 }
 async function signOut() {
   try { await api('/auth/signout', { method: 'POST' }); } catch (err) { /* the cookie may be gone already */ }
-  account = null; fillAccount(); hooks.needsShown(); toast('Signed out');
+  account = null; fillAccount(); hooks.needsShown(); if (hooks.ionAccountChanged) hooks.ionAccountChanged(); toast('Signed out');
 }
 function fillAccount() {
   const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
@@ -7021,12 +7078,12 @@ function promptDialog(id) {
 /* an export asked for signed out, or a Pro feature: what it needs and the ways in */
 function showSignIn(kind, what) {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
-  track('prompt', (kind === 'export' ? 'export' : 'pro') + '.shown');
+  track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
   const dlg = promptDialog('ionSignIn'), close = () => dlg.close();
   const go = (p, fn) => () => { track('prompt', kind + '.' + p); close(); fn(); };
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the bench as a .jekion file needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed: subscribe from the account menu in JEKray, or join a team with a plan. The same account serves both tools.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan in JEKray.'),
+  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the bench as a .jekion file needs no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches; saving there needs JEKrayPro. The .jekion file on your computer needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed: subscribe from the account menu in JEKray, or join a team with a plan. The same account serves both tools.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan in JEKray.'),
     h('p', null, h('b', null, 'The same account as JEKray’s.'), ' Your bench stays here while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: go('google', () => signIn('google')) }, 'Continue with Google'), h('button', { class: 'rt-btn', type: 'button', onclick: go('microsoft', () => signIn('microsoft')) }, 'Microsoft')),
     h('div', { class: 'rt-actions' }, pro ? h('a', { class: 'rt-btn primary', href: '/jek/tools/jekray.html#pro', target: '_blank' }, 'See JEKrayPro') : null, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', kind + '.no'); close(); } }, 'Not now')));
@@ -7046,7 +7103,7 @@ function wireAccount() {
   const m = /[?&]jekauth=([a-z_]+)/.exec(location.search);
   if (m) { const o = AUTH_OUTCOMES[m[1]]; if (o) setTimeout(() => toast(o[0], o[1]), 300); const u = new URL(location.href); u.searchParams.delete('jekauth'); window.history.replaceState(null, '', u.pathname + u.search + u.hash); }
   fillAccount();
-  loadAccount();
+  accountLoaded = loadAccount();
 }
 /* ==========================================================================
    File › Export data: the bench's numbers as CSV (a zip), JSON, Excel, NumPy or MATLAB files, written by JEKray's
@@ -7191,6 +7248,407 @@ function wireShare() {
   if (TEST_MODE) hooks.ionShare = shareRoundTrip;
 }
 /* ==========================================================================
+   Cloud benches, as JEKray's: the same accounts, workspaces and API, so a person's My benches holds both tools'
+   benches, each marked with its tool (the API keeps a bench's tool from its content: a .jekion is JEKion's for good).
+   A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id, workspace and the version
+   this copy is based on. Edits save themselves at most every 30 seconds and when the page is hidden; Save to cloud
+   also keeps a version in its history. A save based on an older version than the cloud's is refused by the API
+   (409), and the person chooses what to keep. Whoever has a bench open to edit holds its lease, renewed every
+   minute; opening one someone else is editing shows who, to take over or work on a copy. Offline, the bench stays
+   in this browser's autosave and goes up when the connection returns: the link is kept with the autosave.
+   ========================================================================== */
+const CLOUD_KEY = 'jek-ion-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000, LEASE_EVERY = 60000;
+const JEKRAY_URL = '/jek/tools/jekray.html';
+let cloudTimer = null, cloudBusy = false, cloudAgain = false;
+const lease = { held: false, editing: null, timer: null };
+const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const cloudOn = () => accountsOn() && !!account;
+const whenAgo = t => {
+  const d = new Date(t), s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return new Date().toDateString() === d.toDateString() ? 'today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) + ' ' + hm;
+};
+const kb = n => (n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : (n / 1048576).toFixed(1) + ' MB');
+/* ---------- the link to the cloud, kept with the autosave ---------- */
+function cloudKeep() {
+  if (TEST_MODE || EMBED) return;
+  try { if (cloud) localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); else localStorage.removeItem(CLOUD_KEY); } catch (err) { /* no store */ }
+}
+function cloudRestore() {
+  if (TEST_MODE || EMBED) return;
+  try { const l = JSON.parse(localStorage.getItem(CLOUD_KEY) || 'null'); if (l && l.id) setCloud(l); } catch (err) { setCloud(null); }
+}
+function cloudLink(link) {
+  if (cloud && (!link || link.id !== cloud.id)) leaseStop(cloud);
+  setCloud(link); clearTimeout(cloudTimer);
+  cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
+  cloudGates();
+  leaseStart();
+}
+function cloudSay(text) { setStatus(cloud ? text : 'Autosaved in this browser'); }
+const cloudContent = () => JSON.stringify(serialize());
+/* ---------- the editing lease ---------- */
+async function leaseStart() {
+  clearTimeout(lease.timer); lease.timer = null;
+  Object.assign(lease, { held: false, editing: null });
+  if (!cloud || !cloudOn() || TEST_MODE) return;
+  await leaseRenew();
+}
+async function leaseRenew(take) {
+  const link = cloud;
+  if (!link || !cloudOn()) return;
+  let r;
+  try { r = await api('/v1/benches/' + link.id + '/lease', Object.assign({ method: 'POST' }, jsonBody(take ? { take: true } : {}))); }
+  catch (err) {
+    if (cloud !== link) return;
+    if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); return; }
+    if (err.status === 401) { setAccount(null); fillAccount(); return; }
+  } finally {
+    if (cloud === link) { clearTimeout(lease.timer); lease.timer = setTimeout(() => leaseRenew(), LEASE_EVERY); }
+  }
+  if (!r || cloud !== link) return;
+  const was = lease.held;
+  lease.held = r.held; lease.editing = r.editing && r.editing.id !== (account && account.user.id) ? r.editing : null;
+  // the cloud moved on (someone took over and saved, or another tab did): follow it when nothing here would be lost
+  if (r.version > link.version) {
+    if (!link.dirty) { try { await cloudOpen(link.id); toast((r.updated_by ? r.updated_by.name : 'Someone') + ' saved a newer version of this bench: it is shown now'); } catch (err) { /* the next renewal tries again */ } return; }
+    else if (was && !r.held) toast((r.updated_by ? r.updated_by.name : 'Someone') + ' took over this bench and saved it. Your changes here are not in the cloud: take it back, or work on a copy.', true);
+  }
+  if (!r.held && lease.editing) { cloudSay('Not saved: ' + lease.editing.name + ' is editing'); if (!was && !take) lockAsk(); }
+  else if (was !== r.held && r.held) cloudSay(link.dirty ? 'Saving to the cloud…' : 'Saved to the cloud');
+}
+function leaseStop(link) {
+  clearTimeout(lease.timer); lease.timer = null;
+  if (!link || !cloudOn() || TEST_MODE || !lease.held) return;
+  lease.held = false;
+  fetch(ION_API + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
+}
+/* someone else is editing the bench just opened: look, take over, or work on a copy */
+function lockAsk() {
+  const dlg = document.getElementById('cloudLockDialog'), e = lease.editing, link = cloud;
+  if (!dlg || !e || dlg.open) return;
+  document.getElementById('cloudLockText').textContent = e.name + ' has “' + link.name + '” open to edit. You can look at it (changes you make stay in this browser), take over (their unsaved changes stay with them), or carry on in a copy of your own.';
+  const done = () => dlg.close();
+  document.getElementById('clLook').onclick = done;
+  document.getElementById('clTake').onclick = async () => { done(); await leaseRenew(true); if (lease.held) { toast('Taken over: this bench saves from here now'); if (link.dirty) cloudPush({ checkpoint: true }); } };
+  document.getElementById('clCopy').onclick = async () => { done(); await keepAsCopy(link, ' (my copy)'); };
+  dlg.showModal();
+}
+/* ---------- saving ---------- */
+function cloudChanged() {
+  if (!cloud || cloudOpening) return;          // opening replaces the bench: not an edit of the old link
+  if (!cloud.dirty) { cloud.dirty = true; cloudKeep(); }
+  if (!cloudOn()) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => cloudPush(), CLOUD_EVERY);
+}
+async function cloudPush(opts = {}) {
+  if (!cloud || !cloudOn()) return false;
+  if (lease.editing && !lease.held && !opts.over) { cloudSay('Not saved: ' + lease.editing.name + ' is editing'); return false; }
+  if (cloudBusy) { cloudAgain = true; return false; }
+  clearTimeout(cloudTimer);
+  cloudBusy = true; cloudAgain = false;
+  const link = cloud, content = cloudContent();
+  if (!opts.keepalive) cloudSay('Saving to the cloud…');
+  try {
+    const out = await api('/v1/benches/' + link.id, {
+      method: 'PUT', keepalive: !!opts.keepalive && content.length < 60000,
+      headers: { 'Content-Type': 'application/json', 'If-Match': '"' + (opts.over || link.version) + '"' },
+      body: JSON.stringify({ content, name: project.name, checkpoint: !!opts.checkpoint }),
+    });
+    if (cloud !== link) return false;                       // another bench was opened meanwhile
+    link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
+    if (!link.dirty) markUnsaved(false);
+    cloudKeep();
+    cloudSay('Saved to the cloud ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+    if (!opts.keepalive) cloudThumb(link, opts.checkpoint);
+    return true;
+  } catch (err) {
+    if (cloud !== link) return false;
+    if (err.status === 409) {
+      // the same bench as here (saved as the page closed, before its new version was noted): no clash, a newer number
+      try {
+        const head = await api('/v1/benches/' + link.id), same = (x, y) => { const a = JSON.parse(x), b = JSON.parse(y); return JSON.stringify(a) === JSON.stringify(b); };
+        if (cloud === link && same(head.content, cloudContent())) { link.version = head.version; link.dirty = false; cloudKeep(); cloudSay('Saved to the cloud'); return true; }
+      } catch (e2) { /* fall through to asking */ }
+      if (cloud !== link) return false;
+      cloudSay('Not saved: changed somewhere else'); cloudConflict(err.version, err.updated_by, err.updated_at);
+    }
+    else if (err.status === 423) {
+      lease.held = false; lease.editing = err.editing || lease.editing;
+      cloudSay('Not saved: ' + (lease.editing ? lease.editing.name : 'someone') + ' is editing');
+      if (!opts.quiet && !opts.keepalive) lockAsk();
+    }
+    else if (err.status === 402) { cloudSay('Not saved to the cloud: that needs JEKrayPro'); if (!opts.quiet) toast('Saving to the cloud needs JEKrayPro: subscribe from the account menu in JEKray. This bench is still kept in this browser.', true); }
+    else if (err.status === 401) { cloudSay('Not saved: signed out'); setAccount(null); fillAccount(); }
+    else if (err.status === 404) { cloudSay(''); toast('That bench is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); cloudLink(null); }
+    else if (err.status) { cloudSay('Not saved to the cloud: ' + err.message); }
+    else { cloudSay('Offline: will save to the cloud when back'); clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush({ quiet: true }), CLOUD_RETRY); }
+    return false;
+  } finally {
+    cloudBusy = false;
+    if (cloudAgain && cloud) { cloudAgain = false; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPush(), 2000); }
+  }
+}
+const personalWs = () => account && (account.workspaces.find(w => w.kind === 'personal') || account.workspaces[0]);
+const placeName = w => (w.kind === 'personal' ? 'My benches' : w.name);
+/* the workspaces a bench can be saved to: the person's own, and a team they edit in with a plan */
+const newPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
+/* Save to cloud: a new cloud bench, or a kept version of the linked one */
+async function cloudSave() {
+  if (!cloudOn()) { showSignIn('cloud', 'save this bench to the cloud'); return; }
+  if (!designPro('save to the cloud')) return;
+  if (cloud) { if (await cloudPush({ checkpoint: true })) toast('Saved to the cloud, and kept in its history'); return; }
+  newCloudBench(cloudPlace.ws || personalWs().id);
+}
+/* the bench put in the cloud, in My benches or in a team: asked where it goes and its name */
+function newCloudBench(ws) {
+  if (!cloudOn()) return;
+  const places = newPlaces();
+  if (!places.length) return;
+  let dlg = document.getElementById('cloudNewDialog');
+  if (dlg) dlg.remove();
+  const name = h('input', { type: 'text', id: 'cloudNewName', value: project.name || 'Untitled bench', spellcheck: 'false', maxlength: '120' });
+  const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
+  where.value = places.some(w => w.id === ws) ? ws : places[0].id;
+  const note = h('p', { class: 'rt-subsmall' });
+  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKray’s My benches lists it too, marked JEKion.'; };
+  where.addEventListener('change', sayWhere); sayWhere();
+  const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, 'Save');
+  dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
+    h('h2', { id: 'cloudNewTitle' }, 'Save to the cloud'),
+    h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'cloudNewWhere' }, 'In'), where)),
+    note,
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), go));
+  document.body.append(dlg);
+  go.addEventListener('click', async () => {
+    const wsId = where.value, nm = name.value.trim() || 'Untitled bench';
+    go.disabled = true;
+    try {
+      project.name = nm; document.getElementById('projName').value = nm; scheduleSave();
+      const b = await api('/v1/workspaces/' + wsId + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: nm, content: cloudContent() })));
+      dlg.close();
+      const w = places.find(x => x.id === wsId);
+      cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+      markUnsaved(false);
+      cloudThumb(cloud, true);
+      track('save', 'ion-cloud');
+      toast('Saved to the cloud: “' + b.name + '” is in ' + placeName(w) + ', and saves there as you work');
+    } catch (err) {
+      go.disabled = false;
+      toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not save the bench: ' + err.message, true);
+    }
+  });
+  dlg.showModal();
+  name.select();
+}
+/* this bench kept as a copy of its own in the same workspace (a conflict, or someone else's lease) */
+async function keepAsCopy(link, suffix) {
+  try {
+    const b = await api('/v1/workspaces/' + link.ws + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: project.name + suffix, content: cloudContent() })));
+    project.name = b.name; document.getElementById('projName').value = b.name;
+    cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
+    toast('Kept yours as “' + b.name + '”');
+  } catch (err) { toast(err.message, true); }
+}
+/* Fork this bench: a new cloud bench from the linked one as it is now, which this page carries on in */
+async function cloudFork() {
+  if (!cloud || !cloudOn()) return;
+  if (!designPro('fork a bench')) return;
+  const name = (prompt('Name of the fork', (cloud.name || project.name) + ' (fork)') || '').trim();
+  if (!name) return;
+  try {
+    if (cloud.dirty) await cloudPush({ quiet: true });
+    const f = await api('/v1/benches/' + cloud.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name })));
+    project.name = f.name; document.getElementById('projName').value = f.name; scheduleSave();
+    cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
+    track('save', 'ion-fork');
+    toast('Forked: you are now working on “' + f.name + '”');
+  } catch (err) { toast('Could not fork: ' + err.message, true); }
+}
+/* ---------- the picture ---------- */
+const THUMB_W = 320, THUMB_H = 200, THUMB_EVERY = 2 * 60 * 1000;
+function benchThumb() {
+  return new Promise(resolve => {
+    try {
+      if (!canvas || !canvas.width || !canvas.height) return resolve(null);
+      const cv = document.createElement('canvas'); cv.width = THUMB_W; cv.height = THUMB_H;
+      const c = cv.getContext('2d'), sw = canvas.width, sh = canvas.height;
+      // the middle of the view, cut to 8:5
+      let w = sw, hh = sw * THUMB_H / THUMB_W; if (hh > sh) { hh = sh; w = sh * THUMB_W / THUMB_H; }
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(canvas, (sw - w) / 2, (sh - hh) / 2, w, hh, 0, 0, THUMB_W, THUMB_H);
+      cv.toBlob(b => { if (b && b.size <= 120000) return resolve(b); cv.toBlob(j => resolve(j && j.size <= 120000 ? j : null), 'image/jpeg', 0.75); }, 'image/webp', 0.8);
+    } catch (err) { resolve(null); }
+  });
+}
+async function cloudThumb(link, force) {
+  if (!link || TEST_MODE || (!force && Date.now() - (link.thumbAt || 0) < THUMB_EVERY)) return;
+  link.thumbAt = Date.now();
+  const blob = await benchThumb();
+  if (!blob || cloud !== link) return;
+  try { await api('/v1/benches/' + link.id + '/thumb', { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob }); }
+  catch (err) { link.thumbAt = 0; }
+}
+/* ---------- opening ---------- */
+async function cloudOpen(id, version) {
+  const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
+  const meta = version ? await api('/v1/benches/' + id) : b;
+  if (meta.tool === 'jekray') { window.open(JEKRAY_URL + '#cloud=' + id + (version ? '@' + version : ''), '_blank', 'noopener'); toast('“' + meta.name + '” is a JEKray bench: opened in JEKray'); return; }
+  setCloudOpening(true);
+  try { if (!openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud')) return; }
+  finally { setCloudOpening(false); }
+  // an old version opens as a copy: Save to cloud makes it a new bench
+  if (version) { cloudLink(null); toast('Version ' + version + ' of “' + meta.name + '” opened as a copy: Save to cloud puts it in the cloud as a bench of its own'); }
+  else { cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false }); markUnsaved(false); }
+}
+/* a cloud bench by its id (#cloud=<id>, or #cloud=<id>@<version> for a copy of a version) */
+async function openCloudBench(id, version) {
+  if (!accountsOn()) return;
+  try { if (cloud && cloud.dirty && cloud.id !== id) await cloudPush({ quiet: true }); await cloudOpen(id, version); }
+  catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); }
+}
+/* the conflict: someone saved this bench elsewhere since this copy was opened */
+function cloudConflict(theirs, by, at) {
+  const dlg = document.getElementById('cloudConflict'), link = cloud;
+  const who = by && account && by.id !== account.user.id ? 'by ' + by.name : 'from another tab or device';
+  document.getElementById('cloudConflictText').textContent = '“' + link.name + '” was saved ' + who + (at ? ' ' + whenAgo(at) : '') + ' (version ' + theirs + ') after you opened it here. Which do you want to keep?';
+  const done = () => dlg.close();
+  document.getElementById('ccTheirs').onclick = async () => { done(); try { await cloudOpen(link.id); } catch (err) { toast(err.message, true); } };
+  document.getElementById('ccCopy').onclick = async () => { done(); await keepAsCopy(link, ' (my copy)'); };
+  document.getElementById('ccMine').onclick = () => { done(); cloudPush({ over: theirs, checkpoint: true }); };
+  if (!dlg.open) dlg.showModal();
+}
+/* ---------- My benches ----------
+   A dialog: the workspace (My benches, or a team), a search, the bin; each bench as a row with its picture,
+   opened by a click, with a menu for the rest (history, fork, rename, delete). A JEKray bench is marked and
+   opens in JEKray. A bench's history lists its versions, to open a copy of one or restore it. */
+const cloudPlace = { ws: null, q: '', bin: false, history: null };
+let listSeq = 0, listMenu = null;
+function closeListMenu() { if (listMenu) { listMenu.el.remove(); listMenu.btn.setAttribute('aria-expanded', 'false'); listMenu = null; } }
+function openListMenu(btn, items) {
+  if (listMenu && listMenu.btn === btn) { closeListMenu(); return; }
+  closeListMenu();
+  const el = h('div', { class: 'rt-hmenu', role: 'menu' }, ...items.filter(Boolean).map(it => it === 'sep' ? h('div', { class: 'sep' }) : h('button', { type: 'button', role: 'menuitem', class: it[2] || null, onclick: () => { closeListMenu(); it[1](); } }, it[0])));
+  document.getElementById('cloudDialog').append(el);
+  const r = btn.getBoundingClientRect(), w = el.offsetWidth, hh = el.offsetHeight;
+  el.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  el.style.top = (r.bottom + 4 + hh > innerHeight - 8 ? Math.max(8, r.top - 4 - hh) : r.bottom + 4) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  listMenu = { el, btn };
+}
+function openCloudList() {
+  if (!accountsOn()) { toast('Accounts are not available here', true); return; }
+  if (!account) { showSignIn('cloud', 'open your cloud benches'); return; }
+  const dlg = document.getElementById('cloudDialog');
+  if (!dlg.open) dlg.showModal();
+  fillCloudList();
+  track('view', 'ion-benches');
+}
+async function fillCloudList() {
+  const box = document.getElementById('cloudList'), wsSel = document.getElementById('cloudWs'), note = document.getElementById('cloudNote'), binBtn = document.getElementById('cloudBin');
+  if (!account) { document.getElementById('cloudDialog').close(); return; }
+  const places = account.workspaces.filter(w => w.kind !== 'institution'), P = cloudPlace;
+  if (!P.ws || !places.some(w => w.id === P.ws)) P.ws = personalWs().id;
+  wsSel.replaceChildren(...places.map(w => h('option', { value: w.id }, placeName(w)))); wsSel.value = P.ws;
+  binBtn.setAttribute('aria-pressed', String(P.bin));
+  document.getElementById('cloudTitle').textContent = P.history ? 'History of “' + P.history.name + '”' : 'Cloud benches';
+  const seq = ++listSeq;
+  box.setAttribute('aria-busy', 'true');
+  if (!box.children.length) box.replaceChildren(h('p', { class: 'rt-hempty' }, 'Loading…'));
+  let data;
+  try {
+    data = await api(P.history ? '/v1/benches/' + P.history.id + '/versions' : '/v1/workspaces/' + P.ws + '/benches?' + new URLSearchParams(P.bin ? { bin: '1' } : P.q ? { q: P.q } : {}));
+  } catch (err) {
+    if (seq !== listSeq) return;
+    box.removeAttribute('aria-busy');
+    if (err.status === 401) { setAccount(null); fillAccount(); box.replaceChildren(h('p', { class: 'rt-hempty' }, 'You are signed out. Sign in again from the bench, top right.')); return; }
+    if (err.status === 404 && P.history) { P.history = null; toast('That bench is not available to you', true); fillCloudList(); return; }
+    box.replaceChildren(h('p', { class: 'rt-hempty' }, 'Could not reach your benches: ' + err.message));
+    return;
+  }
+  if (seq !== listSeq) return;
+  box.removeAttribute('aria-busy');
+  closeListMenu();
+  const wsInfo = places.find(w => w.id === P.ws), team = wsInfo.kind !== 'personal';
+  const can = !!(wsInfo.kind === 'personal' ? wsInfo.active : wsInfo.active && ['owner', 'admin', 'editor'].includes(wsInfo.role || 'owner'));
+  const writer = can || (wsInfo.kind === 'personal');
+  const say = (fn, done) => async () => { try { await fn(); if (done) toast(done); fillCloudList(); } catch (err) { toast(err.message, true); } };
+  const open = async (b, version) => {
+    if (b.tool === 'jekray') { window.open(JEKRAY_URL + '#cloud=' + b.id + (version ? '@' + version : ''), '_blank', 'noopener'); return; }
+    document.getElementById('cloudDialog').close();
+    await openCloudBench(b.id, version);
+  };
+  // the history of one bench
+  if (P.history) {
+    const b = data.bench, mine = cloud && cloud.id === b.id;
+    note.textContent = 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '') + '. A version is kept on Save to cloud, every 10 minutes or so while you work, and before a restore.';
+    box.replaceChildren(
+      h('p', null, h('button', { type: 'button', class: 'rt-btn', onclick: () => { P.history = null; fillCloudList(); } }, '‹ Back to the list'), ' ', h('button', { type: 'button', class: 'rt-btn primary', onclick: () => open(b) }, b.tool === 'jekray' ? 'Open in JEKray' : 'Open')),
+      ...data.versions.map(v => h('div', { class: 'ion-hev' + (v.version === b.version ? ' head' : '') },
+        h('span', null, whenAgo(v.created_at)),
+        h('span', null, 'Version ' + v.version, ' ', h('small', null, [v.version === b.version ? 'current' : null, v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
+        h('span', { class: 'acts' },
+          h('button', { type: 'button', onclick: () => open(b, v.version) }, 'Open a copy'),
+          writer && v.version !== b.version ? h('button', { type: 'button', onclick: say(async () => { await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' }); if (mine) await cloudOpen(b.id); }, 'Restored version ' + v.version) }, 'Restore') : null))));
+    return;
+  }
+  note.textContent = (P.bin ? 'Deleted benches stay here for 30 days.' : (team ? 'Everyone in ' + wsInfo.name + ' sees these.' : 'Yours alone.') + ' Both tools’ benches are here: a JEKray one is marked, and opens in JEKray.')
+    + (data.usage ? ' ' + kb(data.usage.bytes) + ' of ' + kb(data.usage.quota) + ' used.' : '');
+  const cards = data.benches.map(b => {
+    const mine = cloud && cloud.id === b.id, more = h('button', { type: 'button', class: 'rt-hmore', 'aria-label': 'More for ' + b.name, 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, '⋯');
+    more.addEventListener('click', () => openListMenu(more, P.bin ? [
+      writer ? ['Restore', say(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')] : null,
+      ['History', () => { P.history = { id: b.id, name: b.name }; fillCloudList(); }]] : [
+      [b.tool === 'jekray' ? 'Open in JEKray' : 'Open', () => open(b)],
+      ['History', () => { P.history = { id: b.id, name: b.name }; fillCloudList(); }],
+      can && b.tool !== 'jekray' ? ['Fork…', () => { const name = (prompt('Name of the fork', b.name + ' (fork)') || '').trim(); if (name) say(async () => { const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name }))); toast('Forked as “' + f.name + '”'); })(); }] : null,
+      'sep',
+      can ? ['Rename…', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) say(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; cloudKeep(); } })(); }] : null,
+      writer ? ['Delete', say(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days'), 'danger'] : null]));
+    return h('div', { class: 'rt-hcard' + (mine ? ' here' : ''), 'data-bench': b.id },
+      h('button', { type: 'button', class: 'rt-hopen', title: P.bin ? b.name : 'Open “' + b.name + '”' + (b.tool === 'jekray' ? ' in JEKray' : ''), onclick: P.bin ? () => more.click() : () => open(b) },
+        b.thumb ? h('img', { class: 'thumb', src: ION_API + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
+      h('div', { class: 'rt-hinfo' },
+        h('b', { title: b.name }, b.tool === 'jekray' ? h('span', { class: 'rt-htool', title: 'A JEKray bench: it opens in JEKray' }, 'JEKray') : null, b.name),
+        h('small', null, [mine ? 'Open on the bench' : null, P.bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes)].filter(Boolean).join(' · ')),
+        b.forked_from ? h('small', { title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, 'from “' + b.forked_from.name + '”') : null,
+        b.editing && account && b.editing.id !== account.user.id ? h('small', { title: b.editing.name + ' has this bench open to edit' }, b.editing.name + ' is editing') : null),
+      more);
+  });
+  box.replaceChildren(...(cards.length ? cards : [h('p', { class: 'rt-hempty' }, P.bin ? 'The bin is empty.' : P.q ? 'No bench matches “' + P.q + '”.' : 'No benches yet. Use Save to cloud in the File menu to put the bench you are working on here.')]));
+}
+/* ---------- the gates and the wiring ---------- */
+function cloudGates() {
+  const show = accountsOn();
+  for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) { const el = document.getElementById(id); if (el) el.hidden = !show; }
+  if (!show) return;
+  needsShown();
+  const fork = document.getElementById('btnCloudFork');
+  fork.disabled = !cloud; fork.title = cloud ? 'Carry on in a new cloud bench, leaving this one as it is' : 'This bench is not in the cloud yet: Save to cloud first';
+}
+function wireCloud() {
+  hooks.ionAccountChanged = () => { cloudGates(); leaseStart(); if (cloud && cloud.dirty && cloudOn()) cloudPush({ quiet: true }); };
+  if (!accountsOn()) { cloudGates(); return; }
+  cloudRestore();
+  cloudGates();
+  document.getElementById('btnCloudList').addEventListener('click', openCloudList);
+  document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
+  document.getElementById('btnCloudFork').addEventListener('click', cloudFork);
+  document.getElementById('cloudClose').addEventListener('click', () => { closeListMenu(); document.getElementById('cloudDialog').close(); });
+  document.getElementById('cloudWs').addEventListener('change', e => { Object.assign(cloudPlace, { ws: e.target.value, q: '', bin: false, history: null }); document.getElementById('cloudQ').value = ''; fillCloudList(); });
+  document.getElementById('cloudBin').addEventListener('click', () => { Object.assign(cloudPlace, { bin: !cloudPlace.bin, history: null }); fillCloudList(); });
+  let qTimer = null;
+  document.getElementById('cloudQ').addEventListener('input', e => { clearTimeout(qTimer); qTimer = setTimeout(() => { Object.assign(cloudPlace, { q: e.target.value.trim(), history: null }); fillCloudList(); }, 250); });
+  document.getElementById('cloudDialog').addEventListener('click', e => { if (listMenu && !listMenu.el.contains(e.target) && e.target !== listMenu.btn) closeListMenu(); });
+  // the page hidden or closed: what is unsaved goes up at once, and the lease is let go
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true, quiet: true }); });
+  window.addEventListener('pagehide', () => { if (cloud && cloud.dirty) cloudPush({ keepalive: true, quiet: true }); leaseStop(cloud); });
+  if (cloud) cloudSay(cloud.dirty ? 'Not yet saved to the cloud' : 'Saved to the cloud');
+}
+/* ==========================================================================
    The page put together: the hooks the engines and the shared modules reach the page through, every module's wiring
    in order, the bench restored (or the first one), and window.JEKion for the tests and the console.
    ========================================================================== */
@@ -7243,7 +7701,7 @@ installHooks({
 const saved = restoreSaved();
 loadProject(saved || demoProject());
 setHistory([]); setFuture([]);
-wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireShare(); wireView3d(); wireUsage();
+wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireCloud(); wireShare(); wireView3d(); wireUsage();
 menuIcons(document); themeMenu(); viewMenuShown(); renderPanel(); updateUndoButtons();
 setDrawnOnce(() => { usageDrawn(); });
 usageStart(saved ? 'ion-restored' : 'ion-fresh');
@@ -7259,6 +7717,11 @@ const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]d
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
+// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens My benches
+const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/), benchesAt = !TEST_MODE && !EMBED && location.hash === '#benches';
+const cloudHash = async (cl, benches) => { window.history.replaceState(null, '', location.pathname); await accountLoaded; if (cl) openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); else if (benches) openCloudList(); };
+if (cloudAt || benchesAt) cloudHash(cloudAt, benchesAt);
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl || location.hash === '#benches') cloudHash(cl, location.hash === '#benches'); });
 // the tests' and the console's handle on the tool
 window.JEKion = {
   version: APP_VERSION,
@@ -7275,6 +7738,7 @@ window.JEKion = {
   flyPage: async () => { await flyNow(); return SIM.result; },
   trapPage: () => trapNow(), sim: SIM, data: kinds => gatherIonData(project, SIM.result, SIM.trap, kinds), exportData,
   bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot, shareRoundTrip, openShareHash,
+  cloud: { push: cloudPush, link: () => cloud, open: openCloudBench, list: openCloudList, fill: fillCloudList },
 };
 })();
 </script>

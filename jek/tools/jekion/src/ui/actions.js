@@ -10,6 +10,7 @@ import { h, renderPanel, setPanelClosed, syncPanel } from './panel.js';
 import { fitView, requestRender, pointOf } from './render.js';
 import { simChanged, flyNow } from './sim.js';
 import { scheduleSave } from '../io/open.js';
+import { cloudChanged } from '../io/cloud.js';
 
 /* ==========================================================================
    What the page does: toasts and status, the changed() everything funnels through, undo and redo, adding,
@@ -52,6 +53,7 @@ export function changed(rebuildPanel) {
   updateUndoButtons();
   scheduleSave();
   markUnsaved(true);
+  cloudChanged();
   requestRender();
   simChanged();
   goal('edit');

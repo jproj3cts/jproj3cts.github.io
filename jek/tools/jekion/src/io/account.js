@@ -14,12 +14,14 @@ import { toast } from '../ui/actions.js';
    ========================================================================== */
 export const ION_API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://api.jeksys.net';
 export let account;                                   // undefined: not asked yet; null: signed out; else /v1/me
+export function setAccount(v) { account = v; }
 export let accountKnown = false;
+export let accountLoaded = null;                      // the first look at the account, for what waits on it (#benches)
 export const accountsOn = () => !TEST_MODE && !EMBED;
 export async function api(path, opts = {}) {
   const res = await fetch(ION_API + path, Object.assign({ credentials: 'include', headers: { Accept: 'application/json' } }, opts));
   const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; throw e; }
+  if (!res.ok) { const e = new Error((body && body.error && body.error.message) || 'The service is unavailable.'); e.status = res.status; if (body && body.error) for (const k of Object.keys(body.error)) if (k !== 'message') e[k] = body.error[k]; throw e; }
   return body;
 }
 const AUTH_OUTCOMES = { signed_in: ['Signed in'], linked: ['Sign-in linked to your account'], cancelled: ['Sign-in cancelled'], expired: ['That sign-in took too long or was opened in another browser. Please try again.', true],
@@ -39,10 +41,11 @@ export async function loadAccount() {
   catch (err) { account = null; if (err.status === 401) accountKnown = true; }
   fillAccount();
   hooks.needsShown();
+  if (hooks.ionAccountChanged) hooks.ionAccountChanged();
 }
 async function signOut() {
   try { await api('/auth/signout', { method: 'POST' }); } catch (err) { /* the cookie may be gone already */ }
-  account = null; fillAccount(); hooks.needsShown(); toast('Signed out');
+  account = null; fillAccount(); hooks.needsShown(); if (hooks.ionAccountChanged) hooks.ionAccountChanged(); toast('Signed out');
 }
 export function fillAccount() {
   const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
@@ -78,12 +81,12 @@ function promptDialog(id) {
 /* an export asked for signed out, or a Pro feature: what it needs and the ways in */
 export function showSignIn(kind, what) {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
-  track('prompt', (kind === 'export' ? 'export' : 'pro') + '.shown');
+  track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
   const dlg = promptDialog('ionSignIn'), close = () => dlg.close();
   const go = (p, fn) => () => { track('prompt', kind + '.' + p); close(); fn(); };
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the bench as a .jekion file needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed: subscribe from the account menu in JEKray, or join a team with a plan. The same account serves both tools.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan in JEKray.'),
+  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the bench as a .jekion file needs no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches; saving there needs JEKrayPro. The .jekion file on your computer needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed: subscribe from the account menu in JEKray, or join a team with a plan. The same account serves both tools.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan in JEKray.'),
     h('p', null, h('b', null, 'The same account as JEKray’s.'), ' Your bench stays here while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: go('google', () => signIn('google')) }, 'Continue with Google'), h('button', { class: 'rt-btn', type: 'button', onclick: go('microsoft', () => signIn('microsoft')) }, 'Microsoft')),
     h('div', { class: 'rt-actions' }, pro ? h('a', { class: 'rt-btn primary', href: '/jek/tools/jekray.html#pro', target: '_blank' }, 'See JEKrayPro') : null, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', kind + '.no'); close(); } }, 'Not now')));
@@ -103,5 +106,5 @@ export function wireAccount() {
   const m = /[?&]jekauth=([a-z_]+)/.exec(location.search);
   if (m) { const o = AUTH_OUTCOMES[m[1]]; if (o) setTimeout(() => toast(o[0], o[1]), 300); const u = new URL(location.href); u.searchParams.delete('jekauth'); window.history.replaceState(null, '', u.pathname + u.search + u.hash); }
   fillAccount();
-  loadAccount();
+  accountLoaded = loadAccount();
 }

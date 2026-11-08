@@ -86,7 +86,7 @@ import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
 import { normPack, packAssess, packFromSelection, packPut, packRemove, packTrustOf, placePackPart, wirePacks } from '../io/packs.js';
 import { packTrustLabel } from '../core/packsig.js';
 import { account, accountLoaded, accountsOn, proLink, returnNudge, wireAccount } from '../io/account.js';
-import { homeOpen, openHome, wireCloud } from '../io/cloud.js';
+import { homeOpen, openCloudBench, openHome, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
 import { scriptCalls } from './script-calls.js';
@@ -638,13 +638,14 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three),
   // and #benches opens My benches
   const helpLink = () => {
-    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
+    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches', cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/);
     if (benches && homeOpen()) return true;
-    if (location.hash !== '#examples' && !pro && !benches && !(tr && TOURS[tr[1]])) return false;
+    if (location.hash !== '#examples' && !pro && !benches && !cl && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
     setTimeout(async () => {
       if (tr) startTour(tr[1]); else if (pro) proLink();
+      else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }
       else if (benches) {
         await accountLoaded;
         if (account) openHome();

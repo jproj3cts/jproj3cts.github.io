@@ -351,3 +351,35 @@ describe('the export', () => {
     expect(names[0].split('/').every((p) => p !== '..' && p !== '.' && !p.startsWith('.'))).toBe(true);
   });
 });
+
+describe('the two tools', () => {
+  const ion = (name) => JSON.stringify({ format: 'jekion', version: 1, name, electrodes: [], ions: [] });
+  it('a bench is JEKray’s or JEKion’s by its content, the list says which and filters by it', async () => {
+    const s = await pro('Ida');
+    const r = await make(s, 'Optics');
+    const i = await make(s, 'Trap', { content: ion('Trap') });
+    expect(r.tool).toBe('jekray');
+    expect(i.tool).toBe('jekion');
+    const all = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches`, { token: s.token }))).body.benches;
+    expect(all.map((b) => [b.name, b.tool]).sort()).toEqual([['Optics', 'jekray'], ['Trap', 'jekion']]);
+    const ions = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekion`, { token: s.token }))).body.benches;
+    expect(ions.map((b) => b.id)).toEqual([i.id]);
+    const rays = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekray`, { token: s.token }))).body.benches;
+    expect(rays.map((b) => b.id)).toEqual([r.id]);
+    expect((await json(await call(`/v1/benches/${i.id}`, { token: s.token }))).body.tool).toBe('jekion');
+  });
+  it('a bench keeps its tool: the other tool’s content is refused on save, a fork and a restore carry it', async () => {
+    const s = await pro('Ivo');
+    const i = await make(s, 'Trap', { content: ion('Trap') });
+    const wrong = await json(await put(s, i.id, 1, bench('Trap')));
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error.code).toBe('bad_bench');
+    const ok = await json(await put(s, i.id, 1, ion('Trap 2'), { checkpoint: true }));
+    expect(ok.status).toBe(200);
+    const f = (await json(await send(`/v1/benches/${i.id}/fork`, 'POST', s.token, {}))).body;
+    expect(f.tool).toBe('jekion');
+    const back = await json(await send(`/v1/benches/${i.id}/versions/1/restore`, 'POST', s.token, {}));
+    expect(back.status).toBe(200);
+    expect((await json(await call(`/v1/benches/${i.id}`, { token: s.token }))).body.tool).toBe('jekion');
+  });
+});

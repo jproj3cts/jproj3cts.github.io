@@ -1,4 +1,4 @@
-import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
+import { EMBED, TEST_MODE, cloud } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { goal, track } from '../../../jekray/src/io/usage.js';
 import { ION_FORMAT, ION_STORE_KEY } from '../core/units.js';
@@ -17,7 +17,7 @@ export function scheduleSave() {
   if (TEST_MODE || EMBED || !project) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); setStatus('Autosaved in this browser'); }
+    try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); if (!cloud) setStatus('Autosaved in this browser'); }    // a cloud bench's status is the cloud's
     catch (err) { setStatus('This browser is blocking autosave. Use Save .jekion to keep your work.'); }
   }, 350);
 }

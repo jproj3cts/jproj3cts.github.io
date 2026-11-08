@@ -9,7 +9,7 @@ import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
 import { RF_METALS, hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, FREE_3D, NET_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
-import { portsOf, portsOfOptic } from '../engines/fibre.js';
+import { portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
 import { ELEC_YELLOW } from '../engines/elec.js';
 import { PIC_GREEN } from '../engines/pic.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
@@ -474,17 +474,21 @@ export const V3D = (() => {
       // each end leaves its connector straight along the port (the way the route sets off from it), so the fibre's
       // face meets the ferrule square on, not cut across where the route has already begun to bend
       const unit = (p, q) => { const dx = p[0] - q[0], dy = p[1] - q[1], l = Math.hypot(dx, dy); return l > 1e-9 ? [dx / l, dy / l] : null; };
+      // (the way the port points, as its ferrule or pin is drawn; else the way the route sets off)
+      const portDir = (el, port) => { try { const q = portWorld(el, port), l = Math.hypot(q.dx, q.dy); return l > 1e-9 ? [q.dx / l, q.dy / l] : null; } catch (err) { return null; } };
       const sA = segs[0], sB = segs[segs.length - 1];
-      const dA = unit(sA[1], sA[0]) || unit(sA[3], sA[0]), dB = unit(sB[2], sB[3]) || unit(sB[0], sB[3]);
+      const dA = portDir(A, F.a[1]) || unit(sA[1], sA[0]) || unit(sA[3], sA[0]), dB = portDir(B, F.b[1]) || unit(sB[2], sB[3]) || unit(sB[0], sB[3]);
       const runLen = run.reduce((acc, q, k) => k ? acc + Math.hypot(q[0] - run[k - 1][0], q[1] - run[k - 1][1]) : 0, 0);
       const lead = Math.min(4 * r + 3, runLen / 4);
-      const straight = (pts, d) => {
+      // a network part's end: exactly at the tip of its ferrule or pin
+      const tipOf = (el, port, d) => { if (!NET_3D.has(el.type) || !d) return null; try { const q = portWorld(el, port), len = (el.type === 'elec' ? 0 : portsOfOptic(el).length) > port ? NET_FERRULE : NET_PIN; return [q.x + d[0] * len, q.y + d[1] * len]; } catch (err) { return null; } };
+      const straight = (pts, d, E0) => {
         if (!d || pts.length < 3) return pts;
-        const E = pts[0];
+        const E = E0 || pts[0];
         let k = 1; while (k < pts.length - 1 && Math.hypot(pts[k][0] - E[0], pts[k][1] - E[1]) < lead * 1.5) k++;
         return [E, [E[0] + d[0] * lead, E[1] + d[1] * lead], ...pts.slice(k)];
       };
-      if (lead > 0.5) { run = straight(run, dA); run = straight(run.slice().reverse(), dB).reverse(); }
+      if (lead > 0.5) { run = straight(run, dA, tipOf(A, F.a[1], dA)); run = straight(run.slice().reverse(), dB, tipOf(B, F.b[1], dB)).reverse(); }
       const sAt = [0]; for (let k = 1; k < run.length; k++) sAt.push(sAt[k - 1] + Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]));
       const S = sAt[sAt.length - 1]; if (!(S > 0.05) || run.length < 2) return;
       // its height along it: a long run lies on the table, rising to each port over a smooth bend; a short one (or a

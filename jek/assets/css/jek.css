@@ -2084,3 +2084,34 @@ button.buy-button {
 @media (max-width: 520px) {
   .jek-hero .jek-acts .jek-btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ==========================================================================
+   Buttons, one style across the site: the main action is a solid ink button;
+   every other action is an underlined link, the underline in JEK orange.
+   ========================================================================== */
+.jek-btn, .buy-button, .product-actions .buy-button, .acct-btn.primary {
+  padding: 0.62rem 1.1rem; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em; border-radius: var(--jek-radius);
+}
+.jek-btn.primary, .buy-button, button.buy-button, .product-actions .buy-button, .acct-btn.primary {
+  background: var(--jek-ink); color: #fff; border: 1px solid var(--jek-ink);
+}
+.jek-btn.primary:hover, .buy-button:hover, .product-actions .buy-button:hover, .acct-btn.primary:hover {
+  background: #000; border-color: #000; color: #fff;
+}
+.jek-btn.quiet, .quote-button, .return {
+  padding: 0.62rem 0.2rem; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em; color: var(--jek-ink);
+  background: transparent; border: 0; border-radius: 0;
+  text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 2px; text-underline-offset: 4px;
+}
+.jek-btn.quiet:hover, .quote-button:hover, .return:hover { background: transparent; color: #000; text-decoration-color: var(--jek-ink); }
+.quote-button.is-added { background: transparent; color: var(--jek-ink); text-decoration: none; }
+.jek-btn.small { padding: 0.45rem 0.85rem; font-size: 0.85rem; }
+.jek-btn.quiet.small { padding: 0.45rem 0.2rem; }
+@media (max-width: 520px) {
+  .jek-hero .jek-acts .jek-btn.quiet { flex: 0 0 auto; }
+  .product-actions .quote-button { flex: 0 0 auto; }
+}
+
+/* The team: publications and outreach as plain paragraphs, not boxes */
+.jek-member .jek-pubs { gap: 0.75rem; }
+.jek-member .jek-pubs .jek-card { padding: 0; background: none; border: 0; border-radius: 0; }

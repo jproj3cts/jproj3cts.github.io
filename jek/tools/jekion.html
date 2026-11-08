@@ -2004,6 +2004,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .rt-rows > .rt-f.rt-pair > label { align-self: end; padding-bottom: 0.3rem; }
   .rt-rows > .rt-f.rt-pair.ion-stack > label { grid-column: 1 / -1; grid-row: 1; padding-bottom: 0; }
   .rt-rows > .rt-f.rt-pair.ion-stack > .rt-pairbox { grid-column: 1 / -1; grid-row: 2; }
+  /* JEKion's Bench panel is on the right, so its tab sits on the right edge, its chevron pointing in (JEKray's panel is on the left) */
+  @media (min-width: 761px) {
+    .rt-sidetab { left: auto; right: 0; border-left: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px; box-shadow: -2px 0 6px rgba(0,0,0,0.12); }
+    .rt-sidetab .chev { transform: none; }
+    .rt-sidetab.open .chev { transform: scaleX(-1); }
+  }
 </style>
 </head>
 <body>

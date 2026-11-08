@@ -29,19 +29,19 @@
   .ion-models li + li { margin-top: 0.3rem; }
   @media (max-width: 900px) { .ion-models { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 560px) { .ion-models { grid-template-columns: 1fr; } }
-  /* the examples: each opens in JEKion */
-  .ion-exgroup { margin: 1.6rem 0 0.8rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
-  .ion-examples > p + .ion-exgroup { margin-top: 0; }
-  .ion-examples > p { margin: 0 0 1.25rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
-  .ion-example-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+  /* the examples: one grid, four across on a desktop, each card tagged with its topic */
+  .ion-examples > p { margin: 0 0 0.9rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
+  .ion-example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; }
+  @media (max-width: 760px) { .ion-example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 480px) { .ion-example-grid { grid-template-columns: 1fr; } }
   .ion-example { display: flex; flex-direction: column; overflow: hidden; color: inherit; text-decoration: none; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); transition: border-color 0.12s ease; }
   .ion-example:hover { border-color: var(--jek-orange); text-decoration: none; }
   .ion-example:focus-visible { outline: none; box-shadow: var(--jek-focus); }
   .ion-example img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #1f2529; }
-  .ion-example-body { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.8rem 0.95rem 0.95rem; flex: 1; }
-  .ion-example h3 { margin: 0; font-size: 1rem; color: var(--jek-ink); }
-  .ion-example p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); flex: 1; }
-  .ion-example .ion-open { margin-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #e35f27; }
+  .ion-example-body { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.75rem 0.75rem; flex: 1; }
+  .ion-extag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #e35f27; }
+  .ion-example h3 { margin: 0; font-size: 0.95rem; color: var(--jek-ink); }
+  .ion-example p { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
   /* the account band */
   .ion-account .jek-wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem 3rem; align-items: center; }
   .ion-account p { margin: 0.5rem 0 0; font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
@@ -67,7 +67,7 @@
             <a class="jek-btn quiet" href="#examples">Open an example</a>
             <a href="/jek/docs/jekion/">Documentation</a>
           </div>
-          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span><span>Open beta</span><span>Best on a desktop or laptop</span></div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span><span>Best on a desktop or laptop</span></div>
         </div>
         <figure class="jek-shot cover">
           <img src="img/blade-2d.png" alt="A section through a four-blade trap imported from CAD: the potential as a colour map with equipotentials between the blade tips, and the secular motion of a 300 nm silica sphere held at the centre" width="1280" height="752">
@@ -76,27 +76,7 @@
       </div>
     </section>
 
-    <section class="jek-proof jek-band">
-      <div class="jek-wrap">
-        <div class="lead">Checked against closed forms</div>
-        <p><b>Traps</b>A hyperbolic Paul trap&rsquo;s Mathieu <i>q</i> and secular frequency against the ideal quadrupole; a Penning trap&rsquo;s cyclotron frequency against <i>qB</i>/2&pi;<i>m</i>; a quadrupole on the diagonals reads the same <i>a</i> and <i>q</i> as one on the axes.</p>
-        <p><b>Fields and flight</b>Parallel plates, coaxial cylinders and concentric spheres against their analytic potentials in every symmetry; the energy gained across a gap; the cyclotron radius of an electron; a field-free time of flight.</p>
-        <p><b>Live</b>Every check runs in your browser on the <a href="/jek/tools/jekion-tests.html">checks page</a>, with the examples: an ion held in the Paul trap for a hundred microseconds, a mass filter passing one mass, a reflectron refocusing in time.</p>
-      </div>
-    </section>
-
     <section class="jek-section">
-      <div class="jek-wrap">
-        <h2>Who it is for</h2>
-        <div class="jek-cards">
-          <div class="jek-card"><h3>Ion trappers</h3><p>Check a blade, ring or planar trap before it is machined: the RF null, the secular frequencies along the trap&rsquo;s own principal axes, the DC that lifts a degeneracy, the voltage at which an ion is lost.</p><a class="jek-more" href="/jek/tools/jekion.html?demo=paul-trap">A Paul trap holding three ions</a></div>
-          <div class="jek-card"><h3>Levitated particles</h3><p>A charged nanosphere is a heavy, slow ion. JEKion flies it at its real mass and charge, at drives down to a few hertz, and reads its <i>q</i> and secular motion in a trap drawn around it.</p><a class="jek-more" href="/jek/docs/jekion/traps/">The trap analysis</a></div>
-          <div class="jek-card"><h3>Teaching</h3><p>Examples students can open and break: a Paul trap, a Penning trap, a mass filter, a time-of-flight. Raise the RF past the stability edge and watch the ion leave.</p><a class="jek-more" href="/jek/docs/jekion/getting-started/">Getting started</a></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="jek-section" style="padding-top: 0">
       <div class="jek-wrap">
         <div class="jek-feature">
           <div><h2>The trap as it was drawn</h2><p>Drop a STEP or STL file on the bench and each body becomes an electrode, found on the grid by winding along three axes so thin blades and bores come through. Set each electrode&rsquo;s DC and RF, the amplitude, frequency and phase, and the housing stays at ground. The array&rsquo;s spacing is yours to set: fine where the tips are, as coarse as the housing allows.</p><p><a href="/jek/docs/jekion/cad-import/">CAD import &rarr;</a></p></div>
@@ -129,25 +109,17 @@
       </div>
     </section>
 
-    <section class="jek-section jek-band" id="examples" style="padding-top: 2rem">
+    <section class="jek-section jek-band" id="examples" style="padding-block: 1.8rem 2rem">
       <div class="jek-wrap ion-examples">
-        <h2 style="margin: 0 0 0.6rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
-        <p>Each opens in JEKion, solved and flown. Click an electrode to see its settings; Tools &rsaquo; Trap analysis reads the trap.</p>
-        <div class="ion-exgroup">Traps</div>
+        <h2 style="margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
+        <p>Each opens in JEKion, solved and flown. Click an electrode for its settings; Tools &rsaquo; Trap analysis reads the trap.</p>
         <div class="ion-example-grid">
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=paul-trap"><img src="img/ex-paul-trap.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Paul trap</h3><p>A hyperbolic ring and two endcaps with 150 V of RF at 1 MHz: three Ca&#8314; held at the centre, their secular motion and micromotion. Turn on the helium and they cool; raise the RF to 200 V and <i>q</i> passes 0.908, so they are lost.</p><span class="ion-open">Open in JEKion</span></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=penning-trap"><img src="img/ex-penning-trap.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Penning trap</h3><p>A cylindrical trap in a 1 T field: the magnetron, modified cyclotron and axial motions of a single Ca&#8314;, with the three frequencies read off by the analysis.</p><span class="ion-open">Open in JEKion</span></div></a>
-        </div>
-        <div class="ion-exgroup">Mass spectrometry</div>
-        <div class="ion-example-grid">
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=quad-mass-filter"><img src="img/ex-quad-mass-filter.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Quadrupole mass filter</h3><p>Four rods with RF and DC set so mass 100 sits in the tip of the stability region: it passes, and masses 12% either side are thrown onto the rods within a few cycles.</p><span class="ion-open">Open in JEKion</span></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=linear-tof"><img src="img/ex-linear-tof.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Linear time-of-flight</h3><p>A two-stage source, a drift tube and a detector: masses 100, 101 and 200 u separate in time as &radic;<i>m</i>, and the spread of starting places sets whether 100 and 101 are told apart.</p><span class="ion-open">Open in JEKion</span></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=reflectron"><img src="img/ex-reflectron.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Reflectron</h3><p>A time-of-flight with an ion mirror: ions of one mass but a spread of energies turn in the mirror and refocus in time at the detector.</p><span class="ion-open">Open in JEKion</span></div></a>
-        </div>
-        <div class="ion-exgroup">Beam optics</div>
-        <div class="ion-example-grid">
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=einzel-lens"><img src="img/ex-einzel-lens.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Einzel lens</h3><p>Three tubes, the middle one negative: a 2 keV Ar&#8314; beam focused to a point. Change the focus voltage and watch the focal length move.</p><span class="ion-open">Open in JEKion</span></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=quadrupole-deflector"><img src="img/ex-quadrupole-deflector.png" alt="" loading="lazy"><div class="ion-example-body"><h3>Quadrupole deflector</h3><p>Four rods at &plusmn;V bend a beam through 90&deg;: the electrostatic turn used in ion beam lines.</p><span class="ion-open">Open in JEKion</span></div></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=paul-trap"><img src="img/ex-paul-trap.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Trap</span><h3>Paul trap</h3><p>A hyperbolic ring and endcaps, 150 V of RF at 1 MHz: three Ca&#8314; held at the centre. At 200 V, <i>q</i> passes 0.908 and they are lost.</p></div></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=penning-trap"><img src="img/ex-penning-trap.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Trap</span><h3>Penning trap</h3><p>A cylindrical trap in 1 T: the magnetron, modified cyclotron and axial motions of one Ca&#8314;, their frequencies read by the analysis.</p></div></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=quad-mass-filter"><img src="img/ex-quad-mass-filter.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Mass spectrometry</span><h3>Quadrupole mass filter</h3><p>RF and DC set so mass 100 sits in the stability tip: it passes, and masses 12% either side hit the rods.</p></div></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=linear-tof"><img src="img/ex-linear-tof.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Mass spectrometry</span><h3>Linear time-of-flight</h3><p>A two-stage source and a drift tube: masses 100, 101 and 200 u separate as &radic;<i>m</i>; the source&rsquo;s width sets the resolution.</p></div></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=reflectron"><img src="img/ex-reflectron.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Mass spectrometry</span><h3>Reflectron</h3><p>An ion mirror after the drift: one mass with a spread of energies refocuses in time at the detector.</p></div></a>
+          <a class="ion-example" href="/jek/tools/jekion.html?demo=einzel-lens"><img src="img/ex-einzel-lens.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Beam optics</span><h3>Einzel lens</h3><p>Three tubes, the middle one negative: a 2 keV Ar&#8314; beam focused to a point. Change the voltage and the focus moves.</p></div></a>
         </div>
       </div>
     </section>

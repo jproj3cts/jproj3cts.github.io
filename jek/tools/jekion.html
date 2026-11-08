@@ -10,7 +10,7 @@
 <meta name="description" content="JEKion: a charged-particle optics simulator in the browser. Electrodes, ion traps, lenses and time-of-flight, solved and flown live.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261108">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261114">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -2020,7 +2020,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <div class="rt-toolbar" role="toolbar" aria-label="JEKion controls">
       <div class="rt-row rt-bar">
         <h1 class="rt-title"><a href="/jek/products/design-software/jekion/" title="About JEKion: its product page">JEKion</a></h1>
-        <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKion is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
@@ -5281,7 +5280,7 @@ function renderPanel() {
    digit by digit is run once; the bar on the bench says what is going on.
    ========================================================================== */
 const SIM = { get pickedLine() { return pickedLine; }, result: null, slice: null, trap: null, status: '', busy: false, gkey: '', vkey: '', skey: '', seq: 0, when: 0, stale: false, info: null, wanted: null };
-let timer = 0, sliceTimer = 0;
+let timer = 0, sliceTimer = 0, flights = 0;    // flights under way: the cut's own solve must not clear their message
 const bar = () => document.getElementById('simBar'), text = () => document.getElementById('simText');
 function say(msg, busy) {
   SIM.status = msg; SIM.busy = !!busy;
@@ -5316,6 +5315,8 @@ function requestSlice() {
       if (!S) return;
       S.plane = V().plane; S.id = ++SIM.seq; SIM.slice = S; SIM.skey = key;
       hooks.requestRender(); hooks.ionLegend();
+      // the solve was for this cut alone (no flight running): its progress message goes, with the bar's Stop
+      if (SIM.busy && !flights) say(project.fly.auto || !SIM.stale ? '' : 'Changed: press Fly (Space), or turn on Tools › Fly after every change', false);
     } catch (err) { console.warn('JEKion slice:', err); say('Could not compute the fields: ' + err.message, false); }
   }, 60);
 }
@@ -5341,8 +5342,9 @@ async function flyNow() {
   clearTimeout(timer);
   if (!project) return;
   const gk = geometryKey(project), vk = voltageKey(project), t0 = performance.now();
-  if (!project.ions.some(g => g.on !== false)) { SIM.result = null; SIM.stale = false; say(project.electrodes.length ? 'No ion group to fly: + Add › Ion group' : '', false); hooks.requestRender(); hooks.ionResults(); return; }
+  if (!project.ions.some(g => g.on !== false)) { SIM.result = null; SIM.stale = false; say(project.electrodes.length ? 'No ion group to fly: Insert › Ion group' : '', false); hooks.requestRender(); hooks.ionResults(); return; }
   say(gk !== SIM.gkey ? 'Solving the fields…' : 'Flying…', true);
+  flights++;
   try {
     const R = await iwRequest('fly', projData(), {}, 'fly', p => progress(p));
     if (!R) return;                                           // replaced by a newer request
@@ -5351,7 +5353,7 @@ async function flyNow() {
     say('Flew ' + n + ' ion' + (n === 1 ? '' : 's') + ' in ' + nf((performance.now() - t0) / 1000, 2) + ' s: ' + [det && det + ' at detectors', splat && splat + ' on electrodes', out && out + ' out of the array', time && time + ' still flying at tₘₐₓ'].filter(Boolean).join(', '), false);
     hooks.requestRender(); hooks.ionResults();
     if (project.point || hasTrap()) trapNow();
-  } catch (err) { console.warn('JEKion fly:', err); say('Could not fly: ' + err.message, false); }
+  } catch (err) { console.warn('JEKion fly:', err); say('Could not fly: ' + err.message, false); } finally { flights--; }
 }
 const hasTrap = () => project.electrodes.some(e => e.on !== false && e.rf && e.rf.on) || !!(project.bfield.bx || project.bfield.by || project.bfield.bz);
 /* the trap analysis at the analysis point (the array's centre unless set) */
@@ -6634,10 +6636,10 @@ async function importCad(file, at) {
 /* ==========================================================================
    Version, what's new, the examples gallery, citing and reporting a bug.
    ========================================================================== */
-const APP_VERSION = '0.1', APP_DATE = '4 November 2026';
+const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
-  ['0.1', APP_DATE, [
-    '<b>JEKion, in open beta</b>: a charged-particle optics simulator in the browser, alongside JEKray. Electrodes as shapes or as the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
+  ['1.0', APP_DATE, [
+    '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
@@ -6853,8 +6855,8 @@ const V3D = (() => {
       groups.misc.add(m);
     }
     // the ion groups' starts
-    // a small sphere each: a third of a grid spacing, so it never hides a path a few cells across (a trapped ion's)
-    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(G.h * 0.35, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); groups.misc.add(m); }
+    // a unit sphere each, scaled every frame to a few pixels on screen (draw), so zooming in uncovers the path round it
+    for (const g of project.ions) { if (g.on === false) continue; const m = new T.Mesh(new T.SphereGeometry(1, 12, 8), new T.MeshBasicMaterial({ color: new T.Color(g.colour) })); m.position.set(g.x, g.y, g.z); m.userData.startMark = true; groups.misc.add(m); }
     // the paths
     if (project.show.traj && SIM.result) {
       for (const p of SIM.result.particles) {
@@ -6872,6 +6874,9 @@ const V3D = (() => {
   function draw() {
     if (!on || !R) return;
     build();
+    // the start markers: 4 px of radius whatever the distance (a sphere of that many world units at its depth)
+    const cam = R.camera, perPx = 2 * Math.tan(cam.fov * Math.PI / 360) / Math.max(1, R.h);
+    for (const m of R.groups.misc.children) if (m.userData.startMark) m.scale.setScalar(Math.max(1e-6, 4 * perPx * cam.position.distanceTo(m.position)));
     R.gl.render(R.scene, R.camera);
   }
   function fit() {
@@ -7251,7 +7256,7 @@ if (shortLinkAt || longLinkAt) { window.history.replaceState(null, '', location.
 if (!TEST_MODE) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([ik][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/); if (!sh && !ss) return; window.history.replaceState(null, '', location.pathname); if (sh) openShareHash(sh[1]); else openShortLink(ss[1]); });
 // ?demo=<name> or #demo=<name> opens an example; #examples the gallery
 const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
-if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. + Add puts in more.'), 600);
+if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
 // the tests' and the console's handle on the tool

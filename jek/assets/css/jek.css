@@ -2212,8 +2212,8 @@ main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
 /* Less empty space beside pictures: the page top split evenly; features give the words more room and the
    picture less, so a row is no taller than its picture needs */
 .jek-hero .jek-wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; }
-.jek-feature { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 3rem; padding-block: 1.4rem; }
-.jek-feature:nth-of-type(even) { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+.jek-feature { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 3rem; padding-block: 1.4rem; }
+.jek-feature:nth-of-type(even) { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 @media (max-width: 860px) { .jek-feature, .jek-feature:nth-of-type(even) { grid-template-columns: 1fr; } }
 .jek-hero .jek-tag { max-width: 40ch; }
 .jek-hero .jek-lede { max-width: 62ch; }

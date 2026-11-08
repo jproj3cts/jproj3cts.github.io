@@ -54,6 +54,7 @@ export function text(r, sort = 'joined') {
   out.push(`Plans: ${Object.entries(s.plans).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   out.push(`Sign in with: ${Object.entries(s.sign_in).map(([k, n]) => `${k} ${n}`).join(', ')}`);
   if (r.truncated) out.push('(the newest 5000 only)');
+  for (const p of r.problems || []) out.push(`Left out (the database could not answer): ${p.query}… ${p.error}`);
   const rows = [...r.users].sort(SORTS[sort] || SORTS.joined).map((u) => [u.name, u.email || '', day(u.joined), u.signs_in_with.join(','), u.plan,
     ago(u.last_active, t), String(u.benches || ''), String(u.share_links || ''), String(u.exercises || '')]);
   const head = ['Name', 'Email', 'Joined', 'Signs in with', 'Plan', 'Last active', 'Benches', 'Links', 'Exercises'];
@@ -113,6 +114,7 @@ th{color:var(--muted);font-weight:500}#people th{cursor:pointer;white-space:nowr
 input{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg);width:min(320px,100%)}
 .wrap{overflow-x:auto}</style></head><body><main>
 <h1>JEKray accounts</h1><p class="sub">As of ${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC. Account records only; the anonymous usage counts are in the usage report. “Last active” is the latest of a signed-in session's last use (to the day), a bench saved and an exercise solved.${r.truncated ? ' The newest 5000 only.' : ''}</p>
+${(r.problems || []).map((p) => `<p class="sub">Left out, as the database could not answer it: <code>${esc(p.query)}…</code> ${esc(p.error)}</p>`).join('')}
 <div class="hero">${tile(s.people, 'people with accounts')}${tile(s.joined_7d, `joined this week (${s.joined_30d} in 30 days)`)}${tile(s.active_7d, `active this week (${s.active_30d} in 30 days)`)}${tile(s.paying, 'on a paid plan')}${tile(s.with_benches, 'with saved benches')}</div>
 <h3>Week by week, the last 26</h3><div class="key"><span><i class="t-active" style="background:var(--active)"></i>active</span><span><i style="background:var(--joined)"></i>joined</span></div>${weekBars(r.weeks)}
 <div class="cols"><section><h3>Plans</h3><table>${tally(s.plans)}</table></section><section><h3>Sign in with</h3><table>${tally(s.sign_in)}</table></section></div>

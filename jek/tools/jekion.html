@@ -2086,7 +2086,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           </div>
         </div>
         <div class="rt-more rt-phonegone">
-          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an electrode, a CAD body, an ion group or a detector on the bench (A)">Insert</button>
+          <button class="rt-btn rt-mbar" id="btnAdd" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="addMenu" title="Put an ion group or a detector on the bench (A)">Insert</button>
           <div class="rt-menu rt-imenu" id="addMenu" role="menu" hidden></div>
         </div>
         <div class="rt-more rt-phonegone">
@@ -5846,7 +5846,7 @@ function showCtxMenu(x, y, items) {
 function benchMenu(X, Y, hit, at) {
   const point = { label: 'Analysis point here', fn: () => { checkpoint(); project.point = at.map(v => snapTo(v)); changed(true); toast('The trap analysis is done at this point'); } };
   if (!hit) {
-    showCtxMenu(X, Y, [{ label: 'Add an electrode here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
+    showCtxMenu(X, Y, [{ label: 'Insert here…', fn: () => hooks.ionAddMenu(at) }, { label: 'Add an ion group here', fn: () => addIon(at) }, { label: 'Add a detector here', fn: () => addDetector(at) }, '-', point,
       { label: 'Clear the analysis point', off: !project.point, fn: () => { checkpoint(); project.point = null; changed(true); } }, '-', { label: 'Fit the view', key: 'F', fn: fitAny }, { label: 'Fly the ions', key: 'Space', fn: () => flyNow() }]);
     return;
   }
@@ -6479,17 +6479,14 @@ function wirePanels() {
   document.getElementById('trapClose').addEventListener('click', () => document.getElementById('trapDialog').close());
 }
 /* ==========================================================================
-   The Add menu: an electrode of each shape, an ion group, a detector; from the toolbar, or at a point of the bench
+   The Insert menu: an ion group, a detector; from the bar, or at a point of the bench
    from the right-click menu.
    ========================================================================== */
 function fillAddMenu(at) {
   const menu = document.getElementById('addMenu');
   const item = (label, small, fn) => h('button', { type: 'button', role: 'menuitem', class: 'ion-mshape', onclick: () => { menu.hidden = true; document.getElementById('btnAdd').setAttribute('aria-expanded', 'false'); fn(); } }, h('span', null, label), small ? h('small', null, small) : null);
-  const cyl = project && project.grid.sym === 'cyl';
-  menu.replaceChildren(h('span', { class: 'rt-menunote' }, 'Electrodes' + (cyl ? ' (bodies of revolution about the x axis)' : '')),
-    ...SHAPE_ORDER.filter(s => !(cyl && s === 'box')).map(s => item(SHAPES[s].label, SHAPES[s].picker, () => addElectrode(s, at))),
-    item('CAD body…', 'Each body of a .step or .stl file, as an electrode', () => document.getElementById('fileCad').click()),
-    h('div', { class: 'sep' }), item('Ion group', 'Particles started together: species, energy, place, direction', () => addIon(at)), item('Detector', 'A plane that records every ion through it', () => addDetector(at)));
+  // the electrodes come from CAD, by File › Import; the primitive shapes (which the examples and old files still carry) are not offered
+  menu.replaceChildren(item('Ion group', 'Particles started together: species, energy, place, direction', () => addIon(at)), item('Detector', 'A plane that records every ion through it', () => addDetector(at)));
   hooks.ionMenuIcons(menu);
 }
 function wirePicker() {

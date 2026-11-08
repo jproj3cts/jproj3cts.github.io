@@ -14,7 +14,7 @@ description: "Every electrode shape JEKion has, its settings, its voltage and RF
 
 ## The shapes
 
-Every shape but the box and a CAD body is a body of revolution about its own axis (x, y or z through its centre); in a cylindrical array the axis is x and the centre on it.
+An end user's electrodes come from CAD (**File › Import electrodes**): the primitive shapes below are what the examples and older files are built of, and an electrode that has one keeps its panel. Every shape but the box and a CAD body is a body of revolution about its own axis (x, y or z through its centre); in a cylindrical array the axis is x and the centre on it.
 
 | Shape | Settings | Notes |
 |---|---|---|

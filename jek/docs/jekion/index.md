@@ -6,7 +6,7 @@ permalink: /jek/docs/jekion/
 description: "What JEKion models and how: electrostatic fields of any set of electrodes, solved on a grid, and ions and electrons flown through them and a magnetic field, with RF, a background gas, space charge and detectors."
 ---
 
-<p class="dx-lead">JEKion is a charged-particle optics simulator used in a web browser, with nothing to install. You lay out electrodes (shapes, or the bodies of a CAD file), set their voltages, start ions or electrons somewhere with an energy, and it solves the fields and flies the particles: lenses, deflectors, time-of-flight instruments, mass filters and ion traps. It sits beside <a href="/jek/docs/jekray/">JEKray</a>, the optical bench, and shares its accounts, its data export and its way of working.</p>
+<p class="dx-lead">JEKion is a charged-particle optics simulator used in a web browser, with nothing to install. You bring in the electrodes of a trap from a CAD file, set their voltages, start ions or electrons somewhere with an energy, and it solves the fields and flies the particles: lenses, deflectors, time-of-flight instruments, mass filters and ion traps. It sits beside <a href="/jek/docs/jekray/">JEKray</a>, the optical bench, and shares its accounts, its data export and its way of working.</p>
 
 <div class="dx-tip" markdown="1">
 [Open JEKion](/jek/tools/jekion.html) in another tab and try each thing on a bench as you read. The **Examples** gallery has a working bench for every kind of instrument here.

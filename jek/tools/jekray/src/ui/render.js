@@ -448,6 +448,7 @@ export function clipSegPlanes(P, W, c = ctx, sq = false) {
 function drawBeams(fieldShown) {
   const B = lastTrace.beams;
   if (!B || !B.length || !lightOf().envelope) return;
+  const byPow = byPowerOn() ? powerTop(lastTrace, project.tab) : 0;
   ctx.save();
   // a cavity's round trips land on one another: each envelope once, to the pixel
   const done = new Set(), m2 = new Map(), idx = new Map(B.map((b, i) => [b, i]));
@@ -492,7 +493,9 @@ function drawBeams(fieldShown) {
     // the envelope carries the beam's power: its fill in proportion to the share of the source's power the beam
     // has (so power moving between the two arms of a polarising split is seen moving), its edges as the amplitude,
     // with a floor so a weak beam (a ghost, a share that went round a rim) still shows as an outline
-    const faint = clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1);
+    // (by power: against the bench's brightest source, on the rays' scale as an amplitude, the faintest gone)
+    const faint = byPow ? Math.sqrt(powerFade(beamPowerShare(seg, lastTrace, byPow))) : clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1);
+    if (!(faint > 0.05)) continue;
     ctx.save(); clipSegPlanes(PL, seg.len + wMax * 6);
     ctx.beginPath();
     if (upIn.length === up.length) {
@@ -557,7 +560,7 @@ function drawTrail() {
 function drawRays(stale) {
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer, !!lightOf().byPower, lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -646,14 +649,17 @@ function drawRaysOn(ctx, rays, shared) {
   let segs = 0;
   for (const r of rays) if (r.bench === project.tab) segs += r.pts.length >> 1;
   const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
-  // by power (Light: rays as bright as their power): each ray's mW against the bench's strongest, whatever its source
-  const sc = (lastTrace.raySc) || {}, byPow = lightOf().byPower ? rayTopPower(rays, project.tab, sc) : 0;
+  // by power (Light: draw light by its power): each ray's power against the bench's brightest source, faded out below
+  const byPow = byPowerOn() ? powerTop(lastTrace, project.tab) : 0;
   const RW = (lightOf().rayWidth || 1.2) / 1.2, GLOW = !!lightOf().glow;
   ctx.lineWidth = (dens < 1 ? 1.4 : 1.2) * RW;          // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
     if (r.bench !== project.tab) continue;
-    const alpha = (byPow ? rayAlphaPower(r.w * (sc[r.src] || 1) / byPow) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens, lvl = Math.max(1, Math.round(alpha * 12));   // a few steps: lines in one step are one stroke, and do not pile up where they cross
+    // a few steps: lines in one step are one stroke, and do not pile up where they cross; by power, the faintest go
+    const alpha = (byPow ? 0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens;
+    const lvl = byPow ? Math.round(alpha * 12) : Math.max(1, Math.round(alpha * 12));
+    if (!lvl) continue;
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
       const key = part.colour + '|' + lvl;
       if (!groups.has(key)) groups.set(key, { colour: part.colour, alpha: lvl / 12, rays: [] });
@@ -709,18 +715,46 @@ function drawRaysOn(ctx, rays, shared) {
    within a few degrees of a waveplate), while a 4% Fresnel ghost still shows at about a third of the
    brightness and a beam 40 dB down is a trace. w: its power as a fraction */
 export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, Math.pow(Math.max(w, 1e-9), 0.4))); }
+/* ---------- Light by its power ----------
+   Light: Draw light by its power (on unless a bench turns it off, project.light.byPower false): every ray and every
+   beam's envelope as bright as the power it carries, against the bench's brightest source, on a log scale over
+   POWER_DECADES: the brightest at full strength, a sixteenth plainly there, a five-thousandth all but gone, and below
+   1e-4 of it nothing (it fades out, it is not cut off). Light made inside a part (a harmonic, Raman, an amplifier's
+   output) is launched as a source of its own with its own power, so it is drawn by that. Off, each source's light is
+   drawn against its own launch, as before. */
+export const byPowerOn = () => lightOf().byPower !== false;
+export const POWER_DECADES = 4;
+/* t, the log fade over POWER_DECADES (1 at the brightest, 0 at 1e-4 of it), and under it a gentle power law so that
+   each halving near the top is a visible step (a 50/50 splitter's arms plainly dimmer than what fed them): a half
+   0.85, a quarter 0.72, a sixteenth 0.52, a thousandth 0.17, a five-thousandth 0.04, a ten-thousandth nothing */
+export function powerFade(p) {
+  if (!(p > 0)) return 0;
+  const q = Math.min(1, p), t = clamp(1 + Math.log10(q) / POWER_DECADES, 0, 1);
+  return t * (0.55 + 0.45 * Math.pow(q, 0.3));
+}
+/* the brightest launch (mW) of the sources whose light is on a tab, or 0 when the trace does not say */
+const powerTops = new WeakMap();
+export function powerTop(T, tab) {
+  if (!T || !T.srcMw) return 0;
+  let m = powerTops.get(T);
+  if (!m) { m = new Map(); powerTops.set(T, m); }
+  if (m.has(tab)) return m.get(tab);
+  const ids = new Set();
+  for (const r of T.rays || []) if (r.bench === tab) ids.add(r.src);
+  for (const b of T.beams || []) if (b.bench === tab) ids.add(b.src);
+  let top = 0;
+  for (const id of ids) top = Math.max(top, T.srcMw[id] || 0);
+  m.set(tab, top);
+  return top;
+}
+/* a ray's share of the bench's brightest (its share of its own source's strongest ray, times that source's launch) */
+export const rayPowerShare = (r, T, top, tops) => (r.w / (tops.get(r.src) || 1)) * ((T.srcMw && T.srcMw[r.src]) || top) / top;
+/* a beam's: its share of its line's launch, times that launch */
+export const beamPowerShare = (seg, T, top) => (seg.w === undefined ? 1 : seg.w) * (seg.lmw !== undefined ? seg.lmw : (T.srcMw && T.srcMw[seg.src]) || top) / top;
 /* the strongest ray of each source on a tab, by source id: a ray's brightness is against its own
    launch, so a fibre tip fed through a lossy network is as bright as a laser, and a return beam
    or a window's reflection is fainter than the beam it came off (a kept ray is never drawn at
    no brightness at all: the faintest level is one step) */
-/* by power: the alpha of a ray carrying a share p of the bench's strongest, nearly in proportion (half the power,
-   about half as bright), a faint line kept for the weakest */
-export function rayAlphaPower(p) { return 0.85 * Math.min(1, Math.max(0.05, Math.pow(Math.max(p, 1e-9), 0.85))); }
-export function rayTopPower(rays, tab, sc) {
-  let top = 0;
-  for (const r of rays) if (r.bench === tab) top = Math.max(top, r.w * (sc[r.src] || 1));
-  return top || 1;
-}
 export function rayTops(rays, tab) {
   const tops = new Map();
   for (const r of rays) if (r.bench === tab && r.w > (tops.get(r.src) || 0)) tops.set(r.src, r.w);

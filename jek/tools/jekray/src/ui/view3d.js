@@ -18,7 +18,7 @@ import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, bez, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, symbolCanvas, rayAlpha, rayDensity, rayTops,
+  beamPowerShare, benchBg, benchHoles, benchLight, bez, byPowerOn, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, powerFade, powerTop, rayPowerShare, symbolCanvas, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
@@ -297,7 +297,7 @@ export const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
+    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
@@ -858,7 +858,7 @@ export const V3D = (() => {
     // the diffracted field as a volume, when the bench shows it: its key changes as it arrives
     const vb = R.boardBox, VL = lightOf().field && vb ? volLater([vb.min.x, vb.min.y, vb.max.x, vb.max.y]) : { data: null, busy: false };
     R.vol = VL.data; R.volBusy = VL.busy;
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab].join('|'), got = lc.get(lastTrace);
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab].join('|'), got = lc.get(lastTrace);
     if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
     else {
       if (got) { for (const o of got.objs) disposeObj(o); lc.delete(lastTrace); }
@@ -906,14 +906,16 @@ export const V3D = (() => {
   function light(box, bb) {
     const G = R.groups.light, add = !benchLight();
     const blend = add ? T.AdditiveBlending : T.NormalBlending;
-    const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [];
+    const groups = new Map(), rays = lightOf().rays ? lastTrace.rays || [] : [], byPow = byPowerOn() ? powerTop(lastTrace, project.tab) : 0;
     let segs = 0; for (const r of rays) if (r.bench === project.tab && r.pts) segs += r.pts.length >> 1;
     const dens = rayDensity(segs), tops = rayTops(rays, project.tab);
     // a ray that meets nothing ends a little past the parts, not at the board's far edge
     const rb = box.isEmpty() ? bb : new T.Box3(new T.Vector3(Math.max(bb.min.x, box.min.x - 40), Math.max(bb.min.y, box.min.y - 40), bb.min.z), new T.Vector3(Math.min(bb.max.x, box.max.x + 40), Math.min(bb.max.y, box.max.y + 40), bb.max.z));
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
-      const lvl = Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
+      // (by power, as on the bench: against the bench's brightest source, the faintest gone)
+      const lvl = byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
+      if (!lvl) continue;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
       for (let i = 2; i < p.length; i += 2) {
@@ -943,6 +945,7 @@ export const V3D = (() => {
     R.nBeams = 0;
     B.forEach((seg, i) => {
       if (!lightOf().envelope || seg.fan || seg.pol || seg.bench !== project.tab || !((seg.len3 || seg.len) > 0)) return;
+      if (byPow && !(powerFade(beamPowerShare(seg, lastTrace, byPow)) > 0.0025)) return;
       const src = getEl(seg.src);
       if (!src) return;
       if (!m2.has(seg.src)) m2.set(seg.src, [m2Env(src), m2Of(src) * modeM2(src)[1]]);
@@ -981,7 +984,7 @@ export const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1), blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(beamPowerShare(seg, lastTrace, byPow))) : clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });

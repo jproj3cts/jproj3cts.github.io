@@ -6952,6 +6952,37 @@ const TESTS = [
     },
   },
   {
+    name: 'Light is drawn by its power, on by default: a phase-matched harmonic shows, a mismatched one goes',
+    why: 'the frequency-doubling example, its Nd:YAG 16 mm wide (w0 8, 41 rays), no settings changed: Draw light by its power is on (light.byPower true, an old bench too); the PPKTP\u2019s green at 38.5 \u00b0C (about 2.4 mW, a thousandth of the bench\u2019s 2 W) is drawn (above 0.1), at 42.5 \u00b0C (under a microwatt) not at all; turned off, nothing is drawn by power (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const b = JSON.parse(getDemo('frequency-doubling')), L = b.elements.find(e => e.id === 'lB'); Object.assign(L, { width: 16, w0: 8, rays: 41 });
+      const at = T => { b.elements.find(e => e.id === 'xB').temp = T; J.load(b); J.trace(); const P = J.powerShown(); const k = Object.keys(P || {}).find(id => /^shg~xB/.test(id)); return { on: J.project().light.byPower === true, f: k ? P[k] : -1 }; };
+      const a = at(38.5), c = at(42.5);
+      b.light = { rays: true, envelope: true, field: false, scale: 'lin', byPower: false }; J.load(b); J.trace();
+      const off = J.powerShown() === null && J.project().light.byPower === false && JSON.parse(JSON.stringify(J.serialize())).light.byPower === false;
+      if (!(a.on && a.f > 0.1 && c.f === 0 && off)) console.log('byPower', JSON.stringify({ a, c, off }));
+      return a.on && a.f > 0.1 && c.f === 0 && off ? 1 : 0;
+    },
+  },
+  {
+    name: 'Light drawn by its power: each stage of a 50/50 splitter cascade dimmer than the last',
+    why: 'a beam through two 50/50 cubes in a row, its straight-through path: the beam into the first drawn at full strength, after it plainly dimmer (a half: 0.85), after the second dimmer again (a quarter: 0.72) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 5, width: 2, gauss: true, w0: 1, power: 1, pol: 's' },
+        { type: 'cube', id: 'C1', name: 'C1', x: 0, y: 0, angle: 0, reflect: 50 }, { type: 'cube', id: 'C2', name: 'C2', x: 40, y: 0, angle: 0, reflect: 50 },
+        { type: 'screen', id: 'Sc', name: 'Sc', x: 90, y: 0, angle: 180, length: 20 }] });
+      J.trace();
+      const segs = (J.powerShown(true) || []).filter(s => Math.abs(s.y0) < 1e-6).sort((p, q) => p.x0 - q.x0);
+      const before = segs.find(s => s.x0 < -10), mid = segs.find(s => s.x0 > 6 && s.x0 < 30), after = segs.find(s => s.x0 > 46);   // into the first cube; out of each
+      const ok = before && mid && after && before.f > 0.98 && mid.f < before.f - 0.08 && after.f < mid.f - 0.08 && after.f > 0.5;
+      if (!ok) console.log('cascade', JSON.stringify(segs));
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'Show the rays ticked on a bench opened with them off traces them',
     why: 'the Michelson opened with Show the rays off (its Gaussian beam\u2019s rays then not traced at all): ticking it traces again, and the 3D view draws them; unticked, none (1 when all hold)',
     want: 1, tol: 0, unit: '',

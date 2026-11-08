@@ -74,7 +74,7 @@ function themeMenu() {
 
 installHooks({
   requestRender, renderPanel, syncPanel, toast,
-  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionHistory: () => ({ history, future }),
+  ionChanged: changed, ionStatus: () => {}, ionLegend: legendShown, ionResults: () => { renderPanel(); V3D.draw(); }, ionDraw3d: () => V3D.refresh(), ionFit3d: () => { if (!V3D.active()) return false; V3D.fit(); return true; }, ionHistory: () => ({ history, future }),
   ionViewMenu: viewMenuShown, ionBounds: shapeBounds, ionBusy: () => SIM.busy, ionStop: stopFly, ionMenuIcons: menuIcons, needsShown,
 });
 // the bench: restored from this browser, or the first one

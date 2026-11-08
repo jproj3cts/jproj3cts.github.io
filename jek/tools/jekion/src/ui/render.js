@@ -39,7 +39,7 @@ export function setDrawnOnce(fn) { return (drawnOnce = fn); }
 export function requestRender() {
   if (renderQueued || !canvas) return;
   renderQueued = true;
-  requestAnimationFrame(() => { renderQueued = false; render(); });
+  requestAnimationFrame(() => { renderQueued = false; render(); if (hooks.ionDraw3d) hooks.ionDraw3d(); });    // the 3D view follows every redraw: a new cut, a View option
 }
 /* ---------- theme ---------- */
 const THEME_KEY = 'jek-rt-theme';
@@ -134,6 +134,36 @@ function contoursOf(S, levels) {
   return out;
 }
 let contourCache = { key: '', list: [] };
+/* the slice's equipotentials at n nice levels over the map's range (cached by slice and count) */
+function contourList(S, n) {
+  const key = S.id + '|' + n;
+  if (contourCache.key !== key) {
+    // the potential's own range (the map may be |E|'s)
+    let lo = Infinity, hi = -Infinity; for (let i = 0; i < S.nu * S.nv; i++) { const v = S.pot[i]; if (v === v && S.mask[i] < 0) { if (v < lo) lo = v; if (v > hi) hi = v; } }
+    if (!(hi > lo)) { lo = Math.min(lo, 0); hi = lo + 1; }
+    const lv = [];
+    const st = niceStep((hi - lo) / n) || 1;
+    for (let L = Math.ceil(lo / st) * st; L <= hi; L += st) lv.push(L);
+    contourCache = { key, list: contoursOf(S, lv.length ? lv : [(lo + hi) / 2]) };
+  }
+  return contourCache.list;
+}
+/* the cut as the 3D view textures it: the map (or |E|) and/or the equipotentials as the View menu has them, drawn at
+   px pixels a node; null when nothing is to be drawn */
+export function cutCanvasFor(S, show, px = 4) {
+  const efield = show.efield && S.emag, map = show.pot === 'map' || show.pot === 'both', lines = show.pot === 'contours' || show.pot === 'both';    // |E| takes the map's place; the equipotentials are the potential's whatever the map
+  if (!map && !lines) return null;
+  const img = mapCanvasFor(S, efield);    // sets the map's range, which the levels use
+  const cv = document.createElement('canvas'); cv.width = S.nu * px; cv.height = S.nv * px;
+  const c = cv.getContext('2d');
+  if (map) { c.imageSmoothingEnabled = true; c.drawImage(img, 0, 0, cv.width, cv.height); }
+  if (lines) {
+    c.lineWidth = Math.max(1, px / 3); c.strokeStyle = themeDark() ? 'rgba(255,255,255,0.8)' : 'rgba(40,30,20,0.8)'; c.beginPath();
+    for (const { segs } of contourList(S, show.contours)) for (const q of segs) { c.moveTo((q[0] + 0.5) * px, cv.height - (q[1] + 0.5) * px); c.lineTo((q[2] + 0.5) * px, cv.height - (q[3] + 0.5) * px); }
+    c.stroke();
+  }
+  return cv;
+}
 
 export function render() {
   if (!W || !H || !project) return;
@@ -162,15 +192,9 @@ export function render() {
       }
       c.restore();
     };
-    if (show.pot === 'map' || show.pot === 'both' || efield) { drawMap(false); if (mirror) drawMap(true); }
-    if ((show.pot === 'contours' || show.pot === 'both') && !efield && S.nv > 1) {
-      const key = S.id + '|' + show.contours;
-      if (contourCache.key !== key) {
-        const R = mapRange || [0, 1], lo = R[0], hi = R[1], n = show.contours, lv = [];
-        const st = niceStep((hi - lo) / n) || 1;
-        for (let L = Math.ceil(lo / st) * st; L <= hi; L += st) lv.push(L);
-        contourCache = { key, list: contoursOf(S, lv.length ? lv : [(lo + hi) / 2]) };
-      }
+    if (show.pot === 'map' || show.pot === 'both') { drawMap(false); if (mirror) drawMap(true); }    // as |E| when that is on
+    if ((show.pot === 'contours' || show.pot === 'both') && S.nv > 1) {
+      contourList(S, show.contours);
       c.save(); c.lineWidth = 1; c.strokeStyle = themeDark() ? 'rgba(255,255,255,0.55)' : 'rgba(40,30,20,0.55)';
       const draw = flip => { c.beginPath(); for (const { segs } of contourCache.list) for (const s of segs) { c.moveTo(sx(sU0 + s[0] * S.h), sy(flip ? -(sV0 + s[1] * S.h) : sV0 + s[1] * S.h)); c.lineTo(sx(sU0 + s[2] * S.h), sy(flip ? -(sV0 + s[3] * S.h) : sV0 + s[3] * S.h)); } c.stroke(); };
       draw(false); if (mirror) draw(true);
@@ -231,6 +255,7 @@ export function render() {
   }
   // the electrodes' names and voltages
   c.save(); c.font = '600 11px ' + getCss('--jek-sans'); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = inkA(0.85);
+  const placed = [];    // labels drawn so far, [x, y] in pixels: one on top of another steps down a line
   for (const el of project.electrodes) {
     if (el.on === false) continue;
     const [u, v] = uvOf([el.x, el.y, el.z]);
@@ -238,7 +263,10 @@ export function render() {
     let lu = u, lv = v;
     if (polys && polys[0]) { let su = 0, sv = 0, n = 0; for (const [a, b] of polys[0]) { su += a; sv += b; n++; } lu = su / n; lv = sv / n; if (polys.length > 1) lv = Math.max(...polys[0].map(p => p[1])); }
     const text = el.name + ' · ' + fmtVolt(el.V) + (el.rf && el.rf.on ? ' ± ' + fmtVolt(el.rf.amp) + ' RF' : '');
-    c.fillText(text, sx(lu), sy(lv) - 10);
+    const w = c.measureText(text).width; let X = sx(lu), Y = sy(lv) - 10;
+    for (let k = 0; k < placed.length; k++) { const [px, py, pw] = placed[k]; if (Math.abs(py - Y) < 12 && Math.abs(px - X) < (w + pw) / 2) { Y = py + 13; k = -1; } }
+    placed.push([X, Y, w]);
+    c.fillText(text, X, Y);
   }
   c.restore();
   // a line a potential is plotted along

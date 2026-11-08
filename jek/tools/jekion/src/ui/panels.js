@@ -3,7 +3,7 @@ import { fmtEv, fmtMHz, fmtMm, fmtUs, nf, SPECIES, FREQ_UNITS, freqUnitOf } from
 import { SHAPES, AXES } from '../core/geom.js';
 import { BCS, FACES, SYMS } from '../core/grid.js';
 import { project, selectedItem, V } from '../state/project.js';
-import { checkpoint, COLOUR_BYS, gridNodes, POT_SHOWS } from '../state/elements.js';
+import { checkpoint, gridNodes } from '../state/elements.js';
 import { SHAPE_FIELDS } from '../parts/electrodes.js';
 import { DISTS } from '../parts/ions.js';
 import { END_WORDS } from '../engines/fly.js';
@@ -157,11 +157,8 @@ function benchPanel() {
   box.append(potentialSection());
   // display
   const S = project.show;
-  box.append(section('Display', 'bench.show', [rows(selectField('Potential', Object.entries(POT_SHOWS), () => S.pot, v => { S.pot = v; }, { rebuild: false }), param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }),
-    checkField('Field strength |E| instead', () => S.efield, v => { S.efield = v; }, { wide: true, rebuild: false }), checkField('Trajectories', () => S.traj, v => { S.traj = v; }, { rebuild: false }), selectField('Colour paths by', Object.entries(COLOUR_BYS), () => S.colourBy, v => { S.colourBy = v; }, { rebuild: false }), checkField('Array outline and nodes', () => S.grid, v => { S.grid = v; }, { rebuild: false }),
-    G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
-  // notes
-  box.append(section('Notes', 'bench.notes', [(() => { const ta = h('textarea', { rows: 4, spellcheck: 'true', style: 'width:100%;box-sizing:border-box;font:inherit;font-size:0.85rem' }); ta.value = project.notes; ta.addEventListener('change', () => { checkpoint(); project.notes = ta.value.slice(0, 4000); changed(false); }); return ta; })()], false));
+  // the display: the View menu holds the toggles (cut plane, potential, |E|, paths and their colouring, the outline); here only the numbers
+  box.append(section('Display', 'bench.show', [rows(param('Equipotentials', S, 'contours', { min: 2, max: 200, fmt: v => String(Math.round(v)) }), G.sym === '3d' ? param('Cut at (mm)', V(), 'slice') : null)], false));
   // results
   if (SIM.result) box.append(resultsSection());
 }
@@ -245,7 +242,7 @@ function resultsSection() {
   const live = project.electrodes.filter(e => e.on !== false), perEl = live.map((el, k) => [el, P.filter(p => (p.end.why === 'splat' || p.end.why === 'start') && p.end.el === k).length]).filter(x => x[1]);
   const body = [h('div', { class: 'ion-res' }, readout([['Ions flown', n + ' in ' + nf(R.ms / 1000, 2) + ' s'], ...Object.entries(ends).map(([w, k]) => [END_WORDS[w], k + ' (' + nf(100 * k / n, 3) + '%)'])]), bar)];
   if (perEl.length) body.push(h('table', { class: 'ion-table' }, h('tr', null, h('th', null, 'Electrode'), h('th', null, 'Hit by')), ...perEl.map(([el, k]) => h('tr', null, h('td', null, h('span', { class: 'ion-sw', style: 'background:' + el.colour }), el.name), h('td', { class: 'n' }, String(k))))));
-  body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));
+  if (n >= 3) body.push(histogram(P.map(p => p.end.t), { title: 'Time at the end', unit: '\u00b5s' }));    // a spread needs a few
   return section('Results of the last flight', 'bench.res', body);
 }
 /* what the panel shows: the selection's panel, else the bench's unless it was put away */

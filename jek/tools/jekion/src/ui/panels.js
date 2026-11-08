@@ -193,9 +193,11 @@ function potentialSection() {
     tab('a line\u2026', 'Click two points on the bench: the potential along the line between them', cur === 'line', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
   out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along'), group, potPlot ? h('button', { type: 'button', class: 'rt-btn quiet', title: 'Take the plot away, and the picked line off the bench', onclick: () => setPotPlot(null) }, 'Clear') : null));
   if (SIM.result && SIM.result.particles.length) {
-    const ps = SIM.result.particles.slice(0, 200), sel = h('select', { 'aria-label': 'The particle whose path to plot along' }, ...ps.map((p, k) => h('option', { value: String(k) }, ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i)));
-    sel.value = String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0);
-    out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along the path of'), sel, btn('Plot', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.value }))));
+    // choosing a particle plots the potential it saw against time; the plot follows each flight
+    const ps = SIM.result.particles.slice(0, 200), sel = h('select', { 'aria-label': 'The particle whose path to plot along', title: 'The potential the particle saw, against time' }, h('option', { value: '' }, '\u2014'), ...ps.map((p, k) => h('option', { value: String(k) }, ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i)));
+    sel.value = potPlot && potPlot.kind === 'path' ? String(potPlot.k) : '';
+    sel.addEventListener('change', () => { if (sel.value !== '') setPotPlot({ kind: 'path', k: +sel.value }); else if (potPlot && potPlot.kind === 'path') setPotPlot(null); });
+    out.append(h('div', { class: 'ion-plotrow' }, h('span', { class: 'ion-plotlbl' }, 'Along the path of'), sel));
   }
   out.append(plotBox);
   if (potPlot) drawPotPlot(potPlot, plotBox);

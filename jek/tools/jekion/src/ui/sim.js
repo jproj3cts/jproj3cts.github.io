@@ -14,7 +14,7 @@ import { IW, iwRequest } from '../page/workers.js';
    digit by digit is run once; the bar on the bench says what is going on.
    ========================================================================== */
 export const SIM = { get pickedLine() { return pickedLine; }, result: null, slice: null, trap: null, status: '', busy: false, gkey: '', vkey: '', skey: '', seq: 0, when: 0, stale: false, info: null, wanted: null };
-let timer = 0, sliceTimer = 0;
+let timer = 0, sliceTimer = 0, flights = 0;    // flights under way: the cut's own solve must not clear their message
 const bar = () => document.getElementById('simBar'), text = () => document.getElementById('simText');
 function say(msg, busy) {
   SIM.status = msg; SIM.busy = !!busy;
@@ -49,6 +49,8 @@ export function requestSlice() {
       if (!S) return;
       S.plane = V().plane; S.id = ++SIM.seq; SIM.slice = S; SIM.skey = key;
       hooks.requestRender(); hooks.ionLegend();
+      // the solve was for this cut alone (no flight running): its progress message goes, with the bar's Stop
+      if (SIM.busy && !flights) say(project.fly.auto || !SIM.stale ? '' : 'Changed: press Fly (Space), or turn on Tools › Fly after every change', false);
     } catch (err) { console.warn('JEKion slice:', err); say('Could not compute the fields: ' + err.message, false); }
   }, 60);
 }
@@ -74,8 +76,9 @@ export async function flyNow() {
   clearTimeout(timer);
   if (!project) return;
   const gk = geometryKey(project), vk = voltageKey(project), t0 = performance.now();
-  if (!project.ions.some(g => g.on !== false)) { SIM.result = null; SIM.stale = false; say(project.electrodes.length ? 'No ion group to fly: + Add › Ion group' : '', false); hooks.requestRender(); hooks.ionResults(); return; }
+  if (!project.ions.some(g => g.on !== false)) { SIM.result = null; SIM.stale = false; say(project.electrodes.length ? 'No ion group to fly: Insert › Ion group' : '', false); hooks.requestRender(); hooks.ionResults(); return; }
   say(gk !== SIM.gkey ? 'Solving the fields…' : 'Flying…', true);
+  flights++;
   try {
     const R = await iwRequest('fly', projData(), {}, 'fly', p => progress(p));
     if (!R) return;                                           // replaced by a newer request
@@ -84,7 +87,7 @@ export async function flyNow() {
     say('Flew ' + n + ' ion' + (n === 1 ? '' : 's') + ' in ' + nf((performance.now() - t0) / 1000, 2) + ' s: ' + [det && det + ' at detectors', splat && splat + ' on electrodes', out && out + ' out of the array', time && time + ' still flying at tₘₐₓ'].filter(Boolean).join(', '), false);
     hooks.requestRender(); hooks.ionResults();
     if (project.point || hasTrap()) trapNow();
-  } catch (err) { console.warn('JEKion fly:', err); say('Could not fly: ' + err.message, false); }
+  } catch (err) { console.warn('JEKion fly:', err); say('Could not fly: ' + err.message, false); } finally { flights--; }
 }
 const hasTrap = () => project.electrodes.some(e => e.on !== false && e.rf && e.rf.on) || !!(project.bfield.bx || project.bfield.by || project.bfield.bz);
 /* the trap analysis at the analysis point (the array's centre unless set) */

@@ -20,6 +20,18 @@
 
 <!-- Bio-only overrides. Kept here so this page can be updated on its own;
      move into assets/jek.css whenever convenient. -->
+<style>
+  /* Each person's publications and outreach fold away under "Show more" */
+  .jek-member details.more { margin-top: 0.2rem; }
+  .jek-member details.more > summary { display: inline-block; cursor: pointer; list-style: none; padding: 0.3rem 0; font-size: 0.92rem; font-weight: 600; color: var(--jek-ink);
+    text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .jek-member details.more > summary::-webkit-details-marker { display: none; }
+  .jek-member details.more > summary::after { content: " \25BE"; text-decoration: none; display: inline-block; margin-left: 0.25rem; }
+  .jek-member details.more[open] > summary::after { content: " \25B4"; }
+  .jek-member details.more .hide, .jek-member details.more[open] .show { display: none; }
+  .jek-member details.more[open] .hide { display: inline; }
+  .jek-member details.more > summary:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+</style>
 
 </head>
 <body>
@@ -51,6 +63,8 @@
               <div><h2>Dr Joe Kelly</h2><p class="role">Director. Optics, electronics and systems engineering</p></div>
             </div>
             <p class="story">Applied physicist who designs and builds optical sensors and the electronics behind them: laser-based sensors, analogue and digital circuits, PCB layout and embedded firmware. Inventor on a UK patent application for a nanoparticle trap, with a PhD from the University of Birmingham on squeezed light in optical amplifiers.</p>
+            <details class="more">
+              <summary><span class="show">Show more</span><span class="hide">Show less</span></summary>
             <h3>Publications and patents</h3>
             <div class="jek-pubs">
               <div class="jek-card"><p>Zhenan Chen, Sophie Sanghera, Yanhui Hu, Maryam Nikkhou, Alex Gee, David Burt, Qiongyuan Wu, <strong>Joseph Kelly</strong> and James Millen (2026). Optomechanical levitation and control of high aspect ratio silicon nanorods. <em>arXiv preprint arXiv:2608.07415</em>.</p></div>
@@ -63,6 +77,7 @@
               <div class="jek-card"><p><strong>Joseph Kelly</strong> (2024). Interview on <em>Sun, sea... and science</em>, <em>BBC Radio 4</em>, 4 July 2024. <a href="https://www.bbc.co.uk/programmes/m0020pfy" target="_blank" rel="noopener">bbc.co.uk/programmes/m0020pfy</a></p></div>
               <div class="jek-card"><p><strong>Joseph Kelly</strong>, with the King&rsquo;s College London Department of Physics team (2024). <em>The Unseen Wonders of Light</em>, exhibitor at the <em>Royal Society Summer Science Exhibition</em>, London, 2&ndash;7 July 2024: optical and electrical levitation of nanoparticles and microdiamonds, and the chirality of light and matter, shown to thousands of public and scientific visitors. <a href="https://www.kcl.ac.uk/news/kings-scientists-dazzle-and-amaze-at-royal-society-summer-exhibition-2024" target="_blank" rel="noopener">kcl.ac.uk: King&rsquo;s scientists dazzle and amaze</a></p></div>
             </div>
+            </details>
           </div>
 
           <div class="jek-member" id="qiongyuan-wu">
@@ -71,6 +86,8 @@
               <div><h2>Dr Qiongyuan Wu</h2><p class="role">Associate. Theoretical physicist and programmer</p></div>
             </div>
             <p class="story">Theoretical physicist working on non-equilibrium quantum thermodynamics and levitated nanoparticles. Holds a PhD in theoretical physics, with a first degree in mathematics. At JEK he builds modules for <a href="/jek/products/design-software/jekray/">JEKray</a>, the optical bench simulator, and tests the physics behind them.</p>
+            <details class="more">
+              <summary><span class="show">Show more</span><span class="hide">Show less</span></summary>
             <h3>Selected publications</h3>
             <div class="jek-pubs">
               <div class="jek-card"><p>Zhenan Chen, Sophie Sanghera, Yanhui Hu, Maryam Nikkhou, Alex Gee, David Burt, <strong>Qiongyuan Wu</strong>, Joseph Kelly and James Millen (2026). Optomechanical levitation and control of high aspect ratio silicon nanorods. <em>arXiv preprint arXiv:2608.07415</em>.</p></div>
@@ -79,6 +96,7 @@
               <div class="jek-card"><p>Yugang Ren, &hellip;, <strong>Qiongyuan Wu</strong>, et al. (2025). Neuromorphic detection and cooling of microparticles in arrays. <em>Nature Communications, 16</em>, 10658. <a href="https://www.nature.com/articles/s41467-025-65677-0" target="_blank" rel="noopener">doi.org/10.1038/s41467-025-65677-0</a></p></div>
             </div>
             <p class="note" style="margin-top: 0.8rem">His note on <a href="https://qiongyuanwu.com/error-propagation/" target="_blank" rel="noopener">error propagation</a> in measurements. More at <a href="https://qiongyuanwu.com/" target="_blank" rel="noopener">qiongyuanwu.com</a>, <a href="https://scholar.google.com/citations?user=3MaUel8AAAAJ" target="_blank" rel="noopener">Google Scholar</a> and <a href="https://www.linkedin.com/in/qiongyuan-wu/" target="_blank" rel="noopener">LinkedIn</a>.</p>
+            </details>
           </div>
 
           <div class="jek-member" id="peiyao-xiong">
@@ -87,11 +105,14 @@
               <div><h2>Peiyao Xiong</h2><p class="role">Associate. Software and business development</p></div>
             </div>
             <p class="story">Experimental physicist working on levitated optomechanics, nanoparticle rotation and feedback cooling. Developed browser-based tools for physics education and research outreach. At JEK he works on software development for <a href="/jek/products/design-software/jekray/">JEKray</a>, customer and partnership development, and investor outreach.</p>
+            <details class="more">
+              <summary><span class="show">Show more</span><span class="hide">Show less</span></summary>
             <h3>Publications</h3>
             <div class="jek-pubs">
               <div class="jek-card"><p><strong>Peiyao Xiong</strong>, Kit Ka Kelvin Ho, J. M. H. Gosling, M. Rademacher and P. F. Barker (2025). Optical centrifuge for nanoparticles. <em>Physical Review Research, 7</em>, 043204. <a href="https://doi.org/10.1103/ylw9-22jj" target="_blank" rel="noopener">doi.org/10.1103/ylw9-22jj</a></p></div>
               <div class="jek-card"><p><strong>Peiyao Xiong</strong> (2021). The comparison of secure key rate of BB84 protocol using single photon detectors and optical homodyne detectors. <em>Journal of Physics: Conference Series, 1936</em>, 012021. <a href="https://doi.org/10.1088/1742-6596/1936/1/012021" target="_blank" rel="noopener">doi.org/10.1088/1742-6596/1936/1/012021</a></p></div>
             </div>
+            </details>
           </div>
 
           <!-- The next member: a copy of the column above in place of this one.

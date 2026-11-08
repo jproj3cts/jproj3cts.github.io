@@ -154,9 +154,10 @@ export function normLight(L, els) {
     envelope: L && typeof L.envelope === 'boolean' ? L.envelope : was ? was !== 'none' : true,
     field: L && typeof L.field === 'boolean' ? L.field : was ? was === 'field' : any('field'),
     scale: L && (L.scale === 'log' || L.scale === 'log60' || L.scale === 'lin') ? L.scale : (els || []).some(e => e && e.beamView === 'field' && e.beamScale === 'log') ? 'log' : 'lin',
-    // the rays drawn as bright as the power they carry against the bench's strongest (not each source's own),
-    // and, while sweeps play, fading trails of the frames before: kept only when on
-    ...(L && L.byPower === true ? { byPower: true } : {}),
+    // light drawn by the power it carries against the bench's brightest source (rays and envelopes, 2D and 3D): on
+    // unless the bench turns it off, so every bench, old or new, has it (ui/render.js powerFade)
+    byPower: L ? L.byPower !== false : true,
+    // while sweeps play, fading trails of the frames before: kept only when on
     ...(L && L.trail === true ? { trail: true } : {}),
     // the rays drawn wider than 1.2 px on the screen (up to 4), and with a soft glow round them: kept only when set
     ...(L && isFinite(L.rayWidth) && +L.rayWidth > 1.2 ? { rayWidth: Math.min(4, +L.rayWidth) } : {}),
@@ -263,7 +264,7 @@ export function lampBody(el) {
   for (let i = 0; i < 32; i++) { const t = 2 * Math.PI * i / 32; out.push([F.a * Math.cos(t), F.a * Math.sin(t)]); }
   return out;
 }
-export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin' };
+export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin', byPower: true };
 export function serialize() {
   return {
     format: FORMAT, version: VERSION,

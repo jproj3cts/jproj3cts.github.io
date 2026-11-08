@@ -240,16 +240,18 @@
   .rt-stage canvas.rotate { cursor: crosshair; }
   .rt-stage:focus-within { box-shadow: var(--jek-shadow), var(--jek-focus); }
 
-  /* the tab on the bench's right edge, half way up: brings the Bench panel out, or puts the panel away (its
-     chevron turns); with the panel out, the bench's edge is the panel's, so the tab rides on it */
-  .rt-sidetab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-right: 0; border-radius: 6px 0 0 6px;
-    box-shadow: -2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
+  /* the tab on the bench's left edge, half way up: brings the Bench panel out on the left, or puts it away (its
+     chevron turns); the parts' panels open on the right, apart, each with its own × */
+  .rt-sidetab { position: absolute; left: 0; top: 50%; transform: translateY(-50%); z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    width: 16px; height: 48px; padding: 0; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-left: 0; border-radius: 0 6px 6px 0;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.12); cursor: pointer; }
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
-  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
-  .rt-sidetab.open .chev { transform: scaleX(-1); }
-  /* the main panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
-  .rt-pin.rt-mainclose { display: none; }
+  .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; transform: scaleX(-1); }
+  .rt-sidetab.open .chev { transform: none; }
+  /* the Bench panel in the first column, the bench after it (renderPanel sets the columns) */
+  .rt-grid.rt-benchleft > #panel { order: -1; }
+  /* the Bench panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
+  .rt-pin.rt-benchclose { display: none; }
   body.rt-embed .rt-sidetab { display: none; }
   .rt-coords {
     position: absolute;
@@ -652,7 +654,9 @@
   .rt-secbtn:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-sec.shut > .rt-secbody { display: none; }
   .rt-sec + .rt-tabs { margin-top: 0.7rem; padding-top: 0.35rem; border-top: 1px solid var(--jek-line); }
-  .rt-about h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-about h4, .rt-aboutpart h4 { margin: 0.5rem 0 0.2rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-aboutpart h4 { font-size: 0.8rem; margin-top: 0.9rem; }
+  .rt-aboutpart p { line-height: 1.55; }
   .rt-sweep-toggle:focus-visible, .rt-link:focus-visible { outline: none; box-shadow: var(--jek-focus); border-radius: 2px; }
   .rt-inline { display: flex; gap: 1rem; }
   .rt-stack {
@@ -1801,7 +1805,7 @@
   .rt-app .rt-welcome.rt-nudge { bottom: calc(0.45rem + 32px + 0.4rem); max-height: calc(100% - 32px - 1.6rem); }
   .rt-pin:not(.rt-close):not(.rt-sheetbtn):not(.rt-padlock), .rt-pinned { display: none !important; }
   /* the tab: a handle on the bench's bottom edge, pulling the sheet up; the sheet closes with its own × */
-  .rt-pin.rt-mainclose { display: inline-grid; }
+  .rt-pin.rt-mainclose, .rt-pin.rt-benchclose { display: inline-grid; }
   .rt-sidetab { top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; width: 48px; height: 18px; border: 1px solid var(--rt-over-line); border-bottom: 0; border-radius: 6px 6px 0 0; box-shadow: 0 -2px 6px rgba(0,0,0,0.12); }
   .rt-sidetab .chev { transform: rotate(90deg); }
   .rt-sidetab.open { display: none; }
@@ -2040,6 +2044,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo" id="editUndo">Undo<span class="k">Ctrl+Z</span></button>
             <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo" id="editRedo">Redo<span class="k">Ctrl+Shift+Z</span></button>
             <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnNotes" data-icon="quote" title="What this bench is, where it comes from, what was assumed">Bench notes…</button>
+            <div class="sep"></div>
             <button type="button" role="menuitem" data-edit="cut" data-icon="cut">Cut<span class="k">Ctrl+X</span></button>
             <button type="button" role="menuitem" data-edit="copy" data-icon="copy">Copy<span class="k">Ctrl+C</span></button>
             <button type="button" role="menuitem" data-edit="paste" data-icon="paste">Paste<span class="k">Ctrl+V</span></button>
@@ -2061,6 +2067,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
+            <button type="button" role="menuitem" data-icon="beam" id="btnRayLook" title="Brightness by power, fading trails, glow and width, for figures and recordings">How the rays look…</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
               <div class="rt-menu rt-imenu" role="menu" id="themeMenu"></div>
@@ -2108,6 +2115,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <div class="rt-menu rt-imenu" id="helpMenu" role="menu" hidden>
             <button type="button" role="menuitem" data-click="btnCmd" data-icon="search">Search commands…<span class="k">Ctrl+K</span></button>
             <button type="button" role="menuitem" id="btnHelp" data-icon="keyboard">Keyboard and mouse shortcuts<span class="k">?</span></button>
+            <button type="button" role="menuitem" id="btnUsing" data-icon="info">Using the bench…</button>
+            <button type="button" role="menuitem" id="btnAboutPart" data-icon="info" title="What the selected part models, and how to use it">About the selected part…</button>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="flag">Guided tours
               <div class="rt-menu rt-imenu" role="menu">
                 <button type="button" role="menuitem" data-tour="focus" data-icon="beam">Focus a laser beam</button>
@@ -2146,8 +2155,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dPng" type="button" data-icon="camera" hidden data-need="account" data-what="save a picture of the 3D view" title="Save the 3D view as a picture" aria-label="Save the 3D view as a picture"></button>
         </div>
         <div class="rt-more rt-file">
-          <button class="rt-btn rt-icon rt-cloud rt-homebtn" id="btnHome" type="button" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z"/></svg></button>
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
+          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden></button>
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
@@ -2205,7 +2214,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-drawhint" id="drawHint" role="status" hidden></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
-        <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping, notes and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
+        <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: light, snapping and the parts list"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
         <div class="rt-drop">Drop a .zmx, .stl, .jekray or .jekpack file</div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
@@ -2347,6 +2356,18 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <h3 class="rt-subhead">BibTeX</h3>
     <textarea id="citeBib" rows="8" readonly spellcheck="false"></textarea>
     <div class="rt-actions"><button class="rt-btn" data-copy="citeBib">Copy BibTeX</button><button class="rt-btn primary" id="citeClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="infoDialog" aria-labelledby="infoTitle">
+    <h2 id="infoTitle"></h2>
+    <div id="infoBody" style="text-align:left"></div>
+    <div class="rt-actions"><button class="rt-btn primary" type="button" id="infoClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="rayDialog" aria-labelledby="rayTitle">
+    <h2 id="rayTitle">How the rays look</h2>
+    <div id="rayBody" style="text-align:left"></div>
+    <div class="rt-actions"><button class="rt-btn primary" type="button" id="rayClose">Done</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="bugDialog" aria-labelledby="bugTitle">
@@ -22167,7 +22188,7 @@ const V3D = (() => {
 
   /* ---------- keeping up with the bench ---------- */
   // what the network's parts and their fibres look like on this tab (moving them changes no light, so not the trace)
-  const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb])]);
+  const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb]), (selFibre() || {}).id || '']);
   function sync() {
     init();
     // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
@@ -22350,22 +22371,38 @@ const V3D = (() => {
       if (eB.trim) run = cut(run.slice().reverse(), eB.trim).reverse();
       if (eA.pre) run = [eA.pre, ...run];
       if (eB.pre) run = [...run, eB.pre];
+      // each end leaves its connector straight along the port (the way the route sets off from it), so the fibre's
+      // face meets the ferrule square on, not cut across where the route has already begun to bend
+      const unit = (p, q) => { const dx = p[0] - q[0], dy = p[1] - q[1], l = Math.hypot(dx, dy); return l > 1e-9 ? [dx / l, dy / l] : null; };
+      const sA = segs[0], sB = segs[segs.length - 1];
+      const dA = unit(sA[1], sA[0]) || unit(sA[3], sA[0]), dB = unit(sB[2], sB[3]) || unit(sB[0], sB[3]);
+      const runLen = run.reduce((acc, q, k) => k ? acc + Math.hypot(q[0] - run[k - 1][0], q[1] - run[k - 1][1]) : 0, 0);
+      const lead = Math.min(4 * r + 3, runLen / 4);
+      const straight = (pts, d) => {
+        if (!d || pts.length < 3) return pts;
+        const E = pts[0];
+        let k = 1; while (k < pts.length - 1 && Math.hypot(pts[k][0] - E[0], pts[k][1] - E[1]) < lead * 1.5) k++;
+        return [E, [E[0] + d[0] * lead, E[1] + d[1] * lead], ...pts.slice(k)];
+      };
+      if (lead > 0.5) { run = straight(run, dA); run = straight(run.slice().reverse(), dB).reverse(); }
       const sAt = [0]; for (let k = 1; k < run.length; k++) sAt.push(sAt[k - 1] + Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]));
       const S = sAt[sAt.length - 1]; if (!(S > 0.05) || run.length < 2) return;
       // its height along it: a long run lies on the table, rising to each port over a smooth bend; a short one (or a
       // waveguide, between chips) runs from port to port, sagging a little in the middle as a cable does
-      const zT = r + 0.05, lin = u => zA + (zB - zA) * u;
+      const zT = r + 0.05;
       const rise = dz => Math.max(15, dz * 0.8), lies = !F.wg && S > rise(zA - zT) + rise(zB - zT) + 10;
       const zAt = s0 => {
         const u = s0 / S;
-        if (!lies) return Math.max(zT, lin(u) - Math.min(S * 0.08, Math.max(0, Math.min(zA, zB) - zT)) * Math.sin(Math.PI * u));
+        // level at both ends (a smooth step between the ports' heights, the sag a sine squared), so each end stays square to its port
+        if (!lies) { const sm = u * u * (3 - 2 * u), sn = Math.sin(Math.PI * u); return Math.max(zT, zA + (zB - zA) * sm - Math.min(S * 0.08, Math.max(0, Math.min(zA, zB) - zT)) * sn * sn); }
         const f = (d, dz) => { const L2 = rise(dz); return d >= L2 ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L2)); };
         return zT + (zA - zT) * f(s0, zA - zT) + (zB - zT) * f(S - s0, zB - zT);
       };
       const pts = run.map(([x, y], k) => new T.Vector3(x, y, zAt(sAt[k])));
-      const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw;
+      const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw, picked = selFibre() === F;
+      // the selected one lit cyan, as the bench marks a selection
       const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
-        emissive: lit ? col(L.colour) : col(0x000000), emissiveIntensity: lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
+        emissive: picked ? col(0x1fb6d4) : lit ? col(L.colour) : col(0x000000), emissiveIntensity: picked ? 0.8 : lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
       const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m);
       o.userData.fibre = F.id; G.add(o);
     });
@@ -23228,6 +23265,22 @@ const V3D = (() => {
     if (b) return b;
     const p = new T.Vector3(); return rc.ray.intersectPlane(new T.Plane(new T.Vector3(0, 0, 1), -BEAM_H), p) ? { point: p } : null;
   }
+  /* the fibre, wire or waveguide under the pointer (a part in front of it wins) */
+  function fibreAt(e) {
+    if (!R.groups.wires.children.length) return null;
+    const n = ndc(e), rc = ray.get(); rc.setFromCamera(n, R.camera);
+    const w = rc.intersectObjects(R.groups.wires.children, false)[0];
+    if (!w) return null;
+    const p = rc.intersectObjects(R.groups.parts.children, true)[0];
+    if (p && p.distance < w.distance) return null;
+    return (project.fibres || []).find(F => F.id === w.object.userData.fibre) || null;
+  }
+  /* the point of a fibre's route nearest a point on the table: its segment and where along it */
+  const fibreNear = (F, X, Y) => {
+    let best = null;
+    (fibreSegs(F) || []).forEach((C, k) => { for (let i = 0; i <= 60; i++) { const [x, y] = bez(C, i / 60), d = Math.hypot(x - X, y - Y); if (!best || d < best.d) best = { k, t: i / 60, d }; } });
+    return best;
+  };
   function inCube(n) { const c = cubeRect(); return n.px >= c.x && n.px <= c.x + c.w && n.py >= c.y && n.py <= c.y + c.h; }
   /* where on the cube a point lands: the corner, edge or face a click there looks from, as the
      signs of x, y and up (each of the cube's faces is cut in thirds each way: a corner's three
@@ -23340,7 +23393,10 @@ const V3D = (() => {
           return;
         }
         const el = !(e.shiftKey && ctrl === 'trackpad') && partAt(e);       // Shift-drag pans, on a trackpad
-        if (el) { drag = { mode: 'grab', el, p0: plane(e, z3(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
+        if (el) { if (selFibre()) setSelFibreId(null); drag = { mode: 'grab', el, p0: plane(e, z3(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
+        // a fibre: clicked, selected (its panel); dragged, pulled out at a node across the table, as on the bench
+        const F = !e.shiftKey && fibreAt(e);
+        if (F) { drag = { mode: 'fibre', F, p0: plane(e, 0), moved: 0, started: false, pivot }; return; }
       }
       let mode;
       if (touch) mode = 'orbit';
@@ -23357,7 +23413,7 @@ const V3D = (() => {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) || fibreAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -23381,6 +23437,24 @@ const V3D = (() => {
         const nx = snapVal(drag.x0 + p[0] - drag.p0[0], e), ny = snapVal(drag.y0 + p[1] - drag.p0[1], e), mx = nx - drag.x0, my = ny - drag.y0;
         drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + mx; g.y = drag.starts[i][1] + my; });
         syncPanel(); requestRender();
+        return;
+      }
+      if (drag.mode === 'fibre') {
+        if (!drag.started) {
+          if (drag.moved < 4 || !drag.p0) return;
+          const F = drag.F;
+          if (selFibre() !== F) { setSelFibreId(F.id); selectOne(null); renderPanel(); }
+          checkpoint(); drag.started = true; cv.style.cursor = 'grabbing';
+          // a node of its own near where it was taken hold of moves; else one is put in there, the shape kept
+          const near = (F.path || []).findIndex(q => Math.hypot(q.x - drag.p0[0], q.y - drag.p0[1]) < 6);
+          if (near >= 0) drag.i = near;
+          else { const q = fibreNear(F, drag.p0[0], drag.p0[1]); drag.i = q ? fibreSplit(F, q.k, clamp(q.t, 0.02, 0.98)) : -1; }
+          if (drag.i < 0) { drag = null; return; }
+        }
+        const p = plane(e, 0);
+        if (!p) return;
+        moveGrip(drag.F, { type: 'node', i: drag.i }, snapVal(p[0], e), snapVal(p[1], e), e.shiftKey);
+        requestRender();
         return;
       }
       if (drag.mode === 'lift' || drag.mode === 'axis') {
@@ -23435,7 +23509,8 @@ const V3D = (() => {
       drag = null;
       cv.style.cursor = '';
       if (d.cube) { if (d.moved < 5 && !lockView()) cubeClick(e); return; }
-      if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis') && d.started) { changed(); return; }
+      if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis' || d.mode === 'fibre') && d.started) { changed(); return; }
+      if (d.mode === 'fibre') { setSelFibreId(d.F.id); selectOne(null); renderPanel(); requestRender(); return; }
       if (d.mode === 'lift' || d.mode === 'axis' || d.mode === 'rot') {
         // a handle pressed and let go without a drag, over the part: a click on it, so its handles change over
         const el = d.moved < 5 && partAt(e);
@@ -23695,6 +23770,7 @@ const V3D = (() => {
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
+      fibreAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const F = fibreAt({ clientX: b.left + px, clientY: b.top + py }); return F ? F.id : null; },
       pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },
       // a part's model's size along the bench's x, y and up, mm
       partSize(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); if (!p) return null; const s = new T.Box3().setFromObject(p).getSize(new T.Vector3()); return s.toArray(); },
@@ -29493,10 +29569,10 @@ function pinTitle(title, id, onSelect) {
     onclick: () => togglePinId(id) });
   pinBtn.innerHTML = PIN_SVG;
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
-  // something is selected again (or View › Show the side panel). On a wide screen the main one's
-  // × is not shown: the tab on the bench's right edge (sideTab) closes it
+  // something is selected again (or View › Show the side panel). On a wide screen the Bench panel's
+  // × is not shown: the tab on the bench's left edge (sideTab) closes it
   const main = panel === mainPanel;
-  const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
+  const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : '') + (main && id === BENCH_PIN ? ' rt-benchclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
@@ -29590,7 +29666,7 @@ function renderPanel() {
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const sel = selected();
   // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
-  // the bench takes the page: the Bench panel opens only from the tab on the bench's right edge (or View › Show the
+  // the bench takes the page: the Bench panel opens only from the tab on the bench's left edge (or View › Show the
   // side panel), and stays until something is selected or the tab puts it away
   const picked = !!(sel || selFibre());
   if (picked) panelClosed = true;
@@ -29600,6 +29676,11 @@ function renderPanel() {
   const cols = (mainShows ? 1 : 0) + pins.length;
   mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
   mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
+  // the Bench panel comes out on the bench's left, apart from the parts' panels on its right (not on a phone, where
+  // every panel is a sheet from below)
+  const benchLeft = mainShows && !picked && !phoneSheet();
+  mainPanel.parentElement.classList.toggle('rt-benchleft', benchLeft);
+  mainPanel.parentElement.style.gridTemplateColumns = benchLeft ? '330px minmax(240px, 1fr)' + (pins.length ? ' repeat(' + pins.length + ', 330px)' : '') : '';
   if (mainShows) renderInto(mainPanel, sel);
   mainPanel.classList.toggle('rt-tall', sheetTall);
   // newly selected on a phone: kept clear of the sheet
@@ -29618,20 +29699,21 @@ function renderPanel() {
   stackLongSelects(document);
   updateReadouts();
   try { drawBarShown(); } catch (err) { /* the bench's bars are not made yet */ }
-  // the tab on the bench's right edge: pointing out (open the Bench panel) or in (put the panel away)
+  // the tab on the bench's left edge, the Bench panel's alone: pointing out (bring it out) or in (put it away)
   const tab = document.getElementById('btnSideTab');
   if (tab) {
-    const what = mainShows ? 'Hide the panel' : 'Bench settings: light, snapping, notes and the parts list';
-    tab.classList.toggle('open', mainShows); tab.setAttribute('aria-pressed', mainShows && !sel && !selFibre() ? 'true' : 'false');
-    tab.title = what; tab.setAttribute('aria-label', mainShows ? 'Hide the panel' : 'Bench settings');
+    const benchShown = mainShows && !picked;
+    tab.classList.toggle('open', benchShown); tab.setAttribute('aria-pressed', benchShown ? 'true' : 'false');
+    tab.title = benchShown ? 'Hide the Bench panel' : 'Bench settings: light, snapping and the parts list';
+    tab.setAttribute('aria-label', benchShown ? 'Hide the Bench panel' : 'Bench settings');
   }
 }
-/* the tab on the bench's right edge: the panel, put away (whatever was selected put down, as its × does), or,
-   with none shown, the Bench panel brought out */
+/* the tab on the bench's left edge: the Bench panel brought out (whatever was selected put down, its panel with it),
+   or put away */
 function sideTab() {
-  const sel = selected(), shown = mainPanel.style.display !== 'none' && (!!(sel || selFibre()) || !panelClosed);
+  const sel = selected(), benchShown = mainPanel.style.display !== 'none' && !(sel || selFibre()) && !panelClosed;
   selectOne(null); setSelFibreId(null);
-  panelClosed = shown;
+  panelClosed = benchShown;
   renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
@@ -29722,15 +29804,30 @@ function sectionise(box, kind) {
     else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
   }
   if (about.length) {
-    const body = h('div', { class: 'rt-secbody rt-about' });
+    const body = h('div', { class: 'rt-aboutpart' });
     let last;
     for (const [head, p] of about) {
       if (head && head !== last && head !== 'Position') body.append(h('h4', null, head));
       last = head;
       body.append(p);
     }
-    box.append(makeSection(h('h3', null, 'About this part'), body, kind + '|About', false));
-  }
+    if (box === mainPanel) mainAbout = body;
+  } else if (box === mainPanel) mainAbout = null;
+}
+/* the main panel's longer explanations, kept out of the panel for Help › About the selected part */
+let mainAbout = null;
+/* a window of text: Help's Using the bench and About the selected part */
+function infoDialog(title, nodes) {
+  const dlg = document.getElementById('infoDialog');
+  document.getElementById('infoTitle').textContent = title;
+  document.getElementById('infoBody').replaceChildren(...nodes);
+  if (!dlg.open) dlg.showModal();
+}
+function showAboutPart() {
+  const sel = selected();
+  if (!sel) { infoDialog('About the selected part', [h('p', null, 'Select a part on the bench first: this tells you what it models and how to use it.')]); return; }
+  const name = sel.name || typeLabel(sel);
+  infoDialog('About ' + name, mainAbout ? [mainAbout.cloneNode(true)] : [h('p', null, 'Its panel says all there is to say about it.')]);
 }
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
@@ -36732,14 +36829,6 @@ function renderOverview() {
     panel.append(h('p', null, 'The bench is empty. Add a source and a few elements from the toolbar, or import a lens from a .zmx file.'));
   }
 
-  // what the bench is, where it came from, what was assumed: the author's, or an assistant's
-  const notes = h('textarea', { class: 'rt-notes', id: 'rtf' + (setFid(fid + 1)), rows: '3', spellcheck: 'true',
-    placeholder: 'What this bench is, where it comes from, what was assumed\u2026' });
-  notes.value = project.notes || '';
-  const fitH = () => { notes.style.height = 'auto'; notes.style.height = Math.min(320, notes.scrollHeight + 2) + 'px'; };
-  notes.addEventListener('input', () => { project.notes = notes.value.slice(0, 20000); fitH(); scheduleSave(); });
-  requestAnimationFrame(fitH);
-  panel.append(h('h3', null, h('label', { for: notes.id }, 'Notes')), notes);
 
   const limId = 'rtf' + (setFid(fid + 1));
   const lim = numInput(limId, () => project.maxBounces, v => { project.maxBounces = Math.round(clamp(v, 1, 100000)); });
@@ -36762,13 +36851,8 @@ function renderOverview() {
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
   panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
-  // how the rays look (for figures and recordings), folded: open to start with when any of it is set
-  const look = h('div', null, tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest'), tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged)'),
-    tick('glow', 'Rays glow (a soft halo round each, for recordings and small screens)'),
-    // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
-    h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
-      selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })));
-  panel.append(moreFold('bench-look', 'How the rays look: brightness, trails, glow, width', !!(L.byPower || L.trail || L.glow || L.rayWidth), look));
+  // how the rays look (for figures and recordings): a window of its own, View › How the rays look…
+  panel.append(h('button', { type: 'button', class: 'rt-btn', style: 'margin-top:0.45rem', title: 'Brightness by power, fading trails, glow and width (also View \u203a How the rays look\u2026)', onclick: showRayLook }, 'How the rays look\u2026'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
@@ -36779,25 +36863,55 @@ function renderOverview() {
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'The few percent a bare glass surface reflects. Its loss always counts against the power; with this on, the reflected light is followed too, which is how ghosts and back-reflections show up. Each one is another branch of a Gaussian beam to work out, so with the diffracted field shown it can slow the bench down a lot, a retroreflector\u2019s most of all.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'bench' }));
 
-  panel.append(h('h3', null, 'Using the bench'));
-  panel.append(h('ul', { class: 'rt-keys' },
-    h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
-    h('li', null, 'Choose \u223f at the end of any value\u2019s row to give it a range, then drag its slider or press Play.'),
-    h('li', null, 'Fibre components (switch the orange Free-space button at the start of Add to Fibre, which turns red) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
-    h('li', null, 'The tabs at the top left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
-    h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
-    h('li', null, 'Drag with the middle button, or hold Space and drag, to pan (one finger on a touch screen). Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
-    h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
-    h('li', null, 'The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Pin as many as you like; click a pinned panel\u2019s title to select its element.'),
-    h('li', null, h('kbd', null, '←↑→↓'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.'),
-  ));
-  panel.append(h('p', { style: 'margin-top:0.75rem' }, 'Your work is kept in this browser automatically. To move a project to another browser or share it, use Save .jekray and open the file there.'));
   // what it models, and what it does not: the page's own note, moved to the foot of this panel
   aboutNode = aboutNode || document.querySelector('.rt-about');    // kept: a panel rebuilt drops it from the page
   if (aboutNode) panel.append(aboutNode);
   updateReadouts();
 }
 
+/* View › How the rays look…: for figures and recordings. Kept with the bench; they change only how the rays are
+   drawn, in the 2D view (the light is traced and measured the same) */
+function showRayLook() {
+  const dlg = document.getElementById('rayDialog'), L = lightOf();
+  const tick = (key, text) => {
+    const c = h('input', { type: 'checkbox' });
+    c.checked = !!L[key];
+    c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); });
+    return h('label', { class: 'rt-check', style: 'margin-top:0.45rem' }, c, text);
+  };
+  document.getElementById('rayBody').replaceChildren(
+    tick('byPower', 'Rays as bright as their power, against the bench\u2019s strongest: split and weakened light fades, so you see where the power goes'),
+    tick('trail', 'Fading trails as the light changes (a sweep playing, a part dragged), for showing movement'),
+    tick('glow', 'Rays glow: a soft halo round each, for recordings and small screens'),
+    // how wide the rays are drawn, in pixels on the screen at any zoom (1.2 as they always were)
+    h('div', { class: 'rt-rows', style: 'margin-top:0.6rem' },
+      selectField('Ray width', [['1.2', 'Fine (1.2 px)'], ['2', '2 px'], ['3', '3 px'], ['4', '4 px']], () => String(L.rayWidth || 1.2), v => { if (v === '1.2') delete L.rayWidth; else L.rayWidth = +v; }, { wide: true })),
+    h('p', { class: 'note', style: 'margin-top:0.6rem' }, 'Kept with this bench. They change how the rays are drawn in the 2D view; the light is traced and measured the same.'));
+  if (!dlg.open) dlg.showModal();
+}
+/* Help › Using the bench */
+function showUsingBench() {
+  infoDialog('Using the bench', [h('ul', { class: 'rt-keys' },
+    h('li', null, 'Click an element to edit it; drag it to move and drag the blue handle to rotate. Hold ', h('kbd', null, 'Shift'), ' for free movement or 15° steps.'),
+    h('li', null, 'Choose \u223f at the end of any value\u2019s row to give it a range, then drag its slider or press Play.'),
+    h('li', null, 'Fibre components (switch the orange Free-space button at the start of Add to Fibre, which turns red) have ports: drag from one port to another to join them with a fibre, click a fibre to set its length and loss, and drag its end off a port to take it away. A selected fibre shows its nodes: drag the fibre to pull one out, drag nodes and handles to shape it, double-click to add or remove one.'),
+    h('li', null, 'The tabs at the bottom left of the bench are benches of their own: + adds one, double-click a tab to rename it. A link plane and its partner on another tab carry light between them.'),
+    h('li', null, 'Drag across empty bench to select a boxful; Shift- or Ctrl-click to add to the selection. Right-click for copy, paste, rotate, lock and more.'),
+    h('li', null, 'Drag with the middle button, or hold Space and drag, to pan (one finger on a touch screen). Scroll or pinch to zoom; below 50 \u00b5m across, a beam shown as its diffracted field is drawn pixel by pixel, standing waves and all.'),
+    h('li', null, 'On a screen\u2019s plots, scroll to zoom about the cursor (Shift: across only, Alt: up and down only), drag to pan and double-click to see the whole plot again; the buttons under each plot zoom one axis at a time. Curves that rise from zero stretch up from their baseline.'),
+    h('li', null, 'The tab on the bench\u2019s left edge brings out the Bench panel (light, snapping and the parts list); a part\u2019s panel opens on the right. The pin in a panel\u2019s title keeps it open: what you select next opens beside it, so a screen\u2019s plots stay in view while you change other things. Click a pinned panel\u2019s title to select its element.'),
+    h('li', null, h('kbd', null, '\u2190\u2191\u2192\u2193'), ' nudge, ', h('kbd', null, 'Del'), ' delete, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'D'), ' duplicate, ', h('kbd', null, 'Ctrl'), ' ', h('kbd', null, 'Z'), ' undo.')),
+    h('p', { style: 'margin-top:0.75rem' }, 'Your work is kept in this browser automatically. To move a project to another browser or share it, use Save .jekray and open the file there.')]);
+}
+/* Edit › Bench notes…: what the bench is, where it came from, what was assumed (the author's, or an assistant's) */
+function showNotes() {
+  const notes = h('textarea', { class: 'rt-notes', rows: '10', spellcheck: 'true', style: 'width:100%;box-sizing:border-box', 'aria-label': 'Notes on this bench',
+    placeholder: 'What this bench is, where it comes from, what was assumed\u2026' });
+  notes.value = project.notes || '';
+  notes.addEventListener('input', () => { project.notes = notes.value.slice(0, 20000); scheduleSave(); });
+  infoDialog('Bench notes', [notes, h('p', { class: 'note', style: 'margin-top:0.4rem' }, 'Kept with the bench, in its file and in the cloud.')]);
+  notes.focus();
+}
 /* ---------- Physical optics propagation ----------
    The bench is the meridional slice of a round system, so a beam on axis is a
    figure of revolution: its field is a radial profile E(r). Diffraction of such a
@@ -50400,7 +50514,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **File › Open a .jekray file…**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown on the Bench panel: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}; the tool adds \"design\" (its element data\u2019s solves, variables and merit function) itself, so leave that out. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y. For a beam going along +x (\"angle\": 0): the lower mirror \"angle\": 180 (facing the beam that comes in) with \"tip\": 45, which sends the light straight up; the upper, at its own \"z\", \"angle\": 0 (facing the way the beam leaves) with \"tip\": -45, which sends it on along +x again at the new height. For a beam along another angle A, the lower mirror faces A + 180 and the upper A, with the same tips. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. Its front end, \"rx\": \"video\" (a square-law detector: \"rv\" V/W, \"nep\" pW/\u221aHz, \"vbw\" MHz, a single pole) or \"mixer\" (\"lo\" GHz, \"cl\" dB of conversion loss, \"trx\" K, \"ifbw\" MHz, a single pole, \"tant\" K looked into, and \"sideband\": \"ssb\", the default, with \"trx\" an SSB temperature and the image terminated cold, or \"dsb\", with \"trx\" a DSB temperature and the noise of both sidebands). An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u203a Part packs and modules\u2026** and then add from **+ Add part \u203a Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
+const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **File › Open a .jekray file…**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown under Edit › Bench notes…: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}; the tool adds \"design\" (its element data\u2019s solves, variables and merit function) itself, so leave that out. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field}. Leave it out for rays and envelopes |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y. For a beam going along +x (\"angle\": 0): the lower mirror \"angle\": 180 (facing the beam that comes in) with \"tip\": 45, which sends the light straight up; the upper, at its own \"z\", \"angle\": 0 (facing the way the beam leaves) with \"tip\": -45, which sends it on along +x again at the new height. For a beam along another angle A, the lower mirror faces A + 180 and the upper A, with the same tips. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. Its front end, \"rx\": \"video\" (a square-law detector: \"rv\" V/W, \"nep\" pW/\u221aHz, \"vbw\" MHz, a single pole) or \"mixer\" (\"lo\" GHz, \"cl\" dB of conversion loss, \"trx\" K, \"ifbw\" MHz, a single pole, \"tant\" K looked into, and \"sideband\": \"ssb\", the default, with \"trx\" an SSB temperature and the image terminated cold, or \"dsb\", with \"trx\" a DSB temperature and the noise of both sidebands). An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u203a Part packs and modules\u2026** and then add from **+ Add part \u203a Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed. A share link is JEKrayPro's: the
@@ -55869,6 +55983,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Fibres in 3D</b>: click a fibre, wire or waveguide in the 3D view to select it (its panel opens), and drag it across the table to shape it, as on the bench. A fibre now leaves each connector straight and level, its face square to the ferrule. The bench\u2019s <b>notes</b> moved to Edit \u203a Bench notes\u2026, and <b>My benches</b> is the cloud beside the bench\u2019s name, apart from Examples.',
+    '<b>The Bench panel comes out on the left</b>, from the tab on the bench\u2019s left edge, so it is plain which panel is the bench\u2019s; a part\u2019s panel still opens on the right, and closes with its \u00d7. <b>How the rays look</b> (brightness by power, fading trails, glow, width) has a window of its own, View \u203a How the rays look\u2026. The longer explanations left the panels for the Help menu: <b>Using the bench</b> and <b>About the selected part</b>.',
     '<b>From Instagram</b>: every link from our Instagram posts now opens the Michelson interferometer example with its moving mirror sweeping, and the note listing our reels’ benches has gone. The bench JEKray opens with sends its rays in hexapolar rings, a full beam in 3D.',
     '<b>Getting JEKrayPro is simpler</b>: a <b>Get Pro</b> button in the bar, and every Pro feature, open the plans and prices, signed in or not. Pay straight away: your account is made from the address you pay with, and you are signed in when you come back. The <b>academic price</b> needs only your university email address, typed beside it (no code to wait for); any of the 10,000 universities in a public register counts. Menu items that need an account or JEKrayPro are no longer greyed: their badge says what they need. Signing in by email sends a link you click (the code still works), and you stay signed in for a year. Checking for a university licence now says plainly when yours has none.',
     '<b>No ticks for a source\u2019s light</b>: a source always traces its rays, and a new one propagates a Gaussian beam; its panel\u2019s <b>Field</b> says what its field starts from, the Gaussian beam or even illumination across the fan (a uniform pupil, for a lens\u2019s Airy pattern, Strehl and MTF). A fibre tip always sends both. The bench\u2019s <b>Light</b> turns the rays, or the beams, off for every source at once. The look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',
@@ -56239,7 +56355,7 @@ function showWelcome() {
     : h('ul', null,
       h('li', null, 'Add parts with Add, the top button of the parts rail at the bench\u2019s left (or press A), or from the rail\u2019s own buttons; its switcher changes the palette: free space, fibre, circuits, RF or drawing.'),
       h('li', null, 'Drag to move, scroll to zoom, right-drag (or middle-drag, or Space-drag) to pan.'),
-      h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s right edge brings out the bench\u2019s own settings.'),
+      h('li', null, 'Click anything for its settings and readings; right-click for more. The arrow tab on the bench\u2019s left edge brings out the bench\u2019s own settings.'),
       h('li', null, 'Ctrl+K finds any command, part or example by name; ? lists every shortcut.')),
     exerciseInvite(),
     accountOffer('welcome'),
@@ -57545,6 +57661,11 @@ function wireTours() {
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
+  document.getElementById('btnRayLook').addEventListener('click', showRayLook);
+  document.getElementById('btnUsing').addEventListener('click', showUsingBench);
+  document.getElementById('btnNotes').addEventListener('click', showNotes);
+  document.getElementById('btnAboutPart').addEventListener('click', showAboutPart);
+  for (const id of ['infoClose', 'rayClose']) document.getElementById(id).addEventListener('click', e => e.target.closest('dialog').close());
 
   document.getElementById('btnSideTab').addEventListener('click', () => { sideTab(); requestRender(); });
 

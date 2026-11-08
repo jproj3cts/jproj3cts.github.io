@@ -16,7 +16,8 @@ import {
   GOAL_LABEL, METRIC_FAMS, drawConvergence, drawHistogram, drawScan, measurable, metricByKey,
   metricKind, metricRaw, metricText, metricsFor, monteCarlo, optimiseGen, sensitivity
 } from './optimise.js';
-import { h, renderPanel, setPanelClosed, sideTab } from './panel.js';
+import { h, renderPanel, setPanelClosed, showAboutPart, sideTab } from './panel.js';
+import { showNotes, showRayLook, showUsingBench } from './panel-cavity.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
 import { screenStats } from '../engines/screen-stats.js';
 import { keepStudy } from '../engines/data-export.js';
@@ -279,6 +280,11 @@ export function wireTours() {
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
+  document.getElementById('btnRayLook').addEventListener('click', showRayLook);
+  document.getElementById('btnUsing').addEventListener('click', showUsingBench);
+  document.getElementById('btnNotes').addEventListener('click', showNotes);
+  document.getElementById('btnAboutPart').addEventListener('click', showAboutPart);
+  for (const id of ['infoClose', 'rayClose']) document.getElementById(id).addEventListener('click', e => e.target.closest('dialog').close());
 
   document.getElementById('btnSideTab').addEventListener('click', () => { sideTab(); requestRender(); });
 

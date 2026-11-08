@@ -6895,30 +6895,32 @@ const TESTS = [
     },
   },
   {
-    name: 'The tab on the bench\u2019s right edge puts the panel away and brings the Bench panel out; a pinned panel closes with its \u00d7',
-    why: 'with the Bench panel out, the tab (turned in) hides it, the bench taking its width; the tab again brings the Bench panel out; a part selected opens its panel, and the tab puts that away too, the part put down; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
+    name: 'The tab on the bench\u2019s left edge brings the Bench panel out on the left and puts it away; a part\u2019s panel opens on the right and closes with its \u00d7',
+    why: 'with the Bench panel out (on the left: the grid\u2019s rt-benchleft), the tab (turned in) hides it, the bench taking its width; the tab again brings it out; a part selected opens its panel on the right, the tab turned out again; its \u00d7 puts it away, the part put down; the tab with a part selected brings the Bench panel out instead; a pinned panel\u2019s \u00d7 unpins it (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       const doc = document.getElementById('rig').contentDocument, P = doc.getElementById('panel');
       J.load(JSON.parse(getDemo('michelson'))); J.select(null);
       const tab = doc.getElementById('btnSideTab');
       if (getComputedStyle(P).display === 'none') tab.click();
-      const out = getComputedStyle(P).display !== 'none' && tab.classList.contains('open') && /Bench/.test(P.querySelector('h2').textContent);
+      const out = getComputedStyle(P).display !== 'none' && tab.classList.contains('open') && /Bench/.test(P.querySelector('h2').textContent) && P.parentElement.classList.contains('rt-benchleft');
       tab.click();
       const shut = getComputedStyle(P).display === 'none' && P.parentElement.classList.contains('rt-nopanel') && !tab.classList.contains('open');
       tab.click();
       const again = getComputedStyle(P).display !== 'none';
       J.select('Laser');
-      const back = getComputedStyle(P).display !== 'none' && !P.parentElement.classList.contains('rt-nopanel') && tab.classList.contains('open');
-      tab.click();
+      const back = getComputedStyle(P).display !== 'none' && !P.parentElement.classList.contains('rt-nopanel') && !P.parentElement.classList.contains('rt-benchleft') && !tab.classList.contains('open');
+      P.querySelector('.rt-mainclose').click();
       const putDown = getComputedStyle(P).display === 'none' && !J.sel().length;
+      J.select('Laser'); tab.click();
+      const benchInstead = !J.sel().length && /Bench/.test(P.querySelector('h2').textContent) && tab.classList.contains('open');
       J.select('Laser');
       P.querySelector('.rt-pin:not(.rt-close)').click();                   // pin the Laser
       const pinned = doc.querySelectorAll('.rt-pinned').length === 1;
       doc.querySelector('.rt-pinned .rt-close').click();
       const unpinned = doc.querySelectorAll('.rt-pinned').length === 0;
-      if (!(out && shut && again && back && putDown && pinned && unpinned)) console.log('side tab', { out, shut, again, back, putDown, pinned, unpinned });
-      return out && shut && again && back && putDown && pinned && unpinned ? 1 : 0;
+      if (!(out && shut && again && back && putDown && benchInstead && pinned && unpinned)) console.log('side tab', { out, shut, again, back, putDown, benchInstead, pinned, unpinned });
+      return out && shut && again && back && putDown && benchInstead && pinned && unpinned ? 1 : 0;
     },
   },
   {
@@ -6985,7 +6987,7 @@ const TESTS = [
   },
   {
     name: 'Panels: one sweep open at a time, sections fold and stay folded',
-    why: 'the fixed mirror\u2019s panel: \u223f on X sweeps it and opens its controls; \u223f on z then sweeps z and folds X to its one-line summary; folding Position hides it and is remembered on the next panel; the long text is under About this part, folded (1 when all hold)',
+    why: 'the fixed mirror\u2019s panel: \u223f on X sweeps it and opens its controls; \u223f on z then sweeps z and folds X to its one-line summary; folding Position hides it and is remembered on the next panel; the long text is in Help \u203a About the selected part, not the panel (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(JSON.parse(getDemo('michelson')));
@@ -7002,8 +7004,12 @@ const TESTS = [
       const pos2 = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'Position');
       const c = pos2.closest('.rt-sec').classList.contains('shut');
       pos2.click();
-      const about = [...doc.querySelectorAll('#panel .rt-sech')].find(x => x.textContent.trim() === 'About this part');
-      const d = about && about.closest('.rt-sec').classList.contains('shut') && about.closest('.rt-sec').querySelector('p');
+      // the long text is in Help › About the selected part, not the panel
+      const inPanel = [...doc.querySelectorAll('#panel .rt-sech')].some(x => x.textContent.trim() === 'About this part');
+      doc.getElementById('btnAboutPart').click();
+      const dlg = doc.getElementById('infoDialog');
+      const d = !inPanel && dlg.open && /Moving mirror/.test(doc.getElementById('infoTitle').textContent) && doc.querySelector('#infoBody p');
+      dlg.close();
       return a && b && c && d ? 1 : 0;
     },
   },
@@ -7122,6 +7128,34 @@ const TESTS = [
       const second = names(), tabs2 = [...doc.querySelectorAll('#panel .rt-listtabs .rt-tab')];
       return tabs.length === 2 && tabs[0].classList.contains('on') && /\((\d+)\)$/.test(tabs[0].textContent) && first.length > 0 && second.length > 0
         && !first.some(t => second.includes(t)) && tabs2[1].classList.contains('on') && first.length + second.length === cur.length ? 1 : 0;
+    },
+  },
+  {
+    name: 'A fibre in 3D: clicked it is selected, dragged it is pulled out at a new node',
+    why: 'the two-launch example in 3D: the splitter\u2019s fibre to Launch A found under the pointer; a click selects it (its panel, Fibre); a drag along the table puts a node into it where it was taken hold of and moves it, one Undo step (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('split-laser'))); J.select(null);
+      const V = J.view3d, raf = () => new Promise(r => requestAnimationFrame(() => r())), doc = rigDoc();
+      try {
+        await V.set(true); await raf(); await raf();
+        const cv = doc.querySelector('canvas.rt-v3d'), W = cv.clientWidth, H = cv.clientHeight;
+        const find = () => { for (let y = 8; y < H; y += 6) for (let x = 8; x < W; x += 6) { const id = V.fibreAt(x, y), F = id && J.project().fibres.find(g => g.id === id); if (F && F.b[0] === 'LaunchA') return { x, y, F }; } return null; };
+        let at = find();
+        if (!at) return 0;
+        V.pointer('pointerdown', at.x, at.y); V.pointer('pointerup', at.x, at.y, { buttons: 0 }); await raf(); await raf();
+        const picked = /Fibre/.test(doc.querySelector('#panel h2').textContent);
+        at = find(); if (!at) return 0;
+        const n0 = (at.F.path || []).length;
+        V.pointer('pointerdown', at.x, at.y);
+        for (let i = 1; i <= 8; i++) { V.pointer('pointermove', at.x - 4 * i, at.y + 6 * i, { buttons: 1 }); await raf(); }
+        V.pointer('pointerup', at.x - 32, at.y + 48, { buttons: 0 }); await raf();
+        const pulled = (at.F.path || []).length === n0 + 1;
+        V.undo();
+        const G = J.project().fibres.find(g => g.id === at.F.id), undone = !!G && (G.path || []).length === n0;
+        if (!(picked && pulled && undone)) console.log('3D fibre', { picked, pulled, undone });
+        return picked && pulled && undone ? 1 : 0;
+      } finally { await V.set(false); }
     },
   },
   {

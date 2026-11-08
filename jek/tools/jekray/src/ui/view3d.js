@@ -18,8 +18,8 @@ import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
 import {
-  benchBg, benchHoles, benchLight, draw, fibreLight, fibreSegs, filterColour, halfSize, hornShape, symbolCanvas, rayAlpha, rayDensity, rayTops,
-  requestRender, resize, segPlanes, selection, setSelection, surfPoints
+  benchBg, benchHoles, benchLight, bez, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, symbolCanvas, rayAlpha, rayDensity, rayTops,
+  requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
 import { snapVal } from './pointer.js';
@@ -284,7 +284,7 @@ export const V3D = (() => {
 
   /* ---------- keeping up with the bench ---------- */
   // what the network's parts and their fibres look like on this tab (moving them changes no light, so not the trace)
-  const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb])]);
+  const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb]), (selFibre() || {}).id || '']);
   function sync() {
     init();
     // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
@@ -467,22 +467,38 @@ export const V3D = (() => {
       if (eB.trim) run = cut(run.slice().reverse(), eB.trim).reverse();
       if (eA.pre) run = [eA.pre, ...run];
       if (eB.pre) run = [...run, eB.pre];
+      // each end leaves its connector straight along the port (the way the route sets off from it), so the fibre's
+      // face meets the ferrule square on, not cut across where the route has already begun to bend
+      const unit = (p, q) => { const dx = p[0] - q[0], dy = p[1] - q[1], l = Math.hypot(dx, dy); return l > 1e-9 ? [dx / l, dy / l] : null; };
+      const sA = segs[0], sB = segs[segs.length - 1];
+      const dA = unit(sA[1], sA[0]) || unit(sA[3], sA[0]), dB = unit(sB[2], sB[3]) || unit(sB[0], sB[3]);
+      const runLen = run.reduce((acc, q, k) => k ? acc + Math.hypot(q[0] - run[k - 1][0], q[1] - run[k - 1][1]) : 0, 0);
+      const lead = Math.min(4 * r + 3, runLen / 4);
+      const straight = (pts, d) => {
+        if (!d || pts.length < 3) return pts;
+        const E = pts[0];
+        let k = 1; while (k < pts.length - 1 && Math.hypot(pts[k][0] - E[0], pts[k][1] - E[1]) < lead * 1.5) k++;
+        return [E, [E[0] + d[0] * lead, E[1] + d[1] * lead], ...pts.slice(k)];
+      };
+      if (lead > 0.5) { run = straight(run, dA); run = straight(run.slice().reverse(), dB).reverse(); }
       const sAt = [0]; for (let k = 1; k < run.length; k++) sAt.push(sAt[k - 1] + Math.hypot(run[k][0] - run[k - 1][0], run[k][1] - run[k - 1][1]));
       const S = sAt[sAt.length - 1]; if (!(S > 0.05) || run.length < 2) return;
       // its height along it: a long run lies on the table, rising to each port over a smooth bend; a short one (or a
       // waveguide, between chips) runs from port to port, sagging a little in the middle as a cable does
-      const zT = r + 0.05, lin = u => zA + (zB - zA) * u;
+      const zT = r + 0.05;
       const rise = dz => Math.max(15, dz * 0.8), lies = !F.wg && S > rise(zA - zT) + rise(zB - zT) + 10;
       const zAt = s0 => {
         const u = s0 / S;
-        if (!lies) return Math.max(zT, lin(u) - Math.min(S * 0.08, Math.max(0, Math.min(zA, zB) - zT)) * Math.sin(Math.PI * u));
+        // level at both ends (a smooth step between the ports' heights, the sag a sine squared), so each end stays square to its port
+        if (!lies) { const sm = u * u * (3 - 2 * u), sn = Math.sin(Math.PI * u); return Math.max(zT, zA + (zB - zA) * sm - Math.min(S * 0.08, Math.max(0, Math.min(zA, zB) - zT)) * sn * sn); }
         const f = (d, dz) => { const L2 = rise(dz); return d >= L2 ? 0 : 0.5 * (1 + Math.cos(Math.PI * d / L2)); };
         return zT + (zA - zT) * f(s0, zA - zT) + (zB - zT) * f(S - s0, zB - zT);
       };
       const pts = run.map(([x, y], k) => new T.Vector3(x, y, zAt(sAt[k])));
-      const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw;
+      const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw, picked = selFibre() === F;
+      // the selected one lit cyan, as the bench marks a selection
       const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
-        emissive: lit ? col(L.colour) : col(0x000000), emissiveIntensity: lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
+        emissive: picked ? col(0x1fb6d4) : lit ? col(L.colour) : col(0x000000), emissiveIntensity: picked ? 0.8 : lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
       const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m);
       o.userData.fibre = F.id; G.add(o);
     });
@@ -1345,6 +1361,22 @@ export const V3D = (() => {
     if (b) return b;
     const p = new T.Vector3(); return rc.ray.intersectPlane(new T.Plane(new T.Vector3(0, 0, 1), -BEAM_H), p) ? { point: p } : null;
   }
+  /* the fibre, wire or waveguide under the pointer (a part in front of it wins) */
+  function fibreAt(e) {
+    if (!R.groups.wires.children.length) return null;
+    const n = ndc(e), rc = ray.get(); rc.setFromCamera(n, R.camera);
+    const w = rc.intersectObjects(R.groups.wires.children, false)[0];
+    if (!w) return null;
+    const p = rc.intersectObjects(R.groups.parts.children, true)[0];
+    if (p && p.distance < w.distance) return null;
+    return (project.fibres || []).find(F => F.id === w.object.userData.fibre) || null;
+  }
+  /* the point of a fibre's route nearest a point on the table: its segment and where along it */
+  const fibreNear = (F, X, Y) => {
+    let best = null;
+    (fibreSegs(F) || []).forEach((C, k) => { for (let i = 0; i <= 60; i++) { const [x, y] = bez(C, i / 60), d = Math.hypot(x - X, y - Y); if (!best || d < best.d) best = { k, t: i / 60, d }; } });
+    return best;
+  };
   function inCube(n) { const c = cubeRect(); return n.px >= c.x && n.px <= c.x + c.w && n.py >= c.y && n.py <= c.y + c.h; }
   /* where on the cube a point lands: the corner, edge or face a click there looks from, as the
      signs of x, y and up (each of the cube's faces is cut in thirds each way: a corner's three
@@ -1457,7 +1489,10 @@ export const V3D = (() => {
           return;
         }
         const el = !(e.shiftKey && ctrl === 'trackpad') && partAt(e);       // Shift-drag pans, on a trackpad
-        if (el) { drag = { mode: 'grab', el, p0: plane(e, z3(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
+        if (el) { if (selFibre()) setSelFibreId(null); drag = { mode: 'grab', el, p0: plane(e, z3(el)), moved: 0, started: false, pivot, button: 0, add: e.shiftKey || e.ctrlKey || e.metaKey }; return; }
+        // a fibre: clicked, selected (its panel); dragged, pulled out at a node across the table, as on the bench
+        const F = !e.shiftKey && fibreAt(e);
+        if (F) { drag = { mode: 'fibre', F, p0: plane(e, 0), moved: 0, started: false, pivot }; return; }
       }
       let mode;
       if (touch) mode = 'orbit';
@@ -1474,7 +1509,7 @@ export const V3D = (() => {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) || fibreAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -1498,6 +1533,24 @@ export const V3D = (() => {
         const nx = snapVal(drag.x0 + p[0] - drag.p0[0], e), ny = snapVal(drag.y0 + p[1] - drag.p0[1], e), mx = nx - drag.x0, my = ny - drag.y0;
         drag.group.forEach((g, i) => { g.x = drag.starts[i][0] + mx; g.y = drag.starts[i][1] + my; });
         syncPanel(); requestRender();
+        return;
+      }
+      if (drag.mode === 'fibre') {
+        if (!drag.started) {
+          if (drag.moved < 4 || !drag.p0) return;
+          const F = drag.F;
+          if (selFibre() !== F) { setSelFibreId(F.id); selectOne(null); renderPanel(); }
+          checkpoint(); drag.started = true; cv.style.cursor = 'grabbing';
+          // a node of its own near where it was taken hold of moves; else one is put in there, the shape kept
+          const near = (F.path || []).findIndex(q => Math.hypot(q.x - drag.p0[0], q.y - drag.p0[1]) < 6);
+          if (near >= 0) drag.i = near;
+          else { const q = fibreNear(F, drag.p0[0], drag.p0[1]); drag.i = q ? fibreSplit(F, q.k, clamp(q.t, 0.02, 0.98)) : -1; }
+          if (drag.i < 0) { drag = null; return; }
+        }
+        const p = plane(e, 0);
+        if (!p) return;
+        moveGrip(drag.F, { type: 'node', i: drag.i }, snapVal(p[0], e), snapVal(p[1], e), e.shiftKey);
+        requestRender();
         return;
       }
       if (drag.mode === 'lift' || drag.mode === 'axis') {
@@ -1552,7 +1605,8 @@ export const V3D = (() => {
       drag = null;
       cv.style.cursor = '';
       if (d.cube) { if (d.moved < 5 && !lockView()) cubeClick(e); return; }
-      if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis') && d.started) { changed(); return; }
+      if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis' || d.mode === 'fibre') && d.started) { changed(); return; }
+      if (d.mode === 'fibre') { setSelFibreId(d.F.id); selectOne(null); renderPanel(); requestRender(); return; }
       if (d.mode === 'lift' || d.mode === 'axis' || d.mode === 'rot') {
         // a handle pressed and let go without a drag, over the part: a click on it, so its handles change over
         const el = d.moved < 5 && partAt(e);
@@ -1812,6 +1866,7 @@ export const V3D = (() => {
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
+      fibreAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const F = fibreAt({ clientX: b.left + px, clientY: b.top + py }); return F ? F.id : null; },
       pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },
       // a part's model's size along the bench's x, y and up, mm
       partSize(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); if (!p) return null; const s = new T.Box3().setFromObject(p).getSize(new T.Vector3()); return s.toArray(); },

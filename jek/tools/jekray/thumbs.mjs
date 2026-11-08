@@ -41,7 +41,8 @@ await page.waitForFunction(() => window.JEKray && document.getElementById('bench
 
 for (const id of ids) {
   const demo = JSON.parse(readFileSync(join(demos, id + '.jekray'), 'utf8'));
-  await page.evaluate(d => { window.JEKray.load(d); document.getElementById('btnFit').click(); }, demo);
+  // (drawn in 2D, as the gallery's pictures always are: examples open in 3D)
+  await page.evaluate(async d => { window.JEKray.load(d); await window.JEKray.view3d.set(false); document.getElementById('btnFit').click(); }, demo);
   await page.waitForTimeout(2500);
   // a diffracted field still being worked out: waited for (up to 30 s)
   for (let k = 0; k < 60 && await page.evaluate(() => /Computing/.test(document.getElementById('stage').innerText)); k++) await page.waitForTimeout(500);

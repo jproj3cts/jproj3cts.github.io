@@ -21,7 +21,7 @@ import { meshHull, parseSTL } from '../core/stl.js';
 import { compileMaskExpr, maskFns } from '../core/mask.js';
 import { lastTrace, lastTraceKey, lastTraceMs, setLastTraceKey, traceCount, traceKeyNow, traceScene, traceStore, traceStoreHits } from '../engines/trace.js';
 import {
-  benchStyleShown, bez, fibreSegs, handlePos, hornShape, requestRender, resize, segPlanes, selection,
+  beamPowerShare, benchStyleShown, bez, byPowerOn, fibreSegs, powerFade, powerTop, rayPowerShare, rayTops, handlePos, hornShape, requestRender, resize, segPlanes, selection,
   setSelection, sx, sy, toScr, wireRender
 } from './render.js';
 import { wirePointer } from './pointer.js';
@@ -252,6 +252,18 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       }
       list.forEach(([e, p], k) => setParam(e, p, saved[k])); traceScene();
       return found / n;
+    },
+    // light by its power: how strongly each source's light is drawn on this tab, 0 to 1 (its brightest ray or beam), or
+    // null with the setting off
+    powerShown(beams) {
+      const top = byPowerOn() ? powerTop(lastTrace, project.tab) : 0;
+      if (!top) return null;
+      // (or each beam segment's, where it starts: { x0, y0, f })
+      if (beams) return (lastTrace.beams || []).filter(b => b.bench === project.tab && !b.fan && !b.pol).map(b => ({ x0: b.x0, y0: b.y0, f: powerFade(beamPowerShare(b, lastTrace, top)) }));
+      const out = {}, tops = rayTops(lastTrace.rays, project.tab), put = (id, f) => { out[id] = Math.max(out[id] || 0, f); };
+      for (const r of lastTrace.rays) if (r.bench === project.tab) put(r.src, powerFade(rayPowerShare(r, lastTrace, top, tops)));
+      for (const b of lastTrace.beams || []) if (b.bench === project.tab && !b.fan && !b.pol) put(b.src, powerFade(beamPowerShare(b, lastTrace, top)));
+      return out;
     },
     traceInfo() { return { ms: lastTraceMs, current: lastTraceKey === traceKeyNow(), rays: lastTrace.rays.length, count: traceCount, background: TW.n, stored: traceStore.size, restored: traceStoreHits }; },
     // fibres: join two ports by element name and port number; what a fibre photodiode reads

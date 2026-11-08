@@ -67,7 +67,7 @@
             <a class="jek-btn quiet" href="#examples">Open an example</a>
             <a href="/jek/docs/jekion/">Documentation</a>
           </div>
-          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span><span>Best on a desktop or laptop</span></div>
+          <div class="jek-facts"><span>Runs in your browser</span><span>Nothing to install</span><span>No account needed</span></div>
         </div>
         <figure class="jek-shot cover">
           <img src="img/blade-2d.png" alt="A section through a four-blade trap imported from CAD: the potential as a colour map with equipotentials between the blade tips, and the secular motion of a 300 nm silica sphere held at the centre" width="1280" height="752">
@@ -76,15 +76,11 @@
       </div>
     </section>
 
-    <section class="jek-section">
+    <section class="jek-section" style="padding-top: 0">
       <div class="jek-wrap">
         <div class="jek-feature">
           <div><h2>The trap as it was drawn</h2><p>Drop a STEP or STL file on the bench and each body becomes an electrode, found on the grid by winding along three axes so thin blades and bores come through. Set each electrode&rsquo;s DC and RF, the amplitude, frequency and phase, and the housing stays at ground. The array&rsquo;s spacing is yours to set: fine where the tips are, as coarse as the housing allows.</p><p><a href="/jek/docs/jekion/cad-import/">CAD import &rarr;</a></p></div>
           <figure class="jek-shot"><img src="img/blade-3d.png" alt="The four-blade trap in the 3D view, looking into the bore of its grounded housing: the four blade tips, the cut plane with its potential map and the sphere's track between them" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature">
-          <div><h2>Where it holds, and how stiffly</h2><p>Tools &rsaquo; Trap analysis takes the field&rsquo;s curvature at a point and gives the Mathieu <i>a</i> and <i>q</i>, the stability, &beta; and the secular frequency along each principal axis of the trap, named by its direction when it is not a coordinate axis. With a magnetic field and no RF it gives the cyclotron, magnetron and axial frequencies of a Penning trap. Change a voltage and the table follows.</p><p><a href="/jek/docs/jekion/traps/">Traps and the analysis &rarr;</a></p></div>
-          <figure class="jek-shot"><img src="img/blade-trap.png" alt="The trap analysis dialog over the blade trap: a, q, beta and the secular frequency along each of the three principal axes, each marked stable" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
           <div><h2>Fields and flight</h2><p>The potential is solved by multigrid in planar, cylindrical or three-dimensional symmetry, once per electrode, so a voltage changes the picture at once. Particles of any mass and charge are flown by an adaptive Runge&ndash;Kutta step with a continuous field between the nodes, so a quadrupole&rsquo;s null is a true null. A background gas cools them by hard-sphere collisions; space charge pushes a cloud apart.</p><p><a href="/jek/docs/jekion/flying/">Flying &rarr;</a></p></div>
@@ -97,14 +93,6 @@
         <div class="jek-feature">
           <div><h2>Beam optics too</h2><p>The same engine flies a beam through a lens, a deflector, a time-of-flight or a mass filter, with detectors recording position, time, energy and direction. The examples include each, and the trap analysis reads a mass filter&rsquo;s <i>a</i> and <i>q</i> as readily as a trap&rsquo;s.</p><p><a href="/jek/tools/jekion.html?demo=reflectron">The reflectron example &rarr;</a></p></div>
           <figure class="jek-shot"><img src="img/ex-reflectron.png" alt="A reflectron in section: the source, the drift region and the ion mirror's rings, with ions of one mass turning in the mirror and refocusing on the detector" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature ion-modelsfeat">
-          <div><h2>What it models, and what it does not</h2><p>Each setting carries the physics that makes it work. The grid is a staircase: make the spacing finer where it matters, and read the trap analysis at a node.</p></div>
-          <div class="ion-models">
-            <div><h3>Fields</h3><ul><li>Finite differences and multigrid, in planar, cylindrical or 3D symmetry</li><li>Superposition: each electrode solved once and scaled</li><li>RF on any electrode, at any frequency and phase, down to hertz</li><li>Open, grounded or mirror edges</li><li>A uniform magnetic field</li></ul></div>
-            <div><h3>Particles</h3><ul><li>Any mass and charge: an electron, an ion, a charged nanosphere</li><li>Relativistic equations of motion, Dormand&ndash;Prince 5(4)</li><li>Hard-sphere collisions on a background gas</li><li>Coulomb space charge between the flying particles</li><li>Splats, detectors, arrival-time and energy spectra</li></ul></div>
-            <div><h3>Not modelled</h3><ul><li>Shaped magnetic fields</li><li>Image charges and surface physics</li><li>Dielectrics</li><li>Gravity, and a moving or heated gas</li><li>Laser cooling, light forces and optical traps: for those, <a href="/jek/products/design-software/jekray/">JEKray</a></li></ul></div>
-          </div>
         </div>
       </div>
     </section>

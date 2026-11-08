@@ -104,28 +104,16 @@
     <section class="jek-section" style="padding-top: 0">
       <div class="jek-wrap rt-feats">
         <div class="jek-feature">
-          <div><h2>Simulate the whole bench</h2><p>Free-space optics, fibre and the electronics after the detector, with photonic chips too, solved together on one bench across as many tabs as you like. Light leaves a fibre and enters free space, lands on a photodiode and carries on as a signal through amplifiers, mixers and lock-ins to an oscilloscope.</p></div>
-          <figure class="jek-shot"><img src="img/fibre-michelson.png" alt="An all-fibre Michelson interferometer with a circulator, a coupler and Faraday mirrors" loading="lazy"></figure>
+          <div><h2>The whole experiment, light to oscilloscope</h2><p>Free-space optics, fibre, photodiodes, amplifiers, mixers and lock-ins are solved together on one bench. A fibre Mach&ndash;Zehnder with an 80&nbsp;MHz AOM shows its beat note on the oscilloscope and in the RF spectrum.</p><p><a href="/jek/tools/jekray.html#demo=fibre-heterodyne">Open the fibre heterodyne</a></p></div>
+          <figure class="jek-shot"><img src="img/fibre-heterodyne.png" alt="A fibre Mach&ndash;Zehnder interferometer with an AOM in one arm and a photodiode reading the beat note" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Rays, Gaussian beams and the diffracted field</h2><p>Exact rays through real glass, each carrying its polarisation and optical path. Gaussian beams through every branch, so interferometers show fringes and cavities resonate. The diffracted field where rays are not enough: slits, masks, a tight focus, a vortex beam. Parts can be raised, tipped and rolled, and the light follows them in 3D.</p></div>
-          <figure class="jek-shot"><img src="img/field-3d.png" alt="The diffracted field drawn as a glowing volume in the 3D view" loading="lazy"></figure>
+          <div><h2>Checked against the literature, live</h2><p>Fox and Li&rsquo;s resonator losses, Safronova&rsquo;s atomic polarisabilities and measured rubidium absorption are reproduced from the papers. The checks run again every time the validation page is opened.</p><p><a href="/jek/tools/jekray-validation.html">See the validation page</a></p></div>
+          <figure class="jek-shot"><img src="img/fox-li.png" alt="Two flat mirrors whose edges shape the cavity mode, as in Fox and Li&rsquo;s calculation" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Lens design</h2><p>From a singlet to a multi-element assembly, with aspheres, freeforms, diffractive surfaces and graded glass. Optimise against a merit function you build, with some 1,200 catalogue glasses, then check the spots, wavefront, MTF and ghosts, and the image the lens would form. Anyone can build and analyse a design; optimising, tolerancing, reports and drawings come with JEKrayPro.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
-          <figure class="jek-shot"><img src="img/lens-design.png" alt="The whole lens-design workspace for a Cooke triplet: its design conditions, the layout with rays at three fields, its first-order figures, the tabs, and a test chart beside the same chart as the design forms it" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature">
-          <div><h2>Tolerances, drawings and CAD</h2><p>Tolerance a design by sensitivity or Monte Carlo, with compensators and a yield against your specification. Draw each lens in the manner of ISO 10110, and export a .zmx file or STEP solids for the mechanical design. Load your own stock lens files to see which could stand in for each element.</p></div>
-          <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, its surfaces, glass and tolerances, and a title block" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature">
-          <div><h2>RF and millimetre waves, 1 GHz to 3 THz</h2><p>Feed horns, RF lenses, mirrors, wire grids and mesh filters, with the beam&rsquo;s diffraction worked out properly at these wavelengths. Plastic lenses made to order, solid or graded in density, show their loss, how well the beam fits them, and whether they are manufacturable. Sweep a link across frequency for its S21 and link budget, steer the beam off axis, and take the signal on to a mixer and a spectrum analyser.</p><p>The RF designer takes a feed horn&rsquo;s beam to a collimated beam, a waist or a receiving horn, designs the lenses for it, tolerances them over the band, and gives a drawing and a quote for each lens.</p><p><a href="/jek/docs/jekray/rf/">RF on the bench</a> &middot; <a href="/jek/docs/jekray/rf/designer/">The RF designer</a></p></div>
-          <figure class="jek-shot"><img src="img/rf-grin-lens.png" alt="A 24 GHz feed horn and a graded-index RF lens focusing its beam onto a target 400 mm away" loading="lazy"></figure>
-        </div>
-        <div class="jek-feature" id="pro">
-          <div><h2>JEKrayPro</h2><p>Benches save to the cloud as you work, with their history; fork one to try an idea and merge it back. Share a bench as a short link, an embed or a QR code. Optimise, tolerance and draw designs in the Optical and RF designers, and take a bench&rsquo;s numbers out as Excel, NumPy or MATLAB files. A team shares one workspace, with roles and an activity record. You can export everything, and delete your account, at any time.</p><p><a href="/jek/tools/jekray.html#pro">Get JEKrayPro</a> &middot; <a href="/jek/universities.html">For universities</a></p></div>
-          <figure class="jek-shot" style="background: var(--jek-panel)"><img src="img/jekray-pro.png" alt="My benches in JEKrayPro: folders down the side and saved benches as cards with their pictures" loading="lazy"></figure>
+          <div><h2>From a lens idea to a drawing the workshop can use</h2><p>Optimise against some 1,200 catalogue glasses and tolerance the design for yield. Then export an ISO&nbsp;10110 drawing, a .zmx file and STEP solids for the mechanical design.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, surfaces, glass and tolerances" loading="lazy"></figure>
         </div>
       </div>
     </section>

@@ -44,5 +44,6 @@
   "io/account.js",
   "io/data-export.js",
   "io/share.js",
+  "io/cloud.js",
   "ui/boot.js"
 ]

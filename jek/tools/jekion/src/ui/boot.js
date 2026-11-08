@@ -1,4 +1,4 @@
-import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
+import { EMBED, TEST_MODE, cloud } from '../../../jekray/src/core/constants.js';
 import { installHooks } from '../../../jekray/src/core/hooks.js';
 import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { usageDrawn, usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
@@ -21,7 +21,8 @@ import { wireNews, openGallery, APP_VERSION } from './news.js';
 import { wireScripts, runScript } from './scripts.js';
 import { V3D, wireView3d } from './view3d.js';
 import { openDemo, openProjectData, restoreSaved, scheduleSave, wireOpen } from '../io/open.js';
-import { wireAccount } from '../io/account.js';
+import { accountLoaded, wireAccount } from '../io/account.js';
+import { cloudPush, fillCloudList, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
 import { exportData, wireDataExport } from '../io/data-export.js';
 import { openShareHash, openShortLink, shareRoundTrip, wireShare } from '../io/share.js';
 import { bodiesToElectrodes } from '../io/step.js';
@@ -81,7 +82,7 @@ installHooks({
 const saved = restoreSaved();
 loadProject(saved || demoProject());
 setHistory([]); setFuture([]);
-wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireShare(); wireView3d(); wireUsage();
+wireRender(); wirePointer(); wireActions(); wireSim(); wirePanels(); wirePicker(); wireOpen(); wireNews(); wireScripts(); wireDataExport(); wireAccount(); wireCloud(); wireShare(); wireView3d(); wireUsage();
 menuIcons(document); themeMenu(); viewMenuShown(); renderPanel(); updateUndoButtons();
 setDrawnOnce(() => { usageDrawn(); });
 usageStart(saved ? 'ion-restored' : 'ion-fresh');
@@ -97,6 +98,11 @@ const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]d
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
+// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens My benches
+const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/), benchesAt = !TEST_MODE && !EMBED && location.hash === '#benches';
+const cloudHash = async (cl, benches) => { window.history.replaceState(null, '', location.pathname); await accountLoaded; if (cl) openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); else if (benches) openCloudList(); };
+if (cloudAt || benchesAt) cloudHash(cloudAt, benchesAt);
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl || location.hash === '#benches') cloudHash(cl, location.hash === '#benches'); });
 // the tests' and the console's handle on the tool
 window.JEKion = {
   version: APP_VERSION,
@@ -113,4 +119,5 @@ window.JEKion = {
   flyPage: async () => { await flyNow(); return SIM.result; },
   trapPage: () => trapNow(), sim: SIM, data: kinds => gatherIonData(project, SIM.result, SIM.trap, kinds), exportData,
   bodiesToElectrodes, runScript, checkpoint, changed, fitView, v3d: V3D, scheduleSave, setPotPlot, shareRoundTrip, openShareHash,
+  cloud: { push: cloudPush, link: () => cloud, open: openCloudBench, list: openCloudList, fill: fillCloudList },
 };

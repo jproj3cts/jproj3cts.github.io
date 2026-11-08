@@ -319,6 +319,7 @@ async function cloudThumb(link, force) {
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
+  if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }
@@ -326,8 +327,8 @@ async function cloudOpen(id, version) {
   if (version) cloudLink(null);
   else { cloudLink({ id: meta.id, ws: meta.workspace_id, version: meta.version, name: meta.name, dirty: false }); noteRecent({ kind: 'cloud', id: meta.id, label: meta.name || 'Cloud bench' }); }
 }
-// a cloud bench opened by its id (File › Open recent)
-export const openCloudBench = id => cloudOpen(id);
+// a cloud bench opened by its id (File › Open recent, #cloud=<id>, or #cloud=<id>@<version> for a copy of a version)
+export const openCloudBench = (id, version) => cloudOpen(id, version);
 /* the conflict: someone saved this bench elsewhere since this copy was opened */
 function cloudConflict(theirs, by, at) {
   const dlg = document.getElementById('cloudConflict'), link = cloud;
@@ -430,7 +431,11 @@ const homeSay = (fn, ok) => async () => {
   if (homeOpen()) fillHome();
 };
 // open a cloud bench on the bench, leaving this page
-async function homeOpenBench(id, version) {
+/* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
+const JEKION_URL = '/jek/tools/jekion.html';
+const openInJekion = (b, version) => window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), '_blank', 'noopener');
+async function homeOpenBench(id, version, b) {
+  if (b && b.tool === 'jekion') { openInJekion(b, version); return; }
   try {
     if (cloud && cloud.dirty && cloud.id !== id) await cloudPush({ quiet: true });
     await cloudOpen(id, version);
@@ -656,7 +661,7 @@ export async function fillHome() {
       b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
       h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
       h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id) }, 'Open'),
+        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id, null, b) }, b.tool === 'jekion' ? 'Open in JEKion' : 'Open'),
         can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
       helpLine('Versions are kept as you work: the last 50, then one a day for 90 days.', ['A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'], 'rt-subsmall'));
     // the events, newest first: a fork comes just after the version it was made from
@@ -696,7 +701,7 @@ export async function fillHome() {
           h('span', { class: 'when' }, whenAgo(v.created_at)),
           h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.version === b.version ? 'current' : null, v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
           h('span', { class: 'acts' },
-            link('Open a copy', () => homeOpenBench(b.id, v.version)),
+            link('Open a copy', () => homeOpenBench(b.id, v.version, b)),
             P.cmp === v.version ? link('Cancel compare', () => { P.cmp = null; fillHome(); })
               : P.cmp ? link('Compare with v' + P.cmp, () => { const a = P.cmp; P.cmp = null; fillHome(); homeCompare(b, a, v.version); })
               : link('Compare…', () => { P.cmp = v.version; fillHome(); toast('Now choose the version to compare it with'); }),
@@ -855,7 +860,7 @@ export async function fillHome() {
     more.addEventListener('click', () => openHomeMenu(more, bin ? [
       writer ? ['Restore', 'restore', homeSay(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')] : null,
       ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }]] : [
-      ['Open', 'open', () => homeOpenBench(b.id)],
+      [b.tool === 'jekion' ? 'Open in JEKion' : 'Open', 'open', () => homeOpenBench(b.id, null, b)],
       ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }],
       can ? ['Fork…', 'fork', () => homeFork(b)] : null,
       copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
@@ -865,10 +870,10 @@ export async function fillHome() {
       writer ? ['Delete', 'trash', homeSay(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days'), 'danger'] : null]));
     const where = (P.q || P.view === 'recent') && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null;
     return h('div', { class: 'rt-hcard' + (mine ? ' here' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id },
-      h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '”', onclick: bin ? () => more.click() : () => homeOpenBench(b.id) },
+      h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '”' + (b.tool === 'jekion' ? ' in JEKion' : ''), onclick: bin ? () => more.click() : () => homeOpenBench(b.id, null, b) },
         b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
       h('div', { class: 'rt-hinfo' },
-        h('b', { title: b.name }, b.name),
+        h('b', { title: b.name }, b.tool === 'jekion' ? h('span', { class: 'rt-htool', title: 'A JEKion bench: it opens in JEKion' }, 'JEKion') : null, b.name),
         h('small', null, [mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
         b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
         b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),

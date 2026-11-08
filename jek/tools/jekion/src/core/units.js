@@ -16,20 +16,23 @@ export const KCOUL = 8.9875517923e9;          // N m² / C²
 export const qmOf = (charge, massU) => charge * QE / (Math.max(1e-12, massU) * AMU);
 /* the rest energy, eV */
 export const restEv = massU => massU * AMU * (C_MMUS * 1e3) ** 2 / QE;
-/* a kinetic energy as a speed, mm/µs, relativistically (an electron at 100 keV: 0.55 c) */
+/* a kinetic energy as a speed, mm/µs, relativistically (an electron at 100 keV: 0.55 c). Written in x = KE / mc²
+   rather than γ = 1 + x, so a heavy particle, whose x is below the double's resolution of 1 (a nanosphere at
+   thermal energy: 1e-21), still moves: γ² − 1 = x (2 + x). */
 export function speedOfKE(keEv, massU) {
-  const g = 1 + Math.max(0, keEv) / restEv(massU);
-  return C_MMUS * Math.sqrt(Math.max(0, 1 - 1 / (g * g)));
+  const x = Math.max(0, keEv) / restEv(massU);
+  return C_MMUS * Math.sqrt(x * (2 + x)) / (1 + x);
 }
 /* the proper speed u = γv of that kinetic energy, mm/µs: what the tracer integrates */
 export function properSpeedOfKE(keEv, massU) {
-  const g = 1 + Math.max(0, keEv) / restEv(massU);
-  return C_MMUS * Math.sqrt(Math.max(0, g * g - 1));
+  const x = Math.max(0, keEv) / restEv(massU);
+  return C_MMUS * Math.sqrt(x * (2 + x));
 }
-/* the kinetic energy, eV, of a proper speed u (mm/µs) */
+/* the kinetic energy, eV, of a proper speed u (mm/µs): (γ − 1) mc² with γ − 1 = w / (γ + 1), w = (u/c)², exact for
+   the smallest speeds too */
 export function keOfProper(u, massU) {
-  const g = Math.sqrt(1 + (u / C_MMUS) ** 2);
-  return (g - 1) * restEv(massU);
+  const w = (u / C_MMUS) ** 2;
+  return w / (Math.sqrt(1 + w) + 1) * restEv(massU);
 }
 export const gammaOfProper = u => Math.sqrt(1 + (u / C_MMUS) ** 2);
 /* a few particles people fly, by name: mass in u, charge in e */

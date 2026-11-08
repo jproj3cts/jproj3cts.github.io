@@ -2222,3 +2222,9 @@ main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
 /* every picture beside a feature the same shape (16:10, as the page-top recording), filled and centred */
 .jek-feature .jek-shot img { aspect-ratio: 16 / 10; width: 100%; height: auto; object-fit: cover; object-position: center; }
 .jek-feature .jek-shot img[src$="lens-design.png"], .jek-feature .jek-shot img[src$="lens-drawing.png"] { object-position: top; }
+/* the features alternate the other way round: the first picture on the left, under the page top's picture on the right */
+.jek-feature:nth-of-type(odd) { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+.jek-feature:nth-of-type(odd) .jek-shot { order: -1; }
+.jek-feature:nth-of-type(even) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.jek-feature:nth-of-type(even) .jek-shot { order: 0; }
+@media (max-width: 860px) { .jek-feature:nth-of-type(odd), .jek-feature:nth-of-type(even) { grid-template-columns: 1fr; } .jek-feature:nth-of-type(odd) .jek-shot { order: 0; } }

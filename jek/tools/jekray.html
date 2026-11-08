@@ -248,8 +248,6 @@
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
   .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; transform: scaleX(-1); }
   .rt-sidetab.open .chev { transform: none; }
-  /* the Bench panel in the first column, the bench after it (renderPanel sets the columns) */
-  .rt-grid.rt-benchleft > #panel { order: -1; }
   /* the Bench panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
   .rt-pin.rt-benchclose { display: none; }
   body.rt-embed .rt-sidetab { display: none; }
@@ -1917,10 +1915,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
 /* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
    under it with what the moment needs; the hint goes to the bottom while they are on */
-.rt-mdltop { position: absolute; left: 0.6rem; right: 124px; top: calc(var(--rt-top) + 6px); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+/* the sketch's tools hang from the parts rail, under its Model, Sketch, Extrude and Revolve: joined to it, as one piece */
+.rt-mdltop { position: absolute; left: 0; right: 124px; top: calc(var(--rt-top) - 1px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
 .rt-mdltop[hidden] { display: none; }
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
+.rt-mdltop > .rt-tbar { border-top-left-radius: 0; }
 .rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
 .rt-tbsub:empty, .rt-tbar:empty { display: none; }
 .rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
@@ -2198,6 +2198,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     </div>
 
     <div class="rt-grid">
+      <aside class="rt-panel rt-benchbox" id="benchPanel" aria-label="Bench settings" style="display:none"></aside>
       <div class="rt-stage" id="stage">
         <div class="rt-lock" id="cloudLock" hidden role="status">
           <span class="rt-lockwho" id="cloudLockWho"></span>
@@ -13364,7 +13365,8 @@ function setLastTraceKey(v) { return (lastTraceKey = v); }
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 const rfNotes = new Set();
-const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
+// (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
+const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
@@ -15149,12 +15151,17 @@ function setW(v) { return (W = v); }
 function setH(v) { return (H = v); }
 function setDPR(v) { return (DPR = v); }
 
+let benchMid = 0, benchMidView = null;       // where the bench's middle was on the page, and the view it showed, for resize
 function resize() {
   const r = stage.getBoundingClientRect();
   DPR = window.devicePixelRatio || 1;
-  // the bench grown or narrowed (a side panel opened or closed, the window resized) keeps its
-  // left edge where it was: what is under the pointer stays there
-  if (W > 0 && r.width > 0 && r.width !== W) { try { const v = V(); if (v && v.scale > 0) v.cx += (r.width - W) / (2 * v.scale); } catch (err) { /* no bench yet */ } }
+  // the bench grown or narrowed (a side panel opened or closed on either side, the window resized): what is drawn
+  // stays where it was on the screen, the view moved by as much as the bench's middle moved
+  // (only a view already on the screen: one just opened, a file or a link, keeps the place it was saved with)
+  const mid = r.left + r.width / 2;
+  let v = null; try { v = V(); } catch (err) { /* no bench yet */ }
+  if (W > 0 && r.width > 0 && v && v === benchMidView && mid !== benchMid && v.scale > 0) v.cx += (mid - benchMid) / v.scale;
+  benchMid = mid; benchMidView = v;
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   requestRender();
@@ -16115,6 +16122,9 @@ function getCss(v) {
 
 function render() {
   if (!W || !H) return;
+  // a view newly on the screen (a bench opened, a tab switched to) is the one a later resize keeps in place, once the
+  // bench is the size it is drawn at (a resize still to come, as the panels change, leaves the new view as saved)
+  if (V() !== benchMidView) { const r = stage.getBoundingClientRect(); if (r.width === W && r.height === H) { benchMid = r.left + r.width / 2; benchMidView = V(); } }
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
@@ -22142,16 +22152,20 @@ const V3D = (() => {
     return R;
   }
   const CUBE_PX = 104, CUBE_M = 8;
-  const cubeRect = () => ({ x: R.w - CUBE_PX - CUBE_M, y: 36, w: CUBE_PX, h: CUBE_PX });     // css px, from the top left
+// css px, from the top left: clear of the parts rail across the top (its height, --rt-top, however many rows it takes)
+  const cubeRect = () => ({ x: R.w - CUBE_PX - CUBE_M, y: Math.max(36, (parseFloat(D.stage.style.getPropertyValue('--rt-top')) || 0) + 10), w: CUBE_PX, h: CUBE_PX });
   function resize() {
-    const w = D.stage.clientWidth, hgt = D.stage.clientHeight;
-    if (!w || !hgt || (w === R.w && hgt === R.h)) return;
-    const w0 = R.w;
+    const w = D.stage.clientWidth, hgt = D.stage.clientHeight, mid = D.stage.getBoundingClientRect().left + w / 2;
+    if (!w || !hgt || (w === R.w && hgt === R.h && mid === R.mid)) return;
+    const w0 = R.w, mid0 = R.mid;
+    R.mid = mid;
     R.w = w; R.h = hgt;
     R.gl.setSize(w, hgt, false);
     R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix(); if (R.persp && R.persp !== R.camera) { R.persp.aspect = w / hgt; R.persp.updateProjectionMatrix(); } camFit();
-    // as in 2D, the view keeps its left edge when the bench grows or narrows (a panel opened)
-    if (w0 > 0 && w !== w0) pan(-(w - w0) / 2, 0);
+    // as in 2D, what is drawn stays where it was on the screen when a panel opens or closes on either side: the view
+    // moved by as much as the bench's middle moved
+    // (not while flying: a first-person view stays on its course)
+    if (w0 > 0 && mid0 !== undefined && mid !== mid0 && !fly) pan(-(mid - mid0), 0);
     R.key = null;                                         // the names are sized to the canvas
   }
   function draw() {
@@ -28294,6 +28308,7 @@ const PART_UI = {
 function updateReadouts() {
   const sel = selected();
   if (mainPanel.style.display !== 'none') updateReadoutsIn(mainPanel, sel);
+  if (benchBox.style.display !== 'none') updateReadoutsIn(benchBox, null);
   for (const [id, box] of pinBoxes) updateReadoutsIn(box, getEl(id));
 }
 
@@ -29234,6 +29249,8 @@ function updateSweepButtons() {
    ========================================================================== */
 
 const mainPanel = document.getElementById('panel');
+/* the Bench panel: on a wide screen a column of its own on the bench's left, open or not whatever is selected */
+const benchBox = document.getElementById('benchPanel');
 let panel = mainPanel;  // where the panel builders write: the main panel, or a pinned one
 let refs = [];          // { node, sync() }, refreshed while dragging or animating
 /* Tabs and plot choices belong to each element, so two pinned screens can show different plots */
@@ -29571,19 +29588,20 @@ function pinTitle(title, id, onSelect) {
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
   // something is selected again (or View › Show the side panel). On a wide screen the Bench panel's
   // × is not shown: the tab on the bench's left edge (sideTab) closes it
-  const main = panel === mainPanel;
+  const host = panel, main = host === mainPanel || host === benchBox;
   const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : '') + (main && id === BENCH_PIN ? ' rt-benchclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
-      selectOne(null); setSelFibreId(null); panelClosed = true; renderPanel(); requestRender();
+      if (host === benchBox || id === BENCH_PIN) { panelClosed = true; renderPanel(); requestRender(); return; }
+      selectOne(null); setSelFibreId(null); if (phoneSheet()) panelClosed = true; renderPanel(); requestRender();
     } }, '\u00d7');
   // on a phone the main panel is a sheet over the bench's lower part: this makes it taller, or shorter again
   const sheetBtn = main ? h('button', { class: 'rt-pin rt-sheetbtn', type: 'button', 'aria-pressed': sheetTall ? 'true' : 'false',
     'aria-label': sheetTall ? 'Make the panel shorter' : 'Make the panel taller', title: sheetTall ? 'Shorter: more of the bench' : 'Taller: more of the panel',
     onclick: () => { sheetTall = !sheetTall; mainPanel.classList.toggle('rt-tall', sheetTall); renderPanel(); } }, sheetTall ? '\u2193' : '\u2191') : null;
-  title.append(...[pinBtn, sheetBtn, closeBtn].filter(Boolean));
-  if (panel !== mainPanel) {
+  title.append(...[host === benchBox ? null : pinBtn, sheetBtn, closeBtn].filter(Boolean));
+  if (panel !== mainPanel && panel !== benchBox) {
     const box = panel;                          // the panel being built now (panel is reassigned after)
     title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });   // (the close button is an .rt-pin too)
     title.addEventListener('pointerdown', e => dragPinned(e, title, box, id));
@@ -29664,23 +29682,23 @@ function renderPanel() {
   // read every scroll before anything is rebuilt or moved, since a box taken out of the
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
-  const sel = selected();
-  // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
-  // the bench takes the page: the Bench panel opens only from the tab on the bench's left edge (or View › Show the
-  // side panel), and stays until something is selected or the tab puts it away
-  const picked = !!(sel || selFibre());
-  if (picked) panelClosed = true;
-  const mainShows = picked ? !(sel && pins.includes(sel.id)) : !panelClosed && !pins.includes(BENCH_PIN);
+  const benchScroll = benchBox.scrollTop;
+  const sel = selected(), picked = !!(sel || selFibre()), phone = phoneSheet();
+  // On a wide screen the Bench panel is a column of its own on the left, brought out and put away by the tab on the
+  // bench's left edge alone; a selection's panel opens on the right, and closes when it is put down. On a phone one
+  // sheet from below shows either: the selection's, or (nothing selected, the tab pulled) the bench's
+  if (phone && picked) panelClosed = true;
+  const benchPinned = pins.includes(BENCH_PIN);
+  const benchShows = !phone && !panelClosed && !benchPinned;
+  const mainShows = picked ? !(sel && pins.includes(sel.id)) : phone && !panelClosed && !benchPinned;
+  benchBox.style.display = benchShows ? '' : 'none';
   mainPanel.style.display = mainShows ? '' : 'none';
   // the columns first, so plots drawn below measure the width they will actually have
-  const cols = (mainShows ? 1 : 0) + pins.length;
-  mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
-  mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
-  // the Bench panel comes out on the bench's left, apart from the parts' panels on its right (not on a phone, where
-  // every panel is a sheet from below)
-  const benchLeft = mainShows && !picked && !phoneSheet();
-  mainPanel.parentElement.classList.toggle('rt-benchleft', benchLeft);
-  mainPanel.parentElement.style.gridTemplateColumns = benchLeft ? '330px minmax(240px, 1fr)' + (pins.length ? ' repeat(' + pins.length + ', 330px)' : '') : '';
+  const grid = mainPanel.parentElement, right = (mainShows ? 1 : 0) + pins.length;
+  grid.style.setProperty('--rt-cols', String(Math.max(1, right)));
+  grid.classList.toggle('rt-nopanel', !right && !benchShows);          // the bench across the whole width
+  grid.style.gridTemplateColumns = phone ? '' : (benchShows ? '330px ' : '') + 'minmax(240px, 1fr)' + (right ? ' repeat(' + right + ', 330px)' : '');
+  if (benchShows) { renderInto(benchBox, null); holdScroll(benchBox, benchScroll); }
   if (mainShows) renderInto(mainPanel, sel);
   mainPanel.classList.toggle('rt-tall', sheetTall);
   // newly selected on a phone: kept clear of the sheet
@@ -29702,18 +29720,20 @@ function renderPanel() {
   // the tab on the bench's left edge, the Bench panel's alone: pointing out (bring it out) or in (put it away)
   const tab = document.getElementById('btnSideTab');
   if (tab) {
-    const benchShown = mainShows && !picked;
+    const benchShown = benchShows || (phone && mainShows && !picked);
     tab.classList.toggle('open', benchShown); tab.setAttribute('aria-pressed', benchShown ? 'true' : 'false');
     tab.title = benchShown ? 'Hide the Bench panel' : 'Bench settings: light, snapping and the parts list';
     tab.setAttribute('aria-label', benchShown ? 'Hide the Bench panel' : 'Bench settings');
   }
 }
-/* the tab on the bench's left edge: the Bench panel brought out (whatever was selected put down, its panel with it),
-   or put away */
+/* the tab on the bench's left edge: the Bench panel brought out or put away, the selection left as it is (on a phone,
+   where one sheet shows either, the selection put down to show the bench's) */
 function sideTab() {
-  const sel = selected(), benchShown = mainPanel.style.display !== 'none' && !(sel || selFibre()) && !panelClosed;
-  selectOne(null); setSelFibreId(null);
-  panelClosed = benchShown;
+  if (phoneSheet()) {
+    const shown = mainPanel.style.display !== 'none' && !(selected() || selFibre());
+    selectOne(null); setSelFibreId(null);
+    panelClosed = shown;
+  } else panelClosed = benchBox.style.display !== 'none';
   renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as
@@ -51111,7 +51131,8 @@ function openProjectData(data, label) {
   document.getElementById('projName').value = project.name;
   renderBenchTabs();
   changed(true);
-  if (!raw.view || W < 600) fitView();                 // a phone: a view kept from a desk does not fit
+  // a phone (the window narrow, not just the bench between two panels): a view kept from a desk does not fit
+  if (!raw.view || Math.min(W, typeof innerWidth === 'number' ? innerWidth : W) < 600 && (typeof innerWidth !== 'number' || innerWidth < 760)) fitView();
   toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : '') + (dropped ? '. The bench you had, not saved, is kept in File \u203a Earlier versions' : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked
@@ -53398,7 +53419,7 @@ const MENU_ICONS = {
   save: 'M2.5 2.5H11.5L13.5 4.5V13.5H2.5Z M5 2.5V6H10.5V2.5 M5 13.5V9.5H11V13.5', import: 'M8 1.5V10 M4.5 6.5L8 10L11.5 6.5 M2.5 10.5V14H13.5V10.5',
   export: 'M8 10.5V2 M4.5 5.5L8 2L11.5 5.5 M2.5 10.5V14H13.5V10.5', image: 'M2 3H14V13H2Z M2 11L6 7L9 10L11 8L14 11 M10.5 5.6A0.9 0.9 0 1 0 10.49 5.6',
   vector: 'M3 13C5 4 11 12 13 3 M2 12H4V14H2Z M12 2H14V4H12Z', pdf: 'M4 1.5H9.5L12.5 4.5V14.5H4Z M6 9H10 M6 11.5H10 M6 6.5H8',
-  gallery: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', link: 'M6.5 9.5L9.5 6.5 M7 4.5L8.5 3A2.5 2.5 0 0 1 13 6.5L11.5 8 M9 11.5L7.5 13A2.5 2.5 0 0 1 3 9.5L4.5 8',
+  gallery: 'M1.5 2.5H14.5V13.5H1.5Z M1.5 10.5L5.5 6.5L8.5 9.5L10.5 7.5L14.5 11.5 M11 5A0.5 0.5 0 1 0 11 4.9', link: 'M6.5 9.5L9.5 6.5 M7 4.5L8.5 3A2.5 2.5 0 0 1 13 6.5L11.5 8 M9 11.5L7.5 13A2.5 2.5 0 0 1 3 9.5L4.5 8',
   fit: 'M2 5.5V2H5.5 M10.5 2H14V5.5 M14 10.5V14H10.5 M5.5 14H2V10.5', zoom: 'M7 2.5A4.5 4.5 0 1 1 6.99 2.5 M10.3 10.3L14 14 M5 7H9 M7 5V9',
   ruler: 'M1.5 10.5L10.5 1.5L14.5 5.5L5.5 14.5Z M4.5 7.5L6 9 M6.5 5.5L8.5 7.5 M8.5 3.5L10 5', parts: 'M8 2V14 M2 8H14',
   check: 'M3 8.5L6.5 12L13 4.5', play: 'M4.5 2.5L13 8L4.5 13.5Z', pause: 'M4.5 2.5V13.5 M11.5 2.5V13.5',
@@ -55984,7 +56005,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Fibres in 3D</b>: click a fibre, wire or waveguide in the 3D view to select it (its panel opens), and drag it across the table to shape it, as on the bench. A fibre now leaves each connector straight and level, its face square to the ferrule. The bench\u2019s <b>notes</b> moved to Edit \u203a Bench notes\u2026, and <b>My benches</b> is the cloud beside the bench\u2019s name, apart from Examples.',
-    '<b>The Bench panel comes out on the left</b>, from the tab on the bench\u2019s left edge, so it is plain which panel is the bench\u2019s; a part\u2019s panel still opens on the right, and closes with its \u00d7. <b>How the rays look</b> (brightness by power, fading trails, glow, width) has a window of its own, View \u203a How the rays look\u2026. The longer explanations left the panels for the Help menu: <b>Using the bench</b> and <b>About the selected part</b>.',
+    '<b>The Bench panel comes out on the left</b>, from the tab on the bench\u2019s left edge, so it is plain which panel is the bench\u2019s, and it stays out while you select parts; a part\u2019s panel opens on the right, and closes with its \u00d7. Opening or closing either no longer shifts the bench: what is drawn stays where it was. In Model, the sketch\u2019s tools hang from the parts rail. Fixed: <b>Show the rays</b> ticked on a bench saved with them off now shows them. <b>How the rays look</b> (brightness by power, fading trails, glow, width) has a window of its own, View \u203a How the rays look\u2026. The longer explanations left the panels for the Help menu: <b>Using the bench</b> and <b>About the selected part</b>.',
     '<b>From Instagram</b>: every link from our Instagram posts now opens the Michelson interferometer example with its moving mirror sweeping, and the note listing our reels’ benches has gone. The bench JEKray opens with sends its rays in hexapolar rings, a full beam in 3D.',
     '<b>Getting JEKrayPro is simpler</b>: a <b>Get Pro</b> button in the bar, and every Pro feature, open the plans and prices, signed in or not. Pay straight away: your account is made from the address you pay with, and you are signed in when you come back. The <b>academic price</b> needs only your university email address, typed beside it (no code to wait for); any of the 10,000 universities in a public register counts. Menu items that need an account or JEKrayPro are no longer greyed: their badge says what they need. Signing in by email sends a link you click (the code still works), and you stay signed in for a year. Checking for a university licence now says plainly when yours has none.',
     '<b>No ticks for a source\u2019s light</b>: a source always traces its rays, and a new one propagates a Gaussian beam; its panel\u2019s <b>Field</b> says what its field starts from, the Gaussian beam or even illumination across the fan (a uniform pupil, for a lens\u2019s Airy pattern, Strehl and MTF). A fibre tip always sends both. The bench\u2019s <b>Light</b> turns the rays, or the beams, off for every source at once. The look of the rays (brightness by power, trails, glow, width) is folded under its own heading. JEKray opens in the <b>Dark</b> theme (View \u203a Theme) and in <b>3D</b> (2D at the bottom right), with the Bench panel showing and a thinner bar, and a share link opens straight into its bench.',

@@ -238,16 +238,20 @@ export const V3D = (() => {
     return R;
   }
   const CUBE_PX = 104, CUBE_M = 8;
-  const cubeRect = () => ({ x: R.w - CUBE_PX - CUBE_M, y: 36, w: CUBE_PX, h: CUBE_PX });     // css px, from the top left
+// css px, from the top left: clear of the parts rail across the top (its height, --rt-top, however many rows it takes)
+  const cubeRect = () => ({ x: R.w - CUBE_PX - CUBE_M, y: Math.max(36, (parseFloat(D.stage.style.getPropertyValue('--rt-top')) || 0) + 10), w: CUBE_PX, h: CUBE_PX });
   function resize() {
-    const w = D.stage.clientWidth, hgt = D.stage.clientHeight;
-    if (!w || !hgt || (w === R.w && hgt === R.h)) return;
-    const w0 = R.w;
+    const w = D.stage.clientWidth, hgt = D.stage.clientHeight, mid = D.stage.getBoundingClientRect().left + w / 2;
+    if (!w || !hgt || (w === R.w && hgt === R.h && mid === R.mid)) return;
+    const w0 = R.w, mid0 = R.mid;
+    R.mid = mid;
     R.w = w; R.h = hgt;
     R.gl.setSize(w, hgt, false);
     R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix(); if (R.persp && R.persp !== R.camera) { R.persp.aspect = w / hgt; R.persp.updateProjectionMatrix(); } camFit();
-    // as in 2D, the view keeps its left edge when the bench grows or narrows (a panel opened)
-    if (w0 > 0 && w !== w0) pan(-(w - w0) / 2, 0);
+    // as in 2D, what is drawn stays where it was on the screen when a panel opens or closes on either side: the view
+    // moved by as much as the bench's middle moved
+    // (not while flying: a first-person view stays on its course)
+    if (w0 > 0 && mid0 !== undefined && mid !== mid0 && !fly) pan(-(mid - mid0), 0);
     R.key = null;                                         // the names are sized to the canvas
   }
   function draw() {

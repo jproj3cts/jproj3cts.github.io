@@ -17,7 +17,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
-import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, raysOn, setVSRC } from '../state/elements.js';
+import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
 import { stackMet, stackOrder } from '../core/sag.js';
@@ -377,7 +377,8 @@ export function setLastTraceKey(v) { return (lastTraceKey = v); }
 // the electronics (their blocks and wires) carry no light, so moving or changing them does not call for a new trace
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 export const rfNotes = new Set();
-export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + project.benches.map(b => b.id).join(',') + '|' +
+// (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
+export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own

@@ -32,6 +32,8 @@ import { modPanel } from '../io/mods.js';
    ========================================================================== */
 
 export const mainPanel = document.getElementById('panel');
+/* the Bench panel: on a wide screen a column of its own on the bench's left, open or not whatever is selected */
+export const benchBox = document.getElementById('benchPanel');
 export let panel = mainPanel;  // where the panel builders write: the main panel, or a pinned one
 let refs = [];          // { node, sync() }, refreshed while dragging or animating
 /* Tabs and plot choices belong to each element, so two pinned screens can show different plots */
@@ -369,19 +371,20 @@ export function pinTitle(title, id, onSelect) {
   // and closed: a pinned panel is unpinned; the main one goes, the selection with it, until
   // something is selected again (or View › Show the side panel). On a wide screen the Bench panel's
   // × is not shown: the tab on the bench's left edge (sideTab) closes it
-  const main = panel === mainPanel;
+  const host = panel, main = host === mainPanel || host === benchBox;
   const closeBtn = h('button', { class: 'rt-pin rt-close' + (main ? ' rt-mainclose' : '') + (main && id === BENCH_PIN ? ' rt-benchclose' : ''), type: 'button', title: main ? 'Close this panel' : 'Close: unpin this panel',
     'aria-label': main ? 'Close the panel' : 'Close this pinned panel',
     onclick: () => {
       if (!main) { togglePinId(id); return; }
-      selectOne(null); setSelFibreId(null); panelClosed = true; renderPanel(); requestRender();
+      if (host === benchBox || id === BENCH_PIN) { panelClosed = true; renderPanel(); requestRender(); return; }
+      selectOne(null); setSelFibreId(null); if (phoneSheet()) panelClosed = true; renderPanel(); requestRender();
     } }, '\u00d7');
   // on a phone the main panel is a sheet over the bench's lower part: this makes it taller, or shorter again
   const sheetBtn = main ? h('button', { class: 'rt-pin rt-sheetbtn', type: 'button', 'aria-pressed': sheetTall ? 'true' : 'false',
     'aria-label': sheetTall ? 'Make the panel shorter' : 'Make the panel taller', title: sheetTall ? 'Shorter: more of the bench' : 'Taller: more of the panel',
     onclick: () => { sheetTall = !sheetTall; mainPanel.classList.toggle('rt-tall', sheetTall); renderPanel(); } }, sheetTall ? '\u2193' : '\u2191') : null;
-  title.append(...[pinBtn, sheetBtn, closeBtn].filter(Boolean));
-  if (panel !== mainPanel) {
+  title.append(...[host === benchBox ? null : pinBtn, sheetBtn, closeBtn].filter(Boolean));
+  if (panel !== mainPanel && panel !== benchBox) {
     const box = panel;                          // the panel being built now (panel is reassigned after)
     title.addEventListener('click', e => { if (e.target.closest('.rt-pin') || title._dragged) { title._dragged = false; return; } onSelect(); });   // (the close button is an .rt-pin too)
     title.addEventListener('pointerdown', e => dragPinned(e, title, box, id));
@@ -462,23 +465,23 @@ export function renderPanel() {
   // read every scroll before anything is rebuilt or moved, since a box taken out of the
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
-  const sel = selected();
-  // A selection shows its own panel. Put down (a click on empty bench), the panel closes and
-  // the bench takes the page: the Bench panel opens only from the tab on the bench's left edge (or View › Show the
-  // side panel), and stays until something is selected or the tab puts it away
-  const picked = !!(sel || selFibre());
-  if (picked) panelClosed = true;
-  const mainShows = picked ? !(sel && pins.includes(sel.id)) : !panelClosed && !pins.includes(BENCH_PIN);
+  const benchScroll = benchBox.scrollTop;
+  const sel = selected(), picked = !!(sel || selFibre()), phone = phoneSheet();
+  // On a wide screen the Bench panel is a column of its own on the left, brought out and put away by the tab on the
+  // bench's left edge alone; a selection's panel opens on the right, and closes when it is put down. On a phone one
+  // sheet from below shows either: the selection's, or (nothing selected, the tab pulled) the bench's
+  if (phone && picked) panelClosed = true;
+  const benchPinned = pins.includes(BENCH_PIN);
+  const benchShows = !phone && !panelClosed && !benchPinned;
+  const mainShows = picked ? !(sel && pins.includes(sel.id)) : phone && !panelClosed && !benchPinned;
+  benchBox.style.display = benchShows ? '' : 'none';
   mainPanel.style.display = mainShows ? '' : 'none';
   // the columns first, so plots drawn below measure the width they will actually have
-  const cols = (mainShows ? 1 : 0) + pins.length;
-  mainPanel.parentElement.style.setProperty('--rt-cols', String(Math.max(1, cols)));
-  mainPanel.parentElement.classList.toggle('rt-nopanel', !cols);          // the bench across the whole width
-  // the Bench panel comes out on the bench's left, apart from the parts' panels on its right (not on a phone, where
-  // every panel is a sheet from below)
-  const benchLeft = mainShows && !picked && !phoneSheet();
-  mainPanel.parentElement.classList.toggle('rt-benchleft', benchLeft);
-  mainPanel.parentElement.style.gridTemplateColumns = benchLeft ? '330px minmax(240px, 1fr)' + (pins.length ? ' repeat(' + pins.length + ', 330px)' : '') : '';
+  const grid = mainPanel.parentElement, right = (mainShows ? 1 : 0) + pins.length;
+  grid.style.setProperty('--rt-cols', String(Math.max(1, right)));
+  grid.classList.toggle('rt-nopanel', !right && !benchShows);          // the bench across the whole width
+  grid.style.gridTemplateColumns = phone ? '' : (benchShows ? '330px ' : '') + 'minmax(240px, 1fr)' + (right ? ' repeat(' + right + ', 330px)' : '');
+  if (benchShows) { renderInto(benchBox, null); holdScroll(benchBox, benchScroll); }
   if (mainShows) renderInto(mainPanel, sel);
   mainPanel.classList.toggle('rt-tall', sheetTall);
   // newly selected on a phone: kept clear of the sheet
@@ -500,18 +503,20 @@ export function renderPanel() {
   // the tab on the bench's left edge, the Bench panel's alone: pointing out (bring it out) or in (put it away)
   const tab = document.getElementById('btnSideTab');
   if (tab) {
-    const benchShown = mainShows && !picked;
+    const benchShown = benchShows || (phone && mainShows && !picked);
     tab.classList.toggle('open', benchShown); tab.setAttribute('aria-pressed', benchShown ? 'true' : 'false');
     tab.title = benchShown ? 'Hide the Bench panel' : 'Bench settings: light, snapping and the parts list';
     tab.setAttribute('aria-label', benchShown ? 'Hide the Bench panel' : 'Bench settings');
   }
 }
-/* the tab on the bench's left edge: the Bench panel brought out (whatever was selected put down, its panel with it),
-   or put away */
+/* the tab on the bench's left edge: the Bench panel brought out or put away, the selection left as it is (on a phone,
+   where one sheet shows either, the selection put down to show the bench's) */
 export function sideTab() {
-  const sel = selected(), benchShown = mainPanel.style.display !== 'none' && !(sel || selFibre()) && !panelClosed;
-  selectOne(null); setSelFibreId(null);
-  panelClosed = benchShown;
+  if (phoneSheet()) {
+    const shown = mainPanel.style.display !== 'none' && !(selected() || selFibre());
+    selectOne(null); setSelFibreId(null);
+    panelClosed = shown;
+  } else panelClosed = benchBox.style.display !== 'none';
   renderPanel();
 }
 /* Put a panel back where it was scrolled to. Its content is rebuilt short and grows as

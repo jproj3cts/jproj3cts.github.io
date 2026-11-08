@@ -200,7 +200,8 @@ export function openProjectData(data, label) {
   document.getElementById('projName').value = project.name;
   renderBenchTabs();
   changed(true);
-  if (!raw.view || W < 600) fitView();                 // a phone: a view kept from a desk does not fit
+  // a phone (the window narrow, not just the bench between two panels): a view kept from a desk does not fit
+  if (!raw.view || Math.min(W, typeof innerWidth === 'number' ? innerWidth : W) < 600 && (typeof innerWidth !== 'number' || innerWidth < 760)) fitView();
   toast('Opened ' + label + (notes.length ? ', with ' + notes.length + ' change' + (notes.length === 1 ? '' : 's') : '') + (dropped ? '. The bench you had, not saved, is kept in File \u203a Earlier versions' : ''));
   if (notes.length && !TEST_MODE) showImportReport(notes);
   if (project.mods.length) setTimeout(modsOffer, notes.length ? 600 : 0);   // its mods: offered, never run unasked

@@ -217,8 +217,6 @@
   .rt-sidetab:hover, .rt-sidetab:focus-visible { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); outline: none; }
   .rt-sidetab .chev { width: 9px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; transform: scaleX(-1); }
   .rt-sidetab.open .chev { transform: none; }
-  /* the Bench panel in the first column, the bench after it (renderPanel sets the columns) */
-  .rt-grid.rt-benchleft > #panel { order: -1; }
   /* the Bench panel's ×: the tab does its work on a wide screen (a phone's sheet keeps it) */
   .rt-pin.rt-benchclose { display: none; }
   body.rt-embed .rt-sidetab { display: none; }
@@ -1886,10 +1884,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
 /* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
    under it with what the moment needs; the hint goes to the bottom while they are on */
-.rt-mdltop { position: absolute; left: 0.6rem; right: 124px; top: calc(var(--rt-top) + 6px); z-index: 7; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
+/* the sketch's tools hang from the parts rail, under its Model, Sketch, Extrude and Revolve: joined to it, as one piece */
+.rt-mdltop { position: absolute; left: 0; right: 124px; top: calc(var(--rt-top) - 1px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
 .rt-mdltop[hidden] { display: none; }
 .rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
 .rt-tbar { padding: 3px 4px; }
+.rt-mdltop > .rt-tbar { border-top-left-radius: 0; }
 .rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
 .rt-tbsub:empty, .rt-tbar:empty { display: none; }
 .rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }

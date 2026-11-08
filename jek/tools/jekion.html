@@ -2030,19 +2030,32 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view<span class="k">F</span></button>
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" title="The electrodes and trajectories in three dimensions">3D view</button>
             <div class="sep"></div>
-            <button type="button" role="menuitemradio" data-plane="xy" aria-checked="true" data-icon="check">Cut: x–y plane</button>
-            <button type="button" role="menuitemradio" data-plane="xz" aria-checked="false" data-icon="check">Cut: x–z plane</button>
-            <button type="button" role="menuitemradio" data-plane="yz" aria-checked="false" data-icon="check">Cut: y–z plane</button>
-            <div class="sep"></div>
-            <button type="button" role="menuitemradio" data-pot="none" aria-checked="false" data-icon="check">Potential: not drawn</button>
-            <button type="button" role="menuitemradio" data-pot="map" aria-checked="true" data-icon="check">Potential: colour map</button>
-            <button type="button" role="menuitemradio" data-pot="contours" aria-checked="false" data-icon="check">Potential: equipotentials</button>
-            <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Potential: both</button>
-            <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential">Field strength |E|</button>
-            <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Trajectories</button>
-            <button type="button" role="menuitemradio" data-colour="group" aria-checked="true" data-icon="check">Paths coloured by ion group</button>
-            <button type="button" role="menuitemradio" data-colour="ke" aria-checked="false" data-icon="check">Paths coloured by energy</button>
-            <button type="button" role="menuitemradio" data-colour="time" aria-checked="false" data-icon="check">Paths coloured by time</button>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="cut" id="cutItem" title="The plane the bench cuts through a three-dimensional array (keys 1, 2, 3; Page up and down move it)">Cut
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemradio" data-plane="xy" aria-checked="true" data-icon="check">x–y plane<span class="k">1</span></button>
+                <button type="button" role="menuitemradio" data-plane="xz" aria-checked="false" data-icon="check">x–z plane<span class="k">2</span></button>
+                <button type="button" role="menuitemradio" data-plane="yz" aria-checked="false" data-icon="check">y–z plane<span class="k">3</span></button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="pot" title="How the potential on the cut is drawn">Potential
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemradio" data-pot="none" aria-checked="false" data-icon="check">Not drawn</button>
+                <button type="button" role="menuitemradio" data-pot="map" aria-checked="true" data-icon="check">Colour map</button>
+                <button type="button" role="menuitemradio" data-pot="contours" aria-checked="false" data-icon="check">Equipotentials</button>
+                <button type="button" role="menuitemradio" data-pot="both" aria-checked="false" data-icon="check">Map and equipotentials</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitemcheckbox" id="btnEfield" aria-checked="false" data-icon="check" title="The field’s strength |E| as the colour map instead of the potential; the equipotentials stay the potential’s">Field strength |E| as the map</button>
+              </div>
+            </div>
+            <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="paths" title="The flown paths and what colours them">Paths
+              <div class="rt-menu rt-imenu" role="menu">
+                <button type="button" role="menuitemcheckbox" id="btnTraj" aria-checked="true" data-icon="check">Drawn</button>
+                <div class="sep"></div>
+                <button type="button" role="menuitemradio" data-colour="group" aria-checked="true" data-icon="check">Coloured by ion group</button>
+                <button type="button" role="menuitemradio" data-colour="ke" aria-checked="false" data-icon="check">Coloured by energy</button>
+                <button type="button" role="menuitemradio" data-colour="time" aria-checked="false" data-icon="check">Coloured by time</button>
+              </div>
+            </div>
             <button type="button" role="menuitemcheckbox" id="btnGridShow" aria-checked="true" data-icon="check">Array outline and nodes</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
@@ -6316,36 +6329,49 @@ function fitArray() {
   if (G.sym === '3d') { G.z0 = +(lo[2] - m).toPrecision(6); G.z1 = +(hi[2] + m).toPrecision(6); }
 }
 /* ---------- potential plots ----------
-   The potential along the axis, across it at an x, along a line picked with two clicks on the bench, or along a flown
+   The potential along x, y (r) or z through the analysis point, along a line picked with two clicks on the bench, or along a flown
    particle's path against time; the last one asked for is drawn again when the panel is rebuilt. */
-let potPlot = null;                 // { kind: 'axis' | 'across' | 'line' | 'path', x, a, b, gi, i }
+let potPlot = null;                 // { kind: 'axis' | 'line' | 'path', ax, a, b, k }
 function setPotPlot(v) { potPlot = v; hooks.renderPanel(); }
 function potentialSection() {
   const G = project.grid, out = h('div'), plotBox = h('div');
-  const [u0, u1] = arrayBox(), yMid = G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, zMid = G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0;
-  const across = { x: potPlot && potPlot.kind === 'across' ? potPlot.x : +(((G.x0 + G.x1) / 2).toPrecision(4)) };
-  const btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
+  // the lines run from edge to edge of the array through the analysis point, or its centre without one
+  const cyl = G.sym === 'cyl', c = plotCentre(), btn = (label, title, fn) => h('button', { type: 'button', class: 'rt-btn', title, onclick: fn }, label);
+  const thr = 'through ' + (project.point ? 'the analysis point' : 'the array\u2019s centre') + ' (' + c.map(v => nf(v, 4)).join(', ') + ' mm)';
   const acts = h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' },
-    btn('Along the x axis', 'The potential along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + ' from one edge of the array to the other', () => setPotPlot({ kind: 'axis' })),
-    btn('Across, at x', 'The potential along y (the radius, in a cylindrical array) at the x given', () => setPotPlot({ kind: 'across', x: across.x })),
-    btn('Along a line…', 'Click two points on the bench: the potential along the line between them', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }));
-  out.append(rows(param('x for the plot across (mm)', across, 'x', { after: v => { if (potPlot && potPlot.kind === 'across') potPlot.x = v; } })), acts);
+    btn('Along x', 'The potential along x ' + thr, () => setPotPlot({ kind: 'axis', ax: 0 })),
+    btn(cyl ? 'Along r' : 'Along y', 'The potential along ' + (cyl ? 'the radius, across the axis,' : 'y') + ' ' + thr, () => setPotPlot({ kind: 'axis', ax: 1 })),
+    G.sym === '3d' ? btn('Along z', 'The potential along z ' + thr, () => setPotPlot({ kind: 'axis', ax: 2 })) : null,
+    btn('Along a line…', 'Click two points on the bench: the potential along the line between them', () => { setPotPlot(null); toast('Click two points on the bench (Shift: not snapped; Esc: never mind)'); setPointTool({ n: 2, pts: [], done: pts => { setPickedLine({ a: pts[0], b: pts[1] }); setPotPlot({ kind: 'line', a: pts[0], b: pts[1] }); } }); }),
+    potPlot ? btn('Clear', 'Take the plot away, and the picked line off the bench', () => setPotPlot(null)) : null);
+  out.append(acts);
   if (SIM.result && SIM.result.particles.length) {
     const ps = SIM.result.particles.slice(0, 200), sel = selectField('Along a particle\u2019s path', ps.map((p, k) => [String(k), ((project.ions[p.group] || {}).name || p.group) + ' #' + p.i]), () => String(potPlot && potPlot.kind === 'path' ? potPlot.k : 0), v => { setPotPlot({ kind: 'path', k: +v }); }, { wide: true, rebuild: false });
     out.append(rows(sel), h('div', { class: 'rt-actions', style: 'margin:0.3rem 0 0.5rem' }, btn('Plot along the path', 'The potential the particle saw, against time', () => setPotPlot({ kind: 'path', k: +sel.querySelector('select').value }))));
   }
   out.append(plotBox);
-  if (potPlot) drawPotPlot(potPlot, plotBox, u0, u1, yMid, zMid);
+  if (potPlot) drawPotPlot(potPlot, plotBox);
   else if (pickedLine) setPickedLine(null);
-  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along the axis and across it the line runs from edge to edge of the array; a picked line is kept on the bench (dashed) until another plot is asked for. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
+  out.append(helpLine('The potential between the nodes, interpolated as the ions see it.', 'Along x, y (r) or z the line runs from edge to edge of the array through the analysis point (right-click the bench to set it), or the array\u2019s centre; a picked line is kept on the bench (dashed, orange) until another plot is asked for or Clear. A line is plotted at t = 0, an RF electrode at its peak. A particle\u2019s path gives the potential at each kept point of it, at the time it was there, against time, so a trap\u2019s RF shows as the swing and an electrode\u2019s voltage as the step it climbs.'));
   return section('Potential plots', 'bench.pot', [out], true);
 }
 const rfNote = () => (project.electrodes.some(e => e.on !== false && e.rf && e.rf.on) ? ', at t = 0 (the RF at its peak)' : '');
-async function drawPotPlot(spec, box, u0, u1, yMid, zMid) {
+/* the point the axis lines pass through: the analysis point, else the array's centre (on the axis of a cylindrical array) */
+function plotCentre() {
+  const G = project.grid, p = project.point;
+  if (p) return [p[0], G.sym === 'cyl' ? 0 : p[1], G.sym === '3d' ? p[2] : 0];
+  return [(G.x0 + G.x1) / 2, G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0];
+}
+async function drawPotPlot(spec, box) {
   box.replaceChildren(h('p', { class: 'note' }, 'Plotting\u2026'));
   try {
-    if (spec.kind === 'axis') { const L = await potentialLine([u0, yMid, zMid], [u1, yMid, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => u0 + s), L.v, { title: 'Potential along the x axis', xl: 'x (mm)', yl: 'V', note: 'along y = ' + nf(yMid, 3) + ', z = ' + nf(zMid, 3) + rfNote() })); }
-    else if (spec.kind === 'across') { const G = project.grid, lo = G.sym === 'cyl' ? -G.y1 : G.y0, hi = G.y1; const L = await potentialLine([spec.x, lo, zMid], [spec.x, hi, zMid], 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential across, at x = ' + nf(spec.x, 4) + ' mm', xl: (G.sym === 'cyl' ? 'r' : 'y') + ' (mm)', yl: 'V', note: 'at x = ' + nf(spec.x, 4) + ', z = ' + nf(zMid, 3) + rfNote() })); }
+    if (spec.kind === 'axis') {
+      const G = project.grid, ax = spec.ax || 0, c = plotCentre(), lo = ax === 0 ? G.x0 : ax === 1 ? (G.sym === 'cyl' ? -G.y1 : G.y0) : G.z0, hi = ax === 0 ? G.x1 : ax === 1 ? G.y1 : G.z1;
+      const a = c.slice(), b = c.slice(); a[ax] = lo; b[ax] = hi;
+      const name = ax === 0 ? 'x' : ax === 1 ? (G.sym === 'cyl' ? 'r' : 'y') : 'z', others = [0, 1, 2].filter(k => k !== ax && (k < 2 || G.sym === '3d')).map(k => ['x', 'y', 'z'][k] + ' = ' + nf(c[k], 4)).join(', ');
+      const L = await potentialLine(a, b, 400);
+      if (L && potPlot === spec) box.replaceChildren(linePlot(L.s.map(s => lo + s), L.v, { title: 'Potential along ' + name, xl: name + ' (mm)', yl: 'V', note: 'along ' + others + rfNote() }));
+    }
     else if (spec.kind === 'line') { const L = await potentialLine(spec.a, spec.b, 400); if (L && potPlot === spec) box.replaceChildren(linePlot(L.s, L.v, { title: 'Potential along the line', xl: 'distance (mm)', yl: 'V', note: 'from ' + spec.a.map(v => nf(v, 4)).join(', ') + ' to ' + spec.b.map(v => nf(v, 4)).join(', ') + rfNote() })); if (!pickedLine) setPickedLine({ a: spec.a, b: spec.b }); }
     else if (spec.kind === 'path') {
       const p = SIM.result && SIM.result.particles[spec.k]; if (!p) { box.replaceChildren(); return; }
@@ -6565,7 +6591,7 @@ const NEWS = [
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
-    'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the Notes section is gone; the end-time histogram waits for three ions.',
+    'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows, in three submenus, Cut, Potential and Paths (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the potential plots along x, y or z through the analysis point; the Notes section is gone; the end-time histogram waits for three ions.',
   ]],
 ];
 /* the examples: [id, title, blurb, tag] */
@@ -7117,7 +7143,7 @@ const MENU_ICONS = {
   image: 'M1.5 2.5H14.5V13.5H1.5Z M1.5 10.5L5.5 6.5L8.5 9.5L10.5 7.5L14.5 11.5', export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11',
   undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
   dup: 'M5 5H14V14H5Z M2 11V2H11', trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4 M6.5 6.5V11.5 M9.5 6.5V11.5', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10',
-  check: 'M3 8.5L6.5 12L13 4', theme: 'M8 1.5A6.5 6.5 0 1 0 8 14.5Z', parts: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', play: 'M4 2.5L13 8L4 13.5Z', pause: 'M4 2.5H6.5V13.5H4Z M9.5 2.5H12V13.5H9.5Z',
+  check: 'M3 8.5L6.5 12L13 4', theme: 'M8 1.5A6.5 6.5 0 1 0 8 14.5Z', cut: 'M2 12L14 12 M8 2L8 14 M2 4L14 4', pot: 'M2 13C5 13 5 3 8 3S11 13 14 13', paths: 'M2 12C5 12 5 4 8 8S11 12 14 4', parts: 'M2 2H7V7H2Z M9 2H14V7H9Z M2 9H7V14H2Z M9 9H14V14H9Z', play: 'M4 2.5L13 8L4 13.5Z', pause: 'M4 2.5H6.5V13.5H4Z M9.5 2.5H12V13.5H9.5Z',
   target: 'M8 2A6 6 0 1 0 8 14A6 6 0 1 0 8 2 M8 5A3 3 0 1 0 8 11A3 3 0 1 0 8 5 M8 1V3 M8 13V15 M1 8H3 M13 8H15', flask: 'M6 1.5H10 M7 1.5V6L2.5 13.5H13.5L9 6V1.5', sliders: 'M2 4H14 M2 8H14 M2 12H14 M5 2.5V5.5 M11 6.5V9.5 M7 10.5V13.5',
   keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H5 M7 6.5H8 M10 6.5H11 M4 9.5H12', book: 'M2 3H6.5Q8 3 8 4.5V14Q8 12.5 6.5 12.5H2Z M14 3H9.5Q8 3 8 4.5V14Q8 12.5 9.5 12.5H14Z', star: 'M8 1.5L9.9 6.1L14.5 6.5L11 9.6L12.1 14.5L8 12L3.9 14.5L5 9.6L1.5 6.5L6.1 6.1Z',
   quote: 'M3 3H7V8H4.5Q3 8 3 9.5V11 M9.5 3H13.5V8H11Q9.5 8 9.5 9.5V11', bug: 'M8 4A3.5 3.5 0 0 1 11.5 7.5V11A3.5 3.5 0 0 1 4.5 11V7.5A3.5 3.5 0 0 1 8 4Z M5 2.5L6.5 4 M11 2.5L9.5 4 M1.5 8H4.5 M11.5 8H14.5 M2.5 12.5L4.5 11 M13.5 12.5L11.5 11',

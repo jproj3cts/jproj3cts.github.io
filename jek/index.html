@@ -24,13 +24,6 @@
 
   <main class="main-content jek-flush">
 
-    <div class="jek-searchbar">
-      <div class="jek-wrap">
-        <form id="searchForm" onsubmit="handleSubmit(event)" role="search">
-          <input id="searchInput" type="search" placeholder="Search the site" aria-label="Search the site" />
-          <button type="submit" id="searchButton" aria-label="Search">Search</button>
-        </form>
-      </div>
     </div>
 
     <section class="jek-hero" style="padding-top: 1.5rem">
@@ -78,54 +71,6 @@
     <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
   </div>
 </footer>
-
-  <script>
-    // Pages the site search reads. Add a line here when you add a page.
-    const searchablePages = [
-      { title: "Home",                    url: "/jek/" },
-      { title: "Products",                url: "/jek/products.html" },
-      { title: "Custom Solutions",        url: "/jek/custom-solutions.html" },
-      { title: "Calculators",             url: "/jek/calculators/" },
-      { title: "Bio",                     url: "/jek/bio.html" },
-      { title: "Contact",                 url: "/jek/contact.html" },
-      { title: "Custom RF Lenses",        url: "/jek/products/signal-processing/custom-rf-lenses/" },
-      { title: "JEKray",                  url: "/jek/products/design-software/jekray/" },
-      { title: "JEKion",                  url: "/jek/products/design-software/jekion/" },
-      { title: "CF40 Sample Transport Rack",
-        url: "/jek/products/lab-accessories/cf40-sample-transport-rack/" }
-    ];
-
-    async function fetchPageText(url) {
-      try {
-        const res = await fetch(url, { cache: "no-cache" });
-        if (!res.ok) return "";
-        const html = await res.text();
-        return html.toLowerCase();
-      } catch {
-        return "";
-      }
-    }
-
-    async function performSearch(query) {
-      query = query.toLowerCase().trim();
-      const results = [];
-      for (const page of searchablePages) {
-        const html = await fetchPageText(page.url);
-        if (html.includes(query)) results.push(page);
-      }
-      return results;
-    }
-
-    async function handleSubmit(e) {
-      e.preventDefault();
-      const query = document.getElementById('searchInput').value.trim();
-      if (!query) return;
-      const results = await performSearch(query);
-      sessionStorage.setItem('siteSearchResults', JSON.stringify(results));
-      sessionStorage.setItem('siteSearchQuery', query);
-      window.location.href = '/jek/search-results.html?q=' + encodeURIComponent(query);
-    }
-  </script>
 
 <script src="/jek/assets/js/cart.js?v=20261015b"></script>
 <script src="/jek/assets/js/account.js?v=20261017"></script>

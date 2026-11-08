@@ -1,7 +1,8 @@
 {% comment %}
   The site navigation, shared by every JEK page: pages with front matter (and _layouts/docs.html) pull it in
-  with {% include site-nav.html %}. jek/tools/jekray-tests.html is served unbuilt by the test runner, so it keeps
-  a copy; test/node/site-nav.test.mjs checks that copy matches this file.
+  with {% include site-nav.html %}. jek/tools/jekray-tests.html and jekion-tests.html are served unbuilt by the test
+  runners, so they keep a copy; test/node/site-nav.test.mjs checks those copies match this file. The search box sends
+  ?q= to /jek/search-results.html, which does the searching.
 {% endcomment -%}
 <div class="top-container">
     <div class="bar bar1"></div>
@@ -22,6 +23,10 @@
       </span> |
       <a href="/jek/bio.html">Bio</a> |
       <a href="/jek/contact.html">Contact</a>
+      <form class="nav-search" action="/jek/search-results.html" method="get" role="search">
+        <input type="search" name="q" placeholder="Search" aria-label="Search the site" autocomplete="off">
+        <button type="submit" aria-label="Search"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.4 10.4 14.5 14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      </form>
     <a class="nav-cart" href="/jek/cart.html">Cart <span class="cart-count" data-cart-count data-empty="true">0</span></a>
     </div>
     <a class="text-overlay" href="/jek/">JEK Systems</a>

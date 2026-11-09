@@ -43,6 +43,7 @@ export function cloudLink(link) {
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   cloudGates();
   leaseStart();
+  hooks.cloudLinked(link);
 }
 /* ---------- the editing lease ----------
    Whoever has a cloud bench open to edit holds its lease, renewed every minute while this page

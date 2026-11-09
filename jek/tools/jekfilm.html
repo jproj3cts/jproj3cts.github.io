@@ -2250,6 +2250,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
+  cloudLinked() {},
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -2529,6 +2531,15 @@ function coatOptimise(layers, spec, opts) {
   }
   const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
   return { layers: out, before, after: coatMerit(out, spec), evals };
+}
+/* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
+   given ({ id, v }: the cloud coating and its version), links the face to it. The substrate and the angles judged are
+   the design's; the face keeps its own glass. */
+function coatFromFilm(d, src) {
+  d = d && typeof d === 'object' ? d : {};
+  const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 40).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 40), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
@@ -4283,6 +4294,7 @@ async function filmPush(opts = {}) {
     linkKeep(); cloudShown();
     setStatus('saved ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     if (opts.checkpoint) toast('Saved to the cloud, as version ' + out.version);
+    filmTell(link);
     if (!opts.keepalive) filmThumb(link, opts.checkpoint);
     return true;
   } catch (err) {
@@ -4346,7 +4358,7 @@ async function saveToCloud() {
       const b = await api('/v1/workspaces/' + where.value + '/benches', Object.assign({ method: 'POST' }, filmJson({ name: nm, folder_id: folder.value || null, content: filmText(film) })));
       dlg.close();
       setFilmLink({ id: b.id, ws: b.workspace_id || where.value, folder: folder.value || null, version: b.version || 1, name: b.name || nm, dirty: false });
-      filmThumb(filmLink, true);
+      filmThumb(filmLink, true); filmTell(filmLink);
       render(); filmAutosave();
       setStatus('saved'); toast('Saved to the cloud: it is on JEKspace with your benches'); track('cloud', 'film.new');
     } catch (err) {
@@ -4355,6 +4367,12 @@ async function saveToCloud() {
     }
   });
   dlg.showModal(); name.select();
+}
+/* a coating saved: JEKray's tabs hear of it (io/film-coats.js), to offer its benches' faces the new version, or to
+   list a new coating in their folder */
+function filmTell(link) {
+  if (typeof BroadcastChannel !== 'function' || !link) return;
+  try { const ch = new BroadcastChannel('jek-film'); ch.postMessage({ id: link.id, version: link.version, name: link.name, ws: link.ws, folder: link.folder || null }); ch.close(); } catch (err) { /* no channel: JEKray finds out when the bench is next opened */ }
 }
 /* ---------- the picture JEKspace shows: the stack, and its reflectance across the band ---------- */
 const FILM_THUMB_EVERY = 5 * 60000;

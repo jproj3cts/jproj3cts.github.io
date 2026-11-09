@@ -10591,6 +10591,46 @@ const TESTS = [
       } finally { J.closeLensDesign(); try { rigWin().localStorage.removeItem('JEK_STOCK_LENSES'); } catch (e) { /* none */ } }
     },
   },
+  { group: 'JEKfilm coatings on the faces' },
+  {
+    name: 'A JEKfilm coating from the bench’s cloud folder: offered in a face’s Coating list, put on as a linked copy, offered again when it is saved anew, and unlinked as a plain stack',
+    why: 'with a V-coat in the bench’s folder (version 3), a lens face’s Coating list offers it as ◆; choosing it fetches it and puts its two layers at 1064 nm on the face, linked as { id, v: 3 }, with a note saying so in place of the layer editor; the folder’s coating saved as version 5 makes the face stale, and updating brings it to version 5 (one step of Undo takes it back); Thin-film stack in the list keeps the layers but drops the link (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), was = W.fetch;
+      const film = v => ({ id: 'c1', name: 'V-coat 1064', tool: 'jekfilm', version: v, workspace_id: 'w', folder_id: 'f',
+        content: JSON.stringify({ format: 'jekfilm', version: 1, name: 'V-coat 1064', spec: { target: 'ar', design: 1064, sub: { glass: 'Fused silica' } }, layers: [{ n: 1.38, d: 192.75 }, { n: 1.7, d: v === 5 ? 150 : 156.47 }] }) });
+      let served = 3;
+      W.fetch = async url => (/\/v1\/benches\/c1$/.test(String(url)) ? new W.Response(JSON.stringify(film(served)), { status: 200, headers: { 'Content-Type': 'application/json' } }) : was(url));
+      const F = J.films.folder();
+      try {
+        J.load(bench('films', [coatedPlate({ mode: 'bare' })]));
+        F.list = [{ id: 'c1', name: 'V-coat 1064', version: 3 }];
+        J.select('Plate');
+        const sel = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
+        const offered = !!sel && /◆ V-coat 1064 \(JEKfilm\)/.test([...sel.options].find(o => o.value === 'film:c1').textContent);
+        sel.value = 'film:c1'; sel.dispatchEvent(new W.Event('change'));
+        await new Promise(r => setTimeout(r, 300));
+        const c = () => J.serialize().elements[0].surfaces[0].coat;
+        const put = c().mode === 'stack' && c().design === 1064 && c().layers.length === 2 && c().label === 'V-coat 1064' && c().src && c().src.id === 'c1' && c().src.v === 3;
+        J.select('Plate');
+        const noted = /from the JEKfilm coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
+        F.list[0].version = 5; served = 5;
+        const stale = J.films.stale(), staleOk = stale.length === 1 && stale[0].from === 3 && stale[0].to === 5;
+        await J.films.update(stale);
+        const updated = c().src.v === 5 && Math.abs(c().layers[1].d - 150) < 1e-9 && J.films.stale().length === 0;
+        J.undo();
+        const undone = c().src.v === 3;
+        J.select('Plate');
+        const sel2 = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
+        sel2.value = 'stack'; sel2.dispatchEvent(new W.Event('change'));
+        const plain = c().mode === 'stack' && !c().src && c().layers.length === 2;
+        const all = offered && put && noted && staleOk && updated && undone && plain;
+        if (!all) console.log('films', { offered, put, noted, staleOk, updated, undone, plain, coat: c() });
+        return all ? 1 : 0;
+      } finally { W.fetch = was; F.list = []; }
+    },
+  },
   { group: 'The RF designer' },
   {
     name: 'RF designer: a new design collimates its feed, a two-face lens designed to couple into a receiver, placed on the bench with its horns',
@@ -11073,6 +11113,46 @@ const TESTS = [
         if (!all) console.log('coat design', { opened, onGlass, three, before, after, better, used, c });
         return all ? 1 : 0;
       } finally { J.closeLensDesign(); }
+    },
+  },
+  { group: 'JEKfilm coatings on the faces' },
+  {
+    name: 'A JEKfilm coating from the bench’s cloud folder: offered in a face’s Coating list, put on as a linked copy, offered again when it is saved anew, and unlinked as a plain stack',
+    why: 'with a V-coat in the bench’s folder (version 3), a lens face’s Coating list offers it as ◆; choosing it fetches it and puts its two layers at 1064 nm on the face, linked as { id, v: 3 }, with a note saying so in place of the layer editor; the folder’s coating saved as version 5 makes the face stale, and updating brings it to version 5 (one step of Undo takes it back); Thin-film stack in the list keeps the layers but drops the link (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), was = W.fetch;
+      const film = v => ({ id: 'c1', name: 'V-coat 1064', tool: 'jekfilm', version: v, workspace_id: 'w', folder_id: 'f',
+        content: JSON.stringify({ format: 'jekfilm', version: 1, name: 'V-coat 1064', spec: { target: 'ar', design: 1064, sub: { glass: 'Fused silica' } }, layers: [{ n: 1.38, d: 192.75 }, { n: 1.7, d: v === 5 ? 150 : 156.47 }] }) });
+      let served = 3;
+      W.fetch = async url => (/\/v1\/benches\/c1$/.test(String(url)) ? new W.Response(JSON.stringify(film(served)), { status: 200, headers: { 'Content-Type': 'application/json' } }) : was(url));
+      const F = J.films.folder();
+      try {
+        J.load(bench('films', [coatedPlate({ mode: 'bare' })]));
+        F.list = [{ id: 'c1', name: 'V-coat 1064', version: 3 }];
+        J.select('Plate');
+        const sel = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
+        const offered = !!sel && /◆ V-coat 1064 \(JEKfilm\)/.test([...sel.options].find(o => o.value === 'film:c1').textContent);
+        sel.value = 'film:c1'; sel.dispatchEvent(new W.Event('change'));
+        await new Promise(r => setTimeout(r, 300));
+        const c = () => J.serialize().elements[0].surfaces[0].coat;
+        const put = c().mode === 'stack' && c().design === 1064 && c().layers.length === 2 && c().label === 'V-coat 1064' && c().src && c().src.id === 'c1' && c().src.v === 3;
+        J.select('Plate');
+        const noted = /from the JEKfilm coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
+        F.list[0].version = 5; served = 5;
+        const stale = J.films.stale(), staleOk = stale.length === 1 && stale[0].from === 3 && stale[0].to === 5;
+        await J.films.update(stale);
+        const updated = c().src.v === 5 && Math.abs(c().layers[1].d - 150) < 1e-9 && J.films.stale().length === 0;
+        J.undo();
+        const undone = c().src.v === 3;
+        J.select('Plate');
+        const sel2 = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
+        sel2.value = 'stack'; sel2.dispatchEvent(new W.Event('change'));
+        const plain = c().mode === 'stack' && !c().src && c().layers.length === 2;
+        const all = offered && put && noted && staleOk && updated && undone && plain;
+        if (!all) console.log('films', { offered, put, noted, staleOk, updated, undone, plain, coat: c() });
+        return all ? 1 : 0;
+      } finally { W.fetch = was; F.list = []; }
     },
   },
   { group: 'The RF designer' },

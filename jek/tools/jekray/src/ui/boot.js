@@ -105,6 +105,7 @@ import { rfReportPdfBlob, rfReportRecs } from './rf-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { closeRfDesign, newRfDesign } from './rf-workspace.js';
 import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from './coat-workspace.js';
+import { benchCoats, filmFolder, filmStale, updateFilms, wireFilmCoats } from '../io/film-coats.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
@@ -138,7 +139,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -470,6 +471,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the coating design workspace: on a part's face (its surface index for a lens) or on its own
     openCoatDesign(name, i) { const el = name ? this.byName(name) : null; return openCoatDesign(el ? { el, holder: el.type === 'lens' ? el.surfaces[i || 0] : el, label: el.name } : null); },
     coatDesignOpen() { return coatDesignOpen(); },
+    // JEKfilm's coatings on the faces (io/film-coats.js): the cloud folder's list, the faces whose coating moved on, updating them
+    films: { folder: () => filmFolder, stale: () => filmStale(), update: s => updateFilms(s), coats: () => benchCoats().map(x => x.coat) },
     selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },

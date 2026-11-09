@@ -39,3 +39,15 @@ test('the optimiser: a three-layer stack brought to a broadband AR under 0.5% me
   const A = CD.coatAngles(pairs, ed);
   assert.ok(A.degs.length === 91 && A.s[0] > 0.9 && Math.abs(A.s[0] - A.p[0]) < 1e-9, 'square on, s and p alike');
 });
+
+test('a JEKfilm coating on a face: its stack at its design wavelength, named, linked to the cloud coating when it is one; normCoat keeps the link', async () => {
+  const { normCoat } = await import('../../src/state/project.js');
+  const d = { format: 'jekfilm', version: 1, name: 'V-coat 1064', spec: { target: 'ar', design: 1064, sub: { glass: 'Fused silica' } }, layers: [{ n: 1.38, d: 192.75 }, { n: 1.7, d: 156.47 }, null, { n: 'x' }] };
+  const c = CD.coatFromFilm(d, { id: 'c1', v: 4 });
+  assert.deepEqual(c, { mode: 'stack', design: 1064, layers: [{ n: 1.38, d: 192.75 }, { n: 1.7, d: 156.47 }], label: 'V-coat 1064', src: { id: 'c1', v: 4 } });
+  const n = normCoat(c);
+  assert.deepEqual([n.mode, n.design, n.label, n.layers, n.src], ['stack', 1064, 'V-coat 1064', c.layers, { id: 'c1', v: 4 }]);
+  assert.equal(CD.coatFromFilm(d).src, undefined, 'from a file: no link');
+  assert.equal(normCoat({ mode: 'stack', layers: [], src: { id: '../evil', v: 2 } }).src, undefined, 'an id that is not one is dropped');
+  assert.equal(normCoat({ mode: 'ar', src: { id: 'c1', v: 2 } }).src, undefined, 'only a stack is linked');
+});

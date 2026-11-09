@@ -34,4 +34,10 @@ The table lists the stack from the incident medium down to the substrate: each l
 
 The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKspace shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.
 
+## On a JEKray bench
+
+A coating face's **Coating** list (a lens or window face, a beamsplitter cube, a prism) offers the JEKfilm coatings kept in the same cloud folder as the bench, each marked ◆, and **A JEKfilm coating from a file…** for a .jekfilm on your computer. Choosing one puts its layers on the face at its design wavelength; the face keeps its own glass as the substrate.
+
+The face keeps a copy of the stack, so the bench traces, shares and opens offline as it always did. A coating from the cloud stays linked to it: the face says which coating and which version it has, with **Open in JEKfilm**. When the coating is saved again in JEKfilm, the bench offers to update its faces when it is next opened (or straight away, if it is open in another tab). Nothing changes until you choose **Update the faces**, and Undo takes it back. To edit a linked face's layers on the bench instead, choose **Thin-film stack**: the face keeps the layers as its own, no longer linked.
+
 A .jekfilm file is JSON: the coating's name, what it is for (`spec`), and its `layers`, each an index `n` and a thickness `d` in nanometres, from the outside in.

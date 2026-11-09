@@ -2467,6 +2467,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
+  cloudLinked() {},
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };

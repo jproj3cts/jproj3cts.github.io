@@ -68,6 +68,7 @@ export async function filmPush(opts = {}) {
     linkKeep(); cloudShown();
     setStatus('saved ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     if (opts.checkpoint) toast('Saved to the cloud, as version ' + out.version);
+    filmTell(link);
     if (!opts.keepalive) filmThumb(link, opts.checkpoint);
     return true;
   } catch (err) {
@@ -131,7 +132,7 @@ export async function saveToCloud() {
       const b = await api('/v1/workspaces/' + where.value + '/benches', Object.assign({ method: 'POST' }, filmJson({ name: nm, folder_id: folder.value || null, content: filmText(film) })));
       dlg.close();
       setFilmLink({ id: b.id, ws: b.workspace_id || where.value, folder: folder.value || null, version: b.version || 1, name: b.name || nm, dirty: false });
-      filmThumb(filmLink, true);
+      filmThumb(filmLink, true); filmTell(filmLink);
       render(); filmAutosave();
       setStatus('saved'); toast('Saved to the cloud: it is on JEKspace with your benches'); track('cloud', 'film.new');
     } catch (err) {
@@ -140,6 +141,12 @@ export async function saveToCloud() {
     }
   });
   dlg.showModal(); name.select();
+}
+/* a coating saved: JEKray's tabs hear of it (io/film-coats.js), to offer its benches' faces the new version, or to
+   list a new coating in their folder */
+function filmTell(link) {
+  if (typeof BroadcastChannel !== 'function' || !link) return;
+  try { const ch = new BroadcastChannel('jek-film'); ch.postMessage({ id: link.id, version: link.version, name: link.name, ws: link.ws, folder: link.folder || null }); ch.close(); } catch (err) { /* no channel: JEKray finds out when the bench is next opened */ }
 }
 /* ---------- the picture JEKspace shows: the stack, and its reflectance across the band ---------- */
 const FILM_THUMB_EVERY = 5 * 60000;

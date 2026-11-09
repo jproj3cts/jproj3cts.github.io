@@ -120,6 +120,15 @@ export function coatOptimise(layers, spec, opts) {
   const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
   return { layers: out, before, after: coatMerit(out, spec), evals };
 }
+/* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
+   given ({ id, v }: the cloud coating and its version), links the face to it. The substrate and the angles judged are
+   the design's; the face keeps its own glass. */
+export function coatFromFilm(d, src) {
+  d = d && typeof d === 'object' ? d : {};
+  const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 40).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 40), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
+}
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 export function coatToStack(layers, spec, label) {

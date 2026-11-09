@@ -66,7 +66,10 @@ through `core/hooks.js`.
   news/version `ui/news.js` (`APP_VERSION`, `NEWS`), experimental flags `ui/experimental.js`.
   Toolbar/menus/dialogs markup: `page.html`; wiring in each module's `wire…()`, called from `ui/boot.js`.
 - **Files and sharing**: `io/open.js`, `io/autosave.js`, `io/share.js`, `.zmx/.zar` `io/zmx-import.js` /
-  `io/zmx-export.js`, packs `io/packs.js`, mods `io/mods.js` + `engines/mods.js`, cloud `io/cloud.js`, usage counts
+  `io/zmx-export.js`, packs `io/packs.js`, mods `io/mods.js` + `engines/mods.js`, cloud `io/cloud.js`, JEKfilm coatings on faces `io/film-coats.js` (the cloud
+  folder's `.jekfilm` coatings in a face's Coating list as ◆, a .jekfilm file; the face keeps a copy, `coat.src` `{ id, v }`
+  links it, updates offered never forced; `coatFromFilm` in `core/coatdesign.js`; JEKfilm's saves heard on BroadcastChannel
+  `jek-film`), usage counts
   `io/usage.js`, AI guide/docs tables `io/guide.js`.
   STEP import: `io/step.js` (blob worker, dialog, `importStep`) + `core/step.js` (units, tessellation passes, bodies);
   OpenCascade's occt-import-js vendored in `jek/assets/vendor/occt-import-js/<version>/` (LGPL-2.1, loaded on first use).

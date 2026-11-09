@@ -13060,9 +13060,11 @@ const SPLIT_KINDS = new Set(['iris', 'link', 'absorb']);          // stops are m
 // a screen that lets the light through (a trap's, a plane that only records) is no edge either:
 // splitting at it doubled the beams at every pass, a retroreflected trap's most of all
 const splittable = s => s && s.el && !SPLIT_KINDS.has(s.kind) && !(s.el.type === 'screen' && !s.el.absorb) && s.semi > 0 && !s.y0;
-/* the share of a beam (1/e^2 radii w in the plane, wv out of it) centred at ly on a surface,
-   travelling at cos(theta) = cth to the element's axis, that lands inside its aperture */
-function apertureShare(s, ly, cth, w, wv) {
+/* the share of a beam (1/e^2 radii w in the plane, wv out of it) centred at ly on a surface and
+   hz above or below its centre, travelling at cos(theta) = cth to the element's axis, that lands
+   inside its aperture; on a part tipped or rolled, the point x across the beam and y up it lands
+   at (u, v) = at(x, y) on its face */
+function apertureShare(s, ly, cth, w, wv, hz = 0, at = null, dark = null) {
   const edge = s.maskMargin || ((u, v) => s.semi - Math.hypot(u, v));
   // each sample counted by how far inside it is (the edge function is a distance), which
   // takes the edge between samples smoothly and the share to a fraction of a percent
@@ -13072,11 +13074,43 @@ function apertureShare(s, ly, cth, w, wv) {
     const x = ((i + 0.5) / N * 2 - 1) * 2.6 * w, gx = Math.exp(-2 * x * x / (w * w));
     for (let j = 0; j < N; j++) {
       const y = ((j + 0.5) / N * 2 - 1) * 2.6 * wv, g = gx * Math.exp(-2 * y * y / (wv * wv));
-      tot += g; inn += g * clamp(0.5 + edge(ly + x / c, y) / h, 0, 1);
+      if (dark && dark.some(f => f(x, y))) continue;     // (a branch's own dark parts: none of its light there)
+      const uv = at ? at(x, y) : null;
+      tot += g; inn += g * clamp(0.5 + (uv ? edge(uv[0], uv[1]) : edge(ly + x / c, y + hz)) / h, 0, 1);
     }
   }
   return tot > 0 ? inn / tot : 1;
 }
+/* Where a point of a beam's cross-section lands on surface s: the beam's centre at (X, Y) and height Z going
+   (dx, dy) and up uz, the point x across it (to the left of its way) and y up; (u, v) across and up the
+   part's face, followed along the beam to it, above or below the part's centre as much as to its side, and
+   on a part tipped or rolled to its tipped face */
+function beamMap(s, X, Y, Z, dx, dy, uz, anyZ) {
+  const h0 = anyZ ? Z - zOf(s.el) : 0;
+  if (s.tilt) {
+    const ext = extendedSurf(s), [edx, edy] = toLocalDir(s.ef, dx, dy);
+    return (x, y) => {
+      const H = tipFace(ext, ...toLocal(s.ef, X - dy * x, Y + dx * x), h0 + y, edx, edy, uz || 0, -Infinity);
+      return H ? [H.y, H.z] : [Infinity, Infinity];
+    };
+  }
+  const [lx0] = toLocal(s.f, X, Y), [ldx, ldy] = toLocalDir(s.f, dx, dy), k = ldy / ((ldx < 0 ? -1 : 1) * Math.max(1e-6, Math.abs(ldx)));
+  return (x, y) => { const [lx, ly] = toLocal(s.f, X - dy * x, Y + dx * x); return [ly + (lx0 - lx) * k, h0 + y]; };
+}
+/* the share of a beam of radius bw (as beamMap places it) that lands on surface s, of the light it still has:
+   a branch that went round a part, or through one, is dark where dark(x, y) says (see beamCut) */
+function beamShare(s, X, Y, Z, dx, dy, uz, bw, anyZ, dark) {
+  const [ldx] = toLocalDir(s.f, dx, dy);
+  return apertureShare(s, 0, s.tilt ? 1 : Math.abs(ldx), bw, bw, 0, beamMap(s, X, Y, Z, dx, dy, uz, anyZ), dark);
+}
+/* the part of a beam's cross-section a cut at s leaves dark: what lands inside the part (for the light that
+   went round it), or outside it (for the light that went through) */
+function beamCut(s, X, Y, Z, dx, dy, uz, anyZ, inside) {
+  const at = beamMap(s, X, Y, Z, dx, dy, uz, anyZ), edge = s.maskMargin || ((u, v) => s.semi - Math.hypot(u, v));
+  return (x, y) => { const [u, v] = at(x, y); return (edge(u, v) > 0) === inside; };
+}
+const SHADE_MAX = 6;                   // the cuts a branch remembers (the oldest go first)
+const shaded = (shade, cut) => [...(shade || []).slice(1 - SHADE_MAX), cut];
 /* a surface carried on past its rim, for a reference ray that must meet it off the element */
 function extendedSurf(s) {
   if (Object.prototype.hasOwnProperty.call(s, '_ext')) return s._ext;      // (its own: a copy made from it keeps its own)
@@ -13590,7 +13624,8 @@ function faceFrame(s, x, y, shift) {
   const X = shift ? x - L.x : x, Y = shift ? y - L.y : y, c = Math.cos(L.a), n = Math.sin(L.a);
   return [X * c + Y * n, -X * n + Y * c];
 }
-function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
+// where a ray meets a tipped or rolled part's face: t along it and (y, z) across and up the face, its rim not asked
+function tipFace(s, px, py, h0, dx, dy, u, tmin) {
   const [qx, qz0] = tipFrame(s, px, h0), [ex, ez0] = tipFrame(s, dx, u);
   const [qy, qz] = rollFrame(s, py, qz0), [ey, ez] = rollFrame(s, dy, ez0);
   const [fx, fy] = faceFrame(s, qx, qy, true), [gx, gy] = faceFrame(s, ex, ey, false);
@@ -13598,7 +13633,12 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   if (s.flat && !s.cylS) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }   // (a cylinder curved out of the plane is flat in it, not here)
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
-  const y = fy + gy * t, z = qz + ez * t;
+  return { t, y: fy + gy * t, z: qz + ez * t };
+}
+function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
+  const H = tipFace(s, px, py, h0, dx, dy, u, tmin);
+  if (!H) return null;
+  const { t, y, z } = H;
   if (inHole(s, y, z)) return null;
   if (s.el && zSquare(s.el)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
   return y * y + z * z <= s.semi * s.semi * (1 + 1e-12) + 1e-12 ? t : null;
@@ -13858,8 +13898,9 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, gr, zoneS } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, shade, zh, uz, gr, zoneS } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
+      shade = shade || null;            // and the parts of its cross-section the cuts it was made by left dark (see beamCut)
       gr = gr || null;                  // inside a graded glass: its part, terms and own index (see grIn)
       let nlcPend = null;               // out of the plane: a doubling crystal's reference ray, until it leaves the crystal (see nlcSources)
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
@@ -13954,7 +13995,7 @@ function traceSceneOnce() {
           const h3 = anyZ && !forced && !zb && zCurved(s) ? zh - zOf(s.el) : 0;
           wallHit = false;
           let tt = zb ? intersectSurf(zoneS.ext, lx, ly, ldx, ldy, tMin(s))
-            : s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+            : s.tilt ? intersectTip(forced ? extendedSurf(s) : s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
             : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, tMin(s))
             : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
@@ -13965,10 +14006,15 @@ function traceSceneOnce() {
             const th = intersectSurf(holeClosed(s), lx, ly, ldx, ldy, tMin(s));
             if (th !== null && th < holeT) { holeT = th; holeS = s; }
           }
-          if (splits && tt === null && !forced && !s.tilt && splittable(s)) {
-            let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
-            // a beam passing above or below a part does not reach round its edge either
-            if (anyZ && te !== null) { const hz = zh + uz * te - zOf(s.el); if (hz !== 0 && !zInside(s, 0, hz)) te = null; }
+          if (splits && tt === null && !forced && splittable(s)) {
+            let te = s.tilt ? intersectTip(extendedSurf(s), ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+              : intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
+            // a beam passing well above or below a part does not reach round its edge either
+            // (one that overlaps it, above or below as much as to the side, is split as its share says)
+            if (anyZ && te !== null && !s.tilt) {
+              const hz = Math.abs(zh + uz * te - zOf(s.el)), reach = (zSquare(s.el) ? zHalf(s.el, s.semi) : s.semi) + 2.6 * beamAt(qr + te, qi, nCur, nm, m2Env(src)).w;
+              if (hz > reach) te = null;
+            }
             if (te !== null && te < nearT) { nearT = te; near = s; }
           }
         }
@@ -13986,9 +14032,8 @@ function traceSceneOnce() {
         let nearShare = null;
         if (holeS && holeT < best - 1e-9 && stackZones(surfs, holeS)) { best = holeT; hit = holeS; hitSeg = false; }
         if (near && nearT < best - 1e-9) {
-          const [lx, ly] = toLocal(near.f, px + dx * nearT, py + dy * nearT), [ldx, ldy] = toLocalDir(near.f, dx, dy);
-          const bw = beamAt(qr + nearT, qi, nCur, nm, m2Env(src)).w, cth = Math.abs(ldx);     // the rim is seen along the element's axis
-          const fin = apertureShare(near, ly, cth, bw, bw);
+          const bw = beamAt(qr + nearT, qi, nCur, nm, m2Env(src)).w;     // the rim is seen along the element's axis
+          const fin = beamShare(near, px + dx * nearT, py + dy * nearT, zh + (uz || 0) * nearT, dx, dy, uz, bw, anyZ, shade);
           if (fin * qShare > SPLIT_MIN && splitsLeft > 0) { best = nearT; hit = near; hitSeg = false; nearShare = fin; splitsLeft--; }
         }
         // In a graded glass the ray curves: no surface within a step and a half (a step would land on it, or just
@@ -14060,11 +14105,14 @@ function traceSceneOnce() {
         // light that went round an element has a hole in its middle: an element that fits inside
         // the hole (a smaller lens than the one it went round) is missed by all of it, and it
         // passes by unchanged, hole and all, rather than being bent as if through the middle
+        // (a cut made where the beam is above or below the part's centre is made there: the field's masks are worked out in 3D)
+        const by3 = ev => anyZ ? Object.assign(ev, { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh }) : ev;
+        const hH = anyZ && hit.el ? zh - zOf(hit.el) : 0;
         if (hole && isQ && !hitSeg && hit.el && hit.kind !== 'iris') {
           const [, lyP] = toLocal(hit.f, px, py);
           const rEl = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
-          if (rEl > 0 && rEl + Math.abs(lyP) <= hole * (1 + 1e-9) + 1e-9) {
-            evt = bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyP, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+          if (rEl > 0 && rEl + Math.hypot(lyP, hH) <= hole * (1 + 1e-9) + 1e-9) {
+            evt = bypassEvent(hit, by3({ el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyP, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }));
             skipEl = hit.el.id; last = null; pts.length -= 2;
             continue;
           }
@@ -14075,10 +14123,12 @@ function traceSceneOnce() {
           bn, fo, bounce: bounce + 1, last: null, opl, nCur, aCur, gpl, gCur, id, chief, fan, pol, par, qr, qi, bid, fam, k: rayK, probe, probeH, tag, wk, wn }, extra);
         if (nearShare !== null) {
           // this ray goes on past the element, cut to what misses it; a new one goes through
-          push(splitState(nearShare, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, forceEl: hit.el.id, path: path + 'f' + bounce }));
+          push(splitState(nearShare, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, forceEl: hit.el.id, path: path + 'f' + bounce,
+            hole, shade: shaded(shade, beamCut(hit, px, py, zh, dx, dy, uz, anyZ, false)) }));
           qShare *= 1 - nearShare;
+          shade = shaded(shade, beamCut(hit, px, py, zh, dx, dy, uz, anyZ, true));
           const [, lyH] = toLocal(hit.f, px, py);
-          evt = bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+          evt = bypassEvent(hit, by3({ el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }));
           skipEl = hit.el.id; path += 'b' + bounce;
           pts.length -= 2; last = null;
           continue;
@@ -14097,19 +14147,36 @@ function traceSceneOnce() {
           return !!mF && mF.glass !== 'AIR';
         };
         const zones = zsplits && !atLayer && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
-        if (splits && !hitSeg && !zoneHere && !hit.tilt && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
+        if (splits && !hitSeg && !zoneHere && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
           // (a face of rings takes the beam over all of them: its outermost ring's rim is its edge)
-          const fin = apertureShare(zones ? { maskMargin: (u, v) => zones[zones.length - 1].rout - Math.hypot(u, v) } : hit, lyH, cth, bw, bw);
+          const fin = zones ? apertureShare({ maskMargin: (u, v) => zones[zones.length - 1].rout - Math.hypot(u, v) }, lyH, cth, bw, bw, hH) : beamShare(hit, px, py, zh, dx, dy, uz, bw, anyZ, shade);
           const rOut = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
-          const past = fromGlass() ? 0 : rOut > hit.semi ? 1 - apertureShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), lyH, cth, bw, bw) : 1 - fin;
+          const past = fromGlass() ? 0 : rOut > hit.semi ? 1 - beamShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), px, py, zh, dx, dy, uz, bw, anyZ, shade) : 1 - fin;
           if (past * qShare > SPLIT_MIN && fin * qShare > SPLIT_MIN && splitsLeft > 0) {
             splitsLeft--;
-            push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(0, rOut - Math.abs(lyH)),
-              evt: bypassEvent(zones ? Object.assign(Object.create(hit), { semi: zones[zones.length - 1].rout, maskMargin: null }) : hit, { el: hit.el.id, kind: 'split', semi: zones ? zones[zones.length - 1].rout : hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }) }));
+            const ringed = zones ? Object.assign(Object.create(hit), { semi: zones[zones.length - 1].rout, maskMargin: null }) : null;
+            const whole = rOut > hit.semi ? Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }) : ringed || hit;
+            push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(hole, rOut - Math.hypot(lyH, hH)),
+              shade: shaded(shade, beamCut(whole, px, py, zh, dx, dy, uz, anyZ, true)),
+              evt: bypassEvent(ringed || hit, by3({ el: hit.el.id, kind: 'split', semi: zones ? zones[zones.length - 1].rout : hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] })) }));
             qShare *= fin;
+            shade = shaded(shade, beamCut(ringed || hit, px, py, zh, dx, dy, uz, anyZ, false));
           } else if (fin * qShare > SPLIT_MIN && (1 - past) - fin > SPLIT_MIN) qShare *= fin / (1 - past);   // only the edge took some
+          else if (!zones && (hit.kind === 'gain' || (hit.kind === 'filter' && !hit.el.reflect)) && past * qShare > SPLIT_MIN && past > fin) {
+            // almost none of it lands on a sheet the light goes straight through (its reference ray just catches the
+            // rim): it goes on past, cut to what misses, the little that lands counted with it (as all of it is counted
+            // through when almost none misses). (A mirror or lens keeps its reference ray: a cavity of small mirrors
+            // keeps its light on them, the field cut to their rims at every pass.)
+            const whole = rOut > hit.semi ? Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }) : hit;
+            evt = bypassEvent(hit, by3({ el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }));
+            qShare *= Math.min(1, past + fin); hole = Math.max(hole, rOut - Math.hypot(lyH, hH));
+            shade = shaded(shade, beamCut(whole, px, py, zh, dx, dy, uz, anyZ, true));
+            skipEl = hit.el.id; path += 'b' + bounce;
+            pts.length -= 2; last = null;
+            continue;
+          }
         }
         // the face is rings (stackZones): a branch for each ring the beam lands on, and this ray ends here
         if (zones && splitsLeft > 0) {
@@ -14117,7 +14184,7 @@ function traceSceneOnce() {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;
           const g3ring = ev => anyZ ? Object.assign(ev, { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh }) : ev;
-          const tot = zones.reduce((a, z) => a + (z.share = apertureShare({ maskMargin: z.margin }, lyH, cth, bw, bw)), 0) || 1;
+          const tot = zones.reduce((a, z) => a + (z.share = apertureShare({ maskMargin: z.margin }, lyH, cth, bw, bw, hH)), 0) || 1;
           for (const z of zones) {
             // each ring's share of what lands on the face
             const sh = z.share / tot;
@@ -14132,7 +14199,11 @@ function traceSceneOnce() {
 
         const s = hit;
         // the hole goes with the light that went round: a plane mirror or a stop keeps it, a surface that bends the light does not
-        if (hole && s.kind !== 'iris' && s.kind !== 'mirror' && !(s.el && s.el.type === 'screen' && !s.el.absorb)) hole = 0;
+        // (nor does a sheet the light goes straight through, a gain sheet or a filter's); the dark parts of the
+        // beam's cross-section go only with light that goes straight on
+        const straight = s.kind === 'iris' || s.kind === 'gain' || (s.kind === 'filter' && !s.el.reflect) || (s.el && s.el.type === 'screen' && !s.el.absorb);
+        if (hole && !straight && s.kind !== 'mirror') hole = 0;
+        if (shade && !straight) shade = null;
         // leaving a walk-off crystal: its faces refract the wave normal, not the energy
         if (wk) { const c = Math.cos(-wk), sn = Math.sin(-wk); [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c]; wk = 0; }
         if (wn) { [dx, dy, uz] = wn; wn = null; }        // (out of the plane, the wave normal kept on the way in)
@@ -39834,13 +39905,21 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const replay = !!(pol && pol.fixed);
   const gx = replay ? 0 : (slope(wix, true) + field2Slope(F, 'x')) / aAx, gy = replay ? 0 : (slope(wiy, false) + field2Slope(F, 'y')) / aAy;
   let steep = 0;
-  const span = (w, g) => {
+  const span = (w, g, hold) => {
     let L = G * w;
     if (g > 0) L = Math.min(L, N * Math.PI / (2 * g));
+    if (hold > L) L = hold;
     if (L < 5 * w) { steep = 1; L = 5 * w; }
     return L;
   };
-  const ax = { d: span(wxo, gx) / N, z: qxo[0], zR: qxo[1] }, ay = { d: span(wyo2, gy) / N, z: qyo[0], zR: qyo[1] };
+  // A surface the light only passes (a gain sheet, a filter, the cut where a beam goes on past a part's rim) adds no
+  // slope of its own: the light's phase is sampled as finely as the grid it came on, so the new grid is never made
+  // narrower than the light (or that grid) for the sake of the faint fringes of an edge met before, which would lose
+  // the light off its sides
+  const SinH = !replay && ev.mode === 'P' ? statsIn() : null;
+  const holdOf = (c, w, A, d) => SinH && SinH.power > 0 ? Math.min(N * d, 2.4 * (Math.abs(c) + 1.5 * w) * A) : 0;
+  const ax = { d: span(wxo, gx, holdOf(SinH && SinH.cx, SinH && SinH.wx, aAx, F.ax.d)) / N, z: qxo[0], zR: qxo[1] };
+  const ay = { d: span(wyo2, gy, holdOf(SinH && SinH.cy, SinH && SinH.wy, aAy, F.ay.d)) / N, z: qyo[0], zR: qyo[1] };
   // An edge that cuts the beam sends out fringes: the first is sqrt(lam t) wide at the next
   // surface, t on, and the later ones finer. The guard band that keeps a clean beam well
   // sampled near and far leaves too few samples inside the beam for them, so here the
@@ -55618,6 +55697,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Fixed: a beam wider than a part it passes, the part above or below it or tipped, lost the light that missed the part. A gain sheet now amplifies only the light inside its disc; the rest goes on past it unchanged, in the beams, the field and the 3D view, and a detector after it reads both.',
     '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
     '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',

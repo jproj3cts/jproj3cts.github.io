@@ -1,7 +1,8 @@
 import { PRISM_SHAPES } from '../../state/project.js';
 import { hitBlock } from './hits.js';
 import { drawBlock } from './cube.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { blockNote, coatingRows, materialRows } from '../panels.js';
 import { removeSweeps } from '../plots.js';
 import { prismMirrored } from '../../core/geometry.js';

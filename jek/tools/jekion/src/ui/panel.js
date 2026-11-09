@@ -1,6 +1,7 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { nf } from '../core/units.js';
 import { checkpoint } from '../state/elements.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 
 /* ==========================================================================
    The properties panel's framework: the element builder h, fields (a number, a choice, a tick, text), sections,
@@ -16,16 +17,6 @@ export function setPanelBody(fn) { return (panelBody = fn); }
 export let panelClosed = false;
 export function setPanelClosed(v) { return (panelClosed = v); }
 
-export function h(tag, attrs, ...kids) {
-  const n = document.createElement(tag);
-  if (attrs) for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v === true ? '' : v);
-  }
-  for (const k of kids) if (k !== null && k !== undefined) n.append(k);
-  return n;
-}
 export function helpLine(short, long, cls, style) {
   const more = h('span', { class: 'rt-helpmore', hidden: '' }, ' ', ...(Array.isArray(long) ? long : [long]));
   const btn = h('button', { type: 'button', class: 'rt-helpbtn', 'aria-expanded': 'false', 'aria-label': 'More about this', title: 'More about this',

@@ -11,10 +11,8 @@ import { bodyFill, ctx, drawHorn, getCss, pathLocal, selInk, sx, sy } from '../r
 import { applyFibre } from '../../engines/fibre-face.js';
 import { gaussFromFan } from '../../engines/cavity.js';
 import { fanEdgeAuto } from '../../core/fan-edge.js';
-import {
-  beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, grid2, h, panel, param, renderPanel,
-  selectField, setFid, textField, helpLine
-} from '../panel.js';
+import { beginEdit, bindSync, coherenceFields, coherenceNote, endEdit, fid, grid2, panel, param, renderPanel, selectField, setFid, textField, helpLine } from '../panel.js';
+import { h } from '../dom.js';
 import { pulseLine, pulseToggle } from '../panels.js';
 import { popNote } from '../heavy.js';
 import { changed } from '../actions.js';

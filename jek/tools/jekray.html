@@ -41,7 +41,7 @@
   } catch (e) { /* not counted */ }
 })();</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261115">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -2009,7 +2009,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKspace (in its own tab)">My benches on JEKspace…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
@@ -2159,7 +2159,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         </div>
         <div class="rt-more rt-file">
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden></button>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: every cloud bench, of every app, on JEKspace (in its own tab)" aria-label="My benches on JEKspace" hidden></button>
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
@@ -2397,39 +2397,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <div class="rt-actions"><button class="rt-btn primary" id="snapsClose">Close</button></div>
   </dialog>
 
-  <!-- My benches: a page of its own over the tool, as a CAD system's documents page -->
-  <section class="rt-home" id="home" hidden aria-labelledby="homeTitle">
-    <header class="rt-hhead">
-      <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
-      <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
-      <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
-      <button class="rt-btn" id="homeWs" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench here, opened straight into a workspace: the Optical designer, the RF designer or coating design">Open a workspace ▾</button>
-      <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
-    </header>
-    <div class="rt-hbody">
-      <nav class="rt-hrail" id="homeRail" aria-label="Places"></nav>
-      <div class="rt-hmain" id="homeMain">
-        <div class="rt-hbar">
-          <p class="rt-hcrumbs" id="homeCrumbs"></p>
-          <span class="rt-htools" id="homeTools"></span>
-        </div>
-        <p class="rt-cloudnote" id="homeNote" hidden></p>
-        <div id="homeList" class="rt-hlist"></div>
-      </div>
-    </div>
-    <div class="rt-toast" id="homeToast" role="status"></div>
-  </section>
-
   <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
     <h2 id="uniTitle">University licence</h2>
     <div id="uniBody"></div>
     <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
-  </dialog>
-
-  <dialog class="rt-dialog rt-wide" id="diffDialog" aria-labelledby="diffTitle">
-    <h2 id="diffTitle">Compare</h2>
-    <div id="diffBody"></div>
-    <div class="rt-actions"><button class="rt-btn primary" id="diffClose">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="mergeDialog" aria-labelledby="mergeTitle">
@@ -2626,6 +2597,18 @@ const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
+  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
+  keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
+  planActive() {},                      // a plan has just become active, back from paying
+  accountLoadedHere() {},               // the account has just been looked at (signed in or not)
+  accountChanged() {},                  // signed in or out, or the plan changed: the app's own menus and badges
+  accountMenu(rows) {},                 // the account menu's rows, put where the app's menu is
+  accountMenuExtra: () => [],           // the app's own rows in that menu (signed in or not), before the usage line
+  accountMenuDone() {},                 // an item in it chosen: a pop-up menu closes
+  openAccountMenu() {},                 // open that menu (to sign in from the plans)
+  sayUnreachable: () => true,           // say so when the API cannot be reached
+  accountDeleted() {},                  // the account deleted: what the app keeps of it goes
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -29294,6 +29277,22 @@ function updateSweepButtons() {
 }
 
 /* ==========================================================================
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
+   way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
+   left out); kids: nodes or text, with null, undefined and false left out.
+   ========================================================================== */
+function h(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') n.className = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids) if (k !== null && k !== undefined && k !== false) n.append(k);
+  return n;
+}
+/* ==========================================================================
    Properties panel
    ========================================================================== */
 
@@ -29341,16 +29340,6 @@ function throttle(fn, ms = 200) {
     if (now - last >= ms) { last = now; clearTimeout(timer); timer = 0; fn(); }
     else if (!timer) timer = setTimeout(() => { timer = 0; last = performance.now(); fn(); }, ms - (now - last));
   };
-}
-function h(tag, attrs, ...kids) {
-  const n = document.createElement(tag);
-  if (attrs) for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v === true ? '' : v);
-  }
-  for (const k of kids) if (k !== null && k !== undefined) n.append(k);
-  return n;
 }
 /* A line of help: a short line, with its fuller explanation folded behind an ⓘ that opens it in place (kept in the
    page, so a screen reader and the page's search still find it). cls: the paragraph's class (rt-lsub by default); style, its own. */
@@ -49037,7 +49026,7 @@ function setStatus(t) {
 let toastTimer = null;
 function toast(msg, bad) {
   const ws = document.getElementById('lensWs');
-  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : document.getElementById('home').hidden ? 'toast' : 'homeToast');
+  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : 'toast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
   t.classList.add('show');
@@ -52976,7 +52965,6 @@ function loadMine(force) {
 }
 function mineChanged() {
   if (MINE.list) MINE.list.sort((a, b) => a.name.localeCompare(b.name));
-  if (!document.getElementById('home').hidden && cloudPlace.view === 'parts') fillHome();
   if (!picker.hidden) fillPicker(picker.querySelector('.rt-psearch') ? picker.querySelector('.rt-psearch').value : '');
   fillRail();
 }
@@ -53042,8 +53030,7 @@ async function saveToMine(list, opts) {
     const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Optical design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
     if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
-    else if (!document.getElementById('home').hidden && cloudPlace.view === 'parts' && cloudPlace.ws === w.id) fillHome();
-    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on My benches, under ' + w.name + ' › Team parts');
+    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on JEKspace (My benches), under ' + w.name + ' › Team parts');
     return p;
   } catch (err) {
     if (err.status === 402) { showSubscribe(); return; }
@@ -53131,7 +53118,7 @@ function mineBody(after) {
     sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here'), 'keep parts in My parts');
   const zmx = proMark(h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
     onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…'), 'keep parts in My parts');
-  const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
+  const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); openSpace('parts'); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
     out.push(helpLine('Nothing kept yet: right-click a part and choose Save to My parts.', ['Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'], 'rt-pnone'));
@@ -53859,6 +53846,17 @@ function resolve(merge) {
   }
   return out;
 }
+/* ==========================================================================
+   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
+   code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
+   invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
+   deleting the account. What each app does around it goes through core/hooks.js: keeping its work before the page
+   leaves to sign in or pay (keepWork), where its account menu goes (accountMenu, accountMenuExtra, accountMenuDone,
+   openAccountMenu), what follows a plan or a sign-in (planActive, accountLoadedHere, accountChanged), its name
+   (appName) and its toasts. JEKray's own sign-in prompts on the bench are in io/nudges.js.
+   ========================================================================== */
+const acctSay = (msg, bad) => hooks.toast(msg, bad);
 /* ---------- JEKrayPro account ----------
    Sign-in is handled by the API at api.jeksys.net: the button sends the person there, the
    provider sends them back here with ?jekauth=<outcome>, and the session lives in a cookie
@@ -53891,7 +53889,7 @@ const AUTH_OUTCOMES = {
 function signIn(provider, link) {
   track('signin', provider); goal('signin'); usageFlush();
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekauth');
-  if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
+  hooks.keepWork();
   location.href = API_BASE + '/auth/' + provider + '/start?' + new URLSearchParams(Object.assign({ return: ret.toString() }, link ? { link: '1' } : {}));
 }
 const initials = name => (name || '?').split(/\s+/).filter(w => /^\p{L}/u.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || (name || '?')[0];
@@ -53962,7 +53960,7 @@ async function showSubscribe() {
   const licNote = h('p', { class: 'rt-subcheck' });
   const uni = h('button', { type: 'button', class: 'rt-link', onclick: async () => {
     uni.disabled = true; uni.textContent = 'Checking…';
-    try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); toast('You have JEKrayPro through ' + account.licence.name); return; }
+    try { await api('/v1/me/institution', { method: 'POST' }); await loadAccount(); dlg.close(); acctSay('You have JEKrayPro through ' + account.licence.name); return; }
     catch (err) {
       licNote.replaceChildren(err.code === 'no_licence' || err.status === 404
         ? 'Your university has no JEKray licence yet. The academic price below is for you; and if your university would like one, ask it to email sales@jeksys.net.'
@@ -53984,7 +53982,7 @@ async function buyNow(tier, email, btn, errBox) {
   btn.disabled = true; btn.textContent = 'Opening secure payment…';
   if (errBox) errBox.hidden = true;
   const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekbilling'); ret.searchParams.delete('jekauth');
-  if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
+  hooks.keepWork();
   try {
     const mine = account && account.workspaces.find(w => w.kind === 'personal');
     try { if (mine) sessionStorage.setItem('jekcheckout', mine.id); } catch (err) { /* the personal workspace is assumed on return */ }
@@ -53994,7 +53992,7 @@ async function buyNow(tier, email, btn, errBox) {
   } catch (err) {
     const mine = account && account.workspaces.find(w => w.kind === 'personal');
     if (err.status === 404 && mine && tier === 'pro') { btn.disabled = false; btn.textContent = was; startCheckout(mine.id, tier, btn); return; }
-    if (errBox) { errBox.textContent = err.message; errBox.hidden = false; } else toast(err.message, true);
+    if (errBox) { errBox.textContent = err.message; errBox.hidden = false; } else acctSay(err.message, true);
     btn.disabled = false; btn.textContent = was;
   }
 }
@@ -54004,22 +54002,22 @@ async function startCheckout(ws, tier, btn) {
   try {
     try { sessionStorage.setItem('jekcheckout', ws); } catch (err) { /* the personal workspace is assumed on return */ }
     const ret = new URL(location.href); ret.hash = ''; ret.searchParams.delete('jekbilling'); ret.searchParams.delete('jekauth');
-    if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ }
+    hooks.keepWork();
     const { url } = await api('/v1/workspaces/' + ws + '/billing/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: tier, interval: subInterval, return: ret.toString() }) });
     location.href = url;
-  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = was; }
+  } catch (err) { acctSay(err.message, true); btn.disabled = false; btn.textContent = was; }
 }
 async function openPortal(ws) {
   try {
     const ret = new URL(location.href); ret.hash = '';
     const { url } = await api('/v1/workspaces/' + ws + '/billing/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ return: ret.toString() }) });
     location.href = url;
-  } catch (err) { toast(err.message, true); }
+  } catch (err) { acctSay(err.message, true); }
 }
 async function switchInterval(ws, interval) {
   if (!confirm(interval === 'year' ? 'Switch to yearly billing? You are charged for the year now, less what is left of this month.' : 'Switch to monthly billing? What is left of your year is credited against the coming months.')) return;
-  try { await api('/v1/workspaces/' + ws + '/billing/interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interval }) }); toast('Billing switched to ' + (interval === 'year' ? 'yearly' : 'monthly')); loadAccount(); }
-  catch (err) { toast(err.message, true); }
+  try { await api('/v1/workspaces/' + ws + '/billing/interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interval }) }); acctSay('Billing switched to ' + (interval === 'year' ? 'yearly' : 'monthly')); loadAccount(); }
+  catch (err) { acctSay(err.message, true); }
 }
 // back from Stripe Checkout: the webhook may take a moment to arrive
 async function awaitPlan(tries = 12) {
@@ -54033,72 +54031,82 @@ async function awaitPlan(tries = 12) {
       fillAccount();
       if (mine.kind === 'team') {
         const own = account.workspaces.find(w => w.kind === 'personal');
-        toast(own && own.plan && own.plan.billing && own.active && !own.plan.cancel_at ? 'Your team plan is active. Thank you! Your own subscription is no longer needed: stop it from the team panel.' : 'Your team plan is active. Thank you!');
+        acctSay(own && own.plan && own.plan.billing && own.active && !own.plan.cancel_at ? 'Your team plan is active. Thank you! Your own subscription is no longer needed: stop it from the team panel.' : 'Your team plan is active. Thank you!');
         showTeam(mine.id);
-      } else toast('Welcome to JEKrayPro. Thank you!');
+      } else acctSay('Welcome to JEKrayPro. Thank you!');
       goal('pro');
-      if (cloud && cloud.dirty) cloudPush({ quiet: true }); return;
+      hooks.planActive(); return;
     }
   }
-  fillAccount(); toast('Payment received. Your plan will show here in a minute or two; reload if it does not.');
+  fillAccount(); acctSay('Payment received. Your plan will show here in a minute or two; reload if it does not.');
 }
 function fillAccount() {
-  const btn = document.getElementById('btnAcct'), menu = document.getElementById('acctMenu');
+  const btn = document.getElementById('btnAcct');
   // Get Pro in the bar: for anyone without JEKrayPro (signed out, or signed in with no plan, licence or team seat)
   const gp = document.getElementById('btnGetPro');
   if (gp) { const own = account && account.workspaces.find(w => w.kind === 'personal'); gp.hidden = EMBED || !accountsOn() || account === undefined || !!(own && own.active) || !!(account && (account.licence || account.team_seat)); }
-  const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: fn }, label);
+  if (btn) {
+    if (!account) { btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in'); }
+    else {
+      const u = account.user;
+      btn.classList.add('in'); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
+      if (u.avatar) btn.replaceChildren(h('img', { src: API_BASE + u.avatar, alt: '' })); else btn.textContent = initials(u.name);
+    }
+  }
+  hooks.accountMenu(accountMenuRows());
+  hooks.accountChanged();
+}
+/* the account menu's rows (each item with its icon named as data-icon, for the app to draw): signed out, what a free
+   account gives and the ways in (each counted as the menu's), the university line; signed in, the plans of each
+   workspace, the account, its teams, the plan's billing, linking more sign-ins, signing out. The app's own rows
+   (hooks.accountMenuExtra) come before the usage line and the legal links */
+function accountMenuRows() {
+  const item = (icon, label, fn) => h('button', { type: 'button', role: 'menuitem', 'data-icon': icon, onclick: () => { hooks.accountMenuDone(); fn(); } }, label);
   const legal = h('span', { class: 'rt-menunote' }, h('a', { href: '/jek/privacy.html', target: '_blank' }, 'Privacy'), ' · ', h('a', { href: '/jek/terms.html', target: '_blank' }, 'Terms'), ' · ', h('a', { href: '/jek/accessibility.html', target: '_blank' }, 'Accessibility'));
   // usage counts: on unless turned off here (or by the browser's Do Not Track or Global Privacy Control)
   const dnt = usageBrowserSaysNo(), usage = h('button', { type: 'button', role: 'menuitemcheckbox', 'aria-checked': String(!dnt && !usageOff()), 'data-icon': 'check', disabled: dnt ? '' : null,
-    title: dnt ? 'Your browser asks sites not to track it, so none are sent' : 'Counts of what is used in JEKray, with nothing that says who: see the privacy policy',
-    onclick: () => { const off = !usageOff(); setUsageOff(off); fillAccount(); toast(off ? 'Usage counts off in this browser' : 'Usage counts on. Thank you!'); } }, 'Share anonymous usage counts');
+    title: dnt ? 'Your browser asks sites not to track it, so none are sent' : 'Counts of what is used in ' + hooks.appName + ', with nothing that says who: see the privacy policy',
+    onclick: () => { hooks.accountMenuDone(); const off = !usageOff(); setUsageOff(off); fillAccount(); acctSay(off ? 'Usage counts off in this browser' : 'Usage counts on. Thank you!'); } }, 'Share anonymous usage counts');
+  const sep = () => h('div', { class: 'sep' });
+  const extra = hooks.accountMenuExtra(!!account) || [];
   if (!account) {
-    btn.classList.remove('in'); btn.textContent = 'Sign in'; btn.removeAttribute('title'); btn.setAttribute('aria-label', 'Sign in');
-    // what a free account gives, then the ways in (each counted as the menu's), then the university line and JEKrayPro
     const via = (p, fn) => () => { track('prompt', 'menu.' + p); fn(); };
-    menu.replaceChildren(h('span', { class: 'rt-menunote' }, h('b', null, 'Create a free account or sign in.'), ' ' + FREE_GIVES),
+    return [h('span', { class: 'rt-menunote' }, h('b', null, 'Create a free account or sign in.'), ' ' + FREE_GIVES),
       item('signin', 'Continue with Google', via('google', () => signIn('google'))), item('signin', 'Continue with Microsoft (university or work)', via('microsoft', () => signIn('microsoft'))), item('signin', 'Continue with email', via('email', () => showEmailSignIn(false))),
-      h('div', { class: 'sep' }), h('span', { class: 'rt-menunote' }, UNI_LINE),
-      h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.'), h('div', { class: 'sep' }), usage, legal);
-  } else {
-    const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
-    btn.classList.add('in'); btn.title = u.name; btn.setAttribute('aria-label', 'Account: ' + u.name);
-    if (u.avatar) btn.replaceChildren(h('img', { src: API_BASE + u.avatar, alt: '' })); else btn.textContent = initials(u.name);
-    const orcid = ids.find(i => i.provider === 'orcid');
-    const rows = [h('div', { class: 'rt-accthead' }, avatarNode(u), h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
-      ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))),
-      // ORCID sign-in is ending: someone with no other way in is asked to link one
-      account.orcid_ends && !ids.some(i => i.provider !== 'orcid') ? h('span', { class: 'rt-menunote rt-warn' }, 'Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + '. Link Google or Microsoft below to keep your account.') : null,
-      h('div', { class: 'sep' })].filter(Boolean);
-    // a university's licence, for those who look after it there
-    for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
-    rows.push(item('user', 'Your account\u2026', showAccount));
-    rows.push(h('a', { role: 'menuitem', href: '/jek/account.html', target: '_blank', rel: 'noopener', 'data-icon': 'home' }, 'Your account on the JEK Systems site'));
-    // their teams, and a new one
-    for (const w of ws) if (w.kind === 'team') rows.push(item('users', w.name + '…', () => showTeam(w.id)));
-    rows.push(item('users', 'Create a team…', createTeam));
-    // the personal workspace's plan: subscribe, or manage it
-    const mine = ws.find(w => w.kind === 'personal');
-    if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKrayPro…', () => showSubscribe()));
-    if (mine && mine.active && mine.plan && mine.plan.billing) {
-      rows.push(item('card', 'Billing and invoices…', () => openPortal(mine.id)));
-      if (!mine.plan.cancel_at && mine.plan.interval) {
-        const other = mine.plan.interval === 'month' ? 'year' : 'month';
-        rows.push(item('sync', other === 'year' ? 'Switch to yearly billing' : 'Switch to monthly billing', () => switchInterval(mine.id, other)));
-      }
-    }
-    if (rows[rows.length - 1].className !== 'sep') rows.push(h('div', { class: 'sep' }));
-    for (const p of ['google', 'microsoft']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
-    if (!ids.some(i => i.provider === 'email')) rows.push(item('signin', 'Link an email address', () => showEmailSignIn(true)));
-    rows.push(item('signout', 'Sign out', async () => {
-      try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); toast('Signed out'); }
-      catch (err) { toast(err.message, true); }
-    }), item('trash', 'Delete account…', showDeleteAccount), h('div', { class: 'sep' }), usage, legal);
-    menu.replaceChildren(...rows);
+      sep(), h('span', { class: 'rt-menunote' }, UNI_LINE), ...extra, sep(), usage, legal];
   }
-  menuIcons(menu);
-  cloudMenuShown();
+  const u = account.user, ids = account.identities || [], ws = account.workspaces || [];
+  const orcid = ids.find(i => i.provider === 'orcid');
+  const rows = [h('div', { class: 'rt-accthead' }, avatarNode(u), h('b', null, u.name), u.email ? h('span', null, u.email) : null, orcid ? h('span', null, 'ORCID ' + orcid.subject) : null),
+    ...ws.map(w => h('span', { class: 'rt-menunote' }, (w.kind === 'personal' ? 'Personal' : w.name) + ': ' + planText(w))),
+    // ORCID sign-in is ending: someone with no other way in is asked to link one
+    account.orcid_ends && !ids.some(i => i.provider !== 'orcid') ? h('span', { class: 'rt-menunote rt-warn' }, 'Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + '. Link Google or Microsoft below to keep your account.') : null,
+    sep()].filter(Boolean);
+  // a university's licence, for those who look after it there
+  for (const w of ws) if (w.kind === 'institution' && (w.role === 'admin' || w.role === 'owner')) rows.push(item('user', w.name + ' licence\u2026', () => showUniAdmin(w.id)));
+  rows.push(item('user', 'Your account\u2026', showAccount));
+  rows.push(h('a', { role: 'menuitem', href: '/jek/account.html', target: '_blank', rel: 'noopener', 'data-icon': 'home' }, 'Your account on the JEK Systems site'));
+  // their teams, and a new one
+  for (const w of ws) if (w.kind === 'team') rows.push(item('users', w.name + '…', () => showTeam(w.id)));
+  rows.push(item('users', 'Create a team…', createTeam));
+  // the personal workspace's plan: subscribe, or manage it
+  const mine = ws.find(w => w.kind === 'personal');
+  if (mine && !mine.active) rows.push(item('star', 'Subscribe to JEKrayPro…', () => showSubscribe()));
+  if (mine && mine.active && mine.plan && mine.plan.billing) {
+    rows.push(item('card', 'Billing and invoices…', () => openPortal(mine.id)));
+    if (!mine.plan.cancel_at && mine.plan.interval) {
+      const other = mine.plan.interval === 'month' ? 'year' : 'month';
+      rows.push(item('sync', other === 'year' ? 'Switch to yearly billing' : 'Switch to monthly billing', () => switchInterval(mine.id, other)));
+    }
+  }
+  if (rows[rows.length - 1].className !== 'sep') rows.push(sep());
+  for (const p of ['google', 'microsoft']) if (!ids.some(i => i.provider === p)) rows.push(item('signin', 'Link ' + PROVIDER_NAMES[p] + ' sign-in', () => signIn(p, true)));
+  if (!ids.some(i => i.provider === 'email')) rows.push(item('signin', 'Link an email address', () => showEmailSignIn(true)));
+  rows.push(item('signout', 'Sign out', async () => {
+    try { await api('/auth/signout', { method: 'POST' }); account = null; fillAccount(); acctSay('Signed out'); }
+    catch (err) { acctSay(err.message, true); }
+  }), item('trash', 'Delete account…', showDeleteAccount), ...(extra.length ? [sep(), ...extra] : []), sep(), usage, legal);
+  return rows;
 }
 /* ---------- Sign-in with an email address ----------
    An account of JEKray's own: the address, with a password, or with the 6-digit code the API emails to it (which is
@@ -54138,7 +54146,7 @@ function showEmailSignIn(link) {
   const finish = async r => {
     dlg.close();
     await loadAccount(); fillAccount();
-    toast(r.linked ? 'Email address linked to your account' : r.password_set ? 'Signed in, and your password is set' : 'Signed in');
+    acctSay(r.linked ? 'Email address linked to your account' : r.password_set ? 'Signed in, and your password is set' : 'Signed in');
     if (!r.linked && typeof accountShown === 'function') accountShown();
   };
   sendBtn.addEventListener('click', async () => {
@@ -54148,7 +54156,7 @@ function showEmailSignIn(link) {
     try {
       await api('/auth/email/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ email: v, return: (() => { const u = new URL(location.href); u.hash = ''; u.searchParams.delete('jekauth'); return u.toString(); })() }, link ? { link: true } : {})) });
       codeRow.hidden = false; okBtn.hidden = false; sendBtn.textContent = 'Send another'; codeIn.focus();
-      toast('Sent to ' + v.toLowerCase() + ': click the link in it, or type its code here. It lasts 15 minutes; check your spam folder if it is slow.');
+      acctSay('Sent to ' + v.toLowerCase() + ': click the link in it, or type its code here. It lasts 15 minutes; check your spam folder if it is slow.');
     } catch (e) { fail(e.message); }
     sendBtn.disabled = false;
   });
@@ -54184,12 +54192,12 @@ function passwordSection() {
   const err = h('p', { class: 'rt-error', hidden: '' });
   const save = h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
     err.hidden = true;
-    try { await api('/v1/me/password', jsonReq('PUT', Object.assign({ password: nw.value }, has ? { current: cur.value } : {}))); await loadAccount(); fillAccount(); showAccount(); toast(has ? 'Password changed' : 'Password set'); }
+    try { await api('/v1/me/password', jsonReq('PUT', Object.assign({ password: nw.value }, has ? { current: cur.value } : {}))); await loadAccount(); fillAccount(); showAccount(); acctSay(has ? 'Password changed' : 'Password set'); }
     catch (e) { err.textContent = e.message; err.hidden = false; }
   } }, has ? 'Change' : 'Set a password');
   const drop = has ? h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
     if (!confirm('Remove your password? You will sign in with a code sent to your address, or with Google or Microsoft.')) return;
-    try { await api('/v1/me/password', { method: 'DELETE' }); await loadAccount(); fillAccount(); showAccount(); toast('Password removed'); } catch (e) { toast(e.message, true); }
+    try { await api('/v1/me/password', { method: 'DELETE' }); await loadAccount(); fillAccount(); showAccount(); acctSay('Password removed'); } catch (e) { acctSay(e.message, true); }
   } }, 'Remove') : null;
   box.append(h('p', null, has ? 'You sign in with your address and this password, or with a code sent to the address.' : 'No password yet: you sign in with a code sent to your address. Set one to sign in without waiting for an email.'),
     h('div', { class: 'rt-rows' }, has ? h('div', { class: 'rt-f wide' }, h('label', { for: 'pwCur' }, 'Current'), cur) : null, h('div', { class: 'rt-f wide' }, h('label', { for: 'pwNew' }, has ? 'New' : 'Password'), nw)),
@@ -54219,7 +54227,7 @@ function showAccount() {
   const file = h('input', { type: 'file', accept: 'image/*', hidden: true });
   const choose = h('button', { type: 'button', class: 'rt-btn', onclick: () => file.click() }, u.avatar ? 'Change picture\u2026' : 'Add a picture\u2026');
   const remove = u.avatar ? h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
-    try { await api('/v1/me/avatar', { method: 'DELETE' }); account.user.avatar = null; fillAccount(); showAccount(); toast('Picture removed'); } catch (err) { toast(err.message, true); }
+    try { await api('/v1/me/avatar', { method: 'DELETE' }); account.user.avatar = null; fillAccount(); showAccount(); acctSay('Picture removed'); } catch (err) { acctSay(err.message, true); }
   } }, 'Remove') : null;
   file.addEventListener('change', async () => {
     const f = file.files && file.files[0];
@@ -54228,14 +54236,14 @@ function showAccount() {
     try {
       const blob = await shrinkImage(f);
       const r = await api('/v1/me/avatar', { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob });
-      account.user.avatar = r.avatar; fillAccount(); showAccount(); toast('Picture saved');
-    } catch (err) { toast(err.message, true); choose.disabled = false; choose.textContent = 'Add a picture\u2026'; }
+      account.user.avatar = r.avatar; fillAccount(); showAccount(); acctSay('Picture saved');
+    } catch (err) { acctSay(err.message, true); choose.disabled = false; choose.textContent = 'Add a picture\u2026'; }
   });
   const name = h('input', { type: 'text', id: 'acctName', value: u.name, maxlength: '80', autocomplete: 'name' });
   const save = h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
     const v = name.value.trim();
     if (!v || v === u.name) return;
-    try { account = await api('/v1/me', jsonReq('PATCH', { name: v })); fillAccount(); showAccount(); toast('Name changed'); } catch (err) { toast(err.message, true); }
+    try { account = await api('/v1/me', jsonReq('PATCH', { name: v })); fillAccount(); showAccount(); acctSay('Name changed'); } catch (err) { acctSay(err.message, true); }
   } }, 'Save');
   name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
   const ids = (account.identities || []).map(i => PROVIDER_NAMES[i.provider] + (i.provider === 'orcid' || i.provider === 'email' ? ' ' + i.subject : ''));
@@ -54258,15 +54266,15 @@ const ROLE_NOTES = { admin: 'invites, removes and sets roles; takes a seat', edi
 const jsonReq = (method, obj) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
 const when = t => new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 async function createTeam() {
-  if (!account) { toast('Sign in first (account menu, top right)', true); return; }
+  if (!account) { acctSay('Sign in first (account menu, top right)', true); return; }
   const name = (prompt('Name the team: your lab, group or company', '') || '').trim();
   if (!name) return;
   try {
     const t = await api('/v1/teams', jsonReq('POST', { name }));
     await loadAccount();
-    toast('Team created. Invite people, then subscribe for its seats.');
+    acctSay('Team created. Invite people, then subscribe for its seats.');
     showTeam(t.id);
-  } catch (err) { toast(err.message, true); }
+  } catch (err) { acctSay(err.message, true); }
 }
 let teamPrices = null;
 async function showTeam(id) {
@@ -54278,7 +54286,7 @@ async function showTeam(id) {
   catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); return; }
   if (!teamPrices) try { teamPrices = await api('/v1/billing/prices'); } catch (err) { teamPrices = {}; }
   const again = () => showTeam(id);
-  const act = (fn, done) => async () => { try { await fn(); if (done) toast(done); await loadAccount(); again(); } catch (err) { if (!err.quiet) toast(err.message, true); } };
+  const act = (fn, done) => async () => { try { await fn(); if (done) acctSay(done); await loadAccount(); again(); } catch (err) { if (!err.quiet) acctSay(err.message, true); } };
   const manages = t.role === 'owner' || t.role === 'admin', owner = t.role === 'owner';
   const me = account && account.user, owning = t.members.find(m => m.role === 'owner');
   document.getElementById('teamTitle').textContent = t.name;
@@ -54296,7 +54304,7 @@ async function showTeam(id) {
       plan.push(h('p', null, 'Your seat here gives you JEKrayPro, so your own subscription' + (mine.plan.period_end ? ', which renews ' + shortDate(mine.plan.period_end) + ',' : '') + ' is no longer needed. ',
         h('button', { type: 'button', class: 'rt-link', onclick: act(async () => {
           const r = await api('/v1/workspaces/' + mine.id + '/billing/cancel', jsonReq('POST', {}));
-          toast('Your own subscription ends ' + (r.cancel_at ? shortDate(r.cancel_at) : 'at the end of its period') + '; your personal benches stay yours and keep saving through the team’s seat.');
+          acctSay('Your own subscription ends ' + (r.cancel_at ? shortDate(r.cancel_at) : 'at the end of its period') + '; your personal benches stay yours and keep saving through the team’s seat.');
         }) }, 'Stop it at the end of its period'),
         '. Nothing is lost: your personal workspace and its benches stay, and the seat covers saving to them.'));
     }
@@ -54339,15 +54347,15 @@ async function showTeam(id) {
       go.disabled = true;
       try {
         const r = await api('/v1/teams/' + id + '/invites', jsonReq('POST', { email: email.value, role: role.value }));
-        if (r.invited.sent) { toast('Invitation emailed to ' + r.invited.email); again(); }
+        if (r.invited.sent) { acctSay('Invitation emailed to ' + r.invited.email); again(); }
         else {
           // no email went: the link is theirs to pass on
           const url = h('input', { type: 'text', readonly: true, value: r.invited.link, 'aria-label': 'Invitation link' });
           said.replaceChildren(h('p', null, 'We could not email ' + r.invited.email + '. Send them this link yourself; it works for 14 days, once:'),
-            h('div', { class: 'team-link' }, url, h('button', { type: 'button', class: 'rt-btn', onclick: () => { url.select(); try { navigator.clipboard.writeText(r.invited.link); toast('Link copied'); } catch (err) { toast('Copy the link from the box', true); } } }, 'Copy')));
+            h('div', { class: 'team-link' }, url, h('button', { type: 'button', class: 'rt-btn', onclick: () => { url.select(); try { navigator.clipboard.writeText(r.invited.link); acctSay('Link copied'); } catch (err) { acctSay('Copy the link from the box', true); } } }, 'Copy')));
           email.value = '';
         }
-      } catch (err) { toast(err.message, true); }
+      } catch (err) { acctSay(err.message, true); }
       go.disabled = false;
     };
     go.addEventListener('click', doInvite);
@@ -54370,12 +54378,12 @@ async function showTeam(id) {
     ends.push(h('p', null, 'Deleting the team cancels its subscription now and takes every bench in it, with its history, for everyone. It cannot be undone.'),
       h('button', { type: 'button', class: 'rt-btn danger', onclick: async () => {
         if ((prompt('To delete the team and all its benches, type its name: ' + t.name) || '').trim() !== t.name) return;
-        try { await api('/v1/teams/' + id, { method: 'DELETE' }); dlg.close(); await loadAccount(); toast('Team deleted'); } catch (err) { toast(err.message, true); }
+        try { await api('/v1/teams/' + id, { method: 'DELETE' }); dlg.close(); await loadAccount(); acctSay('Team deleted'); } catch (err) { acctSay(err.message, true); }
       } }, 'Delete the team…'));
   } else {
     ends.push(h('p', null, 'Benches you saved here stay with the team.'), h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
       if (!confirm('Leave ' + t.name + '?')) return;
-      try { await api('/v1/teams/' + id + '/leave', { method: 'POST' }); dlg.close(); await loadAccount(); toast('You have left ' + t.name); } catch (err) { toast(err.message, true); }
+      try { await api('/v1/teams/' + id + '/leave', { method: 'POST' }); dlg.close(); await loadAccount(); acctSay('You have left ' + t.name); } catch (err) { acctSay(err.message, true); }
     } }, 'Leave the team'));
   }
   // the activity record
@@ -54396,7 +54404,7 @@ function teamSigningSection(t, id, again) {
     ', not as one person’s account, once the team has shown that its web domain is its own by adding a DNS record. Its owner and admins sign as the team when they make or sign a pack.')];
   const remove = label => h('button', { type: 'button', class: 'rt-btn', onclick: async () => {
     if (!confirm(D ? 'Take ' + D.domain + ' off? Packs already signed as the team stay as they are; signing as the team stops until a domain is verified again.' : 'Stop verifying ' + P.domain + '?')) return;
-    try { await api('/v1/teams/' + id + '/domain', { method: 'DELETE' }); toast(D ? 'Domain taken off' : 'Stopped'); again(); } catch (err) { toast(err.message, true); }
+    try { await api('/v1/teams/' + id + '/domain', { method: 'DELETE' }); acctSay(D ? 'Domain taken off' : 'Stopped'); again(); } catch (err) { acctSay(err.message, true); }
   } }, label);
   if (D) {
     out.push(h('p', { class: 'team-domain' }, h('span', { class: 'rt-trust ok' }, '\u2713 Verified'), ' ', h('b', null, D.domain),
@@ -54414,7 +54422,7 @@ function teamSigningSection(t, id, again) {
   const start = (value, btn) => async () => {
     btn.disabled = true;
     try { await api('/v1/teams/' + id + '/domain', jsonReq('POST', { domain: value() })); again(); }
-    catch (err) { toast(err.message, true); btn.disabled = false; }
+    catch (err) { acctSay(err.message, true); btn.disabled = false; }
   };
   if (!P || P.expired) {
     const dom = h('input', { type: 'text', id: 'teamDomainIn', placeholder: 'acme.com', autocomplete: 'off', spellcheck: 'false', value: P ? P.domain : '' });
@@ -54429,7 +54437,7 @@ function teamSigningSection(t, id, again) {
   const copyRow = (label, value) => {
     const box = h('input', { type: 'text', readonly: true, value, 'aria-label': label });
     return h('div', { class: 'team-record' }, h('span', null, label), h('div', { class: 'team-link' }, box,
-      h('button', { type: 'button', class: 'rt-btn', onclick: () => { box.select(); try { navigator.clipboard.writeText(value); toast(label + ' copied'); } catch (err) { toast('Copy it from the box', true); } } }, 'Copy')));
+      h('button', { type: 'button', class: 'rt-btn', onclick: () => { box.select(); try { navigator.clipboard.writeText(value); acctSay(label + ' copied'); } catch (err) { acctSay('Copy it from the box', true); } } }, 'Copy')));
   };
   const said = h('p', { class: 'note', hidden: true, role: 'status' });
   const check = h('button', { type: 'button', class: 'rt-btn primary' }, 'Check now');
@@ -54437,7 +54445,7 @@ function teamSigningSection(t, id, again) {
     check.disabled = true; said.hidden = false; said.className = 'note'; said.textContent = 'Looking the record up…';
     try {
       const r = await api('/v1/teams/' + id + '/domain/verify', jsonReq('POST', {}));
-      toast('Verified ' + (r.domain ? r.domain.domain : P.domain) + ': the team can sign packs as itself');
+      acctSay('Verified ' + (r.domain ? r.domain.domain : P.domain) + ': the team can sign packs as itself');
       again();
     } catch (err) { said.className = 'note warn'; said.textContent = err.message; check.disabled = false; }
   });
@@ -54454,7 +54462,7 @@ function takeInvite() {
   if (!token) return;
   q.delete('jekinvite');
   window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
-  try { sessionStorage.setItem('jekinvite', token); } catch (err) { toast('This browser cannot keep the invitation: open the link again once signed in', true); }
+  try { sessionStorage.setItem('jekinvite', token); } catch (err) { acctSay('This browser cannot keep the invitation: open the link again once signed in', true); }
 }
 let inviteBusy = false;
 async function handleInvite() {
@@ -54467,19 +54475,19 @@ async function handleInvite() {
     if (!account) {
       const btn = document.getElementById('btnAcct');
       if (btn && document.getElementById('acctMenu').hidden) btn.click();
-      toast('You have been invited to a team: sign in to join it');
+      acctSay('You have been invited to a team: sign in to join it');
       return;
     }
     let inv;
     try { inv = await api('/v1/invitations/' + encodeURIComponent(token)); }
-    catch (err) { drop(); toast(err.message, true); return; }
+    catch (err) { drop(); acctSay(err.message, true); return; }
     if (!confirm(inv.inviter + ' has invited you to join the team “' + inv.team + '” as ' + (inv.role === 'admin' ? 'an admin' : 'a ' + inv.role) + '. Join it?')) { drop(); return; }
     const r = await api('/v1/invitations/accept', jsonReq('POST', { token }));
     drop();
     await loadAccount();
-    toast('You are in ' + r.team.name);
+    acctSay('You are in ' + r.team.name);
     showTeam(r.team.id);
-  } catch (err) { toast(err.message, true); }
+  } catch (err) { acctSay(err.message, true); }
   finally { inviteBusy = false; }
 }
 /* A university's licence, for the people who look after it there: its state, its tier and
@@ -54505,10 +54513,10 @@ async function showUniAdmin(id) {
   const invEmail = h('input', { type: 'email', 'aria-label': 'Email address to invite', placeholder: 'visitor@example.com', autocomplete: 'off' });
   const invite = h('button', { type: 'button', class: 'rt-btn' }, 'Invite');
   invite.addEventListener('click', async () => {
-    try { await post('/invites', { email: invEmail.value }); toast('Invited ' + invEmail.value.trim()); showUniAdmin(id); } catch (err) { toast(err.message, true); }
+    try { await post('/invites', { email: invEmail.value }); acctSay('Invited ' + invEmail.value.trim()); showUniAdmin(id); } catch (err) { acctSay(err.message, true); }
   });
   const invites = d.invites.length ? h('ul', { class: 'uni-list' }, ...d.invites.map(i => h('li', null, h('span', null, i.email),
-    h('button', { type: 'button', class: 'rt-link', onclick: async () => { try { await api('/v1/institutions/' + id + '/invites/' + encodeURIComponent(i.email), { method: 'DELETE' }); showUniAdmin(id); } catch (err) { toast(err.message, true); } } }, 'Remove'))))
+    h('button', { type: 'button', class: 'rt-link', onclick: async () => { try { await api('/v1/institutions/' + id + '/invites/' + encodeURIComponent(i.email), { method: 'DELETE' }); showUniAdmin(id); } catch (err) { acctSay(err.message, true); } } }, 'Remove'))))
     : h('p', null, 'No one invited.');
   // taking someone off, and back
   const offEmail = h('input', { type: 'email', 'aria-label': 'Email address of the person', placeholder: 'name@' + (d.domains[0] || 'university.ac.uk'), autocomplete: 'off' });
@@ -54525,7 +54533,7 @@ async function showUniAdmin(id) {
     h('p', null, covers.length ? 'Anyone who signs in with ' + covers.join(', or ') + ', and the people you invite below. To change this, email ' : 'The people you invite below. To add your university\u2019s addresses, email ', h('a', { href: 'mailto:support@jeksys.net' }, 'support@jeksys.net'), '.'),
     d.tenants.length ? h('p', null, 'If people see \u201cNeed admin approval\u201d when signing in with Microsoft, your IT team approves JEKray once, for everyone. Send them ',
       d.microsoft_approval ? h('a', { href: d.microsoft_approval, target: '_blank', rel: 'noopener' }, 'this approval link') : 'the approval link from support@jeksys.net',
-      d.microsoft_approval ? h('button', { type: 'button', class: 'rt-link', onclick: () => { try { navigator.clipboard.writeText(d.microsoft_approval); toast('Approval link copied'); } catch (err) { toast('Copy the link from its right-click menu', true); } } }, ' (copy)') : null,
+      d.microsoft_approval ? h('button', { type: 'button', class: 'rt-link', onclick: () => { try { navigator.clipboard.writeText(d.microsoft_approval); acctSay('Approval link copied'); } catch (err) { acctSay('Copy the link from its right-click menu', true); } } }, ' (copy)') : null,
       ': an administrator of your Microsoft organisation opens it, signs in and accepts. JEKray asks only to sign people in.') : null,
     h('h3', null, 'Invite people without a university address'),
     h('p', null, 'They are covered when they sign in with Google or Microsoft using this address.'),
@@ -54564,209 +54572,30 @@ async function loadAccount() {
     account = null;
     if (err.status === 401) accountKnown = true;          // signed out for sure; the API out of reach says nothing
     // said only to someone whose bench here saves to the cloud; anyone else just sees Sign in
-    if (err.status !== 401 && cloud) toast('Could not reach your JEKray account: ' + err.message, true);
+    if (err.status !== 401 && hooks.sayUnreachable()) acctSay('Could not reach your account: ' + err.message, true);
   }
   // someone who signs in with ORCID alone is told, once a session, that it is ending
   if (account && account.orcid_ends && !(account.identities || []).some(i => i.provider !== 'orcid') && !orcidWarned) {
     orcidWarned = true;
-    setTimeout(() => toast('Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + ': link Google or Microsoft from the account menu, top right, to keep your account.', true), 1200);
+    setTimeout(() => acctSay('Signing in with ORCID ends on ' + shortDate(account.orcid_ends) + ': link Google or Microsoft from the account menu, top right, to keep your account.', true), 1200);
   }
   // an account made in the last half hour: counted once, against where the visit came from
   try {
     if (account && Date.now() - account.user.created_at < 30 * 60e3 && !localStorage.getItem('jek-goal-account')) { localStorage.setItem('jek-goal-account', '1'); goal('account'); }
   } catch (err) { /* not counted */ }
   fillAccount();
-  if (account && cloud && cloud.dirty) cloudPush({ quiet: true });   // edits made offline, or before a reload
-  workSignedIn();
+  hooks.accountLoadedHere();
   handleInvite();
 }
-/* ---------- Sign-in, offered where it helps ----------
-   Signed out, at the moments an account would have helped. Each says first what a free account gives, then
-   JEKrayPro, then the university line. Share asks in a dialog, as a short link is JEKrayPro's and it cannot go on
-   without one; so does an export (ui/pro.js accountGate), as exporting needs an account. Save has already saved the
-   file, so it only offers, in a note. A bench restored on a later visit, and a shared bench kept, offer the file and
-   an account. One cap for the notes and the share dialog: once a week (core/nudge.js), which the export dialog
-   counts against but is not held back by. Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
-const NUDGE_KEY = 'jek-nudge-save';
 const FREE_GIVES = 'A free account lets you export images and data, make part packs and use the experimental features, and join a team when invited.';
 const UNI_LINE = 'University email? If your university has a JEKray licence, signing in with it gives you JEKrayPro; if not, it gets you the academic price.';
 // set when the account is known (signed in, or the API said signed out): the notes wait for it
 let accountKnown = false;
-const nudgeAllowed = () => { try { return nudgeCapOk(localStorage.getItem(NUDGE_KEY), Date.now()); } catch (err) { return false; } };
-const nudgeTaken = () => { try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch (err) { /* may show again: fine */ } };
 function signInRow(where, close) {
   const go = (p, fn) => () => { track('prompt', where + '.' + p); close(); fn(); };
   return [h('button', { class: 'rt-btn primary', type: 'button', onclick: go('google', () => signIn('google')) }, 'Continue with Google'),
     h('button', { class: 'rt-btn', type: 'button', onclick: go('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
     h('button', { class: 'rt-btn', type: 'button', onclick: go('email', () => showEmailSignIn(false)) }, 'Email')];
-}
-const freeLead = (lead, more) => h('p', null, h('b', null, lead), ' ' + FREE_GIVES + (more ? ' ' + more : ''));
-const uniNote = () => h('p', { class: 'note rt-uni' }, UNI_LINE);
-function promptDialog(id) {
-  let dlg = document.getElementById(id);
-  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id, 'aria-labelledby': id + 'Title' }); document.body.append(dlg); }
-  return dlg;
-}
-function shareSignIn(saveInstead) {
-  track('prompt', 'share.shown');
-  nudgeTaken();
-  const dlg = promptDialog('shareSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'shareSignInTitle' }, 'Share this bench as a link'),
-    h('p', null, 'A short link opens this bench as it is now, for anyone, with your panels open and its sweeps ready to play.'),
-    freeLead('Create a free account or sign in.', 'Short links come with JEKrayPro, along with saving to the cloud as you work. Your bench stays here while you sign in.'),
-    uniNote(),
-    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('share', close)),
-    h('p', { class: 'note' }, 'Or send it as a file: ', h('button', { class: 'rt-link', type: 'button', onclick: () => { track('prompt', 'share.file'); close(); saveInstead(); } }, 'save it as a .jekray file'), ' and attach that.'),
-    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
-  dlg.showModal();
-}
-/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
-function exportSignIn(what) {
-  track('prompt', 'export.shown');
-  nudgeTaken();
-  const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
-    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
-    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
-    uniNote(),
-    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
-    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'export.no'); close(); } }, 'Not now')));
-  dlg.showModal();
-}
-/* something that needs more than being signed out, asked for signed out: a JEKrayPro feature (the optimiser, scripts,
-   the cloud, My parts…) or the experimental features (a free account is enough). In place of a toast and the account
-   menu, what it needs and the ways in, as for an export; counted as 'prompt' pro.<answer>, acct.<answer> (an account is enough: My benches) or exp.<answer>. */
-function gateSignIn(kind, what) {
-  if (!accountsOn()) { toast('Accounts are not available here', true); return; }
-  const exp = kind === 'exp', acct = kind === 'acct', where = exp ? 'exp' : acct ? 'acct' : 'pro';
-  track('prompt', where + '.shown');
-  nudgeTaken();
-  const dlg = promptDialog('gateSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'gateSignInTitle' }, exp ? 'Experimental features need a free account' : 'Sign in first'),
-    h('p', null, exp ? 'Sign in to try the experimental features: a free account is enough.'
-      : acct ? 'Sign in to ' + (what || 'use that') + ': a free account is enough.'
-      : (what ? 'To ' + what + ', JEKrayPro is needed' : 'That is part of JEKrayPro') + '. Choose a plan and pay: your account is made from the address you pay with. Or sign in, if you already have one through a team or your university.'),
-    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
-    uniNote(),
-    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(where, close)),
-    h('div', { class: 'rt-actions' },
-      exp || acct ? null : h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', 'pro.plans'); close(); showSubscribe(); } }, 'See plans and prices'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', where + '.no'); close(); } }, 'Not now')));
-  dlg.showModal();
-}
-/* a note on the bench, in the welcome note's style, with its × in the corner (counted as Not now) */
-function nudgeCard(id, where, title, body, acts) {
-  const card = h('div', { class: 'rt-welcome rt-nudge', id, role: 'status' });
-  const close = () => card.remove(), no = () => { track('prompt', where + '.no'); close(); };
-  card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
-    h('h3', null, title), ...body,
-    h('div', { class: 'rt-actions' }, ...signInRow(where, close), ...acts(close),
-      h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
-  track('prompt', where + '.shown');
-  document.getElementById('stage').append(card);
-}
-const nudgeUp = () => ['saveNudge', 'returnNudge', 'workNudge', 'welcome', 'coach'].some(id => document.getElementById(id));
-function saveNudge() {
-  if (!accountsOn() || account !== null || !accountKnown || nudgeUp() || !nudgeAllowed()) return;     // signed out, once that is known
-  nudgeTaken();
-  nudgeCard('saveNudge', 'save', 'Saved to your downloads', [h('p', null, 'That file keeps the bench on this computer.'),
-    freeLead('Create a free account or sign in.', 'With JEKrayPro your benches also save to the cloud as you work, with their history, and open on any computer.'), uniNote()], () => []);
-}
-/* a bench restored from this browser on a later visit, signed out: kept here alone, so a file or an account.
-   again: this session had the page open before (a reload); arrived: the address the visit came by */
-function returnNudge(again, arrived) {
-  let last = 0, invite = false;
-  try { last = localStorage.getItem(NUDGE_KEY); invite = !!sessionStorage.getItem('jekinvite'); } catch (err) { return; }
-  if (!returnDue({ on: accountsOn(), restored: true, again, signedOut: account === null && accountKnown, parts: project ? project.elements.length : 0,
-    busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
-  nudgeTaken();
-  nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
-    freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
-  close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
-}
-/* ---------- A free account offered in a note ----------
-   The first-visit welcome note (where 'welcome') offers a free account, one click each way, to anyone signed out: a
-   first visit may only look, and never edit enough to be asked after its work. Counted as 'prompt' <where>.<answer>. */
-function accountOffer(where) {
-  if (!accountsOn() || account) return null;
-  track('prompt', where + '.shown');
-  return h('div', { class: 'rt-landacct' },
-    h('p', null, h('b', null, 'Free account, one click:'), ' export images and data, part packs and the experimental features. Your bench stays as it is.'),
-    h('div', { class: 'rt-actions' }, ...signInRow(where, () => {})));
-}
-/* ---------- A bench worked on, signed out ----------
-   Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
-   a free account for what it gives (exports, part packs, the experimental features), once a session and never
-   mid-drag, and the bench is kept across the sign-in. Back signed in, it goes to the cloud when their plan saves
-   there (Save to cloud's dialog, named already); on the free plan it stays here, and they are told what is theirs. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
-   ('goal' edit), the note shown (ask) and a way in chosen (ask-yes). */
-const WORK_KEY = 'jek-work-ask';             // in this tab's store: 'shown' once asked, 'signin' while signing in from it
-const WORK_QUIET = 2000;                     // still this long after an edit before it is looked at
-const work = { n: 0, t0: 0, timer: 0 };
-const workState = () => { try { return sessionStorage.getItem(WORK_KEY) || ''; } catch (err) { return 'shown'; } };
-const setWork = v => { try { if (v) sessionStorage.setItem(WORK_KEY, v); else sessionStorage.removeItem(WORK_KEY); } catch (err) { /* asked again next visit: fine */ } };
-// on a phone, the settings sheet over the bench's lower half, where the note would go: it waits for the sheet to close
-const sheetUp = () => phoneSheet() && document.getElementById('panel').style.display !== 'none';
-/* an edit of the bench (tabs.js checkpoint): counted, and the note looked at once the bench has been still a moment */
-function benchEdited() {
-  if (!work.n++) { work.t0 = Date.now(); goal('edit'); }
-  if (!accountsOn() || account || workState()) return;
-  clearTimeout(work.timer);
-  work.timer = setTimeout(workNudge, WORK_QUIET);
-}
-function workNudge() {
-  work.timer = 0;
-  const since = Date.now() - work.t0, notes = ['welcome'].map(id => document.getElementById(id)).filter(Boolean);
-  // not mid-drag, nor over a dialog, a tour or another prompt: looked at again shortly (the welcome note gives way)
-  const due = workDue({ on: accountsOn(), signedOut: account === null && accountKnown, asked: !!workState(), parts: project ? project.elements.length : 0, edits: work.n, since,
-    busy: !!drag || ['saveNudge', 'returnNudge', 'coach'].some(id => document.getElementById(id)) || !!document.querySelector('dialog[open]') || sheetUp() });
-  if (due === 'later') { work.timer = setTimeout(workNudge, work.n < WORK_EDITS && since < WORK_MS ? WORK_MS - since : 5000); return; }
-  if (due !== 'now') return;
-  for (const n of notes) n.remove();
-  setWork('shown'); nudgeTaken(); goal('ask');
-  const card = h('div', { class: 'rt-welcome rt-nudge', id: 'workNudge', role: 'status' });
-  const close = () => card.remove(), no = () => { track('prompt', 'work.no'); close(); };
-  // a way in: the bench comes back as it is, and is saved for them when it can be
-  const yes = (p, fn) => () => { track('prompt', 'work.' + p); goal('ask-yes'); setWork('signin'); close(); fn(); };
-  card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
-    h('h3', null, 'Export this bench\u2019s images and data? Free account, one click'),
-    freeLead('One click with Google, Microsoft or your email.', 'Your bench stays as it is while you sign in.'),
-    uniNote(),
-    h('div', { class: 'rt-actions' },
-      h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
-  track('prompt', 'work.shown');
-  document.getElementById('stage').append(card);
-}
-/* back from a sign-in begun at that note: the bench into the cloud where the plan allows, else said where it is */
-function workSignedIn() {
-  if (workState() !== 'signin' || !accountKnown) return;
-  setWork('shown');
-  if (!account) return;                               // cancelled, or it failed: nothing more
-  if (cloud) return;                                  // already a cloud bench, saving as it goes
-  if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
-  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
-}
-/* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
-   file; signed in on the free plan, the file, and where cloud saving comes from */
-function sharedCopyPrompt() {
-  track('prompt', 'shared.shown');
-  const dlg = promptDialog('sharedCopy'), close = () => dlg.close();
-  const file = (primary) => h('button', { class: 'rt-btn' + (primary ? ' primary' : ''), type: 'button', onclick: () => { track('prompt', 'shared.file'); close(); saveFile(); } }, 'Save as a file');
-  const no = h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.no'); close(); } }, 'Not now');
-  const cloudLine = 'Saving to the cloud comes with JEKrayPro or a university licence: the copy is then yours in My benches, on any computer.';
-  dlg.replaceChildren(h('h2', { id: 'sharedCopyTitle' }, 'Save a copy of this bench'), ...(account
-    ? [h('p', null, cloudLine + ' For now, save it as a .jekray file.'),
-      h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.pro'); close(); showSubscribe(); } }, 'JEKrayPro and licences\u2026'), no, file(true))]
-    : [freeLead('Create a free account or sign in.', cloudLine), uniNote(),
-      h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('shared', close)),
-      h('p', { class: 'note' }, 'Or keep it on this computer as a .jekray file.'),
-      h('div', { class: 'rt-actions' }, no, file(false))]));
-  dlg.showModal();
 }
 // accounts are part of the tool (open beta); not in an embed, nor in test mode
 const accountsOn = () => !TEST_MODE && !EMBED;
@@ -54776,18 +54605,15 @@ let accountLoaded = null, orcidWarned = false;       // the first look at the ac
 async function proLink() {
   await accountLoaded;
   const mine = account && account.workspaces.find(w => w.kind === 'personal');
-  if (mine && mine.active) { toast(account.licence ? 'You have JEKrayPro through ' + account.licence.name : 'You already have JEKrayPro'); return; }
+  if (mine && mine.active) { acctSay(account.licence ? 'You have JEKrayPro through ' + account.licence.name : 'You already have JEKrayPro'); return; }
   showSubscribe();
 }
 // sign in from the plans (an existing account, or to make a team)
-function proSignIn() {
-  const btn = document.getElementById('btnAcct');
-  if (btn && document.getElementById('acctMenu').hidden) btn.click();
-}
+function proSignIn() { hooks.openAccountMenu(); }
 function accountShown() {
   const on = accountsOn();
-  document.getElementById('acct').hidden = !on;
-  cloudMenuShown();
+  const box = document.getElementById('acct'); if (box) box.hidden = !on;
+  hooks.accountChanged();
   if (on && account === undefined && !TEST_MODE) { account = null; fillAccount(); accountLoaded = loadAccount(); }
 }
 
@@ -54795,13 +54621,14 @@ function accountShown() {
 function wireAccount() {
   const gp = document.getElementById('btnGetPro');
   if (gp) gp.addEventListener('click', () => { track('prompt', 'getpro.plans'); showSubscribe(); });
-  hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown }); hooks.exportSignIn = exportSignIn;
+  hooks.account = () => ({ on: accountsOn(), signedIn: !!account, known: accountKnown });
   hooks.apiBase = () => API_BASE; hooks.usageTier = () => (!account ? 'anon' : (account.workspaces || []).some(w => w.active && w.kind !== 'institution') ? 'pro' : 'free');
-  document.getElementById('uniClose').addEventListener('click', () => document.getElementById('uniDialog').close());
-  document.getElementById('teamClose').addEventListener('click', () => document.getElementById('teamDialog').close());
-  document.getElementById('acctClose').addEventListener('click', () => document.getElementById('acctDialog').close());
-  // the signed-out menu is a prompt too: counted as it opens (after packs.js has opened it)
-  document.getElementById('btnAcct').addEventListener('click', () => { if (account === null && !document.getElementById('acctMenu').hidden) track('prompt', 'menu.shown'); });
+  for (const [d, c] of [['uniDialog', 'uniClose'], ['teamDialog', 'teamClose'], ['acctDialog', 'acctClose'], ['subDialog', 'subClose']]) {
+    const b = document.getElementById(c); if (b) b.addEventListener('click', () => document.getElementById(d).close());
+  }
+  // the signed-out menu is a prompt too: counted as it opens (after the app has opened it)
+  const ab = document.getElementById('btnAcct');
+  if (ab) ab.addEventListener('click', () => { const m = document.getElementById('acctMenu'); if (account === null && (!m || !m.hidden)) track('prompt', 'menu.shown'); });
   takeInvite();
 
   {
@@ -54814,13 +54641,27 @@ function wireAccount() {
       try {
         await api('/v1/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: DELETE_WORDS }) });
         dlg.close(); account = null;
-        if (cloud) cloudLink(null);                      // the bench here stays, in this browser only
-        fillAccount(); toast('Your account has been deleted');
+        hooks.accountDeleted();
+        fillAccount(); acctSay('Your account has been deleted');
       } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; }
       go.textContent = 'Delete my account';
     });
   }
 
+}
+
+/* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
+   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+function authOutcome() {
+  const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
+  if (outcome || billing) {
+    q.delete('jekauth'); q.delete('jekauthcode'); q.delete('jekbilling');
+    window.history.replaceState(window.history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  }
+  const m = outcome && AUTH_OUTCOMES[outcome];
+  if (m) setTimeout(() => acctSay(m[0] + (code && /^[\w-]{1,40}$/.test(code) ? ' (Microsoft: ' + code + ')' : ''), m[1]), 600);
+  if (billing === 'cancelled') setTimeout(() => acctSay('Payment cancelled: nothing was charged'), 600);
+  if (billing === 'success' && accountsOn()) setTimeout(() => awaitPlan(), 300);
 }
 /* ---------- Usage counts ----------
    How the tool is used, so it can be made better: which parts are added, which designers and analyses are
@@ -55235,7 +55076,6 @@ function newCloudBench(ws, folder, saveThis, then) {
       setCloudOpening(true);
       try { newProject(); project.name = b.name; document.getElementById('projName').value = b.name; } finally { setCloudOpening(false); }
       cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
-      if (homeOpen()) closeHome();
       toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
       // straight into a workspace: a starting design on the new bench, or the coating workspace on its own
       if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') openCoatDesign(null);
@@ -55345,16 +55185,14 @@ function conflictMerge(link, base, who) {
     toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
   });
 }
-/* ---------- My benches ----------
-   A page of its own over the tool, as a CAD system's documents page: places down the left
-   (each workspace, Recent, its folders, the bin), the benches as cards with their pictures,
-   or as rows. A card's ⋯ menu opens, forks, renames, moves and deletes; a bench's history
-   opens a copy of any version, forks from it, or restores it. Opened from the File menu, the
-   bar's My benches button, or #benches; Esc or Back returns to the bench. */
-const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null, cmp: null };
-const HOME_KEY = 'jek-home-view';
-const homeView = { sort: 'changed', rows: false };
-const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
+/* ---------- My benches: JEKspace ----------
+   Every cloud bench, of every app, is on JEKspace (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
+   (named, so it is the same tab each time): the bar's cloud button, File › My benches, #benches and My parts' Manage
+   link open it there. A bench opened from it comes back here as #cloud=<id>. */
+const SPACE_URL = '/jek/tools/jekspace.html';
+function openSpace(hash) { const w = window.open(SPACE_URL + (hash ? '#' + hash : ''), 'jekspace'); if (w) w.focus(); }
+// where Save to cloud puts a bench first: the person's own workspace
+const cloudPlace = { ws: null, folder: null };
 const whenAgo = t => {
   const d = new Date(t), s = (Date.now() - t) / 1000;
   if (s < 60) return 'just now';
@@ -55362,97 +55200,16 @@ const whenAgo = t => {
   const hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return new Date().toDateString() === d.toDateString() ? 'today ' + hm : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) + ' ' + hm;
 };
-const HOME_ICONS = {
-  folder: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z', recent: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 4.5V8L10.5 9.5',
-  fork: MENU_ICONS.fork, copy: MENU_ICONS.paste,
-  list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5', grid: MENU_ICONS.gallery, trash: MENU_ICONS.trash,
-  bench: 'M1.5 3.5H14.5V12.5H1.5Z M4 6H4.1 M8 6H8.1 M12 6H12.1 M4 10H4.1 M8 10H8.1 M12 10H12.1', open: MENU_ICONS.open,
-  history: MENU_ICONS.history, rename: 'M10.5 2.5L13.5 5.5L5.5 13.5H2.5V10.5Z M9 4L12 7', move: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z M6 9H10.5 M8.5 7L10.5 9L8.5 11',
-  restore: 'M3 8A5 5 0 1 0 4.5 4.4 M3 2V5H6', star: MENU_ICONS.star, link: MENU_ICONS.link,
-};
-const homeIcon = name => {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
-  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  p.setAttribute('d', HOME_ICONS[name] || ''); svg.append(p);
-  return svg;
-};
-const homeOpen = () => !document.getElementById('home').hidden;
-const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-let homeSeq = 0, homeRO = null;
-/* a card's menu: [label, icon, fn, cls] items, 'sep', or an element */
-let homeMenu = null;
-function closeHomeMenu() {
-  if (!homeMenu) return;
-  const { el, btn } = homeMenu; homeMenu = null;
-  el.remove(); btn.setAttribute('aria-expanded', 'false');
-}
-function openHomeMenu(btn, items) {
-  if (homeMenu && homeMenu.btn === btn) { closeHomeMenu(); return; }
-  closeHomeMenu();
-  const el = h('div', { class: 'rt-hmenu', role: 'menu' }, ...items.filter(Boolean).map(it => it === 'sep' ? h('div', { class: 'sep' }) : it instanceof Node ? it
-    : h('button', { type: 'button', role: 'menuitem', class: it[3] || null, onclick: () => { closeHomeMenu(); it[2](); } }, homeIcon(it[1]), it[0])));
-  document.getElementById('home').append(el);
-  const r = btn.getBoundingClientRect(), w = el.offsetWidth, hh = el.offsetHeight;
-  el.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
-  el.style.top = (r.bottom + 4 + hh > innerHeight - 8 ? Math.max(8, r.top - 4 - hh) : r.bottom + 4) + 'px';
-  btn.setAttribute('aria-expanded', 'true');
-  homeMenu = { el, btn };
-  const first = el.querySelector('button, select'); if (first) first.focus();
-}
-const homeSay = (fn, ok) => async () => {
-  try { const out = await fn(); if (ok) toast(typeof ok === 'function' ? ok(out) : ok); }
-  catch (err) { toast(err.status === 402 ? 'That needs JEKrayPro.' : err.message, true); }
-  if (homeOpen()) fillHome();
-};
-// open a cloud bench on the bench, leaving this page
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
 const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
-async function homeOpenBench(id, version, b) {
-  if (b && b.tool === 'jekion') { openInJekion(b, version); return; }
-  try {
-    if (cloud && cloud.dirty && cloud.id !== id) await cloudPush({ quiet: true });
-    await cloudOpen(id, version);
-    closeHome();
-  } catch (err) { toast(err.message, true); }
-}
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
-// a copy of a bench, as it is now, into another workspace: a fork there, so it remembers where it came from
-function homeCopy(b, btn) {
-  const places = copyPlaces(b.workspace_id);
-  const sel = h('select', { 'aria-label': 'Copy to workspace' }, h('option', { value: '' }, 'Choose…'), ...places.map(w => h('option', { value: w.id }, placeName(w))));
-  sel.addEventListener('change', () => {
-    const w = places.find(x => x.id === sel.value);
-    if (!w) return;
-    closeHomeMenu();
-    const name = prompt('Name of the copy in ' + placeName(w), b.name);
-    if (name === null) return;
-    homeSay(async () => {
-      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: w.id })));
-      Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
-      return f;
-    }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
-  });
-  openHomeMenu(btn, [h('div', { class: 'rt-menunote' }, 'Copy “' + b.name + '” to'), sel]);
-}
-// a fork: of the bench as it is now, or of one of its versions; named first
-function homeFork(b, version, after) {
-  const name = prompt('Name of the fork', b.name + (version ? ' (v' + version + ')' : ' (fork)'));
-  if (name === null) return;
-  homeSay(async () => {
-    const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody(Object.assign({ name: name.trim() || undefined }, version ? { version } : {}))));
-    if (after) after(f); else cloudPlace.flash = f.id;
-    return f;
-  }, f => 'Forked as “' + f.name + '”')();
-}
-/* ---------- compare and merge ----------
-   Compare: two versions of a bench, item by item (src/io/merge.js). Merge: a fork back into
-   the bench it came from, or that bench's changes into the fork, from the version the fork
-   left at. The bench it lands in is checkpointed first ("Before merging"), the merged bench
-   is opened on the bench to look at, and its next save is a labelled version. */
+/* ---------- merging a save conflict ----------
+   This copy's changes and the cloud's newer version, item by item (src/io/merge.js), over the version this copy
+   came from. The cloud's is kept as a version first ("Before merging"), the merged bench is opened on the bench
+   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKspace's. */
 function diffNodes(d, fromName, toName) {
   if (!d.count) return [h('p', null, 'No difference between ' + fromName + ' and ' + toName + '.')];
   const word = i => KIND_WORD[i.kind] + ' ' + i.label;
@@ -55462,27 +55219,6 @@ function diffNodes(d, fromName, toName) {
   return [h('p', null, 'From ' + fromName + ' to ' + toName + ': ' + d.count + (d.count === 1 ? ' change.' : ' changes.')), h('ul', { class: 'rt-difflist' }, ...rows, ...sets)];
 }
 const versionContent = async (id, v) => JSON.parse((await api('/v1/benches/' + id + '/versions/' + v)).content);
-async function homeCompare(b, va, vb) {
-  const dlg = document.getElementById('diffDialog'), body = document.getElementById('diffBody');
-  const [lo, hi] = va < vb ? [va, vb] : [vb, va];
-  document.getElementById('diffTitle').textContent = '“' + b.name + '”: version ' + lo + ' to ' + hi;
-  body.replaceChildren(h('p', null, 'Comparing…'));
-  if (!dlg.open) dlg.showModal();
-  try {
-    const [A, B] = await Promise.all([versionContent(b.id, lo), versionContent(b.id, hi)]);
-    body.replaceChildren(...diffNodes(diffProject(A, B), 'version ' + lo, 'version ' + hi));
-  } catch (err) { body.replaceChildren(h('p', { class: 'rt-error' }, err.message)); }
-}
-function homeMerge(target, source, baseVersion, baseBench) {
-  mergeDialog({
-    title: 'Merge “' + source.name + '” into “' + target.name + '”', target, source,
-    baseWord: 'version ' + baseVersion + ' of “' + (baseBench === target.id ? target.name : source.name) + '”',
-    parts: async () => { const [base, T, S] = await Promise.all([versionContent(baseBench, baseVersion), api('/v1/benches/' + target.id), api('/v1/benches/' + source.id)]); return { base, T, S }; },
-    sourceWord: '“' + source.name + '”', keptLabel: 'Before merging “' + source.name + '”', mergedLabel: (T, S) => 'Merged from “' + source.name + '”, version ' + S.version,
-    openWord: T => '“' + T.name + '” merged with “' + source.name + '”', closeHome: true,
-    toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
-  });
-}
 /* the merge dialog: a three-way merge of the target's head and a source over a common base,
    each clash chosen by hand, the gains listed, and the result opened on the bench as a new
    version of the target, the target's head kept first as a version to come back to */
@@ -55525,377 +55261,13 @@ async function mergeDialog(o) {
       try { openProjectData(merged, o.openWord(T)); } finally { setCloudOpening(false); }
       cloudLink({ id: target.id, ws: T.workspace_id, version: kept.version, name: T.name, dirty: true, label: o.mergedLabel(T, S) });
       cloudChanged();
-      dlg.close(); if (o.closeHome) closeHome();
+      dlg.close();
       toast(o.toastWord);
     } catch (err) {
       toast(err.status === 423 ? (err.editing ? err.editing.name : 'Someone') + ' is editing “' + target.name + '”: merge when they are done.' : err.status === 409 ? '“' + target.name + '” changed just now: open the merge again.' : err.message, true);
       go.disabled = false;
     }
   };
-}
-async function fillHome() {
-  const box = document.getElementById('homeList'), rail = document.getElementById('homeRail');
-  const crumbs = document.getElementById('homeCrumbs'), tools = document.getElementById('homeTools'), note = document.getElementById('homeNote');
-  if (!account) { closeHome(); return; }
-  const places = account.workspaces.filter(w => w.kind !== 'institution');
-  if (!cloudPlace.ws || !places.some(w => w.id === cloudPlace.ws)) cloudPlace.ws = personalWs().id;
-  const ws = cloudPlace.ws, wsInfo = places.find(w => w.id === ws), P = cloudPlace;
-  const top = wsInfo && wsInfo.kind !== 'personal' ? wsInfo.name : 'My benches';
-  const seq = ++homeSeq;
-  if (!box.children.length) box.replaceChildren(h('p', { class: 'rt-hempty' }, 'Loading…'));
-  box.setAttribute('aria-busy', 'true');
-  let folders = [], data;
-  try {
-    [{ folders }, data] = await Promise.all([api('/v1/workspaces/' + ws + '/folders'),
-      P.view === 'history' ? api('/v1/benches/' + P.history.id + '/versions')
-        : P.view === 'parts' ? api('/v1/workspaces/' + ws + '/parts')
-        : P.view === 'links' ? api('/v1/me/links')
-        : api('/v1/workspaces/' + ws + '/benches?' + new URLSearchParams(P.view === 'bin' ? { bin: '1' } : P.q ? { q: P.q } : P.view === 'recent' ? {} : { folder: P.folder || '' }))]);
-  } catch (err) {
-    if (seq !== homeSeq) return;
-    box.removeAttribute('aria-busy');
-    if (err.status === 404 && P.view === 'history') { Object.assign(P, { view: 'folder', history: null }); toast('That bench is not available to you', true); fillHome(); return; }
-    box.replaceChildren(h('p', { class: 'rt-hempty' }, err.status === 401 ? 'You are signed out. Sign in again from the bench, top right.' : 'Could not reach your benches: ' + err.message));
-    if (err.status === 401) { setAccount(null); fillAccount(); }
-    return;
-  }
-  if (seq !== homeSeq) return;
-  box.removeAttribute('aria-busy');
-  const byId = new Map(folders.map(f => [f.id, f]));
-  if (P.folder && !byId.has(P.folder)) P.folder = null;
-  // share links are the person's own, not a workspace's: shown with their personal workspace
-  if (P.view === 'links' && wsInfo && wsInfo.kind !== 'personal') { P.view = 'folder'; fillHome(); return; }
-  const go = (view, folder = null) => () => { closeHomeMenu(); Object.assign(P, { view, folder, q: '', history: null }); document.getElementById('homeSearch').value = ''; fillHome(); document.getElementById('homeMain').scrollTop = 0; };
-  const pathOf = id => { const out = []; for (let f = byId.get(id); f; f = byId.get(f.parent_id)) out.unshift(f); return out; };
-  // the rail: workspaces, then this one's places and folders
-  const here = (view, folder) => !P.q && P.view === view && (view !== 'folder' || P.folder === folder);
-  // My parts, kept up to date for the picker and the rail too (they show the personal workspace's)
-  if (P.view === 'parts' && personalWs() && ws === personalWs().id) Object.assign(MINE, { list: data.parts.slice(), ws, active: !!data.active });
-  const railBtn = (label, icon, on, fn, depth = 0) => h('button', { type: 'button', 'aria-current': on ? 'true' : 'false', onclick: fn, title: label, style: depth ? 'padding-left:' + (0.6 + depth * 0.9) + 'rem' : null }, homeIcon(icon), h('span', null, label));
-  const tree = [];
-  const walk = (parent, depth) => { for (const f of folders.filter(f => (f.parent_id || null) === parent).sort((a, b) => a.name.localeCompare(b.name))) { tree.push(railBtn(f.name, 'folder', here('folder', f.id), go('folder', f.id), depth)); walk(f.id, depth + 1); } };
-  walk(null, 1);
-  const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
-  if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
-  rail.replaceChildren(...[
-    places.length > 1 ? h('h2', null, 'Workspaces') : null,
-    ...(places.length > 1 ? places.map(w => railBtn(w.kind === 'personal' ? 'My benches' : w.name, w.kind === 'personal' ? 'bench' : 'folder', w.id === ws, () => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); })) : []),
-    h('h2', null, places.length > 1 ? top : 'Benches'),
-    railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', here('folder', null), go('folder', null)),
-    railBtn('Recent', 'recent', here('recent'), go('recent')),
-    railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', go('parts')),
-    wsInfo && wsInfo.kind === 'personal' ? railBtn('My links', 'link', P.view === 'links', go('links')) : null,
-    ...tree,
-    railBtn('Bin', 'trash', here('bin'), go('bin')),
-    h('div', { class: 'rt-hfoot' },
-      used ? h('span', null, kb(used.bytes) + ' of ' + kb(used.quota) + ' used') : null,
-      used ? h('div', { class: 'rt-hmeter', role: 'progressbar', 'aria-label': 'Cloud storage used', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(100 * used.bytes / used.quota)) },
-        h('span', { style: 'width:' + Math.min(100, Math.max(1, 100 * used.bytes / used.quota)).toFixed(1) + '%' })) : null,
-      h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download everything (.zip)'),
-      h('span', null, 'Signed in as ' + (account.user.name || account.user.email || 'you')))].filter(Boolean));
-  // where we are
-  const link = (label, fn) => h('button', { type: 'button', class: 'rt-link', onclick: fn }, label);
-  const sep = ' › ';
-  if (P.view === 'history') {
-    const b = data.bench;
-    crumbs.replaceChildren(link(top, go('folder', null)), ...pathOf(b.folder_id).flatMap(f => [sep, link(f.name, go('folder', f.id))]), sep, b.name);
-  } else crumbs.replaceChildren(...(P.q ? [link(top, go('folder', null)), sep, 'Search: “' + P.q + '”']
-    : P.view === 'bin' ? [link(top, go('folder', null)), sep, 'Bin'] : P.view === 'recent' ? [link(top, go('folder', null)), sep, 'Recent']
-    : pathOf(P.folder).length ? [link(top, go('folder', null)), ...pathOf(P.folder).flatMap((f, i, a) => [sep, i === a.length - 1 ? f.name : link(f.name, go('folder', f.id))])] : [top]));
-  document.getElementById('homeWhere').textContent = top;
-  const writer = data.role ? ['owner', 'admin', 'editor'].includes(data.role) : wsInfo ? ['owner', 'admin', 'editor'].includes(wsInfo.role || 'owner') : true;
-  const active = data.active !== undefined ? data.active : !!(wsInfo && wsInfo.active);
-  const can = writer && active;
-  note.hidden = active || P.view === 'history';
-  note.replaceChildren('Saving, forking and organising need JEKrayPro. Benches here can still be opened and downloaded. ', link('Subscribe', () => { closeHome(); showSubscribe(); }));
-  // the tools: sort, grid or rows, a new folder
-  const keepView = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify(homeView)); } catch (err) { /* this visit only */ } };
-  const listing = P.view !== 'history' && P.view !== 'bin';
-  const sortSel = listing ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; keepView(); fillHome(); } },
-    ...[['changed', 'Last changed'], ['name', 'Name'], ['size', 'Size']].map(([v, t]) => { const o = h('option', { value: v }, t); o.selected = homeView.sort === v; return o; })) : null;
-  tools.replaceChildren(...[sortSel,
-    P.view !== 'history' ? h('button', { type: 'button', class: 'rt-btn', title: homeView.rows ? 'Show as cards' : 'Show as a list', 'aria-label': homeView.rows ? 'Show as cards' : 'Show as a list',
-      onclick: () => { homeView.rows = !homeView.rows; keepView(); fillHome(); } }, homeIcon(homeView.rows ? 'grid' : 'list')) : null,
-    P.view === 'parts' ? h('button', { type: 'button', class: 'rt-btn', title: 'Thorlabs, Edmund and other makers publish their lenses, mirrors and beam splitters as .zmx files',
-      onclick: () => { if (!can) { closeHome(); showSubscribe(); return; } openZmx(true); } }, homeIcon('open'), ' Import .zmx files…') : null,
-    P.view === 'folder' && !P.q && can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => {
-      const name = (prompt('Name of the new folder') || '').trim();
-      if (name) homeSay(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, jsonBody({ name, parent_id: P.folder }))))();
-    } }, homeIcon('folder'), ' New folder') : null].filter(Boolean));
-  for (const b of tools.querySelectorAll('.rt-btn')) b.style.cssText = 'display:inline-flex;align-items:center;gap:0.3rem';
-  box.classList.toggle('rows', homeView.rows && P.view !== 'history');
-  // the history of one bench, as a graph down the side: its versions on one line, newest at
-  // the top; each fork branching off from the version it was made from, at the time it was
-  // made; and the bench it was itself forked from, at the foot
-  if (P.view === 'history') {
-    // a fork or an original in another workspace: shown in its own, with its own rights
-    if (data.bench.workspace_id !== ws && places.some(w => w.id === data.bench.workspace_id)) { P.ws = data.bench.workspace_id; fillHome(); return; }
-    const b = data.bench, mine = cloud && cloud.id === b.id, origin = data.forked_from;
-    const toHist = (id, name) => () => { Object.assign(P, { view: 'history', history: { id, name }, cmp: null }); fillHome(); document.getElementById('homeMain').scrollTop = 0; };
-    const side = h('div', { class: 'rt-hside' },
-      b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
-      h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
-      h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id, null, b) }, b.tool === 'jekion' ? 'Open in JEKion' : 'Open'),
-        can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
-      helpLine('Versions are kept as you work: the last 50, then one a day for 90 days.', ['A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'], 'rt-subsmall'));
-    // the events, newest first: a fork comes just after the version it was made from
-    const ev = [...data.versions.map(v => ({ kind: 'v', t: v.created_at, v })), ...data.forks.map(f => ({ kind: 'f', t: f.created_at, f }))]
-      .sort((x, y) => y.t - x.t || (x.kind === 'f' ? -1 : 1));
-    if (origin) ev.push({ kind: 'o' });
-    const rowOf = new Map();
-    ev.forEach((e, i) => { if (e.kind === 'v') rowOf.set(e.v.version, i); });
-    const vRows = ev.map((e, i) => e.kind === 'v' ? i : -1).filter(i => i >= 0);
-    // a version merged from a fork: its row joins the fork's lane back to the main line
-    const MERGED = /^Merged from “(.+)”, version (\d+)$/;
-    ev.forEach((e, i) => {
-      if (e.kind !== 'v' || !e.v.label) return;
-      const mm = MERGED.exec(e.v.label); if (!mm) return;
-      const f = ev.find((x, j) => x.kind === 'f' && j > i && x.f.name === mm[1]);
-      if (f) (f.merges = f.merges || []).push(i);
-    });
-    // each fork's lane: the lowest one free between its earliest merge row and its version's
-    const LANES = 5, busy = [];   // per lane, the rows it is taken on, as [top, bottom]
-    for (const [i, e] of ev.entries()) {
-      if (e.kind !== 'f') continue;
-      let at = rowOf.get(e.f.version);
-      if (at === undefined || at < i) at = vRows.find(r => r > i && ev[r].v.version <= e.f.version) ?? ev.length - 1;
-      const top = e.merges ? Math.min(i, ...e.merges) : i;
-      let lane = 1;
-      while (lane < LANES && (busy[lane] || []).some(([a, b]) => a <= at && b >= top)) lane++;
-      (busy[lane] = busy[lane] || []).push([top, at]);
-      e.lane = lane; e.from = at;
-    }
-    const lanes = Math.max(0, ...ev.map(e => e.lane || 0));
-    const X0 = 14, DX = 20, G = X0 + lanes * DX + 16;
-    const COLOURS = ['var(--jek-cyan)', 'var(--jek-orange)', '#7a5cc4', 'var(--jek-red)', '#2e8b57'];
-    const rows = ev.map(e => {
-      if (e.kind === 'v') {
-        const v = e.v;
-        return h('div', { class: 'rt-hev' + (v.version === b.version ? ' head' : '') },
-          h('span', { class: 'when' }, whenAgo(v.created_at)),
-          h('span', { class: 'what' }, 'Version ' + v.version, ' ', h('small', null, [v.version === b.version ? 'current' : null, v.created_by && v.created_by.name, v.label, kb(v.size_bytes)].filter(Boolean).join(' · '))),
-          h('span', { class: 'acts' },
-            link('Open a copy', () => homeOpenBench(b.id, v.version, b)),
-            P.cmp === v.version ? link('Cancel compare', () => { P.cmp = null; fillHome(); })
-              : P.cmp ? link('Compare with v' + P.cmp, () => { const a = P.cmp; P.cmp = null; fillHome(); homeCompare(b, a, v.version); })
-              : link('Compare…', () => { P.cmp = v.version; fillHome(); toast('Now choose the version to compare it with'); }),
-            can ? link('Fork from here', () => homeFork(b, v.version, () => {})) : null,
-            can && v.version !== b.version ? link('Restore', homeSay(async () => {
-              await api('/v1/benches/' + b.id + '/versions/' + v.version + '/restore', { method: 'POST' });
-              if (cloud && cloud.id === b.id) await cloudOpen(b.id);
-            }, 'Restored version ' + v.version)) : null));
-      }
-      if (e.kind === 'f') {
-        const f = e.f;
-        return h('div', { class: 'rt-hev fork', style: '--lane:' + COLOURS[(e.lane - 1) % COLOURS.length] },
-          f.thumb ? h('img', { class: 'thumb', src: API_BASE + f.thumb, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb', 'aria-hidden': 'true' }),
-          h('span', { class: 'what' }, homeIcon('fork'), ' ', link(f.name, toHist(f.id, f.name)), ' ',
-            h('small', null, ['forked from version ' + f.version, f.created_by, whenAgo(f.created_at), f.forks ? (f.forks === 1 ? '1 fork of its own' : f.forks + ' forks of its own') : null].filter(Boolean).join(' · '))),
-          h('span', { class: 'acts' }, link('Open', () => homeOpenBench(f.id)), link('History', toHist(f.id, f.name)),
-            can ? link('Merge into this bench…', () => homeMerge({ id: b.id, name: b.name }, { id: f.id, name: f.name }, f.version, b.id)) : null));
-      }
-      return h('div', { class: 'rt-hev origin' },
-        h('span', { class: 'what' }, 'Forked from ', link('“' + origin.name + '”', toHist(origin.id, origin.name)), ', version ' + origin.version),
-        h('span', { class: 'acts' },
-          link('Merge this fork into it…', () => homeMerge({ id: origin.id, name: origin.name }, { id: b.id, name: b.name }, origin.version, origin.id)),
-          can ? link('Bring its changes in…', () => homeMerge({ id: b.id, name: b.name }, { id: origin.id, name: origin.name }, origin.version, origin.id)) : null));
-    });
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'rt-hlines'); svg.setAttribute('aria-hidden', 'true');
-    const list = h('div', { class: 'rt-hevs', style: '--g:' + G + 'px' }, ...rows);
-    const graph = h('div', { class: 'rt-hgraph' }, svg, list);
-    const draw = () => {
-      const H = list.offsetHeight, ys = rows.map(r => r.offsetTop + Math.min(r.offsetHeight / 2, 20));
-      svg.setAttribute('width', G); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + G + ' ' + H);
-      const NS = 'http://www.w3.org/2000/svg', el = (tag, at) => { const n = document.createElementNS(NS, tag); for (const k in at) n.setAttribute(k, at[k]); svg.append(n); return n; };
-      svg.replaceChildren();
-      const firstV = ev.findIndex(e => e.kind === 'v'), lastV = ev.length - 1 - [...ev].reverse().findIndex(e => e.kind === 'v');
-      if (firstV >= 0) el('path', { d: 'M' + X0 + ' ' + ys[firstV] + 'V' + ys[lastV], class: 'main' });
-      if (origin && lastV >= 0) el('path', { d: 'M' + X0 + ' ' + ys[lastV] + 'V' + ys[ev.length - 1], class: 'main from' });
-      ev.forEach((e, i) => {
-        if (e.kind !== 'f') return;
-        const x = X0 + e.lane * DX, y0 = ys[e.from], y1 = ys[i], c = COLOURS[(e.lane - 1) % COLOURS.length];
-        const bend = Math.min(14, (y0 - y1) / 2);
-        el('path', { d: 'M' + X0 + ' ' + y0 + 'C' + X0 + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - bend) + ' ' + x + ' ' + (y0 - 2 * bend) + 'V' + y1, class: 'branch', style: 'stroke:' + c });
-        // and back in, to each version merged from it
-        for (const r of e.merges || []) {
-          const ym = ys[r], mb = Math.min(14, (y1 - ym) / 2);
-          el('path', { d: 'M' + x + ' ' + y1 + 'V' + (ym + 2 * mb) + 'C' + x + ' ' + (ym + mb) + ' ' + X0 + ' ' + (ym + mb) + ' ' + X0 + ' ' + ym, class: 'branch merge', style: 'stroke:' + c });
-        }
-      });
-      ev.forEach((e, i) => {
-        if (e.kind === 'v') el('circle', { cx: X0, cy: ys[i], r: e.v.version === b.version ? 6 : 4.5, class: e.v.version === b.version ? 'node head' : 'node' });
-        else if (e.kind === 'f') el('circle', { cx: X0 + e.lane * DX, cy: ys[i], r: 5, class: 'node fork', style: 'fill:' + COLOURS[(e.lane - 1) % COLOURS.length] });
-        else el('circle', { cx: X0, cy: ys[i], r: 5, class: 'node origin' });
-      });
-    };
-    box.replaceChildren(h('div', { class: 'rt-hhist' }, side, h('div', null,
-      h('h3', null, 'Versions and forks'),
-      ev.length ? graph : h('p', { class: 'rt-hempty' }, 'No versions kept yet.'))));
-    if (homeRO) homeRO.disconnect();
-    if (ev.length) { draw(); homeRO = new ResizeObserver(() => requestAnimationFrame(draw)); homeRO.observe(list); }
-    return;
-  }
-  // My links: the share links made, each a snapshot of a bench as it was: open it, copy its link, or delete it
-  if (P.view === 'links') {
-    const by = { changed: (a, b) => b.created_at - a.created_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => b.created_at - a.created_at);
-    const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
-    const list = data.links.filter(l => words.every(w => (l.name + ' ' + l.id).toLowerCase().includes(w))).sort(by);
-    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? 'My links: “' + P.q + '”' : 'My links');
-    const linkNote = !!(hooks.proWhy && hooks.proWhy());
-    note.hidden = !linkNote;
-    note.replaceChildren('Making share links needs JEKrayPro. The links you made still open for everyone, and you can delete them here. ', link('Subscribe', () => { closeHome(); showSubscribe(); }));
-    const copyLink = (l, btn) => navigator.clipboard.writeText(shortUrl(l.id)).then(() => { toast('Copied ' + shortUrl(l.id)); if (btn) btn.textContent = 'Copied'; }, () => toast(shortUrl(l.id)));
-    const open = l => { closeHome(); openShortLink(l.id); };
-    const del = l => () => {
-      if (!confirm('Delete the link to “' + l.name + '”? Anyone who has ' + shortUrl(l.id) + ' will no longer be able to open it. Your benches are not changed.')) return;
-      homeSay(() => api('/v1/links/' + l.id, { method: 'DELETE' }), 'Deleted: ' + shortUrl(l.id) + ' no longer opens')();
-    };
-    const cards = list.map(l => {
-      const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + l.name, title: 'More' }, '⋯');
-      more.addEventListener('click', () => openHomeMenu(more, [
-        ['Open on the bench', 'open', () => open(l)],
-        ['Copy the link', 'copy', () => copyLink(l)],
-        'sep',
-        ['Delete…', 'trash', del(l), 'danger']]));
-      const copyBtn = h('button', { type: 'button', class: 'rt-link', onclick: e => copyLink(l, e.target) }, 'Copy link');
-      return h('div', { class: 'rt-hcard rt-hlink', 'data-link': l.id },
-        h('button', { type: 'button', class: 'rt-hopen', title: 'Open “' + l.name + '” as it was shared', onclick: () => open(l) }, homeIcon('link'), h('span', { class: 'mono' }, '/s/' + l.id)),
-        h('div', { class: 'rt-hinfo' },
-          h('b', { title: l.name }, l.name),
-          h('small', null, 'Made ' + whenAgo(l.created_at) + ' · ' + kb(l.size_bytes)),
-          h('small', null, l.opens ? 'Opened ' + l.opens + (l.opens === 1 ? ' time' : ' times') + (l.opened_at ? ', last ' + whenAgo(l.opened_at) : '') : 'Not opened yet'),
-          h('small', null, copyBtn)),
-        more);
-    });
-    box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
-      : [h('p', { class: 'rt-hempty' }, P.q ? 'No link matches “' + P.q + '”.'
-        : 'No share links yet. On the bench, Share link makes a short link to the bench as it is then: anyone who opens it sees that snapshot, and it is listed here.')]),
-      helpLine('Each link opens the bench as it was when the link was made.', ['A share link is a snapshot: changing the bench afterwards does not change what the link opens. Share again for a new link to the bench as it is now. Delete a link here and it stops opening at once, for everyone; the benches themselves are not touched. Anyone with a link can open it without an account.'], 'rt-subsmall'));
-    return;
-  }
-  // My parts: the parts kept, as cards with their pictures, to add to the bench, rename or delete
-  if (P.view === 'parts') {
-    const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => a.name.localeCompare(b.name));
-    const words = P.q.toLowerCase().split(/\s+/).filter(Boolean);
-    const list = data.parts.filter(p => words.every(w => (p.name + ' ' + p.summary + ' ' + PALETTE_NAMES[p.palette]).toLowerCase().includes(w))).sort(by);
-    const partsName = wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts';
-    crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? partsName + ': “' + P.q + '”' : partsName);
-    const cards = list.map(p => {
-      const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
-      const add = () => { closeHome(); placeMine(p); };
-      more.addEventListener('click', () => openHomeMenu(more, [
-        ['Add to the bench', 'open', add],
-        'sep',
-        can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the part', p.name) || '').trim(); if (name && name !== p.name) homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(); }] : null,
-        writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from ' + partsName + '? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
-      return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
-        h('button', { type: 'button', class: 'rt-hopen', title: 'Add “' + p.name + '” to the bench', onclick: add },
-          p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
-        h('div', { class: 'rt-hinfo' },
-          h('b', { title: p.name }, p.name),
-          h('small', null, [p.summary, PALETTE_NAMES[p.palette], kb(p.size_bytes)].join(' · ')),
-          h('small', null, 'Kept ' + whenAgo(p.created_at))),
-        more);
-    });
-    box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
-      : [h('p', { class: 'rt-hempty' }, P.q ? 'No part matches “' + P.q + '”.'
-        : 'No parts kept yet. On the bench, set up a part as you want it (a lens of your own, a tuned laser) or a whole assembly, select it, right-click and choose Save to My parts; or import lens files with Import .zmx files above. They are then on every bench, under + Add part › My parts and the rail’s ★.')]),
-      helpLine('Your parts, on every bench and on any computer.', ['Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'], 'rt-subsmall'));
-    return;
-  }
-  // folders, then benches, as cards
-  const bin = P.view === 'bin';
-  const folderCards = P.view === 'folder' && !P.q ? folders.filter(f => (f.parent_id || null) === P.folder).sort((a, b) => a.name.localeCompare(b.name)).map(f => {
-    const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + f.name, title: 'More' }, '⋯');
-    more.addEventListener('click', () => openHomeMenu(more, [
-      ['Open', 'open', go('folder', f.id)],
-      can ? ['Rename', 'rename', () => { const name = (prompt('Rename the folder', f.name) || '').trim(); if (name && name !== f.name) homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))))(); }] : null,
-      writer ? 'sep' : null,
-      writer ? ['Delete', 'trash', homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }), 'Folder deleted'), 'danger'] : null]));
-    return h('div', { class: 'rt-hcard folder' }, h('button', { type: 'button', class: 'rt-hopen', onclick: go('folder', f.id) }, homeIcon('folder'), h('span', null, f.name)), writer ? more : null);
-  }) : [];
-  let benches = data.benches.slice();
-  if (!bin) {
-    const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => b.updated_at - a.updated_at);
-    benches.sort(P.view === 'recent' ? (a, b) => b.updated_at - a.updated_at : by);
-    if (P.view === 'recent') benches = benches.slice(0, 24);
-  }
-  const team = wsInfo && wsInfo.kind !== 'personal';
-  const benchCards = benches.map(b => {
-    const mine = cloud && cloud.id === b.id;
-    const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
-    const moveTo = () => {
-      const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
-        ...folders.map(f => { const o = h('option', { value: f.id }, pathOf(f.id).map(x => x.name).join(' › ')); o.selected = f.id === b.folder_id; return o; }));
-      sel.addEventListener('change', () => { closeHomeMenu(); homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: sel.value || null }))), 'Moved')(); });
-      openHomeMenu(more, [h('div', { class: 'rt-menunote' }, 'Move “' + b.name + '” to'), sel]);
-    };
-    more.addEventListener('click', () => openHomeMenu(more, bin ? [
-      writer ? ['Restore', 'restore', homeSay(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')] : null,
-      ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }]] : [
-      [b.tool === 'jekion' ? 'Open in JEKion' : 'Open', 'open', () => homeOpenBench(b.id, null, b)],
-      ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }],
-      can ? ['Fork…', 'fork', () => homeFork(b)] : null,
-      copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
-      'sep',
-      can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) homeSay(async () => { await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))); if (mine) { cloud.name = name; project.name = name; document.getElementById('projName').value = name; scheduleSave(); } })(); }] : null,
-      can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
-      writer ? ['Delete', 'trash', homeSay(async () => { await api('/v1/benches/' + b.id, { method: 'DELETE' }); if (mine) cloudLink(null); }, '“' + b.name + '” moved to the bin for 30 days'), 'danger'] : null]));
-    const where = (P.q || P.view === 'recent') && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null;
-    return h('div', { class: 'rt-hcard' + (mine ? ' here' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id },
-      h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '”' + (b.tool === 'jekion' ? ' in JEKion' : ''), onclick: bin ? () => more.click() : () => homeOpenBench(b.id, null, b) },
-        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
-      h('div', { class: 'rt-hinfo' },
-        h('b', { title: b.name }, h('span', { class: 'rt-htool' + (b.tool === 'jekion' ? ' ion' : ''), title: b.tool === 'jekion' ? 'A JEKion bench: it opens in JEKion' : 'A JEKray bench: it opens here' }, b.tool === 'jekion' ? 'JEKion' : 'JEKray'), b.name),
-        h('small', null, [b.tool === 'jekion' ? 'Opens in JEKion' : null, mine ? 'Open on the bench' : null, bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
-        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
-        b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),
-      more);
-  });
-  P.flash = null;
-  const out = [];
-  if (folderCards.length) out.push(benchCards.length ? h('h3', null, 'Folders') : null, h('div', { class: 'rt-hgrid folders' }, ...folderCards));
-  if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
-  if (!out.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
-    : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
-    : 'No benches yet. Use Save to cloud in the File menu to put the bench you are working on here, or New bench to start one.'));
-  box.replaceChildren(...out.filter(Boolean));
-}
-// everything but the page (and the dialogs, which may open over it) is out of reach while it is up
-function homeInert(on) {
-  const home = document.getElementById('home');
-  for (const el of [...document.body.children, ...home.parentElement.children]) {
-    if (el === home || el.contains(home) || el.tagName === 'SCRIPT' || el.tagName === 'DIALOG') continue;
-    el.inert = on;
-  }
-}
-function openHome(push = true) {
-  if (!cloudOn()) { if (accountsOn()) proFix('see your benches', 'acct'); else toast('Cloud benches are not available here', true); return; }
-  const home = document.getElementById('home');
-  Object.assign(cloudPlace, { q: '' });
-  if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') Object.assign(cloudPlace, { view: 'folder', history: null });
-  // My parts opens from the picker's link; otherwise the page opens on the benches
-  if (cloudPlace.view === 'parts' && !cloudPlace.toParts) cloudPlace.view = 'folder';
-  cloudPlace.toParts = false;
-  document.getElementById('homeSearch').value = '';
-  home.hidden = false;
-  homeInert(true);
-  document.documentElement.style.overflow = 'hidden';
-  if (push && location.hash !== '#benches') window.history.pushState(null, '', location.pathname + location.search + '#benches');
-  fillHome();
-  (matchMedia('(pointer: fine)').matches ? document.getElementById('homeSearch') : document.getElementById('homeBack')).focus();
-}
-function closeHome() {
-  const home = document.getElementById('home');
-  if (home.hidden) return;
-  closeHomeMenu();
-  home.hidden = true;
-  homeInert(false);
-  document.documentElement.style.overflow = '';
-  if (location.hash === '#benches') window.history.replaceState(null, '', location.pathname + location.search);
-  requestRender();
 }
 /* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
 function cloudGates() {
@@ -55916,7 +55288,6 @@ function cloudMenuShown() {
   fillRail();
   cloudGates();
   if (!TEST_MODE && !on && cloud) cloudSay('Linked to the cloud: sign in to keep saving there');
-  if (!on) closeHome();
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
@@ -55927,15 +55298,11 @@ function wireCloud() {
 
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && cloud && cloud.dirty) cloudPush({ keepalive: true }); });
 
-  try { Object.assign(homeView, JSON.parse(localStorage.getItem(HOME_KEY)) || {}); } catch (err) { /* defaults */ }
-
-  document.addEventListener('pointerdown', e => { if (homeMenu && !homeMenu.el.contains(e.target) && e.target !== homeMenu.btn) closeHomeMenu(); }, true);
-
   {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
-    document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openHome(); });
-    document.getElementById('btnHome').addEventListener('click', () => openHome());
+    document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
+    document.getElementById('btnHome').addEventListener('click', () => openSpace());
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
     document.getElementById('btnCloudFork').addEventListener('click', async e => {
       if (gated(e.currentTarget) || !cloud) return;
@@ -55950,7 +55317,6 @@ function wireCloud() {
         toast('Forked: you are now working on “' + f.name + '”. “' + link.name + '” is as it was.');
       } catch (err) { toast(err.status === 402 ? 'Forking needs JEKrayPro.' : 'Could not fork: ' + err.message, true); }
     });
-    document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
     document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());
     document.getElementById('cloudLockTake').addEventListener('click', async () => {
       if (!cloud) return;
@@ -55961,40 +55327,6 @@ function wireCloud() {
     });
     document.getElementById('cloudLockCopy').addEventListener('click', () => document.getElementById('btnCloudFork').click());
     window.addEventListener('pagehide', () => { if (cloud) leaseStop(cloud); });
-    document.getElementById('homeBack').addEventListener('click', closeHome);
-    // New bench on My benches' page: a cloud bench, in the workspace and folder shown
-    document.getElementById('homeNew').addEventListener('click', () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null));
-    // Open a workspace: a new cloud bench here, opened straight into the lens designer, the RF designer or the coating workspace
-    const wsBtn = document.getElementById('homeWs');
-    wsBtn.addEventListener('click', () => {
-      const into = then => () => newCloudBench(cloudPlace.ws, cloudPlace.view === 'folder' ? cloudPlace.folder : null, false, then);
-      openHomeMenu(wsBtn, [['Optical designer', 'bench', into('lens')], ['RF designer', 'bench', into('rf')], ['Coating design', 'star', into('coat')]]);
-    });
-
-    const search = document.getElementById('homeSearch');
-    let searchT = null;
-    search.addEventListener('input', () => {
-      clearTimeout(searchT);
-      searchT = setTimeout(() => { Object.assign(cloudPlace, { q: search.value.trim(), history: null }); if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') cloudPlace.view = 'folder'; fillHome(); }, 250);
-    });
-    // while the page is up, the bench's keys, copy and paste stay with the page
-    const home = document.getElementById('home');
-    for (const t of ['keydown', 'keyup', 'copy', 'cut', 'paste']) {
-      home.addEventListener(t, e => e.stopPropagation());
-      window.addEventListener(t, e => {
-        if (!homeOpen()) return;
-        if (t === 'keydown' && e.key === 'Escape' && !document.querySelector('dialog[open]')) {
-          e.preventDefault();
-          if (homeMenu) { const b = homeMenu.btn; closeHomeMenu(); b.focus(); } else closeHome();
-          e.stopPropagation(); return;
-        }
-        if (!home.contains(e.target)) e.stopPropagation();
-      }, true);
-    }
-    home.addEventListener('scroll', closeHomeMenu, true);
-    window.addEventListener('resize', closeHomeMenu);
-    // Back in the browser leaves the page as well
-    window.addEventListener('popstate', () => { if (homeOpen() && location.hash !== '#benches') closeHome(); });
     document.getElementById('subClose').addEventListener('click', () => document.getElementById('subDialog').close());
   }
 
@@ -56018,6 +55350,210 @@ function wireCloud() {
     accountShown();
   }
 
+}
+/* ==========================================================================
+   JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKspace,
+   whose hooks JEKray installs here (wireNudges): its work kept before the page leaves to sign in or pay, its cloud
+   bench sent up once the account or a plan is there, the account menu put in the bar's menu.
+   ========================================================================== */
+/* ---------- Sign-in, offered where it helps ----------
+   Signed out, at the moments an account would have helped. Each says first what a free account gives, then
+   JEKrayPro, then the university line. Share asks in a dialog, as a short link is JEKrayPro's and it cannot go on
+   without one; so does an export (ui/pro.js accountGate), as exporting needs an account. Save has already saved the
+   file, so it only offers, in a note. A bench restored on a later visit, and a shared bench kept, offer the file and
+   an account. One cap for the notes and the share dialog: once a week (core/nudge.js), which the export dialog
+   counts against but is not held back by. Each is counted as 'prompt' <where>.<answer>: shown, the way in chosen, file, no. */
+const NUDGE_KEY = 'jek-nudge-save';
+const nudgeAllowed = () => { try { return nudgeCapOk(localStorage.getItem(NUDGE_KEY), Date.now()); } catch (err) { return false; } };
+const nudgeTaken = () => { try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch (err) { /* may show again: fine */ } };
+const freeLead = (lead, more) => h('p', null, h('b', null, lead), ' ' + FREE_GIVES + (more ? ' ' + more : ''));
+const uniNote = () => h('p', { class: 'note rt-uni' }, UNI_LINE);
+function promptDialog(id) {
+  let dlg = document.getElementById(id);
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id, 'aria-labelledby': id + 'Title' }); document.body.append(dlg); }
+  return dlg;
+}
+function shareSignIn(saveInstead) {
+  track('prompt', 'share.shown');
+  nudgeTaken();
+  const dlg = promptDialog('shareSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'shareSignInTitle' }, 'Share this bench as a link'),
+    h('p', null, 'A short link opens this bench as it is now, for anyone, with your panels open and its sweeps ready to play.'),
+    freeLead('Create a free account or sign in.', 'Short links come with JEKrayPro, along with saving to the cloud as you work. Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('share', close)),
+    h('p', { class: 'note' }, 'Or send it as a file: ', h('button', { class: 'rt-link', type: 'button', onclick: () => { track('prompt', 'share.file'); close(); saveInstead(); } }, 'save it as a .jekray file'), ' and attach that.'),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
+function exportSignIn(what) {
+  track('prompt', 'export.shown');
+  nudgeTaken();
+  const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
+    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'export.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+/* something that needs more than being signed out, asked for signed out: a JEKrayPro feature (the optimiser, scripts,
+   the cloud, My parts…) or the experimental features (a free account is enough). In place of a toast and the account
+   menu, what it needs and the ways in, as for an export; counted as 'prompt' pro.<answer>, acct.<answer> (an account is enough: My benches) or exp.<answer>. */
+function gateSignIn(kind, what) {
+  if (!accountsOn()) { toast('Accounts are not available here', true); return; }
+  const exp = kind === 'exp', acct = kind === 'acct', where = exp ? 'exp' : acct ? 'acct' : 'pro';
+  track('prompt', where + '.shown');
+  nudgeTaken();
+  const dlg = promptDialog('gateSignIn'), close = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'gateSignInTitle' }, exp ? 'Experimental features need a free account' : 'Sign in first'),
+    h('p', null, exp ? 'Sign in to try the experimental features: a free account is enough.'
+      : acct ? 'Sign in to ' + (what || 'use that') + ': a free account is enough.'
+      : (what ? 'To ' + what + ', JEKrayPro is needed' : 'That is part of JEKrayPro') + '. Choose a plan and pay: your account is made from the address you pay with. Or sign in, if you already have one through a team or your university.'),
+    freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(where, close)),
+    h('div', { class: 'rt-actions' },
+      exp || acct ? null : h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', 'pro.plans'); close(); showSubscribe(); } }, 'See plans and prices'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', where + '.no'); close(); } }, 'Not now')));
+  dlg.showModal();
+}
+/* a note on the bench, in the welcome note's style, with its × in the corner (counted as Not now) */
+function nudgeCard(id, where, title, body, acts) {
+  const card = h('div', { class: 'rt-welcome rt-nudge', id, role: 'status' });
+  const close = () => card.remove(), no = () => { track('prompt', where + '.no'); close(); };
+  card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
+    h('h3', null, title), ...body,
+    h('div', { class: 'rt-actions' }, ...signInRow(where, close), ...acts(close),
+      h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
+  track('prompt', where + '.shown');
+  document.getElementById('stage').append(card);
+}
+const nudgeUp = () => ['saveNudge', 'returnNudge', 'workNudge', 'welcome', 'coach'].some(id => document.getElementById(id));
+function saveNudge() {
+  if (!accountsOn() || account !== null || !accountKnown || nudgeUp() || !nudgeAllowed()) return;     // signed out, once that is known
+  nudgeTaken();
+  nudgeCard('saveNudge', 'save', 'Saved to your downloads', [h('p', null, 'That file keeps the bench on this computer.'),
+    freeLead('Create a free account or sign in.', 'With JEKrayPro your benches also save to the cloud as you work, with their history, and open on any computer.'), uniNote()], () => []);
+}
+/* a bench restored from this browser on a later visit, signed out: kept here alone, so a file or an account.
+   again: this session had the page open before (a reload); arrived: the address the visit came by */
+function returnNudge(again, arrived) {
+  let last = 0, invite = false;
+  try { last = localStorage.getItem(NUDGE_KEY); invite = !!sessionStorage.getItem('jekinvite'); } catch (err) { return; }
+  if (!returnDue({ on: accountsOn(), restored: true, again, signedOut: account === null && accountKnown, parts: project ? project.elements.length : 0,
+    busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
+  nudgeTaken();
+  nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
+    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
+    freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+  close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
+}
+/* ---------- A free account offered in a note ----------
+   The first-visit welcome note (where 'welcome') offers a free account, one click each way, to anyone signed out: a
+   first visit may only look, and never edit enough to be asked after its work. Counted as 'prompt' <where>.<answer>. */
+function accountOffer(where) {
+  if (!accountsOn() || account) return null;
+  track('prompt', where + '.shown');
+  return h('div', { class: 'rt-landacct' },
+    h('p', null, h('b', null, 'Free account, one click:'), ' export images and data, part packs and the experimental features. Your bench stays as it is.'),
+    h('div', { class: 'rt-actions' }, ...signInRow(where, () => {})));
+}
+/* ---------- A bench worked on, signed out ----------
+   Once a signed-out visitor has made a bench their own (a few edits, or a minute since the first), one note offers
+   a free account for what it gives (exports, part packs, the experimental features), once a session and never
+   mid-drag, and the bench is kept across the sign-in. Back signed in, it goes to the cloud when their plan saves
+   there (Save to cloud's dialog, named already); on the free plan it stays here, and they are told what is theirs. Counted as 'prompt' work.<answer>, and against where the visit came from: the first edit
+   ('goal' edit), the note shown (ask) and a way in chosen (ask-yes). */
+const WORK_KEY = 'jek-work-ask';             // in this tab's store: 'shown' once asked, 'signin' while signing in from it
+const WORK_QUIET = 2000;                     // still this long after an edit before it is looked at
+const work = { n: 0, t0: 0, timer: 0 };
+const workState = () => { try { return sessionStorage.getItem(WORK_KEY) || ''; } catch (err) { return 'shown'; } };
+const setWork = v => { try { if (v) sessionStorage.setItem(WORK_KEY, v); else sessionStorage.removeItem(WORK_KEY); } catch (err) { /* asked again next visit: fine */ } };
+// on a phone, the settings sheet over the bench's lower half, where the note would go: it waits for the sheet to close
+const sheetUp = () => phoneSheet() && document.getElementById('panel').style.display !== 'none';
+/* an edit of the bench (tabs.js checkpoint): counted, and the note looked at once the bench has been still a moment */
+function benchEdited() {
+  if (!work.n++) { work.t0 = Date.now(); goal('edit'); }
+  if (!accountsOn() || account || workState()) return;
+  clearTimeout(work.timer);
+  work.timer = setTimeout(workNudge, WORK_QUIET);
+}
+function workNudge() {
+  work.timer = 0;
+  const since = Date.now() - work.t0, notes = ['welcome'].map(id => document.getElementById(id)).filter(Boolean);
+  // not mid-drag, nor over a dialog, a tour or another prompt: looked at again shortly (the welcome note gives way)
+  const due = workDue({ on: accountsOn(), signedOut: account === null && accountKnown, asked: !!workState(), parts: project ? project.elements.length : 0, edits: work.n, since,
+    busy: !!drag || ['saveNudge', 'returnNudge', 'coach'].some(id => document.getElementById(id)) || !!document.querySelector('dialog[open]') || sheetUp() });
+  if (due === 'later') { work.timer = setTimeout(workNudge, work.n < WORK_EDITS && since < WORK_MS ? WORK_MS - since : 5000); return; }
+  if (due !== 'now') return;
+  for (const n of notes) n.remove();
+  setWork('shown'); nudgeTaken(); goal('ask');
+  const card = h('div', { class: 'rt-welcome rt-nudge', id: 'workNudge', role: 'status' });
+  const close = () => card.remove(), no = () => { track('prompt', 'work.no'); close(); };
+  // a way in: the bench comes back as it is, and is saved for them when it can be
+  const yes = (p, fn) => () => { track('prompt', 'work.' + p); goal('ask-yes'); setWork('signin'); close(); fn(); };
+  card.append(h('button', { class: 'rt-wx', type: 'button', title: 'Close', 'aria-label': 'Close this note', onclick: no }, '\u00d7'),
+    h('h3', null, 'Export this bench\u2019s images and data? Free account, one click'),
+    freeLead('One click with Google, Microsoft or your email.', 'Your bench stays as it is while you sign in.'),
+    uniNote(),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
+  track('prompt', 'work.shown');
+  document.getElementById('stage').append(card);
+}
+/* back from a sign-in begun at that note: the bench into the cloud where the plan allows, else said where it is */
+function workSignedIn() {
+  if (workState() !== 'signin' || !accountKnown) return;
+  setWork('shown');
+  if (!account) return;                               // cancelled, or it failed: nothing more
+  if (cloud) return;                                  // already a cloud bench, saving as it goes
+  if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
+  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
+}
+/* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
+   file; signed in on the free plan, the file, and where cloud saving comes from */
+function sharedCopyPrompt() {
+  track('prompt', 'shared.shown');
+  const dlg = promptDialog('sharedCopy'), close = () => dlg.close();
+  const file = (primary) => h('button', { class: 'rt-btn' + (primary ? ' primary' : ''), type: 'button', onclick: () => { track('prompt', 'shared.file'); close(); saveFile(); } }, 'Save as a file');
+  const no = h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.no'); close(); } }, 'Not now');
+  const cloudLine = 'Saving to the cloud comes with JEKrayPro or a university licence: the copy is then yours in My benches, on any computer.';
+  dlg.replaceChildren(h('h2', { id: 'sharedCopyTitle' }, 'Save a copy of this bench'), ...(account
+    ? [h('p', null, cloudLine + ' For now, save it as a .jekray file.'),
+      h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.pro'); close(); showSubscribe(); } }, 'JEKrayPro and licences\u2026'), no, file(true))]
+    : [freeLead('Create a free account or sign in.', cloudLine), uniNote(),
+      h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('shared', close)),
+      h('p', { class: 'note' }, 'Or keep it on this computer as a .jekray file.'),
+      h('div', { class: 'rt-actions' }, no, file(false))]));
+  dlg.showModal();
+}
+
+/* JEKray's part in the shared account (io/account.js): its hooks, installed before the account is first looked at */
+function wireNudges() {
+  Object.assign(hooks, {
+    appName: 'JEKray',
+    // the bench kept in the autosave before the page leaves to sign in or pay
+    keepWork: () => { if (!EMBED) try { clearTimeout(saveTimer); localStorage.setItem(STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ } },
+    // a cloud bench with unsaved edits goes up once a plan, or the account, is there (edits made offline, or before a reload)
+    planActive: () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); },
+    accountLoadedHere: () => { if (account && cloud && cloud.dirty) cloudPush({ quiet: true }); workSignedIn(); },
+    accountChanged: () => cloudMenuShown(),
+    // the menu in the bar (#acctMenu), its icons drawn; signed out, a line on what JEKrayPro gives
+    accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); menuIcons(menu); },
+    accountMenuExtra: signedIn => (signedIn ? [] : [h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.')]),
+    openAccountMenu: () => { const btn = document.getElementById('btnAcct'), m = document.getElementById('acctMenu'); if (btn && m && m.hidden) btn.click(); },
+    // said only to someone whose bench here saves to the cloud; anyone else just sees Sign in
+    sayUnreachable: () => !!cloud,
+    accountDeleted: () => { if (cloud) cloudLink(null); },           // the bench here stays, in this browser only
+    exportSignIn,
+  });
 }
 /* ==========================================================================
    Autosave in this browser, and the earlier versions kept alongside it.
@@ -56062,6 +55598,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',
     'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',
     'The bench JEKray opens with now has a Gaussian beam as well as its rays, so its envelope and diffracted field show (it was rays alone).',
@@ -57699,6 +57236,8 @@ function fillMetrics(targetSel, metricSel, famBox) {
   for (const m of all) if (m.fam === famBox.dataset.fam) metricSel.append(h('option', { value: m.key }, m.label));
 }
 
+/* a new bench, from JEKspace's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
+function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); }
 function newProject() {
   pauseAll();
   checkpoint();
@@ -58028,7 +57567,7 @@ function wireTours() {
 
   document.getElementById('newCancel').addEventListener('click', () => newDlg.close());
 
-  document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); });
+  document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); startNewBench(); });
 
   if (!IN_WORKER) {
     const cv = document.createElement('canvas').getContext('2d');
@@ -59244,7 +58783,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -59742,22 +59281,21 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);
   }
-  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three),
-  // and #benches opens My benches
+  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
+  // #benches opens JEKspace, where the benches are; and from JEKspace, #cloud=<id> (or <id>@<version>, a copy of a version)
+  // opens a cloud bench, :lens, :rf or :coat after it into a designer, and #new (or #new=lens|rf|coat) starts a new bench
   const helpLink = () => {
-    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches', cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/);
-    if (benches && homeOpen()) return true;
-    if (location.hash !== '#examples' && !pro && !benches && !cl && !(tr && TOURS[tr[1]])) return false;
+    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
+    const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::(lens|rf|coat))?$/), nw = location.hash.match(/^#new(?:=(lens|rf|coat))?$/);
+    if (location.hash !== '#examples' && !pro && !benches && !cl && !nw && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
+    const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') openCoatDesign(null); };
     setTimeout(async () => {
       if (tr) startTour(tr[1]); else if (pro) proLink();
-      else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }
-      else if (benches) {
-        await accountLoaded;
-        if (account) openHome();
-        else if (accountsOn()) { const btn = document.getElementById('btnAcct'); if (btn && document.getElementById('acctMenu').hidden) btn.click(); toast('Sign in to see your benches'); }
-      }
+      else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); into(cl[3]); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }
+      else if (nw) { startNewBench(); into(nw[1]); }
+      else if (benches) openSpace();
       else openGallery();
     }, 0);
     return true;

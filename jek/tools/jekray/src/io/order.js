@@ -5,7 +5,8 @@ import { paraxial } from '../engines/trace.js';
 import { lensThickness, lensVolume } from '../ui/readouts.js';
 import { shareBase, shareData, shareHash } from './share.js';
 import { toast } from '../ui/actions.js';
-import { helpLine, h } from '../ui/panel.js';
+import { helpLine } from '../ui/panel.js';
+import { h } from '../ui/dom.js';
 import { track } from './usage.js';
 
 /* ---------- A custom RF lens, asked for by quote ----------

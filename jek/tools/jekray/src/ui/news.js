@@ -1,7 +1,8 @@
 import { EMBED } from '../core/constants.js';
 import { exerciseInvite } from './challenge.js';
 import { project } from '../state/project.js';
-import { h, phoneSheet } from './panel.js';
+import { phoneSheet } from './panel.js';
+import { h } from './dom.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
@@ -9,7 +10,8 @@ import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './
 import { hooks } from '../core/hooks.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
-import { API_BASE, accountOffer } from '../io/account.js';
+import { API_BASE } from '../io/account.js';
+import { accountOffer } from '../io/nudges.js';
 import { goal } from '../io/usage.js';
 import { themeDark } from './render.js';
 
@@ -19,6 +21,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',
     'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',
     'The bench JEKray opens with now has a Gaussian beam as well as its rays, so its envelope and diffracted field show (it was rays alone).',

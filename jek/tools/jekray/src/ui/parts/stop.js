@@ -2,7 +2,8 @@ import { fmtNum } from '../../core/format.js';
 import { V } from '../../state/project.js';
 import { STOP_SHAPES, frame, stopBlades, stopSlitLike } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 
 /* Stop on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/stop.js */
 

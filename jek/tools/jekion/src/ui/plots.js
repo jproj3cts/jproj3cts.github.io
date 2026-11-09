@@ -1,6 +1,6 @@
 import { accountGate, acctMark } from '../../../jekray/src/ui/pro.js';
 import { nf } from '../core/units.js';
-import { h } from './panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { getCss, inkA, niceStep, themeDark } from './render.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 

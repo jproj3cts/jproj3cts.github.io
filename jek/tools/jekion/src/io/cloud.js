@@ -4,11 +4,12 @@ import { designPro, needsShown } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
-import { h } from '../ui/panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { markUnsaved, setStatus, toast } from '../ui/actions.js';
 import { canvas } from '../ui/render.js';
 import { openProjectData, scheduleSave } from './open.js';
-import { ION_API, account, accountsOn, api, fillAccount, setAccount, showSignIn } from './account.js';
+import { API_BASE, account, accountsOn, api, fillAccount, setAccount } from '../../../jekray/src/io/account.js';
+import { showSignIn } from './ion-account.js';
 
 /* ==========================================================================
    Cloud benches, as JEKray's: the same accounts, workspaces and API, so a person's My benches holds both tools'
@@ -85,7 +86,7 @@ function leaseStop(link) {
   clearTimeout(lease.timer); lease.timer = null;
   if (!link || !cloudOn() || TEST_MODE || !lease.held) return;
   lease.held = false;
-  fetch(ION_API + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
+  fetch(API_BASE + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
 }
 /* someone else is editing the bench just opened: look, take over, or work on a copy */
 function lockAsk() {
@@ -284,15 +285,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKray's My benches page: places and folders down the
-   side, the benches as cards with their pictures, each one's history and forks, the bin, parts and links. It
-   opens in the JEKray tab (one tab each, named, so the tools hand benches to each other without multiplying
-   tabs), and a JEKion bench chosen there opens back here. */
+   The home of every bench, JEKion's with JEKray's, is JEKspace (jek/tools/jekspace.html), the JEK hub: places and
+   folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
+   links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
+   each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
+const SPACE_URL = '/jek/tools/jekspace.html';
 export function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
-  if (!account) { showSignIn('cloud', 'open your cloud benches'); return; }
   track('view', 'ion-benches');
-  const w = window.open(JEKRAY_URL + '#benches', 'jekray'); if (w) w.focus();
+  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 export function cloudGates() {

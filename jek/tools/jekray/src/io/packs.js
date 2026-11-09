@@ -7,7 +7,7 @@ import { canvas, selection, wx, wy } from '../ui/render.js';
 import { snapVal } from '../ui/pointer.js';
 import { MOD_CODE_MAX } from '../engines/mods.js';
 import { V3D } from '../ui/view3d.js';
-import { h } from '../ui/panel.js';
+import { h } from '../ui/dom.js';
 import { clipOf, downloadFile, pasteClip, saveFile, toast } from '../ui/actions.js';
 import { PART_DRAG, exp } from '../ui/experimental.js';
 import { fillPicker, picker } from '../ui/picker.js';

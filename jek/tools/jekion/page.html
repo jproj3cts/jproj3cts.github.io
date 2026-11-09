@@ -10,7 +10,7 @@
 <meta name="description" content="JEKion: a charged-particle optics simulator in the browser. Electrodes, ion traps, lenses and time-of-flight, solved and flown live.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261115">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
 <style>
 {{STYLE}}
 </style>
@@ -34,7 +34,7 @@
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKray’s My benches page (it opens in the JEKray tab)">My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKspace (it opens in its own tab)">My benches on JEKspace…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this bench in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
@@ -188,6 +188,38 @@
       <aside class="rt-panel" id="panel" aria-label="Properties"></aside>
     </div>
   </div>
+
+  <!-- the account's dialogs (jekray/src/io/account.js, shared): the plans, the account, a team, a university's licence, deleting the account -->
+  <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
+    <h2 id="uniTitle">University licence</h2>
+    <div id="uniBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">
+    <h2 id="teamTitle">Team</h2>
+    <div id="teamBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="teamClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Delete your account</h2>
+    <div id="deleteBody"></div>
+    <p><label for="deleteConfirm">To confirm, type <b>delete my account</b></label><br><input id="deleteConfirm" autocomplete="off" spellcheck="false"></p>
+    <p class="rt-error" id="deleteError" hidden></p>
+    <div class="rt-actions"><button class="rt-btn" id="deleteCancel">Keep my account</button><button class="rt-btn primary danger" id="deleteGo" disabled>Delete my account</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
+    <h2 id="subTitle">JEKrayPro</h2>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKspace. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
+    <div id="subPlans"></div>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
+    <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
+  </dialog>
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>

@@ -16,11 +16,13 @@ import { RIGHT, drag, hitTest, setDrag, snapVal } from './pointer.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { V3D } from './view3d.js';
 import { stopSweepsFor, updateSweepButtons } from './optimise.js';
-import { h, renderPanel, syncPanel } from './panel.js';
+import { renderPanel, syncPanel } from './panel.js';
+import { h } from './dom.js';
 import { checkpoint, redoWords, switchTab, undoWords } from './tabs.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
-import { accountsOn, saveNudge } from '../io/account.js';
+import { accountsOn } from '../io/account.js';
+import { saveNudge } from '../io/nudges.js';
 import { goal } from '../io/usage.js';
 import { hooks } from '../core/hooks.js';
 import { scheduleSave } from '../io/autosave.js';
@@ -468,7 +470,7 @@ export function setStatus(t) {
 let toastTimer = null;
 export function toast(msg, bad) {
   const ws = document.getElementById('lensWs');
-  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : document.getElementById('home').hidden ? 'toast' : 'homeToast');
+  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : 'toast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
   t.classList.add('show');

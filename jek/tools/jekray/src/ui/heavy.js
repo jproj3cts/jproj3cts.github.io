@@ -8,7 +8,8 @@ import { MODS } from '../core/modulators.js';
 import { DPR, H, W, clipSegPlanes, ctx, glowA, glowOp, lightLayer, requestRender, segPlanes, sx, sy } from './render.js';
 import { drag } from './pointer.js';
 import { benchFrame, fieldFrames, fieldHeld, playing, showActivityNow, sweepJob } from './sweeps.js';
-import { h, syncPanel } from './panel.js';
+import { syncPanel } from './panel.js';
+import { h } from './dom.js';
 import {
   POP_MAX_SEGS, POP_MAX_SEGS_2D, POP_ROWS, POP_SLICES, popKeyOf, popRoundEv, popRunGen, popSources,
   popState

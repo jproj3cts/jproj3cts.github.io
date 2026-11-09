@@ -1,7 +1,7 @@
 import { TEST_MODE } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { project } from '../state/project.js';
-import { h } from './panel.js';
+import { h } from './dom.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { adoptBench, checkpoint, snapshot } from './tabs.js';
 import { serialize } from '../state/elements.js';

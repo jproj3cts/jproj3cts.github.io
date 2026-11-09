@@ -1,6 +1,6 @@
 import { EMBED } from '../core/constants.js';
 import { PACKS } from '../state/packs.js';
-import { h } from './panel.js';
+import { h } from './dom.js';
 import { typingIn } from './actions.js';
 import { PALETTE_NAMES, addPart, palette, palettesOn, partGroups, partTile, partsOf, recentParts } from './experimental.js';
 import { setPalette } from './rail.js';

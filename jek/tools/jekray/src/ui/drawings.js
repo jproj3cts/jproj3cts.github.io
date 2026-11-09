@@ -11,7 +11,8 @@ import {
 } from './render.js';
 import { drag, hitTest, inPolygon, setDrag, snapVal } from './pointer.js';
 import { FC_W, fcH } from '../engines/fibre.js';
-import { helpLine, beginEdit, bindSync, endEdit, fid, h, numInput, panel, renderPanel, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, beginEdit, bindSync, endEdit, fid, numInput, panel, renderPanel, setFid, syncPanel, vs } from './panel.js';
+import { h } from './dom.js';
 import { changed, moveEls, rotateEls, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { palette } from './experimental.js';

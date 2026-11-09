@@ -1,5 +1,5 @@
 import { EMBED } from '../core/constants.js';
-import { h } from './panel.js';
+import { h } from './dom.js';
 import { editCan } from './actions.js';
 import { PALETTE_NAMES, addPart, exp, palettesOn, partsOf } from './experimental.js';
 import { EXAMPLES } from './news.js';

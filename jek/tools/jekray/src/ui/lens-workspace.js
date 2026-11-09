@@ -13,7 +13,8 @@ import { FOUND_MAX, GLASS_MAKERS, LIMITED, atLimits, glassCandidates, isModel, k
 import { cfgSolved, mcAdd, mcKey, mcOf, mcRemove, mcSwitch, mcValue } from '../engines/lens-design.js';
 import { ELEMENT_KINDS, SURFACE_KINDS, commitDesign, condFromBench, condFromRays, designFigures, designOf, designPrescription, editable, gapMayBeNegative, getV, insertSinglet,
   imageHeld, insertSurface, keyAt, posOf, primaryNm, removeSurface, setV, stackSurface, surfSag, surfaceParts, trackOf } from '../engines/lens-design.js';
-import { helpLine, h, stopButton, throttle } from './panel.js';
+import { helpLine, stopButton, throttle } from './panel.js';
+import { h } from './dom.js';
 import { FF_KEYS, ffLabel } from '../core/freeform.js';
 import { DP_KEYS, DP_N, dpLabel } from '../core/diffractive.js';
 import { GR_N, grLabel } from '../core/gradient.js';

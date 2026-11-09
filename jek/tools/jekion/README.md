@@ -20,7 +20,7 @@ declared, no code run at load (`ui/boot.js` apart), and the layers (`core`, `sta
 - `src/worker/`, `src/page/`: the worker's side and the page's client of it.
 - `src/ui/`: the panel framework, the 2D view, the pointer, the actions and menus, the simulation controller
   (`sim.js`), the panels, plots, the Add menu, the 3D view, scripts, news and examples, and `boot.js`.
-- `src/io/`: files and autosave, CAD import (JEKray's STEP reader), the account (JEKray's API) and data export.
+- `src/io/`: files and autosave, CAD import (JEKray's STEP reader), the account's hooks (`io/ion-account.js`: the account itself is JEKray's `io/account.js`, shared) and data export.
 
 Shared from JEKray: `core/constants.js`, `core/hooks.js`, `core/numeric.js`, `core/datafiles.js`,
 `core/src-tag.js`, `core/step.js`, `worker/shim.js`, `ui/pro.js`, `io/usage.js`, `io/step-reader.js`.

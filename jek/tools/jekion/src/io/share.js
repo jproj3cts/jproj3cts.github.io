@@ -5,10 +5,11 @@ import { goal, track } from '../../../jekray/src/io/usage.js';
 import { ION_FORMAT } from '../core/units.js';
 import { project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
-import { h } from '../ui/panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
-import { account, accountsOn, api, showSignIn } from './account.js';
+import { account, accountsOn, api } from '../../../jekray/src/io/account.js';
+import { showSignIn } from './ion-account.js';
 
 /* ==========================================================================
    Sharing a bench as a link, as JEKray does: the bench deflated and written after #p= ('i', or 'k' plain where the

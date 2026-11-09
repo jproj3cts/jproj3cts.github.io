@@ -41,7 +41,7 @@
   } catch (e) { /* not counted */ }
 })();</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261115">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
 <style>
 {{STYLE}}
 </style>
@@ -69,7 +69,7 @@
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden>My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKspace (in its own tab)">My benches on JEKspace…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
@@ -219,7 +219,7 @@
         </div>
         <div class="rt-more rt-file">
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: all your cloud benches, on a page of their own" aria-label="My benches" hidden></button>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: every cloud bench, of every app, on JEKspace (in its own tab)" aria-label="My benches on JEKspace" hidden></button>
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
@@ -457,39 +457,10 @@
     <div class="rt-actions"><button class="rt-btn primary" id="snapsClose">Close</button></div>
   </dialog>
 
-  <!-- My benches: a page of its own over the tool, as a CAD system's documents page -->
-  <section class="rt-home" id="home" hidden aria-labelledby="homeTitle">
-    <header class="rt-hhead">
-      <button class="rt-btn rt-hback" id="homeBack" type="button" title="Back to the bench (Esc)"><span aria-hidden="true">&larr;</span> Back to bench</button>
-      <h1 id="homeTitle"><span class="rt-hmark">JEKray<b>Pro</b></span> <span id="homeWhere">My benches</span></h1>
-      <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
-      <button class="rt-btn" id="homeWs" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench here, opened straight into a workspace: the Optical designer, the RF designer or coating design">Open a workspace ▾</button>
-      <button class="rt-btn primary" id="homeNew" type="button">New bench</button>
-    </header>
-    <div class="rt-hbody">
-      <nav class="rt-hrail" id="homeRail" aria-label="Places"></nav>
-      <div class="rt-hmain" id="homeMain">
-        <div class="rt-hbar">
-          <p class="rt-hcrumbs" id="homeCrumbs"></p>
-          <span class="rt-htools" id="homeTools"></span>
-        </div>
-        <p class="rt-cloudnote" id="homeNote" hidden></p>
-        <div id="homeList" class="rt-hlist"></div>
-      </div>
-    </div>
-    <div class="rt-toast" id="homeToast" role="status"></div>
-  </section>
-
   <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
     <h2 id="uniTitle">University licence</h2>
     <div id="uniBody"></div>
     <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
-  </dialog>
-
-  <dialog class="rt-dialog rt-wide" id="diffDialog" aria-labelledby="diffTitle">
-    <h2 id="diffTitle">Compare</h2>
-    <div id="diffBody"></div>
-    <div class="rt-actions"><button class="rt-btn primary" id="diffClose">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="mergeDialog" aria-labelledby="mergeTitle">

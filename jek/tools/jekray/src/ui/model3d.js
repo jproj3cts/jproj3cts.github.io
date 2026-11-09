@@ -11,7 +11,8 @@ import { definedEnts, dimMeasure, entKeys, hpt, inRegion, normCons, normDims, sk
 import { sketchChosen } from '../core/model.js';
 import { V3D } from './view3d.js';
 import { getCss } from './render.js';
-import { h, renderPanel } from './panel.js';
+import { renderPanel } from './panel.js';
+import { h } from './dom.js';
 import { changed, downloadFile, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { accountGate } from './pro.js';

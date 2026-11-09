@@ -17,7 +17,7 @@ export function niceTicks(a, b, n = 5) {
 }
 const tickText = v => (Math.abs(v) >= 1e4 || (v !== 0 && Math.abs(v) < 1e-3) ? v.toExponential(1) : String(+v.toPrecision(6)));
 export function linePlotSvg(parent, o) {
-  const W = 520, H = o.H || 250, L = 46, R = 10, T = 10, B = 34;
+  const W = 520, H = o.H || 250, L = 46, R = 18, T = 10, B = 34;
   const xs = o.series.flatMap(s => s.xs), ys = o.series.flatMap(s => s.ys).filter(isFinite);
   const xr = o.xr || [Math.min(...xs), Math.max(...xs)], yr = o.yr || [Math.min(0, ...ys), Math.max(...ys) || 1];
   const X = v => L + (W - L - R) * (v - xr[0]) / ((xr[1] - xr[0]) || 1), Y = v => H - B - (H - B - T) * (v - yr[0]) / ((yr[1] - yr[0]) || 1);

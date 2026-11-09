@@ -9,24 +9,28 @@ description: "JEKfilm, the JEK coating designer: a thin-film stack on a substrat
 
 Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), or from [JEKspace](/jek/docs/jekray/jekspace/): **New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list. It opens in a tab of its own, reused each time.
 
-## The coating
+## The design
 
-The card on the left says what the stack is for and the light it is judged in:
+The **Design** table on the left says what the stack is for and the light it is judged in:
 
-- **For**: anti-reflection (nothing reflected), a high reflector (everything reflected), a beam splitter (the reflectance you give), or a dichroic edge (reflecting one side of a wavelength and passing the other).
-- **On**: the substrate. N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion, or an index of your own. JEKfilm says when the substrate is not transparent at the design wavelength.
-- **Light comes from**: the index of the medium in front (1 for air, about 1.33 for water).
-- **Band**, **Design wavelength**, **Angles up to** and **Polarisation**: the wavelengths and angles the stack is judged over, and whether s, p or their mean counts.
+- **Target**: anti-reflection (nothing reflected), a high reflector (everything reflected), a beam splitter (with the reflectance wanted), or a dichroic edge (with the wavelength it turns at and which side passes).
+- **Reference λ₀**: the design wavelength, where quarter waves are counted. **Band from** and **Band to**: the wavelengths the stack is judged over. **Angles up to**: the largest angle of incidence. **Polarisation**: s, p or their mean.
+- **Incident medium n**: the index in front (1 for air, about 1.33 for water).
+- **Substrate**: N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion (its index at λ₀ is shown), or an index of your own. JEKfilm says when the substrate is not transparent at λ₀.
 
-## The figures and the curves
+## Performance
 
-Along the top: the mean and worst reflectance over the band square on, and at the largest angle when there is one; the reflectance at the design wavelength; the bare substrate's; and the merit, the mean square of the reflectance against its target over the band and the angles. The plots show the reflectance across the band (square on, at the largest angle, and the target dashed) and against the angle at the design wavelength, s and p. Move the pointer over a plot to read its values.
+One row of figures: the mean and largest reflectance over the band square on, and at the largest angle when there is one; the reflectance at λ₀; the bare substrate's; and the merit, the mean square of the reflectance against its target over the band and the angles.
 
-## The layers
+## Layers
 
-The table lists the layers from the outside in: each one's material (MgF2, SiO2, Al2O3, a mid index, ZrO2, Ta2O5, TiO2, or an index of your own), its index, its thickness in nanometres and its optical thickness in quarter waves at the design wavelength. **λ/4** makes a layer a quarter wave; **All quarter waves** does every layer. **Start from a preset** puts in a single MgF2 layer, a two-layer V-coat, a three-layer broadband AR, a three-layer 50:50 splitter or a six-pair high reflector, each for the design wavelength.
+The table lists the stack from the incident medium down to the substrate: each layer's material (MgF2, SiO2, Al2O3, a mid index, ZrO2, Ta2O5, TiO2, or an index of your own), its index, its physical thickness in nanometres and its optical thickness in quarter waves at λ₀, with the total thickness underneath. **λ/4** makes a layer a quarter wave and **✕** removes it; **All quarter waves** does every layer; **Add layer** adds one; **Preset…** puts in a single MgF2 layer, a two-layer V-coat, a three-layer broadband AR, a three-layer 50:50 splitter or a six-pair high reflector, each for λ₀.
 
 **Optimise thicknesses** searches the thicknesses from where they stand (Nelder–Mead, with restarts), keeping each layer's material. Choose the materials and a starting stack, then let the thicknesses settle. Undo (Ctrl+Z) takes it back.
+
+## Reflectance
+
+The reflectance against wavelength (square on, at the largest angle, and the target dashed), and against the angle of incidence at λ₀, s and p. Move the pointer over a plot to read its values.
 
 ## Files and the cloud
 

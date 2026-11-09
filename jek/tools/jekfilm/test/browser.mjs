@@ -35,7 +35,7 @@ export async function check(pw, base, shots) {
       ok('Germanium in the visible: said to be opaque there', /Germanium is not transparent at 550 nm/.test(await p.evaluate(() => document.querySelector('.film-warn') ? document.querySelector('.film-warn').textContent : '')), 'no warning');
       await p.evaluate(c => window.JEKfilm.load(c), COATING);
       const l = await p.evaluate(() => ({ name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, fig: document.getElementById('filmFigures').innerText, csv: window.JEKfilm.csv().split('\r\n').slice(0, 2) }));
-      ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /At 1064 nm/.test(l.fig) && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
+      ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /R at 1064 nm/.test(l.fig) && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
       // renamed in the bar
       await p.fill('#filmName', 'V-coat, fused silica'); await p.press('#filmName', 'Enter'); await p.waitForTimeout(100);
       ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | JEKfilm'), 'not renamed');

@@ -66,3 +66,6 @@
   .ion-cut button:hover { border-color: var(--jek-cyan); }
   .ion-cut.flat input, .ion-cut.flat button, .ion-cut.flat .unit { display: none; }
   @media (max-width: 760px) { .ion-cut { display: none; } }
+  /* the arrow to JEKspace at the bar's left */
+  .ion-back { flex: none; margin-right: 0.35rem; text-decoration: none; }
+  .ion-back:hover { text-decoration: none; }

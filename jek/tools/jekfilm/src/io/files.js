@@ -68,7 +68,7 @@ export function newFilmHere() {
 }
 /* the curves as CSV, one heading row with units: wavelength against R, and angle against R(s), R(p) */
 export function filmCsv(f) {
-  const C = filmCurves(f), rows = [['wavelength (nm)', 'R square on (%)', ...(C.Rt ? ['R at ' + C.spec.theta + ' deg (%)'] : []), 'target R (%)']];
+  const C = filmCurves(f), rows = [['wavelength (nm)', C.spec.theta0 ? 'R at ' + C.spec.theta0 + ' deg (%)' : 'R square on (%)', ...(C.Rt ? ['R at ' + C.spec.theta + ' deg (%)'] : []), 'target R (%)']];
   C.nms.forEach((nm, i) => rows.push([+nm.toFixed(3), +(100 * C.R0[i]).toPrecision(6), ...(C.Rt ? [+(100 * C.Rt[i]).toPrecision(6)] : []), +(100 * C.want[i]).toPrecision(6)]));
   rows.push([], ['angle (deg)', 'R s at ' + C.spec.design + ' nm (%)', 'R p at ' + C.spec.design + ' nm (%)']);
   C.A.degs.forEach((d, i) => rows.push([+d.toFixed(3), +(100 * C.A.s[i]).toPrecision(6), +(100 * C.A.p[i]).toPrecision(6)]));

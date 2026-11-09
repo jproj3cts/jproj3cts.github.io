@@ -14,17 +14,15 @@ Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), or from
 The **Design** table on the left says what the stack is for and the light it is judged in:
 
 - **Target**: anti-reflection (nothing reflected), a high reflector (everything reflected), a beam splitter (with the reflectance wanted), or a dichroic edge (with the wavelength it turns at and which side passes).
-- **Reference λ₀**: the design wavelength, where quarter waves are counted. **Band from** and **Band to**: the wavelengths the stack is judged over. **Angles up to**: the largest angle of incidence. **Polarisation**: s, p or their mean.
+- **Reference λ₀**: the design wavelength, where quarter waves are counted. **Band from** and **Band to**: the wavelengths the stack is judged over. **Angles**: either **Up to** a largest angle of incidence (from square on), or **A band** of angles, from one to another (a beam splitter at 40° to 50°, say). **Polarisation**: s, p or their mean.
 - **Incident medium n**: the index in front (1 for air, about 1.33 for water).
 - **Substrate**: N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion (its index at λ₀ is shown), or an index of your own. JEKfilm says when the substrate is not transparent at λ₀.
 
 ## Reflectance
 
-The reflectance against wavelength (square on, at the largest angle, and the target dashed), and against the angle of incidence at λ₀, s and p. Move the pointer over a plot to read its values.
+The reflectance against wavelength (at the smallest angle judged, at the largest, and the target dashed), and against the angle of incidence at λ₀, s and p. Move the pointer over a plot to read its values.
 
-## Performance
-
-One row of figures: the mean and largest reflectance over the band square on, and at the largest angle when there is one; the reflectance at λ₀; the bare substrate's; and the merit, the mean square of the reflectance against its target over the band and the angles.
+Under the plots, the figures: the mean and largest reflectance over the band at the smallest angle judged, and at the largest when they differ; the reflectance at λ₀; the bare substrate's; and the merit, the mean square of the reflectance against its target over the band and the angles.
 
 ## Layers
 

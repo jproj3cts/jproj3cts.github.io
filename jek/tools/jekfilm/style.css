@@ -107,3 +107,4 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-layers { width: auto; min-width: min(100%, 44rem); }
 .film-layers th.n, .film-layers td.n { padding-left: 1.4rem; }
 .film-layers td:nth-child(2), .film-layers th:nth-child(2) { width: 12rem; }
+.film-perf { margin-top: 1rem; }

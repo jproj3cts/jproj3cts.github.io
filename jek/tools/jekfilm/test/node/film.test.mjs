@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 const F = await import('../../src/core/film.js');
 const { GLASS, refIndex } = await import('../../../jekray/src/core/glass.js');
 const { normCoat } = await import('../../../jekray/src/state/project.js');
-const { coatOptimise, coatSummary, stackR } = await import('../../../jekray/src/core/coatdesign.js');
+const CD = await import('../../../jekray/src/core/coatdesign.js');
+const { coatOptimise, coatSummary, stackR } = CD;
 const { qwot } = await import('../../../jekray/src/core/coatings.js');
 
 test('anything opens: no file, an old one, nonsense values', () => {
@@ -32,6 +33,20 @@ test('the substrates are JEKray’s glasses, with the same index at every wavele
   assert.equal(F.subIndex({ n: 1.62 }, 500), 1.62);
   assert.equal(F.subClear({ glass: 'Germanium' }, 550), false, 'germanium is opaque in the visible');
   assert.equal(F.subClear({ glass: 'Germanium' }, 3000), true);
+});
+test('the angles: up to a largest (from square on), or a band of them; the merit and the figures over that band', () => {
+  const up = F.normFilm({ spec: { angles: 'upto', theta0: 30, theta: 50 } }).spec;
+  assert.equal(up.angles, 'upto'); assert.equal(up.theta0, 0, 'up to: from square on, whatever was kept');
+  const band = F.normFilm({ spec: { angles: 'band', theta0: 60, theta: 50 } }).spec;
+  assert.deepEqual([band.angles, band.theta0, band.theta], ['band', 50, 50], 'a band’s start is no more than its end');
+  const L = F.filmPreset('vcoat', 550), at45 = F.normFilm({ spec: { angles: 'band', theta0: 40, theta: 50 }, layers: L }), upto = F.normFilm({ spec: { theta: 50 }, layers: L });
+  const s45 = F.filmSpec(at45), sUp = F.filmSpec(upto);
+  assert.equal(s45.theta0, 40); assert.equal(sUp.theta0, 0);
+  assert.ok(coatSummary(L, s45).merit > coatSummary(L, sUp).merit, 'a V-coat for square on does worse judged only at 40–50°');
+  const sum = coatSummary(L, s45), R40 = stackR(L, 1, s45.ns, Math.cos(40 * Math.PI / 180), 550, 'avg');
+  assert.ok(Math.abs(sum.design - R40) < 1e-12, 'R at λ₀ is at the band’s smallest angle');
+  // JEKray's own specs, with no theta0, are judged from square on as before
+  assert.equal(CD.coatSpec({ theta: 30 }).theta0, 0);
 });
 test('the spec handed to the coat designer is the file’s, the substrate at the design wavelength', () => {
   const f = F.normFilm({ spec: { target: 'split', sub: { glass: 'Fused silica' }, lo: 500, hi: 600, design: 532, theta: 45, pol: 's', R: 30 } });

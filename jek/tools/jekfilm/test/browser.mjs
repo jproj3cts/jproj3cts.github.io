@@ -31,6 +31,11 @@ export async function check(pw, base, shots) {
       await p.selectOption('select[aria-label="What the coating is for"]', 'edge');
       const edge = await p.evaluate(() => ({ turns: !!document.querySelector('input[aria-label="Edge wavelength (nm)"]'), passes: !!document.querySelector('select[aria-label="Which side passes"]') }));
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
+      await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
+      const band = await p.evaluate(() => ({ from: (document.querySelector('input[aria-label="Smallest angle of incidence (degrees)"]') || {}).value, to: (document.querySelector('input[aria-label="Largest angle of incidence (degrees)"]') || {}).value,
+        heads: [...document.querySelectorAll('#filmFigures th')].map(t => t.textContent), spec: window.JEKfilm.spec() }));
+      ok('Angles as a band: from and to (40° to 50° to start), judged and shown there', band.from === '40' && band.to === '50' && band.spec.theta0 === 40 && band.spec.theta === 50 && band.heads[0] === 'R mean at 40°' && band.heads.includes('R max at 50°'), JSON.stringify(band));
+      await p.selectOption('select[aria-label="How the angles are judged"]', 'upto');
       await p.selectOption('select[aria-label="The substrate"]', 'g:Germanium');
       ok('Germanium in the visible: said to be opaque there', /Germanium is not transparent at 550 nm/.test(await p.evaluate(() => document.querySelector('.film-warn') ? document.querySelector('.film-warn').textContent : '')), 'no warning');
       await p.evaluate(c => window.JEKfilm.load(c), COATING);

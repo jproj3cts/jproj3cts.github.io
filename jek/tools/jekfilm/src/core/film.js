@@ -4,7 +4,7 @@ import { coatSpec, coatToStack } from '../../../jekray/src/core/coatdesign.js';
 /* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
      { format: 'jekfilm', version: 1, name,
-       spec: { target, sub: { glass } | { n }, n0, lo, hi, design, theta, pol, R, edge, passBelow },
+       spec: { target, sub: { glass } | { n }, n0, lo, hi, design, angles: 'upto' | 'band', theta0, theta, pol, R, edge, passBelow },
        layers: [{ n, d }] }        // from the outside in; d in nm
    What the stack is for and what it is judged in (the spec) travels with the layers, so a coating opened again is
    judged as it was designed. The physics is JEKray's, shared as it is (core/coatings.js for the stack,
@@ -61,7 +61,9 @@ export function normFilm(d) {
   const sub = s.sub && typeof s.sub === 'object' && FILM_GLASSES[s.sub.glass] ? { glass: s.sub.glass }
     : s.sub && typeof s.sub === 'object' && isFinite(+s.sub.n) ? { n: fnum(s.sub.n, 1, 10, 1.5) } : { glass: 'N-BK7' };
   const design = fnum(s.design, 100, 20000, Math.round((lo + hi) / 2));
-  const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, theta: fnum(s.theta, 0, 89, 0), pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
+  // the angles judged: from square on up to theta, or a band of them, theta0 to theta
+  const theta = fnum(s.theta, 0, 89, 0), angles = s.angles === 'band' ? 'band' : 'upto';
+  const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, angles, theta0: angles === 'band' ? Math.min(theta, fnum(s.theta0, 0, 89, 0)) : 0, theta, pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
     .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100) }));
@@ -74,7 +76,7 @@ export function newFilm(name) {
 /* the spec as JEKray's coat designer takes it (core/coatdesign.js coatSpec), the substrate's index at the design wavelength */
 export function filmSpec(f) {
   const s = f.spec;
-  return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
+  return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta0: s.theta0, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
 }
 /* the presets: a starting stack for the design wavelength */
 export const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs']];

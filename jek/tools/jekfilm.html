@@ -2068,6 +2068,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-layers { width: auto; min-width: min(100%, 44rem); }
 .film-layers th.n, .film-layers td.n { padding-left: 1.4rem; }
 .film-layers td:nth-child(2), .film-layers th:nth-child(2) { width: 12rem; }
+.film-perf { margin-top: 1rem; }
 </style>
 </head>
 <body class="film-app">
@@ -2405,14 +2406,15 @@ function coatR(coat, n1, n2, nm) {
    ========================================================================== */
 const COAT_TARGETS = { ar: 'Anti-reflection', hr: 'High reflector', split: 'Beam splitter', edge: 'Dichroic edge', rf: 'Matching layer (RF)' };
 const clampN = (v, lo, hi, d) => (isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
-/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles 0 to
-   theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
+/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles theta0
+   (0 unless given: JEKfilm's band of angles) to theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
    when left out), and for a splitter its reflectance (%), for an edge the wavelength it turns at and which side passes */
 function coatSpec(o) {
   o = o || {};
   const target = COAT_TARGETS[o.target] ? o.target : 'ar';
   const lo = clampN(o.lo, 100, 1e9, target === 'rf' ? 11.5e6 : 450), hi = Math.max(lo, clampN(o.hi, 100, 1e9, target === 'rf' ? 13.5e6 : 650));
-  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta: clampN(o.theta, 0, 89, 0), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
+  const theta = clampN(o.theta, 0, 89, 0);
+  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta, theta0: Math.min(theta, clampN(o.theta0, 0, 89, 0)), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
     design: clampN(o.design, 100, 1e9, (lo + hi) / 2), R: clampN(o.R, 0, 100, 50), edge: clampN(o.edge, 100, 1e9, (lo + hi) / 2), passBelow: o.passBelow !== false };
 }
 /* the stack's power reflectance from n0 into ns at cosine ci and wavelength nm, for the polarisation asked */
@@ -2429,17 +2431,18 @@ function coatWant(spec, nm) {
     default: return 0;
   }
 }
-/* the sample points the stack is judged at: wavelengths across the band and angles from 0 to theta */
+/* the sample points the stack is judged at: wavelengths across the band and angles from theta0 to theta */
 function samples(spec, nW, nA) {
   const nms = [], cis = [];
   for (let i = 0; i < nW; i++) nms.push(spec.lo + (spec.hi - spec.lo) * (nW > 1 ? i / (nW - 1) : 0.5));
-  for (let j = 0; j < nA; j++) cis.push(Math.cos((spec.theta * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
+  const a0 = spec.theta0 || 0;
+  for (let j = 0; j < nA; j++) cis.push(Math.cos((a0 + (spec.theta - a0) * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
   return { nms, cis };
 }
 /* the merit: the mean square of R − target over the band and the angles (an edge's own wavelength ± 2% left out, as no
    stack turns in no width) */
 function coatMerit(layers, spec, nW = 41, nA = 5) {
-  const { nms, cis } = samples(spec, nW, spec.theta > 0 ? nA : 1);
+  const { nms, cis } = samples(spec, nW, spec.theta > (spec.theta0 || 0) ? nA : 1);
   let sum = 0, cnt = 0;
   for (const nm of nms) {
     if (spec.target === 'edge' && Math.abs(nm - spec.edge) < 0.02 * spec.edge) continue;
@@ -2460,12 +2463,12 @@ function coatAngles(layers, spec, N = 91) {
   for (let i = 0; i < N; i++) { const d = 89 * i / (N - 1), ci = Math.cos(d * Math.PI / 180); degs.push(d); s.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 's')); p.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 'p')); }
   return { degs, s, p };
 }
-/* the figures a designer reads: the mean and worst reflectance over the band square on and at the largest angle, the
-   reflectance at the design wavelength, and the merit */
+/* the figures a designer reads: the mean and worst reflectance over the band at the smallest angle (square on unless
+   theta0 is given) and at the largest, the reflectance at the design wavelength at the smallest angle, and the merit */
 function coatSummary(layers, spec) {
   const at = deg => { const c = coatCurve(layers, spec, deg, 61); let m = 0, w = 0; for (const r of c.R) { m += r; w = Math.max(w, r); } return { mean: m / c.R.length, worst: w }; };
-  const c0 = at(0), ct = spec.theta > 0 ? at(spec.theta) : c0;
-  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, 1, spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
+  const a0 = spec.theta0 || 0, c0 = at(a0), ct = spec.theta > a0 ? at(spec.theta) : c0;
+  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, Math.cos(a0 * Math.PI / 180), spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
 }
 /* ---------- Optimising the thicknesses ----------
    Nelder–Mead on the layers' thicknesses (each held between a hundredth of a quarter wave and four waves of optical
@@ -2573,7 +2576,7 @@ function backMarks(now, first) {
 /* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
      { format: 'jekfilm', version: 1, name,
-       spec: { target, sub: { glass } | { n }, n0, lo, hi, design, theta, pol, R, edge, passBelow },
+       spec: { target, sub: { glass } | { n }, n0, lo, hi, design, angles: 'upto' | 'band', theta0, theta, pol, R, edge, passBelow },
        layers: [{ n, d }] }        // from the outside in; d in nm
    What the stack is for and what it is judged in (the spec) travels with the layers, so a coating opened again is
    judged as it was designed. The physics is JEKray's, shared as it is (core/coatings.js for the stack,
@@ -2630,7 +2633,9 @@ function normFilm(d) {
   const sub = s.sub && typeof s.sub === 'object' && FILM_GLASSES[s.sub.glass] ? { glass: s.sub.glass }
     : s.sub && typeof s.sub === 'object' && isFinite(+s.sub.n) ? { n: fnum(s.sub.n, 1, 10, 1.5) } : { glass: 'N-BK7' };
   const design = fnum(s.design, 100, 20000, Math.round((lo + hi) / 2));
-  const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, theta: fnum(s.theta, 0, 89, 0), pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
+  // the angles judged: from square on up to theta, or a band of them, theta0 to theta
+  const theta = fnum(s.theta, 0, 89, 0), angles = s.angles === 'band' ? 'band' : 'upto';
+  const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, angles, theta0: angles === 'band' ? Math.min(theta, fnum(s.theta0, 0, 89, 0)) : 0, theta, pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
     .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100) }));
@@ -2643,7 +2648,7 @@ function newFilm(name) {
 /* the spec as JEKray's coat designer takes it (core/coatdesign.js coatSpec), the substrate's index at the design wavelength */
 function filmSpec(f) {
   const s = f.spec;
-  return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
+  return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta0: s.theta0, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
 }
 /* the presets: a starting stack for the design wavelength */
 const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs']];
@@ -3944,7 +3949,7 @@ function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film), sum = coatSummary(film.layers, spec);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(spec), figures(sum, spec), layersCard(spec, sum)));
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(sum), layersCard(spec)));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -3965,7 +3970,10 @@ function settingsCard(spec) {
     propRow('Reference λ₀', dsNum(S.design, v => { film.spec.design = v; }, 'Design wavelength (nm)'), 'nm'),
     propRow('Band from', dsNum(S.lo, v => { film.spec.lo = v; film.spec.hi = Math.max(v, film.spec.hi); }, 'Band from (nm)'), 'nm'),
     propRow('Band to', dsNum(S.hi, v => { film.spec.hi = Math.max(film.spec.lo, v); }, 'Band to (nm)'), 'nm'),
-    propRow('Angles up to', dsNum(S.theta, v => { film.spec.theta = v; }, 'Largest angle of incidence (degrees)'), '°'),
+    propRow('Angles', dsSelect([['upto', 'Up to'], ['band', 'A band']], S.angles, v => edit(f => { f.spec.angles = v; if (v === 'band' && !(f.spec.theta > 0)) { f.spec.theta0 = 40; f.spec.theta = 50; } }), 'How the angles are judged')),
+    ...(S.angles === 'band' ? [propRow('Angles from', dsNum(S.theta0, v => { film.spec.theta0 = v; film.spec.theta = Math.max(v, film.spec.theta); }, 'Smallest angle of incidence (degrees)'), '°'),
+      propRow('Angles to', dsNum(S.theta, v => { film.spec.theta = v; film.spec.theta0 = Math.min(v, film.spec.theta0); }, 'Largest angle of incidence (degrees)'), '°')]
+      : [propRow('Angles up to', dsNum(S.theta, v => { film.spec.theta = v; }, 'Largest angle of incidence (degrees)'), '°')]),
     propRow('Polarisation', dsSelect([['avg', 'Mean of s and p'], ['s', 's'], ['p', 'p']], S.pol, v => edit(f => { f.spec.pol = v; }), 'Polarisation judged')),
     propRow('Incident medium n', dsNum(S.n0, v => { film.spec.n0 = Math.max(1, v); }, 'Index of the medium the light comes from'), ''),
     propRow('Substrate', dsSelect(subOpts, S.sub.glass ? 'g:' + S.sub.glass : 'n', v => edit(f => { f.spec.sub = v === 'n' ? { n: +subIndex(f.spec.sub, f.spec.design).toFixed(4) } : { glass: v.slice(2) }; }), 'The substrate')),
@@ -3979,21 +3987,22 @@ function settingsCard(spec) {
   return out;
 }
 function figures(sum, spec) {
-  const cols = [['R mean, band', dsPct(sum.mean)], ['R max, band', dsPct(sum.worst)]];
-  if (spec.theta > 0) cols.push(['R mean at ' + dsFmt(spec.theta, 3) + '°', dsPct(sum.meanAt)], ['R max at ' + dsFmt(spec.theta, 3) + '°', dsPct(sum.worstAt)]);
-  cols.push(['R at ' + dsFmt(spec.design, 5) + ' nm', dsPct(sum.design)], ['R bare substrate', dsPct(sum.bare)], ['Merit', dsFmt(sum.merit, 3)]);
-  return section('Performance', h('div', { class: 'film-twrap' }, h('table', { class: 'film-results', id: 'filmFigures' },
+  const a0 = spec.theta0 || 0, at = d => (d ? ' at ' + dsFmt(d, 3) + '°' : '');
+  const cols = [['R mean' + at(a0), dsPct(sum.mean)], ['R max' + at(a0), dsPct(sum.worst)]];
+  if (spec.theta > a0) cols.push(['R mean' + at(spec.theta), dsPct(sum.meanAt)], ['R max' + at(spec.theta), dsPct(sum.worstAt)]);
+  cols.push(['R at ' + dsFmt(spec.design, 5) + ' nm' + at(a0), dsPct(sum.design)], ['R bare substrate', dsPct(sum.bare)], ['Merit', dsFmt(sum.merit, 3)]);
+  return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmFigures', 'aria-label': 'Performance' },
     h('thead', null, h('tr', null, ...cols.map(c => h('th', { scope: 'col' }, c[0])))),
-    h('tbody', null, h('tr', null, ...cols.map(c => h('td', { class: 'mono' }, c[1])))))));
+    h('tbody', null, h('tr', null, ...cols.map(c => h('td', { class: 'mono' }, c[1]))))));
 }
 /* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
 function filmCurves(f) {
-  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, 0), ct = spec.theta > 0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
+  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
   return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
 }
-function plotsCard() {
+function plotsCard(sum) {
   const C = filmCurves(film), spec = C.spec;
-  const series = [{ label: 'R, 0°', cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  const series = [{ label: 'R, ' + dsFmt(spec.theta0, 3) + '°', cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
   if (C.Rt) series.push({ label: 'R, ' + dsFmt(spec.theta, 3) + '°', cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
   series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
   const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
@@ -4001,7 +4010,7 @@ function plotsCard() {
   linePlotSvg(a, { id: 'band', label: 'Reflectance against wavelength', xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%', yr: [0, top], series });
   linePlotSvg(b, { id: 'angle', label: 'Reflectance against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: 'R (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, 100],
     series: [{ label: 'Rs', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
-  return section('Reflectance', wrap);
+  return section('Reflectance', wrap, figures(sum, spec));
 }
 function layersCard(spec) {
   const layers = film.layers, S = film.spec;
@@ -4111,7 +4120,7 @@ function newFilmHere() {
 }
 /* the curves as CSV, one heading row with units: wavelength against R, and angle against R(s), R(p) */
 function filmCsv(f) {
-  const C = filmCurves(f), rows = [['wavelength (nm)', 'R square on (%)', ...(C.Rt ? ['R at ' + C.spec.theta + ' deg (%)'] : []), 'target R (%)']];
+  const C = filmCurves(f), rows = [['wavelength (nm)', C.spec.theta0 ? 'R at ' + C.spec.theta0 + ' deg (%)' : 'R square on (%)', ...(C.Rt ? ['R at ' + C.spec.theta + ' deg (%)'] : []), 'target R (%)']];
   C.nms.forEach((nm, i) => rows.push([+nm.toFixed(3), +(100 * C.R0[i]).toPrecision(6), ...(C.Rt ? [+(100 * C.Rt[i]).toPrecision(6)] : []), +(100 * C.want[i]).toPrecision(6)]));
   rows.push([], ['angle (deg)', 'R s at ' + C.spec.design + ' nm (%)', 'R p at ' + C.spec.design + ' nm (%)']);
   C.A.degs.forEach((d, i) => rows.push([+d.toFixed(3), +(100 * C.A.s[i]).toPrecision(6), +(100 * C.A.p[i]).toPrecision(6)]));

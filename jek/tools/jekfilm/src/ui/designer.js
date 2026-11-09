@@ -67,7 +67,7 @@ export function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film), sum = coatSummary(film.layers, spec);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(spec), figures(sum, spec), layersCard(spec, sum)));
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(sum), layersCard(spec)));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -88,7 +88,10 @@ function settingsCard(spec) {
     propRow('Reference λ₀', dsNum(S.design, v => { film.spec.design = v; }, 'Design wavelength (nm)'), 'nm'),
     propRow('Band from', dsNum(S.lo, v => { film.spec.lo = v; film.spec.hi = Math.max(v, film.spec.hi); }, 'Band from (nm)'), 'nm'),
     propRow('Band to', dsNum(S.hi, v => { film.spec.hi = Math.max(film.spec.lo, v); }, 'Band to (nm)'), 'nm'),
-    propRow('Angles up to', dsNum(S.theta, v => { film.spec.theta = v; }, 'Largest angle of incidence (degrees)'), '°'),
+    propRow('Angles', dsSelect([['upto', 'Up to'], ['band', 'A band']], S.angles, v => edit(f => { f.spec.angles = v; if (v === 'band' && !(f.spec.theta > 0)) { f.spec.theta0 = 40; f.spec.theta = 50; } }), 'How the angles are judged')),
+    ...(S.angles === 'band' ? [propRow('Angles from', dsNum(S.theta0, v => { film.spec.theta0 = v; film.spec.theta = Math.max(v, film.spec.theta); }, 'Smallest angle of incidence (degrees)'), '°'),
+      propRow('Angles to', dsNum(S.theta, v => { film.spec.theta = v; film.spec.theta0 = Math.min(v, film.spec.theta0); }, 'Largest angle of incidence (degrees)'), '°')]
+      : [propRow('Angles up to', dsNum(S.theta, v => { film.spec.theta = v; }, 'Largest angle of incidence (degrees)'), '°')]),
     propRow('Polarisation', dsSelect([['avg', 'Mean of s and p'], ['s', 's'], ['p', 'p']], S.pol, v => edit(f => { f.spec.pol = v; }), 'Polarisation judged')),
     propRow('Incident medium n', dsNum(S.n0, v => { film.spec.n0 = Math.max(1, v); }, 'Index of the medium the light comes from'), ''),
     propRow('Substrate', dsSelect(subOpts, S.sub.glass ? 'g:' + S.sub.glass : 'n', v => edit(f => { f.spec.sub = v === 'n' ? { n: +subIndex(f.spec.sub, f.spec.design).toFixed(4) } : { glass: v.slice(2) }; }), 'The substrate')),
@@ -102,21 +105,22 @@ function settingsCard(spec) {
   return out;
 }
 function figures(sum, spec) {
-  const cols = [['R mean, band', dsPct(sum.mean)], ['R max, band', dsPct(sum.worst)]];
-  if (spec.theta > 0) cols.push(['R mean at ' + dsFmt(spec.theta, 3) + '°', dsPct(sum.meanAt)], ['R max at ' + dsFmt(spec.theta, 3) + '°', dsPct(sum.worstAt)]);
-  cols.push(['R at ' + dsFmt(spec.design, 5) + ' nm', dsPct(sum.design)], ['R bare substrate', dsPct(sum.bare)], ['Merit', dsFmt(sum.merit, 3)]);
-  return section('Performance', h('div', { class: 'film-twrap' }, h('table', { class: 'film-results', id: 'filmFigures' },
+  const a0 = spec.theta0 || 0, at = d => (d ? ' at ' + dsFmt(d, 3) + '°' : '');
+  const cols = [['R mean' + at(a0), dsPct(sum.mean)], ['R max' + at(a0), dsPct(sum.worst)]];
+  if (spec.theta > a0) cols.push(['R mean' + at(spec.theta), dsPct(sum.meanAt)], ['R max' + at(spec.theta), dsPct(sum.worstAt)]);
+  cols.push(['R at ' + dsFmt(spec.design, 5) + ' nm' + at(a0), dsPct(sum.design)], ['R bare substrate', dsPct(sum.bare)], ['Merit', dsFmt(sum.merit, 3)]);
+  return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmFigures', 'aria-label': 'Performance' },
     h('thead', null, h('tr', null, ...cols.map(c => h('th', { scope: 'col' }, c[0])))),
-    h('tbody', null, h('tr', null, ...cols.map(c => h('td', { class: 'mono' }, c[1])))))));
+    h('tbody', null, h('tr', null, ...cols.map(c => h('td', { class: 'mono' }, c[1]))))));
 }
 /* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
 export function filmCurves(f) {
-  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, 0), ct = spec.theta > 0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
+  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
   return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
 }
-function plotsCard() {
+function plotsCard(sum) {
   const C = filmCurves(film), spec = C.spec;
-  const series = [{ label: 'R, 0°', cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  const series = [{ label: 'R, ' + dsFmt(spec.theta0, 3) + '°', cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
   if (C.Rt) series.push({ label: 'R, ' + dsFmt(spec.theta, 3) + '°', cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
   series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
   const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
@@ -124,7 +128,7 @@ function plotsCard() {
   linePlotSvg(a, { id: 'band', label: 'Reflectance against wavelength', xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%', yr: [0, top], series });
   linePlotSvg(b, { id: 'angle', label: 'Reflectance against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: 'R (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, 100],
     series: [{ label: 'Rs', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
-  return section('Reflectance', wrap);
+  return section('Reflectance', wrap, figures(sum, spec));
 }
 function layersCard(spec) {
   const layers = film.layers, S = film.spec;

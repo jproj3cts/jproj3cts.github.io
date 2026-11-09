@@ -2,7 +2,8 @@ import { polyVerts } from '../../core/geometry.js';
 import { frame } from '../../core/mask.js';
 import { ctx, getCss, metal, pathLocal, selInk } from '../render.js';
 import { hitBlock } from './hits.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { blockNote, coatingRows, materialRows } from '../panels.js';
 
 /* Beam splitter cube on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/cube.js */

@@ -11,7 +11,8 @@ import { normCoat } from '../state/project.js';
 import { changed } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { getEl } from '../state/elements.js';
-import { helpLine, h } from './panel.js';
+import { helpLine } from './panel.js';
+import { h } from './dom.js';
 import { drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 import { fmtSig } from '../core/format.js';
 

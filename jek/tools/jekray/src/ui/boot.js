@@ -85,8 +85,9 @@ import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
 import { normPack, packAssess, packFromSelection, packPut, packRemove, packTrustOf, placePackPart, wirePacks } from '../io/packs.js';
 import { packTrustLabel } from '../core/packsig.js';
-import { account, accountLoaded, accountsOn, proLink, returnNudge, wireAccount } from '../io/account.js';
-import { homeOpen, openCloudBench, openHome, wireCloud } from '../io/cloud.js';
+import { accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
+import { returnNudge, wireNudges } from '../io/nudges.js';
+import { openCloudBench, openSpace, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
 import { scriptCalls } from './script-calls.js';
@@ -95,7 +96,7 @@ import { exportData, exportEverything, plotsData, wireDataExport } from '../io/d
 import { wireFigure } from '../io/figure.js';
 import { wireTasters } from '../io/tasters.js';
 import { gatherData } from '../engines/data-export.js';
-import { TOURS, endTour, nameInput, openDemo, startTour, tour, tourTick, wireTours } from './tours.js';
+import { endTour, nameInput, openDemo, startNewBench, startTour, tour, TOURS, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
@@ -137,7 +138,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -635,22 +636,21 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     openDemo(demo[1]);
   }
-  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three),
-  // and #benches opens My benches
+  // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
+  // #benches opens JEKspace, where the benches are; and from JEKspace, #cloud=<id> (or <id>@<version>, a copy of a version)
+  // opens a cloud bench, :lens, :rf or :coat after it into a designer, and #new (or #new=lens|rf|coat) starts a new bench
   const helpLink = () => {
-    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches', cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/);
-    if (benches && homeOpen()) return true;
-    if (location.hash !== '#examples' && !pro && !benches && !cl && !(tr && TOURS[tr[1]])) return false;
+    const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
+    const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::(lens|rf|coat))?$/), nw = location.hash.match(/^#new(?:=(lens|rf|coat))?$/);
+    if (location.hash !== '#examples' && !pro && !benches && !cl && !nw && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
+    const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') openCoatDesign(null); };
     setTimeout(async () => {
       if (tr) startTour(tr[1]); else if (pro) proLink();
-      else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }
-      else if (benches) {
-        await accountLoaded;
-        if (account) openHome();
-        else if (accountsOn()) { const btn = document.getElementById('btnAcct'); if (btn && document.getElementById('acctMenu').hidden) btn.click(); toast('Sign in to see your benches'); }
-      }
+      else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); into(cl[3]); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }
+      else if (nw) { startNewBench(); into(nw[1]); }
+      else if (benches) openSpace();
       else openGallery();
     }, 0);
     return true;

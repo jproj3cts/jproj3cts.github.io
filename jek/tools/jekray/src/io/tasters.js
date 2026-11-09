@@ -1,5 +1,5 @@
 import { hooks } from '../core/hooks.js';
-import { h } from '../ui/panel.js';
+import { h } from '../ui/dom.js';
 import { toast } from '../ui/actions.js';
 import { needsShown } from '../ui/pro.js';
 import { account, accountsOn, api, showSubscribe } from './account.js';

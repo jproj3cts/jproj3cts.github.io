@@ -63,6 +63,26 @@ jobs:
       - name: Node tests and the browser suite
         run: node test/run.mjs
 
+  jekspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: jek/tools/jekspace
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The page is built from its sources (and JEKray's shared modules)
+        run: node build.mjs --check
+      - name: Playwright for the browser check
+        run: |
+          npm i --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Node tests and the browser check
+        run: node test/run.mjs
+
   jek-api:
     runs-on: ubuntu-latest
     timeout-minutes: 15

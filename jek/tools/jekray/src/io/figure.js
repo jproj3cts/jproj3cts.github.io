@@ -8,7 +8,7 @@ import { VecCtx, layoutSvg, pdfDoc, recordLayout } from './layout.js';
 import { downloadFile, fitView, safeFileName, toast } from '../ui/actions.js';
 import { accountGate, needMark } from '../ui/pro.js';
 import { PALETTES } from '../ui/experimental.js';
-import { h } from '../ui/panel.js';
+import { h } from '../ui/dom.js';
 import { track } from './usage.js';
 
 /* ==========================================================================

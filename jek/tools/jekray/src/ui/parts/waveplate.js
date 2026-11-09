@@ -3,7 +3,8 @@ import { V, deg } from '../../state/project.js';
 import { frame, toWorld } from '../../core/mask.js';
 import { ctx, pathLocal, selInk, sx, sy } from '../render.js';
 import { hitThin } from './hits.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { C_NM_GHZ, gridCoef } from '../../core/rf.js';
 import { benchNms } from '../../state/elements.js';
 

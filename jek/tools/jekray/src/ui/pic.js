@@ -11,7 +11,8 @@ import {
   linesGen, picPortList, portLabel, ringLine, samplesFor, spectrum
 } from '../engines/pic.js';
 import { signalSection } from './instruments.js';
-import { helpLine, bindSync, fid, h, numInput, panel, param, selectField, setFid, vs } from './panel.js';
+import { helpLine, bindSync, fid, numInput, panel, param, selectField, setFid, vs } from './panel.js';
+import { h } from './dom.js';
 import { portRows, readoutBox } from './panels.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
 

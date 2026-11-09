@@ -1,7 +1,7 @@
 import { surfSag } from '../engines/lens-design.js';
 import { RF_MAT, lensZones } from '../core/rf.js';
 import { grinDesign } from '../core/grin.js';
-import { h } from './panel.js';
+import { h } from './dom.js';
 
 /* ---------- A lens to be made, in 3D: a quick look before it is ordered ----------
    The lens as it would be printed: its faces turned about its axis to their full diameter (the sags as the bench

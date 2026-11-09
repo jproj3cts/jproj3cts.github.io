@@ -3,7 +3,8 @@ import { FIBRE_COLOUR } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS } from '../../engines/trace.js';
 import { bodyFill, ctx, drawPorts, pathLocal, selInk } from '../render.js';
-import { bindSync, h, panel, param, selectField } from '../panel.js';
+import { bindSync, panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { fibreMode } from '../../engines/fibre-face.js';
 import { anyPulse, pulseSection, pulseSectionEmpty, readoutBox } from '../panels.js';
 

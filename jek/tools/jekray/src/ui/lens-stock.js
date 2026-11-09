@@ -4,7 +4,8 @@ import { optProblem } from '../engines/lens-opt.js';
 import { designLenses, stockBaseline, stockCandidates, stockNominal, stockOf, stockTry } from '../engines/lens-stock.js';
 import { parseZmx, readZmxFile } from '../io/zmx-import.js';
 import { zmxPart } from '../io/zmx-export.js';
-import { helpLine, h } from './panel.js';
+import { helpLine } from './panel.js';
+import { h } from './dom.js';
 import { fmtSig } from '../core/format.js';
 
 /* ---------- Stock lenses: the user's own lens files, matched to the lenses of a design ----------

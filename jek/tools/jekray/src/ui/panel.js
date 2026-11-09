@@ -26,6 +26,7 @@ import { cavitiesOf } from '../engines/cavity.js';
 import { changed, duplicate, removeEl } from './actions.js';
 import { checkpoint, selectEl, switchTab } from './tabs.js';
 import { modPanel } from '../io/mods.js';
+import { h } from './dom.js';
 
 /* ==========================================================================
    Properties panel
@@ -75,16 +76,6 @@ export function throttle(fn, ms = 200) {
     if (now - last >= ms) { last = now; clearTimeout(timer); timer = 0; fn(); }
     else if (!timer) timer = setTimeout(() => { timer = 0; last = performance.now(); fn(); }, ms - (now - last));
   };
-}
-export function h(tag, attrs, ...kids) {
-  const n = document.createElement(tag);
-  if (attrs) for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v === true ? '' : v);
-  }
-  for (const k of kids) if (k !== null && k !== undefined) n.append(k);
-  return n;
 }
 /* A line of help: a short line, with its fuller explanation folded behind an ⓘ that opens it in place (kept in the
    page, so a screen reader and the page's search still find it). cls: the paragraph's class (rt-lsub by default); style, its own. */

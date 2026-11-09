@@ -1,6 +1,7 @@
 import { ctx, drawPlate, pathLocal } from '../render.js';
 import { hitSlab } from './hits.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { readoutBox } from '../panels.js';
 
 /* Acousto-optic modulator on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/aom.js */

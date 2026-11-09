@@ -6,10 +6,11 @@ import { benchName, curBench, ensureBenches, onTab } from '../state/tabs.js';
 import { requestRender } from './render.js';
 import { pauseAll } from './sweeps.js';
 import { stopSweepsFor } from './optimise.js';
-import { h, renderPanel } from './panel.js';
+import { renderPanel } from './panel.js';
+import { h } from './dom.js';
 import { changed, markUnsaved, updateUndoButtons } from './actions.js';
 import { scheduleSave } from '../io/autosave.js';
-import { benchEdited } from '../io/account.js';
+import { benchEdited } from '../io/nudges.js';
 
 /* ==========================================================================
    Bench tabs: switching, adding and removing benches, the tab row, and the undo history.

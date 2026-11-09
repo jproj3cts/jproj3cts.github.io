@@ -8,7 +8,7 @@ import {
 import { DRAW_TOOLS, drawIcon, drawTool, drawToolsShown, setDrawTool } from './drawings.js';
 import { V3D } from './view3d.js';
 import { modelRailItems, setModelExit, startModel, stopModel } from './model3d.js';
-import { h } from './panel.js';
+import { h } from './dom.js';
 import { addElement } from './actions.js';
 import {
   PALETTE_NAMES, PART_DRAG, addPart, assignPalette, exp, palette, palettesOn,

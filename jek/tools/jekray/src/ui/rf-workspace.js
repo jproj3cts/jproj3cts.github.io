@@ -15,7 +15,8 @@ import { RF_LENS_TYPES, RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, rfGrinInto,
 import { diverge, heat, linePlot } from './lens-analyses.js';
 import { HOUSINGS } from '../engines/lens-thermal.js';
 import { magma } from './plots.js';
-import { helpLine, h, justStopped, stopButton, throttle } from './panel.js';
+import { helpLine, justStopped, stopButton, throttle } from './panel.js';
+import { h } from './dom.js';
 import { matchLayer } from './panels.js';
 import { greyInk, setSelection } from './render.js';
 import { changed, toast } from './actions.js';

@@ -161,7 +161,10 @@ export function optimise(el, path, target, key, goal, targetVal) {
   const sw = el.sweeps[path];
   const lo = Math.min(sw.min, sw.max), hi = Math.max(sw.min, sw.max);
   const start = getPath(el, path);
-  const evalAt = v => { setParam(el, path, v); traceScene(); return meritFor(target, key, goal, targetVal); };
+  // the best seen anywhere: a peak narrower than the scan's step is found by the scan alone, and the golden
+  // section, which assumes one dip, can walk away from it
+  let seen = { v: start, m: Infinity };
+  const evalAt = v => { setParam(el, path, v); traceScene(); const m = meritFor(target, key, goal, targetVal); if (m < seen.m) seen = { v, m }; return m; };
   const startMerit = evalAt(start);
   const startValue = metricRaw(target, key);
   let traces = 1;
@@ -188,9 +191,9 @@ export function optimise(el, path, target, key, goal, targetVal) {
     else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = evalAt(d); }
     traces++;
   }
-  const best = (a + b) / 2;
-  const bestMerit = evalAt(best);
+  let best = (a + b) / 2, bestMerit = evalAt(best);
   traces++;
+  if (seen.m < bestMerit) { best = seen.v; bestMerit = evalAt(best); traces++; }
   const improved = bestMerit < startMerit;
   const bestValue = metricRaw(target, key);
   if (!improved) { setParam(el, path, start); traceScene(); }
@@ -208,6 +211,18 @@ export function optimise(el, path, target, key, goal, targetVal) {
    Nelder-Mead from the best of them in the ranges scaled to 0-1, clamped to them. */
 export function* optimiseGen(vars, terms, opts) {
   opts = opts || {};
+  // what a script can get wrong, said plainly (the dialog offers only parts with a range, and real goals)
+  for (const [el, path] of vars) {
+    if (!el) throw new Error('No such part to vary');
+    const sw = el.sweeps && el.sweeps[path];
+    if (!sw || !isFinite(sw.min) || !isFinite(sw.max)) throw new Error(el.name + ': ' + path + ' has no range to search (give it a sweep, From and To)');
+  }
+  for (const t of terms) {
+    if (!t.target) throw new Error('No such part to measure');
+    const M = metricByKey(t.key);
+    if (!M) throw new Error('No measure called ' + t.key);
+    if (M.on !== metricKind(t.target)) throw new Error(t.target.name + ' cannot be measured for ' + M.label);
+  }
   pauseAll();
   const n = vars.length;
   const rng = vars.map(([el, path]) => { const sw = el.sweeps[path]; return [Math.min(sw.min, sw.max), Math.max(sw.min, sw.max)]; });
@@ -268,10 +283,11 @@ export function* optimiseGen(vars, terms, opts) {
     }
   } else {
     // a Latin hypercube: each range cut into S strata, one sample in each, shuffled per axis
-    const S = Math.min(80, 10 + 10 * n);
-    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
+    // seeded, so the same bench and goals give the same answer each time (opts.seed for another spread)
+    const S = Math.min(80, 10 + 10 * n), rnd = seededRng(opts.seed || 1);
+    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
     const P = vars.map(perm), samples = [{ u: toU(start), m: startMerit }];
-    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + Math.random()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
+    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + rnd()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
     samples.sort((a, b) => a.m - b.m);
     // Nelder-Mead from the best sample, then once more from where it ended with a small simplex
     const nm = function* (u0, step) {

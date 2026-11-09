@@ -186,7 +186,8 @@ through `core/hooks.js`.
 - My benches is JEKspace (`jek/tools/jekspace.html`): every app's My benches opens it in the tab named `jekspace`
   (JEKray `openSpace` in `io/cloud.js`, JEKion `openCloudList`), and it opens a bench in its app's named tab at
   `#cloud=<id>[@v][:lens|rf|coat]`, or `#new[=lens|rf|coat]` (JEKray `startNewBench` in `ui/tours.js`, JEKion
-  `newProject`). JEKray keeps the
+  `newProject`). The rail's apps open each app's launch page in JEKspace (`#app=jekray|jekion`, `showApp` in
+  `jekspace/src/ui/home.js`): its benches alone, the one picked beside them; New › Open opens the apps. JEKray keeps the
   home page's CSS (`.rt-home`, `.rt-h*` in `style.css`), which JEKspace is styled with, and the merge dialog for a
   save conflict; comparing versions and merging forks are JEKspace's.
 - One account for every app: `jek/tools/jekray/src/io/account.js` (sign-in incl. the email dialog, the account menu's

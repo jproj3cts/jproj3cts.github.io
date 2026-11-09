@@ -20,7 +20,6 @@ import { loadTasters } from './tasters.js';
 import { newProject } from '../ui/tours.js';
 import { newLensDesign } from '../ui/assembly.js';
 import { newRfDesign } from '../ui/rf-workspace.js';
-import { openCoatDesign } from '../ui/coat-workspace.js';
 import { noteRecent } from './recent.js';
 
 /* ---------- Cloud benches ----------
@@ -259,7 +258,7 @@ export function newCloudBench(ws, folder, saveThis, then) {
       cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
       toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
       // straight into a workspace: a starting design on the new bench, or the coating workspace on its own
-      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') openCoatDesign(null);
+      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') hooks.designInFilm(null);
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not make the bench: ' + err.message, true);

@@ -548,7 +548,7 @@ export function coatingSelect(el, holder, label) {
 function coatingOptions(el, short, holder) {
   return [['bare', short ? 'Uncoated' : el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
     ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', short ? 'Dielectric HR' : 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', short ? 'Matching layer' : 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
-    ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
+    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating in JEKfilm\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
     // JEKfilm's coatings: those in the bench's cloud folder, the one this face is linked to, and a .jekfilm file
     ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file\u2026']] : [])];
 }
@@ -563,7 +563,8 @@ const coatingValue = (el, holder) => (holder.coat.src ? 'film:' + holder.coat.sr
 function setCoating(el, holder, v) {
   const keep = holder.coat;
   // the coating design workspace, on this face; a coating kept by name there, written here
-  if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
+  // RF's matching layer in JEKray's own coating workspace; an optical face's coating in JEKfilm, which sends it back to this face
+  if (v === 'design') { const from = { el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }; if (el.mmw) { if (hooks.openCoatDesign) hooks.openCoatDesign(from); } else if (hooks.designInFilm) hooks.designInFilm(from); return;
   } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
   // a JEKfilm coating: from the cloud folder (fetched, then put on), or from a file; the face linked to one already keeps it
   if (v.startsWith('film:')) { if (!(keep.src && 'film:' + keep.src.id === v) && hooks.useFilmOn) hooks.useFilmOn(holder, v.slice(5)); return; }

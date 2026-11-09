@@ -117,6 +117,40 @@ export async function check(pw, base, shots) {
       ok('JEKrayPro: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
+    // from a JEKray face (#design=…): its glass, wavelength and stack to start; saved to the bench's folder, sent back to the face
+    {
+      const pass = { seed: { format: 'jekfilm', version: 1, name: 'Window, surface 1 coating', spec: { target: 'ar', sub: { glass: 'Fused silica', n: 1.4496 }, design: 1064, lo: 904, hi: 1224 }, layers: [{ n: 1.38, d: 192.75 }] },
+        face: 'fabc123', label: 'Window, surface 1', ws: 'w_me', folder: 'f2' };
+      const hash = '#design=' + Buffer.from(JSON.stringify(pass), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const { p, errs, api } = await page(hash, { signedIn: true, pro: true });
+      await p.waitForSelector('#filmFor:not([hidden])', { timeout: 8000 }).catch(() => {});
+      await p.evaluate(() => { window.__said = []; const ch = new BroadcastChannel('jek-film'); ch.onmessage = e => window.__said.push(e.data); });
+      const s = await p.evaluate(() => ({ f: window.JEKfilm.film(), bar: document.getElementById('filmFor').textContent, hash: location.hash }));
+      ok('#design=… from a JEKray face: the face’s glass, wavelength and stack, and a line saying which face it is for', s.f.spec.sub.glass === 'Fused silica' && s.f.spec.design === 1064 && s.f.layers.length === 1 && /For JEKray: Window, surface 1/.test(s.bar) && !s.hash, JSON.stringify(s));
+      await p.click('#btnFile'); await p.click('#btnCloudSave');
+      await p.waitForSelector('#filmCloudNew[open]', { timeout: 3000 }).catch(() => {}); await p.waitForTimeout(400);
+      const place = await p.evaluate(() => [document.getElementById('filmCloudWhere').value, document.getElementById('filmCloudFolder').value]);
+      await p.click('#filmCloudMake'); await p.waitForTimeout(500);
+      const said = await p.evaluate(() => window.__said), post = api.bodies.slice(-1)[0];
+      const gone = await p.evaluate(() => document.getElementById('filmFor').hidden);
+      ok('Saved to the cloud: the bench’s own folder chosen, and the coating sent back to that face (its token on jek-film); the line goes', place.join() === 'w_me,f2' && post.folder_id === 'f2'
+        && said.length === 1 && said[0].face === 'fabc123' && said[0].id === 'cnew' && gone, JSON.stringify([place, said]));
+      ok('From a JEKray face: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
+    // the coatings JEKray's coating designer kept in this browser: offered in File, each opened as a coating
+    {
+      const p = await b.newPage({ viewport: { width: 1300, height: 900 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
+      await p.addInitScript(() => { try { localStorage.setItem('JEK_COATINGS', JSON.stringify([{ id: 'c1', name: 'BBAR 450–650', coat: { mode: 'stack', design: 550, layers: [{ n: 1.38, d: 99.6 }, { n: 2.1, d: 32.7 }, { n: 1.63, d: 84.4 }] }, spec: { target: 'ar', n0: 1, ns: 1.5168, lo: 450, hi: 650, theta: 20, pol: 'avg' } }])); } catch (e) { /* fine */ } });
+      await p.goto(base + '/jek/tools/jekfilm.html?test'); await p.waitForSelector('#filmLayers', { timeout: 10000 }).catch(() => {});
+      const shown = await p.evaluate(() => { const k = document.getElementById('btnKept'); return k && !k.hidden ? k.textContent : null; });
+      await p.click('#btnFile'); await p.click('#btnKept'); await p.waitForTimeout(150);
+      await p.evaluate(() => [...document.querySelectorAll('#filmKept button')].find(x => x.textContent === 'Open').click()); await p.waitForTimeout(150);
+      const f = await p.evaluate(() => window.JEKfilm.film());
+      ok('Coatings kept in JEKray (1)…: one opens as a coating, its layers, band, angles and substrate index kept', /Coatings kept in JEKray \(1\)/.test(shown || '') && f.name === 'BBAR 450–650' && f.layers.length === 3 && f.spec.lo === 450 && f.spec.theta === 20 && f.spec.sub.n === 1.5168, JSON.stringify([shown, f]));
+      ok('Kept coatings: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
   } finally { await b.close(); }
   return out;
 }

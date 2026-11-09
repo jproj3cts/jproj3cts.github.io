@@ -7,7 +7,7 @@ description: "JEKfilm, the JEK coating designer: a thin-film stack on a substrat
 
 <p class="dx-lead">JEKfilm designs one thin-film coating at a time: a stack of layers on a substrate, what it is for, what it reflects across the band and against the angle, and the thicknesses that do it best. It uses the thin-film model JEKray traces with, so a coating designed in JEKfilm behaves the same on a JEKray bench.</p>
 
-Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), or from [JEKspace](/jek/docs/jekray/jekspace/): **New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list. It opens in a tab of its own, reused each time.
+Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [JEKspace](/jek/docs/jekray/jekspace/) (**New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list), or from JEKray: **Tools › Coating design in JEKfilm…**, or a face's **Design a coating in JEKfilm…**. It opens in a tab of its own, reused each time.
 
 ## The design
 
@@ -35,6 +35,11 @@ The table lists the stack from the incident medium down to the substrate: each l
 The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKspace shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.
 
 ## On a JEKray bench
+
+**Designing for a face.** A face's **Design a coating in JEKfilm…** (or the lens designer's face table) opens JEKfilm on that face's glass, at the bench's wavelength, with the face's stack, and a line along the top says which face it is for. **Save to the cloud…** then starts in the bench's own workspace and folder, and once saved the coating goes onto that face in JEKray, linked to it. Saving to the cloud is JEKrayPro's.
+
+**Coatings kept in JEKray.** Coatings kept by name with JEKray's earlier coating designer are listed in **File › Coatings kept in JEKray…**: open one, then save it to the cloud to keep it with your benches.
+
 
 A coating face's **Coating** list (a lens or window face, a beamsplitter cube, a prism) offers the JEKfilm coatings kept in the same cloud folder as the bench, each marked ◆, and **A JEKfilm coating from a file…** for a .jekfilm on your computer. Choosing one puts its layers on the face at its design wavelength; the face keeps its own glass as the substrate.
 

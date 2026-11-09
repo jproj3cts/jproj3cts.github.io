@@ -28,6 +28,7 @@
         <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
           <button type="button" role="menuitem" id="btnNew" data-icon="new">New coating</button>
           <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
+          <button type="button" role="menuitem" id="btnKept" data-icon="star" hidden title="The coatings JEKray’s coating designer kept by name in this browser"><span class="lbl">Coatings kept in JEKray…</span></button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
@@ -50,6 +51,7 @@
         <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
       </div>
     </header>
+    <p class="film-for" id="filmFor" hidden></p>
     <div class="rt-lbody" id="filmBody"></div>
     <div class="rt-toast" id="filmToast" role="status"></div>
   </section>

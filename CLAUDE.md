@@ -62,7 +62,7 @@ through `core/hooks.js`.
 - **UI**: bench `ui/render.js`, `pointer.js`, `actions.js` (toast, context menu, save); panel framework `ui/panel.js`
   (`param`, `numInput`, `selectField`), shared sections `ui/panels.js`, readouts `ui/readouts.js`, plots `ui/plots.js`,
   sweeps `ui/sweeps.js`, optimiser `ui/optimise.js`, 3D `ui/view3d.js`, Optical designer `ui/lens-*.js`, RF designer
-  `ui/rf-workspace.js`, coating designer `ui/coat-workspace.js`, instruments `ui/instruments.js`, tours `ui/tours.js`,
+  `ui/rf-workspace.js`, RF matching-layer workspace `ui/coat-workspace.js` (optical faces go to JEKfilm: `designInFilm` in `io/film-coats.js`), instruments `ui/instruments.js`, tours `ui/tours.js`,
   news/version `ui/news.js` (`APP_VERSION`, `NEWS`), experimental flags `ui/experimental.js`.
   Toolbar/menus/dialogs markup: `page.html`; wiring in each module's `wire…()`, called from `ui/boot.js`.
 - **Files and sharing**: `io/open.js`, `io/autosave.js`, `io/share.js`, `.zmx/.zar` `io/zmx-import.js` /

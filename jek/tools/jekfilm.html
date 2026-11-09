@@ -2086,6 +2086,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-ws .film-props tr:hover th { color: var(--jek-ink); }
 .film-ws .rt-lpair { gap: 1.25rem; }
 .film-ws .film-fig figcaption { margin-bottom: 0.15rem; }
+.film-for { margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--rt-warm-bg); color: var(--rt-warm-ink); border-bottom: 1px solid var(--jek-line); }
+.film-for .rt-link { margin-left: 0.6rem; color: inherit; }
 </style>
 </head>
 <body class="film-app">
@@ -2101,6 +2103,7 @@ html, body { margin: 0; background: var(--jek-well); }
         <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
           <button type="button" role="menuitem" id="btnNew" data-icon="new">New coating</button>
           <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
+          <button type="button" role="menuitem" id="btnKept" data-icon="star" hidden title="The coatings JEKray’s coating designer kept by name in this browser"><span class="lbl">Coatings kept in JEKray…</span></button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
@@ -2123,6 +2126,7 @@ html, body { margin: 0; background: var(--jek-well); }
         <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
       </div>
     </header>
+    <p class="film-for" id="filmFor" hidden></p>
     <div class="rt-lbody" id="filmBody"></div>
     <div class="rt-toast" id="filmToast" role="status"></div>
   </section>
@@ -4175,7 +4179,34 @@ function exportCurves() {
   downloadBlob(name, new Blob([filmCsv(film)], { type: 'text/csv' }));
   toast('Saved ' + name); track('export', 'film-csv');
 }
+/* the coatings JEKray's coating designer kept by name in this browser before JEKfilm ('JEK_COATINGS': [{ id, name,
+   coat: a stack, spec: core/coatdesign.js's }]), each as a JEKfilm coating to open (and then save to the cloud) */
+const KEPT_KEY = 'JEK_COATINGS';
+function keptInJekray() {
+  try { const v = JSON.parse(localStorage.getItem(KEPT_KEY) || '[]'); return Array.isArray(v) ? v.filter(k => k && k.coat && Array.isArray(k.coat.layers)) : []; } catch (err) { return []; }
+}
+function keptToFilm(k) {
+  const s = k.spec || {}, c = k.coat;
+  return normFilm({ name: k.name, spec: { target: s.target === 'rf' ? 'ar' : s.target, sub: { n: s.ns }, n0: s.n0, lo: s.lo, hi: s.hi, design: c.design || s.design, angles: 'upto', theta: s.theta, pol: s.pol, R: s.R, edge: s.edge, passBelow: s.passBelow }, layers: c.layers });
+}
+function keptShown() {
+  const b = document.getElementById('btnKept'), n = keptInJekray().length;
+  if (b) { b.hidden = !n; b.querySelector('.lbl').textContent = 'Coatings kept in JEKray (' + n + ')\u2026'; }
+}
+function keptDialog() {
+  let dlg = document.getElementById('filmKept');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmKept', 'aria-labelledby': 'filmKeptTitle' }); document.body.append(dlg); }
+  const list = keptInJekray();
+  dlg.replaceChildren(h('h2', { id: 'filmKeptTitle' }, 'Coatings kept in JEKray'),
+    h('p', null, 'These were kept by name in this browser with JEKray’s coating designer. Open one here, then save it to the cloud to keep it with your benches.'),
+    h('table', { class: 'film-results film-keptlist' }, h('tbody', null, ...list.map(k => h('tr', null, h('th', { scope: 'row' }, k.name), h('td', { class: 'n' }, k.coat.layers.length + (k.coat.layers.length === 1 ? ' layer' : ' layers')),
+      h('td', { class: 'n' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { dlg.close(); setFilm(keptToFilm(k)); hooks.filmUnlink(); filmAutosave(); toast('Opened “' + k.name + '”: save it to the cloud to keep it with your benches'); track('import', 'film-kept'); } }, 'Open')))))),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
+  dlg.showModal();
+}
 function wireFiles() {
+  document.getElementById('btnKept').addEventListener('click', keptDialog);
+  keptShown();
   const fi = document.getElementById('fileFilm');
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });
@@ -4247,6 +4278,16 @@ function wireFilmAccount() {
 const FILM_LINK_KEY = 'jek-film-cloud-link', FILM_CLOUD_EVERY = 30000;
 const SPACE_URL = '/jek/tools/jekspace.html';
 let filmLink = null;
+/* the JEKray face this coating is designed for (#design=…): { face, label, ws, folder }, until it goes back */
+let filmFor = null;
+function setFilmFor(v) { filmFor = v; forShown(); }
+function forShown() {
+  const bar = document.getElementById('filmFor');
+  if (!bar) return;
+  bar.hidden = !filmFor;
+  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save to the cloud (File › Save to the cloud…) and it goes onto that face, linked to this coating.',
+    h('button', { class: 'rt-link', type: 'button', onclick: () => setFilmFor(null) }, 'Not for that face'));
+}
 let filmCloudTimer = null, filmCloudBusy = false;
 const filmJson = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const filmCloudOn = () => accountsOn() && !!account;
@@ -4325,12 +4366,15 @@ function filmConflict(theirs) {
 async function saveToCloud() {
   if (!designPro('save to the cloud')) return;
   if (filmLink) { await filmPush({ checkpoint: true }); return; }
+  if (!account) return;
   const places = (account.workspaces || []).filter(w => w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
   if (!places.length) { designPro('save to the cloud'); return; }
   let dlg = document.getElementById('filmCloudNew');
   if (dlg) dlg.remove();
   const name = h('input', { type: 'text', id: 'filmCloudName', value: film.name, spellcheck: 'false', maxlength: '120' });
   const where = h('select', { id: 'filmCloudWhere' }, ...places.map(w => h('option', { value: w.id }, w.kind === 'personal' ? 'My benches' : w.name)));
+  const wantFolder = filmFor && places.some(w => w.id === filmFor.ws) ? filmFor.folder : null;
+  if (filmFor && places.some(w => w.id === filmFor.ws)) where.value = filmFor.ws;
   // the workspace's folders, each by its path, to put the coating beside the benches it is for
   const folder = h('select', { id: 'filmCloudFolder' }, h('option', { value: '' }, 'The top folder'));
   const fillFolders = async () => {
@@ -4339,6 +4383,7 @@ async function saveToCloud() {
       const fs = (await api('/v1/workspaces/' + where.value + '/folders')).folders || [], byId = new Map(fs.map(f => [f.id, f]));
       const path = f => { const out = []; for (let x = f, i = 0; x && i < 20; x = byId.get(x.parent_id), i++) out.unshift(x.name); return out.join(' › '); };
       for (const [id, p] of fs.map(f => [f.id, path(f)]).sort((x, y) => x[1].localeCompare(y[1]))) folder.append(h('option', { value: id }, p));
+      if (wantFolder && where.value === filmFor.ws && fs.some(f => f.id === wantFolder)) folder.value = wantFolder;
     } catch (err) { /* the top folder only */ }
   };
   where.addEventListener('change', fillFolders); fillFolders();
@@ -4347,7 +4392,7 @@ async function saveToCloud() {
     h('h2', { id: 'filmCloudNewTitle' }, 'Save to the cloud'),
     h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudWhere' }, 'In'), where),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudFolder' }, 'Folder'), folder)),
-    h('p', { class: 'rt-subsmall' }, 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKspace.'),
+    h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKspace.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKspace.'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), go));
   document.body.append(dlg);
   go.addEventListener('click', async () => {
@@ -4372,7 +4417,11 @@ async function saveToCloud() {
    list a new coating in their folder */
 function filmTell(link) {
   if (typeof BroadcastChannel !== 'function' || !link) return;
-  try { const ch = new BroadcastChannel('jek-film'); ch.postMessage({ id: link.id, version: link.version, name: link.name, ws: link.ws, folder: link.folder || null }); ch.close(); } catch (err) { /* no channel: JEKray finds out when the bench is next opened */ }
+  try {
+    const ch = new BroadcastChannel('jek-film');
+    ch.postMessage({ id: link.id, version: link.version, name: link.name, ws: link.ws, folder: link.folder || null, face: filmFor ? filmFor.face : null }); ch.close();
+    if (filmFor) { toast('Saved, and on ' + filmFor.label + ' in JEKray'); setFilmFor(null); }
+  } catch (err) { /* no channel: JEKray finds out when the bench is next opened */ }
 }
 /* ---------- the picture JEKspace shows: the stack, and its reflectance across the band ---------- */
 const FILM_THUMB_EVERY = 5 * 60000;
@@ -4480,13 +4529,22 @@ const filmHash = async () => {
   const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::\w+)?$/);
   if (cl) { window.history.replaceState(null, '', location.pathname); await accountLoaded; openCloudFilm(cl[1], cl[2] ? Number(cl[2]) : undefined); }
   else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newFilmHere(); }
+  else if (/^#design=/.test(location.hash)) {
+    // from a JEKray face: its glass, wavelength and stack to start from, and where to send the coating back
+    let pass = null;
+    try { pass = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(8).replace(/-/g, '+').replace(/_/g, '/'))))); } catch (err) { /* below */ }
+    window.history.replaceState(null, '', location.pathname);
+    if (!pass || !pass.seed) { toast('That link to a face could not be read', true); return; }
+    setFilm(pass.seed); setFilmLink(null); filmAutosave();
+    setFilmFor(pass.face ? { face: String(pass.face), label: String(pass.label || 'a face').slice(0, 80), ws: pass.ws || null, folder: pass.folder || null } : null);
+  }
 };
 if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', filmHash); }
 // the tests' and the console's handle on the app
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor,
 };
 })();
 </script>

@@ -21,6 +21,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Coatings are designed in JEKfilm</b>, the new coating designer, in its own tab. A face\u2019s <b>Design a coating in JEKfilm\u2026</b> (and Tools \u203a Coating design in JEKfilm\u2026) opens it on that face\u2019s glass and stack; saved to the cloud in the bench\u2019s folder, the coating comes back onto the face. An RF lens\u2019s matching layer is still designed here. Coatings you kept by name are still in every face\u2019s Coating list, and JEKfilm can open them.',
     '<b>JEKfilm coatings on a face.</b> A face\u2019s Coating list offers the JEKfilm coatings (\u25c6) kept in the cloud bench\u2019s folder, and a .jekfilm file from your computer. The face keeps a copy of the stack, linked to the coating: when the coating is saved again in JEKfilm, the bench offers to update its faces.',
     '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',

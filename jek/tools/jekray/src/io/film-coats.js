@@ -2,6 +2,8 @@ import { EMBED, TEST_MODE, cloud } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { coatFromFilm } from '../core/coatdesign.js';
 import { normCoat, project } from '../state/project.js';
+import { benchNms, getEl } from '../state/elements.js';
+import { glassKey, refIndex } from '../core/glass.js';
 import { h } from '../ui/dom.js';
 import { changed, toast } from '../ui/actions.js';
 import { checkpoint } from '../ui/tabs.js';
@@ -21,6 +23,7 @@ import { account, accountLoaded, accountsOn, api } from './account.js';
 export const filmFolder = { benchId: null, ws: null, folder: null, list: [] };      // the bench's folder (workspace, folder id) and its coatings: [{ id, name, version }]
 const JEKFILM_TAB = '/jek/tools/jekfilm.html';
 let filmUpdateAsked = new Set();                             // 'id@version' already offered this visit
+const filmFaces = new Map();                                 // a face sent to JEKfilm to design for: token → { elId, i, label }
 /* every coating on the bench's parts, with what holds it: [{ holder, coat }] (a lens's faces, a window's, a cube's…) */
 export function benchCoats() {
   const out = [], seen = new Set();
@@ -129,9 +132,38 @@ export function filmUpdates() {
   dlg.showModal();
   return stale;
 }
+/* JEKfilm opened to design a coating, in its tab: on its own (from = null), or for a face ({ el, holder, label }),
+   starting from the face's glass, the bench's wavelength and the face's stack, and offering the bench's folder to save
+   it in. Saved to the cloud there, the coating comes back onto the face (wireFilmCoats hears it, by the face's token). */
+export function designInFilm(from) {
+  track('designer', 'coating');
+  const el = from && from.el, holder = from && from.holder;
+  const nm = benchNms().find(v => v >= 200 && v <= 20000) || 550, coat = holder && holder.coat;
+  let hash = 'new';
+  if (el && holder) {
+    // the substrate: the face's glass on the glass side (a lens), or the part's own material
+    const i = el.surfaces ? el.surfaces.indexOf(holder) : -1;
+    const m = i >= 0 ? ((el.materials[i] && el.materials[i].glass !== 'AIR' ? el.materials[i] : el.materials[i - 1]) || { glass: 'N-BK7' }) : (el.material || { glass: 'N-BK7' });
+    const key = glassKey(m.glass), design = coat && coat.mode === 'stack' && coat.design ? coat.design : Math.round(nm);
+    const token = 'f' + Math.random().toString(36).slice(2, 10);
+    filmFaces.set(token, { elId: el.id, i, label: from.label || el.name });
+    const seed = { format: 'jekfilm', version: 1, name: (from.label || el.name) + ' coating',
+      spec: { target: 'ar', sub: { glass: key || m.glass, n: +refIndex(m, design).toFixed(5) }, design, lo: Math.max(100, Math.round(design * 0.85)), hi: Math.round(design * 1.15) },
+      layers: coat && coat.mode === 'stack' ? coat.layers : [{ n: 1.38, d: design / (4 * 1.38) }] };
+    const pass = { seed, face: token, label: from.label || el.name, ws: filmFolder.ws, folder: filmFolder.folder };
+    hash = 'design=' + btoa(unescape(encodeURIComponent(JSON.stringify(pass)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  const w = window.open(JEKFILM_TAB + '#' + hash, 'jekfilm'); if (w) w.focus();
+  return hash;
+}
+/* a face sent to JEKfilm, found again (the part may have been replaced by an undo since: found by its id) */
+function faceOf(f) {
+  const el = getEl(f.elId);
+  return !el ? null : f.i >= 0 ? (el.surfaces && el.surfaces[f.i]) || null : el;
+}
 /* the page's wiring: the folder listed with each cloud link, and JEKfilm's saves in another tab heard */
 export function wireFilmCoats() {
-  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, openFilm, updateFilms });
+  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, openFilm, updateFilms, designInFilm });
   // a cloud bench restored with the page: its folder listed once the account is known
   Promise.resolve().then(() => { if (accountLoaded) accountLoaded.then(() => { if (cloud && filmFolder.benchId !== cloud.id) loadFilmFolder(); }); });
   if (EMBED || typeof BroadcastChannel !== 'function') return;
@@ -140,8 +172,11 @@ export function wireFilmCoats() {
   ch.addEventListener('message', e => {
     const m = e.data || {};
     if (!m.id || !(m.version > 0)) return;
-    const f = filmFolder.list.find(x => x.id === m.id);
-    if (f) { Object.assign(f, { version: m.version, name: m.name || f.name }); filmUpdates(); }
+    // the coating designed for a face here: on that face now
+    const f = m.face && filmFaces.get(m.face), holder = f && faceOf(f);
+    if (holder) { filmFaces.delete(m.face); useFilmOn(holder, m.id); if (cloud && m.ws === filmFolder.ws && (m.folder || null) === filmFolder.folder) loadFilmFolder(); return; }
+    const known = filmFolder.list.find(x => x.id === m.id);
+    if (known) { Object.assign(known, { version: m.version, name: m.name || known.name }); filmUpdates(); }
     else if (cloud && m.ws && m.ws === filmFolder.ws && (m.folder || null) === filmFolder.folder) loadFilmFolder();
   });
 }

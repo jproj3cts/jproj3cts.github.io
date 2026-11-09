@@ -8,7 +8,7 @@ import { film, optimiseNow, redo, render, setFilm, undo } from './designer.js';
 import { filmThemeApply, toast, wireBar } from './bar.js';
 import { filmAutosave, filmCsv, filmRestore, newFilmHere, openFilmData, saveFilmFile, wireFiles } from '../io/files.js';
 import { wireFilmAccount } from '../io/film-account.js';
-import { filmCloudChanged, filmLink, filmPush, openCloudFilm, saveToCloud, wireCloud } from '../io/cloud.js';
+import { filmCloudChanged, filmFor, filmLink, filmPush, openCloudFilm, saveToCloud, setFilmFor, setFilmLink, wireCloud } from '../io/cloud.js';
 
 /* ==========================================================================
    JEKfilm put together: the theme, the hooks the shared modules reach the page through, each module's wiring, the
@@ -49,11 +49,20 @@ const filmHash = async () => {
   const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::\w+)?$/);
   if (cl) { window.history.replaceState(null, '', location.pathname); await accountLoaded; openCloudFilm(cl[1], cl[2] ? Number(cl[2]) : undefined); }
   else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newFilmHere(); }
+  else if (/^#design=/.test(location.hash)) {
+    // from a JEKray face: its glass, wavelength and stack to start from, and where to send the coating back
+    let pass = null;
+    try { pass = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(8).replace(/-/g, '+').replace(/_/g, '/'))))); } catch (err) { /* below */ }
+    window.history.replaceState(null, '', location.pathname);
+    if (!pass || !pass.seed) { toast('That link to a face could not be read', true); return; }
+    setFilm(pass.seed); setFilmLink(null); filmAutosave();
+    setFilmFor(pass.face ? { face: String(pass.face), label: String(pass.label || 'a face').slice(0, 80), ws: pass.ws || null, folder: pass.folder || null } : null);
+  }
 };
 if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', filmHash); }
 // the tests' and the console's handle on the app
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor,
 };

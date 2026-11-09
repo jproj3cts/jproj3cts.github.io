@@ -19,6 +19,11 @@
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 
 <!-- Products-only overrides. Move into assets/jek.css whenever convenient. -->
+<style>
+  /* the cards without their boxes: the photo the width of the words under it */
+  .jek-cards.plain > .jek-card { border-top: 0; padding-top: 0; }
+  .jek-cards.plain > .jek-card > img { width: 100%; margin: 0 0 0.4rem; border: 0; border-radius: var(--jek-radius); }
+</style>
 
 </head>
 
@@ -34,9 +39,9 @@
       <div class="jek-wrap"><h1 style="margin: 0.2rem 0 0; font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.01em">Products</h1></div>
     </section>
 
-    <section class="jek-section jek-band">
+    <section class="jek-section">
       <div class="jek-wrap">
-        <div class="jek-cards">
+        <div class="jek-cards plain">
           <div class="jek-card cat-orange">
             <img src="/jek/products/design-software/jekray/img/michelson.png" alt="" loading="lazy">
             <div class="jek-eyebrow accent">Photonics</div>

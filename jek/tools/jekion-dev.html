@@ -177,6 +177,7 @@
         <canvas id="bench" tabindex="0" aria-label="The bench: electrodes, ions and their paths through the fields. Click something to select it."></canvas>
         <div class="ion-simbar" id="simBar" role="status" aria-live="polite"><span id="simText"></span><button type="button" class="rt-btn" id="simStop" hidden>Stop</button></div>
         <div class="ion-legend" id="legend" hidden></div>
+        <div class="ion-cut" id="cutCtl" title="The cut through the array: slide it, type where, or step it a grid spacing (Page up, Page down); View › Cut picks the plane"><span id="cutLabel"></span><button type="button" id="cutDown" aria-label="Move the cut one grid spacing down">−</button><input type="range" id="cutRange" aria-label="The cut’s position"><input type="text" id="cutAt" inputmode="decimal" spellcheck="false" aria-label="The cut’s position, mm"><button type="button" id="cutUp" aria-label="Move the cut one grid spacing up">+</button><span class="unit">mm</span></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
         <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: the array, the gas, the magnetic field, flying and display"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>

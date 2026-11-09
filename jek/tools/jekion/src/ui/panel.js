@@ -25,14 +25,19 @@ export function helpLine(short, long, cls, style) {
 }
 export function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 export function beginEdit() { if (!editing) { checkpoint(); editing = true; } }
-export function endEdit() { editing = false; }
+export function endEdit() { editing = false; flushPanel(); }
+/* a rebuild asked for while a number is being typed (a flight's results arriving after each keystroke) waits until
+   the field is left: rebuilding would replace the field under the caret, eating what was typed */
+let pendingRender = false;
+const typingHere = () => { const a = document.activeElement; return !!(a && mainPanel && mainPanel.contains(a) && a.tagName === 'INPUT' && a.type === 'text'); };
+export function flushPanel() { if (pendingRender && !typingHere()) renderPanel(); }
 const panelChanged = rebuild => hooks.ionChanged(rebuild);
 /* a number typed: onValue as it is typed (a checkpoint taken at the first keystroke), the field redrawn when left */
 export function numInput(get, onValue, opts = {}) {
   const inp = h('input', { id: 'rtf' + (++fid), type: 'text', inputmode: 'decimal', spellcheck: 'false', placeholder: opts.placeholder });
   const show = opts.fmt || (v => nf(v, 6));
   if (opts.commit) {
-    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); panelChanged(true); } inp.value = show(get()); });
+    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); inp.blur(); panelChanged(true); } inp.value = show(get()); });
     bindSync(inp, () => { inp.value = show(get()); });
     return inp;
   }
@@ -101,10 +106,14 @@ export function readout(items, cls) {
   return h('div', { class: 'rt-readout' + (cls ? ' ' + cls : '') }, dl);
 }
 /* every field reads its value again (after a drag, a run) */
-export function syncPanel() { for (const r of refs) try { r.sync(); } catch (err) { /* a field gone */ } }
+/* every field shown again from the bench, but not the one being typed in: rewriting it would eat what was typed (a
+   trailing point, a leading minus, the digits of 0.05) and throw the caret to the end */
+export function syncPanel() { for (const r of refs) try { if (document.activeElement !== r.node || r.node.tagName === 'BUTTON') r.sync(); } catch (err) { /* a field gone */ } }
 /* the panel rebuilt for what is selected (ui/panels.js says what goes in it) */
-export function renderPanel() {
+export function renderPanel(force) {
   if (!mainPanel) return;
+  if (!force && typingHere()) { pendingRender = true; syncPanel(); return; }
+  pendingRender = false;
   refs = [];
   const scroll = mainPanel.scrollTop;
   mainPanel.replaceChildren();

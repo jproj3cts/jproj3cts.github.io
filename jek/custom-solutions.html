@@ -20,6 +20,30 @@
 
 <!-- Custom Solutions overrides. Kept here so this page can be updated on its
      own; move into assets/jek.css whenever convenient. -->
+<style>
+  /* the hero as on the JEKray page: the words at the top, the picture cut to their height */
+  .jek-hero .jek-wrap { align-items: start; }
+  @media (min-width: 861px) {
+    .jek-hero { padding-bottom: 1.5rem; }
+    .jek-hero .jek-wrap { align-items: stretch; }
+    .jek-hero .jek-shot { height: 0; min-height: 100%; display: flex; flex-direction: column; }
+    .jek-hero .jek-shot img { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; object-fit: cover; object-position: center; }
+  }
+  /* what we have made: picture above the words, three to a row */
+  .cs-made { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; margin-top: 1rem; }
+  .cs-made figure { margin: 0; }
+  .cs-made img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border: 1px solid var(--jek-line); border-radius: var(--jek-radius); background: #1f2529; }
+  .cs-made h3 { margin: 0.8rem 0 0; font-size: 1.08rem; }
+  .cs-made p { margin: 0.4rem 0 0; font-size: 0.95rem; line-height: 1.5; }
+  .cs-made a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  .cs-note { margin: 1.4rem 0 0; color: var(--jek-ink-soft); }
+  .cs-ways a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  .cs-ways { width: 100%; border-collapse: collapse; margin-top: 0.8rem; }
+  .cs-ways th, .cs-ways td { text-align: left; vertical-align: top; padding: 0.75rem 1rem 0.75rem 0; border-bottom: 1px solid var(--jek-line); }
+  .cs-ways thead th { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .cs-ways tbody th { width: 13rem; }
+  @media (max-width: 860px) { .cs-made { grid-template-columns: 1fr; } .cs-ways tbody th { width: auto; } }
+</style>
 
 </head>
 <body>
@@ -34,11 +58,10 @@
       <div class="jek-wrap">
         <div>
           <h1>Custom solutions</h1>
-          <p class="jek-tag">Consultancy and contract design in optical, electronic and mechanical engineering.</p>
-          <p class="jek-lede">We design and build instruments where no catalogue part does the job, and review designs you already have. The optics, electronics and mechanics are designed together in-house, which matters when an instrument&rsquo;s performance depends on how they interact. A first conversation about scope and feasibility is free.</p>
+          <p class="jek-lede">We design and build instruments where no catalogue part does the job, with the optics, electronics and mechanics designed together, and we review designs you already have. A first conversation about scope and feasibility is free.</p>
           <div class="jek-acts">
             <a class="jek-btn primary" href="mailto:sales@jeksys.net">Email us about a project</a>
-            <a class="jek-btn quiet" href="/jek/products.html">Browse the catalogue</a>
+            <a class="jek-btn quiet" href="/jek/products.html">Browse the products</a>
           </div>
         </div>
         <figure class="jek-shot cover">
@@ -48,16 +71,52 @@
       </div>
     </section>
 
+    <section class="jek-section" style="padding-top: 0">
+      <div class="jek-wrap">
+        <h2>What we have made</h2>
+        <div class="cs-made">
+          <div>
+            <figure><img src="/jek/products/signal-processing/custom-rf-lenses/img/grin-lens-3d.jpg" alt="A graded-index RF lens in front of a feed horn, in JEKray's 3D view" loading="lazy"></figure>
+            <h3>RF lenses to your design</h3>
+            <p>Solid and graded-index lenses from 10 to 100&nbsp;GHz, designed in JEKray and printed in PLA, ABS, PETG, ASA or polypropylene. <a href="/jek/products/signal-processing/custom-rf-lenses/">Custom RF lenses</a></p>
+          </div>
+          <div>
+            <figure><img src="/jek/assets/img/JEK-CF40-SR16-1.jpeg" alt="The CF40 sample transport rack sliding into a vacuum transport tube" loading="lazy"></figure>
+            <h3>Vacuum sample handling</h3>
+            <p>A rack for 16 substrates that slides into a standard CF40 transport tube, printed in hydrophobic polypropylene. <a href="/jek/products/lab-accessories/cf40-sample-transport-rack/">CF40 sample rack</a></p>
+          </div>
+          <div>
+            <figure><img src="/jek/products/design-software/jekray/img/whole-bench.png" alt="A JEKray bench in 3D: a modulated fibre laser, free-space optics and photodiodes wired to an oscilloscope" loading="lazy"></figure>
+            <h3>Simulation software</h3>
+            <p>JEKray, our optics, fibre and electronics simulator, is what we design with, and it is free in your browser. <a href="/jek/products/design-software/jekray/">JEKray</a></p>
+          </div>
+        </div>
+        <p class="cs-note">Our trap for levitated nanoparticles is UK patent application GB2500417.7.</p>
+      </div>
+    </section>
+
     <section class="jek-section jek-band">
       <div class="jek-wrap">
         <h2>Capabilities</h2>
         <div class="jek-cards plain">
           <div class="jek-card"><h3>Optical</h3><ul>
-            <li>Photodetectors and low-noise front ends</li><li>Optical sensing and measurement systems</li><li>Laser and LED sources, drive and stabilisation</li><li>Free-space and fibre-coupled beam paths</li><li>Alignment, characterisation and noise budgets</li></ul></div>
+            <li>Photodetectors and low-noise front ends</li>
+            <li>Optical sensing and measurement systems</li>
+            <li>Laser and LED sources, drive and stabilisation</li>
+            <li>Free-space and fibre-coupled beam paths</li>
+            <li>Alignment, characterisation and noise budgets</li></ul></div>
           <div class="jek-card"><h3>Electronic</h3><ul>
-            <li>Low-noise analogue signal chains</li><li>Precision measurement and control electronics</li><li>Embedded firmware and instrument interfaces</li><li>FPGA design for real-time signal processing</li><li>Schematic capture, PCB layout and bring-up</li></ul></div>
+            <li>Low-noise analogue signal chains</li>
+            <li>Measurement and control electronics</li>
+            <li>Embedded firmware and instrument interfaces</li>
+            <li>FPGA design for real-time signal processing</li>
+            <li>Schematic capture, PCB layout and bring-up</li></ul></div>
           <div class="jek-card"><h3>Mechanical</h3><ul>
-            <li>Optomechanical mounts and assemblies</li><li>Drift- and vibration-sensitive structures</li><li>Vacuum-compatible parts and fixtures</li><li>Enclosures and instrument packaging</li><li>CAD models and manufacturing drawings</li></ul></div>
+            <li>Optomechanical mounts and assemblies</li>
+            <li>Drift- and vibration-sensitive structures</li>
+            <li>Vacuum-compatible parts and fixtures</li>
+            <li>Enclosures and instrument packaging</li>
+            <li>CAD models and manufacturing drawings</li></ul></div>
         </div>
       </div>
     </section>
@@ -65,19 +124,17 @@
     <section class="jek-section">
       <div class="jek-wrap">
         <h2>Ways to work together</h2>
-        <div class="jek-cards plain">
-          <div class="jek-card"><h3>Design review</h3><p>A short engagement on a design you already have. Schematics, optical layouts or a noise budget are looked over and you get back a written assessment: what will limit performance, what is likely to cause trouble in build or test, and what to change first.</p></div>
-          <div class="jek-card"><h3>Subsystem design</h3><p>A defined block, a detector front end, a control loop, a mount, taken from requirements through to tested hardware, with the design files and test data handed over so you can build more of them yourself.</p></div>
-          <div class="jek-card"><h3>Complete instrument</h3><p>Specification to working hardware. Optics, electronics, firmware and mechanics designed as one system, delivered with documentation and a characterisation report against the agreed requirements.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="jek-section jek-band">
-      <div class="jek-wrap">
-        <h2>Start a project</h2>
-        <p class="jek-lede">Send a short description of what you need to measure or control, along with any constraints you already know about: space, budget, timescale, environment. An initial conversation about scope and feasibility costs nothing. Existing catalogue products can also be modified to order: if something on the <a href="/jek/products.html">Products</a> page is close but not quite right, it is worth asking.</p>
-        <p><a class="jek-btn primary" href="mailto:sales@jeksys.net">Email sales@jeksys.net</a></p>
+        <table class="cs-ways">
+          <thead><tr><th>Engagement</th><th>You send</th><th>You get back</th></tr></thead>
+          <tbody>
+            <tr><th>Design review</th><td>Schematics, an optical layout or a noise budget</td><td>A written assessment of what will limit performance, what will cause trouble in build or test, and what to change first</td></tr>
+            <tr><th>Subsystem design</th><td>The requirements for one block, such as a detector front end, a control loop or a mount</td><td>Tested hardware, with the design files and test data so you can build more yourself</td></tr>
+            <tr><th>Complete instrument</th><td>A specification</td><td>Working hardware with its documentation and a characterisation report against the agreed requirements</td></tr>
+            <tr><th>A product modified</th><td>Which product on the <a href="/jek/products.html">Products</a> page is close, and what needs to change</td><td>That product made to your change</td></tr>
+          </tbody>
+        </table>
+        <p class="cs-note">Tell us what you need to measure or control and the constraints you know about: space, budget, timescale, environment.</p>
+        <p><a class="jek-btn primary" href="mailto:sales@jeksys.net">Email us about a project</a></p>
       </div>
     </section>
 

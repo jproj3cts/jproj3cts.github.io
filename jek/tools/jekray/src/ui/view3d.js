@@ -23,14 +23,14 @@ import {
 } from './render.js';
 import { groupOf } from './drawings.js';
 import { snapVal } from './pointer.js';
-import { SW, swAsk, swDrop, swPool, swRelease, sweepJob, sweepVol } from './sweeps.js';
+import { SW, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
 import { qW } from '../engines/fibre-face.js';
 import { renderPanel, syncPanel } from './panel.js';
 import { h } from './dom.js';
 import { magma } from './plots.js';
 import { QFree, beamQ, cavEventABCD, ccInv, mfree, qThrough } from '../engines/cavity.js';
 import { popKeyOf, popRun, popSources, popState } from '../engines/beam-tree.js';
-import { volData, volDisp, volDispLine, volMerge, volPartners, volRay, volShare, volStitch } from '../engines/volume.js';
+import { volData, volDisp, volDispLine, volLightBox, volMerge, volPartners, volRay, volShare, volStitch } from '../engines/volume.js';
 import { diffractionLater, popScreenCache } from '../engines/pd-cavity.js';
 import { phosphorCanvas, phosphorForget, phosphorRoll, phosphorTexture } from './phosphor.js';
 import { benchMenu, changed, hideCtxMenu, toast } from './actions.js';
@@ -259,6 +259,7 @@ export const V3D = (() => {
   }
   function draw() {
     if (!R || !active()) return;
+    R.draws = (R.draws || 0) + 1;
     const { gl, scene, camera } = R;
     gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false);
     gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear();
@@ -437,8 +438,11 @@ export const V3D = (() => {
   function portZ(el) { if (!NET_3D.has(el.type)) return zOf(el); const B = netBox(el); return el.type === 'pic' ? (1.5 + B.h) / 2 : B.h / 2; }
   /* the fibres, wires and waveguides of this tab, as tubes along their routes on the bench; between two ends they
      lie on the table (a waveguide stays at its chips' height), rising to each port; a fibre carrying light glows its colour */
+  /* the fibres, cables and waveguides: each tube kept while its route is the same (a sweep's step, a trace, moves none of
+     them: made again for each, they cost an orbit its frames), its colour and glow set afresh */
   function wires(G) {
-    disposeAll(G);
+    for (const o of [...G.children]) G.remove(o);
+    const kept = R.wireCache || (R.wireCache = new Map()), usedW = new Set();
     const on = new Set(project.elements.filter(e => e.bench === project.tab && shown3(e) && !e.hide3d).map(e => e.id));
     const list = (project.fibres || []).filter(F => on.has(F.a[0]) && on.has(F.b[0]));
     const lights = list.map(F => F.wire || F.wg ? { mw: 0 } : fibreLight(F)), topMw = Math.max(1e-30, ...lights.map(l => l.mw));
@@ -507,12 +511,20 @@ export const V3D = (() => {
       };
       const pts = run.map(([x, y], k) => new T.Vector3(x, y, zAt(sAt[k])));
       const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw, picked = selFibre() === F;
+      const gk = F.id + '|' + r + '|' + benchLight() + '|' + pts.map(v => v.x.toFixed(3) + ',' + v.y.toFixed(3) + ',' + v.z.toFixed(3)).join(' ');
+      let c = kept.get(F.id);
+      if (!c || c.gk !== gk) {
+        if (c) disposeObj(c.obj);
+        const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0 });
+        c = { gk, obj: mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m) };
+        c.obj.userData.fibre = F.id; kept.set(F.id, c);
+      }
       // the selected one lit cyan, as the bench marks a selection
-      const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
-        emissive: picked ? col(0x1fb6d4) : lit ? col(L.colour) : col(0x000000), emissiveIntensity: picked ? 0.8 : lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
-      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m);
-      o.userData.fibre = F.id; G.add(o);
+      const m = c.obj.material;
+      m.emissive.set(picked ? 0x1fb6d4 : lit ? L.colour : 0x000000); m.emissiveIntensity = picked ? 0.8 : lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0;
+      usedW.add(F.id); G.add(c.obj);
     });
+    for (const [id, c] of kept) if (!usedW.has(id)) { disposeObj(c.obj); kept.delete(id); }
   }
   /* one part, in its own frame: x along its axis (where it points), y across in the bench
      plane, z up. Returns a group, or null for a part with nothing to show */
@@ -814,6 +826,22 @@ export const V3D = (() => {
   }).join(';');
 
   /* ---------- the scene, from the bench ---------- */
+  /* what the light drawn from a trace depends on, as a number: a trace the same as one drawn already (a sweep's step that
+     changes a circuit's value, not the light) is drawn with the same objects, not made again */
+  const lightSigs = new WeakMap();
+  function lightSig(Tr) {
+    if (!Tr) return 0;
+    let v = lightSigs.get(Tr);
+    if (v !== undefined) return v;
+    let hs = 2166136261;
+    const mix = x => { hs = Math.imul(hs ^ (typeof x === 'number' ? Math.round(x * 1e6) | 0 : x === undefined ? 7 : String(x).length * 131 + (String(x).charCodeAt(1) | 0)), 16777619); };
+    const str = x => { const t = String(x); for (let i = 0; i < t.length; i++) hs = Math.imul(hs ^ t.charCodeAt(i), 16777619); };
+    for (const r of Tr.rays || []) { str(r.bench); str(r.colour); mix(r.w); str(r.src); if (r.pts) for (const q of r.pts) mix(q); if (r.zs) for (const q of r.zs) mix(q); mix(-1); }
+    for (const b of Tr.beams || []) { str(b.bench); str(b.colour); str(b.src); for (const k of ['x0', 'y0', 'dx', 'dy', 'len', 'w', 'qr', 'qi', 'n', 'z0', 'uz', 'len3', 'm2', 'nm']) mix(b[k]); if (b.d3) for (const q of b.d3) mix(q); mix(-2); }
+    v = (hs >>> 0) + ':' + (Tr.rays || []).length + ':' + (Tr.beams || []).length;
+    lightSigs.set(Tr, v);
+    return v;
+  }
   function build() {
     const G = R.groups;
     disposeAll(G.sel);
@@ -861,18 +889,18 @@ export const V3D = (() => {
     // the diffracted field as a volume, when the bench shows it: its key changes as it arrives
     const vb = R.boardBox, VL = lightOf().field && vb ? volLater([vb.min.x, vb.min.y, vb.max.x, vb.max.y]) : { data: null, busy: false };
     R.vol = VL.data; R.volBusy = VL.busy;
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab].join('|'), got = lc.get(lastTrace);
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
     else {
-      if (got) { for (const o of got.objs) disposeObj(o); lc.delete(lastTrace); }
+      if (got) { for (const o of got.objs) disposeObj(o); lc.delete(sig); }
       light(box, R.boardBox);
       const objs = [...G.light.children];
-      if (traceStoreOn()) {
+      if (sig !== null) {
         for (const o of objs) o.userData.kept = true;
-        lc.set(lastTrace, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
-        // only the traces still kept keep their light
-        const live = new Set([...traceStore.values()].map(c => c.T));
-        for (const [T2, v] of lc) if (T2 !== lastTrace && !live.has(T2)) { for (const o of v.objs) disposeObj(o); lc.delete(T2); }
+        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
+        // only the light of the traces still kept is kept
+        const live = new Set([...traceStore.values()].map(c => lightSig(c.T)));
+        for (const [s2, v] of lc) if (s2 !== sig && !live.has(s2)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
       }
     }
     R.volMeshes = G.light.children.filter(o => o.userData.vol);
@@ -890,7 +918,10 @@ export const V3D = (() => {
     const sc = R.sun.shadow.camera; sc.left = -rad * 1.2; sc.right = rad * 1.2; sc.top = rad * 1.2; sc.bottom = -rad * 1.2; sc.near = 1; sc.far = 6 * rad; sc.updateProjectionMatrix();
     R.content = box;
     R.selKey = null;
-    R.gl.shadowMap.needsUpdate = true;
+    // shadows drawn again only when what casts them moved or changed (a sweep's step that changes a value and not the
+    // scene leaves them: drawing them every step cost an orbit half its frames)
+    const shk = [...G.parts.children, ...G.wires.children, ...G.light.children].map(o => o.id + ':' + o.position.toArray().join(',') + ':' + o.rotation.toArray().slice(0, 3).join(',')).join() + '|' + R.boardKey + '|' + [c.x, c.y, rad].join();
+    if (shk !== R.shadowKey) { R.shadowKey = shk; R.gl.shadowMap.needsUpdate = true; }
   }
   /* the light: rays as lines, Gaussian beams as tubes as wide as the beam both ways */
   /* a stretch from (x0, y0) to (x1, y1) cut to the board: [t0, t1] of it, or null */
@@ -1092,7 +1123,7 @@ export const V3D = (() => {
     }
     for (const s of V.segs) {
       const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
-      const top = volDisp(V), K = top / (volDispLine(V) || 1);
+      const Sh = volShared(), top = Sh ? Sh.top : volDisp(V), K = top / ((Sh ? Sh.line : volDispLine(V)) || 1);
       for (let i = 0; i < data.length; i++) data[i] = Math.min(1e4, s.I[i] / top);   // above the top colour, held at it (half floats end at 65504)
       const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
       tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
@@ -1158,7 +1189,7 @@ export const V3D = (() => {
     D.vkey.hidden = !on;
     if (!on) return;
     if (!R.vol) { D.vkey.replaceChildren(h('b', null, 'Working out the field in 3D\u2026')); return; }
-    const pk = volDispLine(R.vol), dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
+    const Sh = volShared(), pk = Sh ? Sh.line : volDispLine(R.vol), dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
     cv.width = 240; cv.height = 1;
     const g = cv.getContext('2d'), img = g.createImageData(240, 1);
     for (let i = 0; i < 240; i++) { const c = magma(i / 239); img.data.set([c[0], c[1], c[2], 255], i * 4); }
@@ -1608,7 +1639,9 @@ export const V3D = (() => {
         pan(mid.x - drag.mid.x, mid.y - drag.mid.y, drag.pivot);
         drag.pinch = d; drag.mid = mid;
       } else return;
-      draw();
+      // drawn once a frame, however many moves the pointer sends (a fast mouse sends several a frame, and a sweep
+      // playing asks for its own frame too: drawn for each, an orbit lost most of its frames)
+      need();
     });
     const up = e => {
       if (!P.has(e.pointerId)) return;
@@ -1656,7 +1689,7 @@ export const V3D = (() => {
       const d = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       if (ctrl === 'trackpad' && !e.ctrlKey) pan(-e.deltaX * d, -e.deltaY * d, null);
       else { const h0 = pick(e); zoom(Math.exp(e.deltaY * d * (e.ctrlKey ? 0.01 : 0.0015)), h0 ? h0.point : null); }
-      keepCam(); draw();
+      keepCam(); need();
     }, { passive: false });
     window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
   }
@@ -1874,9 +1907,13 @@ export const V3D = (() => {
       cubeRect: () => R ? cubeRect() : null,
       pointOnScreen(p) { if (!R) return null; sync(); const v = new T.Vector3(...p).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
       // the field as a volume: its segments and brightest irradiance (W/cm²), the key, and what a canvas point reads
-      field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
+      field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, top: R.vol ? ((volShared() || {}).top || volDisp(R.vol)) * 100 : null, shared: !!volShared(), key: D.vkey.hidden ? null : D.vkey.textContent }; },
       // each piece of the field volume: where it starts, its direction, and its extent along it
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
+      // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
+      draws: () => (R && R.draws) || 0,
+      wireIds: () => (R ? R.groups.wires.children.map(o => o.geometry.id) : []),
+      sync: () => { if (R) sync(); },
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
@@ -1934,15 +1971,21 @@ export const V3D = (() => {
 })();
 
 const volKey = (pk, tab, bb) => pk + '|' + tab + '|' + bb.map(v => Math.round(v)).join();
+/* the volumes kept: every step of the longest sweep (SWEEP_STEPS_MAX) and a few more, within a memory budget (a sweep
+   of 120 steps that kept only 64 lost its own first steps each cycle, and each was worked out again as it played) */
+const VOL_KEEP = 256, VOL_BYTES = 200e6;
+const volBytes = d => (d && d.segs ? d.segs.reduce((n, s) => n + (s.I ? s.I.length * (s.I.BYTES_PER_ELEMENT || 8) : 0), 0) : 0) + 512;
 function volKeep(key, d) {
-  d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
-  while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
+  d.id = ++VOL.n; d.bytes = volBytes(d);
+  if (VOL.cache.has(key)) VOL.bytes -= VOL.cache.get(key).bytes || 0;
+  VOL.cache.set(key, d); VOL.bytes += d.bytes; VOL.rev++;
+  while (VOL.cache.size > VOL_KEEP || (VOL.bytes > VOL_BYTES && VOL.cache.size > 1)) { const k = VOL.cache.keys().next().value; VOL.bytes -= VOL.cache.get(k).bytes || 0; VOL.cache.delete(k); }
   return d;
 }
 function volLater(bb) {
   const srcs = popSources();
   if (!srcs.length) return { data: null, busy: false };
-  const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, bb);
+  const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, volLightBox(bb, lastTrace.beams, srcs));
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
   const keep = d => volKeep(key, d);
   // a request in flight that has not answered in a minute is let go and asked again (a worker stopped under it would
@@ -1998,11 +2041,32 @@ function volLater(bb) {
 /* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
-export const VOL = { job: null, t0: 0, cache: new Map(), n: 0, rev: 0 };
+export const VOL = { job: null, t0: 0, cache: new Map(), bytes: 0, n: 0, rev: 0, sweep: new Set(), shared: null };
+/* A field sweep's steps drawn to one scale: the brightest of its volumes (each normalised to its own would brighten the
+   light before an absorber as the absorber darkened what follows it). Taken over the steps rendered, while the sweep
+   plays its rendered field; else each volume to its own. */
+function volShared() {
+  if (!VOL.sweep.size || !(renderedPeriod() > 0)) return null;
+  const S = VOL.shared;
+  if (S && S.rev === VOL.rev && S.n === VOL.sweep.size) return S.top > 0 ? S : null;
+  let top = 0, line = 0;
+  for (const k of VOL.sweep) { const d = VOL.cache.get(k); if (d && d.peak > 0) { top = Math.max(top, volDisp(d)); line = Math.max(line, volDispLine(d)); } }
+  VOL.shared = { rev: VOL.rev, n: VOL.sweep.size, top, line };
+  return top > 0 ? VOL.shared : null;
+}
 /* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
    sweeps): the board it is cut to, and where the steps' volumes go */
 export function wireView3d() {
   sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
   sweepVol.shown = () => V3D.fieldReady();
-  sweepVol.keep = (pk, tab, bb, V) => { if (!VOL.cache.has(volKey(pk, tab, bb))) volKeep(volKey(pk, tab, bb), V); };
+  sweepVol.keep = (pk, tab, bb, V) => { const k = volKey(pk, tab, bb); if (!VOL.cache.has(k)) volKeep(k, V); VOL.sweep.add(k); };
+  // a sweep's render begins (its steps' volumes, as they come, set the scale they are all drawn at), and a step of it
+  // whose volume the page has already
+  sweepVol.begin = () => { VOL.sweep.clear(); VOL.shared = null; };
+  sweepVol.mark = pk => { const b = sweepVol.box(); if (b) VOL.sweep.add(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
+  // whether a step's volume is kept, for the bench's field key pk (on the board the 3D view shows now)
+  // (the view brought up to date with the bench first: its board follows the parts a frame later, and a key taken from
+  // the board as it was would differ from the next one taken, and render the sweep again for nothing)
+  sweepVol.boxKey = () => { if (V3D.active()) V3D.sync(); const b = sweepVol.box(); return b ? b.tab + '|' + volLightBox(b.bb, lastTrace.beams, popSources()).map(Math.round).join() : ''; };
+  sweepVol.has = pk => { const b = sweepVol.box(); return !b || VOL.cache.has(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
 }

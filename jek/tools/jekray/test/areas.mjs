@@ -26,7 +26,7 @@ export const AREAS = {
     what: 'the diffracted field: propagation, the close-up, vector focusing, coherence and the 3D field volume',
     src: ['src/engines/field.js', 'src/engines/field2d.js', 'src/engines/diffraction.js', 'src/engines/closeup.js', 'src/engines/vector-focus.js', 'src/engines/volume.js', 'src/engines/phase-screen.js',
       'src/core/beams-hom.js', 'src/core/coherence.js', 'src/ui/closeup.js'],
-    node: ['demos.test.mjs'],
+    node: ['demos.test.mjs', 'sweep-field.test.mjs'],
     browser: ['Physical optics propagation', 'Aberrations and the 2D field', 'Diffraction and MTF', 'The field on a screen', 'Interference', 'Close-up: standing waves',
       'Double slits, slit combs and hard-edged masks', 'Polarisation across the field', 'Vector focusing at high NA', 'Coherence and beam quality', 'Higher-order beams and phase masks',
       'The close-up', 'Dipole traps', 'The field in 3D', 'Off-axis apertures, near and far', 'Stops and masks on the field'],

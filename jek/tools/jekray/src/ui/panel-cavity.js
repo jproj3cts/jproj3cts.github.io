@@ -230,7 +230,6 @@ export let benchTab = 'bench';
 // the Bench panel's list: the bench whose parts it shows, and the bench on show when it was chosen
 let listTab = null, listShown = null;
 export function setBenchTab(v) { return (benchTab = v); }
-let aboutNode = null;
 const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
 const EYE_SHUT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 10s3.6 5 10 5 10-5 10-5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 13.2 3.4 15.6M9.2 14.7l-.8 2.7M14.8 14.7l.8 2.7M19 13.2l1.6 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 export function renderOverview() {
@@ -321,9 +320,6 @@ export function renderOverview() {
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'The few percent a bare glass surface reflects. Its loss always counts against the power; with this on, the reflected light is followed too, which is how ghosts and back-reflections show up. Each one is another branch of a Gaussian beam to work out, so with the diffracted field shown it can slow the bench down a lot, a retroreflector\u2019s most of all.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'bench' }));
 
-  // what it models, and what it does not: the page's own note, moved to the foot of this panel
-  aboutNode = aboutNode || document.querySelector('.rt-about');    // kept: a panel rebuilt drops it from the page
-  if (aboutNode) panel.append(aboutNode);
   updateReadouts();
 }
 

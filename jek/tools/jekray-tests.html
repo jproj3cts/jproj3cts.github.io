@@ -12175,6 +12175,33 @@ const TESTS = [
   },
   { group: 'The 3D view' },
   {
+    name: 'In 3D an orbit draws once a frame, and a circuit\u2019s sweep step keeps the cables\u2019 tubes',
+    why: 'a signal generator cabled to a scope, its amplitude swept: ten orbit moves within one frame draw the view once at the next frame (each was drawn as it came, and a sweep playing lost the orbit most of its frames), and a step of the sweep (another amplitude, the cables where they were) draws them with the same tubes (they were all made again each time) (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [
+        { type: 'elec', kind: 'sig', id: 'G', name: 'Gen', x: -40, y: 20, sweeps: { amp: { min: 0.5, max: 2.5, freq: 0.25, phase: 0, wave: 'sine' } } },
+        { type: 'elec', kind: 'scope', id: 'S', name: 'Scope', x: 40, y: 20 }],
+        fibres: [{ a: ['G', 0], b: ['S', 0], wire: true }, { a: ['G', 1], b: ['S', 1], wire: true }] });
+      try {
+        await J.view3d.set(true); J.view3d.view('iso');
+        const V = J.view3d, P = V.pointer, raf = () => new Promise(r => requestAnimationFrame(() => r()));
+        await raf(); await raf();
+        const w0 = V.wireIds();
+        J.set('Gen', { amp: 1.7 }); V.sync(); await raf();
+        const kept = w0.length === 2 && V.wireIds().join() === w0.join();
+        const d0 = V.draws();
+        P('pointerdown', 300, 200, { button: 2, buttons: 2 });
+        for (let i = 1; i <= 10; i++) P('pointermove', 300 + 3 * i, 200 + i, { button: 2, buttons: 2 });
+        const sync = V.draws() - d0;
+        await raf(); await raf();
+        const after = V.draws() - d0;
+        P('pointerup', 330, 210, { button: 2, buttons: 0 });
+        return kept && sync === 0 && after >= 1 && after <= 2 ? 1 : 0;
+      } finally { await J.view3d.set(false); }
+    },
+  },
+  {
     name: 'In 3D a part is rolled by its orange ring',
     why: 'a cylindrical lens (along +x) clicked twice in 3D, seen from the right (down its axis): its orange ring dragged 45° round it, towards up, with Shift, rolls it by +45° (right-handed about where it faces) (the error, degrees)',
     want: 0, tol: 1e-9, unit: '°',

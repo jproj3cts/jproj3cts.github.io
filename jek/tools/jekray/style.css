@@ -1074,9 +1074,6 @@
   .rt-app .rt-stage { height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
   .rt-app .rt-stage:focus-within { box-shadow: inset 0 0 0 2px var(--jek-cyan); }
   .rt-app .rt-panel { max-height: none; min-height: 0; border-radius: 0; box-shadow: none; border-width: 0 0 0 1px; }
-  .rt-panel .rt-about { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); max-width: none; }
-  .rt-panel .rt-about p { max-width: none; }
-  .rt-panel .rt-about summary { width: auto; }
   /* the page does not scroll: the tool is the whole window (on a wide screen) */
   @media (min-width: 961px) {
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }

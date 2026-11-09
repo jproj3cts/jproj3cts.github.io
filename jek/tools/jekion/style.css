@@ -66,6 +66,7 @@
   .ion-cut button:hover { border-color: var(--jek-cyan); }
   .ion-cut.flat input, .ion-cut.flat button, .ion-cut.flat .unit { display: none; }
   @media (max-width: 760px) { .ion-cut { display: none; } }
-  /* the arrow to JEKspace at the bar's left */
-  .ion-back { flex: none; margin-right: 0.35rem; text-decoration: none; }
-  .ion-back:hover { text-decoration: none; }
+  /* JEKspace at the bar's left, as a CAD system names its documents page: the JEK mark and the word */
+  .ion-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
+  .ion-space:hover { background: var(--jek-well); text-decoration: none; }
+  .ion-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }

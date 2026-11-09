@@ -1,7 +1,7 @@
 import { EMBED } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { goal, track } from '../../../jekray/src/io/usage.js';
-import { SHAPES } from '../core/geom.js';
+import { PLANES, SHAPES } from '../core/geom.js';
 import { project, selectedId, setSelectedId, V, selectedItem, kindOf, nextName, uid } from '../state/project.js';
 import { checkpoint, redoStep, undoStep } from '../state/elements.js';
 import { makeElectrode } from '../parts/electrodes.js';
@@ -142,7 +142,17 @@ export function benchMenu(X, Y, hit, at) {
 }
 export const typingIn = t => !!(t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable));
 /* ---------- the menus and the keyboard ---------- */
+/* the cut moved: by the slider, the number typed, or a step of a grid spacing (also Page up and Page down) */
+export function cutTo(v) {
+  const G = project.grid, [, , ip] = PLANES[V().plane], lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip];
+  if (!isFinite(v)) return;
+  V().slice = +Math.max(lo, Math.min(hi, v)).toPrecision(8); changed(false);
+}
 export function wireActions() {
+  document.getElementById('cutRange').addEventListener('input', e => cutTo(+e.target.value));
+  document.getElementById('cutAt').addEventListener('change', e => { cutTo(Number(e.target.value)); e.target.blur(); });
+  document.getElementById('cutDown').addEventListener('click', () => cutTo(V().slice - project.grid.h));
+  document.getElementById('cutUp').addEventListener('click', () => cutTo(V().slice + project.grid.h));
   // the menu bar: one open at a time, pointing opens the next (as a desktop menu bar)
   const shows = new Map();
   for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnEdit', 'editMenu'], ['btnView', 'viewMenu'], ['btnTools', 'toolsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu'], ['btnAdd', 'addMenu']]) {
@@ -204,7 +214,7 @@ export function wireActions() {
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }
     if (e.key === '1' || e.key === '2' || e.key === '3') { setPlane(['xy', 'xz', 'yz'][+e.key - 1]); return; }
-    if (e.key === 'PageUp' || e.key === 'PageDown') { V().slice = +(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h).toPrecision(8); changed(false); return; }
+    if (e.key === 'PageUp' || e.key === 'PageDown') { cutTo(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h); return; }
     if (/^Arrow/.test(e.key) && selectedId) {
       const s = selectedItem(); if (!s || s.el.locked) return;
       e.preventDefault();

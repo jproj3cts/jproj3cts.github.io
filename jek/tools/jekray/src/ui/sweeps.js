@@ -149,6 +149,18 @@ function playAllNow() {
   for (const [el, path] of list) playing.set(sweepKey(el, path), { id: el.id, path });
   startLoop();
 }
+/* A sweep's Steps changed while its field is being rendered or played: the frames rendered are for the old steps,
+   and playing on without them works the field out live at every step (it never catches up). So the render starts
+   again at the new steps, and what was playing (or about to) plays on once it is done. */
+export function sweepStepsChanged() {
+  fieldRendered = null;
+  const job = sweepJob;
+  const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  if (!list.length || !list.some(([e, p]) => e.sweeps && e.sweeps[p] && e.sweeps[p].field) || !fieldWanted()) return;
+  if (job) { job.quiet = true; job.cancel(); }
+  playing.clear();
+  renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
+}
 export function pause(el, path) {
   playing.delete(sweepKey(el, path));
   if (!playing.size) dropTraceStore();
@@ -296,7 +308,7 @@ function renderSweepFrames(list, onDone) {
     if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n };
     changed(false);
     if (ok) onDone();
-    else toast('Stopped rendering the field');
+    else if (!job.quiet) toast('Stopped rendering the field');
   };
   job.cancel = () => finish(false);
   // several workers at once, each step whole on one of them, the page left alone (see swPool)

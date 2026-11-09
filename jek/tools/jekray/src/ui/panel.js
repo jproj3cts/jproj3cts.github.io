@@ -11,7 +11,7 @@ import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './rend
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  WAVES, advOpen, fieldFramesOf, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
+  WAVES, advOpen, fieldFramesOf, sweepStepsChanged, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
   swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { V3D } from './view3d.js';
@@ -239,7 +239,8 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      setFieldRendered(null);
+      // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
+      sweepStepsChanged();
     }, { blank: null });
     bindSync(inp, () => { inp.placeholder = sw.field ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));

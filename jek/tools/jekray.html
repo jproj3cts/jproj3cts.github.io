@@ -18448,6 +18448,18 @@ function playAllNow() {
   for (const [el, path] of list) playing.set(sweepKey(el, path), { id: el.id, path });
   startLoop();
 }
+/* A sweep's Steps changed while its field is being rendered or played: the frames rendered are for the old steps,
+   and playing on without them works the field out live at every step (it never catches up). So the render starts
+   again at the new steps, and what was playing (or about to) plays on once it is done. */
+function sweepStepsChanged() {
+  fieldRendered = null;
+  const job = sweepJob;
+  const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  if (!list.length || !list.some(([e, p]) => e.sweeps && e.sweeps[p] && e.sweeps[p].field) || !fieldWanted()) return;
+  if (job) { job.quiet = true; job.cancel(); }
+  playing.clear();
+  renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
+}
 function pause(el, path) {
   playing.delete(sweepKey(el, path));
   if (!playing.size) dropTraceStore();
@@ -18595,7 +18607,7 @@ function renderSweepFrames(list, onDone) {
     if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n };
     changed(false);
     if (ok) onDone();
-    else toast('Stopped rendering the field');
+    else if (!job.quiet) toast('Stopped rendering the field');
   };
   job.cancel = () => finish(false);
   // several workers at once, each step whole on one of them, the page left alone (see swPool)
@@ -29522,7 +29534,8 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      setFieldRendered(null);
+      // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
+      sweepStepsChanged();
     }, { blank: null });
     bindSync(inp, () => { inp.placeholder = sw.field ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
@@ -55618,6 +55631,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Fixed: changing a sweep\u2019s Steps while it renders or plays its diffracted field renders it again at the new steps and plays on (it was left working the field out live at every step, never catching up).',
     '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
     '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',

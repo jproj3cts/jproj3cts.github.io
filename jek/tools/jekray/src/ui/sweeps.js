@@ -107,16 +107,21 @@ export function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
   if (!sw) return;
   track('sweep', el.type);
-  if (sweepJob) { sweepJob.cancel(); return; }
-  // the sweeps that will move together: the ones already playing and this one
+  // the sweeps that will move together: the ones already playing and this one (and, during a render, the ones it is
+  // for: the render starts again with this one too, and they all play once it is done)
   const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
-  list.push([el, path]);
+  if (sweepJob) {
+    if (jobHas(sweepJob, el, path)) { sweepJob.cancel(); return; }
+    for (const q of sweepJob.list) if (getEl(q[0].id) && q[0].sweeps && q[0].sweeps[q[1]] && !list.some(([e, p]) => e.id === q[0].id && p === q[1])) list.push(q);
+    sweepJob.quiet = true; sweepJob.cancel();
+  }
+  if (!list.some(([e, p]) => e.id === el.id && p === path)) list.push([el, path]);
   if (list.some(([e, p]) => e.sweeps[p] && e.sweeps[p].field) && fieldWanted()) {
-    const resume = [...playing.values()];
     playing.clear();
-    renderSweepFrames(list, () => { for (const p of resume) playing.set(sweepKey(getEl(p.id) || {}, p.path), p); playNow(el, path); });
+    renderSweepFrames(list, () => { for (const [e, p] of list) if (e !== el && getEl(e.id) && e.sweeps && e.sweeps[p]) playing.set(sweepKey(e, p), { id: e.id, path: p }); playNow(el, path); });
     return;
   }
+  for (const [e, p] of list) if (e !== el && !playing.has(sweepKey(e, p))) playing.set(sweepKey(e, p), { id: e.id, path: p });
   playNow(el, path);
 }
 function playNow(el, path) {
@@ -134,7 +139,7 @@ function playNow(el, path) {
 export function playAll() {
   const list = allSweeps();
   if (!list.length) return;
-  if (sweepJob) { sweepJob.cancel(); return; }
+  if (sweepJob) { sweepJob.quiet = true; sweepJob.cancel(); }     // rendered again, for all of them
   if (list.some(([e, p]) => e.sweeps[p].field) && fieldWanted()) {
     playing.clear();
     renderSweepFrames(list, playAllNow);
@@ -149,7 +154,65 @@ function playAllNow() {
   for (const [el, path] of list) playing.set(sweepKey(el, path), { id: el.id, path });
   startLoop();
 }
+/* A sweep's Steps changed while its field is being rendered or played: the frames rendered are for the old steps,
+   and playing on without them works the field out live at every step (it never catches up). So the render starts
+   again at the new steps, and what was playing (or about to) plays on once it is done. */
+export function sweepStepsChanged() {
+  fieldRendered = null;
+  const job = sweepJob;
+  const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  if (!list.length || !list.some(([e, p]) => e.sweeps && e.sweeps[p] && e.sweeps[p].field) || !fieldWanted()) return;
+  if (job) { job.quiet = true; job.cancel(); }
+  playing.clear();
+  renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
+}
+/* The bench edited while a sweep renders or plays its field. What the frames hold is the light, keyed by the bench's
+   field (popKeyOf over the trace): an edit the light never reaches (a part off the beam, a drawing, a part on another
+   tab, a name) leaves that key as it was, and the render and the play carry on with every frame. An edit that changes
+   the light changes it: the frames are for a bench that is gone, so the render starts again for this one and what was
+   playing plays on (as for a change of Steps). Looked at once the edits settle, at the sweep's first step. */
+let sweepEditTimer = 0;
+export function sweepBenchEdited() {
+  if (!sweepJob && !(fieldRendered && fieldRendered.ref)) return;
+  clearTimeout(sweepEditTimer);
+  sweepEditTimer = setTimeout(sweepEditCheck, 350);
+}
+function sweepEditCheck() {
+  const job = sweepJob, ref = job ? job.ref : fieldRendered && fieldRendered.ref;
+  // (the field turned off, or another tab on show: nothing drawn from the frames, which stay)
+  if (!ref || !ref.key || !popSources().length || ref.tab !== project.tab) return;
+  const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  if (!list.length || list.some(([e, p]) => !e.sweeps || !e.sweeps[p])) { if (job) { job.quiet = true; job.cancel(); } return; }
+  if (ref.shape === sweepShapes(list) && sweepRef(list, ref.n, ref.period).key === ref.key) return;
+  sweepStepsChanged();
+}
+/* the field's key at a sweep's first step, the bench put back after: what its rendered frames depend on (in 3D, with the
+   board as the light meets it, which the volumes are cut to) */
+function sweepRef(list, n, period) {
+  const srcs = popSources();
+  if (!srcs.length) return { key: '', n, period, tab: project.tab };
+  const saved = list.map(([el, path]) => getPath(el, path));
+  list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], 0, n, period)));
+  traceScene();
+  const key = popKeyOf(lastTrace.beams, srcs) + '|' + sweepVol.boxKey();
+  list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+  traceScene();
+  return { key, n, period, shape: sweepShapes(list), tab: project.tab };
+}
+/* what a sweep's steps are, other than its rate (which the steps hold at): From, To, its phase and shape; the frames
+   are for these, so a change to any of them while its field is rendered renders it again (as Steps does) */
+const sweepShapes = list => JSON.stringify(list.map(([el, path]) => { const sw = el.sweeps && el.sweeps[path]; return sw ? [el.id, path, sw.min, sw.max, sw.phase, sw.wave, sw.steps] : null; }));
+/* whether a render is for this sweep (or, without a path, any of this part's) */
+export const jobHas = (job, el, path) => !!job && job.list.some(([e, p]) => e.id === el.id && (path === undefined || p === path || (path.endsWith('.') && p.startsWith(path))));
+/* a sweep paused, removed, typed over or its part deleted: the render for it is stopped too (else it renders on, and
+   when done starts the sweep playing again, over what was typed) */
+export function cancelJobFor(el, path) {
+  if (!jobHas(sweepJob, el, path)) return false;
+  sweepJob.quiet = true; sweepJob.cancel();
+  return true;
+}
 export function pause(el, path) {
+  cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
   if (!playing.size) dropTraceStore();
   syncPanel(); updateSweepButtons(); scheduleSave();
@@ -199,7 +262,8 @@ function keepFrame(map, key, v) {
 /* the 3D view's field volume, rendered with each step while that view shows the field: box() the
    board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
    volume filed under the key the view will ask for (both installed by the 3D view) */
-export const sweepVol = { box: () => null, keep: () => {} };
+// (shown: in the 3D view, whether the step on show has its field there: null when the 3D view is not showing it)
+export const sweepVol = { box: () => null, keep: () => {}, shown: () => null, has: () => true, boxKey: () => '', begin: () => {}, mark: () => {} };
 export let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 export let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 export function setFieldRendered(v) { return (fieldRendered = v); }
@@ -220,7 +284,11 @@ export function renderedPeriod() {
 /* the step on show is drawn in full: the bench's field and every open screen's are there */
 export function sampleShown() {
   const srcs = popSources();
-  if (srcs.length && lastTrace && (popKeyOf(lastTrace.beams, srcs) !== popState.key || !popState.result)) return false;
+  // in 3D the bench's field is the 3D view's (the 2D one is not drawn there, so would never be in step: each step
+  // would wait out its 4 s)
+  const in3d = srcs.length ? sweepVol.shown() : null;
+  if (in3d === false) return false;
+  if (in3d === null && srcs.length && lastTrace && (popKeyOf(lastTrace.beams, srcs) !== popState.key || !popState.result)) return false;
   return !popScreenState.jobs.size;
 }
 /* how long a render has left: the time its steps have taken so far, on average, for each left */
@@ -265,6 +333,7 @@ function renderSweepFrames(list, onDone) {
   const saved = list.map(([el, path]) => getPath(el, path));
   const n = sweepFrames(list);
   framesLast = n;
+  sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
   {
     let all = true;
@@ -272,36 +341,39 @@ function renderSweepFrames(list, onDone) {
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, period)));
       traceScene();
       const srcs = popSources();
-      if (srcs.length && !fieldFrames.bench.has(popKeyOf(lastTrace.beams, srcs))) all = false;
+      // (the bench's field, and in 3D its volume: a step with only one of them would be worked out live as it played)
+      if (srcs.length) { const pk = popKeyOf(lastTrace.beams, srcs); if (!fieldFrames.bench.has(pk) || !sweepVol.has(pk)) all = false; else sweepVol.mark(pk); }
       for (const scr of fieldReadouts()) { const J = all && popScreenPrep(scr); if (J && !fieldFrames.screens.has(J.key)) all = false; }
     }
     list.forEach(([el, path], k) => setParam(el, path, saved[k]));
     traceScene();
-    if (all) { fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n }; changed(false); onDone(); return; }
+    if (all) { fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n, ref: sweepRef(list, n, period) }; changed(false); onDone(); return; }
   }
   // the cycle as it is now: a rate changed meanwhile moves the steps with it, each the same point of its cycle
   const cyc = () => commonPeriod(list.map(([el, path]) => el.sweeps[path] || { freq: 1 / period })) || period;
-  const job = { list, i: 0, n, t0: null, i0: 0 };
+  const job = { list, i: 0, n, t0: null, i0: 0, ref: sweepRef(list, n, period) };
   const timing = i => { if (job.t0 === null) { job.t0 = performance.now(); job.i0 = i; } };   // timed from the first step that needs working out
   sweepJob = job;
   const finish = ok => {
     if (sweepJob !== job) return;
     sweepJob = null;
-    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
-    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n };
+    list.forEach(([el, path], k) => { if (getEl(el.id)) setParam(el, path, saved[k]); });
+    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n, ref: job.ref };
     changed(false);
     if (ok) onDone();
-    else toast('Stopped rendering the field');
+    else if (!job.quiet) toast('Stopped rendering the field');
   };
   job.cancel = () => finish(false);
+  const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
   // several workers at once, each step whole on one of them, the page left alone (see swPool)
   const pool = !closeupOnShow() && swPool();
-  if (pool) { renderOnPool(pool, list, n, cyc(), job, onDone); return; }
+  if (pool) { renderOnPool(pool, list, n, cyc, job, onDone); return; }
   if (fieldWorker()) {
     // the same, each field worked out in the worker while the page stays free
     const live = () => sweepJob === job;
     (async () => {
       for (let i = 0; i < n; i++) {
+        if (gone()) { job.quiet = true; job.cancel(); return; }
         job.i = i;
         const at = () => list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
         at();
@@ -315,7 +387,9 @@ function renderSweepFrames(list, onDone) {
           traceScene();
           if (MODS.packs.size) { await modsReady(); if (!live()) return; }
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
-          if (!fieldFrames.bench.has(key)) {
+          if (sweepVol.has(key)) sweepVol.mark(key);
+          // (and its 3D volume, when the view shows the field and has not got it: rendered in 2D, played in 3D)
+          if (!fieldFrames.bench.has(key) || !sweepVol.has(key)) {
             timing(i); job.stage = 'the bench';
             const o = await fwRequest('bench', 'sweep', { vol: sweepVol.box() });
             if (!live()) return;
@@ -358,6 +432,7 @@ function renderSweepFrames(list, onDone) {
   const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
   const frames = (function* () {
     for (let i = 0; i < n; i++) {
+      if (gone()) { job.quiet = true; job.cancel(); return; }
       job.i = i;
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
       job.stage = 'tracing'; job.part = 0;
@@ -439,7 +514,10 @@ export function swAsk(W, proj, args, kind) {
     W.w.postMessage(msg);
   });
 }
-export function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminate(); SW.pool = []; }
+// (what each was still asked for is handed back as failed: a promise left waiting on a stopped worker would hold up
+// whatever waits on it, the 3D view's field among them, until the page was reloaded)
+// (a stop asked for is marked stopped: what waited on it is let go, and not taken for the workers failing)
+export function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) { W.w.terminate(); for (const j of W.jobs.values()) j.reject(Object.assign(new Error('the render workers were stopped'), { stopped: true })); W.jobs.clear(); } SW.pool = []; }
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 export const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
 /* A bench with mods: their code runs only on the page, so a step's results (for its swept values)
@@ -460,8 +538,9 @@ function modsPrep(list) {
     setLastTraceKey(null); traceScene();
   }));
 }
-function renderOnPool(pool, list, n, period, job, onDone) {
-  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box(), prep = modsPrep(list);
+function renderOnPool(pool, list, n, cyc, job, onDone) {
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), prep = modsPrep(list);
+  const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
   const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
   // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
   const order = [], seen = new Set();
@@ -470,11 +549,15 @@ function renderOnPool(pool, list, n, period, job, onDone) {
   let next = 0, started = false;
   job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0;
   job.stage = pool.length > 1 ? pool.length + ' at once' : '';
-  const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period, n, done }; onDone(); };
+  const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period: cyc(), n, done, ref: job.ref }; onDone(); };
   const runOne = async W => {
     while (live() && next < order.length) {
+      // (a sweep removed, or its part deleted, meanwhile: nothing left to render for)
+      if (gone()) { job.quiet = true; job.cancel(); return; }
       const i = order[next++];
-      const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
+      // the step at the rate as it is now (one changed meanwhile moves the steps with it), and the 3D view's board as
+      // it is now (the view may have been opened meanwhile)
+      const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, cyc())]), vol = sweepVol.box();
       await prep(sets);
       if (!live()) return;
       const o = await swAsk(W, proj, { sets, ids, vol });
@@ -487,18 +570,22 @@ function renderOnPool(pool, list, n, period, job, onDone) {
       requestRender(); syncPanel();
     }
   };
-  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); changed(false); toast('Stopped rendering the field'); };
+  // stopped part way: what plays on is worked out live, not held to the coarse steps rendered so far
+  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
   Promise.all(pool.map(runOne)).then(() => {
     if (!live()) return;
     sweepJob = null; swRelease();
-    fieldRendered = { keys, period, n };
+    fieldRendered = { keys, period: cyc(), n, ref: job.ref };
     changed(false);
     if (!started) { started = true; onDone(); }
   }, err => {
     // a worker failed: the pool is not used again, and the render starts again the old way
     if (!live()) return;
+    sweepJob = null;
+    // the workers stopped on purpose (the optimiser, Undo, a file opened): started again, not given up on
+    if (err && err.stopped) { renderSweepFrames(list, started ? () => {} : onDone); return; }
     console.warn('JEKray render workers:', err && err.message);
-    sweepJob = null; SW.failed = true; swDrop();
+    SW.failed = true; swDrop();
     renderSweepFrames(list, started ? () => {} : onDone);
   });
   updateSweepButtons(); syncPanel();

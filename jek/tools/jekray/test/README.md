@@ -42,6 +42,14 @@ runs the checks whose names hold a text).
 | site | the documentation pages and their data | site-pages | Projects written elsewhere, and the AI guide |
 | shared | the data model, the project, the page boot, the registry, constants, hooks, the tests page, this runner | all | all |
 
+## Stress runs
+
+`node test/optimise-stress.mjs` pushes every optimiser through some 125 cases in about a minute (the coating designer's
+targets with 1 to 16 layers, spoilt and impossible Optical designs, limits, tolerancing, the RF designer from 1 GHz to
+1 THz, the bench optimiser's edge cases and each exercise's optimiser): `--no-browser` for the designers alone, `--only
+<text>` for some. It is not part of the suites; the fast versions of what it once caught are in
+`test/node/optimise-stress.test.mjs` and the browser group 'Optimiser stress'.
+
 ## Where the time goes
 
 A full run took about 15 minutes before one test was mended: the check that every palette button makes its part

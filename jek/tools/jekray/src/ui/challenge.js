@@ -11,6 +11,7 @@ import { designPro } from './pro.js';
 import { EXERCISE_BENCHES } from '../core/exercise-benches.js';
 import { requestRender, sx, sy } from './render.js';
 import { openProjectData } from '../io/open.js';
+import { checkpoint } from './tabs.js';
 import { account, accountLoaded, accountsOn, api, signInRow } from '../io/account.js';
 import { funnel, track } from '../io/usage.js';
 
@@ -169,6 +170,9 @@ export function exerciseOptimise() { if (EX && EX.ex.optimiser) exOptimise(); }
 function exOptimise() {
   if (!designPro('optimise a design')) return;
   track('exercise', EX.ex.id + '.optimise');
+  // one Undo step, as the bench's own optimiser is (counted as a change to the exercise there), taken before the
+  // search's ranges go on the parts so that Undo does not bring them back
+  checkpoint();
   const vars = [], terms = [];
   const keep = [];
   for (const [n, R] of Object.entries(EX.ex.optimiser)) {
@@ -182,7 +186,7 @@ function exOptimise() {
   setTimeout(() => {
     try { optimiseMany(vars, terms); } catch (err) { unkeep(); toast('The optimiser could not finish: ' + err.message, true); return; }
     unkeep();
-    EX.changes++; changed(true);
+    changed(true);
   }, 30);
 }
 

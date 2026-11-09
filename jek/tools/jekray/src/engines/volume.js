@@ -104,6 +104,25 @@ export function volPartners(segs, tab) {
   }
   return out;
 }
+/* the board as the light meets it: the board cut to the box the beams span (each to 2 m, as volCuts cuts them). A volume
+   is kept under it, so a part moved where no light goes, which only makes the board bigger, leaves every volume worked
+   out for a sweep as it was (cutting a beam to the board is cutting it to this box, which holds all of it) */
+export function volLightBox(bb, beams, srcs) {
+  if (!bb) return bb;
+  const ids = new Set(srcs.map(e => e.id));
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of beams || []) {
+    if (!ids.has(b.src)) continue;
+    const L3 = b.len3 || b.len;
+    if (!(L3 > 0)) continue;
+    const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]) || 1, t = Math.min(L3, 2000);
+    for (const [x, y] of [[b.x0, b.y0], [b.x0 + d[0] / dl * t, b.y0 + d[1] / dl * t]]) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (!(x1 >= x0 && y1 >= y0)) return bb;
+  return [Math.max(bb[0], Math.floor(x0) - 1), Math.max(bb[1], Math.floor(y0) - 1), Math.min(bb[2], Math.ceil(x1) + 1), Math.min(bb[3], Math.ceil(y1) + 1)];
+}
 /* where a segment's volume is cut across it: its direction, height, and the distances along it,
    or null for none (no length, or off the board) */
 function volCuts(sg, bb, two, coh) {
@@ -485,6 +504,25 @@ function popTimes(F0, len, n) {
   return out;
 }
 
+/* a beam's drawn slices as an image at an intensity scale: lin holds each column's rows (linear), gs each column's gain, dec the
+   decades shown (0: linear). Each column three pixels wide, drawn from its middle one, so smoothing never reaches into
+   the next column and the seams between them do not show */
+export function popSliceImage(lin, gs, rgb, dec) {
+  const nc = gs.length, img = new ImageData(3 * nc, POP_ROWS), [cr, cg, cb] = rgb;
+  for (let c = 0; c < nc; c++) {
+    for (let row = 0; row < POP_ROWS; row++) {
+      const v = lin[c * POP_ROWS + row], a = dec ? (v > 0 ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / dec) : 0) : v;
+      for (let k = 0; k < 3; k++) {
+        const o = (row * 3 * nc + 3 * c + k) * 4;
+        img.data[o] = cr; img.data[o + 1] = cg; img.data[o + 2] = cb;
+        img.data[o + 3] = Math.round(255 * a * gs[c]);
+      }
+    }
+  }
+  const cv = mkCanvas(3 * nc, POP_ROWS);
+  cv.getContext('2d').putImageData(img, 0, 0);
+  return cv;
+}
 export function popSlices(items, perIn) {
   const per = perIn || clamp(Math.floor(POP_SLICES / Math.max(1, items.length)), 6, 48);
   const per2 = Math.min(per, 32);
@@ -570,7 +608,7 @@ export function popSlices(items, perIn) {
         // the outer fifth fades to nothing, so light that reaches the edge of what is drawn ends softly
         const au = Math.abs(u);
         if (au > 0.8) v *= 0.5 * (1 + Math.cos(Math.PI * (au - 0.8) / 0.2));
-        col[row] = log ? (v > 0 ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / log) : 0) : v;
+        col[row] = v;
       }
       cols.push(col);
     }
@@ -588,25 +626,16 @@ export function popSlices(items, perIn) {
         dcols.push(col);
       }
     }
-    // each column three pixels wide, drawn from its middle one, so smoothing never
-    // reaches into the next column and the seams between them do not show
-    const img = new ImageData(3 * dts.length, POP_ROWS);
-    dcols.forEach((col, c) => {
-      for (let row = 0; row < POP_ROWS; row++) {
-        for (let k = 0; k < 3; k++) {
-          const o = (row * 3 * dts.length + 3 * c + k) * 4;
-          img.data[o] = cr; img.data[o + 1] = cg; img.data[o + 2] = cb;
-          img.data[o + 3] = Math.round(255 * col[row] * clamp(dgs[c], 0.03, 1));
-        }
-      }
-    });
-    const cv = mkCanvas(3 * dts.length, POP_ROWS);
-    cv.getContext('2d').putImageData(img, 0, 0);
+    // kept linear, as the light is: the intensity scale (Light › Field intensity) is how it is drawn (popSliceImage), so
+    // a change of scale draws the same field again and every frame a sweep rendered still holds
+    const lin = new Float32Array(dts.length * POP_ROWS), gs = new Float32Array(dts.length);
+    dcols.forEach((col, c) => { gs[c] = clamp(dgs[c], 0.03, 1); lin.set(col, c * POP_ROWS); });
+    const rgb = [cr, cg, cb], cv = popSliceImage(lin, gs, rgb, log);
     // each branch as bright as the power it carries, so round trips fade as they leak
     // a lone branch as bright as the power it carries; a group column by column, from
     // the power its fields add up to, so a dark port is dark
     // as bright as the light it carries: one pass's share, times what a cavity built it up by
-    sg.draw = { ts: dts, Ys: dYs, cv, alpha: grouped ? 1 : clamp((sg.b.w || 1) * (sg.boost || 1), 0.04, 1), members: item.members.length };
+    sg.draw = { ts: dts, Ys: dYs, cv, lin, gs, rgb, dec: log, alpha: grouped ? 1 : clamp((sg.b.w || 1) * (sg.boost || 1), 0.04, 1), members: item.members.length };
   }
 }
 

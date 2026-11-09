@@ -26,6 +26,7 @@ import { saveNudge } from '../io/nudges.js';
 import { goal } from '../io/usage.js';
 import { hooks } from '../core/hooks.js';
 import { scheduleSave } from '../io/autosave.js';
+import { sweepBenchEdited } from './sweeps.js';
 
 /* ==========================================================================
    Actions
@@ -33,6 +34,7 @@ import { scheduleSave } from '../io/autosave.js';
 
 export function changed(rebuildPanel) {
   if (rebuildPanel) renderPanel(); else syncPanel();
+  sweepBenchEdited();                                    // a field sweep's frames kept unless the light changed
   updateSweepButtons();
   updateUndoButtons();
   scheduleSave();

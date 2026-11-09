@@ -86,14 +86,10 @@ export async function check(pw, base, shots) {
       await p.click('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(200);
       const op2 = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('A JEKray bench opens in JEKray’s tab', op2 && op2[0] === '/jek/tools/jekray.html#cloud=b1' && op2[1] === 'jekray', JSON.stringify(op2));
-      // New: the apps to open, then five kinds; a JEKion bench made in the cloud, then opened in JEKion
+      // New: only what can be started (opening an app is on its page), a bench in each app first, then JEKray's designers
       await p.click('#homeNew');
       const kinds = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
-      ok('New opens either app, and offers a bench in each app and JEKray’s three designers', kinds.join('|') === 'JEKray|JEKion|JEKray bench|Optical design (JEKray)|RF design (JEKray)|Coating design (JEKray)|JEKion bench', kinds.join('|'));
-      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKion').click());
-      const opA = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('New › Open › JEKion: the app in its own tab', opA && opA[0] === '/jek/tools/jekion.html' && opA[1] === 'jekion', JSON.stringify(opA));
-      await p.click('#homeNew');
+      ok('New offers a bench in each app, then JEKray’s three designers, and no way to merely open an app', kinds.join('|') === 'JEKray bench|JEKion bench|Optical design (JEKray)|RF design (JEKray)|Coating design (JEKray)', kinds.join('|'));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Optical design (JEKray)').click());
       await p.click('#spaceNewMake'); await p.waitForTimeout(400);
       const op3 = await p.evaluate(() => window.__opened.slice(-1)[0]);

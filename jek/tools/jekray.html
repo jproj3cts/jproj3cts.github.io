@@ -18493,7 +18493,8 @@ function keepFrame(map, key, v) {
 /* the 3D view's field volume, rendered with each step while that view shows the field: box() the
    board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
    volume filed under the key the view will ask for (both installed by the 3D view) */
-const sweepVol = { box: () => null, keep: () => {} };
+// (shown: in the 3D view, whether the step on show has its field there: null when the 3D view is not showing it)
+const sweepVol = { box: () => null, keep: () => {}, shown: () => null };
 let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 function setFieldRendered(v) { return (fieldRendered = v); }
@@ -18514,7 +18515,11 @@ function renderedPeriod() {
 /* the step on show is drawn in full: the bench's field and every open screen's are there */
 function sampleShown() {
   const srcs = popSources();
-  if (srcs.length && lastTrace && (popKeyOf(lastTrace.beams, srcs) !== popState.key || !popState.result)) return false;
+  // in 3D the bench's field is the 3D view's (the 2D one is not drawn there, so would never be in step: each step
+  // would wait out its 4 s)
+  const in3d = srcs.length ? sweepVol.shown() : null;
+  if (in3d === false) return false;
+  if (in3d === null && srcs.length && lastTrace && (popKeyOf(lastTrace.beams, srcs) !== popState.key || !popState.result)) return false;
   return !popScreenState.jobs.size;
 }
 /* how long a render has left: the time its steps have taken so far, on average, for each left */
@@ -18733,7 +18738,9 @@ function swAsk(W, proj, args, kind) {
     W.w.postMessage(msg);
   });
 }
-function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminate(); SW.pool = []; }
+// (what each was still asked for is handed back as failed: a promise left waiting on a stopped worker would hold up
+// whatever waits on it, the 3D view's field among them, until the page was reloaded)
+function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) { W.w.terminate(); for (const j of W.jobs.values()) j.reject(new Error('the render workers were stopped')); W.jobs.clear(); } SW.pool = []; }
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
 /* A bench with mods: their code runs only on the page, so a step's results (for its swept values)
@@ -22017,6 +22024,8 @@ const V3D = (() => {
   const active = () => allowed() && !!(tabState() && tabState().on);
   // the board the field volumes are cut to, [x0, y0, x1, y1], while the view is on; else null
   const boardBox = () => { const vb = active() && R && R.boardBox; return vb ? [vb.min.x, vb.min.y, vb.max.x, vb.max.y] : null; };
+  // whether the field the 3D view shows is in (a sweep's step waits for it); null when the 3D view is not showing the field
+  const fieldReady = () => { if (!active() || !R || !lightOf().field) return null; sync(); return !R.volBusy; };
 
   function load() {
     if (T) return Promise.resolve();
@@ -23776,7 +23785,7 @@ const V3D = (() => {
 
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
-    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
+    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox, fieldReady,
     // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
     setTool(t) { tool = t || null; if (R) R.selKey = null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
     tool: () => tool,
@@ -23882,12 +23891,15 @@ function volLater(bb) {
   const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, bb);
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
   const keep = d => volKeep(key, d);
+  // a request in flight that has not answered in a minute is let go and asked again (a worker stopped under it would
+  // otherwise leave the view working it out until the page was reloaded)
+  if (VOL.job && VOL.t0 && performance.now() - VOL.t0 > 60000) VOL.job = null;
   // a heavy field (2D, or many segments) shared among the render workers, when no sweep is using them
   const heavyVol = srcs.some(e => e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e)) || lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length > 8;
   const pool = heavyVol && !sweepJob ? swPool() : null;
   if (pool && pool.length > 1 && fieldWorker()) {
     if (VOL.job !== key) {
-      VOL.job = key;
+      VOL.job = key; VOL.t0 = performance.now();
       const proj = fwProject(), n = pool.length, tab = project.tab, beams = lastTrace.beams; 
       // the bench's field run once (the page may have it already), then each worker carries on its share
       // (the render workers load the bench meanwhile)
@@ -23916,7 +23928,7 @@ function volLater(bb) {
   }
   if (fieldWorker()) {
     if (VOL.job !== key) {
-      VOL.job = key;
+      VOL.job = key; VOL.t0 = performance.now();
       fwRequest('vol3d', 'vol3d', { key: pk, tab: project.tab, bb }).then(o => {
         if (VOL.job === key) VOL.job = null;
         if (o && !o.mismatch) keep(o); else VOL.rev++;
@@ -23932,11 +23944,12 @@ function volLater(bb) {
 /* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
-const VOL = { job: null, cache: new Map(), n: 0, rev: 0 };
+const VOL = { job: null, t0: 0, cache: new Map(), n: 0, rev: 0 };
 /* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
    sweeps): the board it is cut to, and where the steps' volumes go */
 function wireView3d() {
   sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
+  sweepVol.shown = () => V3D.fieldReady();
   sweepVol.keep = (pk, tab, bb, V) => { if (!VOL.cache.has(volKey(pk, tab, bb))) volKeep(volKey(pk, tab, bb), V); };
 }
 /* ==========================================================================
@@ -55599,6 +55612,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
     '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',
     'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',

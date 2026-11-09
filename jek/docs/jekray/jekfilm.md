@@ -18,6 +18,10 @@ The **Design** table on the left says what the stack is for and the light it is 
 - **Incident medium n**: the index in front (1 for air, about 1.33 for water).
 - **Substrate**: N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion (its index at λ₀ is shown), or an index of your own. JEKfilm says when the substrate is not transparent at λ₀.
 
+## Reflectance
+
+The reflectance against wavelength (square on, at the largest angle, and the target dashed), and against the angle of incidence at λ₀, s and p. Move the pointer over a plot to read its values.
+
 ## Performance
 
 One row of figures: the mean and largest reflectance over the band square on, and at the largest angle when there is one; the reflectance at λ₀; the bare substrate's; and the merit, the mean square of the reflectance against its target over the band and the angles.
@@ -27,10 +31,6 @@ One row of figures: the mean and largest reflectance over the band square on, an
 The table lists the stack from the incident medium down to the substrate: each layer's material (MgF2, SiO2, Al2O3, a mid index, ZrO2, Ta2O5, TiO2, or an index of your own), its index, its physical thickness in nanometres and its optical thickness in quarter waves at λ₀, with the total thickness underneath. **λ/4** makes a layer a quarter wave and **✕** removes it; **All quarter waves** does every layer; **Add layer** adds one; **Preset…** puts in a single MgF2 layer, a two-layer V-coat, a three-layer broadband AR, a three-layer 50:50 splitter or a six-pair high reflector, each for λ₀.
 
 **Optimise thicknesses** searches the thicknesses from where they stand (Nelder–Mead, with restarts), keeping each layer's material. Choose the materials and a starting stack, then let the thicknesses settle. Undo (Ctrl+Z) takes it back.
-
-## Reflectance
-
-The reflectance against wavelength (square on, at the largest angle, and the target dashed), and against the angle of incidence at λ₀, s and p. Move the pointer over a plot to read its values.
 
 ## Files and the cloud
 

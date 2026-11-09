@@ -67,7 +67,7 @@ export function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film), sum = coatSummary(film.layers, spec);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, figures(sum, spec), layersCard(spec, sum), plotsCard(spec)));
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(spec), figures(sum, spec), layersCard(spec, sum)));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -76,7 +76,7 @@ export function render() {
 }
 /* a row of a property table: its name, its value (a control or a figure), its unit */
 const propRow = (label, value, unit, cls) => h('tr', { class: cls || null }, h('th', { scope: 'row' }, label), h('td', null, value), h('td', { class: 'unit' }, unit || ''));
-const section = (title, ...kids) => h('section', { class: 'film-sec', 'aria-label': title }, h('h2', null, title), ...kids);
+const section = (title, ...kids) => h('section', { class: 'film-sec rt-lcard', 'aria-label': title }, h('h2', null, title), ...kids);
 function settingsCard(spec) {
   const S = film.spec, tb = h('tbody');
   const subOpts = Object.keys(FILM_GLASSES).map(g => ['g:' + g, g]).concat([['n', 'Index of my own']]);

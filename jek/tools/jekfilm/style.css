@@ -43,11 +43,12 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-head .rt-menu[hidden] { display: none; }
 .film-warn { color: var(--rt-warm-ink2); }
 
-/* the layout: the design's properties a column on the left set off by one line; performance, layers and curves as
-   tables and plots beside it. No cards: rules between rows, small-caps headings, numbers right-aligned in a fixed width. */
-.film-ws .rt-lbody { display: grid; grid-template-columns: 19rem minmax(0, 1fr); align-items: start; gap: 0; padding: 0; background: var(--jek-panel); }
-.film-ws .rt-lcond { flex: none; max-width: none; padding: 1.1rem 1.25rem; border-right: 1px solid var(--jek-line); align-self: stretch; min-height: 100%; box-sizing: border-box; }
-.film-ws .rt-lmain { display: flex; flex-direction: column; gap: 1.6rem; padding: 1.1rem 1.5rem 2rem; min-width: 0; }
+/* the layout: the design's properties in a card on the left; the curves, the performance and the layers in cards
+   beside it, each a table inside: rules between rows, small-caps headings, numbers right-aligned. */
+.film-ws .rt-lbody { display: grid; grid-template-columns: 20rem minmax(0, 1fr); align-items: start; gap: 1rem; padding: 1rem; }
+.film-ws .rt-lcond { flex: none; max-width: none; position: sticky; top: 0; }
+.film-ws .rt-lmain { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.film-sec.rt-lcard { padding: 0.9rem 1.1rem 1rem; }
 .film-sec h2 { margin: 0 0 0.55rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--jek-ink-soft); }
 .film-twrap { overflow-x: auto; }
 .film-ws table { border-collapse: collapse; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
@@ -98,9 +99,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-ws .film-plot .frame { stroke: none; }
 .film-ws .rt-lpair { gap: 1.5rem; }
 @media (max-width: 860px) {
-  .film-ws .rt-lbody { grid-template-columns: minmax(0, 1fr); }
-  .film-ws .rt-lcond { border-right: 0; border-bottom: 1px solid var(--jek-line); min-height: 0; }
-  .film-ws .rt-lmain { padding: 1rem; }
+  .film-ws .rt-lbody { grid-template-columns: minmax(0, 1fr); padding: 0.6rem; }
+  .film-ws .rt-lcond { position: static; }
 }
 .film-results { min-width: 0; }
 .film-results th, .film-results td { padding-left: 1.6rem; padding-right: 0; }

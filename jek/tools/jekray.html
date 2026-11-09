@@ -924,7 +924,8 @@
   .rt-hcard .rt-hinfo small.rt-hfork { display: flex; align-items: center; gap: 0.25rem; }
   /* the other tool's bench: a chip before its name (both tools' benches share the workspaces) */
   .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
-  .rt-hcard .rt-hinfo .rt-htool.ion { background: var(--jek-orange); }
+  .rt-hcard .rt-hinfo .rt-htool.ion, .rt-hcard .rt-hinfo .rt-htool.jekion { background: var(--jek-orange); }
+  .rt-hcard .rt-hinfo .rt-htool.jekfilm { background: var(--jek-amber); color: #1a1a1a; }
   .rt-hcard .rt-hinfo small.rt-hfork .ic { width: 12px; height: 12px; }
   .rt-hcard .rt-hmore { position: absolute; right: 0.35rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid transparent; border-radius: 2px; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
   .rt-hcard .rt-hmore:hover, .rt-hcard .rt-hmore[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); color: var(--jek-ink); }
@@ -55154,6 +55155,7 @@ async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
   if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
+  if (meta.tool === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }
@@ -55222,6 +55224,8 @@ const whenAgo = t => {
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
 const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
+const JEKFILM_URL = '/jek/tools/jekfilm.html';
+const openInJekfilm = (b, version) => { const w = window.open(JEKFILM_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekfilm'); if (w) w.focus(); };    // the one JEKfilm tab
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;

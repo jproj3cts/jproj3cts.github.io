@@ -1,0 +1,20 @@
+[
+  "../../jekray/src/core/constants.js",
+  "../../jekray/src/core/hooks.js",
+  "../../jekray/src/core/numeric.js",
+  "../../jekray/src/core/coatings.js",
+  "../../jekray/src/core/coatdesign.js",
+  "../../jekray/src/core/src-tag.js",
+  "core/film.js",
+  "../../jekray/src/io/usage.js",
+  "../../jekray/src/ui/dom.js",
+  "../../jekray/src/ui/pro.js",
+  "../../jekray/src/io/account.js",
+  "ui/bar.js",
+  "ui/plot.js",
+  "ui/designer.js",
+  "io/files.js",
+  "io/film-account.js",
+  "io/cloud.js",
+  "ui/boot.js"
+]

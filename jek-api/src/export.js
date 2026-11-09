@@ -5,6 +5,7 @@
 // Works with or without a plan.
 
 import { me } from './users.js';
+import { TOOLS } from './benches.js';
 import { zip } from './zip.js';
 
 // A file or folder name that every unzip tool keeps inside the folder it
@@ -42,7 +43,7 @@ export async function exportAll(env, user) {
       return parts.join('/');
     };
     const { results: benches } = await env.DB.prepare(
-      'SELECT folder_id, name, head_json FROM benches WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY name',
+      'SELECT folder_id, name, head_json, tool FROM benches WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY name',
     )
       .bind(w.id)
       .all();
@@ -59,8 +60,9 @@ export async function exportAll(env, user) {
     }
     for (const b of benches) {
       const dir = [top, path(b.folder_id)].filter(Boolean).join('/');
-      let name = `${dir}/${safe(b.name)}.jekray`;
-      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${dir}/${safe(b.name)} (${i}).jekray`;
+      const ext = (TOOLS[b.tool] || TOOLS.jekray).ext;
+      let name = `${dir}/${safe(b.name)}.${ext}`;
+      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${dir}/${safe(b.name)} (${i}).${ext}`;
       taken.add(name.toLowerCase());
       files.push({ name, data: b.head_json });
     }

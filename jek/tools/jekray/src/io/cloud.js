@@ -315,6 +315,7 @@ async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
   if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
+  if (meta.tool === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }
@@ -383,6 +384,8 @@ const whenAgo = t => {
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
 const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
+const JEKFILM_URL = '/jek/tools/jekfilm.html';
+const openInJekfilm = (b, version) => { const w = window.open(JEKFILM_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekfilm'); if (w) w.focus(); };    // the one JEKfilm tab
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;

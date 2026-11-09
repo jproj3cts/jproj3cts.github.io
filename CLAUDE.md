@@ -1,7 +1,7 @@
 # jeksys.net — working notes
 
 The repo is the jeksys.net site (GitHub Pages) plus JEKray, a browser optics/photonics/RF simulator, JEKion, a
-charged-particle optics simulator built the same way beside it, and their API. The root README has the site
+charged-particle optics simulator built the same way beside it, JEKfilm, a thin-film coating designer, and their API. The root README has the site
 conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tools/jekion/README.md` JEKion's.
 
 ## Working rules
@@ -45,6 +45,7 @@ The site should read as written by the people who build the things on it. Before
 | JEKion (source) | `jek/tools/jekion/src/` — built into `jek/tools/jekion.html` (committed); shares JEKray's modules by path in its `order.json`; tests `jek/tools/jekion/test/` + `jek/tools/jekion-tests.html`; demos `jek/tools/demos/*.jekion`; docs `jek/docs/jekion/` (`_data/jekion_docs.yml`, `docs: jekion` in front matter) |
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
 | JEKspace, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jekspace/` — built into `jek/tools/jekspace.html` (committed), as JEKion is; `README.md` there; tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jekspace.md` |
+| JEKfilm, the coating designer (`.jekfilm`; a cloud bench with tool `jekfilm`) | `jek/tools/jekfilm/` — built into `jek/tools/jekfilm.html` (committed), as JEKspace is; `README.md` there; shares JEKray's `core/coatings.js` and `core/coatdesign.js`; saving and optimising are Pro; tests `node test/run.mjs`; docs `jek/docs/jekray/jekfilm.md` |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |

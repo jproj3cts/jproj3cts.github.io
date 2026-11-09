@@ -10,7 +10,11 @@ export const APPS = [
     line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens, RF and coating design.' },
   { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
+  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', about: null, thing: 'coating',
+    line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
 ];
+/* what an app's files are called: a JEKfilm coating, a JEKray or JEKion bench */
+export const thingOf = id => appOf(id).thing || 'bench';
 export const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
 export function openApp(id, hash) {

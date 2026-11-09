@@ -79,3 +79,14 @@ test('the file’s text is the coating, normalised, and reads back the same', ()
   const f = F.normFilm({ name: 'HR 1064', spec: { target: 'hr', lo: 1000, hi: 1120, design: 1064 }, layers: F.filmPreset('hr', 1064) });
   assert.deepEqual(F.normFilm(JSON.parse(F.filmText(f))), f);
 });
+test('figures: to their decimals, and a very small one as three significant figures times a power of ten', () => {
+  assert.equal(F.dsFix(0.12049, 3), '0.120');
+  assert.equal(F.dsFix(3.369, 3), '3.369');
+  assert.equal(F.dsFix(0.0123, 3), '0.012');
+  assert.equal(F.dsFix(0.0012, 3), '1.20×10⁻³', 'below 0.01, three decimals would keep one figure');
+  assert.equal(F.dsFix(0.000193, 3), '1.93×10⁻⁴');
+  assert.equal(F.dsFix(0.00000193, 3), '1.93×10⁻⁶');
+  assert.equal(F.dsFix(0, 3), '0.000');
+  assert.equal(F.dsFix(NaN, 3), '—');
+  assert.equal(F.dsSci(12300), '1.23×10⁴');
+});

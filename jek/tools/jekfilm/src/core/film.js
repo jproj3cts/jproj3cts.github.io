@@ -86,5 +86,10 @@ export function filmPreset(kind, design) {
 }
 /* the coating as a JEKray face takes it (state/project.js normCoat, mode 'stack'), named */
 export const filmToCoat = f => coatToStack(f.layers, filmSpec(f), f.name);
+/* a small figure as three significant figures times a power of ten (1.93×10⁻⁶), so it is no longer than the rest */
+const FILM_SUPER = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+export const dsSci = v => { const [m, e] = v.toExponential(2).split('e'); return m + '×10' + String(+e).replace(/./g, c => FILM_SUPER[c] || c); };
+/* a figure to dp decimals, or, below 10^(1-dp) (where those decimals would keep fewer than two figures), as above */
+export const dsFix = (v, dp) => (!isFinite(v) ? '—' : v === 0 || Math.abs(v) >= Math.pow(10, 1 - dp) ? v.toFixed(dp) : dsSci(v));
 /* the file's text */
 export const filmText = f => JSON.stringify(normFilm(f), null, 2);

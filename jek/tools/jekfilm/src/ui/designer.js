@@ -4,7 +4,7 @@ import { designPro, proMark } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { COAT_MATERIALS, qwot } from '../../../jekray/src/core/coatings.js';
 import { coatAngles, coatCurve, coatMerit, coatOptimise, coatWant, stackR } from '../../../jekray/src/core/coatdesign.js';
-import { FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
+import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
 import { linePlotSvg } from './plot.js';
 import { toast } from './bar.js';
 
@@ -104,8 +104,8 @@ function settingsCard(spec) {
   out.classList.add('rt-lcond');
   return out;
 }
-/* a reflectance as a percentage to three decimals, so a column's figures line up */
-const dsR = v => (isFinite(v) ? (100 * v).toFixed(3) : '—');
+/* a reflectance as a percentage to three decimals, so a column's figures line up (very small ones as above) */
+const dsR = v => dsFix(100 * v, 3);
 /* a small table under a plot: a heading row, figure rows, and a line of notes under it */
 function miniTable(id, label, heads, rows, foot) {
   return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id, 'aria-label': label },
@@ -133,7 +133,7 @@ function plotsCard() {
   const bandRows = [[deg(a0), ...stat(C.R0).map(dsR)], ...(C.Rt ? [[deg(spec.theta), ...stat(C.Rt).map(dsR)]] : [])];
   const bare = ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2;
   a.append(miniTable('filmFigures', 'Reflectance over the band', ['Angle', 'R mean (%)', 'R max (%)', 'R min (%)'], bandRows,
-    'Merit ' + dsFmt(coatMerit(film.layers, spec), 3) + ' · bare substrate ' + dsR(bare) + ' %'));
+    'Merit ' + dsFix(coatMerit(film.layers, spec), 3) + ' · bare substrate ' + dsR(bare) + ' %'));
   // under the angle plot: s, p and their mean at λ₀, square on and at the angles judged
   const angs = [...new Set([0, a0, spec.theta])], at = (d, pol) => stackR(film.layers, spec.n0, spec.ns, Math.cos(d * Math.PI / 180), spec.design, pol);
   b.append(miniTable('filmAngleFigures', 'Reflectance at the design wavelength', ['Angle', 'Rs (%)', 'Rp (%)', 'R mean (%)'],
@@ -183,6 +183,6 @@ export function optimiseNow() {
   const o = coatOptimise(film.layers, filmSpec(film));
   edit(f => { f.layers = o.layers; });
   track('optimise', 'film');
-  toast('Merit ' + dsFmt(o.before, 3) + ' to ' + dsFmt(o.after, 3) + ' in ' + o.evals + ' tries');
+  toast('Merit ' + dsFix(o.before, 3) + ' to ' + dsFix(o.after, 3) + ' in ' + o.evals + ' tries');
   return o;
 }

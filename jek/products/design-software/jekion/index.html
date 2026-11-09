@@ -29,11 +29,11 @@
   }
   /* the hero's key phrase, underlined in the JEK stripe */
   .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
-  /* as on the JEKray page: the sections close, the features three to a row (a picture over its words), the examples
+  /* as on the JEKray page: the sections close, the features four to a row (a picture over its words), the examples
      as a catalogue index by topic, the resources in four columns */
   .jek-hero { padding-block: 2rem 1.6rem; }
   .jek-section { padding-block: 1.8rem; }
-  .rt-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
+  .rt-feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
   .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
   .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
   .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
@@ -97,6 +97,10 @@
         <div class="jek-feature">
           <div><h2>Potentials you can read</h2><p>See the potential as a map or plot it along any line, and read where the trap holds and how stiffly. Every plot exports as CSV, Excel, NumPy or MATLAB.</p><p><a href="/jek/docs/jekion/data-export/">Data export</a></p></div>
           <figure class="jek-shot"><img src="img/feat-plots.png" alt="The Bench panel's potential plots: the potential along the x axis of a reflectron, and the histogram of arrival times from the last flight" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>Beam optics too</h2><p>The same engine flies a beam through a lens, a deflector, a time-of-flight or a mass filter, with detectors recording position, time and energy.</p><p><a href="/jek/tools/jekion.html?demo=reflectron">Open the reflectron</a></p></div>
+          <figure class="jek-shot"><img src="img/ex-reflectron.png" alt="A reflectron in section: the source, the drift region and the ion mirror's rings, with the ions turning in the mirror" loading="lazy"></figure>
         </div>
       </div>
     </section>

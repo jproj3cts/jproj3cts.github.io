@@ -32,6 +32,37 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hsignin h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
 .rt-hsignin p { margin: 0 0 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
 
+/* an app's launch page: what the app does and the ways to start in it, then its benches beside the one picked */
+.rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
+.rt-happhead.jekion { border-left-color: var(--jek-orange); }
+.rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
+.rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
+.rt-happhead .rt-actions { justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.5rem; margin: 0; }
+.rt-happhead .rt-link { margin-left: 0.4rem; font-size: 0.875rem; }
+.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.2rem; align-items: start; }
+.rt-hexplore > h3:first-child { margin-top: 0; }
+.rt-hprev { position: sticky; top: 0.5rem; display: flex; flex-direction: column; gap: 0.65rem; padding: 0.8rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
+.rt-hprev .thumb { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; box-sizing: border-box; padding: 0 1rem; border-radius: 2px; background: var(--jek-well); color: var(--jek-ink-soft); font-size: 0.8rem; text-align: center; }
+.rt-hprev img.thumb { padding: 0; }
+.rt-hprev h3 { text-transform: none; letter-spacing: normal; color: var(--jek-ink); display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin: 0; font-size: 1.05rem; overflow-wrap: anywhere; }
+.rt-hprev p { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); }
+.rt-hprev dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.25rem 0.8rem; margin: 0; font-size: 0.85rem; }
+.rt-hprev dt { color: var(--jek-ink-soft); }
+.rt-hprev dd { margin: 0; overflow-wrap: anywhere; }
+.rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
+.rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
+.rt-hprev .rt-hprevmore { margin-left: auto; }
+.rt-hprev .rt-htool { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.rt-hprev .rt-htool.ion { background: var(--jek-orange); }
+.rt-hlaunch .rt-hgrid.folders { grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+.rt-hcard.sel { box-shadow: 0 0 0 2px var(--jek-cyan); }
+.rt-hcount { margin-left: auto; padding-left: 0.6rem; font-size: 0.75rem; font-weight: 400; color: var(--jek-ink-soft); white-space: nowrap; }
+.rt-hsigninline { margin-top: 0; }
+@media (max-width: 900px) {
+  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); }
+  .rt-hprev { position: static; order: -1; }
+}
+
 @media (max-width: 760px) {
   .rt-hhead #homeApps { display: none; }
   .rt-hhead .rt-getpro { order: 2; }

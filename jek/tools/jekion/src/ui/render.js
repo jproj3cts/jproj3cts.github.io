@@ -342,8 +342,10 @@ function drawTrajectories(c) {
   }
   c.restore();
 }
+let scaleBarPx = 90;    // the scale bar's width on screen, which the cut's control sits clear of
 function drawScaleBar(c) {
   const mm = niceStep(90 / V().scale), px = mm * V().scale, x = 14, y = H - 16;
+  scaleBarPx = px;
   c.save(); c.strokeStyle = inkA(0.7); c.fillStyle = inkA(0.8); c.lineWidth = 2;
   c.beginPath(); c.moveTo(x, y); c.lineTo(x + px, y); c.moveTo(x, y - 4); c.lineTo(x, y + 4); c.moveTo(x + px, y - 4); c.lineTo(x + px, y + 4); c.stroke();
   c.font = '11px ' + getCss('--jek-mono'); c.textAlign = 'left'; c.textBaseline = 'bottom';
@@ -357,6 +359,7 @@ export function cutShown() {
   const box = document.getElementById('cutCtl'); if (!box || !project) return;
   const G = project.grid, [, , ip] = PLANES[V().plane], flat = G.sym !== '3d';
   box.classList.toggle('flat', flat);
+  box.style.left = Math.round(14 + scaleBarPx + 18) + 'px';    // after the scale bar, however long the zoom makes it
   document.getElementById('cutLabel').textContent = G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' =';
   if (flat) return;
   const lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip], range = document.getElementById('cutRange'), at = document.getElementById('cutAt');

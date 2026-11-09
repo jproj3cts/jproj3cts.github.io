@@ -156,11 +156,11 @@ function layersCard(spec) {
   const opt = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmOptimise', title: 'Nelder–Mead on the thicknesses, from where they stand, against the target over the band and the angles' }, 'Optimise thicknesses'), 'optimise a coating');
   opt.addEventListener('click', () => optimiseNow());
   return section('Layers',
+    h('div', { class: 'film-twrap' }, tbl),
     h('div', { class: 'film-tools' }, opt,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
-      pre),
-    h('div', { class: 'film-twrap' }, tbl));
+      pre));
 }
 /* the optimiser, JEKrayPro's: the thicknesses searched from where they stand */
 export function optimiseNow() {

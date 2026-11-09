@@ -89,7 +89,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-empty { color: var(--jek-ink-soft); font-size: 0.8rem; }
 .film-tbtn { font: inherit; font-size: 0.78rem; padding: 0.1rem 0.35rem; margin-left: 0.15rem; color: var(--jek-ink-soft); background: none; border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
 .film-tbtn:hover { color: var(--jek-ink); border-color: var(--jek-line-2); }
-.film-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; }
+.film-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.8rem; }
 .film-tools .rt-btn { padding: 0.3rem 0.7rem; font-size: 0.82rem; }
 .film-tools select { border-color: var(--jek-line-2); }
 .film-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

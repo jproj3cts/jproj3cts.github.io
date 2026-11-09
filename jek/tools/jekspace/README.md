@@ -15,7 +15,7 @@ billing and teams. Served as `jek/tools/jekspace.html`, built from the sources h
 - `src/ui/dom.js`: elements, icons, menus, the theme (JEKray's `jekray-theme`), and `APPS`, the apps it lists and
   opens, each in its own named tab (`jekray`, `jekion`).
   `src/ui/home.js`: the benches, from what was JEKray's My benches page (folders, history, compare, merge, fork,
-  copy, move, rename, bin, My parts, My links), New (its Open group opens the apps, then what can be started), the
+  copy, move, rename, bin, My parts, My links), New (what can be started: a JEKray or JEKion bench, or one of JEKray's designers), the
   apps under the sign-in panel when signed out, and each app's launch page (`#app=<id>`, `showApp`: the app's
   description and starts, its benches alone through the same `fillHome` path, the bench picked shown in `#appPreview`).
   The rail has no folders (they are in the page and the breadcrumbs), and no filter by app (the launch pages are).

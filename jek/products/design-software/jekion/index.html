@@ -29,33 +29,33 @@
   }
   /* the hero's key phrase, underlined in the JEK stripe */
   .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
-  /* what it models: one wide block, its groups in columns */
-  .jek-feature.ion-modelsfeat { grid-template-columns: 1fr; gap: 1.2rem; align-items: start; }
-  .ion-modelsfeat p { max-width: 70ch; }
-  .ion-models { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4rem 2rem; }
-  .ion-models h3 { margin: 0 0 0.45rem; font-size: 1rem; }
-  .ion-models ul { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
-  .ion-models li + li { margin-top: 0.3rem; }
-  @media (max-width: 900px) { .ion-models { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 560px) { .ion-models { grid-template-columns: 1fr; } }
-  /* the examples: one grid, four across on a desktop, each card tagged with its topic */
-  .ion-examples > p { margin: 0 0 0.9rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
-  .ion-example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; }
-  @media (max-width: 760px) { .ion-example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 480px) { .ion-example-grid { grid-template-columns: 1fr; } }
-  .ion-example { display: flex; flex-direction: column; overflow: hidden; color: inherit; text-decoration: none; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); transition: border-color 0.12s ease; }
-  .ion-example:hover { border-color: var(--jek-orange); text-decoration: none; }
-  .ion-example:focus-visible { outline: none; box-shadow: var(--jek-focus); }
-  .ion-example img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #1f2529; }
-  .ion-example-body { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.75rem 0.75rem; flex: 1; }
-  .ion-extag { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #e35f27; }
-  .ion-example h3 { margin: 0; font-size: 0.95rem; color: var(--jek-ink); }
-  .ion-example p { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
-  /* the account band */
-  .ion-account .jek-wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem 3rem; align-items: center; }
-  .ion-account p { margin: 0.5rem 0 0; font-size: 0.95rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
-  .ion-account h2 { margin: 0; }
-  @media (max-width: 700px) { .ion-account .jek-wrap { grid-template-columns: 1fr; } }
+  /* as on the JEKray page: the sections close, the features three to a row (a picture over its words), the examples
+     as a catalogue index by topic, the resources in four columns */
+  .jek-hero { padding-block: 2rem 1.6rem; }
+  .jek-section { padding-block: 1.8rem; }
+  .rt-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
+  .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
+  .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
+  .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+  .rt-feats .jek-feature h2 { font-size: 1.08rem; }
+  .rt-feats .jek-feature p { margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.5; max-width: none; }
+  .rt-feats a, .rt-ex-lede a, .rt-topics a, .rt-res a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  #examples h2 { margin: 0 0 0.5rem; }
+  .rt-ex-lede { margin: 0 0 1.4rem; max-width: 72ch; color: var(--jek-ink-soft); }
+  .rt-topics { columns: 4 15rem; column-gap: 2.5rem; }
+  .rt-topic { break-inside: avoid; margin: 0 0 1.4rem; }
+  .rt-topic h3, .rt-res h3 { margin: 0 0 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--jek-line); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink); }
+  .rt-topic h3 span { float: right; font-weight: 600; color: var(--jek-ink-soft); letter-spacing: 0; }
+  .rt-topic ul, .rt-res ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+  .rt-topic li, .rt-res li { font-size: 0.98rem; line-height: 1.35; }
+  .rt-topic a, .rt-res a { text-decoration-color: transparent; }
+  .rt-topic a:hover, .rt-res a:hover { text-decoration-color: var(--jek-orange); }
+  .rt-res { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2.5rem; }
+  .rt-res p { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.5; color: var(--jek-ink-soft); }
+  @media (max-width: 1100px) { .rt-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .rt-res { grid-template-columns: 1fr 1fr; gap: 1.8rem; } }
+  @media (max-width: 640px) { .rt-feats { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .rt-res { grid-template-columns: 1fr; } }
 </style>
 </head>
 
@@ -75,7 +75,7 @@
             <a class="jek-btn quiet" href="#examples">Open an example</a>
             <a href="/jek/docs/jekion/">Documentation</a>
           </div>
-          <div class="jek-facts"><span>Nothing to install</span><span>No account needed</span></div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span></div>
         </div>
         <figure class="jek-shot cover">
           <img src="img/blade-2d.png" alt="A section through a four-blade trap imported from CAD: the potential as a colour map with equipotentials between the blade tips, and the secular motion of a 300 nm silica sphere held at the centre" width="1280" height="752">
@@ -85,44 +85,63 @@
     </section>
 
     <section class="jek-section" style="padding-top: 0">
-      <div class="jek-wrap">
+      <div class="jek-wrap rt-feats">
         <div class="jek-feature">
-          <div><h2>The trap as it was drawn</h2><p>Drop a STEP or STL file on the bench and each body becomes an electrode, found on the grid by winding along three axes so thin blades and bores come through. Set each electrode&rsquo;s DC and RF, the amplitude, frequency and phase, and the housing stays at ground. The array&rsquo;s spacing is yours to set: fine where the tips are, as coarse as the housing allows.</p><p><a href="/jek/docs/jekion/cad-import/">CAD import &rarr;</a></p></div>
+          <div><h2>Your trap, straight from CAD</h2><p>Drop a STEP or STL file on the bench and each body becomes an electrode, thin blades and bores included. Set each electrode&rsquo;s DC and RF, and fly.</p><p><a href="/jek/docs/jekion/cad-import/">How CAD import works</a></p></div>
           <figure class="jek-shot"><img src="img/blade-3d.png" alt="The four-blade trap in the 3D view, looking into the bore of its grounded housing: the four blade tips, the cut plane with its potential map and the sphere's track between them" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Fields and flight</h2><p>The potential is solved by multigrid in planar, cylindrical or three-dimensional symmetry, once per electrode, so a voltage changes the picture at once. Particles of any mass and charge are flown by an adaptive Runge&ndash;Kutta step with a continuous field between the nodes, so a quadrupole&rsquo;s null is a true null. A background gas cools them by hard-sphere collisions; space charge pushes a cloud apart.</p><p><a href="/jek/docs/jekion/flying/">Flying &rarr;</a></p></div>
+          <div><h2>Fields and flight</h2><p>The potential is solved once per electrode, so a voltage change shows at once. Ions of any mass and charge fly through it, cooled by a background gas and pushed apart by their own space charge.</p><p><a href="/jek/docs/jekion/flying/">How flying works</a></p></div>
           <figure class="jek-shot"><img src="img/ex-paul-trap.png" alt="A hyperbolic Paul trap in section: the ring and endcaps, the potential's saddle as a colour map with equipotentials, and three calcium ions' secular motion and micromotion at the centre" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Potentials you can read</h2><p>The cut through the array shows the potential as a map, as equipotentials or as the field strength, in any plane and in 3D. Plot the potential along <i>x</i>, <i>y</i> or <i>z</i> through the analysis point, along any line picked on the bench, or along a flown particle&rsquo;s path against time. Every plot and the flight&rsquo;s records export as CSV, JSON, Excel, NumPy or MATLAB.</p><p><a href="/jek/docs/jekion/data-export/">Data export &rarr;</a></p></div>
+          <div><h2>Potentials you can read</h2><p>See the potential as a map or plot it along any line, and read where the trap holds and how stiffly. Every plot exports as CSV, Excel, NumPy or MATLAB.</p><p><a href="/jek/docs/jekion/data-export/">Data export</a></p></div>
           <figure class="jek-shot"><img src="img/feat-plots.png" alt="The Bench panel's potential plots: the potential along the x axis of a reflectron, and the histogram of arrival times from the last flight" loading="lazy"></figure>
         </div>
       </div>
     </section>
 
-    <section class="jek-section jek-band" id="examples" style="padding-block: 1.8rem 2rem">
-      <div class="jek-wrap ion-examples">
-        <h2 style="margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
-        <p>Each opens in JEKion, solved and flown. Click an electrode for its settings; Tools &rsaquo; Trap analysis reads the trap.</p>
-        <div class="ion-example-grid">
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=paul-trap"><img src="img/ex-paul-trap.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Trap</span><h3>Paul trap</h3><p>A hyperbolic ring and endcaps, 150 V of RF at 1 MHz: three Ca&#8314; held at the centre. At 200 V, <i>q</i> passes 0.908 and they are lost.</p></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=penning-trap"><img src="img/ex-penning-trap.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Trap</span><h3>Penning trap</h3><p>A cylindrical trap in 1 T: the magnetron, modified cyclotron and axial motions of one Ca&#8314;, their frequencies read by the analysis.</p></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=quad-mass-filter"><img src="img/ex-quad-mass-filter.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Mass spectrometry</span><h3>Quadrupole mass filter</h3><p>RF and DC set so mass 100 sits in the stability tip: it passes, and masses 12% either side hit the rods.</p></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=linear-tof"><img src="img/ex-linear-tof.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Mass spectrometry</span><h3>Linear time-of-flight</h3><p>A two-stage source and a drift tube: masses 100, 101 and 200 u separate as &radic;<i>m</i>; the source&rsquo;s width sets the resolution.</p></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=reflectron"><img src="img/ex-reflectron.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Mass spectrometry</span><h3>Reflectron</h3><p>An ion mirror after the drift: one mass with a spread of energies refocuses in time at the detector.</p></div></a>
-          <a class="ion-example" href="/jek/tools/jekion.html?demo=einzel-lens"><img src="img/ex-einzel-lens.png" alt="" loading="lazy"><div class="ion-example-body"><span class="ion-extag">Beam optics</span><h3>Einzel lens</h3><p>Three tubes, the middle one negative: a 2 keV Ar&#8314; beam focused to a point. Change the voltage and the focus moves.</p></div></a>
+    <section class="jek-section jek-band" id="examples">
+      <div class="jek-wrap">
+        <h2>Examples</h2>
+        <p class="rt-ex-lede">Each opens in JEKion, solved and flown: click an electrode for its settings, and Tools &rsaquo; Trap analysis reads the trap. Hover a name for what it shows.</p>
+        <div class="rt-topics">
+        <div class="rt-topic"><h3>Traps <span>2</span></h3><ul><li><a href="/jek/tools/jekion.html?demo=paul-trap" title="A hyperbolic ring and endcaps, 150 V of RF at 1 MHz: three Ca⁺ held at the centre. At 200 V, q passes 0.908 and they are lost.">Paul trap</a></li><li><a href="/jek/tools/jekion.html?demo=penning-trap" title="A cylindrical trap in 1 T: the magnetron, modified cyclotron and axial motions of one Ca⁺, their frequencies read by the analysis.">Penning trap</a></li></ul></div>
+        <div class="rt-topic"><h3>Mass spectrometry <span>3</span></h3><ul><li><a href="/jek/tools/jekion.html?demo=quad-mass-filter" title="RF and DC set so mass 100 sits in the stability tip: it passes, and masses 12% either side hit the rods.">Quadrupole mass filter</a></li><li><a href="/jek/tools/jekion.html?demo=linear-tof" title="A two-stage source and a drift tube: masses 100, 101 and 200 u separate as √m; the source’s width sets the resolution.">Linear time-of-flight</a></li><li><a href="/jek/tools/jekion.html?demo=reflectron" title="An ion mirror after the drift: one mass with a spread of energies refocuses in time at the detector.">Reflectron</a></li></ul></div>
+        <div class="rt-topic"><h3>Beam optics <span>1</span></h3><ul><li><a href="/jek/tools/jekion.html?demo=einzel-lens" title="Three tubes, the middle one negative: a 2 keV Ar⁺ beam focused to a point. Change the voltage and the focus moves.">Einzel lens</a></li></ul></div>
         </div>
       </div>
     </section>
 
-    <section class="jek-section ion-account" id="pro">
+    <section class="jek-section" id="pro">
       <div class="jek-wrap">
-        <div>
-          <h2>One account for both tools</h2>
-          <p>JEKion is free under the <a href="/jek/tools/jekion-licence.html">JEKion Licence</a>, with no account. A free JEKray account lets you export pictures and data and open your cloud benches, and JEKrayPro adds benches that save to the cloud as you work with their history and forks, short share links, scripts run against the bench and the richer exports (Excel, NumPy, MATLAB, everything at once). JEKray and JEKion share the cloud: My benches holds both tools&rsquo; benches, each marked, and opens each in its own tool. A subscription taken out in <a href="/jek/products/design-software/jekray/#pricing">JEKray</a> serves both.</p>
+        <h2>Resources</h2>
+        <div class="rt-res">
+          <div><h3>Getting started</h3><p>JEKion runs in your browser, with nothing to install and no account needed.</p><ul>
+            <li><a href="/jek/tools/jekion.html">Open the editor</a></li>
+            <li><a href="#examples">Browse the examples</a></li>
+            <li><a href="/jek/docs/jekion/getting-started/">Getting started</a></li>
+            <li><a href="/jek/tools/jekion-licence.html">JEKion Licence</a></li>
+          </ul></div>
+          <div><h3>Your account</h3><p>One JEKray account serves both tools, and a JEKrayPro subscription covers JEKion too.</p><ul>
+            <li><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro plans</a></li>
+            <li><a href="/jek/tools/jekspace.html">My benches</a></li>
+            <li><a href="/jek/terms.html">JEKrayPro Terms</a></li>
+            <li><a href="/jek/privacy.html">Privacy Policy</a></li>
+          </ul></div>
+          <div><h3>How it works</h3><p>Each part of the bench and the method behind it, with its settings.</p><ul>
+            <li><a href="/jek/docs/jekion/array/">The array and the solver</a></li>
+            <li><a href="/jek/docs/jekion/traps/">Traps and the trap analysis</a></li>
+            <li><a href="/jek/docs/jekion/scripting/">Scripting</a></li>
+            <li><a href="/jek/docs/jekion/faq/">Questions and answers</a></li>
+          </ul></div>
+          <div><h3>Limits of the model</h3><p>JEKion takes only a uniform magnetic field and leaves out image charges and surface physics. Check anything you build in an established package.</p><ul>
+            <li><a href="/jek/docs/jekion/">What it models, and what it does not</a></li>
+            <li><a href="/jek/docs/jekion/concepts/">Concepts and units</a></li>
+            <li><a href="/jek/docs/jekion/electrodes/">Electrodes</a></li>
+            <li><a href="/jek/docs/jekion/detectors/">Detectors</a></li>
+          </ul></div>
         </div>
-        <div class="jek-acts"><a class="jek-btn primary" href="/jek/tools/jekion.html">Launch JEKion</a></div>
       </div>
     </section>
 

@@ -58,7 +58,7 @@ export function drawCloseup() {
   return true;
 }
 
-export const closeupKey = key => key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, V().scale, W, H].join(',');
+export const closeupKey = key => key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, V().scale, W, H, lightOf().scale].join(',');   // its image is drawn at the intensity scale
 
 export const closeupOnShow = () => W / V().scale < CLOSEUP_MM && popSources().length > 0;
 

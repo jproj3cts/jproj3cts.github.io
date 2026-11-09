@@ -452,13 +452,21 @@ export function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const replay = !!(pol && pol.fixed);
   const gx = replay ? 0 : (slope(wix, true) + field2Slope(F, 'x')) / aAx, gy = replay ? 0 : (slope(wiy, false) + field2Slope(F, 'y')) / aAy;
   let steep = 0;
-  const span = (w, g) => {
+  const span = (w, g, hold) => {
     let L = G * w;
     if (g > 0) L = Math.min(L, N * Math.PI / (2 * g));
+    if (hold > L) L = hold;
     if (L < 5 * w) { steep = 1; L = 5 * w; }
     return L;
   };
-  const ax = { d: span(wxo, gx) / N, z: qxo[0], zR: qxo[1] }, ay = { d: span(wyo2, gy) / N, z: qyo[0], zR: qyo[1] };
+  // A surface the light only passes (a gain sheet, a filter, the cut where a beam goes on past a part's rim) adds no
+  // slope of its own: the light's phase is sampled as finely as the grid it came on, so the new grid is never made
+  // narrower than the light (or that grid) for the sake of the faint fringes of an edge met before, which would lose
+  // the light off its sides
+  const SinH = !replay && ev.mode === 'P' ? statsIn() : null;
+  const holdOf = (c, w, A, d) => SinH && SinH.power > 0 ? Math.min(N * d, 2.4 * (Math.abs(c) + 1.5 * w) * A) : 0;
+  const ax = { d: span(wxo, gx, holdOf(SinH && SinH.cx, SinH && SinH.wx, aAx, F.ax.d)) / N, z: qxo[0], zR: qxo[1] };
+  const ay = { d: span(wyo2, gy, holdOf(SinH && SinH.cy, SinH && SinH.wy, aAy, F.ay.d)) / N, z: qyo[0], zR: qyo[1] };
   // An edge that cuts the beam sends out fringes: the first is sqrt(lam t) wide at the next
   // surface, t on, and the later ones finer. The guard band that keeps a clean beam well
   // sampled near and far leaves too few samples inside the beam for them, so here the

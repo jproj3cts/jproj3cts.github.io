@@ -565,18 +565,17 @@ export function appLinks() {
     ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
     ...APPS.map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
-/* New's menu: the apps to open, then what can be started */
+/* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 export function newMenuItems() {
-  return [h('div', { class: 'rt-hmenuhead' }, 'Open'), ...APPS.map(a => [a.name, 'apps', () => { track('cloud', 'app.' + a.id); openApp(a.id); }]),
-    'sep', h('div', { class: 'rt-hmenuhead' }, 'New'), ...NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)])];
+  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)]);
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 export const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
+  { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
   { app: 'jekray', into: 'lens', label: 'Optical design (JEKray)', icon: 'lens' },
   { app: 'jekray', into: 'rf', label: 'RF design (JEKray)', icon: 'rf' },
   { app: 'jekray', into: 'coat', label: 'Coating design (JEKray)', icon: 'coat' },
-  { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
 ];
 /* A new bench: in the cloud, named and placed (the workspace shown, or another the person can save to), then opened
    in its app (#cloud=<id>, and :lens, :rf or :coat into a designer). Signed out, or with nowhere to save, it starts in

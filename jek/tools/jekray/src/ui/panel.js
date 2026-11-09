@@ -11,7 +11,7 @@ import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './rend
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  WAVES, advOpen, fieldFramesOf, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
+  WAVES, advOpen, fieldFramesOf, sweepStepsChanged, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
   swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { V3D } from './view3d.js';
@@ -189,10 +189,11 @@ const angleMeans = el => el.type === 'source' && el.lamp ? (el.lampFlat ? 'the w
 export function sweepPlay(el, path, label) {
   const btn = h('button', { class: 'rt-play', type: 'button' });
   const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
-  btn.addEventListener('click', () => rendering() ? sweepJob.cancel() : isPlaying(el, path) ? pause(el, path) : play(el, path));
+  // while it plays (the field still filling in), Pause: it stops the sweep and the render; rendering before it plays, Cancel
+  btn.addEventListener('click', () => isPlaying(el, path) ? pause(el, path) : rendering() ? sweepJob.cancel() : play(el, path));
   bindSync(btn, () => {
     const on = isPlaying(el, path);
-    btn.textContent = rendering() ? 'Cancel' : on ? 'Pause' : 'Play';
+    btn.textContent = on ? 'Pause' : rendering() ? 'Cancel' : 'Play';
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     btn.setAttribute('aria-label', (on ? 'Pause ' : 'Play ') + label + ' sweep');
   });
@@ -224,7 +225,7 @@ function sweepControls(el, path, sw, label) {
   const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
   const slider = h('input', { type: 'range', min: '0', max: '1000', step: '1', 'aria-label': label + ' within the sweep range' });
   slider.addEventListener('input', () => {
-    if (isPlaying(el, path)) pause(el, path);
+    if (isPlaying(el, path) || rendering()) pause(el, path);
     beginEdit();
     setParam(el, path, sweepValue(sw, slider.value / 1000));
     changed(false);
@@ -239,7 +240,8 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      setFieldRendered(null);
+      // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
+      sweepStepsChanged();
     }, { blank: null });
     bindSync(inp, () => { inp.placeholder = sw.field ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));

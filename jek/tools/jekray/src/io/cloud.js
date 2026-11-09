@@ -449,13 +449,12 @@ async function mergeDialog(o) {
     }
   };
 }
-/* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
+/* the File menu's cloud items: there with accounts, greyed when not possible (JEKspace's mark at the bar's left is always there) */
 function cloudGates() {
-  const on = cloudOn(), show = accountsOn(), why = proWhy();
+  const show = accountsOn(), why = proWhy();
   loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
   // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
   needsShown();
-  document.getElementById('btnHome').hidden = !on;
   for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
   if (!show) return;
   gateItem(document.getElementById('btnCloudList'), account ? '' : why, 'account');
@@ -482,7 +481,9 @@ export function wireCloud() {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
-    document.getElementById('btnHome').addEventListener('click', () => openSpace());
+    // JEKspace's mark at the bar's far left, always there (JEKspace signs people in itself): its own tab, the same one
+    // each time, brought to the front
+    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
     document.getElementById('btnCloudFork').addEventListener('click', async e => {
       if (gated(e.currentTarget) || !cloud) return;

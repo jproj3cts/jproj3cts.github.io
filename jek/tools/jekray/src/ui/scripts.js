@@ -4,6 +4,7 @@ import { project } from '../state/project.js';
 import { h } from './dom.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { adoptBench, checkpoint, snapshot } from './tabs.js';
+import { playing } from './sweeps.js';
 import { serialize } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
 import { accountsOn } from '../io/account.js';
@@ -257,7 +258,7 @@ function runInWorker(code, lang, say, onLog) {
   const w = scriptWorker();
   if (!w) return null;
   return new Promise(resolve => {
-    const id = ++SCRIPT_W.seq, run = { id, lang, logs: [], t0: performance.now(), resolve, start: snapshot() };
+    const id = ++SCRIPT_W.seq, run = { id, lang, logs: [], t0: performance.now(), resolve, start: steadySnapshot() };
     SCRIPT_W.run = run;
     const end = R => { if (SCRIPT_W.run !== run) return; SCRIPT_W.run = null; resolve(R); };
     w.onmessage = e => {
@@ -283,11 +284,25 @@ function runInWorker(code, lang, say, onLog) {
     w.postMessage({ t: 'run', id, proj: JSON.stringify(serialize()), mods: modDelta(w), code: String(code), lang, py: pyDir() });
   });
 }
+/* the bench as a script's run compares it, before and after: the values the sweeps playing move left out (they change
+   at every frame of the clock, which is not the bench being changed: compared, a script's changes were never taken up
+   while a sweep played) */
+function steadySnapshot() {
+  if (!playing.size) return snapshot();
+  const S = JSON.parse(snapshot());
+  for (const { id, path } of playing.values()) {
+    const e = S.e.find(x => x.id === id), k = path.split('.');
+    let o = e;
+    for (let i = 0; o && i < k.length - 1; i++) o = o[k[i]];
+    if (o && typeof o === 'object') o[k[k.length - 1]] = null;
+  }
+  return JSON.stringify(S);
+}
 /* the end of a run in the worker, on the page: its bench taken up (one change, Undo puts it back) if it changed it
    and this bench has not been changed meanwhile; then what it asked of the page (a tab shown, a part selected, sweeps paused) */
 function scriptTakeUp(m, start) {
   const P = window.JEKray;
-  if (m.bench && snapshot() !== start) return 'The bench was changed while the script ran, so what the script changed was not applied: run it again to apply it.';
+  if (m.bench && steadySnapshot() !== start) return 'The bench was changed while the script ran, so what the script changed was not applied: run it again to apply it.';
   if (m.bench) adoptBench(JSON.parse(m.bench), m.whole);
   if (m.tab && !m.whole) P.showTab(m.tab);
   for (const [op, name, tab] of m.ops || []) { if (op === 'select') P.select(name, tab || undefined); else if (op === 'pause') P.sweepPause(); }

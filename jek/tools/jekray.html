@@ -879,8 +879,6 @@
   .rt-home { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; }
   .rt-home .ic { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
   .rt-home[hidden], .rt-home [hidden] { display: none !important; }
-  .rt-homebtn { display: inline-grid; place-items: center; flex: none; }
-  .rt-homebtn .ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
   .rt-hhead { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-hhead h1 { margin: 0; font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rt-hmark { font-weight: 700; letter-spacing: 0.01em; padding-right: 0.5rem; margin-right: 0.25rem; border-right: 1px solid var(--jek-line); }
@@ -1121,14 +1119,18 @@
   .rt-app .rt-stage { height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
   .rt-app .rt-stage:focus-within { box-shadow: inset 0 0 0 2px var(--jek-cyan); }
   .rt-app .rt-panel { max-height: none; min-height: 0; border-radius: 0; box-shadow: none; border-width: 0 0 0 1px; }
-  .rt-panel .rt-about { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); max-width: none; }
-  .rt-panel .rt-about p { max-width: none; }
-  .rt-panel .rt-about summary { width: auto; }
   /* the page does not scroll: the tool is the whole window (on a wide screen) */
   @media (min-width: 961px) {
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
+  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
+  .rt-space:hover { background: var(--jek-well); text-decoration: none; }
+  .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  /* on a phone the bar is full: the mark alone (its name in its title and label) */
+  @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
+  .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
   .rt-title {
     flex: 1 1 auto; margin: 0; text-align: center; font-size: 1.3rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; color: var(--jek-ink);
   }
@@ -1997,10 +1999,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
-      <!-- the bar: the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
+      <!-- the bar: JEKspace's mark (every bench of every app, in its own tab), the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
            bench's name, then Add part, Share, Save, Examples, the cart and the account. On a phone: the name,
            + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
+        <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jekspace.html" target="jekspace" aria-label="JEKspace" title="JEKspace: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKspace</span></a>
         <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
         <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
         <div class="rt-menubar" role="group" aria-label="Menus">
@@ -2164,7 +2167,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         </div>
         <div class="rt-more rt-file">
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: every cloud bench, of every app, on JEKspace (in its own tab)" aria-label="My benches on JEKspace" hidden></button>
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
@@ -2489,15 +2491,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     </div>
   </dialog>
 
-  <details class="rt-about">
-    <summary>What this models, and what it does not</summary>
-    <div>
-      <p><strong>In three dimensions.</strong> Every free-space part at a height of its own, tipped and rolled; rays traced exactly through real surfaces in 3D, skew and rising alike; Gaussian beams through turned optics as general astigmatic beams, their higher-order modes with them; the diffracted field through tipped, rolled and off-centre optics; periscopes that turn the polarisation and the image as real ones do; and misaligned cavities, whose light walks round to their own axis and settles there. The 3D view shows it all, and moves and turns any part along all six axes.</p>
-      <p><strong>Modelled.</strong> Exact tracing of conic and aspheric surfaces with real glass dispersion; reflection, refraction and total internal reflection; Fresnel coefficients and thin-film coatings with phase; polarisation as complex s and p amplitudes, with waveplates and polarisers; optical path, so wavefront error, interference and cavity round trips; Gaussian beam propagation along the axis, including every branch at splitters and round trips in cavities; physical optics propagation of the beam's diffracted field through the system, with each surface a ray-traced phase screen, as a round field or, where tilts and decentres break the symmetry, a full 2D one that carries the polarisation at every point (each sample through its own Fresnel, coating or waveplate matrix), with branches of one beam adding as fields, phases and polarisation included, wherever they meet on the bench or on a screen; stops (iris, slit, double slit, slit comb, knife edge or beam block, anywhere across the beam) and mask elements with any amplitude and delay you write as a formula, acting on the field and on the rays; and, zoomed in below 50 µm, a close-up that samples the field on every pixel, so standing waves and crossing-beam fringes show, with the fields added as vectors; and at each screen the field that arrives, from Gaussian beams and from ray fans taken as uniform pupils, giving its irradiance map, point spread, Strehl ratio, MTF and enclosed energy. Also diffraction gratings, each order a branch of its own; birefringent crystals (beam displacers with walk-off, Wollaston and Glan–Taylor prisms), where s and p go their own ways; Faraday rotators and isolators, non-reciprocal as they should be; filters and dichroics; cylindrical lenses and axicons; a gain medium that saturates, so a cavity shows whether it lases and, above threshold, the power it settles at and sends out of each partly transmitting mirror as a beam; atomic vapour cells (rubidium, caesium, potassium; D1 and D2) with their hyperfine, Doppler-broadened absorption and dispersion at the vapour's temperature, saturated by the light itself slice by slice along the cell and point by point across each beam (by its real profile, so a vortex pump leaves its dark core unsaturated), and saturated absorption between beams crossing them, head on or at an angle, where they overlap; and fibres and photodiodes, which take in the arriving field as a real one would and report coupled power, photocurrent, output voltage and signal to noise. Sources can have a line of their own (a coherence length, Lorentzian or Gaussian), so fringes fade as two paths grow apart (by their group paths, so glass counts by its group index) and a cavity builds up the average over the line, and a beam quality M² above 1, carried as a sum of Hermite–Gauss modes added as powers, as from a multimode laser or an LED; or they can launch a higher-order mode, Hermite–Gauss HG<sub>mn</sub> or Laguerre–Gauss LG<sub>pl</sub> (a vortex of any charge), carried as a coherent sum of Hermite–Gauss modes each with its own Gouy phase, so a cylindrical-lens mode converter works as in the lab. Mask presets cover spatial light modulator patterns: spiral phase plates, fork holograms, blazed gratings and a π step, and a mask whose detail is finer than the field's grid is flagged rather than quietly smoothed. A source can be split from another (two fibre launches off one coupler): the two are one laser, so their light interferes, with a phase and an extra length of fibre between them; separate lasers add as powers. A project can hold several benches, each on a tab of its own, joined by link planes: a pair of them is one plane seen from two benches, so beams, fields and cavities carry across. Fibre subsystems (lasers, couplers, WDMs, circulators, isolators, attenuators, polarisation controllers and polarisers, Faraday mirrors, Bragg gratings, terminators, photodiodes and feedthroughs between tabs) are joined port to port by fibres, with fibres that keep polarisation, scramble it as laid fibre does, or maintain it (PM, with a key angle and extinction ratio), multimode fibre and tips, and fibre amplifiers that saturate and add their spontaneous emission and its noise, and solved by following each path with its own phase and delay, so rings, reflections and a laser's coherence come out exactly; fibre tips take free-space light in by mode overlap and send the network's light back out as part of the same laser's launch. Short pulses: a source or fibre laser given a pulse duration traces reference rays at 33 wavelengths across its spectrum, and their optical paths through glass, prisms, gratings, chirped mirrors and fibre are the pulse's spectral phase, so a screen or photodiode shows the pulse that arrives (its duration, group delay, GDD and TOD, spatial chirp and pulse-front tilt), and prism and grating compressors, stretchers and delay lines come out without formulas. The diffracted field (on the bench, at each screen, in a cavity and in the close-up) is worked out in a background thread, so the page stays responsive while it runs.</p>
-      <p><strong>Not modelled.</strong> Fibre, electronic and chip parts in 3D: the 3D view leaves them out (free-space parts take all six degrees of freedom: x, y, z, facing, tip and roll). Aberrations across the field are the tangential section only. Also no scatter, no thermal effects, no coating dispersion. A laser runs on one mode with a homogeneous gain line, with no spatial hole burning, relaxation or Q-switching; a vapour cell has no buffer gas or optical pumping between levels (saturated-absorption dips are where and as wide as they should be, their depths only roughly), and beams in it cross in the bench plane only; a multimode fibre's speckle is averaged away. Nonlinear optics is second-harmonic generation in poled crystals (continuous-wave, by Boyd and Kleinman's focusing) and self-phase modulation in fibre only: no Kerr lensing, sum- or difference-frequency mixing, parametric oscillation, Raman scattering or self-steepening. The pulse is taken on the traced reference rays, at the centre of the beam; fringes between two paths of a pulsed laser on the ordinary screen views use the phase path and a Gaussian line of the pulse's bandwidth (sech² spectra taken as Gaussian), so for the pulse itself use the Pulse tab. Beat notes on a free-space photodiode leave out the radio-frequency delay of the free-space path after a modulator (a phase of 2&pi;f L/c, 2.4&deg; per 100 mm at 20 MHz): the cavity’s round trips and fibre carry it. Power figures ignore absorption unless you set it on a material.</p>
-      <p><strong>How far to trust it.</strong> The <a href="jekray-validation.html">validation page</a> sets JEKray against published results and independent codes, live in your browser; the list grows as each part of the model is checked. For anything that gets built, funded or published, reproduce the number in an established package first.</p>
-    </div>
-  </details>
 
   <input type="file" id="fileJekray" accept=".jekray,application/json" hidden>
   <input type="file" id="fileZmx" accept=".zmx,.ZMX,.zar,.ZAR" multiple hidden>
@@ -10660,8 +10653,8 @@ function coatOptimise(layers, spec, opts) {
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
   const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
-  let best = clampD(layers.map(L => L.d)), fBest = f(best);
-  const before = fBest;
+  // a thickness not given (blank, or not a number) starts at a quarter wave
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
@@ -10688,8 +10681,10 @@ function coatOptimise(layers, spec, opts) {
     const i0 = F.indexOf(Math.min(...F));
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
-  return { layers: out, before, after: coatMerit(out, spec), evals };
+  // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
@@ -13060,9 +13055,11 @@ const SPLIT_KINDS = new Set(['iris', 'link', 'absorb']);          // stops are m
 // a screen that lets the light through (a trap's, a plane that only records) is no edge either:
 // splitting at it doubled the beams at every pass, a retroreflected trap's most of all
 const splittable = s => s && s.el && !SPLIT_KINDS.has(s.kind) && !(s.el.type === 'screen' && !s.el.absorb) && s.semi > 0 && !s.y0;
-/* the share of a beam (1/e^2 radii w in the plane, wv out of it) centred at ly on a surface,
-   travelling at cos(theta) = cth to the element's axis, that lands inside its aperture */
-function apertureShare(s, ly, cth, w, wv) {
+/* the share of a beam (1/e^2 radii w in the plane, wv out of it) centred at ly on a surface and
+   hz above or below its centre, travelling at cos(theta) = cth to the element's axis, that lands
+   inside its aperture; on a part tipped or rolled, the point x across the beam and y up it lands
+   at (u, v) = at(x, y) on its face */
+function apertureShare(s, ly, cth, w, wv, hz = 0, at = null, dark = null) {
   const edge = s.maskMargin || ((u, v) => s.semi - Math.hypot(u, v));
   // each sample counted by how far inside it is (the edge function is a distance), which
   // takes the edge between samples smoothly and the share to a fraction of a percent
@@ -13072,11 +13069,43 @@ function apertureShare(s, ly, cth, w, wv) {
     const x = ((i + 0.5) / N * 2 - 1) * 2.6 * w, gx = Math.exp(-2 * x * x / (w * w));
     for (let j = 0; j < N; j++) {
       const y = ((j + 0.5) / N * 2 - 1) * 2.6 * wv, g = gx * Math.exp(-2 * y * y / (wv * wv));
-      tot += g; inn += g * clamp(0.5 + edge(ly + x / c, y) / h, 0, 1);
+      if (dark && dark.some(f => f(x, y))) continue;     // (a branch's own dark parts: none of its light there)
+      const uv = at ? at(x, y) : null;
+      tot += g; inn += g * clamp(0.5 + (uv ? edge(uv[0], uv[1]) : edge(ly + x / c, y + hz)) / h, 0, 1);
     }
   }
   return tot > 0 ? inn / tot : 1;
 }
+/* Where a point of a beam's cross-section lands on surface s: the beam's centre at (X, Y) and height Z going
+   (dx, dy) and up uz, the point x across it (to the left of its way) and y up; (u, v) across and up the
+   part's face, followed along the beam to it, above or below the part's centre as much as to its side, and
+   on a part tipped or rolled to its tipped face */
+function beamMap(s, X, Y, Z, dx, dy, uz, anyZ) {
+  const h0 = anyZ ? Z - zOf(s.el) : 0;
+  if (s.tilt) {
+    const ext = extendedSurf(s), [edx, edy] = toLocalDir(s.ef, dx, dy);
+    return (x, y) => {
+      const H = tipFace(ext, ...toLocal(s.ef, X - dy * x, Y + dx * x), h0 + y, edx, edy, uz || 0, -Infinity);
+      return H ? [H.y, H.z] : [Infinity, Infinity];
+    };
+  }
+  const [lx0] = toLocal(s.f, X, Y), [ldx, ldy] = toLocalDir(s.f, dx, dy), k = ldy / ((ldx < 0 ? -1 : 1) * Math.max(1e-6, Math.abs(ldx)));
+  return (x, y) => { const [lx, ly] = toLocal(s.f, X - dy * x, Y + dx * x); return [ly + (lx0 - lx) * k, h0 + y]; };
+}
+/* the share of a beam of radius bw (as beamMap places it) that lands on surface s, of the light it still has:
+   a branch that went round a part, or through one, is dark where dark(x, y) says (see beamCut) */
+function beamShare(s, X, Y, Z, dx, dy, uz, bw, anyZ, dark) {
+  const [ldx] = toLocalDir(s.f, dx, dy);
+  return apertureShare(s, 0, s.tilt ? 1 : Math.abs(ldx), bw, bw, 0, beamMap(s, X, Y, Z, dx, dy, uz, anyZ), dark);
+}
+/* the part of a beam's cross-section a cut at s leaves dark: what lands inside the part (for the light that
+   went round it), or outside it (for the light that went through) */
+function beamCut(s, X, Y, Z, dx, dy, uz, anyZ, inside) {
+  const at = beamMap(s, X, Y, Z, dx, dy, uz, anyZ), edge = s.maskMargin || ((u, v) => s.semi - Math.hypot(u, v));
+  return (x, y) => { const [u, v] = at(x, y); return (edge(u, v) > 0) === inside; };
+}
+const SHADE_MAX = 6;                   // the cuts a branch remembers (the oldest go first)
+const shaded = (shade, cut) => [...(shade || []).slice(1 - SHADE_MAX), cut];
 /* a surface carried on past its rim, for a reference ray that must meet it off the element */
 function extendedSurf(s) {
   if (Object.prototype.hasOwnProperty.call(s, '_ext')) return s._ext;      // (its own: a copy made from it keeps its own)
@@ -13590,7 +13619,8 @@ function faceFrame(s, x, y, shift) {
   const X = shift ? x - L.x : x, Y = shift ? y - L.y : y, c = Math.cos(L.a), n = Math.sin(L.a);
   return [X * c + Y * n, -X * n + Y * c];
 }
-function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
+// where a ray meets a tipped or rolled part's face: t along it and (y, z) across and up the face, its rim not asked
+function tipFace(s, px, py, h0, dx, dy, u, tmin) {
   const [qx, qz0] = tipFrame(s, px, h0), [ex, ez0] = tipFrame(s, dx, u);
   const [qy, qz] = rollFrame(s, py, qz0), [ey, ez] = rollFrame(s, dy, ez0);
   const [fx, fy] = faceFrame(s, qx, qy, true), [gx, gy] = faceFrame(s, ex, ey, false);
@@ -13598,7 +13628,12 @@ function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   if (s.flat && !s.cylS) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }   // (a cylinder curved out of the plane is flat in it, not here)
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
-  const y = fy + gy * t, z = qz + ez * t;
+  return { t, y: fy + gy * t, z: qz + ez * t };
+}
+function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
+  const H = tipFace(s, px, py, h0, dx, dy, u, tmin);
+  if (!H) return null;
+  const { t, y, z } = H;
   if (inHole(s, y, z)) return null;
   if (s.el && zSquare(s.el)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
   return y * y + z * z <= s.semi * s.semi * (1 + 1e-12) + 1e-12 ? t : null;
@@ -13858,8 +13893,9 @@ function traceSceneOnce() {
     }
     while (stack.length) {
       if (budget <= 0) { truncated = true; break; }
-      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, zh, uz, gr, zoneS } = stack.pop();
+      let { px, py, dx, dy, sr, si, pr, pi, bounce, last, opl, nCur, aCur, id, chief, qr, qi, fam, k, path, probe, probeH, bid, evt, fan, pol, par, tag, wk, wn, bn, fo, gpl, gCur, skipEl, forceEl, qShare, hole, shade, zh, uz, gr, zoneS } = stack.pop();
       hole = hole || 0;                 // a branch that went round an element: the radius of the hole it has in its middle
+      shade = shade || null;            // and the parts of its cross-section the cuts it was made by left dark (see beamCut)
       gr = gr || null;                  // inside a graded glass: its part, terms and own index (see grIn)
       let nlcPend = null;               // out of the plane: a doubling crystal's reference ray, until it leaves the crystal (see nlcSources)
       qShare = qShare || 1;             // a split beam's share of what reached the split, for what its reference ray stands for
@@ -13954,7 +13990,7 @@ function traceSceneOnce() {
           const h3 = anyZ && !forced && !zb && zCurved(s) ? zh - zOf(s.el) : 0;
           wallHit = false;
           let tt = zb ? intersectSurf(zoneS.ext, lx, ly, ldx, ldy, tMin(s))
-            : s.tilt && !forced ? intersectTip(s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+            : s.tilt ? intersectTip(forced ? extendedSurf(s) : s, ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
             : h3 || (anyZ && uz && !forced && zCurved(s)) ? intersect3(s, lx, ly, h3, ldx, ldy, uz, tMin(s))
             : intersectSurf(forced ? extendedSurf(s) : s, lx, ly, ldx, ldy, tMin(s));
           // out of the plane: light passing above or below the part misses it (a tipped one has been checked)
@@ -13965,10 +14001,15 @@ function traceSceneOnce() {
             const th = intersectSurf(holeClosed(s), lx, ly, ldx, ldy, tMin(s));
             if (th !== null && th < holeT) { holeT = th; holeS = s; }
           }
-          if (splits && tt === null && !forced && !s.tilt && splittable(s)) {
-            let te = intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
-            // a beam passing above or below a part does not reach round its edge either
-            if (anyZ && te !== null) { const hz = zh + uz * te - zOf(s.el); if (hz !== 0 && !zInside(s, 0, hz)) te = null; }
+          if (splits && tt === null && !forced && splittable(s)) {
+            let te = s.tilt ? intersectTip(extendedSurf(s), ...toLocal(s.ef, px, py), zh - zOf(s.el), ...toLocalDir(s.ef, dx, dy), uz, tMin(s))
+              : intersectSurf(extendedSurf(s), lx, ly, ldx, ldy, tMin(s));
+            // a beam passing well above or below a part does not reach round its edge either
+            // (one that overlaps it, above or below as much as to the side, is split as its share says)
+            if (anyZ && te !== null && !s.tilt) {
+              const hz = Math.abs(zh + uz * te - zOf(s.el)), reach = (zSquare(s.el) ? zHalf(s.el, s.semi) : s.semi) + 2.6 * beamAt(qr + te, qi, nCur, nm, m2Env(src)).w;
+              if (hz > reach) te = null;
+            }
             if (te !== null && te < nearT) { nearT = te; near = s; }
           }
         }
@@ -13986,9 +14027,8 @@ function traceSceneOnce() {
         let nearShare = null;
         if (holeS && holeT < best - 1e-9 && stackZones(surfs, holeS)) { best = holeT; hit = holeS; hitSeg = false; }
         if (near && nearT < best - 1e-9) {
-          const [lx, ly] = toLocal(near.f, px + dx * nearT, py + dy * nearT), [ldx, ldy] = toLocalDir(near.f, dx, dy);
-          const bw = beamAt(qr + nearT, qi, nCur, nm, m2Env(src)).w, cth = Math.abs(ldx);     // the rim is seen along the element's axis
-          const fin = apertureShare(near, ly, cth, bw, bw);
+          const bw = beamAt(qr + nearT, qi, nCur, nm, m2Env(src)).w;     // the rim is seen along the element's axis
+          const fin = beamShare(near, px + dx * nearT, py + dy * nearT, zh + (uz || 0) * nearT, dx, dy, uz, bw, anyZ, shade);
           if (fin * qShare > SPLIT_MIN && splitsLeft > 0) { best = nearT; hit = near; hitSeg = false; nearShare = fin; splitsLeft--; }
         }
         // In a graded glass the ray curves: no surface within a step and a half (a step would land on it, or just
@@ -14060,11 +14100,14 @@ function traceSceneOnce() {
         // light that went round an element has a hole in its middle: an element that fits inside
         // the hole (a smaller lens than the one it went round) is missed by all of it, and it
         // passes by unchanged, hole and all, rather than being bent as if through the middle
+        // (a cut made where the beam is above or below the part's centre is made there: the field's masks are worked out in 3D)
+        const by3 = ev => anyZ ? Object.assign(ev, { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh }) : ev;
+        const hH = anyZ && hit.el ? zh - zOf(hit.el) : 0;
         if (hole && isQ && !hitSeg && hit.el && hit.kind !== 'iris') {
           const [, lyP] = toLocal(hit.f, px, py);
           const rEl = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
-          if (rEl > 0 && rEl + Math.abs(lyP) <= hole * (1 + 1e-9) + 1e-9) {
-            evt = bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyP, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+          if (rEl > 0 && rEl + Math.hypot(lyP, hH) <= hole * (1 + 1e-9) + 1e-9) {
+            evt = bypassEvent(hit, by3({ el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyP, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }));
             skipEl = hit.el.id; last = null; pts.length -= 2;
             continue;
           }
@@ -14075,10 +14118,12 @@ function traceSceneOnce() {
           bn, fo, bounce: bounce + 1, last: null, opl, nCur, aCur, gpl, gCur, id, chief, fan, pol, par, qr, qi, bid, fam, k: rayK, probe, probeH, tag, wk, wn }, extra);
         if (nearShare !== null) {
           // this ray goes on past the element, cut to what misses it; a new one goes through
-          push(splitState(nearShare, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, forceEl: hit.el.id, path: path + 'f' + bounce }));
+          push(splitState(nearShare, { px: px - dx * 10 * EPS, py: py - dy * 10 * EPS, evt: null, forceEl: hit.el.id, path: path + 'f' + bounce,
+            hole, shade: shaded(shade, beamCut(hit, px, py, zh, dx, dy, uz, anyZ, false)) }));
           qShare *= 1 - nearShare;
+          shade = shaded(shade, beamCut(hit, px, py, zh, dx, dy, uz, anyZ, true));
           const [, lyH] = toLocal(hit.f, px, py);
-          evt = bypassEvent(hit, { el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] });
+          evt = bypassEvent(hit, by3({ el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }));
           skipEl = hit.el.id; path += 'b' + bounce;
           pts.length -= 2; last = null;
           continue;
@@ -14097,19 +14142,36 @@ function traceSceneOnce() {
           return !!mF && mF.glass !== 'AIR';
         };
         const zones = zsplits && !atLayer && !hitSeg && !zoneHere && !hit.tilt && hit.stack !== undefined ? stackZones(surfs, hit) : null;
-        if (splits && !hitSeg && !zoneHere && !hit.tilt && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
+        if (splits && !hitSeg && !zoneHere && splittable(hit) && hit.el.id !== forceEl && !(last && last.el === hit.el)) {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;       // the rim is seen along the element's axis
           // (a face of rings takes the beam over all of them: its outermost ring's rim is its edge)
-          const fin = apertureShare(zones ? { maskMargin: (u, v) => zones[zones.length - 1].rout - Math.hypot(u, v) } : hit, lyH, cth, bw, bw);
+          const fin = zones ? apertureShare({ maskMargin: (u, v) => zones[zones.length - 1].rout - Math.hypot(u, v) }, lyH, cth, bw, bw, hH) : beamShare(hit, px, py, zh, dx, dy, uz, bw, anyZ, shade);
           const rOut = hit.el.type === 'lens' ? Math.max(hit.semi, (hit.el.diameter || 0) / 2) : hit.semi;
-          const past = fromGlass() ? 0 : rOut > hit.semi ? 1 - apertureShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), lyH, cth, bw, bw) : 1 - fin;
+          const past = fromGlass() ? 0 : rOut > hit.semi ? 1 - beamShare(Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }), px, py, zh, dx, dy, uz, bw, anyZ, shade) : 1 - fin;
           if (past * qShare > SPLIT_MIN && fin * qShare > SPLIT_MIN && splitsLeft > 0) {
             splitsLeft--;
-            push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(0, rOut - Math.abs(lyH)),
-              evt: bypassEvent(zones ? Object.assign(Object.create(hit), { semi: zones[zones.length - 1].rout, maskMargin: null }) : hit, { el: hit.el.id, kind: 'split', semi: zones ? zones[zones.length - 1].rout : hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }) }));
+            const ringed = zones ? Object.assign(Object.create(hit), { semi: zones[zones.length - 1].rout, maskMargin: null }) : null;
+            const whole = rOut > hit.semi ? Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }) : ringed || hit;
+            push(splitState(past, { skipEl: hit.el.id, path: path + 'b' + bounce, hole: Math.max(hole, rOut - Math.hypot(lyH, hH)),
+              shade: shaded(shade, beamCut(whole, px, py, zh, dx, dy, uz, anyZ, true)),
+              evt: bypassEvent(ringed || hit, by3({ el: hit.el.id, kind: 'split', semi: zones ? zones[zones.length - 1].rout : hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] })) }));
             qShare *= fin;
+            shade = shaded(shade, beamCut(ringed || hit, px, py, zh, dx, dy, uz, anyZ, false));
           } else if (fin * qShare > SPLIT_MIN && (1 - past) - fin > SPLIT_MIN) qShare *= fin / (1 - past);   // only the edge took some
+          else if (!zones && (hit.kind === 'gain' || (hit.kind === 'filter' && !hit.el.reflect)) && past * qShare > SPLIT_MIN && past > fin) {
+            // almost none of it lands on a sheet the light goes straight through (its reference ray just catches the
+            // rim): it goes on past, cut to what misses, the little that lands counted with it (as all of it is counted
+            // through when almost none misses). (A mirror or lens keeps its reference ray: a cavity of small mirrors
+            // keeps its light on them, the field cut to their rims at every pass.)
+            const whole = rOut > hit.semi ? Object.assign(Object.create(hit), { semi: rOut, maskMargin: null }) : hit;
+            evt = bypassEvent(hit, by3({ el: hit.el.id, kind: 'split', semi: hit.semi, ly: lyH, cth: 1, A: 1, C: 0, D: 1, n1: nCur, n2: nCur, mode: 'P', hx: px, hy: py, dIn: [dx, dy], dOut: [dx, dy] }));
+            qShare *= Math.min(1, past + fin); hole = Math.max(hole, rOut - Math.hypot(lyH, hH));
+            shade = shaded(shade, beamCut(whole, px, py, zh, dx, dy, uz, anyZ, true));
+            skipEl = hit.el.id; path += 'b' + bounce;
+            pts.length -= 2; last = null;
+            continue;
+          }
         }
         // the face is rings (stackZones): a branch for each ring the beam lands on, and this ray ends here
         if (zones && splitsLeft > 0) {
@@ -14117,7 +14179,7 @@ function traceSceneOnce() {
           const [, lyH] = toLocal(hit.f, px, py), [ldxH] = toLocalDir(hit.f, dx, dy);
           const cth = Math.abs(ldxH), bw = beamAt(qr, qi, nCur, nm, m2Env(src)).w;
           const g3ring = ev => anyZ ? Object.assign(ev, { din3: [dx, dy, uz || 0], dout3: [dx, dy, uz || 0], hz: zh }) : ev;
-          const tot = zones.reduce((a, z) => a + (z.share = apertureShare({ maskMargin: z.margin }, lyH, cth, bw, bw)), 0) || 1;
+          const tot = zones.reduce((a, z) => a + (z.share = apertureShare({ maskMargin: z.margin }, lyH, cth, bw, bw, hH)), 0) || 1;
           for (const z of zones) {
             // each ring's share of what lands on the face
             const sh = z.share / tot;
@@ -14132,7 +14194,11 @@ function traceSceneOnce() {
 
         const s = hit;
         // the hole goes with the light that went round: a plane mirror or a stop keeps it, a surface that bends the light does not
-        if (hole && s.kind !== 'iris' && s.kind !== 'mirror' && !(s.el && s.el.type === 'screen' && !s.el.absorb)) hole = 0;
+        // (nor does a sheet the light goes straight through, a gain sheet or a filter's); the dark parts of the
+        // beam's cross-section go only with light that goes straight on
+        const straight = s.kind === 'iris' || s.kind === 'gain' || (s.kind === 'filter' && !s.el.reflect) || (s.el && s.el.type === 'screen' && !s.el.absorb);
+        if (hole && !straight && s.kind !== 'mirror') hole = 0;
+        if (shade && !straight) shade = null;
         // leaving a walk-off crystal: its faces refract the wave normal, not the energy
         if (wk) { const c = Math.cos(-wk), sn = Math.sin(-wk); [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c]; wk = 0; }
         if (wn) { [dx, dy, uz] = wn; wn = null; }        // (out of the plane, the wave normal kept on the way in)
@@ -18406,16 +18472,21 @@ function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
   if (!sw) return;
   track('sweep', el.type);
-  if (sweepJob) { sweepJob.cancel(); return; }
-  // the sweeps that will move together: the ones already playing and this one
+  // the sweeps that will move together: the ones already playing and this one (and, during a render, the ones it is
+  // for: the render starts again with this one too, and they all play once it is done)
   const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
-  list.push([el, path]);
+  if (sweepJob) {
+    if (jobHas(sweepJob, el, path)) { sweepJob.cancel(); return; }
+    for (const q of sweepJob.list) if (getEl(q[0].id) && q[0].sweeps && q[0].sweeps[q[1]] && !list.some(([e, p]) => e.id === q[0].id && p === q[1])) list.push(q);
+    sweepJob.quiet = true; sweepJob.cancel();
+  }
+  if (!list.some(([e, p]) => e.id === el.id && p === path)) list.push([el, path]);
   if (list.some(([e, p]) => e.sweeps[p] && e.sweeps[p].field) && fieldWanted()) {
-    const resume = [...playing.values()];
     playing.clear();
-    renderSweepFrames(list, () => { for (const p of resume) playing.set(sweepKey(getEl(p.id) || {}, p.path), p); playNow(el, path); });
+    renderSweepFrames(list, () => { for (const [e, p] of list) if (e !== el && getEl(e.id) && e.sweeps && e.sweeps[p]) playing.set(sweepKey(e, p), { id: e.id, path: p }); playNow(el, path); });
     return;
   }
+  for (const [e, p] of list) if (e !== el && !playing.has(sweepKey(e, p))) playing.set(sweepKey(e, p), { id: e.id, path: p });
   playNow(el, path);
 }
 function playNow(el, path) {
@@ -18433,7 +18504,7 @@ function playNow(el, path) {
 function playAll() {
   const list = allSweeps();
   if (!list.length) return;
-  if (sweepJob) { sweepJob.cancel(); return; }
+  if (sweepJob) { sweepJob.quiet = true; sweepJob.cancel(); }     // rendered again, for all of them
   if (list.some(([e, p]) => e.sweeps[p].field) && fieldWanted()) {
     playing.clear();
     renderSweepFrames(list, playAllNow);
@@ -18448,7 +18519,65 @@ function playAllNow() {
   for (const [el, path] of list) playing.set(sweepKey(el, path), { id: el.id, path });
   startLoop();
 }
+/* A sweep's Steps changed while its field is being rendered or played: the frames rendered are for the old steps,
+   and playing on without them works the field out live at every step (it never catches up). So the render starts
+   again at the new steps, and what was playing (or about to) plays on once it is done. */
+function sweepStepsChanged() {
+  fieldRendered = null;
+  const job = sweepJob;
+  const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  if (!list.length || !list.some(([e, p]) => e.sweeps && e.sweeps[p] && e.sweeps[p].field) || !fieldWanted()) return;
+  if (job) { job.quiet = true; job.cancel(); }
+  playing.clear();
+  renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
+}
+/* The bench edited while a sweep renders or plays its field. What the frames hold is the light, keyed by the bench's
+   field (popKeyOf over the trace): an edit the light never reaches (a part off the beam, a drawing, a part on another
+   tab, a name) leaves that key as it was, and the render and the play carry on with every frame. An edit that changes
+   the light changes it: the frames are for a bench that is gone, so the render starts again for this one and what was
+   playing plays on (as for a change of Steps). Looked at once the edits settle, at the sweep's first step. */
+let sweepEditTimer = 0;
+function sweepBenchEdited() {
+  if (!sweepJob && !(fieldRendered && fieldRendered.ref)) return;
+  clearTimeout(sweepEditTimer);
+  sweepEditTimer = setTimeout(sweepEditCheck, 350);
+}
+function sweepEditCheck() {
+  const job = sweepJob, ref = job ? job.ref : fieldRendered && fieldRendered.ref;
+  // (the field turned off, or another tab on show: nothing drawn from the frames, which stay)
+  if (!ref || !ref.key || !popSources().length || ref.tab !== project.tab) return;
+  const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  if (!list.length || list.some(([e, p]) => !e.sweeps || !e.sweeps[p])) { if (job) { job.quiet = true; job.cancel(); } return; }
+  if (ref.shape === sweepShapes(list) && sweepRef(list, ref.n, ref.period).key === ref.key) return;
+  sweepStepsChanged();
+}
+/* the field's key at a sweep's first step, the bench put back after: what its rendered frames depend on (in 3D, with the
+   board as the light meets it, which the volumes are cut to) */
+function sweepRef(list, n, period) {
+  const srcs = popSources();
+  if (!srcs.length) return { key: '', n, period, tab: project.tab };
+  const saved = list.map(([el, path]) => getPath(el, path));
+  list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], 0, n, period)));
+  traceScene();
+  const key = popKeyOf(lastTrace.beams, srcs) + '|' + sweepVol.boxKey();
+  list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+  traceScene();
+  return { key, n, period, shape: sweepShapes(list), tab: project.tab };
+}
+/* what a sweep's steps are, other than its rate (which the steps hold at): From, To, its phase and shape; the frames
+   are for these, so a change to any of them while its field is rendered renders it again (as Steps does) */
+const sweepShapes = list => JSON.stringify(list.map(([el, path]) => { const sw = el.sweeps && el.sweeps[path]; return sw ? [el.id, path, sw.min, sw.max, sw.phase, sw.wave, sw.steps] : null; }));
+/* whether a render is for this sweep (or, without a path, any of this part's) */
+const jobHas = (job, el, path) => !!job && job.list.some(([e, p]) => e.id === el.id && (path === undefined || p === path || (path.endsWith('.') && p.startsWith(path))));
+/* a sweep paused, removed, typed over or its part deleted: the render for it is stopped too (else it renders on, and
+   when done starts the sweep playing again, over what was typed) */
+function cancelJobFor(el, path) {
+  if (!jobHas(sweepJob, el, path)) return false;
+  sweepJob.quiet = true; sweepJob.cancel();
+  return true;
+}
 function pause(el, path) {
+  cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
   if (!playing.size) dropTraceStore();
   syncPanel(); updateSweepButtons(); scheduleSave();
@@ -18499,7 +18628,7 @@ function keepFrame(map, key, v) {
    board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
    volume filed under the key the view will ask for (both installed by the 3D view) */
 // (shown: in the 3D view, whether the step on show has its field there: null when the 3D view is not showing it)
-const sweepVol = { box: () => null, keep: () => {}, shown: () => null };
+const sweepVol = { box: () => null, keep: () => {}, shown: () => null, has: () => true, boxKey: () => '', begin: () => {}, mark: () => {} };
 let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 function setFieldRendered(v) { return (fieldRendered = v); }
@@ -18569,6 +18698,7 @@ function renderSweepFrames(list, onDone) {
   const saved = list.map(([el, path]) => getPath(el, path));
   const n = sweepFrames(list);
   framesLast = n;
+  sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
   {
     let all = true;
@@ -18576,36 +18706,39 @@ function renderSweepFrames(list, onDone) {
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, period)));
       traceScene();
       const srcs = popSources();
-      if (srcs.length && !fieldFrames.bench.has(popKeyOf(lastTrace.beams, srcs))) all = false;
+      // (the bench's field, and in 3D its volume: a step with only one of them would be worked out live as it played)
+      if (srcs.length) { const pk = popKeyOf(lastTrace.beams, srcs); if (!fieldFrames.bench.has(pk) || !sweepVol.has(pk)) all = false; else sweepVol.mark(pk); }
       for (const scr of fieldReadouts()) { const J = all && popScreenPrep(scr); if (J && !fieldFrames.screens.has(J.key)) all = false; }
     }
     list.forEach(([el, path], k) => setParam(el, path, saved[k]));
     traceScene();
-    if (all) { fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n }; changed(false); onDone(); return; }
+    if (all) { fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n, ref: sweepRef(list, n, period) }; changed(false); onDone(); return; }
   }
   // the cycle as it is now: a rate changed meanwhile moves the steps with it, each the same point of its cycle
   const cyc = () => commonPeriod(list.map(([el, path]) => el.sweeps[path] || { freq: 1 / period })) || period;
-  const job = { list, i: 0, n, t0: null, i0: 0 };
+  const job = { list, i: 0, n, t0: null, i0: 0, ref: sweepRef(list, n, period) };
   const timing = i => { if (job.t0 === null) { job.t0 = performance.now(); job.i0 = i; } };   // timed from the first step that needs working out
   sweepJob = job;
   const finish = ok => {
     if (sweepJob !== job) return;
     sweepJob = null;
-    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
-    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n };
+    list.forEach(([el, path], k) => { if (getEl(el.id)) setParam(el, path, saved[k]); });
+    if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n, ref: job.ref };
     changed(false);
     if (ok) onDone();
-    else toast('Stopped rendering the field');
+    else if (!job.quiet) toast('Stopped rendering the field');
   };
   job.cancel = () => finish(false);
+  const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
   // several workers at once, each step whole on one of them, the page left alone (see swPool)
   const pool = !closeupOnShow() && swPool();
-  if (pool) { renderOnPool(pool, list, n, cyc(), job, onDone); return; }
+  if (pool) { renderOnPool(pool, list, n, cyc, job, onDone); return; }
   if (fieldWorker()) {
     // the same, each field worked out in the worker while the page stays free
     const live = () => sweepJob === job;
     (async () => {
       for (let i = 0; i < n; i++) {
+        if (gone()) { job.quiet = true; job.cancel(); return; }
         job.i = i;
         const at = () => list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
         at();
@@ -18619,7 +18752,9 @@ function renderSweepFrames(list, onDone) {
           traceScene();
           if (MODS.packs.size) { await modsReady(); if (!live()) return; }
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
-          if (!fieldFrames.bench.has(key)) {
+          if (sweepVol.has(key)) sweepVol.mark(key);
+          // (and its 3D volume, when the view shows the field and has not got it: rendered in 2D, played in 3D)
+          if (!fieldFrames.bench.has(key) || !sweepVol.has(key)) {
             timing(i); job.stage = 'the bench';
             const o = await fwRequest('bench', 'sweep', { vol: sweepVol.box() });
             if (!live()) return;
@@ -18662,6 +18797,7 @@ function renderSweepFrames(list, onDone) {
   const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
   const frames = (function* () {
     for (let i = 0; i < n; i++) {
+      if (gone()) { job.quiet = true; job.cancel(); return; }
       job.i = i;
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
       job.stage = 'tracing'; job.part = 0;
@@ -18745,7 +18881,8 @@ function swAsk(W, proj, args, kind) {
 }
 // (what each was still asked for is handed back as failed: a promise left waiting on a stopped worker would hold up
 // whatever waits on it, the 3D view's field among them, until the page was reloaded)
-function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) { W.w.terminate(); for (const j of W.jobs.values()) j.reject(new Error('the render workers were stopped')); W.jobs.clear(); } SW.pool = []; }
+// (a stop asked for is marked stopped: what waited on it is let go, and not taken for the workers failing)
+function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) { W.w.terminate(); for (const j of W.jobs.values()) j.reject(Object.assign(new Error('the render workers were stopped'), { stopped: true })); W.jobs.clear(); } SW.pool = []; }
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
 /* A bench with mods: their code runs only on the page, so a step's results (for its swept values)
@@ -18766,8 +18903,9 @@ function modsPrep(list) {
     setLastTraceKey(null); traceScene();
   }));
 }
-function renderOnPool(pool, list, n, period, job, onDone) {
-  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), vol = sweepVol.box(), prep = modsPrep(list);
+function renderOnPool(pool, list, n, cyc, job, onDone) {
+  const live = () => sweepJob === job, proj = fwProject(), ids = fieldReadouts().map(e => e.id), prep = modsPrep(list);
+  const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
   const keys = new Set(list.map(([el, path]) => sweepKey(el, path)));
   // coarse to fine: every 8th step, then every 4th, 2nd, and the rest
   const order = [], seen = new Set();
@@ -18776,11 +18914,15 @@ function renderOnPool(pool, list, n, period, job, onDone) {
   let next = 0, started = false;
   job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0;
   job.stage = pool.length > 1 ? pool.length + ' at once' : '';
-  const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period, n, done }; onDone(); };
+  const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period: cyc(), n, done, ref: job.ref }; onDone(); };
   const runOne = async W => {
     while (live() && next < order.length) {
+      // (a sweep removed, or its part deleted, meanwhile: nothing left to render for)
+      if (gone()) { job.quiet = true; job.cancel(); return; }
       const i = order[next++];
-      const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, period)]);
+      // the step at the rate as it is now (one changed meanwhile moves the steps with it), and the 3D view's board as
+      // it is now (the view may have been opened meanwhile)
+      const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, cyc())]), vol = sweepVol.box();
       await prep(sets);
       if (!live()) return;
       const o = await swAsk(W, proj, { sets, ids, vol });
@@ -18793,18 +18935,22 @@ function renderOnPool(pool, list, n, period, job, onDone) {
       requestRender(); syncPanel();
     }
   };
-  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); changed(false); toast('Stopped rendering the field'); };
+  // stopped part way: what plays on is worked out live, not held to the coarse steps rendered so far
+  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
   Promise.all(pool.map(runOne)).then(() => {
     if (!live()) return;
     sweepJob = null; swRelease();
-    fieldRendered = { keys, period, n };
+    fieldRendered = { keys, period: cyc(), n, ref: job.ref };
     changed(false);
     if (!started) { started = true; onDone(); }
   }, err => {
     // a worker failed: the pool is not used again, and the render starts again the old way
     if (!live()) return;
+    sweepJob = null;
+    // the workers stopped on purpose (the optimiser, Undo, a file opened): started again, not given up on
+    if (err && err.stopped) { renderSweepFrames(list, started ? () => {} : onDone); return; }
     console.warn('JEKray render workers:', err && err.message);
-    sweepJob = null; SW.failed = true; swDrop();
+    SW.failed = true; swDrop();
     renderSweepFrames(list, started ? () => {} : onDone);
   });
   updateSweepButtons(); syncPanel();
@@ -22030,7 +22176,7 @@ const V3D = (() => {
   // the board the field volumes are cut to, [x0, y0, x1, y1], while the view is on; else null
   const boardBox = () => { const vb = active() && R && R.boardBox; return vb ? [vb.min.x, vb.min.y, vb.max.x, vb.max.y] : null; };
   // whether the field the 3D view shows is in (a sweep's step waits for it); null when the 3D view is not showing the field
-  const fieldReady = () => { if (!active() || !R || !lightOf().field) return null; sync(); return !R.volBusy; };
+  const fieldReady = () => { if (!active() || !R || !lightOf().field) return null; if (!lightOnTab()) return true; sync(); return !R.volBusy; };   // (no light on this tab: nothing to wait for)
 
   function load() {
     if (T) return Promise.resolve();
@@ -22210,6 +22356,7 @@ const V3D = (() => {
   }
   function draw() {
     if (!R || !active()) return;
+    R.draws = (R.draws || 0) + 1;
     const { gl, scene, camera } = R;
     gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false);
     gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear();
@@ -22388,8 +22535,11 @@ const V3D = (() => {
   function portZ(el) { if (!NET_3D.has(el.type)) return zOf(el); const B = netBox(el); return el.type === 'pic' ? (1.5 + B.h) / 2 : B.h / 2; }
   /* the fibres, wires and waveguides of this tab, as tubes along their routes on the bench; between two ends they
      lie on the table (a waveguide stays at its chips' height), rising to each port; a fibre carrying light glows its colour */
+  /* the fibres, cables and waveguides: each tube kept while its route is the same (a sweep's step, a trace, moves none of
+     them: made again for each, they cost an orbit its frames), its colour and glow set afresh */
   function wires(G) {
-    disposeAll(G);
+    for (const o of [...G.children]) G.remove(o);
+    const kept = R.wireCache || (R.wireCache = new Map()), usedW = new Set();
     const on = new Set(project.elements.filter(e => e.bench === project.tab && shown3(e) && !e.hide3d).map(e => e.id));
     const list = (project.fibres || []).filter(F => on.has(F.a[0]) && on.has(F.b[0]));
     const lights = list.map(F => F.wire || F.wg ? { mw: 0 } : fibreLight(F)), topMw = Math.max(1e-30, ...lights.map(l => l.mw));
@@ -22458,12 +22608,20 @@ const V3D = (() => {
       };
       const pts = run.map(([x, y], k) => new T.Vector3(x, y, zAt(sAt[k])));
       const L = lights[i], lit = !!L.colour && L.mw > 1e-9 * topMw, picked = selFibre() === F;
+      const gk = F.id + '|' + r + '|' + benchLight() + '|' + pts.map(v => v.x.toFixed(3) + ',' + v.y.toFixed(3) + ',' + v.z.toFixed(3)).join(' ');
+      let c = kept.get(F.id);
+      if (!c || c.gk !== gk) {
+        if (c) disposeObj(c.obj);
+        const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0 });
+        c = { gk, obj: mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m) };
+        c.obj.userData.fibre = F.id; kept.set(F.id, c);
+      }
       // the selected one lit cyan, as the bench marks a selection
-      const m = new T.MeshStandardMaterial({ color: col(F.wg ? PIC_GREEN : F.wire ? ELEC_YELLOW : FIBRE_COLOUR), roughness: 0.6, metalness: 0,
-        emissive: picked ? col(0x1fb6d4) : lit ? col(L.colour) : col(0x000000), emissiveIntensity: picked ? 0.8 : lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0 });
-      const o = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, false, 'centripetal'), Math.min(600, Math.max(32, Math.round(S * 1.5))), r, 12, false), m);
-      o.userData.fibre = F.id; G.add(o);
+      const m = c.obj.material;
+      m.emissive.set(picked ? 0x1fb6d4 : lit ? L.colour : 0x000000); m.emissiveIntensity = picked ? 0.8 : lit ? 0.25 + 0.6 * Math.sqrt(L.mw / topMw) : 0;
+      usedW.add(F.id); G.add(c.obj);
     });
+    for (const [id, c] of kept) if (!usedW.has(id)) { disposeObj(c.obj); kept.delete(id); }
   }
   /* one part, in its own frame: x along its axis (where it points), y across in the bench
      plane, z up. Returns a group, or null for a part with nothing to show */
@@ -22765,6 +22923,22 @@ const V3D = (() => {
   }).join(';');
 
   /* ---------- the scene, from the bench ---------- */
+  /* what the light drawn from a trace depends on, as a number: a trace the same as one drawn already (a sweep's step that
+     changes a circuit's value, not the light) is drawn with the same objects, not made again */
+  const lightSigs = new WeakMap();
+  function lightSig(Tr) {
+    if (!Tr) return 0;
+    let v = lightSigs.get(Tr);
+    if (v !== undefined) return v;
+    let hs = 2166136261;
+    const mix = x => { hs = Math.imul(hs ^ (typeof x === 'number' ? Math.round(x * 1e6) | 0 : x === undefined ? 7 : String(x).length * 131 + (String(x).charCodeAt(1) | 0)), 16777619); };
+    const str = x => { const t = String(x); for (let i = 0; i < t.length; i++) hs = Math.imul(hs ^ t.charCodeAt(i), 16777619); };
+    for (const r of Tr.rays || []) { str(r.bench); str(r.colour); mix(r.w); str(r.src); if (r.pts) for (const q of r.pts) mix(q); if (r.zs) for (const q of r.zs) mix(q); mix(-1); }
+    for (const b of Tr.beams || []) { str(b.bench); str(b.colour); str(b.src); for (const k of ['x0', 'y0', 'dx', 'dy', 'len', 'w', 'qr', 'qi', 'n', 'z0', 'uz', 'len3', 'm2', 'nm']) mix(b[k]); if (b.d3) for (const q of b.d3) mix(q); mix(-2); }
+    v = (hs >>> 0) + ':' + (Tr.rays || []).length + ':' + (Tr.beams || []).length;
+    lightSigs.set(Tr, v);
+    return v;
+  }
   function build() {
     const G = R.groups;
     disposeAll(G.sel);
@@ -22810,20 +22984,27 @@ const V3D = (() => {
     R.partsBox = box.clone();                             // what a fit frames: the parts, not light leaving them
     board(box);
     // the diffracted field as a volume, when the bench shows it: its key changes as it arrives
-    const vb = R.boardBox, VL = lightOf().field && vb ? volLater([vb.min.x, vb.min.y, vb.max.x, vb.max.y]) : { data: null, busy: false };
+    // the field's volume: worked out for the board (the one a sweep's run keeps: see sweepVol.box); while sweeps that do
+    // not render the field play, the last one held (as the 2D bench holds its field), and while one is being worked
+    // out, the last one shown until it comes (not a bench gone dark for a moment at every step)
+    const vb = R.boardBox, fb = lightOf().field && vb ? sweepVol.box() : null, held = !!fb && fieldHeld();
+    let VL = !fb ? { data: null, busy: false } : held ? { data: null, busy: false } : volLater(fb.bb);
+    const last = R.volLast && R.volLast.tab === project.tab && lightOnTab() ? R.volLast.data : null;
+    if (fb && !VL.data && (held || VL.busy) && last) VL = { data: last, busy: VL.busy };
+    if (VL.data) R.volLast = { tab: project.tab, data: VL.data };
     R.vol = VL.data; R.volBusy = VL.busy;
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab].join('|'), got = lc.get(lastTrace);
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
     else {
-      if (got) { for (const o of got.objs) disposeObj(o); lc.delete(lastTrace); }
+      if (got) { for (const o of got.objs) disposeObj(o); lc.delete(sig); }
       light(box, R.boardBox);
       const objs = [...G.light.children];
-      if (traceStoreOn()) {
+      if (sig !== null) {
         for (const o of objs) o.userData.kept = true;
-        lc.set(lastTrace, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
-        // only the traces still kept keep their light
-        const live = new Set([...traceStore.values()].map(c => c.T));
-        for (const [T2, v] of lc) if (T2 !== lastTrace && !live.has(T2)) { for (const o of v.objs) disposeObj(o); lc.delete(T2); }
+        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
+        // only the light of the traces still kept is kept
+        const live = new Set([...traceStore.values()].map(c => lightSig(c.T)));
+        for (const [s2, v] of lc) if (s2 !== sig && !live.has(s2)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
       }
     }
     R.volMeshes = G.light.children.filter(o => o.userData.vol);
@@ -22841,7 +23022,10 @@ const V3D = (() => {
     const sc = R.sun.shadow.camera; sc.left = -rad * 1.2; sc.right = rad * 1.2; sc.top = rad * 1.2; sc.bottom = -rad * 1.2; sc.near = 1; sc.far = 6 * rad; sc.updateProjectionMatrix();
     R.content = box;
     R.selKey = null;
-    R.gl.shadowMap.needsUpdate = true;
+    // shadows drawn again only when what casts them moved or changed (a sweep's step that changes a value and not the
+    // scene leaves them: drawing them every step cost an orbit half its frames)
+    const shk = [...G.parts.children, ...G.wires.children, ...G.light.children].map(o => o.id + ':' + o.position.toArray().join(',') + ':' + o.rotation.toArray().slice(0, 3).join(',')).join() + '|' + R.boardKey + '|' + [c.x, c.y, rad].join();
+    if (shk !== R.shadowKey) { R.shadowKey = shk; R.gl.shadowMap.needsUpdate = true; }
   }
   /* the light: rays as lines, Gaussian beams as tubes as wide as the beam both ways */
   /* a stretch from (x0, y0) to (x1, y1) cut to the board: [t0, t1] of it, or null */
@@ -23043,7 +23227,7 @@ const V3D = (() => {
     }
     for (const s of V.segs) {
       const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
-      const top = volDisp(V), K = top / (volDispLine(V) || 1);
+      const Sh = volShared(), top = Sh ? Sh.top : volDisp(V), K = top / ((Sh ? Sh.line : volDispLine(V)) || 1);
       for (let i = 0; i < data.length; i++) data[i] = Math.min(1e4, s.I[i] / top);   // above the top colour, held at it (half floats end at 65504)
       const tex = new T.DataTexture(data, M, s.two ? M * nc : nc, T.RedFormat, T.FloatType);
       tex.internalFormat = 'R16F'; tex.magFilter = tex.minFilter = T.LinearFilter; tex.needsUpdate = true;
@@ -23109,7 +23293,7 @@ const V3D = (() => {
     D.vkey.hidden = !on;
     if (!on) return;
     if (!R.vol) { D.vkey.replaceChildren(h('b', null, 'Working out the field in 3D\u2026')); return; }
-    const pk = volDispLine(R.vol), dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
+    const Sh = volShared(), pk = Sh ? Sh.line : volDispLine(R.vol), dec = fieldDec(lightOf().scale), cv = document.createElement('canvas');
     cv.width = 240; cv.height = 1;
     const g = cv.getContext('2d'), img = g.createImageData(240, 1);
     for (let i = 0; i < 240; i++) { const c = magma(i / 239); img.data.set([c[0], c[1], c[2], 255], i * 4); }
@@ -23559,7 +23743,9 @@ const V3D = (() => {
         pan(mid.x - drag.mid.x, mid.y - drag.mid.y, drag.pivot);
         drag.pinch = d; drag.mid = mid;
       } else return;
-      draw();
+      // drawn once a frame, however many moves the pointer sends (a fast mouse sends several a frame, and a sweep
+      // playing asks for its own frame too: drawn for each, an orbit lost most of its frames)
+      need();
     });
     const up = e => {
       if (!P.has(e.pointerId)) return;
@@ -23607,7 +23793,7 @@ const V3D = (() => {
       const d = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       if (ctrl === 'trackpad' && !e.ctrlKey) pan(-e.deltaX * d, -e.deltaY * d, null);
       else { const h0 = pick(e); zoom(Math.exp(e.deltaY * d * (e.ctrlKey ? 0.01 : 0.0015)), h0 ? h0.point : null); }
-      keepCam(); draw();
+      keepCam(); need();
     }, { passive: false });
     window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
   }
@@ -23825,9 +24011,13 @@ const V3D = (() => {
       cubeRect: () => R ? cubeRect() : null,
       pointOnScreen(p) { if (!R) return null; sync(); const v = new T.Vector3(...p).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
       // the field as a volume: its segments and brightest irradiance (W/cm²), the key, and what a canvas point reads
-      field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, key: D.vkey.hidden ? null : D.vkey.textContent }; },
+      field() { if (!R || !active()) return null; sync(); return { busy: !!R.volBusy, segs: R.vol ? R.vol.segs.length : 0, meshes: (R.volMeshes || []).length, peak: R.vol ? R.vol.peak * 100 : null, top: R.vol ? ((volShared() || {}).top || volDisp(R.vol)) * 100 : null, shared: !!volShared(), key: D.vkey.hidden ? null : D.vkey.textContent }; },
       // each piece of the field volume: where it starts, its direction, and its extent along it
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
+      // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
+      draws: () => (R && R.draws) || 0,
+      wireIds: () => (R ? R.groups.wires.children.map(o => o.geometry.id) : []),
+      sync: () => { if (R) sync(); },
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       // the part a canvas point lands on, the canvas measured in css px from its top left
@@ -23885,15 +24075,28 @@ const V3D = (() => {
 })();
 
 const volKey = (pk, tab, bb) => pk + '|' + tab + '|' + bb.map(v => Math.round(v)).join();
+/* the volumes kept: every step of the longest sweep (SWEEP_STEPS_MAX) and a few more, within a memory budget (a sweep
+   of 120 steps that kept only 64 lost its own first steps each cycle, and each was worked out again as it played) */
+const VOL_KEEP = 256, VOL_BYTES = 200e6;
+const volBytes = d => (d && d.segs ? d.segs.reduce((n, s) => n + (s.I ? s.I.length * (s.I.BYTES_PER_ELEMENT || 8) : 0), 0) : 0) + 512;
 function volKeep(key, d) {
-  d.id = ++VOL.n; VOL.cache.set(key, d); VOL.rev++;
-  while (VOL.cache.size > 64) VOL.cache.delete(VOL.cache.keys().next().value);
+  d.id = ++VOL.n; d.bytes = volBytes(d);
+  if (VOL.cache.has(key)) VOL.bytes -= VOL.cache.get(key).bytes || 0;
+  VOL.cache.set(key, d); VOL.bytes += d.bytes; VOL.rev++;
+  while (VOL.cache.size > VOL_KEEP || (VOL.bytes > VOL_BYTES && VOL.cache.size > 1)) { const k = VOL.cache.keys().next().value; VOL.bytes -= VOL.cache.get(k).bytes || 0; VOL.cache.delete(k); }
   return d;
+}
+/* whether any light falls on the tab on show (none: no volume asked for, at every step of a sweep, to fill the cache) */
+function lightOnTab() {
+  const srcs = popSources();
+  if (!srcs.length || !lastTrace) return false;
+  const ids = new Set(srcs.map(e => e.id));
+  return (lastTrace.beams || []).some(b => ids.has(b.src) && (b.bench === undefined || b.bench === project.tab));
 }
 function volLater(bb) {
   const srcs = popSources();
-  if (!srcs.length) return { data: null, busy: false };
-  const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, bb);
+  if (!srcs.length || !lightOnTab()) return { data: null, busy: false };
+  const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, volLightBox(bb, lastTrace.beams, srcs));
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
   const keep = d => volKeep(key, d);
   // a request in flight that has not answered in a minute is let go and asked again (a worker stopped under it would
@@ -23927,7 +24130,7 @@ function volLater(bb) {
         if (outs.some(o => !o || o.mismatch)) { VOL.rev++; requestRender(); return; }
         keep(volMerge(volStitch(outs.flatMap(o => o.segs))));
         requestRender();
-      }).catch(err => { console.warn('JEKray 3D field workers:', err && err.message); if (VOL.job === key) VOL.job = null; SW.failed = true; swDrop(); VOL.rev++; requestRender(); });
+      }).catch(err => { if (VOL.job === key) VOL.job = null; if (!(err && err.stopped)) { console.warn('JEKray 3D field workers:', err && err.message); SW.failed = true; swDrop(); } VOL.rev++; requestRender(); });   // (stopped on purpose: asked again, not given up on)
     }
     return { data: null, busy: true };
   }
@@ -23949,13 +24152,42 @@ function volLater(bb) {
 /* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
-const VOL = { job: null, t0: 0, cache: new Map(), n: 0, rev: 0 };
+const VOL = { job: null, t0: 0, cache: new Map(), bytes: 0, n: 0, rev: 0, sweep: new Set(), shared: null };
+/* A field sweep's steps drawn to one scale: the brightest of its volumes (each normalised to its own would brighten the
+   light before an absorber as the absorber darkened what follows it). Taken over the steps rendered, while the sweep
+   plays its rendered field; else each volume to its own. */
+function volShared() {
+  if (!VOL.sweep.size || !(renderedPeriod() > 0)) return null;
+  const S = VOL.shared;
+  if (S && S.rev === VOL.rev && S.n === VOL.sweep.size) return S.top > 0 ? S : null;
+  let top = 0, line = 0;
+  for (const k of VOL.sweep) { const d = VOL.cache.get(k); if (d && d.peak > 0) { top = Math.max(top, volDisp(d)); line = Math.max(line, volDispLine(d)); } }
+  VOL.shared = { rev: VOL.rev, n: VOL.sweep.size, top, line };
+  return top > 0 ? VOL.shared : null;
+}
 /* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
    sweeps): the board it is cut to, and where the steps' volumes go */
 function wireView3d() {
-  sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
+  // the board the volumes are cut to: while a sweep renders or plays its field, the board it had when its run began
+  // (a sweep that moves an outermost part changes the board at every step, and no step would find its volume)
+  sweepVol.box = () => {
+    const vb = V3D.boardBox();
+    if (!vb || !lightOf().field) return null;
+    if (!(sweepJob || renderedPeriod() > 0)) { VOL.fixBox = null; return { tab: project.tab, bb: vb }; }
+    if (!VOL.fixBox || VOL.fixBox.tab !== project.tab) VOL.fixBox = { tab: project.tab, bb: vb };
+    return VOL.fixBox;
+  };
   sweepVol.shown = () => V3D.fieldReady();
-  sweepVol.keep = (pk, tab, bb, V) => { if (!VOL.cache.has(volKey(pk, tab, bb))) volKeep(volKey(pk, tab, bb), V); };
+  sweepVol.keep = (pk, tab, bb, V) => { const k = volKey(pk, tab, bb); if (!VOL.cache.has(k)) volKeep(k, V); VOL.sweep.add(k); };
+  // a sweep's render begins (its steps' volumes, as they come, set the scale they are all drawn at), and a step of it
+  // whose volume the page has already
+  sweepVol.begin = () => { VOL.sweep.clear(); VOL.shared = null; VOL.fixBox = null; };
+  sweepVol.mark = pk => { const b = sweepVol.box(); if (b) VOL.sweep.add(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
+  // whether a step's volume is kept, for the bench's field key pk (on the board the 3D view shows now)
+  // (the view brought up to date with the bench first: its board follows the parts a frame later, and a key taken from
+  // the board as it was would differ from the next one taken, and render the sweep again for nothing)
+  sweepVol.boxKey = () => { if (V3D.active()) V3D.sync(); const b = sweepVol.box(); return b ? b.tab + '|' + volLightBox(b.bb, lastTrace.beams, popSources()).map(Math.round).join() : ''; };
+  sweepVol.has = pk => { const b = sweepVol.box(); return !b || VOL.cache.has(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
 }
 /* ==========================================================================
    Model: parts made in the 3D view, as in a CAD program
@@ -28941,7 +29173,10 @@ function optimise(el, path, target, key, goal, targetVal) {
   const sw = el.sweeps[path];
   const lo = Math.min(sw.min, sw.max), hi = Math.max(sw.min, sw.max);
   const start = getPath(el, path);
-  const evalAt = v => { setParam(el, path, v); traceScene(); return meritFor(target, key, goal, targetVal); };
+  // the best seen anywhere: a peak narrower than the scan's step is found by the scan alone, and the golden
+  // section, which assumes one dip, can walk away from it
+  let seen = { v: start, m: Infinity };
+  const evalAt = v => { setParam(el, path, v); traceScene(); const m = meritFor(target, key, goal, targetVal); if (m < seen.m) seen = { v, m }; return m; };
   const startMerit = evalAt(start);
   const startValue = metricRaw(target, key);
   let traces = 1;
@@ -28968,9 +29203,9 @@ function optimise(el, path, target, key, goal, targetVal) {
     else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = evalAt(d); }
     traces++;
   }
-  const best = (a + b) / 2;
-  const bestMerit = evalAt(best);
+  let best = (a + b) / 2, bestMerit = evalAt(best);
   traces++;
+  if (seen.m < bestMerit) { best = seen.v; bestMerit = evalAt(best); traces++; }
   const improved = bestMerit < startMerit;
   const bestValue = metricRaw(target, key);
   if (!improved) { setParam(el, path, start); traceScene(); }
@@ -28988,6 +29223,18 @@ function optimise(el, path, target, key, goal, targetVal) {
    Nelder-Mead from the best of them in the ranges scaled to 0-1, clamped to them. */
 function* optimiseGen(vars, terms, opts) {
   opts = opts || {};
+  // what a script can get wrong, said plainly (the dialog offers only parts with a range, and real goals)
+  for (const [el, path] of vars) {
+    if (!el) throw new Error('No such part to vary');
+    const sw = el.sweeps && el.sweeps[path];
+    if (!sw || !isFinite(sw.min) || !isFinite(sw.max)) throw new Error(el.name + ': ' + path + ' has no range to search (give it a sweep, From and To)');
+  }
+  for (const t of terms) {
+    if (!t.target) throw new Error('No such part to measure');
+    const M = metricByKey(t.key);
+    if (!M) throw new Error('No measure called ' + t.key);
+    if (M.on !== metricKind(t.target)) throw new Error(t.target.name + ' cannot be measured for ' + M.label);
+  }
   pauseAll();
   const n = vars.length;
   const rng = vars.map(([el, path]) => { const sw = el.sweeps[path]; return [Math.min(sw.min, sw.max), Math.max(sw.min, sw.max)]; });
@@ -29048,10 +29295,11 @@ function* optimiseGen(vars, terms, opts) {
     }
   } else {
     // a Latin hypercube: each range cut into S strata, one sample in each, shuffled per axis
-    const S = Math.min(80, 10 + 10 * n);
-    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
+    // seeded, so the same bench and goals give the same answer each time (opts.seed for another spread)
+    const S = Math.min(80, 10 + 10 * n), rnd = seededRng(opts.seed || 1);
+    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
     const P = vars.map(perm), samples = [{ u: toU(start), m: startMerit }];
-    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + Math.random()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
+    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + rnd()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
     samples.sort((a, b) => a.m - b.m);
     // Nelder-Mead from the best sample, then once more from where it ended with a small simplex
     const nm = function* (u0, step) {
@@ -29237,6 +29485,7 @@ function drawHistogram(cv, samples, key) {
 }
 
 function stopSweepsFor(el, prefix) {
+  if (sweepJob && sweepJob.list.some(([e, p]) => e.id === el.id && (!prefix || p.startsWith(prefix)))) { sweepJob.quiet = true; sweepJob.cancel(); }   // (its render too)
   for (const [k, p] of playing) if (p.id === el.id && (!prefix || p.path.startsWith(prefix))) playing.delete(k);
   updateSweepButtons();
 }
@@ -29472,10 +29721,11 @@ const angleMeans = el => el.type === 'source' && el.lamp ? (el.lampFlat ? 'the w
 function sweepPlay(el, path, label) {
   const btn = h('button', { class: 'rt-play', type: 'button' });
   const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
-  btn.addEventListener('click', () => rendering() ? sweepJob.cancel() : isPlaying(el, path) ? pause(el, path) : play(el, path));
+  // while it plays (the field still filling in), Pause: it stops the sweep and the render; rendering before it plays, Cancel
+  btn.addEventListener('click', () => isPlaying(el, path) ? pause(el, path) : rendering() ? sweepJob.cancel() : play(el, path));
   bindSync(btn, () => {
     const on = isPlaying(el, path);
-    btn.textContent = rendering() ? 'Cancel' : on ? 'Pause' : 'Play';
+    btn.textContent = on ? 'Pause' : rendering() ? 'Cancel' : 'Play';
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     btn.setAttribute('aria-label', (on ? 'Pause ' : 'Play ') + label + ' sweep');
   });
@@ -29507,7 +29757,7 @@ function sweepControls(el, path, sw, label) {
   const rendering = () => !!sweepJob && sweepJob.list.some(([e, p]) => e === el && p === path);
   const slider = h('input', { type: 'range', min: '0', max: '1000', step: '1', 'aria-label': label + ' within the sweep range' });
   slider.addEventListener('input', () => {
-    if (isPlaying(el, path)) pause(el, path);
+    if (isPlaying(el, path) || rendering()) pause(el, path);
     beginEdit();
     setParam(el, path, sweepValue(sw, slider.value / 1000));
     changed(false);
@@ -29522,7 +29772,8 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      setFieldRendered(null);
+      // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
+      sweepStepsChanged();
     }, { blank: null });
     bindSync(inp, () => { inp.placeholder = sw.field ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
     range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
@@ -35699,13 +35950,14 @@ function optBatch() {
   const take = out => {
     if (OPT !== O || !O.running || !WS) return;
     if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
-    if (out.merit < O.now || O.mode === 'dls') {
+    // a design that broke the limits set on its values is brought within them even when that costs merit
+    if (out.merit < O.now || O.mode === 'dls' || out.outside) {
       const P2 = designPrescription(asm);
       optApply(P2, prob, out, designOf(asm));
       commitDesign(asm, P2);
       changed(false);
     }
-    O.now = Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
+    O.now = out.outside ? out.merit : Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
     // the global search's designs, kept with the design: the best distinct ones it has reached
     if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
@@ -36854,7 +37106,6 @@ let benchTab = 'bench';
 // the Bench panel's list: the bench whose parts it shows, and the bench on show when it was chosen
 let listTab = null, listShown = null;
 function setBenchTab(v) { return (benchTab = v); }
-let aboutNode = null;
 const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
 const EYE_SHUT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 10s3.6 5 10 5 10-5 10-5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 13.2 3.4 15.6M9.2 14.7l-.8 2.7M14.8 14.7l.8 2.7M19 13.2l1.6 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 function renderOverview() {
@@ -36945,9 +37196,6 @@ function renderOverview() {
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'The few percent a bare glass surface reflects. Its loss always counts against the power; with this on, the reflected light is followed too, which is how ghosts and back-reflections show up. Each one is another branch of a Gaussian beam to work out, so with the diffracted field shown it can slow the bench down a lot, a retroreflector\u2019s most of all.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'bench' }));
 
-  // what it models, and what it does not: the page's own note, moved to the foot of this panel
-  aboutNode = aboutNode || document.querySelector('.rt-about');    // kept: a panel rebuilt drops it from the page
-  if (aboutNode) panel.append(aboutNode);
   updateReadouts();
 }
 
@@ -39834,13 +40082,21 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const replay = !!(pol && pol.fixed);
   const gx = replay ? 0 : (slope(wix, true) + field2Slope(F, 'x')) / aAx, gy = replay ? 0 : (slope(wiy, false) + field2Slope(F, 'y')) / aAy;
   let steep = 0;
-  const span = (w, g) => {
+  const span = (w, g, hold) => {
     let L = G * w;
     if (g > 0) L = Math.min(L, N * Math.PI / (2 * g));
+    if (hold > L) L = hold;
     if (L < 5 * w) { steep = 1; L = 5 * w; }
     return L;
   };
-  const ax = { d: span(wxo, gx) / N, z: qxo[0], zR: qxo[1] }, ay = { d: span(wyo2, gy) / N, z: qyo[0], zR: qyo[1] };
+  // A surface the light only passes (a gain sheet, a filter, the cut where a beam goes on past a part's rim) adds no
+  // slope of its own: the light's phase is sampled as finely as the grid it came on, so the new grid is never made
+  // narrower than the light (or that grid) for the sake of the faint fringes of an edge met before, which would lose
+  // the light off its sides
+  const SinH = !replay && ev.mode === 'P' ? statsIn() : null;
+  const holdOf = (c, w, A, d) => SinH && SinH.power > 0 ? Math.min(N * d, 2.4 * (Math.abs(c) + 1.5 * w) * A) : 0;
+  const ax = { d: span(wxo, gx, holdOf(SinH && SinH.cx, SinH && SinH.wx, aAx, F.ax.d)) / N, z: qxo[0], zR: qxo[1] };
+  const ay = { d: span(wyo2, gy, holdOf(SinH && SinH.cy, SinH && SinH.wy, aAy, F.ay.d)) / N, z: qyo[0], zR: qyo[1] };
   // An edge that cuts the beam sends out fringes: the first is sqrt(lam t) wide at the next
   // surface, t on, and the later ones finer. The guard band that keeps a clean beam well
   // sampled near and far leaves too few samples inside the beam for them, so here the
@@ -40193,13 +40449,15 @@ const popSources = () => lightOf().field ? allSources().filter(beamOn) : [];
    worked out again: the tracer's description of the surface leaves out what only the field
    sees (a mask's formula, a coating), so the element's own settings go in with it */
 const evElement = ev => ev && ev.el ? getEl(ev.el) || null : null;
+/* (the field's intensity scale is not in the key: it is how the field is drawn, at drawing time, so a frame worked out
+   at one scale is drawn at another) */
 /* the element as the field sees it: how it is swept (or whether the 3D view draws it) is not part of it, so a sweep's rate or range can change and the field worked out for it still holds */
 const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d || e.mod)) return e; const { sweeps, hide3d, ...rest } = e; return e.mod ? Object.assign(rest, { modRev: MODS.rev }) : rest; };   // a mod's part: as its results stand
 // asked for several times a frame: the beams part once per trace
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
+  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
   if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
   const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
     [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh, evElementKey(b.ev), b.z0, b.uz, b.len3, b.d3])) + ']';
@@ -40933,6 +41191,25 @@ function volPartners(segs, tab) {
   }
   return out;
 }
+/* the board as the light meets it: the board cut to the box the beams span (each to 2 m, as volCuts cuts them). A volume
+   is kept under it, so a part moved where no light goes, which only makes the board bigger, leaves every volume worked
+   out for a sweep as it was (cutting a beam to the board is cutting it to this box, which holds all of it) */
+function volLightBox(bb, beams, srcs) {
+  if (!bb) return bb;
+  const ids = new Set(srcs.map(e => e.id));
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of beams || []) {
+    if (!ids.has(b.src)) continue;
+    const L3 = b.len3 || b.len;
+    if (!(L3 > 0)) continue;
+    const d = b.d3 || [b.dx, b.dy, b.uz || 0], dl = Math.hypot(d[0], d[1], d[2]) || 1, t = Math.min(L3, 2000);
+    for (const [x, y] of [[b.x0, b.y0], [b.x0 + d[0] / dl * t, b.y0 + d[1] / dl * t]]) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (!(x1 >= x0 && y1 >= y0)) return bb;
+  return [Math.max(bb[0], Math.floor(x0) - 1), Math.max(bb[1], Math.floor(y0) - 1), Math.min(bb[2], Math.ceil(x1) + 1), Math.min(bb[3], Math.ceil(y1) + 1)];
+}
 /* where a segment's volume is cut across it: its direction, height, and the distances along it,
    or null for none (no length, or off the board) */
 function volCuts(sg, bb, two, coh) {
@@ -41314,6 +41591,25 @@ function popTimes(F0, len, n) {
   return out;
 }
 
+/* a beam's drawn slices as an image at an intensity scale: lin holds each column's rows (linear), gs each column's gain, dec the
+   decades shown (0: linear). Each column three pixels wide, drawn from its middle one, so smoothing never reaches into
+   the next column and the seams between them do not show */
+function popSliceImage(lin, gs, rgb, dec) {
+  const nc = gs.length, img = new ImageData(3 * nc, POP_ROWS), [cr, cg, cb] = rgb;
+  for (let c = 0; c < nc; c++) {
+    for (let row = 0; row < POP_ROWS; row++) {
+      const v = lin[c * POP_ROWS + row], a = dec ? (v > 0 ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / dec) : 0) : v;
+      for (let k = 0; k < 3; k++) {
+        const o = (row * 3 * nc + 3 * c + k) * 4;
+        img.data[o] = cr; img.data[o + 1] = cg; img.data[o + 2] = cb;
+        img.data[o + 3] = Math.round(255 * a * gs[c]);
+      }
+    }
+  }
+  const cv = mkCanvas(3 * nc, POP_ROWS);
+  cv.getContext('2d').putImageData(img, 0, 0);
+  return cv;
+}
 function popSlices(items, perIn) {
   const per = perIn || clamp(Math.floor(POP_SLICES / Math.max(1, items.length)), 6, 48);
   const per2 = Math.min(per, 32);
@@ -41399,7 +41695,7 @@ function popSlices(items, perIn) {
         // the outer fifth fades to nothing, so light that reaches the edge of what is drawn ends softly
         const au = Math.abs(u);
         if (au > 0.8) v *= 0.5 * (1 + Math.cos(Math.PI * (au - 0.8) / 0.2));
-        col[row] = log ? (v > 0 ? Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / log) : 0) : v;
+        col[row] = v;
       }
       cols.push(col);
     }
@@ -41417,25 +41713,16 @@ function popSlices(items, perIn) {
         dcols.push(col);
       }
     }
-    // each column three pixels wide, drawn from its middle one, so smoothing never
-    // reaches into the next column and the seams between them do not show
-    const img = new ImageData(3 * dts.length, POP_ROWS);
-    dcols.forEach((col, c) => {
-      for (let row = 0; row < POP_ROWS; row++) {
-        for (let k = 0; k < 3; k++) {
-          const o = (row * 3 * dts.length + 3 * c + k) * 4;
-          img.data[o] = cr; img.data[o + 1] = cg; img.data[o + 2] = cb;
-          img.data[o + 3] = Math.round(255 * col[row] * clamp(dgs[c], 0.03, 1));
-        }
-      }
-    });
-    const cv = mkCanvas(3 * dts.length, POP_ROWS);
-    cv.getContext('2d').putImageData(img, 0, 0);
+    // kept linear, as the light is: the intensity scale (Light › Field intensity) is how it is drawn (popSliceImage), so
+    // a change of scale draws the same field again and every frame a sweep rendered still holds
+    const lin = new Float32Array(dts.length * POP_ROWS), gs = new Float32Array(dts.length);
+    dcols.forEach((col, c) => { gs[c] = clamp(dgs[c], 0.03, 1); lin.set(col, c * POP_ROWS); });
+    const rgb = [cr, cg, cb], cv = popSliceImage(lin, gs, rgb, log);
     // each branch as bright as the power it carries, so round trips fade as they leak
     // a lone branch as bright as the power it carries; a group column by column, from
     // the power its fields add up to, so a dark port is dark
     // as bright as the light it carries: one pass's share, times what a cavity built it up by
-    sg.draw = { ts: dts, Ys: dYs, cv, alpha: grouped ? 1 : clamp((sg.b.w || 1) * (sg.boost || 1), 0.04, 1), members: item.members.length };
+    sg.draw = { ts: dts, Ys: dYs, cv, lin, gs, rgb, dec: log, alpha: grouped ? 1 : clamp((sg.b.w || 1) * (sg.boost || 1), 0.04, 1), members: item.members.length };
   }
 }
 
@@ -41584,7 +41871,7 @@ function drawPop() {
   // The field is drawn once for a view, on a layer of its own (thousands of slices). While the
   // view moves (a pan, a zoom) the layer is moved and scaled to match, and drawn afresh once
   // the view has settled, as the rays' layer is: a drag stays smooth however many slices there are.
-  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key2 = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, lightOf().scale].join('|'), key2 = [V().cx, V().cy, V().scale, frameKey].join('|');
   const L = popLayer, same = L.R === R && L.T === lastTrace && L.frame === frameKey;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -41622,9 +41909,11 @@ function drawPopOn(c, R) {
   c.imageSmoothingEnabled = true;
   // each segment cut along the surfaces it runs between (see segPlanes), its end slices drawn on past its ends to meet them
   const TB = lastTrace.beams || [], at = new Map(TB.map((b, i) => [[b.x0, b.y0, b.dx, b.dy].join(','), i]));
+  const dec = fieldDec(lightOf().scale);
   for (const sg of R.segs) {
     const D = sg.draw, b = sg.b;
     if (!D || b.bench !== project.tab) continue;
+    if (D.lin && D.dec !== dec) { D.cv = popSliceImage(D.lin, D.gs, D.rgb, dec); D.dec = dec; }   // drawn again at the scale now chosen
     const i = at.get([b.x0, b.y0, b.dx, b.dy].join(',')), PL = i !== undefined ? segPlanes(TB, i) : { p0: null, p1: null };
     const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
     c.save();
@@ -41738,7 +42027,7 @@ function drawCloseup() {
   return true;
 }
 
-const closeupKey = key => key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, V().scale, W, H].join(',');
+const closeupKey = key => key.length + '|' + key.slice(0, 64) + '|' + [project.tab, V().cx, V().cy, V().scale, W, H, lightOf().scale].join(',');   // its image is drawn at the intensity scale
 
 const closeupOnShow = () => W / V().scale < CLOSEUP_MM && popSources().length > 0;
 
@@ -44642,10 +44931,14 @@ function optRun(prob, args) {
   const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => xOf(prob, v)));
   const T0 = evalAt(prob, V, x0);
   let res;
-  if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
+  // a design outside the limits set on its values starts from them (as damped least squares does), so the global
+  // search never hands back the start where it broke them: outside, set when it did (the result is then taken even
+  // if its merit is higher, as it is the best within the limits)
+  const xc = clampX(Float64Array.from(x0), limitsX(prob, V)), outside = xc.some((v, j) => v !== x0[j]);
+  if (args.mode === 'global') { const Tc = outside ? evalAt(prob, V, xc) : T0; res = globalSearch(prob, V, { x: xc, ss: Tc.ss, Wt: Tc.Wt }, args.trials || 4, args.seed); }
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
   return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
-    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(res.found ? { found: res.found } : {}) };
+    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(outside ? { outside: true } : {}), ...(res.found ? { found: res.found } : {}) };
 }
 /* the values reached, written into a prescription (P, the active configuration's) and, for a value
    each configuration has its own of, into the configurations of the design D */
@@ -48608,6 +48901,7 @@ const partsMeta = ids => Object.fromEntries([...ids].map(getEl).filter(Boolean).
 
 function changed(rebuildPanel) {
   if (rebuildPanel) renderPanel(); else syncPanel();
+  sweepBenchEdited();                                    // a field sweep's frames kept unless the light changed
   updateSweepButtons();
   updateUndoButtons();
   scheduleSave();
@@ -54744,7 +55038,7 @@ const USAGE_CLICKS = {
   btnView3d: ['view', '3d'], btnMeasure: ['view', 'measure'], btnPlayAll: ['sweep', 'all'], btnOptimise: ['optimise', 'bench'], btnTol: ['tolerance', 'bench'],
   btnShare: ['share', 'link'], btnSave: ['save', 'file'], btnSnaps: ['save', 'versions'], btnOpen: ['import', 'jekray'], btnImport: ['import', 'zmx'], btnImportStl: ['import', 'stl'],
   btnExportZmx: ['export', 'zmx'], btnHelp: ['help', 'shortcuts'], btnNews: ['news', ''], btnCite: ['help', 'cite'], btnBug: ['help', 'bug'], btnExamples: ['help', 'examples'],
-  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
+  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnSpace: ['cloud', 'home'],
   btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
 };
 /* Where a visit came from: the tag on the link that brought it (?src=ig-spectrometer, from a post), or the
@@ -55288,13 +55582,12 @@ async function mergeDialog(o) {
     }
   };
 }
-/* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
+/* the File menu's cloud items: there with accounts, greyed when not possible (JEKspace's mark at the bar's left is always there) */
 function cloudGates() {
-  const on = cloudOn(), show = accountsOn(), why = proWhy();
+  const show = accountsOn(), why = proWhy();
   loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
   // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
   needsShown();
-  document.getElementById('btnHome').hidden = !on;
   for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
   if (!show) return;
   gateItem(document.getElementById('btnCloudList'), account ? '' : why, 'account');
@@ -55321,7 +55614,9 @@ function wireCloud() {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
-    document.getElementById('btnHome').addEventListener('click', () => openSpace());
+    // JEKspace's mark at the bar's far left, always there (JEKspace signs people in itself): its own tab, the same one
+    // each time, brought to the front
+    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
     document.getElementById('btnCloudFork').addEventListener('click', async e => {
       if (gated(e.currentTarget) || !cloud) return;
@@ -55617,7 +55912,13 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Fixed: a sweep that renders the diffracted field keeps every frame it rendered through what does not change the light: pausing and playing again, moving a part the light never reaches (or a drawing), changing <b>Field intensity</b> (linear or logarithmic is how the field is drawn, so it is drawn again at once) and the Light ticks. An edit that does change the light renders the field again for the bench as it now is and plays on. In 3D every step of the sweep is kept (a sweep of 120 steps lost its first ones each cycle), and its steps share one brightness scale, so light before an absorber whose density is swept stays as bright while the light after it dims.',
+    'Fixed: in 3D, turning the view while a sweep plays is smooth: the view is drawn once a frame however fast the pointer moves, and a sweep\u2019s step that leaves the light and the cables where they were keeps their models and shadows rather than making them again.',
+    'Fixed: changing a sweep\u2019s Steps while it renders or plays its diffracted field renders it again at the new steps and plays on (it was left working the field out live at every step, never catching up).',
+    'Fixed: a beam wider than a part it passes, the part above or below it or tipped, lost the light that missed the part. A gain sheet now amplifies only the light inside its disc; the rest goes on past it unchanged, in the beams, the field and the 3D view, and a detector after it reads both.',
+    '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
+    'Fixed in the optimisers: Undo after <b>Let the optimiser find it</b> in an exercise puts the start back (it went back past the exercise); the bench optimiser gives the same answer each time it is run on the same bench, and a peak narrower than its first scan\u2019s step is no longer lost; the Optical designer\u2019s global search brings a design that breaks the limits set on its values within them, as the local optimiser does; the coating designer never hands back a stack worse than it was given, and a blank thickness starts at a quarter wave.',
     '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',
     'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',
@@ -56850,7 +57151,7 @@ function runInWorker(code, lang, say, onLog) {
   const w = scriptWorker();
   if (!w) return null;
   return new Promise(resolve => {
-    const id = ++SCRIPT_W.seq, run = { id, lang, logs: [], t0: performance.now(), resolve, start: snapshot() };
+    const id = ++SCRIPT_W.seq, run = { id, lang, logs: [], t0: performance.now(), resolve, start: steadySnapshot() };
     SCRIPT_W.run = run;
     const end = R => { if (SCRIPT_W.run !== run) return; SCRIPT_W.run = null; resolve(R); };
     w.onmessage = e => {
@@ -56876,11 +57177,25 @@ function runInWorker(code, lang, say, onLog) {
     w.postMessage({ t: 'run', id, proj: JSON.stringify(serialize()), mods: modDelta(w), code: String(code), lang, py: pyDir() });
   });
 }
+/* the bench as a script's run compares it, before and after: the values the sweeps playing move left out (they change
+   at every frame of the clock, which is not the bench being changed: compared, a script's changes were never taken up
+   while a sweep played) */
+function steadySnapshot() {
+  if (!playing.size) return snapshot();
+  const S = JSON.parse(snapshot());
+  for (const { id, path } of playing.values()) {
+    const e = S.e.find(x => x.id === id), k = path.split('.');
+    let o = e;
+    for (let i = 0; o && i < k.length - 1; i++) o = o[k[i]];
+    if (o && typeof o === 'object') o[k[k.length - 1]] = null;
+  }
+  return JSON.stringify(S);
+}
 /* the end of a run in the worker, on the page: its bench taken up (one change, Undo puts it back) if it changed it
    and this bench has not been changed meanwhile; then what it asked of the page (a tab shown, a part selected, sweeps paused) */
 function scriptTakeUp(m, start) {
   const P = window.JEKray;
-  if (m.bench && snapshot() !== start) return 'The bench was changed while the script ran, so what the script changed was not applied: run it again to apply it.';
+  if (m.bench && steadySnapshot() !== start) return 'The bench was changed while the script ran, so what the script changed was not applied: run it again to apply it.';
   if (m.bench) adoptBench(JSON.parse(m.bench), m.whole);
   if (m.tab && !m.whole) P.showTab(m.tab);
   for (const [op, name, tab] of m.ops || []) { if (op === 'select') P.select(name, tab || undefined); else if (op === 'pause') P.sweepPause(); }
@@ -57800,6 +58115,9 @@ function exerciseOptimise() { if (EX && EX.ex.optimiser) exOptimise(); }
 function exOptimise() {
   if (!designPro('optimise a design')) return;
   track('exercise', EX.ex.id + '.optimise');
+  // one Undo step, as the bench's own optimiser is (counted as a change to the exercise there), taken before the
+  // search's ranges go on the parts so that Undo does not bring them back
+  checkpoint();
   const vars = [], terms = [];
   const keep = [];
   for (const [n, R] of Object.entries(EX.ex.optimiser)) {
@@ -57813,7 +58131,7 @@ function exOptimise() {
   setTimeout(() => {
     try { optimiseMany(vars, terms); } catch (err) { unkeep(); toast('The optimiser could not finish: ' + err.message, true); return; }
     unkeep();
-    EX.changes++; changed(true);
+    changed(true);
   }, 30);
 }
 
@@ -58656,11 +58974,12 @@ function scriptWorkerMain() {
     post(Object.assign({ t: 'done', R: { result: res, logs: R.logs, error: R.error, traceback: R.traceback, ms: R.ms }, saves: kept }, out));
   };
 }
-/* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
+/* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it (by the board as the light
+   meets it: volLightBox) */
 function volOut(R, key, vol, transfer) {
   const V = volData(R.segs, vol.tab, vol.bb, null);
   for (const v of V.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
-  return { key, tab: vol.tab, bb: vol.bb, V };
+  return { key, tab: vol.tab, bb: volLightBox(vol.bb, lastTrace.beams, popSources()), V };
 }
 function workerMain() {
   let bench = { key: null, R: null };
@@ -58757,6 +59076,7 @@ function fwPackRun(R, transfer) {
       const bm = sg.draw.cv.transferToImageBitmap();
       transfer.push(bm);
       draw = Object.assign({}, sg.draw, { cv: bm });
+      if (sg.draw.lin) transfer.push(sg.draw.lin.buffer, sg.draw.gs.buffer);
     }
     return { i: sg.i, src: sg.src.id, eng: sg.eng, F0: sg.F0, root: sg.root, clipped: sg.clipped, repr: sg.repr, boost: sg.boost, mode: sg.mode, coh: sg.coh, draw };
   });
@@ -59202,6 +59522,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     exerciseLeave() { exerciseLeave(true); },
     exerciseCheck() { exerciseTick(); const E = exerciseOn(); return E ? E.solved : null; },
     exerciseAnswer: id => { const x = exerciseById(id); return x ? JSON.parse(JSON.stringify(x.answer)) : null; },
+    exerciseOffersOptimiser: id => { const x = exerciseById(id); return !!(x && x.optimiser); },
     exerciseOptimise() { exerciseOptimise(); },
     lastTrace() { return lastTrace; },
     popCore: { popFieldSeries, setBabN: n => { setBAB_N(n); }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,

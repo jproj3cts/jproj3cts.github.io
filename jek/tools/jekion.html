@@ -848,8 +848,6 @@
   .rt-home { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; }
   .rt-home .ic { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
   .rt-home[hidden], .rt-home [hidden] { display: none !important; }
-  .rt-homebtn { display: inline-grid; place-items: center; flex: none; }
-  .rt-homebtn .ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
   .rt-hhead { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-hhead h1 { margin: 0; font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rt-hmark { font-weight: 700; letter-spacing: 0.01em; padding-right: 0.5rem; margin-right: 0.25rem; border-right: 1px solid var(--jek-line); }
@@ -1090,14 +1088,18 @@
   .rt-app .rt-stage { height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
   .rt-app .rt-stage:focus-within { box-shadow: inset 0 0 0 2px var(--jek-cyan); }
   .rt-app .rt-panel { max-height: none; min-height: 0; border-radius: 0; box-shadow: none; border-width: 0 0 0 1px; }
-  .rt-panel .rt-about { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); max-width: none; }
-  .rt-panel .rt-about p { max-width: none; }
-  .rt-panel .rt-about summary { width: auto; }
   /* the page does not scroll: the tool is the whole window (on a wide screen) */
   @media (min-width: 961px) {
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
+  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
+  .rt-space:hover { background: var(--jek-well); text-decoration: none; }
+  .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  /* on a phone the bar is full: the mark alone (its name in its title and label) */
+  @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
+  .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
   .rt-title {
     flex: 1 1 auto; margin: 0; text-align: center; font-size: 1.3rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; color: var(--jek-ink);
   }
@@ -5033,7 +5035,7 @@ const USAGE_CLICKS = {
   btnView3d: ['view', '3d'], btnMeasure: ['view', 'measure'], btnPlayAll: ['sweep', 'all'], btnOptimise: ['optimise', 'bench'], btnTol: ['tolerance', 'bench'],
   btnShare: ['share', 'link'], btnSave: ['save', 'file'], btnSnaps: ['save', 'versions'], btnOpen: ['import', 'jekray'], btnImport: ['import', 'zmx'], btnImportStl: ['import', 'stl'],
   btnExportZmx: ['export', 'zmx'], btnHelp: ['help', 'shortcuts'], btnNews: ['news', ''], btnCite: ['help', 'cite'], btnBug: ['help', 'bug'], btnExamples: ['help', 'examples'],
-  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
+  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnSpace: ['cloud', 'home'],
   btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
 };
 /* Where a visit came from: the tag on the link that brought it (?src=ig-spectrometer, from a post), or the

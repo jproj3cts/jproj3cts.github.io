@@ -2,7 +2,8 @@ import { TEST_MODE, clamp } from '../core/constants.js';
 import { m2Of } from '../core/pulses.js';
 import { isHigherMode, srcModes } from '../core/beams-hom.js';
 import { V, project } from '../state/project.js';
-import { getEl } from '../state/elements.js';
+import { fieldDec, getEl, lightOf } from '../state/elements.js';
+import { popSliceImage } from '../engines/volume.js';
 import { lastTrace } from '../engines/trace.js';
 import { MODS } from '../core/modulators.js';
 import { DPR, H, W, clipSegPlanes, ctx, glowA, glowOp, lightLayer, requestRender, segPlanes, sx, sy } from './render.js';
@@ -163,7 +164,7 @@ export function drawPop() {
   // The field is drawn once for a view, on a layer of its own (thousands of slices). While the
   // view moves (a pan, a zoom) the layer is moved and scaled to match, and drawn afresh once
   // the view has settled, as the rays' layer is: a drag stays smooth however many slices there are.
-  const frameKey = [W, H, DPR, project.tab, lightLayer].join('|'), key2 = [V().cx, V().cy, V().scale, frameKey].join('|');
+  const frameKey = [W, H, DPR, project.tab, lightLayer, lightOf().scale].join('|'), key2 = [V().cx, V().cy, V().scale, frameKey].join('|');
   const L = popLayer, same = L.R === R && L.T === lastTrace && L.frame === frameKey;
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -201,9 +202,11 @@ function drawPopOn(c, R) {
   c.imageSmoothingEnabled = true;
   // each segment cut along the surfaces it runs between (see segPlanes), its end slices drawn on past its ends to meet them
   const TB = lastTrace.beams || [], at = new Map(TB.map((b, i) => [[b.x0, b.y0, b.dx, b.dy].join(','), i]));
+  const dec = fieldDec(lightOf().scale);
   for (const sg of R.segs) {
     const D = sg.draw, b = sg.b;
     if (!D || b.bench !== project.tab) continue;
+    if (D.lin && D.dec !== dec) { D.cv = popSliceImage(D.lin, D.gs, D.rgb, dec); D.dec = dec; }   // drawn again at the scale now chosen
     const i = at.get([b.x0, b.y0, b.dx, b.dy].join(',')), PL = i !== undefined ? segPlanes(TB, i) : { p0: null, p1: null };
     const ts = D.ts, last = ts.length - 1, e0 = PL.p0 ? Math.min(5, PL.p0.tan) * D.Ys[0] : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * D.Ys[last] : 0;
     c.save();

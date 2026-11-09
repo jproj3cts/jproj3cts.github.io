@@ -17,7 +17,7 @@ import { PALETTE_NAMES, PART_DRAG } from './experimental.js';
 import { fillPicker, picker, pickerShown } from './picker.js';
 import { fillRail, flyShown } from './rail.js';
 import { account, api, showSubscribe } from '../io/account.js';
-import { cloudOn, cloudPlace, fillHome, openHome, personalWs } from '../io/cloud.js';
+import { cloudOn, openSpace, personalWs } from '../io/cloud.js';
 import { openZmx } from './tours.js';
 
 /* ---------- My parts (JEKrayPro) ----------
@@ -40,7 +40,6 @@ export function loadMine(force) {
 }
 export function mineChanged() {
   if (MINE.list) MINE.list.sort((a, b) => a.name.localeCompare(b.name));
-  if (!document.getElementById('home').hidden && cloudPlace.view === 'parts') fillHome();
   if (!picker.hidden) fillPicker(picker.querySelector('.rt-psearch') ? picker.querySelector('.rt-psearch').value : '');
   fillRail();
 }
@@ -106,8 +105,7 @@ export async function saveToMine(list, opts) {
     const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Optical design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
     if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
-    else if (!document.getElementById('home').hidden && cloudPlace.view === 'parts' && cloudPlace.ws === w.id) fillHome();
-    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on My benches, under ' + w.name + ' › Team parts');
+    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on JEKspace (My benches), under ' + w.name + ' › Team parts');
     return p;
   } catch (err) {
     if (err.status === 402) { showSubscribe(); return; }
@@ -195,7 +193,7 @@ export function mineBody(after) {
     sel.length ? 'Keep the selection (' + sel.length + ') in My parts' : 'Select parts on the bench to keep them here'), 'keep parts in My parts');
   const zmx = proMark(h('button', { type: 'button', class: 'rt-btn rt-pzmx', title: 'Optics makers publish their lenses, mirrors and beam splitters as .zmx files',
     onclick: e => { e.stopPropagation(); if (!MINE.active) { showSubscribe(); return; } pickerShown(false); flyShown(null); openZmx(true); } }, 'Import .zmx files…'), 'keep parts in My parts');
-  const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); Object.assign(cloudPlace, { view: 'parts', q: '', history: null, toParts: true }); openHome(); } }, 'Manage My parts ›');
+  const manage = h('button', { type: 'button', class: 'rt-link rt-pmanage', onclick: e => { e.stopPropagation(); pickerShown(false); flyShown(null); openSpace('parts'); } }, 'Manage My parts ›');
   const out = [h('div', { class: 'rt-pkeeprow' }, keep, zmx, manage, MINE.active ? null : h('span', null, 'Keeping new parts needs JEKrayPro.'))];
   if (!MINE.list.length) {
     out.push(helpLine('Nothing kept yet: right-click a part and choose Save to My parts.', ['Nothing kept yet. Set up a part as you want it (a lens of your own, an imported maker’s part, a tuned laser) or a whole assembly, select it, then right-click and choose Save to My parts. It is then here on every bench, on any computer.'], 'rt-pnone'));

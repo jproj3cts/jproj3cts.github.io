@@ -20,7 +20,7 @@ import { wirePicker } from './picker.js';
 import { wireNews, openGallery, APP_VERSION } from './news.js';
 import { wireScripts, runScript } from './scripts.js';
 import { V3D, wireView3d } from './view3d.js';
-import { openDemo, openProjectData, restoreSaved, scheduleSave, wireOpen } from '../io/open.js';
+import { newProject, openDemo, openProjectData, restoreSaved, scheduleSave, wireOpen } from '../io/open.js';
 import { accountLoaded, wireAccount } from '../io/account.js';
 import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
 import { exportData, wireDataExport } from '../io/data-export.js';
@@ -100,11 +100,13 @@ const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]d
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
-// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens My benches
+// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens JEKspace, where the
+// benches are; #new (JEKspace's New, for someone with nowhere in the cloud to put it) starts a new bench
 const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/), benchesAt = !TEST_MODE && !EMBED && location.hash === '#benches';
 const cloudHash = async (cl, benches) => { window.history.replaceState(null, '', location.pathname); await accountLoaded; if (cl) openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); else if (benches) openCloudList(); };
 if (cloudAt || benchesAt) cloudHash(cloudAt, benchesAt);
-if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl || location.hash === '#benches') cloudHash(cl, location.hash === '#benches'); });
+if (!TEST_MODE && !EMBED && location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newProject(); }
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl || location.hash === '#benches') cloudHash(cl, location.hash === '#benches'); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newProject(); } });
 // the tests' and the console's handle on the tool
 window.JEKion = {
   version: APP_VERSION,

@@ -468,7 +468,7 @@ export function setStatus(t) {
 let toastTimer = null;
 export function toast(msg, bad) {
   const ws = document.getElementById('lensWs');
-  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : document.getElementById('home').hidden ? 'toast' : 'homeToast');
+  const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : 'toast');
   t.textContent = msg;
   t.classList.toggle('bad', !!bad);
   t.classList.add('show');

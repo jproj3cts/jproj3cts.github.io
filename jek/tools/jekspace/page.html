@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" data-rt-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- What this page may load and talk to: itself and the JEK API (the same accounts as the apps). Its code is inline. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>JEKspace</title>
+<meta name="description" content="JEKspace: the JEK apps, JEKray and JEKion, and every bench you keep in the cloud, in one place, with your account, plan and teams.">
+<script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
+<script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
+<style>
+{{STYLE}}
+</style>
+</head>
+<body class="space-app">
+
+  <!-- JEKspace: the apps and every cloud bench, on a page of its own -->
+  <section class="rt-home space-home" id="home" aria-labelledby="homeTitle">
+    <header class="rt-hhead">
+      <h1 id="homeTitle"><a class="rt-hmark space-mark" href="/jek/tools/jekspace.html" title="JEKspace: your apps and benches">JEK<b>space</b></a> <span id="homeWhere">Your apps and benches</span></h1>
+      <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
+      <button class="rt-btn" id="homeApps" type="button" aria-haspopup="menu" aria-expanded="false" title="Open one of the JEK apps, in its own tab">Apps ▾</button>
+      <button class="rt-btn rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
+      <button class="rt-btn primary" id="homeNew" type="button" aria-haspopup="menu" aria-expanded="false" title="A new bench, in one of the apps">New ▾</button>
+      <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="menu" aria-expanded="false">Sign in</button>
+    </header>
+    <div class="rt-hbody">
+      <nav class="rt-hrail" id="homeRail" aria-label="Places"></nav>
+      <div class="rt-hmain" id="homeMain">
+        <div class="rt-hbar">
+          <p class="rt-hcrumbs" id="homeCrumbs"></p>
+          <span class="rt-htools" id="homeTools"></span>
+        </div>
+        <p class="rt-cloudnote" id="homeNote" hidden></p>
+        <div id="homeList" class="rt-hlist"><p class="rt-hempty">Loading…</p></div>
+      </div>
+    </div>
+    <div class="rt-toast" id="homeToast" role="status"></div>
+  </section>
+
+  <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
+    <h2 id="uniTitle">University licence</h2>
+    <div id="uniBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="diffDialog" aria-labelledby="diffTitle">
+    <h2 id="diffTitle">Compare</h2>
+    <div id="diffBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="diffClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="mergeDialog" aria-labelledby="mergeTitle">
+    <h2 id="mergeTitle">Merge</h2>
+    <div id="mergeBody"></div>
+    <div class="rt-actions"><button class="rt-btn" id="mergeCancel">Cancel</button><button class="rt-btn primary" id="mergeGo">Merge</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">
+    <h2 id="teamTitle">Team</h2>
+    <div id="teamBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="teamClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Delete your account</h2>
+    <div id="deleteBody"></div>
+    <p><label for="deleteConfirm">To confirm, type <b>delete my account</b></label><br><input id="deleteConfirm" autocomplete="off" spellcheck="false"></p>
+    <p class="rt-error" id="deleteError" hidden></p>
+    <div class="rt-actions"><button class="rt-btn" id="deleteCancel">Keep my account</button><button class="rt-btn primary danger" id="deleteGo" disabled>Delete my account</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
+    <h2 id="subTitle">JEKrayPro</h2>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders here. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
+    <div id="subPlans"></div>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
+    <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
+  </dialog>
+
+<script>
+{{SCRIPT}}
+</script>
+</body>
+</html>

@@ -44,6 +44,7 @@ The site should read as written by the people who build the things on it. Before
 | Docs parameter tables / AI guide (generated) | `_data/jekray_params.json`, `jek/tools/jekray-ai-guide.md` |
 | JEKion (source) | `jek/tools/jekion/src/` — built into `jek/tools/jekion.html` (committed); shares JEKray's modules by path in its `order.json`; tests `jek/tools/jekion/test/` + `jek/tools/jekion-tests.html`; demos `jek/tools/demos/*.jekion`; docs `jek/docs/jekion/` (`_data/jekion_docs.yml`, `docs: jekion` in front matter) |
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
+| JEKspace, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jekspace/` — built into `jek/tools/jekspace.html` (committed), as JEKion is; `README.md` there; tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jekspace.md` |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |
@@ -174,7 +175,7 @@ through `core/hooks.js`.
 - Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
   `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`
   (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` and
-  `jekion-tests.html` (nav + stamp) and `jekray/page.html`, `jekion/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs`
+  `jekion-tests.html` (nav + stamp) and `jekray/page.html`, `jekion/page.html`, `jekspace/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs`
   checks all of it. Preview: README.
 - JEKion shares JEKray's modules as they are (`core/constants.js`, `hooks.js`, `numeric.js`, `datafiles.js`, `src-tag.js`,
   `step.js`, `worker/shim.js`, `ui/pro.js`, `io/usage.js`, `io/step-reader.js`): a change to one of those is a change
@@ -182,6 +183,13 @@ through `core/hooks.js`.
   reaches the page only through `core/hooks.js` (JEKion installs its own entries: `ionChanged`, `apiBase`, `usageTier`…).
   Top-level names must be unique across both tools' modules in JEKion's build. Accounts, usage counts and the data
   writers are JEKray's; JEKion's usage tokens are prefixed `ion-`.
+- My benches is JEKspace (`jek/tools/jekspace.html`): every app's My benches opens it in the tab named `jekspace`
+  (JEKray `openSpace` in `io/cloud.js`, JEKion `openCloudList`), and it opens a bench in its app's named tab at
+  `#cloud=<id>[@v][:lens|rf|coat]`, or `#new[=lens|rf|coat]` (JEKray `startNewBench` in `ui/tours.js`, JEKion
+  `newProject`). Its account module is a copy of JEKray's account core (`io/account.js` up to the sign-in prompts):
+  a change to sign-in, plans, billing or teams there goes into `jekspace/src/io/account.js` too. JEKray keeps the
+  home page's CSS (`.rt-home`, `.rt-h*` in `style.css`), which JEKspace is styled with, and the merge dialog for a
+  save conflict; comparing versions and merging forks are JEKspace's.
 - Site search: the box in the nav bar (`_includes/site-nav.html`, `.nav-search`) sends `?q=` to `jek/search-results.html`, which reads
   only the pages listed in its `PAGES`: add a new page there.
 - Thorlabs/vendor files are not committed; reproduce them in tests with synthetic text.

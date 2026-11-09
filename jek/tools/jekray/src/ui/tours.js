@@ -236,6 +236,8 @@ function fillMetrics(targetSel, metricSel, famBox) {
   for (const m of all) if (m.fam === famBox.dataset.fam) metricSel.append(h('option', { value: m.key }, m.label));
 }
 
+/* a new bench, from JEKspace's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
+export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); }
 export function newProject() {
   pauseAll();
   checkpoint();
@@ -565,7 +567,7 @@ export function wireTours() {
 
   document.getElementById('newCancel').addEventListener('click', () => newDlg.close());
 
-  document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); });
+  document.getElementById('newConfirm').addEventListener('click', () => { newDlg.close(); startNewBench(); });
 
   if (!IN_WORKER) {
     const cv = document.createElement('canvas').getContext('2d');

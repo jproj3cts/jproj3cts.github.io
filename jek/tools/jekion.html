@@ -2034,7 +2034,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKray’s My benches page (it opens in the JEKray tab)">My benches…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKspace (it opens in its own tab)">My benches on JEKspace…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this bench in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
@@ -6667,6 +6667,7 @@ async function importCad(file, at) {
 const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
   ['1.0', APP_DATE, [
+    '<b>JEKspace</b>, the JEK hub: File \u203a My benches on JEKspace opens <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
@@ -7496,15 +7497,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKray's My benches page: places and folders down the
-   side, the benches as cards with their pictures, each one's history and forks, the bin, parts and links. It
-   opens in the JEKray tab (one tab each, named, so the tools hand benches to each other without multiplying
-   tabs), and a JEKion bench chosen there opens back here. */
+   The home of every bench, JEKion's with JEKray's, is JEKspace (jek/tools/jekspace.html), the JEK hub: places and
+   folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
+   links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
+   each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
+const SPACE_URL = '/jek/tools/jekspace.html';
 function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
-  if (!account) { showSignIn('cloud', 'open your cloud benches'); return; }
   track('view', 'ion-benches');
-  const w = window.open(JEKRAY_URL + '#benches', 'jekray'); if (w) w.focus();
+  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 function cloudGates() {
@@ -7599,11 +7600,13 @@ const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]d
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
-// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens My benches
+// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens JEKspace, where the
+// benches are; #new (JEKspace's New, for someone with nowhere in the cloud to put it) starts a new bench
 const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/), benchesAt = !TEST_MODE && !EMBED && location.hash === '#benches';
 const cloudHash = async (cl, benches) => { window.history.replaceState(null, '', location.pathname); await accountLoaded; if (cl) openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); else if (benches) openCloudList(); };
 if (cloudAt || benchesAt) cloudHash(cloudAt, benchesAt);
-if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl || location.hash === '#benches') cloudHash(cl, location.hash === '#benches'); });
+if (!TEST_MODE && !EMBED && location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newProject(); }
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl || location.hash === '#benches') cloudHash(cl, location.hash === '#benches'); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newProject(); } });
 // the tests' and the console's handle on the tool
 window.JEKion = {
   version: APP_VERSION,

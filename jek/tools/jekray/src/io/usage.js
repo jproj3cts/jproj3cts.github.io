@@ -64,7 +64,7 @@ const USAGE_CLICKS = {
   btnView3d: ['view', '3d'], btnMeasure: ['view', 'measure'], btnPlayAll: ['sweep', 'all'], btnOptimise: ['optimise', 'bench'], btnTol: ['tolerance', 'bench'],
   btnShare: ['share', 'link'], btnSave: ['save', 'file'], btnSnaps: ['save', 'versions'], btnOpen: ['import', 'jekray'], btnImport: ['import', 'zmx'], btnImportStl: ['import', 'stl'],
   btnExportZmx: ['export', 'zmx'], btnHelp: ['help', 'shortcuts'], btnNews: ['news', ''], btnCite: ['help', 'cite'], btnBug: ['help', 'bug'], btnExamples: ['help', 'examples'],
-  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
+  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnSpace: ['cloud', 'home'],
   btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
 };
 /* Where a visit came from: the tag on the link that brought it (?src=ig-spectrometer, from a post), or the

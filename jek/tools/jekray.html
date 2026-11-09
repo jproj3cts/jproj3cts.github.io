@@ -879,8 +879,6 @@
   .rt-home { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; }
   .rt-home .ic { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
   .rt-home[hidden], .rt-home [hidden] { display: none !important; }
-  .rt-homebtn { display: inline-grid; place-items: center; flex: none; }
-  .rt-homebtn .ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
   .rt-hhead { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-hhead h1 { margin: 0; font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .rt-hmark { font-weight: 700; letter-spacing: 0.01em; padding-right: 0.5rem; margin-right: 0.25rem; border-right: 1px solid var(--jek-line); }
@@ -1129,6 +1127,13 @@
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
+  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
+  .rt-space:hover { background: var(--jek-well); text-decoration: none; }
+  .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  /* on a phone the bar is full: the mark alone (its name in its title and label) */
+  @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
+  .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
   .rt-title {
     flex: 1 1 auto; margin: 0; text-align: center; font-size: 1.3rem; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em; color: var(--jek-ink);
   }
@@ -1992,10 +1997,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
-      <!-- the bar: the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
+      <!-- the bar: JEKspace's mark (every bench of every app, in its own tab), the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
            bench's name, then Add part, Share, Save, Examples, the cart and the account. On a phone: the name,
            + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
+        <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jekspace.html" target="jekspace" aria-label="JEKspace" title="JEKspace: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKspace</span></a>
         <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
         <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
         <div class="rt-menubar" role="group" aria-label="Menus">
@@ -2159,7 +2165,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         </div>
         <div class="rt-more rt-file">
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
-          <button class="rt-btn rt-icon quiet rt-tbi rt-cloud rt-homebtn" id="btnHome" type="button" data-icon="cloud" title="My benches: every cloud bench, of every app, on JEKspace (in its own tab)" aria-label="My benches on JEKspace" hidden></button>
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
@@ -54739,7 +54744,7 @@ const USAGE_CLICKS = {
   btnView3d: ['view', '3d'], btnMeasure: ['view', 'measure'], btnPlayAll: ['sweep', 'all'], btnOptimise: ['optimise', 'bench'], btnTol: ['tolerance', 'bench'],
   btnShare: ['share', 'link'], btnSave: ['save', 'file'], btnSnaps: ['save', 'versions'], btnOpen: ['import', 'jekray'], btnImport: ['import', 'zmx'], btnImportStl: ['import', 'stl'],
   btnExportZmx: ['export', 'zmx'], btnHelp: ['help', 'shortcuts'], btnNews: ['news', ''], btnCite: ['help', 'cite'], btnBug: ['help', 'bug'], btnExamples: ['help', 'examples'],
-  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnHome: ['cloud', 'home'],
+  btnPacks: ['mod', 'packs'], btnScripts: ['mod', 'scripts'], btnCloudList: ['cloud', 'list'], btnCloudSave: ['cloud', 'save'], btnCloudFork: ['cloud', 'fork'], btnSpace: ['cloud', 'home'],
   btnCart: ['quote', 'cart'], btnAddPart: ['search', 'picker'],
 };
 /* Where a visit came from: the tag on the link that brought it (?src=ig-spectrometer, from a post), or the
@@ -55283,13 +55288,12 @@ async function mergeDialog(o) {
     }
   };
 }
-/* the toolbar's My benches button comes and goes with the account; the File menu's cloud items stay, greyed when not possible */
+/* the File menu's cloud items: there with accounts, greyed when not possible (JEKspace's mark at the bar's left is always there) */
 function cloudGates() {
-  const on = cloudOn(), show = accountsOn(), why = proWhy();
+  const show = accountsOn(), why = proWhy();
   loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
   // the badges (Pro, Free account) on what needs them, Share link among them, shown while it is needed
   needsShown();
-  document.getElementById('btnHome').hidden = !on;
   for (const id of ['btnCloudList', 'btnCloudSave', 'btnCloudFork']) document.getElementById(id).hidden = !show;
   if (!show) return;
   gateItem(document.getElementById('btnCloudList'), account ? '' : why, 'account');
@@ -55316,7 +55320,9 @@ function wireCloud() {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
-    document.getElementById('btnHome').addEventListener('click', () => openSpace());
+    // JEKspace's mark at the bar's far left, always there (JEKspace signs people in itself): its own tab, the same one
+    // each time, brought to the front
+    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
     document.getElementById('btnCloudFork').addEventListener('click', async e => {
       if (gated(e.currentTarget) || !cloud) return;
@@ -55612,6 +55618,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
     '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',

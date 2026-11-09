@@ -2013,6 +2013,14 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     .rt-sidetab .chev { transform: none; }
     .rt-sidetab.open .chev { transform: scaleX(-1); }
   }
+  /* the cut's position: a slider, a number and a step either way, beside the 2D / 3D switch (words alone for a planar or cylindrical array) */
+  .ion-cut { position: absolute; right: 5.4rem; bottom: 0.45rem; z-index: 6; display: flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.45rem; font: 0.7rem var(--jek-mono); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 3px; }
+  .ion-cut input[type=range] { width: 7rem; margin: 0; accent-color: var(--jek-cyan); }
+  .ion-cut input[type=text] { width: 3.8rem; padding: 0.1rem 0.3rem; font: inherit; text-align: right; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
+  .ion-cut button { width: 1.3rem; height: 1.3rem; padding: 0; font: inherit; line-height: 1; color: inherit; background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; cursor: pointer; }
+  .ion-cut button:hover { border-color: var(--jek-cyan); }
+  .ion-cut.flat input, .ion-cut.flat button, .ion-cut.flat .unit { display: none; }
+  @media (max-width: 760px) { .ion-cut { display: none; } }
 </style>
 </head>
 <body>
@@ -2178,6 +2186,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <canvas id="bench" tabindex="0" aria-label="The bench: electrodes, ions and their paths through the fields. Click something to select it."></canvas>
         <div class="ion-simbar" id="simBar" role="status" aria-live="polite"><span id="simText"></span><button type="button" class="rt-btn" id="simStop" hidden>Stop</button></div>
         <div class="ion-legend" id="legend" hidden></div>
+        <div class="ion-cut" id="cutCtl" title="The cut through the array: slide it, type where, or step it a grid spacing (Page up, Page down); View › Cut picks the plane"><span id="cutLabel"></span><button type="button" id="cutDown" aria-label="Move the cut one grid spacing down">−</button><input type="range" id="cutRange" aria-label="The cut’s position"><input type="text" id="cutAt" inputmode="decimal" spellcheck="false" aria-label="The cut’s position, mm"><button type="button" id="cutUp" aria-label="Move the cut one grid spacing up">+</button><span class="unit">mm</span></div>
         <div class="rt-menu rt-ctx" id="ctxMenu" role="menu" hidden></div>
         <div class="rt-coords" id="coords"></div>
         <button type="button" class="rt-sidetab" id="btnSideTab" aria-pressed="false" aria-label="Bench settings" title="Bench settings: the array, the gas, the magnetic field, flying and display"><svg class="chev" viewBox="0 0 10 16" aria-hidden="true"><path d="M7 3L2.5 8L7 13"/></svg></button>
@@ -5210,14 +5219,19 @@ function helpLine(short, long, cls, style) {
 }
 function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 function beginEdit() { if (!editing) { checkpoint(); editing = true; } }
-function endEdit() { editing = false; }
+function endEdit() { editing = false; flushPanel(); }
+/* a rebuild asked for while a number is being typed (a flight's results arriving after each keystroke) waits until
+   the field is left: rebuilding would replace the field under the caret, eating what was typed */
+let pendingRender = false;
+const typingHere = () => { const a = document.activeElement; return !!(a && mainPanel && mainPanel.contains(a) && a.tagName === 'INPUT' && a.type === 'text'); };
+function flushPanel() { if (pendingRender && !typingHere()) renderPanel(); }
 const panelChanged = rebuild => hooks.ionChanged(rebuild);
 /* a number typed: onValue as it is typed (a checkpoint taken at the first keystroke), the field redrawn when left */
 function numInput(get, onValue, opts = {}) {
   const inp = h('input', { id: 'rtf' + (++fid), type: 'text', inputmode: 'decimal', spellcheck: 'false', placeholder: opts.placeholder });
   const show = opts.fmt || (v => nf(v, 6));
   if (opts.commit) {
-    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); panelChanged(true); } inp.value = show(get()); });
+    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); inp.blur(); panelChanged(true); } inp.value = show(get()); });
     bindSync(inp, () => { inp.value = show(get()); });
     return inp;
   }
@@ -5286,10 +5300,14 @@ function readout(items, cls) {
   return h('div', { class: 'rt-readout' + (cls ? ' ' + cls : '') }, dl);
 }
 /* every field reads its value again (after a drag, a run) */
-function syncPanel() { for (const r of refs) try { r.sync(); } catch (err) { /* a field gone */ } }
+/* every field shown again from the bench, but not the one being typed in: rewriting it would eat what was typed (a
+   trailing point, a leading minus, the digits of 0.05) and throw the caret to the end */
+function syncPanel() { for (const r of refs) try { if (document.activeElement !== r.node || r.node.tagName === 'BUTTON') r.sync(); } catch (err) { /* a field gone */ } }
 /* the panel rebuilt for what is selected (ui/panels.js says what goes in it) */
-function renderPanel() {
+function renderPanel(force) {
   if (!mainPanel) return;
+  if (!force && typingHere()) { pendingRender = true; syncPanel(); return; }
+  pendingRender = false;
   refs = [];
   const scroll = mainPanel.scrollTop;
   mainPanel.replaceChildren();
@@ -5754,10 +5772,20 @@ function drawScaleBar(c) {
   c.beginPath(); c.moveTo(x, y); c.lineTo(x + px, y); c.moveTo(x, y - 4); c.lineTo(x, y + 4); c.moveTo(x + px, y - 4); c.lineTo(x + px, y + 4); c.stroke();
   c.font = '11px ' + getCss('--jek-mono'); c.textAlign = 'left'; c.textBaseline = 'bottom';
   c.fillText(mm >= 1 ? nf(mm) + ' mm' : nf(mm * 1000) + ' µm', x, y - 5);
-  // the cut
-  const [, , ip] = PLANES[V().plane], G = project.grid;
-  c.textAlign = 'right'; c.fillText(G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.replace('', '').split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' = ' + nf(V().slice) + ' mm', W - 104, y);   // (beside the 2D / 3D switch, in the corner)
   c.restore();
+  cutShown();
+}
+/* the cut's control in the corner: which plane, and for a three-dimensional array where it cuts, as a slider over the
+   array's extent along the plane's perpendicular, a number and a step either way (the one being typed in is left be) */
+function cutShown() {
+  const box = document.getElementById('cutCtl'); if (!box || !project) return;
+  const G = project.grid, [, , ip] = PLANES[V().plane], flat = G.sym !== '3d';
+  box.classList.toggle('flat', flat);
+  document.getElementById('cutLabel').textContent = G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' =';
+  if (flat) return;
+  const lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip], range = document.getElementById('cutRange'), at = document.getElementById('cutAt');
+  range.min = lo; range.max = hi; range.step = G.h; if (document.activeElement !== range) range.value = V().slice;
+  if (document.activeElement !== at) at.value = nf(V().slice, 5);
 }
 function wireRender() {
   // the tool is the whole window: the page itself does not scroll (JEKray's style, html.rt-noscroll)
@@ -5896,7 +5924,17 @@ function benchMenu(X, Y, hit, at) {
 }
 const typingIn = t => !!(t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable));
 /* ---------- the menus and the keyboard ---------- */
+/* the cut moved: by the slider, the number typed, or a step of a grid spacing (also Page up and Page down) */
+function cutTo(v) {
+  const G = project.grid, [, , ip] = PLANES[V().plane], lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip];
+  if (!isFinite(v)) return;
+  V().slice = +Math.max(lo, Math.min(hi, v)).toPrecision(8); changed(false);
+}
 function wireActions() {
+  document.getElementById('cutRange').addEventListener('input', e => cutTo(+e.target.value));
+  document.getElementById('cutAt').addEventListener('change', e => { cutTo(Number(e.target.value)); e.target.blur(); });
+  document.getElementById('cutDown').addEventListener('click', () => cutTo(V().slice - project.grid.h));
+  document.getElementById('cutUp').addEventListener('click', () => cutTo(V().slice + project.grid.h));
   // the menu bar: one open at a time, pointing opens the next (as a desktop menu bar)
   const shows = new Map();
   for (const [bId, mId] of [['btnFile', 'fileMenu'], ['btnEdit', 'editMenu'], ['btnView', 'viewMenu'], ['btnTools', 'toolsMenu'], ['btnHelpMenu', 'helpMenu'], ['btnAcct', 'acctMenu'], ['btnMore', 'moreMenu'], ['btnAdd', 'addMenu']]) {
@@ -5958,7 +5996,7 @@ function wireActions() {
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }
     if (e.key === '1' || e.key === '2' || e.key === '3') { setPlane(['xy', 'xz', 'yz'][+e.key - 1]); return; }
-    if (e.key === 'PageUp' || e.key === 'PageDown') { V().slice = +(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h).toPrecision(8); changed(false); return; }
+    if (e.key === 'PageUp' || e.key === 'PageDown') { cutTo(V().slice + (e.key === 'PageUp' ? 1 : -1) * project.grid.h); return; }
     if (/^Arrow/.test(e.key) && selectedId) {
       const s = selectedItem(); if (!s || s.el.locked) return;
       e.preventDefault();
@@ -6671,6 +6709,7 @@ const NEWS = [
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
+    'The cut\u2019s position is a control in the bench\u2019s corner: a slider over the array, a number, a step either way; it works in the 3D view too. Typing a number into the panel no longer loses what was typed: the field being typed in is left alone while the bench follows, and a flight\u2019s results wait for it to be left before the panel is redrawn.',
     '<b>Cloud benches</b>, as JEKray\u2019s: File \u203a Save to cloud puts the bench in your cloud benches or a team\u2019s, where it saves as you work with its history; My benches opens the home of every bench, JEKray\u2019s page, where a JEKion bench is marked and opens back here; Fork this bench carries on in a new one. A link #cloud=<id> opens a bench here. Saving there is JEKrayPro\u2019s.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
     'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows, in three submenus, Cut, Potential and Paths (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the potential plots along x, y or z through the analysis point; the Notes section is gone; the end-time histogram waits for three ions.',

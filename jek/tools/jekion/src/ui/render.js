@@ -348,10 +348,20 @@ function drawScaleBar(c) {
   c.beginPath(); c.moveTo(x, y); c.lineTo(x + px, y); c.moveTo(x, y - 4); c.lineTo(x, y + 4); c.moveTo(x + px, y - 4); c.lineTo(x + px, y + 4); c.stroke();
   c.font = '11px ' + getCss('--jek-mono'); c.textAlign = 'left'; c.textBaseline = 'bottom';
   c.fillText(mm >= 1 ? nf(mm) + ' mm' : nf(mm * 1000) + ' µm', x, y - 5);
-  // the cut
-  const [, , ip] = PLANES[V().plane], G = project.grid;
-  c.textAlign = 'right'; c.fillText(G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.replace('', '').split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' = ' + nf(V().slice) + ' mm', W - 104, y);   // (beside the 2D / 3D switch, in the corner)
   c.restore();
+  cutShown();
+}
+/* the cut's control in the corner: which plane, and for a three-dimensional array where it cuts, as a slider over the
+   array's extent along the plane's perpendicular, a number and a step either way (the one being typed in is left be) */
+export function cutShown() {
+  const box = document.getElementById('cutCtl'); if (!box || !project) return;
+  const G = project.grid, [, , ip] = PLANES[V().plane], flat = G.sym !== '3d';
+  box.classList.toggle('flat', flat);
+  document.getElementById('cutLabel').textContent = G.sym === 'cyl' ? 'x–r plane (cylindrical)' : G.sym === 'planar' ? 'x–y plane (planar)' : V().plane.split('').join('–') + ' plane at ' + ['x', 'y', 'z'][ip] + ' =';
+  if (flat) return;
+  const lo = [G.x0, G.y0, G.z0][ip], hi = [G.x1, G.y1, G.z1][ip], range = document.getElementById('cutRange'), at = document.getElementById('cutAt');
+  range.min = lo; range.max = hi; range.step = G.h; if (document.activeElement !== range) range.value = V().slice;
+  if (document.activeElement !== at) at.value = nf(V().slice, 5);
 }
 export function wireRender() {
   // the tool is the whole window: the page itself does not scroll (JEKray's style, html.rt-noscroll)

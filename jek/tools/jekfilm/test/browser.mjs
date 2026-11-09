@@ -33,14 +33,14 @@ export async function check(pw, base, shots) {
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
       const band = await p.evaluate(() => ({ from: (document.querySelector('input[aria-label="Smallest angle of incidence (degrees)"]') || {}).value, to: (document.querySelector('input[aria-label="Largest angle of incidence (degrees)"]') || {}).value,
-        heads: [...document.querySelectorAll('#filmFigures th')].map(t => t.textContent), spec: window.JEKfilm.spec() }));
-      ok('Angles as a band: from and to (40° to 50° to start), judged and shown there', band.from === '40' && band.to === '50' && band.spec.theta0 === 40 && band.spec.theta === 50 && band.heads[0] === 'R mean at 40°' && band.heads.includes('R max at 50°'), JSON.stringify(band));
+        rows: [...document.querySelectorAll('#filmFigures tbody th')].map(t => t.textContent), angs: [...document.querySelectorAll('#filmAngleFigures tbody th')].map(t => t.textContent), spec: window.JEKfilm.spec() }));
+      ok('Angles as a band: from and to (40° to 50° to start), judged and shown there', band.from === '40' && band.to === '50' && band.spec.theta0 === 40 && band.spec.theta === 50 && band.rows.join() === '40°,50°' && band.angs.join() === '0°,40°,50°', JSON.stringify(band));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'upto');
       await p.selectOption('select[aria-label="The substrate"]', 'g:Germanium');
       ok('Germanium in the visible: said to be opaque there', /Germanium is not transparent at 550 nm/.test(await p.evaluate(() => document.querySelector('.film-warn') ? document.querySelector('.film-warn').textContent : '')), 'no warning');
       await p.evaluate(c => window.JEKfilm.load(c), COATING);
-      const l = await p.evaluate(() => ({ name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, fig: document.getElementById('filmFigures').innerText, csv: window.JEKfilm.csv().split('\r\n').slice(0, 2) }));
-      ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /R at 1064 nm/.test(l.fig) && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
+      const l = await p.evaluate(() => ({ name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, fig: document.getElementById('filmAngleFigures').innerText, heads: [...document.querySelectorAll('#filmFigures thead th')].map(t => t.textContent), csv: window.JEKfilm.csv().split('\r\n').slice(0, 2) }));
+      ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /At λ₀ = 1064 nm/.test(l.fig) && l.heads.join('|') === 'Angle|R mean (%)|R max (%)|R min (%)' && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
       // renamed in the bar
       await p.fill('#filmName', 'V-coat, fused silica'); await p.press('#filmName', 'Enter'); await p.waitForTimeout(100);
       ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | JEKfilm'), 'not renamed');

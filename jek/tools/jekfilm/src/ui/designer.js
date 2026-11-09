@@ -3,7 +3,7 @@ import { hooks } from '../../../jekray/src/core/hooks.js';
 import { designPro, proMark } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { COAT_MATERIALS, qwot } from '../../../jekray/src/core/coatings.js';
-import { coatAngles, coatCurve, coatOptimise, coatSummary, coatWant } from '../../../jekray/src/core/coatdesign.js';
+import { coatAngles, coatCurve, coatMerit, coatOptimise, coatWant, stackR } from '../../../jekray/src/core/coatdesign.js';
 import { FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
 import { linePlotSvg } from './plot.js';
 import { toast } from './bar.js';
@@ -43,7 +43,7 @@ export const canUndo = () => filmPast.length > 0, canRedo = () => filmFuture.len
 const dsFmt = (v, p) => (isFinite(v) ? String(+(+v).toPrecision(p || 5)) : '—');
 const dsPct = v => (isFinite(v) ? (100 * v < 0.01 && v > 0 ? '< 0.01' : (100 * v).toPrecision(3)) + ' %' : '—');
 function dsNum(value, set, label, p) {
-  const i = h('input', { type: 'text', inputmode: 'decimal', value: dsFmt(value, p || 6), class: 'rt-lnum', 'aria-label': label, spellcheck: 'false' });
+  const i = h('input', { type: 'text', inputmode: 'decimal', value: p && p.dp !== undefined ? (+value).toFixed(p.dp) : dsFmt(value, p || 6), class: 'rt-lnum', 'aria-label': label, spellcheck: 'false' });
   const go = () => { const v = +i.value; if (i.value.trim() !== '' && isFinite(v)) edit(() => set(v)); else render(); };
   i.addEventListener('change', go);
   i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
@@ -66,8 +66,8 @@ function dsHelp(short, long) {
 export function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
-  const scroll = body.scrollTop, spec = filmSpec(film), sum = coatSummary(film.layers, spec);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(sum), layersCard(spec)));
+  const scroll = body.scrollTop, spec = filmSpec(film);
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(), layersCard(spec)));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -104,38 +104,48 @@ function settingsCard(spec) {
   out.classList.add('rt-lcond');
   return out;
 }
-function figures(sum, spec) {
-  const a0 = spec.theta0 || 0, at = d => (d ? ' at ' + dsFmt(d, 3) + '°' : '');
-  const cols = [['R mean' + at(a0), dsPct(sum.mean)], ['R max' + at(a0), dsPct(sum.worst)]];
-  if (spec.theta > a0) cols.push(['R mean' + at(spec.theta), dsPct(sum.meanAt)], ['R max' + at(spec.theta), dsPct(sum.worstAt)]);
-  cols.push(['R at ' + dsFmt(spec.design, 5) + ' nm' + at(a0), dsPct(sum.design)], ['R bare substrate', dsPct(sum.bare)], ['Merit', dsFmt(sum.merit, 3)]);
-  return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmFigures', 'aria-label': 'Performance' },
-    h('thead', null, h('tr', null, ...cols.map(c => h('th', { scope: 'col' }, c[0])))),
-    h('tbody', null, h('tr', null, ...cols.map(c => h('td', { class: 'mono' }, c[1]))))));
+/* a reflectance as a percentage to three decimals, so a column's figures line up */
+const dsR = v => (isFinite(v) ? (100 * v).toFixed(3) : '—');
+/* a small table under a plot: a heading row, figure rows, and a line of notes under it */
+function miniTable(id, label, heads, rows, foot) {
+  return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id, 'aria-label': label },
+    h('thead', null, h('tr', null, ...heads.map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
+    h('tbody', null, ...rows.map(r => h('tr', null, h('th', { scope: 'row' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))),
+    foot ? h('tfoot', null, h('tr', null, h('td', { colspan: String(heads.length) }, foot))) : null));
 }
 /* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
 export function filmCurves(f) {
   const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
   return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
 }
-function plotsCard(sum) {
-  const C = filmCurves(film), spec = C.spec;
-  const series = [{ label: 'R, ' + dsFmt(spec.theta0, 3) + '°', cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
-  if (C.Rt) series.push({ label: 'R, ' + dsFmt(spec.theta, 3) + '°', cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
+function plotsCard() {
+  const C = filmCurves(film), spec = C.spec, a0 = spec.theta0 || 0, deg = d => dsFmt(d, 3) + '°';
+  const series = [{ label: 'R, ' + deg(a0), cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  if (C.Rt) series.push({ label: 'R, ' + deg(spec.theta), cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
   series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
   const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
   const wrap = h('div', { class: 'rt-lpair' }), a = h('div'), b = h('div'); wrap.append(a, b);
   linePlotSvg(a, { id: 'band', label: 'Reflectance against wavelength', xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%', yr: [0, top], series });
   linePlotSvg(b, { id: 'angle', label: 'Reflectance against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: 'R (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, 100],
     series: [{ label: 'Rs', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
-  return section('Reflectance', wrap, figures(sum, spec));
+  // under the wavelength plot: the band's mean, largest and smallest reflectance at each angle drawn
+  const stat = R => [R.reduce((x, y) => x + y, 0) / R.length, Math.max(...R), Math.min(...R)];
+  const bandRows = [[deg(a0), ...stat(C.R0).map(dsR)], ...(C.Rt ? [[deg(spec.theta), ...stat(C.Rt).map(dsR)]] : [])];
+  const bare = ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2;
+  a.append(miniTable('filmFigures', 'Reflectance over the band', ['Angle', 'R mean (%)', 'R max (%)', 'R min (%)'], bandRows,
+    'Merit ' + dsFmt(coatMerit(film.layers, spec), 3) + ' · bare substrate ' + dsR(bare) + ' %'));
+  // under the angle plot: s, p and their mean at λ₀, square on and at the angles judged
+  const angs = [...new Set([0, a0, spec.theta])], at = (d, pol) => stackR(film.layers, spec.n0, spec.ns, Math.cos(d * Math.PI / 180), spec.design, pol);
+  b.append(miniTable('filmAngleFigures', 'Reflectance at the design wavelength', ['Angle', 'Rs (%)', 'Rp (%)', 'R mean (%)'],
+    angs.map(d => [deg(d), dsR(at(d, 's')), dsR(at(d, 'p')), dsR(at(d, 'avg'))]), 'At λ₀ = ' + dsFmt(spec.design, 5) + ' nm'));
+  return section('Reflectance', wrap);
 }
 function layersCard(spec) {
   const layers = film.layers, S = film.spec;
   const tbl = h('table', { class: 'film-layers', id: 'filmLayers' }), tb = h('tbody');
   tbl.append(h('thead', null,
     h('tr', null, h('th', { class: 'n' }, 'Layer'), h('th', null, 'Material'), h('th', { class: 'n' }, 'n'), h('th', { class: 'n' }, 'Physical thickness (nm)'), h('th', { class: 'n' }, 'Optical thickness (QWOT)'), h('th', { class: 'acts' }, h('span', { class: 'film-sr' }, 'Actions'))),
-    h('tr', { class: 'film-medium' }, h('td', { class: 'n' }, '—'), h('td', null, 'Incident medium'), h('td', { class: 'n mono' }, dsFmt(S.n0, 4)), h('td', { class: 'n' }, '∞'), h('td'), h('td'))));
+    h('tr', { class: 'film-medium' }, h('td', { class: 'n' }, '—'), h('td', null, 'Incident medium'), h('td', { class: 'n mono' }, (+S.n0).toFixed(3)), h('td', { class: 'n' }, '∞'), h('td'), h('td'))));
   let total = 0;
   layers.forEach((L, k) => {
     const qw = qwot(L.n, spec.design); total += L.d;
@@ -146,16 +156,16 @@ function layersCard(spec) {
       if (v === 'custom') { const n = +prompt('The layer’s index', String(L.n)); if (isFinite(n) && n >= 1) edit(f => { f.layers[k].n = n; }); else render(); }
       else edit(f => { f.layers[k].n = +v; });
     }, 'Layer ' + (k + 1) + ' material');
-    tb.append(h('tr', null, h('td', { class: 'n mono' }, String(k + 1)), h('td', null, mat), h('td', { class: 'n mono' }, dsFmt(L.n, 4)),
-      h('td', { class: 'n' }, dsNum(L.d, v => { film.layers[k].d = Math.max(0.01, v); }, 'Layer ' + (k + 1) + ' thickness (nm)', 5)),
-      h('td', { class: 'n mono' }, dsFmt(L.d / qw, 4)),
+    tb.append(h('tr', null, h('td', { class: 'n mono' }, String(k + 1)), h('td', null, mat), h('td', { class: 'n mono' }, (+L.n).toFixed(3)),
+      h('td', { class: 'n' }, dsNum(L.d, v => { film.layers[k].d = Math.max(0.01, v); }, 'Layer ' + (k + 1) + ' thickness (nm)', { dp: 2 })),
+      h('td', { class: 'n mono' }, (L.d / qw).toFixed(3)),
       h('td', { class: 'acts' }, h('button', { class: 'film-tbtn', type: 'button', title: 'Make this layer a quarter wave at λ₀', onclick: () => edit(f => { f.layers[k].d = qw; }) }, 'λ/4'),
         h('button', { class: 'film-tbtn', type: 'button', title: 'Remove layer ' + (k + 1), 'aria-label': 'Remove layer ' + (k + 1), onclick: () => edit(f => { f.layers.splice(k, 1); }) }, '✕'))));
   });
   if (!layers.length) tb.append(h('tr', null, h('td', { colspan: '6', class: 'film-empty' }, 'No layers: the bare substrate. Add one, or start from a preset.')));
   tbl.append(tb, h('tfoot', null,
-    h('tr', { class: 'film-medium' }, h('td', { class: 'n' }, '—'), h('td', null, 'Substrate: ' + (S.sub.glass || 'index of my own')), h('td', { class: 'n mono' }, subClear(S.sub, S.design) ? dsFmt(spec.ns, 5) : '—'), h('td', { class: 'n' }, '∞'), h('td'), h('td')),
-    h('tr', { class: 'film-total' }, h('td'), h('th', { scope: 'row' }, layers.length + (layers.length === 1 ? ' layer' : ' layers')), h('td'), h('td', { class: 'n mono' }, dsFmt(total, 5)), h('td'), h('td'))));
+    h('tr', { class: 'film-medium' }, h('td', { class: 'n' }, '—'), h('td', null, 'Substrate: ' + (S.sub.glass || 'index of my own')), h('td', { class: 'n mono' }, subClear(S.sub, S.design) ? spec.ns.toFixed(3) : '—'), h('td', { class: 'n' }, '∞'), h('td'), h('td')),
+    h('tr', { class: 'film-total' }, h('td'), h('th', { scope: 'row' }, layers.length + (layers.length === 1 ? ' layer' : ' layers')), h('td'), h('td', { class: 'n mono' }, total.toFixed(2)), h('td'), h('td'))));
   const pre = dsSelect([['', 'Preset…'], ...FILM_PRESETS], '', v => { if (v) edit(f => { f.layers = filmPreset(v, f.spec.design); }); }, 'A preset stack');
   const opt = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmOptimise', title: 'Nelder–Mead on the thicknesses, from where they stand, against the target over the band and the angles' }, 'Optimise thicknesses'), 'optimise a coating');
   opt.addEventListener('click', () => optimiseNow());

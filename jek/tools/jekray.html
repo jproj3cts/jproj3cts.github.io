@@ -16154,7 +16154,8 @@ function render() {
   // a tab shown in 3D draws there instead (the 2D bench under it waits)
   let in3d = false;
   try { V3D.sync(); in3d = V3D.active(); } catch (e) { in3d = false; }
-  if (in3d) { updateReadouts(); return; }
+  // (the empty bench's note is looked at in 3D too: a part added there takes it away)
+  if (in3d) { updateReadouts(); updateEmpty(); return; }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // a light bench: the parts as ever, the words dark, the light stronger (see benchLight)
   lightLayer = benchLight(); inBench = true;

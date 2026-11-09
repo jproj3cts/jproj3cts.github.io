@@ -23,7 +23,7 @@ import {
 } from './render.js';
 import { groupOf } from './drawings.js';
 import { snapVal } from './pointer.js';
-import { SW, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
+import { SW, fieldHeld, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
 import { qW } from '../engines/fibre-face.js';
 import { renderPanel, syncPanel } from './panel.js';
 import { h } from './dom.js';
@@ -79,7 +79,7 @@ export const V3D = (() => {
   // the board the field volumes are cut to, [x0, y0, x1, y1], while the view is on; else null
   const boardBox = () => { const vb = active() && R && R.boardBox; return vb ? [vb.min.x, vb.min.y, vb.max.x, vb.max.y] : null; };
   // whether the field the 3D view shows is in (a sweep's step waits for it); null when the 3D view is not showing the field
-  const fieldReady = () => { if (!active() || !R || !lightOf().field) return null; sync(); return !R.volBusy; };
+  const fieldReady = () => { if (!active() || !R || !lightOf().field) return null; if (!lightOnTab()) return true; sync(); return !R.volBusy; };   // (no light on this tab: nothing to wait for)
 
   function load() {
     if (T) return Promise.resolve();
@@ -887,7 +887,14 @@ export const V3D = (() => {
     R.partsBox = box.clone();                             // what a fit frames: the parts, not light leaving them
     board(box);
     // the diffracted field as a volume, when the bench shows it: its key changes as it arrives
-    const vb = R.boardBox, VL = lightOf().field && vb ? volLater([vb.min.x, vb.min.y, vb.max.x, vb.max.y]) : { data: null, busy: false };
+    // the field's volume: worked out for the board (the one a sweep's run keeps: see sweepVol.box); while sweeps that do
+    // not render the field play, the last one held (as the 2D bench holds its field), and while one is being worked
+    // out, the last one shown until it comes (not a bench gone dark for a moment at every step)
+    const vb = R.boardBox, fb = lightOf().field && vb ? sweepVol.box() : null, held = !!fb && fieldHeld();
+    let VL = !fb ? { data: null, busy: false } : held ? { data: null, busy: false } : volLater(fb.bb);
+    const last = R.volLast && R.volLast.tab === project.tab && lightOnTab() ? R.volLast.data : null;
+    if (fb && !VL.data && (held || VL.busy) && last) VL = { data: last, busy: VL.busy };
+    if (VL.data) R.volLast = { tab: project.tab, data: VL.data };
     R.vol = VL.data; R.volBusy = VL.busy;
     const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
@@ -1982,9 +1989,16 @@ function volKeep(key, d) {
   while (VOL.cache.size > VOL_KEEP || (VOL.bytes > VOL_BYTES && VOL.cache.size > 1)) { const k = VOL.cache.keys().next().value; VOL.bytes -= VOL.cache.get(k).bytes || 0; VOL.cache.delete(k); }
   return d;
 }
+/* whether any light falls on the tab on show (none: no volume asked for, at every step of a sweep, to fill the cache) */
+function lightOnTab() {
+  const srcs = popSources();
+  if (!srcs.length || !lastTrace) return false;
+  const ids = new Set(srcs.map(e => e.id));
+  return (lastTrace.beams || []).some(b => ids.has(b.src) && (b.bench === undefined || b.bench === project.tab));
+}
 function volLater(bb) {
   const srcs = popSources();
-  if (!srcs.length) return { data: null, busy: false };
+  if (!srcs.length || !lightOnTab()) return { data: null, busy: false };
   const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, volLightBox(bb, lastTrace.beams, srcs));
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
   const keep = d => volKeep(key, d);
@@ -2019,7 +2033,7 @@ function volLater(bb) {
         if (outs.some(o => !o || o.mismatch)) { VOL.rev++; requestRender(); return; }
         keep(volMerge(volStitch(outs.flatMap(o => o.segs))));
         requestRender();
-      }).catch(err => { console.warn('JEKray 3D field workers:', err && err.message); if (VOL.job === key) VOL.job = null; SW.failed = true; swDrop(); VOL.rev++; requestRender(); });
+      }).catch(err => { if (VOL.job === key) VOL.job = null; if (!(err && err.stopped)) { console.warn('JEKray 3D field workers:', err && err.message); SW.failed = true; swDrop(); } VOL.rev++; requestRender(); });   // (stopped on purpose: asked again, not given up on)
     }
     return { data: null, busy: true };
   }
@@ -2057,12 +2071,20 @@ function volShared() {
 /* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
    sweeps): the board it is cut to, and where the steps' volumes go */
 export function wireView3d() {
-  sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
+  // the board the volumes are cut to: while a sweep renders or plays its field, the board it had when its run began
+  // (a sweep that moves an outermost part changes the board at every step, and no step would find its volume)
+  sweepVol.box = () => {
+    const vb = V3D.boardBox();
+    if (!vb || !lightOf().field) return null;
+    if (!(sweepJob || renderedPeriod() > 0)) { VOL.fixBox = null; return { tab: project.tab, bb: vb }; }
+    if (!VOL.fixBox || VOL.fixBox.tab !== project.tab) VOL.fixBox = { tab: project.tab, bb: vb };
+    return VOL.fixBox;
+  };
   sweepVol.shown = () => V3D.fieldReady();
   sweepVol.keep = (pk, tab, bb, V) => { const k = volKey(pk, tab, bb); if (!VOL.cache.has(k)) volKeep(k, V); VOL.sweep.add(k); };
   // a sweep's render begins (its steps' volumes, as they come, set the scale they are all drawn at), and a step of it
   // whose volume the page has already
-  sweepVol.begin = () => { VOL.sweep.clear(); VOL.shared = null; };
+  sweepVol.begin = () => { VOL.sweep.clear(); VOL.shared = null; VOL.fixBox = null; };
   sweepVol.mark = pk => { const b = sweepVol.box(); if (b) VOL.sweep.add(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
   // whether a step's volume is kept, for the bench's field key pk (on the board the 3D view shows now)
   // (the view brought up to date with the bench first: its board follows the parts a frame later, and a key taken from

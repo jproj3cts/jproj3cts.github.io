@@ -6287,6 +6287,71 @@ const TESTS = [
     },
   },
   {
+    name: 'Play on a second sweep while the first renders its field renders again for both, and plays both',
+    why: 'a lens swept across a beam shown as its field (6 steps), and a second lens swept along it: Play on the second while the first is still rendering (it used to stop the render and start neither): the sweeps playing once the render is done',
+    want: 2, tol: 0, unit: '',
+    run: async J => {
+      const bench = (sw2, fieldSw) => ({ format: 'jekray', version: 1, name: 't', light: { rays: false, envelope: false, field: true, scale: 'lin' }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: fieldSw, steps: 6 } } },
+        { type: 'lens', id: 'L2', name: 'Lens 2', x: 70, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }], sweeps: sw2 },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }] });
+      J.load(bench({ x: { min: 65, max: 75, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 6 } }, true));
+      try {
+        const first = J.sweepPlay('Lens', 'y');
+        const n = await J.sweepPlay('Lens 2', 'x');
+        await first;
+        return n;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
+    name: 'Typing into a sweep\u2019s number while its field renders stops the render, and the value typed stays',
+    why: 'a lens swept across a beam shown as its field (6 steps): its Y typed while the render runs pauses the sweep and stops the render (which used to run on and, once done, play the sweep over what was typed): 1 when nothing plays after and Y is what was typed',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const bench = (sw2, fieldSw) => ({ format: 'jekray', version: 1, name: 't', light: { rays: false, envelope: false, field: true, scale: 'lin' }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: fieldSw, steps: 6 } } },
+        { type: 'lens', id: 'L2', name: 'Lens 2', x: 70, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }], sweeps: sw2 },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }] });
+      J.load(bench({}, true));
+      const doc = document.getElementById('rig').contentDocument, raf = () => new Promise(r => requestAnimationFrame(() => r()));
+      J.select('Lens');
+      try {
+        const done = J.sweepPlay('Lens', 'y');
+        await raf();
+        const lab = [...doc.querySelectorAll('#panel label')].find(l => /^Y\b/.test(l.textContent.trim())), inp = lab && doc.getElementById(lab.htmlFor);
+        if (!inp) return NaN;
+        inp.value = '0.3'; inp.dispatchEvent(new Event('input')); inp.dispatchEvent(new Event('change'));
+        const n = await done;
+        for (let i = 0; i < 10; i++) await raf();
+        return n === 0 && Math.abs(J.byName('Lens').y - 0.3) < 1e-9 ? 1 : 0;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
+    name: 'A script\u2019s changes are taken up while a sweep plays',
+    why: 'a lens swept across the beam (rays only, no field) playing while a script moves the screen: the values the sweep moves are not the bench being changed meanwhile (they were, and the script\u2019s change was thrown away): the screen\u2019s x after the run',
+    want: 95, tol: 1e-9, unit: 'mm',
+    run: async J => {
+      const bench = (sw2, fieldSw) => ({ format: 'jekray', version: 1, name: 't', light: { rays: false, envelope: false, field: true, scale: 'lin' }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: fieldSw, steps: 6 } } },
+        { type: 'lens', id: 'L2', name: 'Lens 2', x: 70, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }], sweeps: sw2 },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }] });
+      J.load(bench({}, false));
+      try {
+        await J.sweepPlay('Lens', 'y');
+        await J.scriptRun("J.set('Screen', { x: 95 })", 'js');
+        return J.byName('Screen').x;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
     name: 'A rendered sweep plays with a screen open, finding every step\u2019s field',
     why: 'a lens swept across a beam shown as its field, rendered at 6 steps a cycle, played with the screen\u2019s Diffraction tab open, then paused and played again: the screen fields worked out on the spot while it plays (none: each step\u2019s was rendered)',
     want: 0, tol: 0, unit: '',

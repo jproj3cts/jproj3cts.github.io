@@ -8,7 +8,7 @@ import { getPath, setParam } from '../state/params.js';
 import {
   allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
   renderedPeriod, sampleShown, setAnimFrame, setAnimLast, setClockT, setPlayStep, setStepSince,
-  stepSince, stepValue
+  stepSince, stepValue, sweepJob
 } from './sweeps.js';
 import { detectorReading, fibreCoupling } from '../engines/fibre-face.js';
 import { syncPanel } from './panel.js';
@@ -457,6 +457,7 @@ export function drawHistogram(cv, samples, key) {
 }
 
 export function stopSweepsFor(el, prefix) {
+  if (sweepJob && sweepJob.list.some(([e, p]) => e.id === el.id && (!prefix || p.startsWith(prefix)))) { sweepJob.quiet = true; sweepJob.cancel(); }   // (its render too)
   for (const [k, p] of playing) if (p.id === el.id && (!prefix || p.path.startsWith(prefix))) playing.delete(k);
   updateSweepButtons();
 }

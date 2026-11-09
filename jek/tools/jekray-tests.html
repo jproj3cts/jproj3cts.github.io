@@ -6196,6 +6196,83 @@ const TESTS = [
       return ok ? 1 : 0;
     },
   },
+  { group: 'Optimiser stress' },
+  {
+    name: 'A peak narrower than the scan’s step: the one-parameter search keeps it',
+    why: 'a 0.2 mm screen moved across a single ray over ±20 mm: only the scan’s point at 3 mm catches it, and the golden section between its neighbours walks off it. Kept and left there, all the light on it (1 when it is)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('notch', [src({ y: 3, width: 0.01, rays: 1 }), screen({ x: 45, y: -10, length: 0.2, sweeps: { y: { min: -20, max: 20, f: 0.1, wave: 'sine', phase: 0 } } })]));
+      const r = J.optimise('Screen', 'y', 'Screen', 'power', 'max', 0);
+      return +(r.improved && Math.abs(J.byName('Screen').y - 3) < 0.1 && J.metric('Screen', 'power') > 99);
+    },
+  },
+  {
+    name: 'The same bench and goals give the same answer each time',
+    why: 'the two-mirror beam walk optimised twice from the same start: its spread of samples is seeded, so both runs end on the same angles (the largest difference, degrees)',
+    want: 0, tol: 0, unit: '°',
+    run: J => {
+      const go = () => { J.load(walkBench()); return J.optimiseMany([['M1', 'angle'], ['M2', 'angle']], [{ target: 'S1', key: 'centroid', goal: 'match', targetVal: 0.3, weight: 1 }, { target: 'S2', key: 'centroid', goal: 'match', targetVal: 0, weight: 1 }]).best; };
+      const a = go(), b = go();
+      return Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+    },
+  },
+  {
+    name: 'A script’s mistakes are said plainly',
+    why: 'J.optimiseMany with a value that has no range, a part that is not there, a measure that does not exist and one the part cannot give: each stops with its reason, the bench untouched (the count of the four)',
+    want: 4, tol: 0, unit: '',
+    run: J => {
+      J.load(lensXY());
+      const tries = [[[['L', 'angle']], [{ target: 'S', key: 'rms', goal: 'min' }], /L: angle has no range/], [[['L', 'x']], [{ target: 'Nope', key: 'rms', goal: 'min' }], /No such part/],
+        [[['L', 'x']], [{ target: 'S', key: 'nope', goal: 'min' }], /No measure called nope/], [[['L', 'x']], [{ target: 'S', key: 'efl', goal: 'min' }], /S cannot be measured for EFL/]];
+      let n = 0;
+      for (const [v, t, re] of tries) { try { J.optimiseMany(v, t); } catch (err) { if (re.test(err.message) && J.byName('L').x === 20) n++; else console.log('optimiser error', err.message); } }
+      return n;
+    },
+  },
+  {
+    name: 'Nothing to read anywhere in the range: the bench is left as it was; a start outside the range is searched from inside it',
+    why: 'a screen the beam never reaches keeps its place, not improved; a screen at 80 mm with a range of 40 to 60 ends at the circle of least confusion, 50.66 mm (1 when both hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const sw = { x: { min: 40, max: 60, f: 0.1, wave: 'sine', phase: 0 } };
+      J.load(bench('none', [src({ angle: 90 }), screen({ x: 45, sweeps: sw })]));
+      const a = J.optimiseMany([['Screen', 'x']], [{ target: 'Screen', key: 'rms', goal: 'min' }]), kept = !a.improved && J.byName('Screen').x === 45;
+      J.load(bench('outside', [src({}), bk7Lens({}), screen({ x: 80, sweeps: sw })]));
+      J.optimiseMany([['Screen', 'x']], [{ target: 'Screen', key: 'rms', goal: 'min' }]);
+      const inside = Math.abs(J.byName('Screen').x - 50.655) < 0.05;
+      if (!(kept && inside)) console.log('optimiser edges', { kept, x: J.byName('Screen').x });
+      return +(kept && inside);
+    },
+  },
+  {
+    name: 'Every exercise the optimiser is offered for, it solves; and Undo puts the start back',
+    why: 'each exercise with an optimiser range (core/exercises.js), from its start: Let the optimiser find it leaves it solved. Then, in Focus a camera, Undo after the optimiser puts the lens back where the exercise started it, without the range searched, the exercise still on (the count solved, plus 1 for the Undo)',
+    want: 11, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      let n = 0;
+      for (const id of J.exercises()) {
+        J.exerciseStart(id); await frame(); await frame();
+        if (!J.exerciseOffersOptimiser(id)) continue;
+        J.exerciseOptimise();
+        for (let i = 0; i < 60 && !J.exerciseCheck(); i++) await wait(100);
+        if (J.exerciseCheck() === true) n++; else console.log('optimiser did not solve', id, J.exerciseState());
+      }
+      J.exerciseStart('focus-a-camera'); await frame(); await frame();
+      const x0 = J.byName('Lens').x;
+      J.exerciseOptimise();
+      for (let i = 0; i < 60 && !J.exerciseCheck(); i++) await wait(100);
+      const moved = J.byName('Lens').x !== x0;
+      J.undo(); await frame();
+      const back = moved && J.byName('Lens').x === x0 && J.exerciseState() !== null && !(J.byName('Lens').sweeps || {}).x;
+      if (!back) console.log('undo after the exercise optimiser', { x0, now: J.byName('Lens').x, state: J.exerciseState() });
+      J.exerciseLeave();
+      try { rigWin().localStorage.removeItem('jek-exercises'); } catch (err) { /* fine */ }
+      return n + (back ? 1 : 0);
+    },
+  },
   { group: 'Fibre extras' },
   {
     name: 'A fibre’s path set from a script, its handles left out, draws; and a bend loses light by its radius',

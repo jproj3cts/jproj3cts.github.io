@@ -1027,13 +1027,14 @@ function optBatch() {
   const take = out => {
     if (OPT !== O || !O.running || !WS) return;
     if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
-    if (out.merit < O.now || O.mode === 'dls') {
+    // a design that broke the limits set on its values is brought within them even when that costs merit
+    if (out.merit < O.now || O.mode === 'dls' || out.outside) {
       const P2 = designPrescription(asm);
       optApply(P2, prob, out, designOf(asm));
       commitDesign(asm, P2);
       changed(false);
     }
-    O.now = Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
+    O.now = out.outside ? out.merit : Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
     // the global search's designs, kept with the design: the best distinct ones it has reached
     if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }

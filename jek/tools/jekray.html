@@ -10660,8 +10660,8 @@ function coatOptimise(layers, spec, opts) {
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
   const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
-  let best = clampD(layers.map(L => L.d)), fBest = f(best);
-  const before = fBest;
+  // a thickness not given (blank, or not a number) starts at a quarter wave
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
@@ -10688,8 +10688,10 @@ function coatOptimise(layers, spec, opts) {
     const i0 = F.indexOf(Math.min(...F));
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
-  return { layers: out, before, after: coatMerit(out, spec), evals };
+  // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
@@ -28941,7 +28943,10 @@ function optimise(el, path, target, key, goal, targetVal) {
   const sw = el.sweeps[path];
   const lo = Math.min(sw.min, sw.max), hi = Math.max(sw.min, sw.max);
   const start = getPath(el, path);
-  const evalAt = v => { setParam(el, path, v); traceScene(); return meritFor(target, key, goal, targetVal); };
+  // the best seen anywhere: a peak narrower than the scan's step is found by the scan alone, and the golden
+  // section, which assumes one dip, can walk away from it
+  let seen = { v: start, m: Infinity };
+  const evalAt = v => { setParam(el, path, v); traceScene(); const m = meritFor(target, key, goal, targetVal); if (m < seen.m) seen = { v, m }; return m; };
   const startMerit = evalAt(start);
   const startValue = metricRaw(target, key);
   let traces = 1;
@@ -28968,9 +28973,9 @@ function optimise(el, path, target, key, goal, targetVal) {
     else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = evalAt(d); }
     traces++;
   }
-  const best = (a + b) / 2;
-  const bestMerit = evalAt(best);
+  let best = (a + b) / 2, bestMerit = evalAt(best);
   traces++;
+  if (seen.m < bestMerit) { best = seen.v; bestMerit = evalAt(best); traces++; }
   const improved = bestMerit < startMerit;
   const bestValue = metricRaw(target, key);
   if (!improved) { setParam(el, path, start); traceScene(); }
@@ -28988,6 +28993,18 @@ function optimise(el, path, target, key, goal, targetVal) {
    Nelder-Mead from the best of them in the ranges scaled to 0-1, clamped to them. */
 function* optimiseGen(vars, terms, opts) {
   opts = opts || {};
+  // what a script can get wrong, said plainly (the dialog offers only parts with a range, and real goals)
+  for (const [el, path] of vars) {
+    if (!el) throw new Error('No such part to vary');
+    const sw = el.sweeps && el.sweeps[path];
+    if (!sw || !isFinite(sw.min) || !isFinite(sw.max)) throw new Error(el.name + ': ' + path + ' has no range to search (give it a sweep, From and To)');
+  }
+  for (const t of terms) {
+    if (!t.target) throw new Error('No such part to measure');
+    const M = metricByKey(t.key);
+    if (!M) throw new Error('No measure called ' + t.key);
+    if (M.on !== metricKind(t.target)) throw new Error(t.target.name + ' cannot be measured for ' + M.label);
+  }
   pauseAll();
   const n = vars.length;
   const rng = vars.map(([el, path]) => { const sw = el.sweeps[path]; return [Math.min(sw.min, sw.max), Math.max(sw.min, sw.max)]; });
@@ -29048,10 +29065,11 @@ function* optimiseGen(vars, terms, opts) {
     }
   } else {
     // a Latin hypercube: each range cut into S strata, one sample in each, shuffled per axis
-    const S = Math.min(80, 10 + 10 * n);
-    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
+    // seeded, so the same bench and goals give the same answer each time (opts.seed for another spread)
+    const S = Math.min(80, 10 + 10 * n), rnd = seededRng(opts.seed || 1);
+    const perm = () => { const p = [...Array(S).keys()]; for (let i = S - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; };
     const P = vars.map(perm), samples = [{ u: toU(start), m: startMerit }];
-    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + Math.random()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
+    for (let s = 0; s < S; s++) { const u = P.map(p => (p[s] + rnd()) / S); samples.push({ u, m: f(u) }); yield { evals, budget, best: best.m }; }
     samples.sort((a, b) => a.m - b.m);
     // Nelder-Mead from the best sample, then once more from where it ended with a small simplex
     const nm = function* (u0, step) {
@@ -35699,13 +35717,14 @@ function optBatch() {
   const take = out => {
     if (OPT !== O || !O.running || !WS) return;
     if (!out) { O.running = false; O.note = 'Stopped: the background worker was busy.'; renderWs(); return; }
-    if (out.merit < O.now || O.mode === 'dls') {
+    // a design that broke the limits set on its values is brought within them even when that costs merit
+    if (out.merit < O.now || O.mode === 'dls' || out.outside) {
       const P2 = designPrescription(asm);
       optApply(P2, prob, out, designOf(asm));
       commitDesign(asm, P2);
       changed(false);
     }
-    O.now = Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
+    O.now = out.outside ? out.merit : Math.min(O.now, out.merit); O.cycles += out.iters; O.trials += out.tried; O.better += out.better; O.lambda = out.lambda;
     // the global search's designs, kept with the design: the best distinct ones it has reached
     if (out.found && out.found.length) { const dd = designOf(asm), L = dd.found || (dd.found = []), t = Date.now(); for (const f of out.found) keepFound(L, { vars: out.vars, x: f.x, merit: f.merit, t }); changed(false); }
     if (O.mode === 'dls' && out.done) { O.running = false; O.note = 'Done: no step makes it better.'; }
@@ -44642,10 +44661,14 @@ function optRun(prob, args) {
   const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => xOf(prob, v)));
   const T0 = evalAt(prob, V, x0);
   let res;
-  if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
+  // a design outside the limits set on its values starts from them (as damped least squares does), so the global
+  // search never hands back the start where it broke them: outside, set when it did (the result is then taken even
+  // if its merit is higher, as it is the best within the limits)
+  const xc = clampX(Float64Array.from(x0), limitsX(prob, V)), outside = xc.some((v, j) => v !== x0[j]);
+  if (args.mode === 'global') { const Tc = outside ? evalAt(prob, V, xc) : T0; res = globalSearch(prob, V, { x: xc, ss: Tc.ss, Wt: Tc.Wt }, args.trials || 4, args.seed); }
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
   return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
-    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(res.found ? { found: res.found } : {}) };
+    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(outside ? { outside: true } : {}), ...(res.found ? { found: res.found } : {}) };
 }
 /* the values reached, written into a prescription (P, the active configuration's) and, for a value
    each configuration has its own of, into the configurations of the design D */
@@ -55620,6 +55643,7 @@ const NEWS = [
   ['1.1', APP_DATE, [
     '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
+    'Fixed in the optimisers: Undo after <b>Let the optimiser find it</b> in an exercise puts the start back (it went back past the exercise); the bench optimiser gives the same answer each time it is run on the same bench, and a peak narrower than its first scan\u2019s step is no longer lost; the Optical designer\u2019s global search brings a design that breaks the limits set on its values within them, as the local optimiser does; the coating designer never hands back a stack worse than it was given, and a blank thickness starts at a quarter wave.',
     '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',
     'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',
@@ -57802,6 +57826,9 @@ function exerciseOptimise() { if (EX && EX.ex.optimiser) exOptimise(); }
 function exOptimise() {
   if (!designPro('optimise a design')) return;
   track('exercise', EX.ex.id + '.optimise');
+  // one Undo step, as the bench's own optimiser is (counted as a change to the exercise there), taken before the
+  // search's ranges go on the parts so that Undo does not bring them back
+  checkpoint();
   const vars = [], terms = [];
   const keep = [];
   for (const [n, R] of Object.entries(EX.ex.optimiser)) {
@@ -57815,7 +57842,7 @@ function exOptimise() {
   setTimeout(() => {
     try { optimiseMany(vars, terms); } catch (err) { unkeep(); toast('The optimiser could not finish: ' + err.message, true); return; }
     unkeep();
-    EX.changes++; changed(true);
+    changed(true);
   }, 30);
 }
 
@@ -59204,6 +59231,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     exerciseLeave() { exerciseLeave(true); },
     exerciseCheck() { exerciseTick(); const E = exerciseOn(); return E ? E.solved : null; },
     exerciseAnswer: id => { const x = exerciseById(id); return x ? JSON.parse(JSON.stringify(x.answer)) : null; },
+    exerciseOffersOptimiser: id => { const x = exerciseById(id); return !!(x && x.optimiser); },
     exerciseOptimise() { exerciseOptimise(); },
     lastTrace() { return lastTrace; },
     popCore: { popFieldSeries, setBabN: n => { setBAB_N(n); }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,

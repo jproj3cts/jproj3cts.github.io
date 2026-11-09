@@ -78,6 +78,8 @@ export const V3D = (() => {
   const active = () => allowed() && !!(tabState() && tabState().on);
   // the board the field volumes are cut to, [x0, y0, x1, y1], while the view is on; else null
   const boardBox = () => { const vb = active() && R && R.boardBox; return vb ? [vb.min.x, vb.min.y, vb.max.x, vb.max.y] : null; };
+  // whether the field the 3D view shows is in (a sweep's step waits for it); null when the 3D view is not showing the field
+  const fieldReady = () => { if (!active() || !R || !lightOf().field) return null; sync(); return !R.volBusy; };
 
   function load() {
     if (T) return Promise.resolve();
@@ -1837,7 +1839,7 @@ export const V3D = (() => {
 
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
-    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox,
+    init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox, fieldReady,
     // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
     setTool(t) { tool = t || null; if (R) R.selKey = null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
     tool: () => tool,
@@ -1943,12 +1945,15 @@ function volLater(bb) {
   const pk = popKeyOf(lastTrace.beams, srcs), key = volKey(pk, project.tab, bb);
   if (VOL.cache.has(key)) return { data: VOL.cache.get(key), busy: false };
   const keep = d => volKeep(key, d);
+  // a request in flight that has not answered in a minute is let go and asked again (a worker stopped under it would
+  // otherwise leave the view working it out until the page was reloaded)
+  if (VOL.job && VOL.t0 && performance.now() - VOL.t0 > 60000) VOL.job = null;
   // a heavy field (2D, or many segments) shared among the render workers, when no sweep is using them
   const heavyVol = srcs.some(e => e.popModel === '2d' || m2Of(e) > 1 || isHigherMode(e)) || lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length > 8;
   const pool = heavyVol && !sweepJob ? swPool() : null;
   if (pool && pool.length > 1 && fieldWorker()) {
     if (VOL.job !== key) {
-      VOL.job = key;
+      VOL.job = key; VOL.t0 = performance.now();
       const proj = fwProject(), n = pool.length, tab = project.tab, beams = lastTrace.beams; 
       // the bench's field run once (the page may have it already), then each worker carries on its share
       // (the render workers load the bench meanwhile)
@@ -1977,7 +1982,7 @@ function volLater(bb) {
   }
   if (fieldWorker()) {
     if (VOL.job !== key) {
-      VOL.job = key;
+      VOL.job = key; VOL.t0 = performance.now();
       fwRequest('vol3d', 'vol3d', { key: pk, tab: project.tab, bb }).then(o => {
         if (VOL.job === key) VOL.job = null;
         if (o && !o.mismatch) keep(o); else VOL.rev++;
@@ -1993,10 +1998,11 @@ function volLater(bb) {
 /* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
-export const VOL = { job: null, cache: new Map(), n: 0, rev: 0 };
+export const VOL = { job: null, t0: 0, cache: new Map(), n: 0, rev: 0 };
 /* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
    sweeps): the board it is cut to, and where the steps' volumes go */
 export function wireView3d() {
   sweepVol.box = () => { const vb = V3D.boardBox(); return vb && lightOf().field ? { tab: project.tab, bb: vb } : null; };
+  sweepVol.shown = () => V3D.fieldReady();
   sweepVol.keep = (pk, tab, bb, V) => { if (!VOL.cache.has(volKey(pk, tab, bb))) volKeep(volKey(pk, tab, bb), V); };
 }

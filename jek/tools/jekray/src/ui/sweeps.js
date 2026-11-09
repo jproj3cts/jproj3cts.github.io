@@ -199,7 +199,8 @@ function keepFrame(map, key, v) {
 /* the 3D view's field volume, rendered with each step while that view shows the field: box() the
    board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
    volume filed under the key the view will ask for (both installed by the 3D view) */
-export const sweepVol = { box: () => null, keep: () => {} };
+// (shown: in the 3D view, whether the step on show has its field there: null when the 3D view is not showing it)
+export const sweepVol = { box: () => null, keep: () => {}, shown: () => null };
 export let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 export let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 export function setFieldRendered(v) { return (fieldRendered = v); }
@@ -220,7 +221,11 @@ export function renderedPeriod() {
 /* the step on show is drawn in full: the bench's field and every open screen's are there */
 export function sampleShown() {
   const srcs = popSources();
-  if (srcs.length && lastTrace && (popKeyOf(lastTrace.beams, srcs) !== popState.key || !popState.result)) return false;
+  // in 3D the bench's field is the 3D view's (the 2D one is not drawn there, so would never be in step: each step
+  // would wait out its 4 s)
+  const in3d = srcs.length ? sweepVol.shown() : null;
+  if (in3d === false) return false;
+  if (in3d === null && srcs.length && lastTrace && (popKeyOf(lastTrace.beams, srcs) !== popState.key || !popState.result)) return false;
   return !popScreenState.jobs.size;
 }
 /* how long a render has left: the time its steps have taken so far, on average, for each left */
@@ -439,7 +444,9 @@ export function swAsk(W, proj, args, kind) {
     W.w.postMessage(msg);
   });
 }
-export function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) W.w.terminate(); SW.pool = []; }
+// (what each was still asked for is handed back as failed: a promise left waiting on a stopped worker would hold up
+// whatever waits on it, the 3D view's field among them, until the page was reloaded)
+export function swDrop() { clearTimeout(SW.idle); for (const W of SW.pool) { W.w.terminate(); for (const j of W.jobs.values()) j.reject(new Error('the render workers were stopped')); W.jobs.clear(); } SW.pool = []; }
 // kept a minute after a render, for the next; then let go (each holds a copy of the tool)
 export const swRelease = () => { clearTimeout(SW.idle); SW.idle = setTimeout(swDrop, 60000); };
 /* A bench with mods: their code runs only on the page, so a step's results (for its swept values)

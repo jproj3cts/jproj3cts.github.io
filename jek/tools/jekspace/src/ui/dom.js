@@ -1,3 +1,4 @@
+import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    JEKspace's page helpers: elements, icons, the note at the foot, the pop-up menus, the theme, and the apps it
    opens (each in a tab of its own, named, so a second bench opens in the same tab rather than a new one each time).
@@ -18,16 +19,6 @@ export function openApp(id, hash) {
   return w;
 }
 
-export function h(tag, attrs, ...kids) {
-  const n = document.createElement(tag);
-  if (attrs) for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v === true ? '' : v);
-  }
-  for (const k of kids) if (k !== null && k !== undefined && k !== false) n.append(k);
-  return n;
-}
 /* a short line of help, its fuller explanation folded behind an ⓘ */
 export function helpLine(short, long, cls) {
   const more = h('span', { class: 'rt-helpmore', hidden: '' }, ' ', ...(Array.isArray(long) ? long : [long]));

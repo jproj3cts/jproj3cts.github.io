@@ -16,7 +16,8 @@ import {
   GOAL_LABEL, METRIC_FAMS, drawConvergence, drawHistogram, drawScan, measurable, metricByKey,
   metricKind, metricRaw, metricText, metricsFor, monteCarlo, optimiseGen, sensitivity
 } from './optimise.js';
-import { h, renderPanel, setPanelClosed, showAboutPart, sideTab } from './panel.js';
+import { renderPanel, setPanelClosed, showAboutPart, sideTab } from './panel.js';
+import { h } from './dom.js';
 import { showNotes, showRayLook, showUsingBench } from './panel-cavity.js';
 import { materialWanted, parseNK, plotSaveRow, setMaterialWanted } from './plots.js';
 import { screenStats } from '../engines/screen-stats.js';

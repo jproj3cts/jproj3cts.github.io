@@ -13,18 +13,19 @@ export async function check(pw, base, shots) {
       await route(p, { signedIn: false });
       await p.goto(base + '/jek/tools/jekspace.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
-      const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happ')].map(a => a.dataset.app), btn: document.getElementById('btnAcct').textContent }));
-      ok('Signed out: a sign-in panel and the apps', s.signIn && s.apps.join() === 'jekray,jekion' && s.btn === 'Sign in', JSON.stringify(s));
+      const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
+      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open JEKion' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
       await p.click('#homeSignIn');
       const menu = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       ok('Signed out: Sign in offers Google, Microsoft and email', ['Continue with Google', 'Continue with Microsoft (university or work)', 'Continue with email'].every(t => menu.includes(t)), menu.join(' | '));
       await p.keyboard.press('Escape');
-      await p.evaluate(() => document.querySelector('.rt-happ[data-app=jekion] .rt-btn.primary').click());
+      await p.evaluate(() => [...document.querySelectorAll('.rt-happlinks button')].find(x => x.textContent === 'Open JEKion').click());
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('Signed out: an app opens in its own tab', op && op[0] === '/jek/tools/jekion.html' && op[1] === 'jekion', JSON.stringify(op));
-      await p.evaluate(() => [...document.querySelectorAll('.rt-happ[data-app=jekray] .rt-btn')].find(x => x.textContent === 'New bench').click());
+      await p.click('#homeNew');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKray bench').click());
       const nw = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('Signed out: New bench starts one in the app itself (#new)', nw && nw[0] === '/jek/tools/jekray.html#new', JSON.stringify(nw));
+      ok('Signed out: New › JEKray bench starts one in the app itself (#new)', nw && nw[0] === '/jek/tools/jekray.html#new', JSON.stringify(nw));
       ok('Signed out: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
@@ -36,8 +37,8 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jekspace.html');
       await p.waitForSelector('.rt-hcard[data-bench]', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), tools: [...document.querySelectorAll('.rt-hcard[data-bench] .rt-htool')].map(t => t.textContent),
-        folders: document.querySelectorAll('.rt-hcard.folder').length, apps: document.querySelectorAll('.rt-happ').length, acct: document.getElementById('btnAcct').classList.contains('in') }));
-      ok('Signed in: the benches of both apps, the folders and the apps', s.benches.join() === 'b1,b2' && s.tools.join() === 'JEKray,JEKion' && s.folders === 2 && s.apps === 2 && s.acct, JSON.stringify(s));
+        folders: document.querySelectorAll('.rt-hcard.folder').length, cards: document.querySelectorAll('.rt-happ').length, acct: document.getElementById('btnAcct').classList.contains('in') }));
+      ok('Signed in: the benches of both apps and the folders, no app cards', s.benches.join() === 'b1,b2' && s.tools.join() === 'JEKray,JEKion' && s.folders === 2 && !s.cards && s.acct, JSON.stringify(s));
       if (shots) await p.screenshot({ path: shots + '/jekspace-dark.png' });
       await p.selectOption('#homeApp', 'jekion'); await p.waitForTimeout(300);
       const only = await p.evaluate(() => [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench));
@@ -50,10 +51,14 @@ export async function check(pw, base, shots) {
       await p.click('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(200);
       const op2 = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('A JEKray bench opens in JEKray’s tab', op2 && op2[0] === '/jek/tools/jekray.html#cloud=b1' && op2[1] === 'jekray', JSON.stringify(op2));
-      // New: five kinds; a JEKion bench made in the cloud, then opened in JEKion
+      // New: the apps to open, then five kinds; a JEKion bench made in the cloud, then opened in JEKion
       await p.click('#homeNew');
       const kinds = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
-      ok('New offers a bench in each app and JEKray’s three designers', kinds.join('|') === 'JEKray bench|Optical design (JEKray)|RF design (JEKray)|Coating design (JEKray)|JEKion bench', kinds.join('|'));
+      ok('New opens either app, and offers a bench in each app and JEKray’s three designers', kinds.join('|') === 'JEKray|JEKion|JEKray bench|Optical design (JEKray)|RF design (JEKray)|Coating design (JEKray)|JEKion bench', kinds.join('|'));
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKion').click());
+      const opA = await p.evaluate(() => window.__opened.slice(-1)[0]);
+      ok('New › Open › JEKion: the app in its own tab', opA && opA[0] === '/jek/tools/jekion.html' && opA[1] === 'jekion', JSON.stringify(opA));
+      await p.click('#homeNew');
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Optical design (JEKray)').click());
       await p.click('#spaceNewMake'); await p.waitForTimeout(400);
       const op3 = await p.evaluate(() => window.__opened.slice(-1)[0]);

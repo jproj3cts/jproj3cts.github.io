@@ -1,5 +1,5 @@
 import { EMBED } from '../core/constants.js';
-import { h } from '../ui/panel.js';
+import { h } from '../ui/dom.js';
 import { toast } from '../ui/actions.js';
 import { openDemo } from '../ui/tours.js';
 import { openProjectData } from './open.js';

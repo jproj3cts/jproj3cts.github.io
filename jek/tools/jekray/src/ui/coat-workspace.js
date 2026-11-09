@@ -1,4 +1,5 @@
-import { h, helpLine } from './panel.js';
+import { helpLine } from './panel.js';
+import { h } from './dom.js';
 import { changed, toast } from './actions.js';
 import { checkpoint } from './tabs.js';
 import { linePlot } from './lens-analyses.js';

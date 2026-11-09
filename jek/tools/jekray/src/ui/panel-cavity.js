@@ -8,7 +8,8 @@ import { lastTrace } from '../engines/trace.js';
 import { getCss, inkA, requestRender } from './render.js';
 import { V3D } from './view3d.js';
 import { updateReadouts } from './readouts.js';
-import { BENCH_PIN, bindSync, fid, h, infoDialog, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
+import { BENCH_PIN, bindSync, fid, infoDialog, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
+import { h } from './dom.js';
 import {
   axisFont, drawAxes, magma, plotArea, plotCsv, plotFrame, plotZoom, updateSyncButtons, zoomControls,
   zoomRange

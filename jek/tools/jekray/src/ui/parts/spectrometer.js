@@ -3,7 +3,8 @@ import { lastTrace } from '../../engines/trace.js';
 import { SPEC_L, SPEC_PRESETS, SPEC_SENSORS, SPEC_W, specPresetOf } from '../../parts/spectrometer.js';
 import { specDispersion, specReading, specTrace } from '../../engines/spectrometer.js';
 import { bodyFill, ctx, pathLocal, selInk, sx, sy } from '../render.js';
-import { bindSync, h, helpLine, panel, param, renderPanel, selectField, vs } from '../panel.js';
+import { bindSync, helpLine, panel, param, renderPanel, selectField, vs } from '../panel.js';
+import { h } from '../dom.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from '../plots.js';
 
 /* Spectrometer on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/spectrometer.js; its

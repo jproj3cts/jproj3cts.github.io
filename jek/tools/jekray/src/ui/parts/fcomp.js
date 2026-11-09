@@ -11,7 +11,8 @@ import { FSYM, bodyFill, ctx, drawPorts, getCss, pathLocal, roundRect, selInk, s
 import { snapVal } from '../pointer.js';
 import { FC, FC_W, fcH, thruPartner } from '../../engines/fibre.js';
 import { osaSection, signalSection } from '../instruments.js';
-import { helpLine, bindSync, coherenceFields, coherenceNote, h, panel, param, renderPanel, selectField, textField } from '../panel.js';
+import { helpLine, bindSync, coherenceFields, coherenceNote, panel, param, renderPanel, selectField, textField } from '../panel.js';
+import { h } from '../dom.js';
 import { pulseLine, pulseToggle, readoutBox } from '../panels.js';
 import { changed } from '../actions.js';
 import { addBench, checkpoint, selectEl } from '../tabs.js';

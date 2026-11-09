@@ -11,7 +11,8 @@ import {
   elecNoiseRms, elecPsdAt, inputOf, isDet, isLaser, line, partner, portList, signalOf, solve
 } from '../engines/elec.js';
 import { INST } from './instruments.js';
-import { helpLine, bindSync, h, panel, param, selectField, textField } from './panel.js';
+import { helpLine, bindSync, panel, param, selectField, textField } from './panel.js';
+import { h } from './dom.js';
 import { readoutBox } from './panels.js';
 import { plotSaveRow } from './plots.js';
 import { changed } from './actions.js';

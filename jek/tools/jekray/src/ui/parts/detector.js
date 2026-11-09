@@ -5,7 +5,8 @@ import { lastTrace } from '../../engines/trace.js';
 import { bodyFill, ctx, drawHorn, pathLocal, selInk, sx, sy } from '../render.js';
 import { modReadouts } from '../../engines/mods.js';
 import { signalSection } from '../instruments.js';
-import { h, panel, param, renderPanel, selectField, vs } from '../panel.js';
+import { panel, param, renderPanel, selectField, vs } from '../panel.js';
+import { h } from '../dom.js';
 import { anyPulse, pulseSection, readoutBox } from '../panels.js';
 import { modReadoutSection } from '../../io/mods.js';
 

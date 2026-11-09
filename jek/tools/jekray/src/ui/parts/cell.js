@@ -2,7 +2,8 @@ import { ATOMS } from '../../core/cells.js';
 import { V } from '../../state/project.js';
 import { frame } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
-import { helpLine, bindSync, h, panel, param, selectField, vs } from '../panel.js';
+import { helpLine, bindSync, panel, param, selectField, vs } from '../panel.js';
+import { h } from '../dom.js';
 import { drawCellSpectrum, readoutBox } from '../panels.js';
 import { plotSaveRow } from '../plots.js';
 

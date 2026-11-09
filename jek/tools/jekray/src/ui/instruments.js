@@ -5,7 +5,8 @@ import { loadGen } from '../engines/trace.js';
 import { spectrum } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdSignalAll } from '../engines/detector.js';
-import { helpLine, bindSync, fid, h, panel, param, setFid, vs } from './panel.js';
+import { helpLine, bindSync, fid, panel, param, setFid, vs } from './panel.js';
+import { h } from './dom.js';
 import { axisFont, drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
 
 /* ==========================================================================

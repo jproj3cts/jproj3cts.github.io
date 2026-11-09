@@ -1,5 +1,5 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
-import { h } from './panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { addDetector, addIon } from './actions.js';
 
 /* ==========================================================================

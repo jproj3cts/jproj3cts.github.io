@@ -6,7 +6,8 @@ import { project, selectedId, setSelectedId, V, selectedItem, kindOf, nextName, 
 import { checkpoint, redoStep, undoStep } from '../state/elements.js';
 import { makeElectrode } from '../parts/electrodes.js';
 import { normDetector, normIon } from '../parts/ions.js';
-import { h, renderPanel, setPanelClosed, syncPanel } from './panel.js';
+import { renderPanel, setPanelClosed, syncPanel } from './panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { fitView, requestRender, pointOf } from './render.js';
 import { simChanged, flyNow } from './sim.js';
 import { scheduleSave } from '../io/open.js';

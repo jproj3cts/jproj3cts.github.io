@@ -1,6 +1,7 @@
 import { drawPlate } from '../render.js';
 import { hitSlab } from './hits.js';
-import { h, panel, param } from '../panel.js';
+import { panel, param } from '../panel.js';
+import { h } from '../dom.js';
 import { readoutBox } from '../panels.js';
 
 /* Gain medium on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/gain.js */

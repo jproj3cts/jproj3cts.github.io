@@ -13,9 +13,9 @@ test('jekspace.html, its dev page and main.js are current (node build.mjs)', () 
   assert.equal(fs.readFileSync(DEV_PAGE, 'utf8'), devPage());
   assert.equal(fs.readFileSync(MAIN, 'utf8'), mainModule());
 });
-test('it shares only JEKray modules that reach no bench (constants, hooks, the source tag, merging, usage counts)', () => {
+test('it shares only JEKray modules that reach no bench (constants, hooks, the source tag, elements, merging, usage counts, the account)', () => {
   const shared = order().filter(f => f.startsWith('../')).map(f => f.replace(/^(\.\.\/)+jekray\/src\//, ''));
-  assert.deepEqual(shared.sort(), ['core/constants.js', 'core/hooks.js', 'core/src-tag.js', 'io/merge.js', 'io/usage.js']);
+  assert.deepEqual(shared.sort(), ['core/constants.js', 'core/hooks.js', 'core/src-tag.js', 'io/account.js', 'io/merge.js', 'io/usage.js', 'ui/dom.js']);
 });
 test('a bench opens in its own app, in that app’s named tab', async () => {
   const dom = fs.readFileSync(new URL('../../src/ui/dom.js', import.meta.url), 'utf8');

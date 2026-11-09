@@ -3,7 +3,7 @@ import { accountGate, designPro, needMark } from '../../../jekray/src/ui/pro.js'
 import { track } from '../../../jekray/src/io/usage.js';
 import { project } from '../state/project.js';
 import { ION_DATA_KINDS, gatherIonData, ionDataCounts } from '../engines/data.js';
-import { h } from '../ui/panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { downloadFile, safeFileName, toast } from '../ui/actions.js';
 import { SIM } from '../ui/sim.js';
 import { APP_VERSION } from '../ui/news.js';

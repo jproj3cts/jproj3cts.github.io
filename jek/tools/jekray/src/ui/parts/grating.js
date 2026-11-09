@@ -2,7 +2,8 @@ import { V } from '../../state/project.js';
 import { frame } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
 import { hitPlate } from './hits.js';
-import { h, panel, param, selectField } from '../panel.js';
+import { panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { readoutBox } from '../panels.js';
 
 /* Grating on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/grating.js */

@@ -5,7 +5,7 @@ import { serialize } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { setExporting } from '../engines/trace.js';
 import { H, W, canvas, halfSize, render, requestRender, setThumbing, sx, sy } from '../ui/render.js';
-import { h } from '../ui/panel.js';
+import { h } from '../ui/dom.js';
 import { markUnsaved, setStatus, toast } from '../ui/actions.js';
 import { openProjectData } from './open.js';
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from './merge.js';
@@ -13,10 +13,8 @@ import { setExpGate } from '../ui/experimental.js';
 import { needsShown } from '../ui/pro.js';
 import { fillRail } from '../ui/rail.js';
 import { MINE } from '../ui/myparts.js';
-import {
-  API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, avatarNode, awaitPlan, fillAccount, setAccount,
-  gateSignIn, showSubscribe
-} from './account.js';
+import { API_BASE, AUTH_OUTCOMES, account, accountShown, accountsOn, api, avatarNode, awaitPlan, fillAccount, setAccount, showSubscribe } from './account.js';
+import { gateSignIn } from './nudges.js';
 import { keepSnapshot, scheduleSave } from './autosave.js';
 import { loadTasters } from './tasters.js';
 import { newProject } from '../ui/tours.js';

@@ -4,7 +4,8 @@ import { getEl } from '../../state/elements.js';
 import { frame, toWorld } from '../../core/mask.js';
 import { lastTrace } from '../../engines/trace.js';
 import { ctx, pathLocal, selInk, sx, sy } from '../render.js';
-import { helpLine, bindSync, h, panel, param, selectField } from '../panel.js';
+import { helpLine, bindSync, panel, param, selectField } from '../panel.js';
+import { h } from '../dom.js';
 import { drawNlcTuning } from '../panels.js';
 import { plotSaveRow } from '../plots.js';
 

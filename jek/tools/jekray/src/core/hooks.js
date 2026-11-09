@@ -29,6 +29,18 @@ export const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
+  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
+  keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
+  planActive() {},                      // a plan has just become active, back from paying
+  accountLoadedHere() {},               // the account has just been looked at (signed in or not)
+  accountChanged() {},                  // signed in or out, or the plan changed: the app's own menus and badges
+  accountMenu(rows) {},                 // the account menu's rows, put where the app's menu is
+  accountMenuExtra: () => [],           // the app's own rows in that menu (signed in or not), before the usage line
+  accountMenuDone() {},                 // an item in it chosen: a pop-up menu closes
+  openAccountMenu() {},                 // open that menu (to sign in from the plans)
+  sayUnreachable: () => true,           // say so when the API cannot be reached
+  accountDeleted() {},                  // the account deleted: what the app keeps of it goes
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };

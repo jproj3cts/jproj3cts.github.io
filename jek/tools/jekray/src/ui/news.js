@@ -1,7 +1,8 @@
 import { EMBED } from '../core/constants.js';
 import { exerciseInvite } from './challenge.js';
 import { project } from '../state/project.js';
-import { h, phoneSheet } from './panel.js';
+import { phoneSheet } from './panel.js';
+import { h } from './dom.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
@@ -9,7 +10,8 @@ import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './
 import { hooks } from '../core/hooks.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
-import { API_BASE, accountOffer } from '../io/account.js';
+import { API_BASE } from '../io/account.js';
+import { accountOffer } from '../io/nudges.js';
 import { goal } from '../io/usage.js';
 import { themeDark } from './render.js';
 

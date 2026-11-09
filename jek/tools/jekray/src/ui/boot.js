@@ -85,7 +85,8 @@ import { wireRail } from './rail.js';
 import { MINE, partContent, placeMine, saveToMine } from './myparts.js';
 import { normPack, packAssess, packFromSelection, packPut, packRemove, packTrustOf, placePackPart, wirePacks } from '../io/packs.js';
 import { packTrustLabel } from '../core/packsig.js';
-import { accountLoaded, accountsOn, proLink, returnNudge, wireAccount } from '../io/account.js';
+import { accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
+import { returnNudge, wireNudges } from '../io/nudges.js';
 import { openCloudBench, openSpace, wireCloud } from '../io/cloud.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
@@ -137,7 +138,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

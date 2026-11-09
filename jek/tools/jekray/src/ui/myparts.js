@@ -9,7 +9,8 @@ import {
 import { asmOfSelection } from '../core/assembly.js';
 import { snapVal } from './pointer.js';
 import { V3D } from './view3d.js';
-import { helpLine, h } from './panel.js';
+import { helpLine } from './panel.js';
+import { h } from './dom.js';
 import { clipOf, pasteClip, showCtxMenu, toast } from './actions.js';
 import { proMark } from './pro.js';
 import { hooks } from '../core/hooks.js';

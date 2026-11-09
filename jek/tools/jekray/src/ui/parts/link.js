@@ -3,7 +3,8 @@ import { benchName, linkPairs, linkPartner } from '../../state/tabs.js';
 import { frame, toWorld } from '../../core/mask.js';
 import { ctx, pathLocal, selInk, sx, sy } from '../render.js';
 import { hitPlate } from './hits.js';
-import { bindSync, h, panel, param, textField } from '../panel.js';
+import { bindSync, panel, param, textField } from '../panel.js';
+import { h } from '../dom.js';
 import { makeLinkPartner } from '../panels.js';
 import { selectEl } from '../tabs.js';
 

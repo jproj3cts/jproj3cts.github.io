@@ -187,6 +187,38 @@
     </div>
   </div>
 
+  <!-- the account's dialogs (jekray/src/io/account.js, shared): the plans, the account, a team, a university's licence, deleting the account -->
+  <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
+    <h2 id="uniTitle">University licence</h2>
+    <div id="uniBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">
+    <h2 id="teamTitle">Team</h2>
+    <div id="teamBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="teamClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Delete your account</h2>
+    <div id="deleteBody"></div>
+    <p><label for="deleteConfirm">To confirm, type <b>delete my account</b></label><br><input id="deleteConfirm" autocomplete="off" spellcheck="false"></p>
+    <p class="rt-error" id="deleteError" hidden></p>
+    <div class="rt-actions"><button class="rt-btn" id="deleteCancel">Keep my account</button><button class="rt-btn primary danger" id="deleteGo" disabled>Delete my account</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
+    <h2 id="subTitle">JEKrayPro</h2>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKspace. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
+    <div id="subPlans"></div>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
+    <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
+  </dialog>
+
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Shortcuts</h2>
     <div class="rt-keycols"><h3>Selecting</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>select an electrode, an ion group or a detector</dd><dt>Esc</dt><dd>select nothing</dd><dt>Right-click</dt><dd>duplicate, mirror, delete, set the analysis point</dd></dl><h3>Adding</h3><dl class="rt-shortcuts"><dt>A</dt><dd>the Add menu: a shape, an ion group, a detector</dd><dt>Drop a .step or .stl</dt><dd>onto the bench: each body an electrode</dd></dl><h3>Changing</h3><dl class="rt-shortcuts"><dt>Drag</dt><dd>move in the cut plane (snapped to the grid spacing; Shift: free)</dd><dt>Arrow keys</dt><dd>nudge by one grid spacing; Shift: ten</dd><dt>Ctrl+D</dt><dd>duplicate</dd><dt>Delete</dt><dd>remove</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl><h3>Looking</h3><dl class="rt-shortcuts"><dt>Scroll</dt><dd>zoom about the pointer</dd><dt>Right-drag, middle-drag, or Space and drag</dt><dd>pan</dd><dt>F</dt><dd>fit the view to the array</dd><dt>1, 2, 3</dt><dd>cut through the x–y, x–z or y–z plane</dd><dt>Page up, Page down</dt><dd>move the cut plane one grid spacing</dd></dl><h3>Flying</h3><dl class="rt-shortcuts"><dt>Space</dt><dd>fly the ions (solving first if the geometry changed)</dd><dt>Esc</dt><dd>stop a long fly</dd></dl><h3>3D view</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>turn</dd><dt>Middle-drag</dt><dd>pan</dd><dt>Scroll</dt><dd>zoom</dd><dt>Click</dt><dd>select an electrode</dd></dl><h3>Files</h3><dl class="rt-shortcuts"><dt>Ctrl+S</dt><dd>save a .jekion file</dd><dt>Drop a .jekion</dt><dd>onto the bench to open it</dd><dt>?</dt><dd>this list</dd></dl></div>

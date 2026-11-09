@@ -110,7 +110,7 @@ through `core/hooks.js`.
   several kinds at once or Export everything (`exportData`/`exportEverything` in `io/data-export.js`: `accountGate`
   first, then `designPro`; `DATA_PRO`). Exports (layout, 3D PNG, plots' PNG/CSV, screen CSV, data as CSV or JSON one
   kind at a time, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
-  and shows the sign-in prompt (`exportSignIn` in `io/account.js`, counted as `export.*`); only someone signed out for
+  and shows the sign-in prompt (`exportSignIn` in `io/nudges.js`, counted as `export.*`); only someone signed out for
   sure is stopped (account unknown or API down: allowed). Saving the .jekray file is never gated. Badges: `proMark` /
   `acctMark` (or `data-need="pro|account" data-what` in `page.html`) give the Pro / Free account chip, redone live by
   `needsShown()` from `cloudGates`; menu items greyed by `gateItem` take the same chips. `test/node/pro-gate.test.mjs`
@@ -178,7 +178,7 @@ through `core/hooks.js`.
   `jekion-tests.html` (nav + stamp) and `jekray/page.html`, `jekion/page.html`, `jekspace/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs`
   checks all of it. Preview: README.
 - JEKion shares JEKray's modules as they are (`core/constants.js`, `hooks.js`, `numeric.js`, `datafiles.js`, `src-tag.js`,
-  `step.js`, `worker/shim.js`, `ui/pro.js`, `io/usage.js`, `io/step-reader.js`): a change to one of those is a change
+  `step.js`, `worker/shim.js`, `ui/pro.js`, `ui/dom.js`, `io/usage.js`, `io/account.js`, `io/step-reader.js`): a change to one of those is a change
   to both tools, so rebuild and test both (`cd jek/tools/jekion && node build.mjs && node test/run.mjs`). A shared module
   reaches the page only through `core/hooks.js` (JEKion installs its own entries: `ionChanged`, `apiBase`, `usageTier`…).
   Top-level names must be unique across both tools' modules in JEKion's build. Accounts, usage counts and the data
@@ -186,10 +186,19 @@ through `core/hooks.js`.
 - My benches is JEKspace (`jek/tools/jekspace.html`): every app's My benches opens it in the tab named `jekspace`
   (JEKray `openSpace` in `io/cloud.js`, JEKion `openCloudList`), and it opens a bench in its app's named tab at
   `#cloud=<id>[@v][:lens|rf|coat]`, or `#new[=lens|rf|coat]` (JEKray `startNewBench` in `ui/tours.js`, JEKion
-  `newProject`). Its account module is a copy of JEKray's account core (`io/account.js` up to the sign-in prompts):
-  a change to sign-in, plans, billing or teams there goes into `jekspace/src/io/account.js` too. JEKray keeps the
+  `newProject`). JEKray keeps the
   home page's CSS (`.rt-home`, `.rt-h*` in `style.css`), which JEKspace is styled with, and the merge dialog for a
   save conflict; comparing versions and merging forks are JEKspace's.
+- One account for every app: `jek/tools/jekray/src/io/account.js` (sign-in incl. the email dialog, the account menu's
+  rows `accountMenuRows`, plans and billing, the account dialog, teams, invitations, a university's licence, deleting
+  the account, `authOutcome` for the ?jekauth/?jekbilling return) is shared as it is by JEKray, JEKion and JEKspace,
+  with `ui/dom.js` (`h`, which every module imports from there). It reaches each app only through `core/hooks.js`:
+  `appName`, `toast`, `keepWork` (the autosave before the page leaves to sign in or pay), `planActive`,
+  `accountLoadedHere`, `accountChanged`, `accountMenu(rows)` / `accountMenuExtra` / `accountMenuDone` /
+  `openAccountMenu` (where the menu goes), `sayUnreachable`, `accountDeleted`. JEKray installs them in `io/nudges.js`
+  (`wireNudges`, which also holds its bench sign-in prompts: shareSignIn, exportSignIn, gateSignIn, the save/return/work
+  notes), JEKion in `io/ion-account.js` (`wireIonAccount`, with its own sign-in prompt `showSignIn`), JEKspace in
+  `src/ui/boot.js`. A change to sign-in, plans, billing or teams is made once, there; rebuild all three.
 - Site search: the box in the nav bar (`_includes/site-nav.html`, `.nav-search`) sends `?q=` to `jek/search-results.html`, which reads
   only the pages listed in its `PAGES`: add a new page there.
 - Thorlabs/vendor files are not committed; reproduce them in tests with synthetic text.

@@ -1,7 +1,8 @@
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from '../../../jekray/src/io/merge.js';
 import { track } from '../../../jekray/src/io/usage.js';
-import { APPS, appOf, closeMenu, h, helpLine, iconNode, openApp, openMenu, toast } from './dom.js';
-import { API_BASE, account, api, avatarNode, fillAccount, openAccountMenu, setAccount, showSubscribe } from '../io/account.js';
+import { APPS, appOf, closeMenu, helpLine, iconNode, menuIcons, menuOpenFor, openApp, openMenu, setSpaceTheme, spaceTheme, toast } from './dom.js';
+import { h } from '../../../jekray/src/ui/dom.js';
+import { API_BASE, account, accountMenuRows, api, avatarNode, fillAccount, setAccount, showSubscribe } from '../../../jekray/src/io/account.js';
 
 /* ==========================================================================
    JEKspace's home: every cloud bench of every app, as a CAD system's documents page. Places down the left (the
@@ -487,22 +488,20 @@ export async function fillHome() {
   if (!out.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
     : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
     : homeView.app !== 'all' ? 'No ' + appOf(homeView.app).name + ' benches here.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app\u2019s File menu.'));
-  // at the top of everything: the apps, to open or start in
-  if (P.view === 'folder' && !P.folder && !P.q) out.unshift(appsRow());
   box.replaceChildren(...out.filter(Boolean));
 }
 
 /* ---------- the apps ----------
-   A card for each: what it is, Open (its page, in its tab) and New (a bench in it, below). At the top of the
-   benches, and in the rail. */
-export function appsRow() {
-  return h('section', { class: 'rt-happs', 'aria-label': 'Apps' }, h('h3', null, 'Apps'),
-    h('div', { class: 'rt-happgrid' }, ...APPS.map(a => h('div', { class: 'rt-happ', 'data-app': a.id },
-      h('div', { class: 'rt-happhead' }, h('b', null, a.name), h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About')),
-      h('p', null, a.line),
-      h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name),
-        h('button', { type: 'button', class: 'rt-btn', onclick: () => startNew(a.id, null) }, 'New bench'))))));
+   Opened from New (its Open group) and the rail, each in its own tab; signed out, under the sign-in panel. */
+export function appLinks() {
+  return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps need no account to use:'),
+    ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
+    ...APPS.map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
+}
+/* New's menu: the apps to open, then what can be started */
+export function newMenuItems() {
+  return [h('div', { class: 'rt-hmenuhead' }, 'Open'), ...APPS.map(a => [a.name, 'apps', () => { track('cloud', 'app.' + a.id); openApp(a.id); }]),
+    'sep', h('div', { class: 'rt-hmenuhead' }, 'New'), ...NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)])];
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 export const NEW_KINDS = [
@@ -568,7 +567,7 @@ export function signedOutView() {
       h('p', null, 'JEKspace holds every bench you keep in the cloud, from every JEK app, in your workspace and your teams’: open any of them in its app, see its history, fork, compare and merge versions, and manage your account, plan and teams. One account signs you in to every app.'),
       h('div', { class: 'rt-actions', style: 'justify-content:flex-start' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'homeSignIn', onclick: openAccountMenu }, 'Sign in or create an account'),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => showSubscribe() }, 'JEKrayPro: plans and prices'))),
-    appsRow());
+    appLinks());
 }
 
 /* ---------- the page's wiring for this module: done once, from boot.js ---------- */
@@ -580,12 +579,9 @@ export function wireHome() {
   document.addEventListener('pointerdown', e => { const m = document.querySelector('.rt-hmenu'); if (m && !m.contains(e.target) && !e.target.closest('[aria-expanded="true"]')) closeMenu(); }, true);
   document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
   document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());
-  // New: a bench in one of the apps (in the workspace and folder shown)
+  // New: an app to open, or a bench to start in one (in the workspace and folder shown)
   const newBtn = document.getElementById('homeNew');
-  newBtn.addEventListener('click', () => openMenu(newBtn, NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)])));
-  // the apps, from the header
-  const appsBtn = document.getElementById('homeApps');
-  appsBtn.addEventListener('click', () => openMenu(appsBtn, APPS.map(a => ['Open ' + a.name, 'apps', () => openApp(a.id)])));
+  newBtn.addEventListener('click', () => openMenu(newBtn, newMenuItems()));
   const search = document.getElementById('homeSearch');
   let searchT = null;
   search.addEventListener('input', () => {
@@ -597,4 +593,20 @@ export function wireHome() {
   window.addEventListener('resize', closeMenu);
   // back in the hub from an app: what changed there shows
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && account) fillHome(); });
+}
+
+/* ---------- the account, in the hub ----------
+   The account is the apps' own (jekray/src/io/account.js, shared): its menu here is a pop-up made as it opens from the
+   rows it gives, with the theme in it (the hub has no View menu), and the plans for someone signed out */
+export function openAccountMenu() {
+  const btn = document.getElementById('btnAcct');
+  if (menuOpenFor() && menuOpenFor().btn === btn) { closeMenu(); return; }
+  openMenu(btn, accountMenuRows(), 'rt-acctmenu');
+  if (menuOpenFor()) menuIcons(menuOpenFor().el);
+}
+export function spaceAccountExtra(signedIn) {
+  const cur = spaceTheme(), theme = h('div', { class: 'rt-hthemes', role: 'group', 'aria-label': 'Theme' }, h('span', null, 'Theme'),
+    ...[['dark', 'Dark'], ['light', 'Light'], ['system', 'System']].map(([v, t]) => h('button', { type: 'button', class: 'rt-btn', 'aria-pressed': String(cur === v), onclick: () => { setSpaceTheme(v); closeMenu(); } }, t)));
+  const plans = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'star', onclick: () => { closeMenu(); showSubscribe(); } }, 'JEKrayPro: plans and prices\u2026');
+  return signedIn ? [theme] : [plans, theme];
 }

@@ -1,7 +1,7 @@
 import { TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { project } from '../state/project.js';
-import { h } from './panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { toast } from './actions.js';
 import { openDemo } from '../io/open.js';
 

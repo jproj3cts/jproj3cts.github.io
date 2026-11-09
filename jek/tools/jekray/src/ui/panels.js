@@ -25,7 +25,8 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { helpLine, bindSync, fid, h, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, bindSync, fid, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
+import { h } from './dom.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
   plotCsv, plotFrame, plotSaveRow, plotZoom, removeSweeps, unknownGlass, unknownGlassNote,

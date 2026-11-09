@@ -4,11 +4,12 @@ import { designPro, needsShown } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
-import { h } from '../ui/panel.js';
+import { h } from '../../../jekray/src/ui/dom.js';
 import { markUnsaved, setStatus, toast } from '../ui/actions.js';
 import { canvas } from '../ui/render.js';
 import { openProjectData, scheduleSave } from './open.js';
-import { ION_API, account, accountsOn, api, fillAccount, setAccount, showSignIn } from './account.js';
+import { API_BASE, account, accountsOn, api, fillAccount, setAccount } from '../../../jekray/src/io/account.js';
+import { showSignIn } from './ion-account.js';
 
 /* ==========================================================================
    Cloud benches, as JEKray's: the same accounts, workspaces and API, so a person's My benches holds both tools'
@@ -85,7 +86,7 @@ function leaseStop(link) {
   clearTimeout(lease.timer); lease.timer = null;
   if (!link || !cloudOn() || TEST_MODE || !lease.held) return;
   lease.held = false;
-  fetch(ION_API + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
+  fetch(API_BASE + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
 }
 /* someone else is editing the bench just opened: look, take over, or work on a copy */
 function lockAsk() {

@@ -4,8 +4,9 @@
   "../../jekray/src/core/src-tag.js",
   "../../jekray/src/io/merge.js",
   "../../jekray/src/io/usage.js",
+  "../../jekray/src/ui/dom.js",
   "ui/dom.js",
-  "io/account.js",
+  "../../jekray/src/io/account.js",
   "ui/home.js",
   "ui/boot.js"
 ]

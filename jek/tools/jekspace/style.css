@@ -21,19 +21,11 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hthemes .rt-btn { padding: 0.15rem 0.5rem; font-size: 0.78rem; }
 .rt-hthemes .rt-btn[aria-pressed=true] { background: var(--rt-strong); border-color: var(--rt-strong); color: var(--rt-on-strong); }
 
-/* the apps: a card each, to open or start a bench in */
-.rt-happs { margin: 0 0 1.4rem; }
-.rt-happs h3 { margin: 0 0 0.6rem; }
-.rt-happgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.8rem; }
-.rt-happ { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.9rem 1rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
-.rt-happ:hover { border-color: var(--jek-cyan); }
-.rt-happhead { display: flex; align-items: baseline; gap: 0.6rem; }
-.rt-happhead b { font-size: 1.05rem; }
-.rt-happhead a { margin-left: auto; font-size: 0.8rem; }
-.rt-happ p { margin: 0; flex: 1; font-size: 0.875rem; line-height: 1.5; color: var(--jek-ink-soft); }
-.rt-happ .rt-actions { justify-content: flex-start; margin: 0.2rem 0 0; }
-.rt-happ[data-app=jekion] { border-left: 3px solid var(--jek-orange); }
-.rt-happ[data-app=jekray] { border-left: 3px solid var(--jek-cyan); }
+/* the New menu's groups (Open an app, New in one): a small heading over each */
+.rt-hmenu .rt-hmenuhead { padding: 0.35rem 0.75rem 0.15rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+/* signed out: the apps, which need no account, under the sign-in panel */
+.rt-happlinks { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.7rem; margin: 0 0 1.4rem; font-size: 0.9rem; color: var(--jek-ink-soft); }
+.rt-happlinks a { font-size: 0.85rem; }
 
 /* signed out: what the hub is, and the ways in */
 .rt-hsignin { max-width: 46rem; margin: 0.5rem 0 1.6rem; padding: 1.2rem 1.3rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }

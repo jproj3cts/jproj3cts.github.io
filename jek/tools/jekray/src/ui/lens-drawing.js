@@ -6,7 +6,7 @@ import { normRfTol } from '../engines/rf-design.js';
 import { drawableParts, drawingData, drawSag, rfDrawableParts, rfDrawingData } from '../engines/lens-drawing.js';
 import { VecCtx, layoutSvg, pdfDoc } from '../io/layout.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
-import { h } from './panel.js';
+import { h } from './dom.js';
 import { designPro, proMark } from './pro.js';
 import { track } from '../io/usage.js';
 

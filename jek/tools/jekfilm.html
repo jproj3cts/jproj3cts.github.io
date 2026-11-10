@@ -2102,6 +2102,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-qsw button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.75rem; background: none; border: 0; color: var(--jek-ink-soft); cursor: pointer; }
 .film-qsw button + button { border-left: 1px solid var(--jek-line-2); }
 .film-qsw button.on { background: var(--jek-line); color: var(--jek-ink); font-weight: 600; }
+.film-head .film-save, .film-head .film-share { display: inline-flex; align-items: center; gap: 0.35rem; }
 </style>
 </head>
 <body class="film-app">
@@ -2121,7 +2122,7 @@ html, body { margin: 0; background: var(--jek-well); }
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
-          <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to the cloud…</span></button>
+          <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to cloud…</span></button>
           <button type="button" role="menuitem" id="btnShareMenu" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnExportCsv" data-icon="export" data-need="account" data-what="export the curves" title="The reflectance across the band and against the angle, as a CSV file">Export the curves (CSV)</button>
@@ -2132,6 +2133,7 @@ html, body { margin: 0; background: var(--jek-well); }
       <button class="rt-btn quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" data-icon="redo"></button>
       <span class="film-where"><span id="filmWhere">In this browser</span> <span id="filmStatus" class="rt-status" aria-live="polite"></span></span>
       <span class="rt-lgap"></span>
+      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="pro" data-what="save a coating file" title="Save the coating as a .jekfilm file (Ctrl+S)">Save</button>
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnTheme" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu" aria-label="Theme" title="Theme" data-icon="theme"></button>
         <div class="rt-menu rt-menu-right rt-imenu" id="themeMenu" role="menu" hidden></div>
@@ -5669,6 +5671,7 @@ function wireFiles() {
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });
   document.getElementById('btnSaveFile').addEventListener('click', saveFilmFile);
+  document.getElementById('btnSave').addEventListener('click', saveFilmFile);
   document.getElementById('btnNew').addEventListener('click', newFilmHere);
   document.getElementById('btnExportCsv').addEventListener('click', exportCurves);
   // a file dropped on the page
@@ -5743,7 +5746,7 @@ function forShown() {
   const bar = document.getElementById('filmFor');
   if (!bar) return;
   bar.hidden = !filmFor;
-  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save to the cloud (File › Save to the cloud…) and it goes onto that face, linked to this coating.',
+  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save it to the cloud (File › Save to cloud…) and it goes onto that face, linked to this coating.',
     h('button', { class: 'rt-link', type: 'button', onclick: () => setFilmFor(null) }, 'Not for that face'));
 }
 let filmCloudTimer = null, filmCloudBusy = false;
@@ -5834,7 +5837,7 @@ function cloudShown() {
   const where = document.getElementById('filmWhere');
   if (where) where.textContent = filmLink ? 'In the cloud' + (filmLease.editing && !filmLease.held ? ', ' + filmLease.editing.name + ' is editing' : filmLink.dirty ? ', not saved yet' : '') : 'In this browser';
   const b = document.getElementById('btnCloudSave');
-  if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to the cloud' : 'Save to the cloud…';
+  if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to cloud' : 'Save to cloud…';
 }
 /* ---------- saving ---------- */
 function filmCloudChanged() {
@@ -5914,7 +5917,7 @@ async function saveToCloud() {
   where.addEventListener('change', fillFolders); fillFolders();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'filmCloudMake' }, 'Save');
   dlg = h('dialog', { class: 'rt-dialog', id: 'filmCloudNew', 'aria-labelledby': 'filmCloudNewTitle' },
-    h('h2', { id: 'filmCloudNewTitle' }, 'Save to the cloud'),
+    h('h2', { id: 'filmCloudNewTitle' }, 'Save to cloud'),
     h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudWhere' }, 'In'), where),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudFolder' }, 'Folder'), folder)),
     h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKsuite.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKsuite.'),

@@ -116,6 +116,7 @@ export function wireFiles() {
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });
   document.getElementById('btnSaveFile').addEventListener('click', saveFilmFile);
+  document.getElementById('btnSave').addEventListener('click', saveFilmFile);
   document.getElementById('btnNew').addEventListener('click', newFilmHere);
   document.getElementById('btnExportCsv').addEventListener('click', exportCurves);
   // a file dropped on the page

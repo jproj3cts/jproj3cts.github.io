@@ -166,3 +166,13 @@ html, body { margin: 0; background: var(--jek-well); }
 }
 .rt-hlaunch .rt-htable .rt-hrow, .rt-hlaunch .rt-htable.where .rt-hrow { grid-template-columns: 1.7rem 3.3rem minmax(7rem, 1fr) 8.5rem 5rem 2.3rem; }
 .rt-hlaunch .rt-htable .rt-hc.app, .rt-hlaunch .rt-htable .rt-hc.where, .rt-hlaunch .rt-htable .rt-hth > :nth-child(4), .rt-hlaunch .rt-htable.where .rt-hth > :nth-child(5) { display: none; }
+
+/* a folder picked with the rest: its tick before its mark */
+.rt-hgrid.folders .rt-hcard.folder > .rt-hopen { padding-left: 2.1rem; }
+.rt-hgrid.folders .rt-hcard.folder .rt-hpick { top: 50%; left: 0.6rem; transform: translateY(-50%); }
+/* a note with something to press in it (Undo) */
+.rt-home .rt-toast.act { pointer-events: auto; }
+.rt-home .rt-toast .rt-link { margin-left: 0.5rem; font-weight: 700; }
+.rt-hcard[hidden], .rt-hgrid[hidden], .rt-htable[hidden], .rt-hlist h3[hidden], .rt-hlist p[hidden] { display: none; }
+.rt-hhead .rt-htheme { flex: none; display: inline-grid; place-items: center; width: 2.1rem; height: 2.1rem; padding: 0; }
+.rt-hhead .rt-htheme .ic { width: 17px; height: 17px; }

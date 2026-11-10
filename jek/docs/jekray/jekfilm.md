@@ -63,7 +63,7 @@ What a coater needs, kept with the coating. It covers the coating and the substr
 
 ## Files and the cloud
 
-The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKsuite shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.
+The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKsuite shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.
 
 **Share** (top right, or **File › Copy a share link…**; on a narrow screen only the File menu has it) copies a short link, jeksys.net/f/ and ten letters, that opens the coating as it is now. Making one is JEKrayPro's; anyone with the link can open it, without an account. What opens is a copy: changes to it do not reach yours, and changes to yours after sharing are not in the link.
 
@@ -71,7 +71,7 @@ The coating you are working on is kept in this browser as you go. With [JEKrayPr
 
 ## On a JEKray bench
 
-**Designing for a face.** A face's **Design a coating in JEKfilm…** (or the lens designer's face table) opens JEKfilm on that face's glass, at the bench's wavelength, with the face's stack, and a line along the top says which face it is for. **Save to the cloud…** then starts in the bench's own workspace and folder, and once saved the coating goes onto that face in JEKray, linked to it. Saving to the cloud is JEKrayPro's.
+**Designing for a face.** A face's **Design a coating in JEKfilm…** (or the lens designer's face table) opens JEKfilm on that face's glass, at the bench's wavelength, with the face's stack, and a line along the top says which face it is for. **Save to cloud…** then starts in the bench's own workspace and folder, and once saved the coating goes onto that face in JEKray, linked to it. Saving to the cloud is JEKrayPro's.
 
 
 A coating face's **Coating** list (a lens or window face, a beamsplitter cube, a prism) offers the JEKfilm coatings kept in the same cloud folder as the bench, each marked ◆, and **A JEKfilm coating from a file…** for a .jekfilm on your computer. Choosing one puts its layers on the face at its design wavelength; the face keeps its own glass as the substrate. When that glass's index at the design wavelength is more than 0.005 from the one the coating was designed on, a note under it names both and gives the reflectance square on, as designed and on this glass.

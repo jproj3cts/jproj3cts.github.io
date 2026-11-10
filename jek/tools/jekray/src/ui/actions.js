@@ -1,5 +1,6 @@
 import { EMBED, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { asmCheck, asmKind, asmOf, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
+import { liveMates, mateSpread, matesCopied, normMates } from '../core/mates.js';
 import { designOne, makeAssembly, splitAssembly } from './assembly.js';
 import { openLensDesign } from './lens-workspace.js';
 import { fmtLen } from '../core/format.js';
@@ -62,6 +63,7 @@ export function duplicate(el) {
 }
 /* move, turn and remove several at once (locked ones stay) */
 export function moveEls(list, dx, dy) {
+  list = mateSpread(list);                                // (what is mated to them goes with them)
   const ids = new Set(list.filter(e => !e.locked).map(e => e.id));
   for (const e of list) if (!e.locked) { e.x = +(e.x + dx).toFixed(4); e.y = +(e.y + dy).toFixed(4); }
   for (const F of project.fibres || []) if (ids.has(F.a[0]) && ids.has(F.b[0])) for (const n of F.path || []) { n.x += dx; n.y += dy; }
@@ -69,7 +71,7 @@ export function moveEls(list, dx, dy) {
 /* turned by deg about their middle: each element's own angle too, and the shapes of the
    fibres between them */
 export function rotateEls(list, degs) {
-  const free = list.filter(e => !e.locked);
+  const free = mateSpread(list).filter(e => !e.locked);
   if (!free.length) return;
   checkpoint();
   const cx = free.reduce((a, e) => a + e.x, 0) / free.length, cy = free.reduce((a, e) => a + e.y, 0) / free.length;
@@ -117,7 +119,9 @@ let clipMem = null;
 export function clipOf(list) {
   const ids = new Set(list.map(e => e.id));
   const asms = (project.assemblies || []).filter(a => list.some(e => e.group === a.id) && project.elements.filter(e => e.group === a.id).every(e => ids.has(e.id)));
+  const mates = liveMates().filter(m => ids.has(m.a.el) && ids.has(m.b.el));
   return { format: 'jekray-clip', version: 1, from: project.tab, elements: JSON.parse(JSON.stringify(list)), ...(asms.length ? { assemblies: JSON.parse(JSON.stringify(asms)) } : {}),
+    ...(mates.length ? { mates: JSON.parse(JSON.stringify(mates)) } : {}),
     fibres: JSON.parse(JSON.stringify((project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0])))) };
 }
 export function pasteClip(clip, at) {
@@ -145,6 +149,9 @@ export function pasteClip(clip, at) {
     if (!groups.has(a.id) || !map.has(a.ref)) continue;
     project.assemblies = (project.assemblies || []).concat(normAssemblies([Object.assign({}, a, { id: groups.get(a.id), ref: map.get(a.ref), name: String(a.name) + ' copy', design: remapDesign(a.design, map) })], made));
   }
+  // mates between parts copied: held together in the copy too
+  const mc = matesCopied(normMates(clip.mates, clip.elements), map);
+  if (mc.length) project.mates = (project.mates || []).concat(mc);
   project.fibres = project.fibres || [];
   for (const F of clip.fibres || []) {
     if (!map.has(F.a[0]) || !map.has(F.b[0])) continue;

@@ -1,20 +1,24 @@
-import { deg, num } from '../state/project.js';
+/* ==========================================================================
+   A sketch: its shapes, the constraints between them, and its dimensions (begun as JEKray's Model-mode sketch,
+   core/sketch.js there, and owned here since). The shapes are lines (a, b), arcs (centre c, radius r, from angle
+   a0 to a1 counter-clockwise, degrees), circles (c, r) and points (c); k marks a construction shape. Constraints and
+   dimensions name their points (a line's ends a and b and its middle m, an arc's centre c and ends p0, p1, a
+   circle's centre c, a point's c) or the shapes themselves, and the sketch's origin.
+   The solver moves the shapes' numbers as little as it can so that every constraint and dimension holds: a
+   dimension changed, a point dragged, the model regenerated with a variable changed.
 
-/* ---------- A sketch as a CAD program has one: shapes, the constraints between them, and dimensions ----------
-   A sketch's shapes (core/model.js: lines, arcs, circles, slots, polygons, holes, points, and rectangles kept from before)
-   carry their own numbers; the constraints and dimensions beside them name their points (a line's ends a and b and its
-   middle m, an arc's centre c and ends p0, p1, a circle's centre c, ...) or the shapes themselves, and the sketch's origin.
-   The solver moves the shapes' numbers as little as it can so that every constraint and dimension holds: a dimension
-   changed, a point dragged, the sketch made again with its sizes kept.
-
-   Constraints (t): coincident (two points), oncurve (a point on a line, circle or arc), horizontal and vertical (a line,
-   or two points), parallel, perpendicular, equal (two lines' lengths, or two circles' or arcs' radii), tangent (a line
-   and a circle or arc, or two of those), midpoint (a point at a line's middle), concentric, fix (a point where it is),
-   symmetric (two points about a line). Dimensions (t): dist (two points; h or v: across or up only), len (a line), pl (a
-   point from a line), rad, dia (a circle or arc), ang (between two lines); v is its value, mm or degrees. */
-
+   Constraints (t): coincident (two points), oncurve (a point on a line, circle or arc), horizontal and vertical (a
+   line, or two points), parallel, perpendicular, equal (two lines' lengths, or two circles' or arcs' radii), tangent
+   (a line and a circle or arc, or two of those), midpoint (a point at a line's middle), concentric, fix (a point
+   where it is), symmetric (two points about a line). Dimensions (t): dist (two points; h or v: across or up only),
+   len (a line), pl (a point from a line), rad, dia (a circle or arc), ang (between two lines); v is its value, mm
+   or degrees, and x what was typed for it (an expression, which may name the Variables table's #names).
+   ========================================================================== */
+const deg = Math.PI / 180;
+const num = (v, d) => { const x = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(x) ? x : d; };
 export const CON_KINDS = ['coincident', 'oncurve', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'midpoint', 'concentric', 'fix', 'symmetric'];
 export const DIM_KINDS = ['dist', 'len', 'pl', 'rad', 'dia', 'ang'];
+export const ENT_KINDS = ['line', 'arc', 'circle', 'point'];
 const sfin = (v, d) => { const x = num(v, d); return Number.isFinite(x) ? x : d; };
 const okRef = r => r && typeof r === 'object' && typeof r.e === 'string' && r.e.length < 30 && (r.k === undefined || /^(a|b|m|c|p0|p1|p2|p3)$/.test(r.k));
 const cleanRef = r => (r.k ? { e: r.e, k: r.k } : { e: r.e });
@@ -32,7 +36,7 @@ export function normDims(dims, ents) {
   return (Array.isArray(dims) ? dims : []).slice(0, 1000).filter(d => d && DIM_KINDS.includes(d.t) && Array.isArray(d.r) && d.r.length >= 1 && d.r.length <= 2 && d.r.every(okRef) && d.r.every(r => ids.has(r.e)))
     .map(d => Object.assign({ id: typeof d.id === 'string' && d.id.length < 30 ? d.id : sketchId('d'), t: d.t, r: d.r.map(cleanRef), v: d.t === 'ang' ? sfin(d.v, 90) : Math.max(0, sfin(d.v, 10)) },
       d.dir === 'h' || d.dir === 'v' ? { dir: d.dir } : {}, d.s === 1 || d.s === -1 ? { s: d.s } : {}, Array.isArray(d.off) && d.off.length === 2 ? { off: [sfin(d.off[0], 0), sfin(d.off[1], 0)] } : {},
-      typeof d.name === 'string' && d.name.length < 24 ? { name: d.name } : {}));
+      typeof d.x === 'string' && d.x.length < 200 ? { x: d.x } : {}));
 }
 
 /* ---------- a shape's numbers, and its points from them ---------- */
@@ -69,7 +73,7 @@ export function entKeys(e) {
     default: return ['c'];
   }
 }
-const lineDir = e => [e.b[0] - e.a[0], e.b[1] - e.a[1]];
+export const lineDir = e => [e.b[0] - e.a[0], e.b[1] - e.a[1]];
 const radiusOf = e => (e.t === 'hole' ? e.d / 2 : e.r);
 const curveC = e => e.c;
 // a point's signed distance from a line (left of it, positive)
@@ -336,7 +340,7 @@ export function sketchRegions(ents, outline) {
   for (const f of faces) f.pt = innerPoint(f, scale);
   return faces.map(f => ({ outer: f.outer, holes: f.holes, area: f.a - f.holes.reduce((s, h) => s - area(h), 0), pt: f.pt })).filter(f => f.pt);
 }
-function inside(P, q) {
+export function inside(P, q) {
   let c = false;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const a = P[i], b = P[j]; if ((a[1] > q[1]) !== (b[1] > q[1]) && q[0] < (b[0] - a[0]) * (q[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; }
   return c;

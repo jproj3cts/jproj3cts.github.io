@@ -13,6 +13,7 @@ import {
   finishPen, groupEls, groupOf, labelAt, partsLocked, penDraft, scaleDrawing, scaleGrips, setPenCursor,
   setPenEnded, setXformMode, snap15, ungroupEls, xformMode
 } from './drawings.js';
+import { mateSpread } from '../core/mates.js';
 import { pkey } from '../engines/fibre.js';
 import { lastTrace } from '../engines/trace.js';
 import { getEl } from '../state/elements.js';
@@ -293,7 +294,7 @@ export function wirePointer() {
       const wasSel = hit.id === selectedId && !extraSel.size;
       if (!(hit.id === selectedId || extraSel.has(hit.id))) { if (mates.length > 1) setSelection([hit, ...mates.filter(m => m !== hit)]); else { selectOne(hit.id); renderPanel(); } }
       // the whole selection moves with it; fibres between its members bring their shapes along
-      const group = selection().filter(x => !x.locked), ids = new Set(group.map(x => x.id));
+      const group = mateSpread(selection()).filter(x => !x.locked), ids = new Set(group.map(x => x.id));
       const fibres = (project.fibres || []).filter(F => ids.has(F.a[0]) && ids.has(F.b[0]));
       // a curved fibre with one end moving: its bends follow in proportion, those nearest the moving end most
       const halfway = (project.fibres || []).filter(F => F.route !== 'square' && (F.path || []).length && ids.has(F.a[0]) !== ids.has(F.b[0]))

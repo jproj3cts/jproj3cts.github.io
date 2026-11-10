@@ -209,10 +209,13 @@
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Fit the view to the bench" aria-label="Fit view"></button>
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnMeasure" data-icon="ruler" title="Measure distances, angles and optical paths (M)" aria-label="Measure"></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnCmd" type="button" data-icon="search" title="Search commands (Ctrl+K)" aria-label="Search commands" aria-haspopup="dialog"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnQGroup" type="button" data-icon="group" title="Group the selected parts: picked and moved as one (Ctrl+G)" aria-label="Group"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnQUngroup" type="button" data-icon="ungroup" title="Ungroup the selected parts (Ctrl+Shift+G)" aria-label="Ungroup"></button>
           <!-- the 3D view's own, shown while it is -->
           <span class="rt-qsep rt-v3donly" id="v3dSep" aria-hidden="true" hidden></span>
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dFly" type="button" data-icon="fly" hidden title="Fly through the bench, full screen: W A S D and the mouse, Esc to land" aria-label="Fly"></button>
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dMouse" type="button" data-icon="mouse" hidden aria-pressed="false" title="Mouse: default (right-drag turns the view). Click for a trackpad" aria-label="Trackpad controls"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dMate" type="button" data-icon="mate" hidden aria-pressed="false" title="Mate two parts: pick a face, edge or round face on each, then how they meet (Esc to stop)" aria-label="Mate two parts"></button>
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dPng" type="button" data-icon="camera" hidden data-need="account" data-what="save a picture of the 3D view" title="Save the 3D view as a picture" aria-label="Save the 3D view as a picture"></button>
         </div>
         <div class="rt-more rt-file">

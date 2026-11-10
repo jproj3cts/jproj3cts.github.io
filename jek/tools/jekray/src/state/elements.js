@@ -1,5 +1,6 @@
 import { BEAM_Z, FORMAT, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
 import { assemblies, normAssemblies } from '../core/assembly.js';
+import { liveMates, normMates } from '../core/mates.js';
 import { hooks } from '../core/hooks.js';
 import { normModRef } from '../core/modulators.js';
 import { applyRf, normRf } from '../core/rf.js';
@@ -277,6 +278,7 @@ export function serialize() {
     elements: project.elements,
     fibres: project.fibres || [],
     ...(assemblies().length ? { assemblies: assemblies() } : {}),
+    ...(liveMates().length ? { mates: liveMates() } : {}),
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
@@ -407,6 +409,7 @@ export function loadProject(data) {
   ensureBenches(p);
   p.fibres = normFibres(data.fibres, p.elements);
   p.assemblies = normAssemblies(data.assemblies, p.elements);
+  p.mates = normMates(data.mates, p.elements);                 // faces of parts held together (core/mates.js)
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high

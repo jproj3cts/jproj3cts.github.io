@@ -259,8 +259,13 @@ async function cloudThumb(link, force) {
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
-  if (meta.tool !== 'jekion') {
-    const app = meta.tool === 'jekfilm' ? { url: '/jek/tools/jekfilm.html', tab: 'jekfilm', what: 'a JEKfilm coating', name: 'JEKfilm' } : { url: JEKRAY_URL, tab: 'jekray', what: 'a JEKray bench', name: 'JEKray' };
+  // another app's, by its mark or its content (a coating or part studio saved by an API from before its app is marked JEKray's)
+  const fmt = (() => { try { return JSON.parse(b.content).format; } catch (err) { return null; } })();
+  const tool = fmt === 'jekfilm' || fmt === 'jekcad' ? fmt : meta.tool;
+  if (tool !== 'jekion') {
+    const app = tool === 'jekfilm' ? { url: '/jek/tools/jekfilm.html', tab: 'jekfilm', what: 'a JEKfilm coating', name: 'JEKfilm' }
+      : tool === 'jekcad' ? { url: '/jek/tools/jekcad.html', tab: 'jekcad', what: 'a JEKcad part studio', name: 'JEKcad' }
+      : { url: JEKRAY_URL, tab: 'jekray', what: 'a JEKray bench', name: 'JEKray' };
     const w = window.open(app.url + '#cloud=' + id + (version ? '@' + version : ''), app.tab); if (w) w.focus(); toast('“' + meta.name + '” is ' + app.what + ': opened in ' + app.name); return;
   }
   setCloudOpening(true);

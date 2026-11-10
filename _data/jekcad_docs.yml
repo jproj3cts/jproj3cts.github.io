@@ -1,0 +1,13 @@
+# The JEKcad documentation's contents: the sidebar, the breadcrumbs and Previous / Next follow this order
+# (_layouts/docs.html, with `docs: jekcad` in each page's front matter).
+- title: Getting started
+  url: /jek/docs/jekcad/
+  group: Start here
+- title: Sketching
+  url: /jek/docs/jekcad/sketching/
+  group: Modelling
+- title: Features
+  url: /jek/docs/jekcad/features/
+- title: Files, the cloud and exports
+  url: /jek/docs/jekcad/files/
+  group: Your work

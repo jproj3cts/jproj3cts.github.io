@@ -410,4 +410,21 @@ describe('the tools', () => {
     expect(back.status).toBe(400);
     expect((await json(await put(s, c.id, 1, film('BBAR 2')))).status).toBe(200);
   });
+  const cad = (name) => JSON.stringify({ format: 'jekcad', version: 1, name, units: 'mm', variables: [], features: [], rollback: null, parts: {} });
+  it('a JEKcad part studio is its own tool: listed by it, kept by forks, and no other tool’s content saves over it, nor it over theirs', async () => {
+    const s = await pro('Isla');
+    const r = await make(s, 'Optics');
+    const c = await make(s, 'Mount', { content: cad('Mount') });
+    expect(c.tool).toBe('jekcad');
+    const cads = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekcad`, { token: s.token }))).body.benches;
+    expect(cads.map((b) => b.id)).toEqual([c.id]);
+    const over = await json(await put(s, c.id, 1, bench('Mount')));
+    expect(over.status).toBe(400);
+    expect(over.body.error.message).toMatch(/JEKcad part studio: a \.jekray cannot/);
+    const back = await json(await put(s, r.id, 1, cad('Optics')));
+    expect(back.status).toBe(400);
+    expect((await json(await put(s, c.id, 1, cad('Mount 2'), { checkpoint: true }))).status).toBe(200);
+    const f = (await json(await send(`/v1/benches/${c.id}/fork`, 'POST', s.token, {}))).body;
+    expect(f.tool).toBe('jekcad');
+  });
 });

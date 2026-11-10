@@ -1,7 +1,7 @@
 # jeksys.net — working notes
 
 The repo is the jeksys.net site (GitHub Pages) plus JEKray, a browser optics/photonics/RF simulator, JEKion, a
-charged-particle optics simulator built the same way beside it, JEKfilm, a thin-film coating designer, and their API. The root README has the site
+charged-particle optics simulator built the same way beside it, JEKfilm, a thin-film coating designer, JEKcad, a parametric CAD Part Studio, and their API. The root README has the site
 conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tools/jekion/README.md` JEKion's.
 
 ## Working rules
@@ -46,6 +46,7 @@ The site should read as written by the people who build the things on it. Before
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
 | JEKsuite, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jeksuite/` — built into `jek/tools/jeksuite.html` (committed), as JEKion is; `README.md` there; tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jeksuite.md` |
 | JEKfilm, the coating designer (`.jekfilm`; a cloud bench with tool `jekfilm`) | `jek/tools/jekfilm/` — built into `jek/tools/jekfilm.html` (committed), as JEKsuite is; `README.md` there; shares JEKray's `core/coatings.js` and `core/coatdesign.js`; saving and optimising are Pro; tests `node test/run.mjs`; docs `jek/docs/jekray/jekfilm.md` |
+| JEKcad, the Part Studio CAD app (`.jekcad`; a cloud bench with tool `jekcad`, also known by its content's format) | `jek/tools/jekcad/` — built into `jek/tools/jekcad.html` (committed), as JEKfilm is; `README.md` there; OpenCascade (replicad-opencascadejs, LGPL-2.1) vendored in `jek/assets/vendor/replicad-opencascadejs/<version>/`, run in a worker, loaded on first use; feature list, sketch solver and tools in `src/core/`; exports need a free account, the cloud Pro (as JEKion); tests `node test/run.mjs`; docs `jek/docs/jekcad/` (`_data/jekcad_docs.yml`); demo `jek/tools/demos/*.jekcad` |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |

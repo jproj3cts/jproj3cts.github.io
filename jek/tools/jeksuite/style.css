@@ -36,6 +36,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
 .rt-happhead.jekion { border-left-color: var(--jek-orange); }
 .rt-happhead.jekfilm { border-left-color: var(--jek-amber); }
+.rt-happhead.jekcad { border-left-color: var(--jek-sky); }
 .rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
 .rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
 .rt-happhead .rt-actions { justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.5rem; margin: 0; }
@@ -56,6 +57,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-htool { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .rt-hprev .rt-htool.jekion { background: var(--jek-orange); }
 .rt-hprev .rt-htool.jekfilm { background: var(--jek-amber); color: #1a1a1a; }
+.rt-hprev .rt-htool.jekcad, .rt-hcard .rt-hinfo .rt-htool.jekcad { background: var(--jek-sky); color: #1a1a1a; }
 .rt-hlaunch .rt-hgrid.folders { grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
 .rt-hcard.sel { box-shadow: 0 0 0 2px var(--jek-cyan); }
 .rt-hcount { margin-left: auto; padding-left: 0.6rem; font-size: 0.75rem; font-weight: 400; color: var(--jek-ink-soft); white-space: nowrap; }

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- What this page may load and talk to: itself and the JEKrayPro API (JEKcad shares JEKray's accounts). The app's own
+     code is inline, and its kernel is WebAssembly run in a worker, hence 'unsafe-inline' and 'unsafe-eval'. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>JEKcad</title>
+<meta name="description" content="JEKcad: a parametric CAD Part Studio in the browser. Sketches with constraints and dimensions, a feature list you can roll back, and solids on OpenCascade.">
+<script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+
+<main class="main-content rt-app cad-app">
+
+  <div class="rt-wrap">
+    <div class="rt-toolbar" role="toolbar" aria-label="JEKcad controls">
+      <div class="rt-row rt-bar">
+        <a class="cad-space" id="btnSpace" href="/jek/tools/jeksuite.html#app=jekcad" target="jeksuite" title="JEKsuite: every part studio and bench you keep in the cloud (in its own tab)"><span class="cad-spacemark" aria-hidden="true"></span>JEKsuite</a>
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekcad/" title="About JEKcad: its product page"><span class="jek-wm">JEK<b>cad</b></span></a></h1>
+        <div class="rt-menubar" role="group" aria-label="Menus">
+        <div class="rt-more">
+          <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu">File</button>
+          <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnNew" data-icon="new">New Part Studio</button>
+            <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekcad file…</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekcad<span class="k">Ctrl+S</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Your part studios in the cloud, on JEKsuite (it opens in its own tab)">My part studios on JEKsuite…</button>
+            <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this Part Studio in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
+            <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden>Fork this Part Studio…</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnImportStep" data-icon="import" title="Each solid of a STEP file becomes a part, from an Import feature in the list">Import STEP…</button>
+            <button type="button" role="menuitem" id="btnExportStep" data-icon="export" data-need="account" data-what="export STEP files">Export all parts as STEP</button>
+            <button type="button" role="menuitem" id="btnExportStl" data-icon="export" data-need="account" data-what="export STL files">Export all parts as STL</button>
+            <div class="sep"></div>
+            <span class="rt-menunote rt-status" id="status" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="rt-more">
+          <button class="rt-btn rt-mbar" id="btnEdit" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="editMenu">Edit</button>
+          <div class="rt-menu rt-imenu" id="editMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-click="btnUndo" data-icon="undo">Undo<span class="k">Ctrl+Z</span></button>
+            <button type="button" role="menuitem" data-click="btnRedo" data-icon="redo">Redo<span class="k">Ctrl+Shift+Z</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnVariables" data-icon="variables">Variables…</button>
+          </div>
+        </div>
+        <div class="rt-more">
+          <button class="rt-btn rt-mbar" id="btnViewMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu">View</button>
+          <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
+            <button type="button" role="menuitem" id="btnFit" data-icon="fit">Zoom to fit<span class="k">F</span></button>
+            <button type="button" role="menuitem" id="btnNormal" data-icon="plane">Normal to the selection<span class="k">N</span></button>
+            <button type="button" role="menuitem" data-view="iso" data-icon="cube">Isometric<span class="k">7</span></button>
+            <button type="button" role="menuitem" data-view="top" data-icon="cube">Top<span class="k">5</span></button>
+            <button type="button" role="menuitem" data-view="front" data-icon="cube">Front<span class="k">1</span></button>
+            <button type="button" role="menuitem" data-view="right" data-icon="cube">Right<span class="k">4</span></button>
+            <div class="sep"></div>
+            <button type="button" role="menuitemradio" data-mode="shadedEdges" data-icon="check">Shaded with edges</button>
+            <button type="button" role="menuitemradio" data-mode="shaded" data-icon="check">Shaded</button>
+            <button type="button" role="menuitemradio" data-mode="hidden" data-icon="check">Hidden edges</button>
+            <button type="button" role="menuitemradio" data-mode="wire" data-icon="check">Edges only</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitemcheckbox" id="btnSection" aria-checked="false" data-icon="section">Section view</button>
+            <button type="button" role="menuitem" id="btnPlanes" data-icon="plane">Show or hide the planes</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitemradio" data-theme="dark" data-icon="check">Dark</button>
+            <button type="button" role="menuitemradio" data-theme="light" data-icon="check">Light</button>
+            <button type="button" role="menuitemradio" data-theme="system" data-icon="check">Follow the system</button>
+          </div>
+        </div>
+        <div class="rt-more">
+          <button class="rt-btn rt-mbar" id="btnHelpMenu" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="helpMenu">Help</button>
+          <div class="rt-menu rt-imenu" id="helpMenu" role="menu" hidden>
+            <a role="menuitem" href="/jek/docs/jekcad/" target="_blank" rel="noopener" data-icon="book">Documentation: how it works</a>
+            <button type="button" role="menuitem" id="btnHelpKeys" data-icon="keyboard">Mouse and keys</button>
+            <button type="button" role="menuitem" id="btnNews" data-icon="star">What’s new</button>
+            <div class="sep"></div>
+            <a role="menuitem" href="/jek/products/design-software/jekcad/" data-icon="info">About JEKcad</a>
+            <a role="menuitem" href="/jek/tools/jekray.html" data-icon="beam">JEKray, the optical bench</a>
+            <a role="menuitem" href="/jek/tools/jekion.html" data-icon="ion">JEKion, charged-particle optics</a>
+            <a role="menuitem" href="/jek/" data-icon="home">JEK Systems website</a>
+            <div class="sep"></div>
+            <span class="rt-menunote">JEKcad <span id="appVersion"></span> &middot; kernel: Open CASCADE Technology (LGPL-2.1) &middot; &copy; 2026 JEK Systems</span>
+          </div>
+        </div>
+        </div>
+        <div class="rt-group rt-tight rt-quick">
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnUndo" type="button" data-icon="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnRedo" type="button" data-icon="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled></button>
+          <span class="rt-qsep" aria-hidden="true"></span>
+          <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Zoom to fit (F)" aria-label="Zoom to fit"></button>
+        </div>
+        <div class="rt-more rt-file">
+          <input class="rt-name" id="docName" type="text" aria-label="Part Studio name" spellcheck="false">
+        </div>
+        <div class="rt-group rt-right">
+          <button class="rt-btn" id="btnSave" title="Save the Part Studio as a .jekcad file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekcad</span></button>
+          <div class="rt-more" id="acct" hidden>
+            <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
+            <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
+          </div>
+        </div>
+      </div>
+      <div class="rt-row cad-fbar" id="featureBar" role="group" aria-label="Features">
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="sketch" data-icon="sketch" title="Sketch on a plane or a flat face">Sketch</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="extrude" data-icon="extrude" title="Extrude sketch regions">Extrude</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="revolve" data-icon="revolve" title="Revolve sketch regions about a line">Revolve</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="sweep" data-icon="sweep" title="Sweep a profile along a path">Sweep</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="loft" data-icon="loft" title="Loft through profiles">Loft</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="fillet" data-icon="fillet" title="Round edges">Fillet</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="chamfer" data-icon="chamfer" title="Bevel edges">Chamfer</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="shell" data-icon="shell" title="Hollow a part, faces removed">Shell</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="hole" data-icon="hole" title="Holes at a sketch’s points">Hole</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="lpattern" data-icon="lpattern" title="Linear pattern">Linear</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="cpattern" data-icon="cpattern" title="Circular pattern">Circular</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="mirror" data-icon="mirror" title="Mirror features or parts">Mirror</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="boolean" data-icon="boolean" title="Union, subtract or intersect parts">Boolean</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="plane" data-icon="plane" title="A plane offset from another or from a face">Plane</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-click="btnVariables" data-icon="variables" title="The Variables table">Variables</button>
+        <span class="cad-grow"></span>
+        <label class="cad-filter" title="What a click in the view picks">Select <select id="selFilter" aria-label="Selection filter"><option value="any">Anything</option><option value="face">Faces</option><option value="edge">Edges</option><option value="vertex">Vertices</option><option value="part">Parts</option><option value="region">Sketch regions</option><option value="plane">Planes</option></select></label>
+      </div>
+      <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
+    </div>
+
+    <div class="cad-main">
+      <aside class="cad-side" aria-label="Feature list and parts">
+        <h2 class="cad-shead">Features</h2>
+        <ul class="cad-flist" id="featureList"></ul>
+        <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
+        <ul class="cad-plist" id="partsList"></ul>
+      </aside>
+      <div class="rt-stage cad-stage" id="stage">
+        <canvas id="view" aria-hidden="true"></canvas>
+        <canvas id="over" tabindex="0" aria-label="The model: click to select faces, edges and vertices; right-drag to orbit"></canvas>
+        <div class="cad-dialog" id="featureDialog" hidden></div>
+        <div class="cad-cube" id="viewCube" aria-label="View cube"><div class="cad-cubebtns"><button type="button" class="rt-btn quiet" data-view="iso" title="Isometric (7)">Iso</button><button type="button" class="rt-btn quiet" data-click="btnFit" title="Zoom to fit (F)">Fit</button></div></div>
+        <div class="cad-section" id="sectionCtl" hidden><label>Section <select id="secPlane"><option value="front">Front</option><option value="top">Top</option><option value="right">Right</option></select></label><input type="range" id="secAt" min="-50" max="50" step="0.1" value="0" aria-label="Where the section cuts"><span id="secAtOut">0 mm</span><label><input type="checkbox" id="secFlip"> Flip</label></div>
+        <div class="cad-measure" id="measure" hidden aria-live="polite"></div>
+        <div class="cad-busy" id="busy" hidden>Regenerating…</div>
+        <p class="cad-note" id="viewNote" hidden></p>
+        <div class="cad-hint" id="hint"></div>
+        <div class="rt-toast" id="toast" role="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog class="rt-dialog rt-wide" id="varsDialog" aria-labelledby="varsTitle">
+    <h2 id="varsTitle">Variables</h2>
+    <p>Each variable is a name and an expression, which may use the ones above it. Use one in any field, or in a sketch’s dimension, as <code>#name</code>: change it here, and every feature that uses it follows.</p>
+    <div id="varsBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="varsClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">Mouse and keys</h2>
+    <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd></dl>
+    <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Ctrl or Shift and click</dt><dd>add to the selection</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
+    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
+    <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>S or Esc</dt><dd>select; Esc again ends a line chain</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">
+    <h2 id="newsTitle">What’s new in JEKcad</h2>
+    <div class="rt-news" id="newsBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="newsClose">Close</button></div>
+  </dialog>
+
+  <!-- the account's dialogs (jekray/src/io/account.js, shared): the plans, the account, a team, a university's licence, deleting the account -->
+  <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
+    <h2 id="uniTitle">University licence</h2>
+    <div id="uniBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="uniClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog" id="acctDialog" aria-labelledby="acctTitle">
+    <h2 id="acctTitle">Your account</h2>
+    <div id="acctBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="acctClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="teamDialog" aria-labelledby="teamTitle">
+    <h2 id="teamTitle">Team</h2>
+    <div id="teamBody"></div>
+    <div class="rt-actions"><button class="rt-btn primary" id="teamClose">Close</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="deleteDialog" aria-labelledby="deleteTitle">
+    <h2 id="deleteTitle">Delete your account</h2>
+    <div id="deleteBody"></div>
+    <p><label for="deleteConfirm">To confirm, type <b>delete my account</b></label><br><input id="deleteConfirm" autocomplete="off" spellcheck="false"></p>
+    <p class="rt-error" id="deleteError" hidden></p>
+    <div class="rt-actions"><button class="rt-btn" id="deleteCancel">Keep my account</button><button class="rt-btn primary danger" id="deleteGo" disabled>Delete my account</button></div>
+  </dialog>
+  <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
+    <h2 id="subTitle">JEKrayPro</h2>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
+    <div id="subPlans"></div>
+    <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
+    <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="cloudConflict" aria-labelledby="ccTitle">
+    <h2 id="ccTitle">Saved somewhere else</h2>
+    <p id="cloudConflictText"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="ccTheirs" type="button">Open the newer one</button>
+      <button class="rt-btn" id="ccCopy" type="button">Keep mine as a copy</button>
+      <button class="rt-btn primary" id="ccMine" type="button">Overwrite with mine</button>
+    </div>
+  </dialog>
+
+  <dialog class="rt-dialog" id="cloudLockDialog" aria-labelledby="clTitle">
+    <h2 id="clTitle">Someone is editing this Part Studio</h2>
+    <p id="cloudLockText"></p>
+    <div class="rt-actions">
+      <button class="rt-btn" id="clLook" type="button">Just look</button>
+      <button class="rt-btn" id="clCopy" type="button">Work on a copy</button>
+      <button class="rt-btn primary" id="clTake" type="button">Take over</button>
+    </div>
+  </dialog>
+
+</main>
+
+
+<script>
+{{SCRIPT}}
+</script>
+
+
+</body>
+</html>

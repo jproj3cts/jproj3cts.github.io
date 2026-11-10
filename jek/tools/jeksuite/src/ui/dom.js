@@ -12,8 +12,10 @@ export const APPS = [
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
   { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
+  { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
+    line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
-/* what an app's files are called: a JEKfilm coating, a JEKray or JEKion bench */
+/* what an app's files are called: a JEKfilm coating, a JEKcad part studio, a JEKray or JEKion bench */
 export const thingOf = id => appOf(id).thing || 'bench';
 export const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
@@ -42,6 +44,7 @@ export function toast(msg, bad) {
 
 /* the icons (JEKray's menu icons, those used here) */
 export const SPACE_ICONS = {
+  cube: 'M8 1.5L14 5V11L8 14.5L2 11V5Z M8 8L14 5 M8 8V14.5 M8 8L2 5',
   folder: 'M1.5 3.5H6L7.5 5H14.5V13H1.5Z', recent: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 4.5V8L10.5 9.5',
   fork: 'M4.5 1.5A1.5 1.5 0 1 1 4.49 1.5 M11.5 1.5A1.5 1.5 0 1 1 11.49 1.5 M4.5 11.5A1.5 1.5 0 1 1 4.49 11.5 M4.5 4.5V11.5 M11.5 4.5V6A2 2 0 0 1 9.5 8H6.5A2 2 0 0 0 4.5 10',
   copy: 'M5 2.5H3.5V14.5H12.5V2.5H11 M5.5 1.5H10.5V3.5H5.5Z', list: 'M5.5 4H14 M5.5 8H14 M5.5 12H14 M2 4H2.5 M2 8H2.5 M2 12H2.5',

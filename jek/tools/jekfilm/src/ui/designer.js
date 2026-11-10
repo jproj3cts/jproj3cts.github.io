@@ -72,7 +72,7 @@ export function render() {
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
   // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
-  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec), fieldCard(spec)];
+  const main = filmTab === 'tolerance' ? [tolCard(), fieldCard(spec)] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
   body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
   for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;

@@ -39,6 +39,13 @@ export async function check(pw, base, shots) {
       await p.click('#filmTolRun'); await p.waitForTimeout(200);
       const tl = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmTolTable tbody tr')].map(r => r.firstChild.textContent), plot: !!document.querySelector('svg.film-plot[aria-label^="Reflectance at 0° over 200 runs"]') }));
       ok('The Tolerance tab: its own page (no layers table); Run gives merit, R mean and R max as nominal, median and 90th percentile, and the spread drawn', !tabbed.layers && tabbed.tol && tabbed.sel === 'true' && tl.rows.join() === 'Merit,R mean (%),R max (%)' && tl.plot, JSON.stringify([tabbed, tl]));
+      // the field in the stack: shut until asked for, then |E|² against depth with a table of where it peaks
+      const shut = await p.evaluate(() => ({ card: !!document.getElementById('filmField'), plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]') }));
+      await p.click('#filmFieldShow'); await p.waitForTimeout(100);
+      const fv = await p.evaluate(() => ({ plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]'), marks: document.querySelectorAll('svg.film-plot[aria-label^="|E|²"] line.mark').length,
+        rows: [...document.querySelectorAll('#filmFieldTable tbody tr th')].map(t => t.textContent), front: window.JEKfilm.field().surface }));
+      await p.click('#filmFieldShow'); await p.waitForTimeout(100);
+      ok('The field in the stack, on the Tolerance tab: shut by default; shown, |E|² against depth with the interfaces marked and where it peaks', shut.card && !shut.plot && fv.plot && fv.marks >= 2 && fv.rows[0] === 'Outer surface' && fv.rows.length === 4 && fv.front > 0, JSON.stringify([shut, fv]));
       await p.click('#tabMake'); await p.waitForTimeout(100);
       const mk = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmLimits tbody tr')].map(r => r.querySelector('th').textContent + '|' + r.querySelector('.film-met').textContent), pdf: !!document.getElementById('filmSpecPdf'),
         note: (document.getElementById('filmDrawingNote') || {}).textContent || '' }));
@@ -46,13 +53,7 @@ export async function check(pw, base, shots) {
       const pdf = await p.evaluate(async () => await (await window.JEKfilm.specPdf({ raw: true })).text());
       ok('The coating specification: a two-page PDF with the order and the design', /^%PDF-1\.4/.test(pdf) && (pdf.match(/\/Type\s*\/Page\b/g) || []).length === 2 && pdf.includes('(Coating specification)') && pdf.includes('(Performance)') && pdf.includes('(Layers, from the incident medium to the substrate)') && pdf.includes('(Coating and substrate)') && pdf.includes('(Durability)') && pdf.includes('(Drawing note)'), pdf.slice(0, 80));
       await p.click('#tabDesign'); await p.waitForTimeout(100);
-      // the field in the stack: shut until asked for, then |E|² against depth with a table of where it peaks
-      const shut = await p.evaluate(() => ({ card: !!document.getElementById('filmField'), plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]') }));
-      await p.click('#filmFieldShow'); await p.waitForTimeout(100);
-      const fv = await p.evaluate(() => ({ plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]'), marks: document.querySelectorAll('svg.film-plot[aria-label^="|E|²"] line.mark').length,
-        rows: [...document.querySelectorAll('#filmFieldTable tbody tr th')].map(t => t.textContent), front: window.JEKfilm.field().surface }));
-      await p.click('#filmFieldShow'); await p.waitForTimeout(100);
-      ok('The field in the stack: shut by default; shown, |E|² against depth with the interfaces marked and where it peaks', shut.card && !shut.plot && fv.plot && fv.marks >= 2 && fv.rows[0] === 'Outer surface' && fv.rows.length === 4 && fv.front > 0, JSON.stringify([shut, fv]));
+      ok('The field in the stack is not on the Design tab', !(await p.evaluate(() => !!document.getElementById('filmField'))));
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
       const band = await p.evaluate(() => ({ from: (document.querySelector('input[aria-label="Smallest angle of incidence (degrees)"]') || {}).value, to: (document.querySelector('input[aria-label="Largest angle of incidence (degrees)"]') || {}).value,

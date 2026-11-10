@@ -128,12 +128,12 @@ export function coatOptimise(layers, spec, opts) {
 export function coatFromFilm(d, src) {
   d = d && typeof d === 'object' ? d : {};
   const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
-  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 40).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
-  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 40), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 export function coatToStack(layers, spec, label) {
   const one = layers.length === 1 && spec.target === 'rf';
-  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 40) } : {}) };
+  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
 }

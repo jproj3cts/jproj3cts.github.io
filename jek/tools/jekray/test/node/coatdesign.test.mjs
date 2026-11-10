@@ -51,3 +51,14 @@ test('a JEKfilm coating on a face: its stack at its design wavelength, named, li
   assert.equal(normCoat({ mode: 'stack', layers: [], src: { id: '../evil', v: 2 } }).src, undefined, 'an id that is not one is dropped');
   assert.equal(normCoat({ mode: 'ar', src: { id: 'c1', v: 2 } }).src, undefined, 'only a stack is linked');
 });
+test('a face keeps a JEKfilm coating whole: up to 200 layers, as JEKfilm allows, and its name to 120 characters', async () => {
+  const { normCoat, FACE_LAYERS_MAX } = await import('../../src/state/project.js');
+  const many = Array.from({ length: 150 }, (_, i) => ({ n: i % 2 ? 1.46 : 2.1, d: 100 + i }));
+  const name = 'Long-wave pass edge filter for the 1064 nm channel, 150 layers on fused silica, run 2026-11-10 batch A';
+  const c = normCoat(CD.coatFromFilm({ name, spec: { design: 1064 }, layers: many }, { id: 'c9', v: 2 }));
+  assert.equal(FACE_LAYERS_MAX, 200);
+  assert.equal(c.layers.length, 150, 'every layer kept');
+  assert.equal(c.layers[149].d, 249);
+  assert.equal(c.label, name, 'the whole name');
+  assert.equal(normCoat({ mode: 'stack', layers: Array.from({ length: 260 }, () => ({ n: 1.5, d: 10 })) }).layers.length, 200, 'no more than 200');
+});

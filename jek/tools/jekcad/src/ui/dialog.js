@@ -77,6 +77,8 @@ export function editFeature(i) {
   // an extrude to a depth, ticked Opposite direction (from before a depth could be below 0): the same as a negative depth
   { const g = app.editing.f; if (g.type === 'extrude' && g.flip && (g.end === 'blind' || g.end === 'symmetric')) { g.flip = false; if (g.end === 'blind') g.depth = /^\s*-/.test(g.depth) ? g.depth.replace(/^\s*-\s*/, '') : '-(' + g.depth + ')'; } }
   showDialog();
+  // (its regions ready to be clicked in the view, as they are when the feature is new)
+  if ((FEATURE_FORMS[f.type] || []).some(fd => fd[0] === 'regions')) activate('regions');
   regenSoon(0);
 }
 const hasValue = v => (Array.isArray(v) ? v.length > 0 : !!v);

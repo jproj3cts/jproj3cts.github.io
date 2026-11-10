@@ -410,6 +410,20 @@ export async function check(pw, base, shots) {
     await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
     ok('A double-click on a sketch in the view opens it to edit', await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.name === 'Sketch 2'), 'not editing');
     await p.click('#sketchCancel').catch(() => {}); await regen();
+    // a double-click on any row of the list edits it: two real clicks on the same row (the first picks it, and must not
+    // replace the row under the pointer), a sketch and then an extrude
+    const rowEl = await p.$('.cad-frow-f[data-i="2"]'), rb2 = await rowEl.boundingBox();
+    await p.mouse.move(rb2.x + 60, rb2.y + rb2.height / 2); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(60);
+    const sameRow = await p.evaluate(el => el.isConnected && el.classList.contains('picked'), rowEl);
+    await p.mouse.down({ clickCount: 2 }); await p.mouse.up({ clickCount: 2 });
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    const rowSk = await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.name);
+    await p.click('#sketchCancel').catch(() => {}); await regen();
+    await p.dblclick('.cad-frow-f[data-i="3"] .nm'); await p.waitForSelector('#featureOk', { timeout: 5000 }).catch(() => {});
+    const rowEx = await p.evaluate(() => window.JEKcad.app.editing && window.JEKcad.app.editing.f.name), rowField = await p.evaluate(() => window.JEKcad.app.editing && window.JEKcad.app.editing.field && window.JEKcad.app.editing.field.key);
+    if (await p.$('#featureCancel')) await p.click('#featureCancel');
+    await regen();
+    ok('A double-click on a row of the feature list edits it (the first click marks the row without remaking it): a sketch, an extrude, its regions ready to click', sameRow && rowSk === 'Sketch 2' && rowEx === 'Extrude 2' && rowField === 'regions', JSON.stringify([sameRow, rowSk, rowEx, rowField]));
     ok('No page errors', !errs.length, errs.slice(0, 5).join(' | '));
     await p.close();
     // a part studio from the cloud that the API marked JEKray's (as one from before JEKcad was), opened by its link in

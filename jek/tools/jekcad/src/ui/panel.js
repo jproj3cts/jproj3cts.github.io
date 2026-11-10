@@ -185,7 +185,9 @@ async function measureShown() {
 export function wirePanel() {
   on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
   on('sel', () => { renderParts(); measureShown(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);
-  on('picked', renderPanel);
+  // (only the mark changes: the rows are not made again, or the second click of a double-click would land on a new row
+  // and the double-click, which edits the feature, would never come)
+  on('picked', () => { for (const r of document.querySelectorAll('.cad-frow-f')) r.classList.toggle('picked', r.dataset.id === app.picked); });
   document.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target)) closeRowMenu(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
 }

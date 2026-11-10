@@ -72,3 +72,12 @@ test('touching shapes make separate regions: a circle inside a hexagon, touching
     assert.ok(A.slice(0, 6).every(a => Math.abs(a - 4.03) < 0.05) && Math.abs(A[6] - 235.6) < 0.3, A.map(a => a.toFixed(2)).join());
   }
 });
+
+test('the regions a cut takes by default take in the model’s holes; an added boss leaves them open', () => {
+  // a slot round a hole of the model (a circle brought into the sketch: ref), and a circle that was drawn
+  const ents = [...slot([-20, 0], [20, 0], 5), Object.assign(C([-20, 0], 2), { ref: true }), C([20, 0], 2)];
+  const add = defaultRegionPts(ents), cut = defaultRegionPts(ents, true);
+  assert.equal(add.length, 1, 'the slot, both circles left out');
+  assert.equal(cut.length, 2, 'the slot and the model’s hole: the drawn circle is still an island');
+  assert.ok(cut.some(q => Math.hypot(q[0] + 20, q[1]) < 1e-3));
+});

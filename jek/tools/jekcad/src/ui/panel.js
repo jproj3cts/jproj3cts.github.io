@@ -1,7 +1,7 @@
 import { MATERIALS, appliedCount, canMove, featureLabel, partLook } from '../core/doc.js';
 import { fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { app, changed, checkpoint, emit, on, toast } from './app.js';
+import { app, changed, checkpoint, editGate, emit, on, toast } from './app.js';
 import { editFeature, fieldPick, fieldWants, openFeature, setPartLook } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
@@ -27,6 +27,7 @@ function rowMenu(x, y, items) {
 }
 const statusOf = id => (app.result ? app.result.features.find(r => r.id === id) : null);
 export function moveFeature(i, j) {
+  if (!editGate()) return false;
   if (!canMove(app.doc, i, j)) { toast('It cannot move there: a feature cannot come before what it uses', true); return false; }
   checkpoint();
   const [f] = app.doc.features.splice(i, 1);
@@ -36,7 +37,7 @@ export function moveFeature(i, j) {
 }
 export function deleteFeature(i) {
   const f = app.doc.features[i];
-  if (!f) return;
+  if (!f || !editGate()) return;
   checkpoint();
   app.doc.features.splice(i, 1);
   if (app.doc.rollback !== null && i < app.doc.rollback) app.doc.rollback--;
@@ -45,11 +46,13 @@ export function deleteFeature(i) {
   toast('Deleted “' + f.name + '”. Undo brings it back; features that used it now show why they fail.');
 }
 export function setRollback(n) {
+  if (!editGate()) { renderPanel(); return; }
   checkpoint();
   app.doc.rollback = n >= app.doc.features.length ? null : Math.max(0, n);
   changed();
 }
 function renameFeature(i) {
+  if (!editGate()) return;
   const f = app.doc.features[i], row = document.querySelector('.cad-frow-f[data-i="' + i + '"] .nm');
   if (!row) return;
   const inp = h('input', { type: 'text', value: f.name, class: 'cad-rename', 'aria-label': 'New name' });
@@ -61,7 +64,7 @@ function renameFeature(i) {
 function featureMenu(i, x, y) {
   const f = app.doc.features[i], n = appliedCount(app.doc);
   rowMenu(x, y, [['Edit…', () => editFeature(i)], ['Rename', () => renameFeature(i)],
-    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
+    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { if (!editGate()) return; checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
     f.type === 'sketch' || f.type === 'plane' ? [f.hide ? 'Show' : 'Hide', () => { checkpoint(); if (f.hide) delete f.hide; else f.hide = true; changed(); }] : null,
     'sep', ['Roll to here', () => setRollback(i + 1), i + 1 !== n], ['Move up', () => moveFeature(i, i - 1), canMove(app.doc, i, i - 1)], ['Move down', () => moveFeature(i, i + 1), canMove(app.doc, i, i + 1)],
     'sep', ['Delete', () => deleteFeature(i)]]);
@@ -75,6 +78,8 @@ const isHidden = f => (f.type === 'sketch' || f.type === 'plane' ? !!f.hide : ((
 export function toggleFeatureShown(i) {
   const f = app.doc.features[i];
   if (!f) return;
+  // (showing and hiding is looking; a feature that can only be suppressed is changed by it)
+  if (f.type !== 'sketch' && f.type !== 'plane' && !madeParts(f).length && !editGate()) return;
   checkpoint();
   if (f.type === 'sketch' || f.type === 'plane') { if (f.hide) delete f.hide; else f.hide = true; }
   else {

@@ -1,6 +1,7 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate } from '../../../jekray/src/ui/pro.js';
+import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { CAD_FORMAT, CAD_STORE_KEY, appliedCount, newDoc, newFeature, normDoc, partLook } from '../core/doc.js';
 import { h } from '../../../jekray/src/ui/dom.js';
@@ -60,6 +61,7 @@ export async function openAnyFile(file) {
 }
 /* a STEP file as an Import feature at the rollback bar: each solid in it a part */
 export async function importStep(file) {
+  if (!editGate()) return false;
   if (!file) { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', () => { if (inp.files[0]) importStep(inp.files[0]); }); inp.click(); return false; }
   const data = await file.text();
   if (data.length > 1.8e6) toast('That STEP file is large: the Part Studio can be saved as a file, but the cloud keeps documents up to 2 MB', true);

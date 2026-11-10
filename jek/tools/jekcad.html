@@ -2017,7 +2017,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-section[hidden] { display: none; }
   .cad-diminput { position: absolute; z-index: 20; width: 100px; font: 12px var(--jek-mono); padding: 0.15rem 0.3rem; border: 2px solid var(--jek-orange); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
   /* the view cube */
-  .cad-cube { position: absolute; right: 14px; top: 10px; width: 76px; z-index: 6; }
+  .cad-cube { position: absolute; right: 12px; top: 8px; width: 112px; z-index: 6; display: grid; grid-template-columns: 18px 76px 18px; grid-template-rows: 16px 76px 16px auto; align-items: center; justify-items: center; }
+  .cad-cube .cad-cubecv { grid-column: 2; grid-row: 2; }
+  .cad-turn { border: 0; background: none; padding: 0; font-size: 0.62rem; line-height: 1; color: var(--rt-over-mute, var(--jek-ink-soft)); cursor: pointer; }
+  .cad-turn:hover { color: var(--jek-orange); }
+  .cad-turn.up { grid-column: 2; grid-row: 1; } .cad-turn.down { grid-column: 2; grid-row: 3; } .cad-turn.left { grid-column: 1; grid-row: 2; } .cad-turn.right { grid-column: 3; grid-row: 2; }
+  .cad-cube .cad-cubebtns { grid-column: 1 / 4; grid-row: 4; }
   .cad-stage #viewCube canvas.cad-cubecv { position: static; display: block; width: 76px; height: 76px; cursor: default; }
   .cad-cubebtns { display: flex; justify-content: center; gap: 2px; }
   .cad-cubebtns .rt-btn { padding: 0.05rem 0.3rem; font-size: 0.68rem; }
@@ -2076,6 +2081,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Your part studios in the cloud, on JEKsuite (it opens in its own tab)">My part studios on JEKsuite…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this Part Studio in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden>Fork this Part Studio…</button>
+            <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="account" data-what="share a link" title="A link that opens this Part Studio as it is now: it travels in the link itself">Share a link…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImportStep" data-icon="import" title="Each solid of a STEP file becomes a part, from an Import feature in the list">Import STEP…</button>
             <button type="button" role="menuitem" id="btnExportStep" data-icon="export" data-need="account" data-what="export STEP files">Export all parts as STEP</button>
@@ -2191,7 +2198,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <canvas id="view" aria-hidden="true"></canvas>
         <canvas id="over" tabindex="0" aria-label="The model: click to select faces, edges and vertices; right-drag to orbit"></canvas>
         <div class="cad-dialog" id="featureDialog" hidden></div>
-        <div class="cad-cube" id="viewCube" aria-label="View cube"><div class="cad-cubebtns"><button type="button" class="rt-btn quiet" data-view="iso" title="Isometric (7)">Iso</button><button type="button" class="rt-btn quiet" data-click="btnFit" title="Zoom to fit (F)">Fit</button></div></div>
+        <div class="cad-cube" id="viewCube" aria-label="View cube"><button type="button" class="cad-turn up" data-turn="up" title="Turn the view 15° up" aria-label="Turn the view up">▲</button><button type="button" class="cad-turn left" data-turn="left" title="Turn the view 15° left" aria-label="Turn the view left">◀</button><button type="button" class="cad-turn right" data-turn="right" title="Turn the view 15° right" aria-label="Turn the view right">▶</button><button type="button" class="cad-turn down" data-turn="down" title="Turn the view 15° down" aria-label="Turn the view down">▼</button><div class="cad-cubebtns"><button type="button" class="rt-btn quiet" data-view="iso" title="Isometric (7)">Iso</button><button type="button" class="rt-btn quiet" data-click="btnFit" title="Zoom to fit (F)">Fit</button></div></div>
         <div class="cad-section" id="sectionCtl" hidden><label>Section <select id="secPlane"><option value="front">Front</option><option value="top">Top</option><option value="right">Right</option></select></label><input type="range" id="secAt" min="-50" max="50" step="0.1" value="0" aria-label="Where the section cuts"><span id="secAtOut">0 mm</span><label><input type="checkbox" id="secFlip"> Flip</label></div>
         <div class="cad-measure" id="measure" hidden aria-live="polite"></div>
         <div class="cad-busy" id="busy" hidden>Regenerating…</div>
@@ -2217,6 +2224,13 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a sketch</dt><dd>edit it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
     <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>A number typed while drawing a line, circle or rectangle</dt><dd>its length, diameter, or width then height (Enter)</dd><dt>A number typed after a line, circle or arc</dt><dd>its length, diameter or radius</dd><dt>Shift held while drawing</dt><dd>nothing is inferred</dd><dt>Double-click a line, circle or arc</dt><dd>dimension it; double-click a dimension to change it</dd><dt>Right-click, or Esc</dt><dd>end a chain of lines</dd><dt>S</dt><dd>select</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Share a link</h2>
+    <p><input id="shareUrl" type="text" readonly aria-label="The link" spellcheck="false" style="width:100%"></p>
+    <p class="note" id="shareNote"></p>
+    <div class="rt-actions"><button class="rt-btn" id="shareCopy" type="button">Copy link</button><button class="rt-btn primary" id="shareClose" type="button">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">
@@ -3050,9 +3064,12 @@ function regionsOf(ents) {
   return sketchRegions(W, e => (e.t === 'circle' || e.t === 'arc' ? roundOutline(e, W, WELD) : entOutline(e, 3))).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
 }
 /* the regions an extrude takes by default: those not inside another (a ring's hole stays a hole), by their points */
-function defaultRegionPts(ents) {
-  const R = regionsOf(ents);
-  return R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0).map(r => r.pt.map(v => +v.toFixed(6)));
+function defaultRegionPts(ents, fill) {
+  const R = regionsOf(ents), out = R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0);
+  // fill (a cut): the holes of the model brought into the sketch are taken too, where they lie in what is taken. Left
+  // out of a cut, a hole's region leaves a thin tube standing wherever the hole below is any narrower than its rim.
+  if (fill) for (const r of R) if (!out.includes(r) && r.outer.src && r.outer.src.every(e => e.ref) && out.some(o => inside(o.outer, r.pt))) out.push(r);
+  return out.map(r => r.pt.map(v => +v.toFixed(6)));
 }
 /* a point of a sketch as it was, carried to the sketch as it is now: it keeps its place beside the shape it was
    nearest to (along a line and off it; round a circle and out from its centre), so a region's point follows the
@@ -4878,6 +4895,14 @@ const app = {
   picked: null,           // the feature clicked in the list (its id): its sketch's dimensions show on the model
   unsaved: false, regenAt: 0, regenMs: 0, regenCount: 0, busy: false,
 };
+/* changing a Part Studio needs an account (a free one): looking at one, opening a file or a shared link, turning
+   and measuring it do not. Each way into a change asks here first; someone signed out for sure is shown the way in
+   (an account not yet known, or the API down, is let through, as an export is). Not in the tests, nor without accounts. */
+function editGate() {
+  if (!acctWhy('change a Part Studio')) return true;
+  if (hooks.cadEditSignIn) hooks.cadEditSignIn();
+  return false;
+}
 const BUS = {};
 function on(ev, fn) { (BUS[ev] || (BUS[ev] = [])).push(fn); }
 function emit(ev, x) { for (const fn of BUS[ev] || []) { try { fn(x); } catch (err) { console.error(err); } } }
@@ -5328,21 +5353,16 @@ function fit(now, q) {
 function viewFrom(name) { const v = VIEWS[name]; if (!v) return; fit(false, qView(v[0], v[1])); }
 /* look straight at a plane frame (a sketch's, a face's): its x across, its y up */
 function normalTo(F, keepZoom) { const q = qBasis(F.x, F.y, F.n); if (keepZoom) animateTo(q); else fit(false, q); }
-/* orbit: the model turned about its own upright axis (the z through the middle of what there is to see) as the
-   pointer goes across, and tipped towards or away as it goes up and down. The middle of the model stays where it
-   is on the screen, wherever the view was panned to; a view left rolled (by a sketch on a tilted face, or a
-   flight) is set upright first; the tip stops just short of straight down and straight up. */
+/* orbit: the model turned as the pointer drags it, about the screen's own axes through the middle of the parts
+   (across: about the line up the screen; up and down: about the line across it), as Onshape turns a part. The
+   middle of the model stays where it is on the screen, wherever the view was panned to. */
 function orbit(dx, dy) {
-  // (the middle of the parts, where there are any: a sketch or a plane beside them does not shift the axis)
+  // (the middle of the parts, where there are any: a sketch or a plane beside them does not shift the pivot)
   let pivot = sceneBounds().c;
   if (V.parts.size) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]; for (const o of V.parts.values()) { const b = o.userData.p.bbox; for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], b[0][i]); hi[i] = Math.max(hi[i], b[1][i]); } } pivot = lo.map((v, i) => (v + hi[i]) / 2); }
   const s0 = project(pivot);
-  let a = camAxes();
-  if (Math.abs(a.x[2]) > 1e-3 && Math.abs(a.z[2]) < 0.999) { V.q = qView(a.z); a = camAxes(); }
-  V.q = qnorm(qmul(qaxis([0, 0, 1], -dx * 0.008), V.q));
-  a = camAxes();
-  const el = Math.asin(Math.max(-1, Math.min(1, a.z[2]))), lim = 89.5 * Math.PI / 180, want = Math.max(-lim, Math.min(lim, el + dy * 0.008));
-  if (Math.abs(a.x[2]) < 1e-3) V.q = qnorm(qmul(qaxis(a.x, -(want - el)), V.q));
+  V.q = qnorm(qmul(qaxis(camAxes().y, -dx * 0.008), V.q));
+  V.q = qnorm(qmul(qaxis(camAxes().x, -dy * 0.008), V.q));
   const s1 = project(pivot);
   pan(s0[0] - s1[0], s0[1] - s1[1]);
   V.dirty = true;
@@ -5356,28 +5376,58 @@ function zoomAt(sx, sy, f) {
 }
 /* ---------- the view cube: drawn with the camera; a face clicked turns the view to it ---------- */
 const CUBE_FACES = [['top', 'Top', [0, 0, 1]], ['bottom', 'Bottom', [0, 0, -1]], ['front', 'Front', [0, -1, 0]], ['back', 'Back', [0, 1, 0]], ['right', 'Right', [1, 0, 0]], ['left', 'Left', [-1, 0, 0]]];
-let cubeHover = null;
+let cubeHover = null;                                   // { k, su, sv }: a face, and which of its nine parts
+/* the cube's faces as they show: each a face's four corners on the cube's canvas, with the two directions across it */
 function cubeFaces() {
   const { x, y, z } = camAxes(), S = 22, out = [];
   for (const [k, label, n] of CUBE_FACES) {
     const vis = n[0] * z[0] + n[1] * z[1] + n[2] * z[2];
     if (vis < 0.02) continue;
     const a = Math.abs(n[2]) > 0.5 ? [1, 0, 0] : [0, 0, 1], b = cross(n, a);
-    const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => { const w = [n[0] + a[0] * u + b[0] * v, n[1] + a[1] * u + b[1] * v, n[2] + a[2] * u + b[2] * v]; return [38 + S * (w[0] * x[0] + w[1] * x[1] + w[2] * x[2]), 38 - S * (w[0] * y[0] + w[1] * y[1] + w[2] * y[2])]; });
-    out.push({ k, label, pts, vis });
+    const at = (u, v) => { const w = [n[0] + a[0] * u + b[0] * v, n[1] + a[1] * u + b[1] * v, n[2] + a[2] * u + b[2] * v]; return [38 + S * (w[0] * x[0] + w[1] * x[1] + w[2] * x[2]), 38 - S * (w[0] * y[0] + w[1] * y[1] + w[2] * y[2])]; };
+    out.push({ k, label, n, a, b, at, pts: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => at(u, v)), vis });
   }
   return out.sort((p, q) => p.vis - q.vis);
+}
+/* a face is nine parts, as Onshape's cube is: its middle looks straight at the face, a strip along a side looks
+   along the edge there (between the two faces), a corner looks from the corner (between the three) */
+const CUBE_RIM = 0.56;
+function cubeAt(q) {
+  let hit = null;
+  for (const f of cubeFaces()) {
+    // the point in the face's own two directions (the face is drawn as a parallelogram)
+    const c = f.at(0, 0), A = f.at(1, 0), B = f.at(0, 1), ax = A[0] - c[0], ay = A[1] - c[1], bx = B[0] - c[0], by = B[1] - c[1], det = ax * by - ay * bx;
+    if (Math.abs(det) < 1e-6) continue;
+    const u = ((q[0] - c[0]) * by - (q[1] - c[1]) * bx) / det, v = (ax * (q[1] - c[1]) - ay * (q[0] - c[0])) / det;
+    if (Math.abs(u) <= 1 && Math.abs(v) <= 1) hit = { k: f.k, su: Math.abs(u) > CUBE_RIM ? Math.sign(u) : 0, sv: Math.abs(v) > CUBE_RIM ? Math.sign(v) : 0, f };
+  }
+  return hit;
+}
+/* look from a part of the cube: a face (its named view), an edge or a corner */
+function cubeLook(hh) {
+  if (!hh.su && !hh.sv) { viewFrom(hh.k); return; }
+  const f = hh.f, d = [0, 1, 2].map(i => f.n[i] + f.a[i] * hh.su + f.b[i] * hh.sv);
+  fit(false, qView(d, Math.abs(d[2]) > 0.999 * Math.hypot(...d) ? [0, 1, 0] : [0, 0, 1]));
+}
+/* the view turned a step (15°) about the screen's axes, by the arrows round the cube */
+function turnStep(dir) {
+  const k = (15 * Math.PI / 180) / 0.008;
+  orbit(dir === 'left' ? k : dir === 'right' ? -k : 0, dir === 'up' ? k : dir === 'down' ? -k : 0);
+  emit('view');
 }
 function wireCube() {
   const box = document.getElementById('viewCube');
   if (!box) return;
-  const cv = document.createElement('canvas'); cv.className = 'cad-cubecv'; cv.width = 152; cv.height = 152; cv.setAttribute('aria-label', 'View cube: click a face to look at it');
+  const cv = document.createElement('canvas'); cv.className = 'cad-cubecv'; cv.width = 152; cv.height = 152; cv.setAttribute('aria-label', 'View cube: click a face to look at it, an edge or a corner to look from there');
   box.prepend(cv);
-  const at = e => { const r = cv.getBoundingClientRect(), q = [(e.clientX - r.left) * 76 / r.width, (e.clientY - r.top) * 76 / r.height]; let hit = null; for (const f of cubeFaces()) { let c = false; const P = f.pts; for (let i = 0, j = 3; i < 4; j = i++) if ((P[i][1] > q[1]) !== (P[j][1] > q[1]) && q[0] < (P[j][0] - P[i][0]) * (q[1] - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; if (c) hit = f.k; } return hit; };
-  cv.addEventListener('pointermove', e => { const k = at(e); if (k !== cubeHover) { cubeHover = k; cubeShown(); } cv.style.cursor = k ? 'pointer' : 'default'; });
+  const at = e => { const r = cv.getBoundingClientRect(); return cubeAt([(e.clientX - r.left) * 76 / r.width, (e.clientY - r.top) * 76 / r.height]); };
+  const same = (p, q) => (!p && !q) || (p && q && p.k === q.k && p.su === q.su && p.sv === q.sv);
+  cv.addEventListener('pointermove', e => { const hh = at(e); if (!same(hh, cubeHover)) { cubeHover = hh; cubeShown(); } cv.style.cursor = hh ? 'pointer' : 'default'; });
   cv.addEventListener('pointerleave', () => { cubeHover = null; cubeShown(); });
-  cv.addEventListener('click', e => { const k = at(e); if (k) viewFrom(k); });
+  cv.addEventListener('click', e => { const hh = at(e); if (hh) cubeLook(hh); });
+  for (const b of box.querySelectorAll('[data-turn]')) b.addEventListener('click', () => turnStep(b.dataset.turn));
 }
+const cubePart = (x, y) => { const hh = cubeAt([x, y]); return hh && { k: hh.k, su: hh.su, sv: hh.sv }; };
 function cubeShown() {
   const cv = document.querySelector('#viewCube .cad-cubecv');
   if (!cv) return;
@@ -5387,9 +5437,16 @@ function cubeShown() {
   for (const f of cubeFaces()) {
     c.beginPath(); f.pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath();
     const sh = 0.6 + 0.4 * f.vis;
-    c.fillStyle = f.k === cubeHover ? '#e0892e' : dark ? 'rgb(' + [62, 68, 77].map(v => Math.round(v * sh)).join(',') + ')' : 'rgb(' + [240, 234, 222].map(v => Math.round(v * sh + 90 * (1 - sh))).join(',') + ')';
+    c.fillStyle = dark ? 'rgb(' + [62, 68, 77].map(v => Math.round(v * sh)).join(',') + ')' : 'rgb(' + [240, 234, 222].map(v => Math.round(v * sh + 90 * (1 - sh))).join(',') + ')';
     c.fill(); c.strokeStyle = dark ? '#8a93a0' : '#7c8591'; c.lineWidth = 0.8; c.stroke();
-    if (f.vis > 0.25) { const m = f.pts.reduce((s2, p) => [s2[0] + p[0] / 4, s2[1] + p[1] / 4], [0, 0]); c.fillStyle = f.k === cubeHover ? '#fff' : dark ? '#e9e6df' : '#1f232a'; c.fillText(f.label, m[0], m[1]); }
+    // the part under the pointer: the face's middle, a strip along a side, or a corner
+    const hv = cubeHover && cubeHover.k === f.k ? cubeHover : null;
+    if (hv) {
+      const R = CUBE_RIM, span = s2 => (s2 > 0 ? [R, 1] : s2 < 0 ? [-1, -R] : [-R, R]), [u0, u1] = span(hv.su), [v0, v1] = span(hv.sv);
+      c.beginPath(); [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].forEach(([u, v], i) => { const p = f.at(u, v); if (i) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }); c.closePath();
+      c.fillStyle = '#e0892e'; c.fill();
+    }
+    if (f.vis > 0.25) { const m = f.at(0, 0); c.fillStyle = hv && !hv.su && !hv.sv ? '#fff' : dark ? '#e9e6df' : '#1f232a'; c.fillText(f.label, m[0], m[1]); }
   }
 }
 /* ---------- fly: the model full screen, flown through, as JEKray's 3D view is ----------
@@ -6396,7 +6453,7 @@ function dimMoves(f, d) {
 /* a sketch's dimension typed again from the model view: the sketch is solved with it, and the model follows */
 function modelDimEdit(L) {
   const f = app.doc.features.find(x => x.id === L.sketch), d = f && f.dims.find(x => x.id === L.dim);
-  if (!d) return false;
+  if (!d || !editGate()) return false;
   const old = document.getElementById('dimInput'); if (old) old.remove();
   const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
   inp.style.left = Math.max(4, L.p[0] - 50) + 'px'; inp.style.top = Math.max(4, L.p[1] - 13) + 'px';
@@ -6719,6 +6776,7 @@ const FEATURE_FORMS = {
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 function openFeature(type, opts) {
+  if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   const at = appliedCount(app.doc), f = newFeature(app.doc, type);
@@ -6731,7 +6789,9 @@ function openFeature(type, opts) {
     app.editing = { f, at, isNew: true, field: null, sketchPlane: true };
     showDialog(); activate('plane'); return;
   }
-  app.editing = { f, at, isNew: true, field: null };
+  // (regions it was given by default follow Add or Remove until one is clicked: a cut takes in the model's holes)
+  const auto = !!f.autoRegions; delete f.autoRegions;
+  app.editing = { f, at, isNew: true, field: null, auto };
   showDialog();
   const first = (FEATURE_FORMS[type] || []).find(fd => fd[2] === 'sel' && (!fd[3].show || fd[3].show(f)));
   // (an extrude's or a revolve's regions stay ready to be clicked in the view, though they start chosen: one click takes
@@ -6742,6 +6802,7 @@ function openFeature(type, opts) {
 function editFeature(i) {
   const f = app.doc.features[i];
   if (!f) return;
+  if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   if (f.type === 'sketch') { startSketch(f, i, false); return; }
@@ -6763,7 +6824,7 @@ function prefill(f, at) {
   // nothing chosen: the last sketch before the bar, all its regions that are not holes
   if (('regions' in f) && f.type !== 'sweep' && !f.sketch) {
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
-    if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents); }
+    if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents, f.op === 'remove'); f.autoRegions = true; }
   }
   // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
   // sweep's profile the last with a region, its path the last without one)
@@ -6808,6 +6869,7 @@ async function fieldPick(p) {
   const f = E.f, k = E.field.key, kind = E.field.kind;
   if (kind === 'regions') {
     if (p.kind !== 'region') return false;
+    E.auto = false;
     if (f.sketch !== p.sketch) { f.sketch = p.sketch; f.regions = [p.pt]; }
     else { const R = regionsCached(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
     if (f.axis && typeof f.axis === 'object' && f.axis.sketch && f.axis.sketch !== f.sketch) f.axis = null;
@@ -6908,7 +6970,7 @@ function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;
@@ -6942,6 +7004,7 @@ function closeDialog(regen) {
 }
 /* ---------- the Variables table ---------- */
 function showVariables() {
+  if (!editGate()) return;
   const dlg = document.getElementById('varsDialog'), body = document.getElementById('varsBody');
   const draw = () => {
     const vals = app.result ? app.result.vars : {}, rows = app.doc.variables.map((v, i) => {
@@ -6963,6 +7026,7 @@ function showVariables() {
 }
 /* ---------- the parts' looks: name, colour, material ---------- */
 function setPartLook(id, k, v) {
+  if (!editGate()) { emit('doc'); return; }
   checkpoint();
   const p = app.doc.parts[id] || (app.doc.parts[id] = {});
   if (v === '' || v === null) delete p[k]; else p[k] = v;
@@ -6996,6 +7060,7 @@ function rowMenu(x, y, items) {
 }
 const statusOf = id => (app.result ? app.result.features.find(r => r.id === id) : null);
 function moveFeature(i, j) {
+  if (!editGate()) return false;
   if (!canMove(app.doc, i, j)) { toast('It cannot move there: a feature cannot come before what it uses', true); return false; }
   checkpoint();
   const [f] = app.doc.features.splice(i, 1);
@@ -7005,7 +7070,7 @@ function moveFeature(i, j) {
 }
 function deleteFeature(i) {
   const f = app.doc.features[i];
-  if (!f) return;
+  if (!f || !editGate()) return;
   checkpoint();
   app.doc.features.splice(i, 1);
   if (app.doc.rollback !== null && i < app.doc.rollback) app.doc.rollback--;
@@ -7014,11 +7079,13 @@ function deleteFeature(i) {
   toast('Deleted “' + f.name + '”. Undo brings it back; features that used it now show why they fail.');
 }
 function setRollback(n) {
+  if (!editGate()) { renderPanel(); return; }
   checkpoint();
   app.doc.rollback = n >= app.doc.features.length ? null : Math.max(0, n);
   changed();
 }
 function renameFeature(i) {
+  if (!editGate()) return;
   const f = app.doc.features[i], row = document.querySelector('.cad-frow-f[data-i="' + i + '"] .nm');
   if (!row) return;
   const inp = h('input', { type: 'text', value: f.name, class: 'cad-rename', 'aria-label': 'New name' });
@@ -7030,7 +7097,7 @@ function renameFeature(i) {
 function featureMenu(i, x, y) {
   const f = app.doc.features[i], n = appliedCount(app.doc);
   rowMenu(x, y, [['Edit…', () => editFeature(i)], ['Rename', () => renameFeature(i)],
-    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
+    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { if (!editGate()) return; checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
     f.type === 'sketch' || f.type === 'plane' ? [f.hide ? 'Show' : 'Hide', () => { checkpoint(); if (f.hide) delete f.hide; else f.hide = true; changed(); }] : null,
     'sep', ['Roll to here', () => setRollback(i + 1), i + 1 !== n], ['Move up', () => moveFeature(i, i - 1), canMove(app.doc, i, i - 1)], ['Move down', () => moveFeature(i, i + 1), canMove(app.doc, i, i + 1)],
     'sep', ['Delete', () => deleteFeature(i)]]);
@@ -7044,6 +7111,8 @@ const isHidden = f => (f.type === 'sketch' || f.type === 'plane' ? !!f.hide : ((
 function toggleFeatureShown(i) {
   const f = app.doc.features[i];
   if (!f) return;
+  // (showing and hiding is looking; a feature that can only be suppressed is changed by it)
+  if (f.type !== 'sketch' && f.type !== 'plane' && !madeParts(f).length && !editGate()) return;
   checkpoint();
   if (f.type === 'sketch' || f.type === 'plane') { if (f.hide) delete f.hide; else f.hide = true; }
   else {
@@ -7305,8 +7374,16 @@ async function normalToSel() {
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 const NEWS = [
+  { v: '0.4.0', date: '10 Nov 2026', items: [
+    '<b>Share a link</b> (File): the Part Studio as it is now, written into the link itself. Anyone opens it to look, turn and measure.',
+    '<b>Changing a Part Studio needs a free account</b>: sketching, features, dimensions. Looking at one, opening a file or a shared link and measuring need none.',
+    'The <b>view cube</b> has nine parts to a face: its middle looks at the face, a strip along a side looks along that edge, a corner looks from the corner. The arrows round it turn the view 15° at a time.',
+    '<b>Right-drag</b> turns the part about the screen’s own axes, through the middle of the part.',
+    '<b>Double-click a row</b> of the feature list to edit it (the first click no longer got in the way). A feature opened to edit has its regions ready to click, so a hole can be clicked in to be filled.',
+    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open.',
+  ] },
   { v: '0.3.0', date: '10 Nov 2026', items: [
     'The line, rectangle, circle and arc tools each have an arrow beside them listing their kinds. New among them: a <b>centre line</b> (a construction line), a <b>midpoint line</b> (its middle, then an end) and a <b>3-point circle</b>.',
     '<b>Type sizes as you draw</b>: with a line, circle or rectangle under the pointer, type a number and press Enter. The line is that long the way the pointer goes; a rectangle takes its width, then its height. Each is dimensioned as it is made.',
@@ -7403,6 +7480,7 @@ async function openAnyFile(file) {
 }
 /* a STEP file as an Import feature at the rollback bar: each solid in it a part */
 async function importStep(file) {
+  if (!editGate()) return false;
   if (!file) { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', () => { if (inp.files[0]) importStep(inp.files[0]); }); inp.click(); return false; }
   const data = await file.text();
   if (data.length > 1.8e6) toast('That STEP file is large: the Part Studio can be saved as a file, but the cloud keeps documents up to 2 MB', true);
@@ -7443,6 +7521,65 @@ function wireFiles() {
   const nm = document.getElementById('docName');
   nm.value = app.doc.name;
   nm.addEventListener('change', () => { const v = nm.value.trim(); if (v && v !== app.doc.name) { checkpoint(); app.doc.name = v; changed(); } });
+}
+/* ==========================================================================
+   Sharing a Part Studio as a link, as JEKion shares a bench: the document deflated and written after #p= ('c', or
+   'd' plain where the browser cannot compress). Nothing is uploaded: the Part Studio travels in the link itself,
+   as it is now. Making a link needs a free account; anyone opens one, to look at, turn and measure (changing it
+   needs an account, as changing any Part Studio does).
+   ========================================================================== */
+const cadB64 = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const cadUnB64 = t => { const s2 = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return u; };
+async function cadStream(bytes, T) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(T)).arrayBuffer()); }
+/* the part after #p= */
+async function cadShareHash(doc) {
+  const json = new TextEncoder().encode(JSON.stringify(doc || app.doc));
+  if (typeof CompressionStream !== 'undefined') { try { return 'c' + cadB64(await cadStream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
+  return 'd' + cadB64(json);
+}
+async function cadReadShare(hash) {
+  const kind = hash[0], body = hash.slice(1);
+  if (kind !== 'c' && kind !== 'd') throw new Error('the link is not one of JEKcad’s');
+  let bytes;
+  try { bytes = cadUnB64(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  if (kind === 'c') {
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekcad file instead');
+    try { bytes = await cadStream(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  }
+  let d;
+  try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a Part Studio'); }
+  if (!d || d.format !== CAD_FORMAT) throw new Error('the link does not hold a JEKcad Part Studio');
+  return normDoc(d);
+}
+async function cadShare() {
+  if (!accountGate('share a link')) return false;
+  const url = location.origin + location.pathname + '#p=' + await cadShareHash();
+  const dlg = document.getElementById('shareDialog'), box = document.getElementById('shareUrl');
+  box.value = url;
+  document.getElementById('shareNote').textContent = url.length.toLocaleString() + ' characters. ' + (url.length > 2000 ? 'That is long: some chat and email apps cut links this size. If it arrives cut short, send the .jekcad file instead.' : 'Anyone with the link opens this Part Studio as it is now. Nothing is uploaded: the Part Studio travels in the link itself.');
+  document.getElementById('shareCopy').textContent = 'Copy link';
+  dlg.showModal(); box.focus(); box.select();
+  track('share', 'cad-link');
+  try { await navigator.clipboard.writeText(url); document.getElementById('shareCopy').textContent = 'Copied'; } catch (err) { /* the button copies */ }
+  return true;
+}
+/* a link opened: its Part Studio replaces this one (kept by autosave like any other) */
+async function cadOpenShare(hash) {
+  try {
+    const d = await cadReadShare(hash);
+    openDocData(d, null, { fresh: true });
+    if (!EMBED) toast('Opened the shared Part Studio “' + d.name + '”');
+    track('import', 'cad-link');
+    return true;
+  } catch (err) { toast('Could not open that link: ' + err.message + '.', true); return false; }
+}
+function wireShare() {
+  const dlg = document.getElementById('shareDialog');
+  if (!dlg) return;
+  document.getElementById('btnShare').addEventListener('click', () => { cadShare().catch(err => toast('Could not make a link: ' + err.message, true)); });
+  document.getElementById('shareClose').addEventListener('click', () => dlg.close());
+  document.getElementById('shareCopy').addEventListener('click', e => { const box = document.getElementById('shareUrl'); box.select(); navigator.clipboard.writeText(box.value).then(() => { e.target.textContent = 'Copied'; }, () => { document.execCommand('copy'); e.target.textContent = 'Copied'; }); });
+  void TEST_MODE;
 }
 /* ==========================================================================
    The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
@@ -8278,15 +8415,15 @@ function cadPrompt(id) {
 /* an export asked for signed out, a Pro feature, or the cloud: what it needs and the ways in */
 function cadSignIn(kind, what) {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
-  track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
-  const dlg = cadPrompt('cadSignIn'), close = () => dlg.close();
+  track('prompt', (kind === 'export' || kind === 'edit' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
+  const dlg = cadPrompt('cadSignIn'), close = () => dlg.close(), where = kind === 'edit' ? 'export' : kind;      // (counted with the export prompt)
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'cadSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the Part Studio as a .jekcad file needs no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud documents; saving there needs JEKrayPro. The .jekcad file on your computer needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
+  dlg.replaceChildren(h('h2', { id: 'cadSignInTitle' }, kind === 'edit' ? 'Changing a Part Studio needs a free account' : kind === 'export' ? 'Exporting needs a free account' : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'edit' ? 'Sign in to sketch, add features and change dimensions. Looking at a Part Studio, opening a .jekcad file or a shared link, and measuring need no account.' : kind === 'export' ? 'Sign in to ' + what + '. Saving the Part Studio as a .jekcad file needs no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud documents; saving there needs JEKrayPro. The .jekcad file on your computer needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your Part Studio stays here while you sign in.'),
-    pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
+    pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(where, close)),
     h('div', { class: 'rt-actions' }, pro ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', kind + '.pro'); close(); showSubscribe(); } }, 'See the plans') : null,
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', kind + '.no'); close(); } }, 'Not now')));
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', where + '.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
 /* JEKcad's hooks for the account, and the account wired and looked up */
@@ -8294,6 +8431,7 @@ function wireCadAccount() {
   Object.assign(hooks, {
     appName: 'JEKcad',
     exportSignIn: what => cadSignIn('export', what),
+    cadEditSignIn: () => cadSignIn('edit', 'change a Part Studio'),
     proWhy: () => (accountsOn() ? cadProWhy() : ''),
     proFix: what => cadSignIn('pro', what),
     usageTier: () => (!account ? 'anon' : cadProActive() ? 'pro' : 'free'),
@@ -8646,7 +8784,7 @@ if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)')
 const saved = restoreSaved();
 if (saved) app.doc = saved;
 on('icons', el => cadIcons(el));
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireCloud(); wireUsage();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -8723,7 +8861,10 @@ const cloudHash = async cl => { window.history.replaceState(null, '', location.p
 if (cloudAt) cloudHash(cloudAt);
 if (!TEST_MODE && !EMBED && location.hash === '#benches') { window.history.replaceState(null, '', location.pathname); openCloudList(); }
 if (!TEST_MODE && !EMBED && location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); }
-if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl) cloudHash(cl); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); } });
+// #p=<the Part Studio itself>: a shared link
+const sharedAt = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/);
+if (sharedAt) { window.history.replaceState(null, '', location.pathname + location.search); cadOpenShare(sharedAt[1]); }
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/); if (sh) { window.history.replaceState(null, '', location.pathname); cadOpenShare(sh[1]); return; } const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl) cloudHash(cl); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); } });
 // the tests' and the console's handle on the app
 window.JEKcad = {
   version: APP_VERSION, app, sk: SK, view: V,
@@ -8732,7 +8873,8 @@ window.JEKcad = {
   openFeature, editFeature, okDialog, closeDialog, fieldPick, startSketch, finishSketch, cancelSketch, setTool, addConstraint,
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
-  flyStart, flyStop, flyTurn, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
+  share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
+  flyStart, flyStop, flyTurn, cubePart, turnStep, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };
 })();
 </script>

@@ -3,7 +3,7 @@ import { definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveNear, so
 import { arc3, arcSweep, carryRegions, distToEnt, entOutline, filletCorner, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, tangentArc, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
-import { app, changed, checkpoint, emit, isDark, on, regenDone, regenNow, toast } from './app.js';
+import { app, changed, checkpoint, editGate, emit, isDark, on, regenDone, regenNow, toast } from './app.js';
 import { V, fit, normalTo, pickAt, project, pxToMm, rayAt, rayPlane, redraw } from './view3d.js';
 import { kernelAsk } from '../page/kernel.js';
 import { h } from '../../../jekray/src/ui/dom.js';
@@ -907,7 +907,7 @@ function dimMoves(f, d) {
 /* a sketch's dimension typed again from the model view: the sketch is solved with it, and the model follows */
 export function modelDimEdit(L) {
   const f = app.doc.features.find(x => x.id === L.sketch), d = f && f.dims.find(x => x.id === L.dim);
-  if (!d) return false;
+  if (!d || !editGate()) return false;
   const old = document.getElementById('dimInput'); if (old) old.remove();
   const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
   inp.style.left = Math.max(4, L.p[0] - 50) + 'px'; inp.style.top = Math.max(4, L.p[1] - 13) + 'px';

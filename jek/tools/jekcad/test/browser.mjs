@@ -149,10 +149,23 @@ export async function check(pw, base, shots) {
     const meas = await p.textContent('#measure');
     ok('Click the top face: it is selected and measured', /Face \(plane\)/.test(meas) && /1499\.14\d* mm²/.test(meas.replace(/,/g, '')), meas);
     // the view cube's Front face, the display modes, the section view
-    { const cb = await p.locator('#viewCube canvas').boundingBox(); await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300); await p.mouse.click(cb.x + 30, cb.y + 50); }
+    const cubeClick = async (k, su, sv) => { const cb = await p.locator('#viewCube canvas').boundingBox(); const at = await p.evaluate(([k2, su2, sv2]) => { let sx = 0, sy = 0, n = 0; for (let x = 1; x < 76; x += 1) for (let y = 1; y < 76; y += 1) { const h = window.JEKcad.cubePart(x, y); if (h && h.k === k2 && h.su === su2 && h.sv === sv2) { sx += x; sy += y; n++; } } return n ? [sx / n, sy / n, n] : null; }, [k, su, sv]); if (at) { await p.mouse.move(cb.x + at[0] * cb.width / 76, cb.y + at[1] * cb.height / 76); await p.mouse.click(cb.x + at[0] * cb.width / 76, cb.y + at[1] * cb.height / 76); } await p.waitForTimeout(400); return at; };
+    const zOut = () => p.evaluate(() => { const v = window.JEKcad.view, z = [2 * (v.q[0] * v.q[2] + v.q[3] * v.q[1]), 2 * (v.q[1] * v.q[2] - v.q[3] * v.q[0]), 1 - 2 * (v.q[0] ** 2 + v.q[1] ** 2)]; return z.map(x => +x.toFixed(3)); });
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    await cubeClick('front', 0, 0);
     await p.waitForTimeout(400);
     const front = await p.evaluate(() => { const v = window.JEKcad.view, z = [2 * (v.q[0] * v.q[2] + v.q[3] * v.q[1]), 2 * (v.q[1] * v.q[2] - v.q[3] * v.q[0]), 1 - 2 * (v.q[0] ** 2 + v.q[1] ** 2)]; return z.map(x => +x.toFixed(3)); });
     ok('The view cube: Front looks along +y', near(front[1], -1, 1e-3), JSON.stringify(front));
+    // an edge and a corner of the cube look from between its faces; the arrows turn the view 15° at a time
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    const edgeAt = await cubeClick('top', 0, -1) || await cubeClick('top', -1, 0) || await cubeClick('top', 1, 0) || await cubeClick('top', 0, 1);
+    const zEdge = await zOut();
+    await p.evaluate(() => window.JEKcad.viewFrom('front')); await p.waitForTimeout(300);
+    await p.click('.cad-turn.right'); await p.waitForTimeout(100);
+    const zTurn = await zOut();
+    await p.click('.cad-turn.up'); await p.waitForTimeout(100);
+    const zUp = await zOut();
+    ok('The view cube: a strip along an edge looks from between two faces; the arrows turn the view 15° across and up', !!edgeAt && near(Math.abs(zEdge[2]), Math.SQRT1_2, 2e-3) && zEdge.filter(v => Math.abs(v) < 1e-3).length === 1 && near(Math.abs(zTurn[0]), Math.sin(15 * Math.PI / 180), 2e-3) && near(zTurn[2], 0, 2e-3) && near(Math.abs(zUp[2]), Math.sin(15 * Math.PI / 180), 2e-3), JSON.stringify([edgeAt, zEdge, zTurn, zUp]));
     await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
     await p.click('#btnViewMenu'); await p.click('[data-mode="hidden"]');
     await shot(p, 'jekcad-hidden-edges');
@@ -363,7 +376,7 @@ export async function check(pw, base, shots) {
     const ey1 = await eye();
     await p.mouse.move(cx, cy + 100); await p.mouse.down({ button: 'right' }); await p.mouse.move(cx, cy + 900, { steps: 10 }); await p.mouse.up({ button: 'right' });
     const ey2 = await eye();
-    ok('Right-drag turns the part about its own upright axis: its middle stays put on the screen (the view panned first), dragging up lowers the eye, and far down stops just short of straight above', Math.hypot(ey1.mid[0] - ey0.mid[0], ey1.mid[1] - ey0.mid[1]) <= 2 && ey1.up < ey0.up && ey2.up > 0.99 && ey2.up < 1 + 1e-9 && Math.hypot(ey2.mid[0] - ey0.mid[0], ey2.mid[1] - ey0.mid[1]) <= 2, JSON.stringify([ey0, ey1, ey2]));
+    ok('Right-drag turns the part about the screen’s own axes through its middle: the middle stays put on the screen (the view panned first), dragging up lowers the eye, and dragging on carries the view round', Math.hypot(ey1.mid[0] - ey0.mid[0], ey1.mid[1] - ey0.mid[1]) <= 2 && ey1.up < ey0.up && ey2.up !== ey1.up && Math.hypot(ey2.mid[0] - ey0.mid[0], ey2.mid[1] - ey0.mid[1]) <= 2, JSON.stringify([ey0, ey1, ey2]));
     // a sketch on the top face: a slot drawn round the hole; a loose line from it, its length then its angle typed
     await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
     const tf2 = await xy([-20, -15, 5]); await p.mouse.click(tf2[0], tf2[1]); await p.waitForTimeout(100);
@@ -424,6 +437,18 @@ export async function check(pw, base, shots) {
     if (await p.$('#featureCancel')) await p.click('#featureCancel');
     await regen();
     ok('A double-click on a row of the feature list edits it (the first click marks the row without remaking it): a sketch, an extrude, its regions ready to click', sameRow && rowSk === 'Sketch 2' && rowEx === 'Extrude 2' && rowField === 'regions', JSON.stringify([sameRow, rowSk, rowEx, rowField]));
+    // a share link: the Part Studio written into the link, and read back from it by a fresh page
+    const shBefore = await p.evaluate(async () => JSON.stringify(await window.JEKcad.readShare(await window.JEKcad.shareHash())));
+    await p.click('#btnFile'); await p.click('#btnShare');
+    await p.waitForFunction(() => document.getElementById('shareDialog').open, null, { timeout: 5000 }).catch(() => {});
+    const link = await p.evaluate(() => document.getElementById('shareUrl').value);
+    await p.click('#shareClose');
+    const q2 = await b.newPage({ viewport: { width: 1200, height: 800 } });
+    await q2.goto(link.replace('#p=', '?test#p='));
+    await q2.waitForFunction(n => window.JEKcad && window.JEKcad.app.doc.features.length === n && window.JEKcad.app.regenCount > 0, JSON.parse(shBefore).features.length, { timeout: 60000 }).catch(() => {});
+    const shAfter = await q2.evaluate(() => ({ text: window.JEKcad.text(), hash: location.hash }));
+    await q2.close();
+    ok('Share a link: the Part Studio travels in the link, and a fresh page opened at it has the same Part Studio', /#p=c[A-Za-z0-9_-]+$/.test(link) && shAfter.text === shBefore && !shAfter.hash, link.slice(0, 60) + ' … ' + link.length + ' chars; ' + (() => { let k = 0; while (k < shBefore.length && shBefore[k] === shAfter.text[k]) k++; return 'differs at ' + k + ': …' + shBefore.slice(Math.max(0, k - 60), k + 60) + '… / …' + shAfter.text.slice(Math.max(0, k - 60), k + 60) + '…'; })());
     ok('No page errors', !errs.length, errs.slice(0, 5).join(' | '));
     await p.close();
     // a part studio from the cloud that the API marked JEKray's (as one from before JEKcad was), opened by its link in
@@ -447,6 +472,18 @@ export async function check(pw, base, shots) {
       await q.close();
       return res;
     };
+    // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      await q.route('http://localhost:8787/**', r => { const req = r.request(), cors = { 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match' }; if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors }); return r.fulfill({ status: new URL(req.url()).pathname === '/v1/me' ? 401 : 200, contentType: 'application/json', headers: cors, body: JSON.stringify(new URL(req.url()).pathname === '/v1/me' ? { error: { code: 'signed_out', message: 'Sign in' } } : {}) }); });
+      await q.goto(base + '/jek/tools/jekcad.html');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      await q.waitForTimeout(1500);
+      await q.click('[data-feature="sketch"]'); await q.waitForTimeout(300);
+      const gate = await q.evaluate(() => ({ dlg: !!(document.getElementById('cadSignIn') && document.getElementById('cadSignIn').open), title: (document.querySelector('#cadSignIn h2') || {}).textContent, editing: !!window.JEKcad.app.editing, sketch: window.JEKcad.sketchOn() }));
+      await q.close();
+      ok('Signed out: Sketch asks for a free account and starts nothing', gate.dlg && /needs a free account/.test(gate.title || '') && !gate.editing && !gate.sketch, JSON.stringify(gate));
+    }
     const here = await routed('jekcad');
     ok('A part studio the API marked JEKray’s opens in JEKcad, by its content, and goes nowhere else', here.name === 'Routed studio' && !here.opened.length, JSON.stringify(here));
     for (const app of ['jekray', 'jekion', 'jekfilm']) {

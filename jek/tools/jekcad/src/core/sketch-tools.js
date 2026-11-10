@@ -148,9 +148,12 @@ export function regionsOf(ents) {
   return sketchRegions(W, e => (e.t === 'circle' || e.t === 'arc' ? roundOutline(e, W, WELD) : entOutline(e, 3))).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
 }
 /* the regions an extrude takes by default: those not inside another (a ring's hole stays a hole), by their points */
-export function defaultRegionPts(ents) {
-  const R = regionsOf(ents);
-  return R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0).map(r => r.pt.map(v => +v.toFixed(6)));
+export function defaultRegionPts(ents, fill) {
+  const R = regionsOf(ents), out = R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0);
+  // fill (a cut): the holes of the model brought into the sketch are taken too, where they lie in what is taken. Left
+  // out of a cut, a hole's region leaves a thin tube standing wherever the hole below is any narrower than its rim.
+  if (fill) for (const r of R) if (!out.includes(r) && r.outer.src && r.outer.src.every(e => e.ref) && out.some(o => inside(o.outer, r.pt))) out.push(r);
+  return out.map(r => r.pt.map(v => +v.toFixed(6)));
 }
 /* a point of a sketch as it was, carried to the sketch as it is now: it keeps its place beside the shape it was
    nearest to (along a line and off it; round a circle and out from its centre), so a region's point follows the

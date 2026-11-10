@@ -1,4 +1,4 @@
-import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, partLook, prepareDoc } from '../core/doc.js';
+import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
 import { arcSweep, distToEnt } from '../core/sketch-tools.js';
 
 /* ==========================================================================
@@ -652,7 +652,7 @@ export function makeKernel(oc) {
      opts.preview = { at, feature } also regenerates that feature (being edited) on the state before place at */
   function regen(doc0, opts) {
     opts = opts || {};
-    const doc = JSON.parse(JSON.stringify(doc0)), { vars, errors } = prepareDoc(doc);
+    const doc = normDoc(JSON.parse(JSON.stringify(doc0))), { vars, errors } = prepareDoc(doc);
     const upto = Math.min(doc.features.length, opts.upto != null ? opts.upto : appliedCount(doc));
     const fresh2 = new Map(), reports = [];
     let S = EMPTY(), h = hashText([2166136261, 1], JSON.stringify(vars));

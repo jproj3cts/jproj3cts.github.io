@@ -96,7 +96,7 @@ export function normDoc(d) {
       ...(isStr(p.material, 80) ? { material: p.material } : {}), ...(Number.isFinite(p.density) && p.density > 0 ? { density: p.density } : {}), ...(p.hidden ? { hidden: true } : {}) };
   }
   const rb = Number.isInteger(d.rollback) && d.rollback >= 0 && d.rollback < feats.length ? d.rollback : null;
-  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts };
+  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, ...(d.hidePlanes ? { hidePlanes: true } : {}) };
 }
 export const newDoc = () => normDoc({});
 /* a new feature of a kind, with its defaults, named in sequence */

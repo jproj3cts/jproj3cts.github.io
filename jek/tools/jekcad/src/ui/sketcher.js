@@ -482,7 +482,7 @@ export function shownPlanes() {
   app.doc.features.forEach((f, i) => { if (f.type === 'plane' && i < n && !f.suppressed && !f.hide && frames[f.id]) out.push({ key: { feature: f.id }, F: frames[f.id], name: f.name }); });
   return out;
 }
-const planeSize = () => { let s = 30; for (const o of V.parts.values()) { const b = o.userData.p.bbox; s = Math.max(s, ...b[1].map((v, i) => Math.abs(v - b[0][i]) * 0.6), ...b[0].map(Math.abs), ...b[1].map(Math.abs)); } return s; };
+const planeSize = () => { let s = 0; for (const o of V.parts.values()) { const b = o.userData.p.bbox; s = Math.max(s, ...b[1].map((v, i) => Math.abs(v - b[0][i]))); } return s ? Math.max(10, s * 0.3) : 30; };
 export function planeCorners(P) { const s = P.std ? planeSize() : planeSize() * 0.8; return [[-s, -s], [s, -s], [s, s], [-s, s]].map(q => toWorld(P.F, q)); }
 const inPoly = (P, q) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const a = P[i], b = P[j]; if ((a[1] > q[1]) !== (b[1] > q[1]) && q[0] < (b[0] - a[0]) * (q[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
 /* what of the overlay is under a screen point: a plane, or a sketch's region, shape or point */
@@ -521,8 +521,8 @@ export function drawOverlay() {
     const cs = planeCorners(P).map(project), key = selKey(Object.assign({ kind: 'plane' }, P.key, { name: P.name }));
     const isSel = selected.has(key) || (ed && fieldHasPlane(ed, P.key)), isHov = app.hover && app.hover.kind === 'plane' && selKey(app.hover) === key;
     c.beginPath(); cs.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath();
-    c.fillStyle = C.plane + (isSel ? '0.28)' : isHov ? '0.2)' : '0.06)'); c.fill();
-    c.strokeStyle = isSel ? C.sel : isHov ? C.hov : C.plane + '0.6)'; c.lineWidth = isSel || isHov ? 2 : 1; c.stroke();
+    c.fillStyle = C.plane + (isSel ? '0.28)' : isHov ? '0.2)' : '0.04)'); c.fill();
+    c.strokeStyle = isSel ? C.sel : isHov ? C.hov : C.plane + '0.45)'; c.lineWidth = isSel || isHov ? 2 : 1; c.stroke();
     c.fillStyle = isSel ? C.sel : C.plane + '0.9)'; c.font = '11px system-ui, sans-serif'; c.fillText(P.name, cs[3][0] + 4, cs[3][1] + 13);
   }
   // sketches not being edited: their shapes, and their regions lit when they can be chosen
@@ -678,7 +678,7 @@ export function sketchBar() {
     h('span', { class: 'rt-qsep' }),
     ...SK_CONS.map(([t, title, g]) => h('button', { type: 'button', class: 'rt-btn quiet cad-con', 'data-con': t, title: title + ' (on what is selected)', 'aria-label': title, onclick: () => addConstraint(t) }, g)),
     h('span', { class: 'rt-qsep' }),
-    SK.tool === 'polygon' ? num('Sides ', 'polySides', 'The polygon’s sides') : null, SK.tool === 'fillet' ? num('R ', 'filletR', 'The fillet’s radius') : null, num('Offset ', 'offsetD', 'The distance Offset copies shapes by (negative: the other side)'),
+    SK.tool === 'polygon' ? num('Sides ', 'polySides', 'The polygon’s sides') : null, SK.tool === 'fillet' ? num('R ', 'filletR', 'The fillet’s radius') : null, SK.tool === 'select' || SK.tool === 'offset' ? num('Offset ', 'offsetD', 'The distance Offset copies shapes by (negative: the other side)') : null,
     h('span', { class: 'cad-grow' }),
     h('button', { type: 'button', class: 'rt-btn', id: 'sketchCancel', onclick: cancelSketch }, 'Cancel'),
     h('button', { type: 'button', class: 'rt-btn primary', id: 'sketchOk', onclick: finishSketch, title: 'Finish the sketch (Enter)' }, '✓ Finish')].filter(Boolean));

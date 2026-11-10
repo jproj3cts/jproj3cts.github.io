@@ -14,9 +14,9 @@
   .cad-filter select { font-size: 0.8rem; }
   .cad-skbar { border-image: none; border-top-color: var(--jek-orange); }
   .cad-skname { font-weight: 700; font-size: 0.82rem; margin: 0 0.5rem 0 0.2rem; color: var(--jek-orange); }
-  .cad-tool { width: 30px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .cad-tool { width: 27px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
   .cad-tool.on, .cad-con:active { background: var(--jek-orange); color: #fff; }
-  .cad-con { min-width: 26px; height: 26px; padding: 0 0.3rem; font-size: 0.82rem; font-weight: 700; }
+  .cad-con { min-width: 22px; height: 26px; padding: 0 0.2rem; font-size: 0.82rem; font-weight: 700; }
   .cad-skin { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); margin: 0 0.25rem; }
   .cad-skin input { width: 3.6rem; font-size: 0.78rem; }
   /* the page: the feature list beside the view */

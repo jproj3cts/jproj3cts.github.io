@@ -3840,6 +3840,36 @@ function makeKernel(oc) {
     sk.faces = subShapes(sp.Shape(), TA.TopAbs_FACE).filter(f => { const b = oc.BRepTools.UVBounds(f); return b.UMin > U[0] + eps && b.UMax < U[1] - eps && b.VMin > W[0] + eps && b.VMax < W[1] - eps; });
     return sk.faces;
   }
+  /* A cut's regions, with the model's own holes in them taken too: a region of the sketch that is a hole of a chosen
+     region, drawn only by edges of the model brought into the sketch (ref), where the parts have nothing in what the
+     cut would take of it. Left out, the cut's side there lies on the hole's own wall, and the two all but
+     coinciding leave slivers of face and thin tubes standing where the hole was. A region with anything in it (a
+     boss the cut goes round, a hole not as deep as the cut) stays out, as chosen. pieces(faces) gives the bodies
+     the cut would make of them. */
+  function withEmptyHoles(S, sk, pts, targets, pieces) {
+    regionFaces(sk);
+    const Rs = sk.regions;
+    if (!Rs || !pts || !pts.length) return pts;
+    const chosen = new Set(pts.map(q => (sk.was && regionAt(Rs, carryPt(sk.was, sk.ents, q))) || regionAt(Rs, q)).filter(Boolean));
+    const parts = targets && targets.length ? S.parts.filter(p => targets.includes(p.id)) : S.parts;
+    const more = [];
+    for (const r of Rs) {
+      if (chosen.has(r) || !r.outer.src || !r.outer.src.every(e => e && e.ref)) continue;
+      if (![...chosen].some(c => (c.holes || []).some(hole => inside(hole, r.pt)))) continue;
+      try {
+        let has = 0;
+        for (const b of pieces(subShapes(sk.faces[Rs.indexOf(r)], TA.TopAbs_FACE))) for (const part of parts) {
+          const op = T(new oc.BRepAlgoAPI_Common());
+          op.SetArguments(listFrom([part.shape])); op.SetTools(listFrom([b.shape])); op.Build(prog());
+          if (!op.IsDone()) { has = Infinity; break; }
+          has += Math.abs(props(op.Shape(), 'v').m);
+        }
+        // (nothing: less than a hundredth of a millimetre's depth of it, all told)
+        if (has < Math.abs(r.area) * 0.01) more.push(r.pt);
+      } catch (err) { /* not known to be empty: left as chosen */ }
+    }
+    return more.length ? pts.concat(more) : pts;
+  }
   function sketchOf(S, id) {
     const sk = S.sketches[id];
     if (!sk) throw new Error(id ? 'its sketch is not there (it failed, or is after the rollback bar)' : 'no sketch chosen');
@@ -3992,26 +4022,31 @@ function makeKernel(oc) {
       return { frame: S.frames[f.id] };
     },
     extrude(S, f, V) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions);
+      const sk = sketchOf(S, f.sketch);
       // a depth below 0 goes the other way (as Opposite direction does for the ends that have no depth)
       const L = bigLength(S, sk.frame), dv = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len'), d1 = Math.abs(dv);
       const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
       if (!(d1 > 1e-9)) throw new Error('the depth cannot be 0');
-      const pieces = [];
       const range1 = f.end === 'symmetric' ? [-d1 / 2, d1 / 2] : [0, d1];
-      for (const face of faces) {
-        let b = prism(sk, face, n, range1[0], range1[1], f.id, 'start', 'end');
-        if (f.end === 'upto') b = uptoTrim(S, b, f.upto, n, f.id);
-        pieces.push(b);
-        if (f.second && f.end !== 'symmetric') {
-          const d2 = f.end2 === 'through' || f.end2 === 'upto' ? L : fieldValue(f, 'depth2', V, 'len');
-          if (!(d2 > 1e-9)) throw new Error('the second depth must be more than 0');
-          let b2 = prism(sk, face, v3.mul(n, -1), 0, d2, f.id, 'start2', 'end2');
-          if (f.end2 === 'upto') b2 = uptoTrim(S, b2, f.upto2, v3.mul(n, -1), f.id);
-          pieces.push(b2);
+      const piecesOf = faces => {
+        const pieces = [];
+        for (const face of faces) {
+          let b = prism(sk, face, n, range1[0], range1[1], f.id, 'start', 'end');
+          if (f.end === 'upto') b = uptoTrim(S, b, f.upto, n, f.id);
+          pieces.push(b);
+          if (f.second && f.end !== 'symmetric') {
+            const d2 = f.end2 === 'through' || f.end2 === 'upto' ? L : fieldValue(f, 'depth2', V, 'len');
+            if (!(d2 > 1e-9)) throw new Error('the second depth must be more than 0');
+            let b2 = prism(sk, face, v3.mul(n, -1), 0, d2, f.id, 'start2', 'end2');
+            if (f.end2 === 'upto') b2 = uptoTrim(S, b2, f.upto2, v3.mul(n, -1), f.id);
+            pieces.push(b2);
+          }
         }
-      }
-      let tool = fuseAll(pieces, f.id, f.id);
+        return pieces;
+      };
+      // (a cut takes in the holes of the model that lie in what it takes, where they are empty already)
+      const faces = pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
+      let tool = fuseAll(piecesOf(faces), f.id, f.id);
       const draft = fieldValue(f, 'draft', V, 'ang');
       if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n, draft, f.id);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
@@ -7411,7 +7446,7 @@ const NEWS = [
     'The <b>view cube</b> has nine parts to a face: its middle looks at the face, a strip along a side looks along that edge, a corner looks from the corner. The arrows round it turn the view 15° at a time.',
     '<b>Right-drag</b> turns the part about the screen’s own axes, through the middle of the part.',
     '<b>Double-click a row</b> of the feature list to edit it (the first click no longer got in the way). A feature opened to edit has its regions ready to click, so a hole can be clicked in to be filled.',
-    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open.',
+    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open. A cut made before does so too, wherever the hole is empty: the slivers and odd curved faces that were left at such holes are gone.',
   ] },
   { v: '0.3.0', date: '10 Nov 2026', items: [
     'The line, rectangle, circle and arc tools each have an arrow beside them listing their kinds. New among them: a <b>centre line</b> (a construction line), a <b>midpoint line</b> (its middle, then an end) and a <b>3-point circle</b>.',

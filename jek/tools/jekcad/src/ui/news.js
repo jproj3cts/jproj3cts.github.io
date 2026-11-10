@@ -12,7 +12,7 @@ export const NEWS = [
     'The <b>view cube</b> has nine parts to a face: its middle looks at the face, a strip along a side looks along that edge, a corner looks from the corner. The arrows round it turn the view 15° at a time.',
     '<b>Right-drag</b> turns the part about the screen’s own axes, through the middle of the part.',
     '<b>Double-click a row</b> of the feature list to edit it (the first click no longer got in the way). A feature opened to edit has its regions ready to click, so a hole can be clicked in to be filled.',
-    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open.',
+    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open. A cut made before does so too, wherever the hole is empty: the slivers and odd curved faces that were left at such holes are gone.',
   ] },
   { v: '0.3.0', date: '10 Nov 2026', items: [
     'The line, rectangle, circle and arc tools each have an arrow beside them listing their kinds. New among them: a <b>centre line</b> (a construction line), a <b>midpoint line</b> (its middle, then an end) and a <b>3-point circle</b>.',

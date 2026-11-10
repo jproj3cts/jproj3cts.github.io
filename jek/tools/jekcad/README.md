@@ -20,7 +20,9 @@ behind JEKray's shim (`page/kernel.js`), or on the dev page the modules as a mod
 - `src/engines/kernel.js`: `makeKernel(oc)`, the feature list regenerated on OpenCascade. Each feature runs in its
   own try, so a failure is reported on it and the rest carry on; states are cached by the list up to each feature.
   Faces carry names given by the feature that made them and carried by OCCT's history (Modified, Generated,
-  IsDeleted); refs are a face's names and a point on it, or an edge's two faces and its midpoint. Also meshes with
+  IsDeleted); refs are a face's names and a point on it, or an edge's two faces and its midpoint. A cut takes in the
+  model's holes that lie in what it takes where the parts are empty there (`withEmptyHoles`), chosen or not: left
+  out, its side lies on the hole's own wall and the two leave slivers. Also meshes with
   face and edge groups, measure, STEP and STL out, projecting edges into a sketch.
 - `src/worker/main.js` the worker's side; `src/page/kernel.js` the page's client (the last regeneration wins).
 - `src/ui/`: state, undo, menus and icons (`app.js`); the three.js view, picking, view cube, modes and section

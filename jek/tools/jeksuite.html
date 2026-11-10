@@ -3990,11 +3990,21 @@ async function fillHome() {
     openHomeMenu(x, [h('div', { class: 'rt-menunote' }, note), sel]);
   };
   const placesFor = fs => [['', top], ...folders.filter(x => fs.every(f => f.id !== x.id && folderFits(folders, f.id, x.id))).map(x => [x.id, pathText(x.id)]).sort((a, b) => a[1].localeCompare(b[1]))];
-  const takes = target => { if (!dragItems || !can) return false; if (target.bin) return dragItems.benches.length > 0 && !dragItems.folders.length; const g = goesInto(dragItems, target.folder); return g.benches.length + g.folders.length > 0; };
+  // to another workspace: benches only, to one the person can save to; out of a team, its owner and admins alone
+  const myRole = data.role || (wsInfo && wsInfo.role) || 'owner';
+  const moveOut = can && wsInfo && (wsInfo.kind === 'personal' || myRole === 'owner' || myRole === 'admin') ? copyPlaces(ws) : [];
+  const moveToWs = (bs, w) => homeSay(async () => {
+    try { for (const b of bs) await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ workspace_id: w.id }))); }
+    catch (err) { if (err.status === 400) throw new Error('Moving a bench to another workspace is not available yet.'); throw err; }
+    picked.clear(); pickedF.clear();
+  }, 'Moved ' + sayItems(bs, []) + ' to ' + placeName(w))();
+  const wsChoices = fs => (fs.length ? [] : moveOut.map(w => ['ws:' + w.id, placeName(w) + ' (workspace)']));
+  const moveChosen = (bs, fs) => v => { const w = v.startsWith('ws:') ? moveOut.find(x => 'ws:' + x.id === v) : null; if (w) moveToWs(bs, w); else moveItems({ benches: bs, folders: fs }, v || null); };
+  const takes = target => { if (!dragItems || !can) return false; if (target.ws) return moveOut.includes(target.ws) && dragItems.benches.length > 0 && !dragItems.folders.length; if (target.bin) return dragItems.benches.length > 0 && !dragItems.folders.length; const g = goesInto(dragItems, target.folder); return g.benches.length + g.folders.length > 0; };
   const dropOn = (el, target) => {
     el.addEventListener('dragover', e => { if (!takes(target)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); });
     el.addEventListener('dragleave', () => el.classList.remove('drop'));
-    el.addEventListener('drop', e => { el.classList.remove('drop'); if (!takes(target)) return; e.preventDefault(); const items = dragItems; dragItems = null; if (target.bin) binItems(items.benches); else moveItems(items, target.folder); });
+    el.addEventListener('drop', e => { el.classList.remove('drop'); if (!takes(target)) return; e.preventDefault(); const items = dragItems; dragItems = null; if (target.ws) moveToWs(items.benches, target.ws); else if (target.bin) binItems(items.benches); else moveItems(items, target.folder); });
     return el;
   };
   const dragFrom = (el, items) => {
@@ -4048,7 +4058,7 @@ async function fillHome() {
     h('h2', null, 'Benches'),
     ...places.flatMap(w => w.id === ws
       ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
-      : [railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', false, leave(() => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); }))]),
+      : [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', false, leave(() => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); })), { ws: w })]),
     h('h2', null, 'In ' + top),
     railBtn('Recent', 'recent', !P.app && here('recent'), leave(go('recent'))),
     railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', leave(go('parts'))),
@@ -4351,7 +4361,7 @@ async function fillHome() {
     const { benches: bs, folders: fs } = pickedNow();
     const act = (label, icon, fn, cls) => { const x = h('button', { type: 'button', class: 'rt-btn' + (cls ? ' ' + cls : '') }, homeIcon(icon), ' ' + label); x.addEventListener('click', () => fn(x)); return x; };
     bar.replaceChildren(...[h('b', null, [bs.length ? countOf(bs.length, 'bench') : null, fs.length ? countOf(fs.length, 'folder') : null].filter(Boolean).join(' and ') + ' picked'),
-      !bin && can ? act('Move to…', 'move', x => choose(x, 'Move ' + sayItems(bs, fs) + ' to', placesFor(fs), v => moveItems({ benches: bs, folders: fs }, v || null))) : null,
+      !bin && can ? act('Move to…', 'move', x => choose(x, 'Move ' + sayItems(bs, fs) + ' to', [...placesFor(fs), ...wsChoices(fs)], moveChosen(bs, fs))) : null,
       !bin && bs.length && !fs.length && copyPlaces(ws).length ? act('Copy to…', 'copy', x => choose(x, 'Copy ' + sayItems(bs, []) + ' to', copyPlaces(ws).map(w => [w.id, placeName(w)]), v => homeSay(async () => {
         for (const b of bs) await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ workspace_id: v })));
         picked.clear();
@@ -4368,12 +4378,7 @@ async function fillHome() {
   const benchCards = benches.map(b => {
     const app = appOf(b.tool), drag = can && !bin;
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
-    const moveTo = () => {
-      const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
-        ...folders.map(f => { const o = h('option', { value: f.id }, pathText(f.id)); o.selected = f.id === b.folder_id; return o; }));
-      sel.addEventListener('change', () => { closeHomeMenu(); homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: sel.value || null }))), 'Moved')(); });
-      openHomeMenu(more, [h('div', { class: 'rt-menunote' }, 'Move “' + b.name + '” to'), sel]);
-    };
+    const moveTo = () => choose(more, 'Move “' + b.name + '” to', [...placesFor([]).filter(([v]) => v !== (b.folder_id || '')), ...wsChoices([])], moveChosen([b], []));
     const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name), b.name);
     const rename = () => {
       if (!can || bin) return false;
@@ -4391,7 +4396,7 @@ async function fillHome() {
       copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
       'sep',
       can ? ['Rename', 'rename', () => setTimeout(rename)] : null,
-      can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
+      can && (folders.length || moveOut.length) ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
       writer ? ['Delete', 'trash', () => binItems([b]), 'danger'] : null];
     more.addEventListener('click', () => openHomeMenu(more, items()));
     menuOf.set(b.id, items);

@@ -21,6 +21,7 @@ const KEEP_RECENT = 50;
 const KEEP_DAILY_MS = 90 * 24 * 60 * 60 * 1000;
 export const BIN_MS = 30 * 24 * 60 * 60 * 1000;
 const WRITERS = new Set(['owner', 'admin', 'editor']);
+const MOVERS = new Set(['owner', 'admin']);   // who may take a bench out of a team
 // an editing lease: renewed by the app every minute while the bench is open
 export const LEASE_MS = 2 * 60 * 1000;
 
@@ -350,7 +351,7 @@ export async function save(req, env, user, benchId) {
   return { id: b.id, version: next, updated_at: t, size_bytes: bytes(content), name: cleanName(body.name, b.name) };
 }
 
-// PATCH /v1/benches/:b  {name?, folder_id?}
+// PATCH /v1/benches/:b  {name?, folder_id?, workspace_id?}
 export async function patch(req, env, user, benchId) {
   const a = await benchAccess(env, user, benchId);
   canWrite(a);
@@ -361,12 +362,31 @@ export async function patch(req, env, user, benchId) {
     sets.push('name = ?');
     args.push(cleanName(body.name));
   }
-  if (body.folder_id !== undefined) {
+  // To another workspace: the bench goes whole, its history and forks with it (what is stored is found by the
+  // bench, not by the workspace). Out of a team only its owner and admins may take one, since the rest of the team
+  // loses it; into a workspace anyone who can save there may bring one, within its storage. Not while someone else
+  // has it open to edit. It lands in the folder given there, or at the top.
+  const to = body.workspace_id !== undefined && body.workspace_id !== a.bench.workspace_id ? await workspaceAccess(env, user, body.workspace_id) : null;
+  if (to) {
+    canWrite(to);
+    if (a.kind !== 'personal' && !MOVERS.has(a.role)) throw new ApiError(403, 'forbidden', 'Only the team’s owner and admins can move a bench out of the team.');
+    if (a.bench.lease_user && a.bench.lease_user !== user.id) {
+      throw new ApiError(423, 'locked', `${a.bench.lease_name} is editing this bench.`, { editing: meta(a.bench).editing, version: a.bench.head_version });
+    }
+    const kept = await env.DB.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS n FROM bench_versions WHERE bench_id = ?').bind(a.bench.id).first();
+    await checkQuota(env, to.ws, to.kind, a.bench.size_bytes + kept.n);
+    sets.push('workspace_id = ?', 'folder_id = ?');
+    args.push(to.ws, await folderIn(env, to.ws, body.folder_id));
+  } else if (body.folder_id !== undefined) {
     sets.push('folder_id = ?');
     args.push(await folderIn(env, a.bench.workspace_id, body.folder_id));
   }
   if (!sets.length) throw new ApiError(400, 'bad_request', 'Nothing to change.');
   await env.DB.prepare(`UPDATE benches SET ${sets.join(', ')} WHERE id = ?`).bind(...args, a.bench.id).run();
+  if (to) {
+    await audit(env, a.bench.workspace_id, user.id, 'bench.move_out', a.bench.id);
+    await audit(env, to.ws, user.id, 'bench.move_in', a.bench.id);
+  }
   const { bench } = await benchAccess(env, user, benchId);
   return meta(bench);
 }

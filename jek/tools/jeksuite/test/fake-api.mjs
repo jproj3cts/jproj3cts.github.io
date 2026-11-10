@@ -50,7 +50,7 @@ export async function route(page, opts = {}) {
     // what the file system changes: a bench moved, renamed or binned, a folder made, renamed or moved
     mm = p.match(/^\/v1\/benches\/(\w+)$/);
     if (mm && (m === 'PATCH' || m === 'DELETE')) {
-      for (const [w, list] of Object.entries(D.benches)) { const i = list.findIndex(x => x.id === mm[1]); if (i < 0) continue; if (m === 'DELETE') binned.push([w, list.splice(i, 1)[0]]); else Object.assign(list[i], JSON.parse(req.postData())); }
+      for (const [w, list] of Object.entries(D.benches)) { const i = list.findIndex(x => x.id === mm[1]); if (i < 0) continue; if (m === 'DELETE') binned.push([w, list.splice(i, 1)[0]]); else { const body = JSON.parse(req.postData()); Object.assign(list[i], body); if (body.workspace_id && body.workspace_id !== w) { const [b] = list.splice(i, 1); b.folder_id = body.folder_id || null; D.benches[body.workspace_id].push(b); } } break; }
       return j({ ok: true });
     }
     mm = p.match(/^\/v1\/benches\/(\w+)\/undelete$/);

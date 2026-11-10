@@ -300,6 +300,20 @@ export async function check(pw, base, shots) {
       const gone = !(await benchesNow()).includes('b5'), note = await p.evaluate(() => document.getElementById('homeToast').textContent);
       await p.click('#homeToast button'); await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {});
       ok('Folders are picked with benches; a bench binned has an Undo in its note, which brings it back', mixed === '1 bench and 1 folder picked' && gone && /moved to the bin for 30 days Undo$/.test(note) && sent(/^POST \/v1\/benches\/b5\/undelete$/).length === n0 + 1 && (await benchesNow()).includes('b5'), JSON.stringify([mixed, gone, note]));
+      // to another workspace: a bench dragged onto it in the rail, or chosen in Move to…
+      await railGo('My benches'); await p.waitForSelector('.rt-hcard[data-bench]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      await railGo('Absorption cell'); await p.waitForSelector('.rt-hcard[data-bench=b8]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      await p.dragAndDrop('.rt-hcard[data-bench=b8]', '#homeRail button:has-text("Levitation lab")'); await p.waitForTimeout(500);
+      const draggedOut = !(await benchesNow()).includes('b8'), said = await p.evaluate(() => document.getElementById('homeToast').textContent);
+      await p.click('.rt-hcard[data-bench=b1] .rt-hmore');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Move to…').click());
+      await p.waitForSelector('.rt-hmenu select', { timeout: 5000 }).catch(() => {});
+      await p.selectOption('.rt-hmenu select', 'ws:w_lab'); await p.waitForTimeout(500);
+      await railGo('Levitation lab'); await p.waitForSelector('.rt-hcard[data-bench=b4]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      const inTeam = await benchesNow();
+      await railGo('My benches'); await p.waitForSelector('.rt-hcard.folder', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      await railGo('Absorption cell'); await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      ok('A bench goes to another workspace: dragged onto it in the rail, or chosen in Move to…', draggedOut && /^Moved “Alignment cap” to Levitation lab/.test(said) && ['b1', 'b4', 'b8'].every(id => inTeam.includes(id)), JSON.stringify([draggedOut, said, inTeam]));
       // the arrows go from card to card; a fork's name is asked for in the page; the chip pressed is kept; dark and light
       await p.focus('.rt-hcard[data-bench=b5] .rt-hopen'); await p.keyboard.press('ArrowRight');
       const right = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.bench);

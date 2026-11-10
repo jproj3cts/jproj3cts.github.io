@@ -11,6 +11,8 @@ export const NEWS = [
     '<b>Dimensions on the model</b>: click a sketch, or the feature made from it, in the list and its dimensions show on the part; double-click one to change it without opening the sketch. Double-click a face to edit the feature that made it.',
     'The view fills the window, and the feature list closes and opens from the tab on its edge. Every row of the list has an eye: the origin, each plane, each sketch and each feature’s parts.',
     '<b>Fly</b> (the bird in the bar): through the model, full screen, with W A S D and the mouse.',
+    'Closer to how you would expect a sketch to behave: right-drag orbits in a sketch too (N looks straight at it again); a dimension’s value drags to where you want it; an angle is the one inside the corner; a point started level with the origin, or a polygon drawn level, is held so; a corner of the model a sketch is locked to follows the model, as an edge does.',
+    'Loft and Sweep start with the sketches nothing has used yet; a round part shows no seam line along it.',
     'Fixed: Sketch on a face selected beforehand; a cut losing its region when its sketch changed; choosing parts in Mirror and the patterns; a chain of lines that closes on the origin now ends.',
   ] },
   { v: '0.1.0', date: '10 Nov 2026', items: [

@@ -35,7 +35,7 @@ export function normDims(dims, ents) {
   const ids = new Set(ents.map(e => e.id).concat('origin'));
   return (Array.isArray(dims) ? dims : []).slice(0, 1000).filter(d => d && DIM_KINDS.includes(d.t) && Array.isArray(d.r) && d.r.length >= 1 && d.r.length <= 2 && d.r.every(okRef) && d.r.every(r => ids.has(r.e)))
     .map(d => Object.assign({ id: typeof d.id === 'string' && d.id.length < 30 ? d.id : sketchId('d'), t: d.t, r: d.r.map(cleanRef), v: d.t === 'ang' ? sfin(d.v, 90) : Math.max(0, sfin(d.v, 10)) },
-      d.dir === 'h' || d.dir === 'v' ? { dir: d.dir } : {}, d.s === 1 || d.s === -1 ? { s: d.s } : {}, Array.isArray(d.off) && d.off.length === 2 ? { off: [sfin(d.off[0], 0), sfin(d.off[1], 0)] } : {},
+      d.dir === 'h' || d.dir === 'v' ? { dir: d.dir } : {}, d.s === 1 || d.s === -1 ? { s: d.s } : {}, d.rev && d.t === 'ang' ? { rev: true } : {}, Array.isArray(d.off) && d.off.length === 2 ? { off: [sfin(d.off[0], 0), sfin(d.off[1], 0)] } : {},
       typeof d.x === 'string' && d.x.length < 200 ? { x: d.x } : {}));
 }
 
@@ -135,7 +135,8 @@ function dimResidual(E, d, out) {
     case 'rad': case 'dia': { const e = en(d.r[0]); if (!e) return; const r = e.t === 'slot' ? e.r : e.t === 'rect' ? (e.rad || 0) : radiusOf(e); out.push((d.t === 'dia' ? 2 * r : r) - d.v); return; }
     case 'ang': {
       const e1 = en(d.r[0]), e2 = en(d.r[1]); if (!e1 || !e2) return;
-      const u = lineDir(e1), w = lineDir(e2), cr = u[0] * w[1] - u[1] * w[0], dt = u[0] * w[0] + u[1] * w[1];
+      // rev: the second line taken the other way along, so the angle is the one inside the corner the lines make
+      const u = lineDir(e1), k = d.rev ? -1 : 1, w = lineDir(e2).map(x => x * k), cr = u[0] * w[1] - u[1] * w[0], dt = u[0] * w[0] + u[1] * w[1];
       out.push((Math.atan2((d.s || 1) * cr, dt) / deg - d.v) * 0.5);
       return;
     }

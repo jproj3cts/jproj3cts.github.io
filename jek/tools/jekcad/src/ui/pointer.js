@@ -5,7 +5,7 @@ import { closeDialog, editFeature, fieldPick, fieldWants, okDialog } from './dia
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
-   The pointer and the keys on the view. Right-drag orbits, middle-drag (or Shift with the right button) pans, the
+   The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
    wheel zooms about the pointer. A left click picks: into the feature dialog's active field when one is open,
    else into the selection (Ctrl or Shift adds to it); a left drag from nothing selects by a box. In a sketch the
    left button belongs to the sketcher, and a right-click (no drag) ends what is being drawn. What a click would
@@ -59,7 +59,7 @@ export function wirePointer() {
     if (drag && (drag.mode === 'orbit' || drag.mode === 'pan')) {
       const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true; drag.travel += Math.abs(dx) + Math.abs(dy);
       if (drag.travel < 4) return;
-      if (drag.mode === 'orbit' && !app.sketch) orbit(dx, dy); else pan(dx, dy);
+      if (drag.mode === 'orbit') orbit(dx, dy); else pan(dx, dy);
       return;
     }
     if (drag && drag.mode === 'sketch') { sketchMove(e, sx, sy); return; }

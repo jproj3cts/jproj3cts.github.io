@@ -130,7 +130,7 @@ export function makeKernel(oc) {
       const fs = b.edgeFaces[j];
       return { kind: 'edge', part: b.id, faces: fs.map(i => b.names[i][0]), pt: midOf(b, j).map(r6), type: curveType(b.edges[j]) };
     }
-    if (pick.kind === 'vertex') { const vs = vertsOf(b); return { kind: 'vertex', part: b.id, pt: xyz(T(oc.BRep_Tool.Pnt(vs[pick.index]))).map(r6) }; }
+    if (pick.kind === 'vertex') { const vs = vertsOf(b); return { kind: 'vertex', part: b.id, faces: vertFaces(b)[pick.index].map(i => b.names[i][0]).slice(0, 6), pt: xyz(T(oc.BRep_Tool.Pnt(vs[pick.index]))).map(r6) }; }
     throw new Error('not a pick');
   }
   const r6 = v => +v.toFixed(6);
@@ -169,6 +169,25 @@ export function makeKernel(oc) {
     throw new Error('a chosen edge is no longer there');
   }
   const vertsOf = b => (b.verts || (b.verts = subShapes(b.shape, TA.TopAbs_VERTEX)));
+  /* the faces that meet at each vertex of a body (made once asked) */
+  function vertFaces(b) {
+    if (b.vertFaces) return b.vertFaces;
+    const vs = vertsOf(b), vix = indexer(vs);
+    b.vertFaces = vs.map(() => []);
+    b.faces.forEach((f, i) => { for (const v of subShapes(f, TA.TopAbs_VERTEX)) { const j = vix(v); if (j >= 0 && !b.vertFaces[j].includes(i)) b.vertFaces[j].push(i); v.delete(); } });
+    return b.vertFaces;
+  }
+  /* a corner found again by the faces that met at it (the nearest to where it was, if several do) */
+  function findVertex(S, ref) {
+    let best = null, bd = Infinity;
+    for (const b of [bodyFor(S, ref), ...S.parts].filter(Boolean)) {
+      const vs = vertsOf(b), vf = vertFaces(b);
+      vs.forEach((v, j) => { if (!ref.faces.every(n => vf[j].some(i => b.names[i].includes(n)))) return; const q = xyz(T(oc.BRep_Tool.Pnt(v))), d = near(q, ref.pt); if (d < bd) { bd = d; best = q; } });
+      if (best) break;
+    }
+    if (!best) throw new Error('a chosen corner is no longer there');
+    return best;
+  }
   function surfType(f) {
     const s = T(new oc.BRepAdaptor_Surface(f, true)), t = s.GetType(), G = oc.GeomAbs_SurfaceType;
     return t === G.GeomAbs_Plane ? 'plane' : t === G.GeomAbs_Cylinder ? 'cylinder' : t === G.GeomAbs_Cone ? 'cone' : t === G.GeomAbs_Sphere ? 'sphere' : t === G.GeomAbs_Torus ? 'torus' : 'surface';
@@ -332,6 +351,14 @@ export function makeKernel(oc) {
     const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
     for (const e of f.ents) {
       if (!e.ref || !e.src) continue;
+      if (e.src.kind === 'vertex') {
+        if (e.t !== 'point') continue;
+        let q; try { q = toPlane(F, findVertex(S, e.src)); } catch (err) { continue; }
+        if (!far(q, e.c)) continue;
+        e.c = q;
+        for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id) c.at = q.slice();
+        moved = true; continue;
+      }
       let g;
       try { const hit = findEdge(S, e.src), sh = edgeShapes(hit.b.edges[hit.j], F); if (sh.length !== 1 || sh[0].t !== e.t) continue; g = sh[0]; } catch (err) { continue; }
       if (e.t === 'line') {
@@ -743,9 +770,12 @@ export function makeKernel(oc) {
     // each edge's polyline as segments, grouped
     let nseg = 0; for (let g = 0; g < eg.length; g += 3) nseg += Math.max(0, eg[g + 1] - 1);
     const seg = new Float32Array(nseg * 6), edgeGroups = new Int32Array(b.edges.length * 2);
+    // a seam (where a round face of a solid closes on itself: one face on both sides) is no edge to see or pick
+    const solid = solidsOf(b.shape).length > 0;
     let at = 0;
     for (let g = 0; g < eg.length; g += 3) {
       const s = eg[g], c = eg[g + 1], j = eh.get(eg[g + 2]), start = at;
+      if (solid && j !== undefined && b.edgeFaces[j].length < 2) continue;
       for (let k = 0; k + 1 < c; k++) { for (let q = 0; q < 6; q++) seg[at * 6 + q] = lines[(s + k) * 3 + q]; at++; }
       if (j !== undefined) { edgeGroups[2 * j] = start; edgeGroups[2 * j + 1] = at - start; }
     }
@@ -754,7 +784,7 @@ export function makeKernel(oc) {
     const vp = props(b.shape, 'v'), ap = props(b.shape, 'a');
     const faceKinds = b.faces.map(f => surfType(f)), edgeKinds = b.edges.map(e => curveType(e));
     flush();
-    const m = { id, pos, nrm, idx, faceGroups, seg, edgeGroups, verts, faceKinds, edgeKinds, faceNames: b.names.map(n => n[0]), volume: vp.m, area: ap.m, centroid: vp.c, bbox: bb };
+    const m = { id, pos, nrm, idx, faceGroups, seg: seg.subarray(0, at * 6), edgeGroups, verts, faceKinds, edgeKinds, faceNames: b.names.map(n => n[0]), volume: vp.m, area: ap.m, centroid: vp.c, bbox: bb };
     meshes.set(b, m);
     return m;
   }

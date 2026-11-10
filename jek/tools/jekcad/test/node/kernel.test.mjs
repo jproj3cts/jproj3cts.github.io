@@ -284,3 +284,30 @@ test('a sketch held to an edge of the model follows the edge: a hole 10 from the
   near(c[0], 50, 1e-5, 'the hole’s centre');
   near(vol(out), 12000 - Math.PI * 9 * 10, 0.5, 'the longer block with its hole');
 });
+
+test('a sketch point held to a corner of the model follows the corner; a revolved solid sends no seam as an edge', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  let out = K.regen(doc);
+  // the corner at (40, 20, 10), by the page's pick of it, as a ref with the faces that meet there
+  const part = out.parts[0];
+  let vi = -1; for (let i = 0; i < part.verts.length / 3; i++) if (Math.hypot(part.verts[3 * i] - 40, part.verts[3 * i + 1] - 20, part.verts[3 * i + 2] - 10) < 1e-6) vi = i;
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0], vr = K.refs([{ part: part.id, kind: 'vertex', index: vi }])[0];
+  assert.equal(vr.faces.length, 3, 'three faces meet at a block’s corner');
+  const sk = newFeature(doc, 'sketch', { plane: top, ents: [{ id: 'pref', t: 'point', c: [40, 20], ref: true, k: true, src: vr }, { id: 'ch', t: 'circle', c: [35, 15], r: 2 }],
+    cons: [{ id: 'cf', t: 'fix', r: [{ e: 'pref', k: 'c' }], at: [40, 20] }],
+    dims: [{ id: 'd1', t: 'dia', r: [{ e: 'ch' }], v: 4, x: '4' }, { id: 'd2', t: 'dist', r: [{ e: 'ch', k: 'c' }, { e: 'pref', k: 'c' }], v: 5, x: '5', dir: 'h', s: 1 }, { id: 'd3', t: 'dist', r: [{ e: 'ch', k: 'c' }, { e: 'pref', k: 'c' }], v: 5, x: '5', dir: 'v', s: 1 }] });
+  doc.features.push(sk);
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  doc.features[0].dims[0].x = '70'; doc.features[0].dims[1].x = '30';
+  out = K.regen(doc);
+  const ents = out.features.find(f => f.id === sk.id).info.ents;
+  assert.deepEqual(ents.find(e => e.id === 'pref').c.map(v => +v.toFixed(6)), [70, 30]);
+  assert.deepEqual(ents.find(e => e.id === 'ch').c.map(v => +v.toFixed(5)), [65, 25]);
+  // a cylinder: its two round edges, and no seam along it
+  const d2 = newDoc(), cs = circleSketch(d2, [0, 0], 5);
+  d2.features.push(cs, newFeature(d2, 'extrude', { sketch: cs.id, regions: [[0, 0]], depth: '10' }));
+  const o2 = K.regen(d2), p2 = o2.parts[0];
+  let drawn = 0; for (let j = 0; j < p2.edgeGroups.length / 2; j++) if (p2.edgeGroups[2 * j + 1] > 0) drawn++;
+  assert.equal(drawn, 2, 'only the two circles are edges to see');
+});

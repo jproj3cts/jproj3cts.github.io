@@ -31,7 +31,9 @@ To sketch at a distance from a plane, first make a **Plane** feature offset from
 
 As you draw, JEKcad infers constraints and shows each one as a glyph by the pointer. **●** means coincident with a point, **M** the middle of a line, **⌒** on a curve, **H** horizontal and **V** vertical. A line drawn nearly square to the one before it is made perpendicular, and a tangent arc is held tangent where it starts.
 
-The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. When the model changes and that edge moves, the sketch moves with it. A corner comes in as a fixed point, which stays where it was.
+The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. A corner comes in as a fixed point. When the model changes and that edge or corner moves, the sketch moves with it.
+
+A first point placed level with the origin, or straight above or below it, is held level or in line with it (**H** or **V** by the pointer). A polygon whose first corner is level with its centre is held that way up.
 
 While you draw, the size of the shape shows by the pointer: a line's length, a rectangle's width and height, a circle's diameter.
 
@@ -63,11 +65,11 @@ For everything else press **D**, then click:
 - a circle for its diameter, or an arc for its radius;
 - two points, for the distance between them (horizontal or vertical when they line up on screen);
 - a point and a line, for the distance from the line;
-- two lines, for the angle between them (or the distance, if they are parallel).
+- two lines, for the angle between them (or the distance, if they are parallel). Where the lines meet, it is the angle inside the corner.
 
 The origin counts as a point. So do the corners of the model, and its straight and round edges count as lines and circles, so a hole can be dimensioned 10 mm from the edge of the part it is cut in.
 
-Type the value in the box that appears and press Enter. Esc takes back a dimension you have just made. Double-click a dimension to change it.
+Type the value in the box that appears and press Enter. Esc takes back a dimension you have just made. Double-click a dimension to change it. With the select tool, drag a dimension's value to move it clear of the drawing.
 
 A value can be a number (millimetres, or degrees for an angle), a number with a unit (`0.5 in`, `2 cm`, `30 deg`, `1 rad`), an expression (`25.4 / 2 + 1`, `sqrt(2) * 10`), or use the **Variables** table (`#width * 5 / 8`). When the value names a variable, the dimension shows both the value and what you typed.
 
@@ -82,7 +84,7 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 | Key | Tool | How |
 |---|---|---|
 | M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. |
-| | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. |
+| | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. Anything that held or measured the corner now holds a construction point left where it was. |
 | O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. |
 | | Mirror | Select shapes, click Mirror, then click the line to mirror them in. Each copy's points are held symmetric to the original. |
 | U | Use | Click edges of the model to project them into the sketch, fixed where they are. A straight or round edge follows the model when it changes. |

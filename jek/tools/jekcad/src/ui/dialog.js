@@ -87,6 +87,14 @@ function prefill(f, at) {
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
     if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents); }
   }
+  // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
+  // sweep's profile the last with a region, its path the last without one)
+  if ((f.type === 'loft' && !f.sections.length) || (f.type === 'sweep' && !f.sketch)) {
+    const used = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
+    const free = app.doc.features.slice(0, at).filter(x => x.type === 'sketch' && !x.suppressed && !used.has(x.id)), closed = free.filter(x => regionsCached(x).length), open = free.filter(x => !regionsCached(x).length && x.ents.some(e => !e.k && e.t !== 'point'));
+    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: defaultRegionPts(x.ents) }));
+    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = defaultRegionPts(pr.ents); if (open.length && !f.path) f.path = open[open.length - 1].id; }
+  }
   // a revolve about the sketch's centre line: its one construction line, if it has just one
   if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
@@ -156,7 +164,7 @@ export async function fieldPick(p) {
     if (kind === 'face' || kind === 'edge') f[k] = r;
     else {
       const L = f[k], same = x => x.kind === r.kind && Math.hypot(...x.pt.map((v, j) => v - r.pt[j])) < 1e-6, i = L.findIndex(same);
-      if (i >= 0) L.splice(i, 1); else L.push(r);
+      if (i >= 0) L.splice(i, 1); else { L.push(r); if (kind === 'edges' && r.kind === 'face') toast('The whole face is chosen: every edge round it. Click an edge for just that one (turn the part if it is behind).'); }
     }
   }
   showDialog(); regenSoon(120);

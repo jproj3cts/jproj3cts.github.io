@@ -124,7 +124,7 @@ export function modelGeom() {
   const pts = [], edges = [], seen = new Set();
   for (const o of V.parts.values()) {
     const p = o.userData.p;
-    for (let i = 0; i < p.verts.length; i += 3) { const q = to(p.verts, i), key = q.map(v => v.toFixed(5)).join(','); if (!seen.has(key)) { seen.add(key); pts.push(q); } }
+    for (let i = 0; i < p.verts.length; i += 3) { const q = to(p.verts, i), key = q.map(v => v.toFixed(5)).join(','); if (!seen.has(key)) { seen.add(key); q.from = { part: p.id, kind: 'vertex', index: i / 3 }; pts.push(q); } }
     for (let j = 0; j < p.edgeGroups.length / 2; j++) {
       const a = p.edgeGroups[2 * j], n = p.edgeGroups[2 * j + 1], P = [];
       for (let k = a; k < a + n; k++) { if (k === a) P.push(to(p.seg, 6 * k)); P.push(to(p.seg, 6 * k + 3)); }
@@ -156,8 +156,8 @@ function refEnt(g) {
   const e = JSON.parse(JSON.stringify(g));
   delete e.from;
   e.id = sketchId(e.t[0]); e.ref = true; e.k = true;
-  // which edge of the model it is, asked of the kernel, so the sketch follows the edge when the model changes
-  if (g.from) kernelAsk('refs', { picks: [g.from] }).then(rs => { const r = rs && rs[0], sk = S() && S().f.id === f.id ? S().f : app.doc.features.find(x => x.id === f.id), en = sk && sk.ents.find(x => x.id === e.id); if (en && r && r.kind === 'edge') en.src = { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt }; }).catch(() => {});
+  // which edge or corner of the model it is, asked of the kernel, so the sketch follows the edge when the model changes
+  if (g.from) kernelAsk('refs', { picks: [g.from] }).then(rs => { const r = rs && rs[0], sk = S() && S().f.id === f.id ? S().f : app.doc.features.find(x => x.id === f.id), en = sk && sk.ents.find(x => x.id === e.id); if (en && r && (r.kind === 'edge' || (r.kind === 'vertex' && r.faces && r.faces.length))) en.src = { kind: r.kind, part: r.part, faces: r.faces, pt: r.pt }; }).catch(() => {});
   f.ents.push(e);
   const Em = new Map([[e.id, e]]);
   for (const k of entKeys(e)) f.cons.push({ id: sketchId('c'), t: 'fix', r: [{ e: e.id, k }], at: hpt(Em, { e: e.id, k }).slice() });
@@ -171,12 +171,14 @@ function snap(sx, sy, from, skipIds) {
   const skip = new Set(skipIds || []);
   let best = null, bd = SNAP_PX;
   for (const c of snapPoints()) { if (skip.has(c.r.e)) continue; const s = toScreen(c.p), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; best = c; } }
-  if (best) return { p: best.p.slice(), ref: best.r, glyph: best.mid ? 'M' : '●', kind: best.mid ? 'midpoint' : 'coincident' };
+  // (a line that ends on a point dead level with, or straight above, where it began is horizontal or vertical too)
+  const hvOf = q => (from && Math.abs(q[1] - from[1]) < 1e-6 && Math.abs(q[0] - from[0]) > 1e-6 ? 'horizontal' : from && Math.abs(q[0] - from[0]) < 1e-6 && Math.abs(q[1] - from[1]) > 1e-6 ? 'vertical' : null);
+  if (best) return { p: best.p.slice(), ref: best.r, glyph: best.mid ? 'M' : '●', kind: best.mid ? 'midpoint' : 'coincident', hv: hvOf(best.p) };
   // a corner of the model
   const M = modelGeom();
   let mp = null;
   for (const q of M.pts) { const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mp = q; } }
-  if (mp) return { p: mp.slice(), ref: null, mref: { t: 'point', c: mp.slice() }, glyph: '●', kind: 'coincident' };
+  if (mp) return { p: mp.slice(), ref: null, mref: { t: 'point', c: mp.slice(), from: mp.from }, glyph: '●', kind: 'coincident', hv: hvOf(mp) };
   let onEnt = null, od = ON_PX;
   for (const e of ents()) { if (skip.has(e.id) || e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < od) { od = d; onEnt = e; } }
   const out = { p: uv, ref: null };
@@ -191,6 +193,12 @@ function snap(sx, sy, from, skipIds) {
     let me = null, md = ON_PX * pxToMm(1);
     for (const g of M.edges) { const r = nearOnEdge(g, uv); if (r.d < md) { md = r.d; me = { g, p: r.p }; } }
     if (me) { out.p = me.p; out.mon = me.g; out.glyph = '⌒'; out.kind = 'oncurve'; }
+  }
+  // a first point level with the origin, or straight above or below it, is held so
+  if (!from && !out.on && !out.mon) {
+    const os = toScreen([0, 0]), ps = toScreen(uv);
+    if (Math.abs(ps[1] - os[1]) < 5 && Math.abs(ps[0] - os[0]) > 12) { out.p = [uv[0], 0]; out.axis = 'horizontal'; out.glyph = 'H'; }
+    else if (Math.abs(ps[0] - os[0]) < 5 && Math.abs(ps[1] - os[1]) > 12) { out.p = [0, uv[1]]; out.axis = 'vertical'; out.glyph = 'V'; }
   }
   if (from) {
     const fs = toScreen(from), ps = toScreen(out.p);
@@ -207,6 +215,7 @@ function snapCons(sn, e, k) {
   if (sn.on) return [mkCon('oncurve', { e, k }, { e: sn.on })];
   if (sn.mref) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mref), k: 'c' })];
   if (sn.mon && sn.mon.t !== 'poly') return [mkCon('oncurve', { e, k }, { e: refEnt(sn.mon) })];
+  if (sn.axis) return [mkCon(sn.axis, { e, k }, { e: 'origin' })];
   return [];
 }
 /* ---------- drawing tools ---------- */
@@ -235,7 +244,7 @@ function addEnts(es, cs) {
 }
 function toolClick(sx, sy) {
   const t = SK.tool, d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null;
-  const sn = snap(sx, sy, t === 'line' || t === 'rect' ? from : null);
+  const sn = snap(sx, sy, t === 'line' || t === 'rect' || t === 'polygon' ? from : null);
   if (!sn) return;
   const pts = d ? d.pts.concat([sn.p]) : [sn.p], snaps = d ? d.snaps.concat([sn]) : [sn];
   if (pts.length < TOOL_STEPS[t]) { SK.draft = { pts, snaps }; drawOverlay(); return; }
@@ -251,7 +260,8 @@ function toolClick(sx, sy) {
     if (d && d.prev) { const P = entById(d.prev); if (P) { const u = lineDir(P), w = lineDir(e), c = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(...u) * Math.hypot(...w) || 1); if (Math.abs(c) < 0.035 && !snaps[1].hv && !(P && cs.some(x => x.t === 'horizontal' || x.t === 'vertical'))) cs.push(mkCon('perpendicular', { e: P.id }, { e: e.id })); } }
     addEnts([e], cs); SK.last = [e.id];
     // chained: the next line starts here, unless this one closed the chain on a point already there
-    const first = d && d.first ? d.first : p0, closed = (snaps[1].ref && snaps[1].ref.e !== 'origin') || Math.hypot(p1[0] - first[0], p1[1] - first[1]) < 1e-9;
+    // (only there: a line that lands on some other point carries on, as a profile often runs through points already drawn)
+    const first = d && d.first ? d.first : p0, closed = Math.hypot(p1[0] - first[0], p1[1] - first[1]) < 1e-9;
     SK.draft = closed ? null : { pts: [p1], snaps: [{ p: p1 }], chainFrom: { e: e.id, k: 'b' }, prev: e.id, first };
     resolve(); return;
   }
@@ -272,7 +282,7 @@ function toolClick(sx, sy) {
     const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 }, start = a.rev ? 'p1' : 'p0', end = a.rev ? 'p0' : 'p1';
     addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]); SK.last = [e.id];
   } else if (t === 'slot') { const r = slotEnts(p0, p1, Math.max(pxToMm(2), Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)))); addEnts(r.ents, r.cons); }
-  else if (t === 'polygon') { const r = polygonEnts(p0, p1, SK.polySides); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], r.ents[r.ents.length - 1].id, 'c'))); }
+  else if (t === 'polygon') { const r = polygonEnts(p0, p1, SK.polySides); const cid = r.ents[r.ents.length - 1].id; addEnts(r.ents, r.cons.concat(snapCons(snaps[0], cid, 'c'), snaps[1].hv ? [mkCon(snaps[1].hv, { e: cid, k: 'c' }, { e: r.ents[0].id, k: 'a' })] : [])); SK.last = [cid]; }
   SK.draft = null;
   resolve();
 }
@@ -331,7 +341,7 @@ function sketchPick(sx, sy) {
   // the dimension tool reaches the model too: a corner or an edge of it (brought into the sketch when clicked)
   const M = modelGeom();
   bd = 8;
-  for (const q of M.pts) { const z = toScreen(q), d = Math.hypot(z[0] - sx, z[1] - sy); if (d < bd) { bd = d; best = { t: 'mpt', c: q.slice() }; } }
+  for (const q of M.pts) { const z = toScreen(q), d = Math.hypot(z[0] - sx, z[1] - sy); if (d < bd) { bd = d; best = { t: 'mpt', c: q.slice(), from: q.from }; } }
   if (best) return best;
   bd = 6 * pxToMm(1);
   for (const g of M.edges) { if (g.t === 'poly') continue; const r = nearOnEdge(g, uv); if (r.d < bd) { bd = r.d; best = { t: 'ment', g }; } }
@@ -361,7 +371,7 @@ export function sketchDown(e, sx, sy) {
     if (it) {
       if (add) { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else SK.sel.push(it); }
       else if (!SK.sel.some(x => sameItem(x, it))) SK.sel = [it];
-      if ((it.t === 'pt' && it.e !== 'origin') || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
+      if ((it.t === 'pt' && it.e !== 'origin') || it.t === 'ent' || it.t === 'dim') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
     } else { if (!add) SK.sel = []; SK.box = { x0: sx, y0: sy, x1: sx, y1: sy }; }
     drawOverlay(); emit('sketchsel');
     return true;
@@ -377,6 +387,8 @@ export function sketchMove(e, sx, sy) {
     if (!d.moved) { keep(); d.moved = true; }
     const uv = uvAt(sx, sy), f = S().f;
     if (!uv) return;
+    // a dimension dragged: its value goes where the pointer is (kept as an offset from what it measures)
+    if (d.it.t === 'dim') { const dm = f.dims.find(x => x.id === d.it.id), base = dm && dimBase(dm, new Map(f.ents.map(e => [e.id, e]))); if (base) dm.off = [uv[0] - base[0], uv[1] - base[1]]; drawOverlay(); return; }
     let extra;
     if (d.it.t === 'pt') extra = [{ r: { e: d.it.e, k: d.it.k }, to: uv }];
     else { const en = entById(d.it.id), dv = [uv[0] - d.start[0], uv[1] - d.start[1]]; d.start = uv; extra = entKeys(en).map(k => { const p = hpt(new Map([[en.id, en]]), { e: en.id, k }); return { r: { e: en.id, k }, to: [p[0] + dv[0], p[1] + dv[1]] }; }); }
@@ -388,7 +400,7 @@ export function sketchMove(e, sx, sy) {
   if (SK.box) { Object.assign(SK.box, { x1: sx, y1: sy }); drawOverlay(); return; }
   if (SK.tool === 'select' || SK.tool === 'dim' || SK.tool === 'trim' || SK.tool === 'mirror') SK.hover = sketchPick(sx, sy);
   else if (SK.tool === 'use') { app.hover = pickAt(sx, sy, 'edge'); emit('hover'); }
-  else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' ? from : null); }
+  else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' || SK.tool === 'polygon' ? from : null); }
   drawOverlay();
 }
 /* a double-click: a dimension's value to type again; a line, circle or arc dimensioned; a chain of lines ended */
@@ -517,7 +529,7 @@ function dimClick(it, sx, sy) {
   // a line clicked, then somewhere off it: its length
   if (!it) { const was = SK.dimPick; SK.dimPick = null; if (was && was.t === 'ent' && entById(was.id) && entById(was.id).t === 'line') makeDim({ t: 'len', r: [{ e: was.id }] }); else drawOverlay(); return; }
   // a corner or an edge of the model: brought into the sketch as a fixed construction shape, and measured from
-  if (it.t === 'mpt') it = { t: 'pt', e: refEnt({ t: 'point', c: it.c }), k: 'c' };
+  if (it.t === 'mpt') it = { t: 'pt', e: refEnt({ t: 'point', c: it.c, from: it.from }), k: 'c' };
   else if (it.t === 'ment') it = { t: 'ent', id: refEnt(it.g) };
   const E = new Map(ents().map(e => [e.id, e]));
   if (it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return; }
@@ -539,7 +551,14 @@ function dimClick(it, sx, sy) {
   const pt = a.t === 'pt' ? a : b.t === 'pt' ? b : null, ln = [a, b].find(x => x.t === 'ent' && E.get(x.id).t === 'line');
   if (pt && ln) { const d = { t: 'pl', r: [{ e: pt.e, k: pt.k }, { e: ln.id }] }; d.s = dimMeasure(ents(), d) < 0 ? -1 : 1; return makeDim(d); }
   if (a.t === 'ent' && b.t === 'ent' && E.get(a.id).t === 'line' && E.get(b.id).t === 'line') {
-    const d = { t: 'ang', r: [{ e: a.id }, { e: b.id }] }, m = dimMeasure(ents(), d);
+    const d = { t: 'ang', r: [{ e: a.id }, { e: b.id }] };
+    {
+      // the angle inside the corner where the lines meet; if they do not meet, the acute one
+      const l1 = E.get(a.id), l2 = E.get(b.id), nr = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6, u = lineDir(l1), w = lineDir(l2);
+      const f1 = nr(l1.b, l2.a) || nr(l1.b, l2.b), f2 = nr(l2.b, l1.a) || nr(l2.b, l1.b), meet = nr(l1.a, l2.a) || nr(l1.a, l2.b) || f1;
+      if (meet ? f1 !== f2 : u[0] * w[0] + u[1] * w[1] < 0) d.rev = true;
+    }
+    const m = dimMeasure(ents(), d);
     if (Math.abs(Math.sin(m * Math.PI / 180)) < 1e-6) { const d2 = { t: 'pl', r: [{ e: b.id, k: 'a' }, { e: a.id }] }; d2.s = dimMeasure(ents(), d2) < 0 ? -1 : 1; return makeDim(d2); }
     d.s = m < 0 ? -1 : 1; return makeDim(d);
   }
@@ -864,8 +883,33 @@ function drawSketch(c, C) {
   }
   if (SK.dimPick) { const it = SK.dimPick, q = it.t === 'pt' ? P(hpt(E, it)) : SK.dimAt; c.strokeStyle = C.sel; c.lineWidth = 2; c.beginPath(); c.arc(q[0], q[1], 6, 0, 7); c.stroke(); }
 }
+/* the middle of what a dimension measures (its value's place is kept as an offset from here, when it has been dragged) */
+function dimBase(d, E) {
+  const e0 = E.get(d.r[0].e);
+  if (d.t === 'len') return e0 ? [(e0.a[0] + e0.b[0]) / 2, (e0.a[1] + e0.b[1]) / 2] : null;
+  if (d.t === 'rad' || d.t === 'dia') return e0 && e0.c ? e0.c.slice() : null;
+  if (d.t === 'ang') { const l2 = E.get(d.r[1].e); return e0 && l2 ? [(e0.a[0] + e0.b[0] + l2.a[0] + l2.b[0]) / 4, (e0.a[1] + e0.b[1] + l2.a[1] + l2.b[1]) / 4] : null; }
+  const a = hpt(E, d.r[0]);
+  let b;
+  if (d.t === 'pl') { const L = E.get(d.r[1].e); if (!L) return null; const dd = lineDir(L), L2 = dd[0] * dd[0] + dd[1] * dd[1] || 1, t = ((a[0] - L.a[0]) * dd[0] + (a[1] - L.a[1]) * dd[1]) / L2; b = [L.a[0] + dd[0] * t, L.a[1] + dd[1] * t]; }
+  else b = hpt(E, d.r[1]);
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
 /* where a dimension's value goes, and its leader lines (screen) */
 function dimPlace(d, E, P) {
+  const at = dimPlace0(d, E, P), base = at && d.off ? dimBase(d, E) : null;
+  if (!base) return at;
+  // dragged: the value where it was put; a length's line goes out to it, a radius's leader points at it
+  const Ls = P([base[0] + d.off[0], base[1] + d.off[1]]);
+  if (at.lines.length === 3) {
+    const [A, B] = [at.lines[0][0], at.lines[1][0]], dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L, dx / L], hgt = (Ls[0] - A[0]) * n[0] + (Ls[1] - A[1]) * n[1];
+    const A2 = [A[0] + n[0] * hgt, A[1] + n[1] * hgt], B2 = [B[0] + n[0] * hgt, B[1] + n[1] * hgt];
+    return { p: [Ls[0], Ls[1]], lines: [[A, A2], [B, B2], [A2, B2], [[(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], [Ls[0], Ls[1]]]] };
+  }
+  if (d.t === 'rad' || d.t === 'dia') { const cs = P(base), e0 = E.get(d.r[0].e), dx = Ls[0] - cs[0], dy = Ls[1] - cs[1], L = Math.hypot(dx, dy) || 1, rs = Math.hypot(...[0, 1].map(i => P([e0.c[0] + e0.r, e0.c[1]])[i] - cs[i])); return { p: [Ls[0], Ls[1]], lines: [[d.t === 'dia' ? [cs[0] - dx / L * rs, cs[1] - dy / L * rs] : cs, [Ls[0], Ls[1]]]] }; }
+  return { p: [Ls[0], Ls[1]], lines: at.lines };
+}
+function dimPlace0(d, E, P) {
   const e0 = E.get(d.r[0].e);
   // the side of a line a dimension goes: away from the middle of the sketch, so it sits outside the shape
   let mid = E.mid;

@@ -2,7 +2,7 @@
 // the document model (core/doc.js): pure, no kernel.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { definedEnts, solveSketch, dimMeasure, sketchId } from '../../src/core/sketch.js';
+import { definedEnts, solveSketch, dimMeasure, sketchId, normDims } from '../../src/core/sketch.js';
 import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions } from '../../src/core/sketch-tools.js';
 import { evalExpr, evalVars } from '../../src/core/units.js';
 import { normDoc, newDoc, newFeature, prepareDoc, canMove, CAD_FORMAT } from '../../src/core/doc.js';
@@ -152,4 +152,19 @@ test('a region’s point is carried with its shapes: beside the line or circle i
   const doc = { features: [{ id: 'sk', type: 'sketch', ents: was }, { id: 'ex', type: 'extrude', sketch: 'sk', regions: [[30, 15]] }] };
   carryRegions(doc, 'sk', was, now);
   near(doc.features[1].regions[0][0], 50, 1e-6);
+});
+
+test('an angle dimension with rev measures inside the corner two chained lines make', () => {
+  // a base to the right, then a side back up to the left: the lines' directions are 148° apart, the corner 32°
+  const ents = [{ id: 'l1', t: 'line', a: [0, 0], b: [40, 0] }, { id: 'l2', t: 'line', a: [40, 0], b: [0, 25] }];
+  near(Math.abs(dimMeasure(ents, { t: 'ang', r: [{ e: 'l1' }, { e: 'l2' }] })), 147.9946, 1e-3);
+  const d = { id: 'd', t: 'ang', r: [{ e: 'l1' }, { e: 'l2' }], rev: true };
+  const m = dimMeasure(ents, d);
+  near(Math.abs(m), 32.0054, 1e-3);
+  d.s = m < 0 ? -1 : 1; d.v = 30;
+  const cons = [{ id: 'c1', t: 'coincident', r: [{ e: 'l1', k: 'a' }, { e: 'origin' }] }, { id: 'c2', t: 'horizontal', r: [{ e: 'l1' }] }, { id: 'c3', t: 'coincident', r: [{ e: 'l1', k: 'b' }, { e: 'l2', k: 'a' }] }];
+  const r = solveSketch(ents, cons, [d, { id: 'd2', t: 'len', r: [{ e: 'l1' }], v: 40 }], null, { iters: 100 });
+  assert.ok(r.ok);
+  near(Math.atan2(ents[1].b[1] - ents[1].a[1], ents[1].a[0] - ents[1].b[0]) * 180 / Math.PI, 30, 1e-4);
+  assert.equal(normDims([d], ents)[0].rev, true);
 });

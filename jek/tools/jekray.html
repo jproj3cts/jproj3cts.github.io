@@ -51627,7 +51627,8 @@ function fillRail() {
   const sw = h('button', { type: 'button', class: 'rt-rswitch ' + mode, id: 'palSwitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
     title: MODE_NAMES[mode] + ': ' + MODE_ABOUT[mode] + ' (change the mode)', 'aria-label': 'Mode: ' + MODE_NAMES[mode] + '. Change it' }, palIcon(mode), h('span', null, MODE_NAMES[mode]));
   sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
-  const pals = h('div', { class: 'rt-rpals' }, sw);
+  // (in 3D Parts is the only mode, Draw being 2D's: no switcher there)
+  const pals = h('div', { class: 'rt-rpals' }, V3D.active() ? null : sw);
   // the Draw palette: its tools instead of groups of parts
   const groups = palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
@@ -54612,6 +54613,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
     '<b>Mates, and parts moved together, in 3D</b>: <b>Mate</b> on the 3D view\u2019s bar holds two parts together. Click a face of the part that stays (a flat face, a round one such as a hole, a shaft or a lens\u2019s rim, or close to a straight edge), then one of the part to move, and choose how they meet: <b>Coincident</b> (flush, facing each other), <b>Concentric</b> (on one axis), <b>Parallel</b>, a <b>Distance</b> apart or at an <b>Angle</b>, with Flip. The second part, with its group, moves to meet the first, and from then on the two move and turn together until the mate is deleted; each part\u2019s panel lists its mates, to change a distance, an angle or Flip, or delete one. Undo takes any of it back, and mates are saved with the bench. In 3D, <b>drag across empty space</b> to select a boxful (Shift-click adds a part); the arrows and rings of several selected move them as one and turn them about their middle, and their panel moves and turns them by numbers typed. <b>Group</b> and <b>Ungroup</b> are on the bar too.',
     'The 3D view\u2019s <b>Model</b> tools (sketches extruded and revolved) are gone: objects come onto the bench by importing them (.stl, .step), and a CAD app of our own is in development. A part modelled with them before opens as the fixed object it made, where it was.',
     '<b>Coatings are designed in JEKfilm</b>, the new coating designer, in its own tab. A face\u2019s <b>Design a coating in JEKfilm\u2026</b> (and Tools \u203a Coating design in JEKfilm\u2026) opens it on that face\u2019s glass and stack; saved to the cloud in the bench\u2019s folder, the coating comes back onto the face. An RF lens\u2019s matching layer is still designed here. Coatings you kept by name are still in every face\u2019s Coating list, and JEKfilm can open them.',

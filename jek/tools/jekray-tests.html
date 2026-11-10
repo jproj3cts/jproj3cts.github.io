@@ -8310,7 +8310,7 @@ const TESTS = [
     },
   },
   {
-    name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode',
+    name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode (in 2D: in 3D there is no switcher)',
     why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits, RF), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -8327,8 +8327,13 @@ const TESTS = [
       D.querySelector('#rail .rt-rgroup.fibre').click();
       const fly = D.querySelector('.rt-flyout'), opened = !fly.hidden && fly.querySelectorAll('[data-add]').length > 0 && /Parts/.test(sw().textContent);
       D.querySelector('#rail .rt-rgroup.fibre').click();
-      if (!(start && listed && draw && back && opened)) console.log('mode switcher', { start, listed, draw, back, opened });
-      return start && listed && draw && back && opened ? 1 : 0;
+      // in 3D there is only Parts (Draw is 2D's): no switcher on the bar there, and it is back in 2D
+      let in3d = false, again = false;
+      try { await J.view3d.set(true); in3d = !sw() && D.querySelectorAll('#rail .rt-rgroup.free').length > 0; }
+      finally { await J.view3d.set(false); }
+      again = !!sw() && /Parts/.test(sw().textContent);
+      if (!(start && listed && draw && back && opened && in3d && again)) console.log('mode switcher', { start, listed, draw, back, opened, in3d, again });
+      return start && listed && draw && back && opened && in3d && again ? 1 : 0;
     },
   },  { group: 'Scripts' },
   {

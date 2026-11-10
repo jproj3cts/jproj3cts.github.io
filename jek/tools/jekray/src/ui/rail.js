@@ -84,7 +84,8 @@ export function fillRail() {
   const sw = h('button', { type: 'button', class: 'rt-rswitch ' + mode, id: 'palSwitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
     title: MODE_NAMES[mode] + ': ' + MODE_ABOUT[mode] + ' (change the mode)', 'aria-label': 'Mode: ' + MODE_NAMES[mode] + '. Change it' }, palIcon(mode), h('span', null, MODE_NAMES[mode]));
   sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
-  const pals = h('div', { class: 'rt-rpals' }, sw);
+  // (in 3D Parts is the only mode, Draw being 2D's: no switcher there)
+  const pals = h('div', { class: 'rt-rpals' }, V3D.active() ? null : sw);
   // the Draw palette: its tools instead of groups of parts
   const groups = palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));

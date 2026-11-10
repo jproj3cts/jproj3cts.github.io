@@ -13,6 +13,10 @@ export const NEWS = [
     '<b>Clicks add to the selection</b>: each click adds what it picks or, if it is chosen already, takes it out; a click on nothing empties it. So several regions of a sketch can be clicked, then extruded.',
     '<b>Extrude</b> adds to the part it meets (a new part where it meets none), and a depth below 0 goes the other way, so Opposite direction is only for Through all and Up to face.',
     '<b>Extrude and Revolve</b> open with their regions ready to click: click a region in the view to take it out or put it in.',
+    'A dimension typed moves the shape it measures and <b>leaves the rest where it is</b>: a loose shape the line touches no longer shifts. An <b>angle</b> is drawn as an arc between its two lines.',
+    '<b>Mirror</b> in a sketch has a small panel: click the shapes into it, then the mirror line, then Mirror.',
+    'A <b>hole of the face</b> you sketch on that lies inside what you draw is brought into the sketch when you finish, so an extrude leaves it open.',
+    '<b>Right-drag</b> turns the part about its own upright axis, its middle staying where it is on the screen. <b>Double-click a sketch</b> in the view to edit it. The material list in a part’s row stays open.',
     'A sketch point locks onto the <b>middle of a straight edge</b> of the model and the <b>centre of a round one</b>, as it does onto the model’s corners and edges.',
   ] },
   { v: '0.2.0', date: '10 Nov 2026', items: [

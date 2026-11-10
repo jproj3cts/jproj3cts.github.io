@@ -42,7 +42,8 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 
 | Do | To |
 |---|---|
-| Right-drag | Orbit, in a sketch too (N looks straight at the sketch again) |
+| Right-drag | Orbit about the part's upright axis, in a sketch too (N looks straight at the sketch again) |
+| Double-click a sketch | Edit it |
 | Middle-drag, or Shift and right-drag | Pan |
 | Wheel | Zoom about the pointer |
 | F, or double-click on nothing | Zoom to fit |

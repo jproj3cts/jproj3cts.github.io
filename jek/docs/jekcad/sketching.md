@@ -10,7 +10,7 @@ description: "JEKcad's sketcher: the drawing tools, constraints inferred and add
 
 ## Where a sketch goes
 
-Click **Sketch**, then a plane or a flat face of a part. If a plane or flat face is already selected, the sketch goes on it straight away. Double-clicking a plane, in the view or in the feature list, starts a sketch on it too. On a face, the sketch's plane follows the face when the model changes.
+Click **Sketch**, then a plane or a flat face of a part. If a plane or flat face is already selected, the sketch goes on it straight away. Double-clicking a plane, in the view or in the feature list, starts a sketch on it too. On a face, the sketch's plane follows the face when the model changes. Round holes of that face that lie wholly inside what you draw are brought into the sketch when you finish it, so an extrude of the shape leaves them open; delete one from the sketch to cover it.
 
 To sketch at a distance from a plane, first make a **Plane** feature offset from it.
 
@@ -80,6 +80,8 @@ The origin counts as a point. So do the corners of the model, and its straight a
 
 Type the value in the box that appears and press Enter. Esc takes back a dimension you have just made. Double-click a dimension to change it. With the select tool, drag a dimension's value to move it clear of the drawing.
 
+A new value moves the shape the dimension measures and leaves the rest of the sketch where it is, as far as its constraints allow. Between two shapes it moves the one held by less; if they are held alike, the one clicked second.
+
 A value can be a number (millimetres, or degrees for an angle), a number with a unit (`0.5 in`, `2 cm`, `30 deg`, `1 rad`), an expression (`25.4 / 2 + 1`, `sqrt(2) * 10`), or use the **Variables** table (`#width * 5 / 8`). When the value names a variable, the dimension shows both the value and what you typed.
 
 ## Fully defined
@@ -95,7 +97,7 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 | M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. |
 | | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. Anything that held or measured the corner now holds a construction point left where it was. |
 | O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. |
-| | Mirror | Select shapes, click Mirror, then click the line to mirror them in. Each copy's points are held symmetric to the original. |
+| | Mirror | Click Mirror: a small panel opens. Click the shapes to mirror (or drag a box round them), click the Mirror line box and then the line, and press Mirror. Each copy's points are held symmetric to the original. |
 | U | Use | Click edges of the model to project them into the sketch, fixed where they are. A straight or round edge follows the model when it changes. |
 
 Ctrl+C and Ctrl+V copy and paste shapes, with the constraints between them. Ctrl+Z and Ctrl+Shift+Z undo and redo inside the sketch.

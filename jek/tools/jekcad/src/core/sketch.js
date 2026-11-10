@@ -228,6 +228,15 @@ export function solveSketch(ents, cons, dims, extra, opts) {
 }
 /* which shapes are fully defined: none of their numbers can move without breaking a constraint or a dimension (the
    null space of the equations' Jacobian has no part in them). Returns a Set of their ids */
+/* a sketch solved after one thing in it changed (a dimension typed), the rest left where it was as far as it can
+   be: every other shape's points are held, lightly, while the change is taken up, so it is the shape that was
+   dimensioned that moves and a loose shape it touches stays put; then solved once more with nothing held */
+export function solveNear(ents, cons, dims, freeIds, opts) {
+  const free = new Set(freeIds || []), E = new Map(ents.map(e => [e.id, e])), hold = [];
+  for (const e of ents) if (!free.has(e.id)) for (const k of entKeys(e)) hold.push({ r: { e: e.id, k }, to: hpt(E, { e: e.id, k }).slice(), w: 0.03 });
+  solveSketch(ents, cons, dims, hold, opts);
+  return solveSketch(ents, cons, dims, null, opts);
+}
 export function definedEnts(ents, cons, dims) {
   const S = system(ents, cons || [], dims || []);
   const n = S.vars.length; if (!n) return new Set();

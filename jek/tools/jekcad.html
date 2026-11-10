@@ -2195,7 +2195,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <h2 id="helpTitle">Mouse and keys</h2>
     <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd><dt>Fly (the bird in the bar)</dt><dd>W A S D and the mouse, full screen; Esc lands</dd></dl>
     <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Click again</dt><dd>each click adds to the selection; a click on what is chosen takes it out, a click on nothing empties it</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
-    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
+    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a sketch</dt><dd>edit it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
     <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>A number typed while drawing a line, circle or rectangle</dt><dd>its length, diameter, or width then height (Enter)</dd><dt>A number typed after a line, circle or arc</dt><dd>its length, diameter or radius</dd><dt>Shift held while drawing</dt><dd>nothing is inferred</dd><dt>Double-click a line, circle or arc</dt><dd>dimension it; double-click a dimension to change it</dd><dt>Right-click, or Esc</dt><dd>end a chain of lines</dd><dt>S</dt><dd>select</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
@@ -2737,6 +2737,15 @@ function solveSketch(ents, cons, dims, extra, opts) {
 }
 /* which shapes are fully defined: none of their numbers can move without breaking a constraint or a dimension (the
    null space of the equations' Jacobian has no part in them). Returns a Set of their ids */
+/* a sketch solved after one thing in it changed (a dimension typed), the rest left where it was as far as it can
+   be: every other shape's points are held, lightly, while the change is taken up, so it is the shape that was
+   dimensioned that moves and a loose shape it touches stays put; then solved once more with nothing held */
+function solveNear(ents, cons, dims, freeIds, opts) {
+  const free = new Set(freeIds || []), E = new Map(ents.map(e => [e.id, e])), hold = [];
+  for (const e of ents) if (!free.has(e.id)) for (const k of entKeys(e)) hold.push({ r: { e: e.id, k }, to: hpt(E, { e: e.id, k }).slice(), w: 0.03 });
+  solveSketch(ents, cons, dims, hold, opts);
+  return solveSketch(ents, cons, dims, null, opts);
+}
 function definedEnts(ents, cons, dims) {
   const S = system(ents, cons || [], dims || []);
   const n = S.vars.length; if (!n) return new Set();
@@ -5090,10 +5099,23 @@ function fit(now, q) {
 function viewFrom(name) { const v = VIEWS[name]; if (!v) return; fit(false, qView(v[0], v[1])); }
 /* look straight at a plane frame (a sketch's, a face's): its x across, its y up */
 function normalTo(F, keepZoom) { const q = qBasis(F.x, F.y, F.n); if (keepZoom) animateTo(q); else fit(false, q); }
+/* orbit: the model turned about its own upright axis (the z through the middle of what there is to see) as the
+   pointer goes across, and tipped towards or away as it goes up and down. The middle of the model stays where it
+   is on the screen, wherever the view was panned to; a view left rolled (by a sketch on a tilted face, or a
+   flight) is set upright first; the tip stops just short of straight down and straight up. */
 function orbit(dx, dy) {
-  const a = camAxes();
+  // (the middle of the parts, where there are any: a sketch or a plane beside them does not shift the axis)
+  let pivot = sceneBounds().c;
+  if (V.parts.size) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]; for (const o of V.parts.values()) { const b = o.userData.p.bbox; for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], b[0][i]); hi[i] = Math.max(hi[i], b[1][i]); } } pivot = lo.map((v, i) => (v + hi[i]) / 2); }
+  const s0 = project(pivot);
+  let a = camAxes();
+  if (Math.abs(a.x[2]) > 1e-3 && Math.abs(a.z[2]) < 0.999) { V.q = qView(a.z); a = camAxes(); }
   V.q = qnorm(qmul(qaxis([0, 0, 1], -dx * 0.008), V.q));
-  V.q = qnorm(qmul(qaxis(a.x, -dy * 0.008), V.q));
+  a = camAxes();
+  const el = Math.asin(Math.max(-1, Math.min(1, a.z[2]))), lim = 89.5 * Math.PI / 180, want = Math.max(-lim, Math.min(lim, el + dy * 0.008));
+  if (Math.abs(a.x[2]) < 1e-3) V.q = qnorm(qmul(qaxis(a.x, -(want - el)), V.q));
+  const s1 = project(pivot);
+  pan(s0[0] - s1[0], s0[1] - s1[1]);
   V.dirty = true;
 }
 function pan(dx, dy) { const a = camAxes(), s = 2 * V.hh / V.h; V.target = V.target.map((v, i) => v - a.x[i] * dx * s + a.y[i] * dy * s); V.dirty = true; }
@@ -5286,10 +5308,29 @@ async function startSketch(f, at, isNew) {
   sketchBar();
   return true;
 }
+/* the holes of the face sketched on that lie inside what was drawn (round edges of the model in the sketch's
+   plane, wholly inside a region and touching no shape): brought into the sketch as Use would bring them, so the
+   region round each is its own and an extrude of the shape leaves the holes open */
+function useHoles() {
+  const f = S().f, M = modelGeom(), own = f.ents.filter(e => !e.k && e.t !== 'point');
+  if (!own.length) return 0;
+  const R = regionsOf(f.ents);
+  let n = 0;
+  for (const g of M.edges) {
+    if (g.t !== 'circle' || g.off > 1e-6 || !regionAt(R, g.c)) continue;
+    if (f.ents.some(e => e.t === 'circle' && Math.hypot(e.c[0] - g.c[0], e.c[1] - g.c[1]) < 1e-6 && Math.abs(e.r - g.r) < 1e-6)) continue;
+    // clear of every shape drawn: the whole circle inside one region
+    if (own.some(e => distToEnt(e, g.c) <= g.r + 1e-9)) continue;
+    refEnt(g, true); n++;
+  }
+  return n;
+}
 function finishSketch() {
   const s = S();
   if (!s) return;
   cancelDraft();
+  const holes = s.f.plane && s.f.plane.kind === 'face' ? useHoles() : 0;
+  if (holes) toast((holes === 1 ? 'A hole of the face is' : holes + ' holes of the face are') + ' inside what you drew: brought into the sketch, so an extrude leaves ' + (holes === 1 ? 'it' : 'them') + ' open (delete ' + (holes === 1 ? 'it' : 'them') + ' from the sketch to fill ' + (holes === 1 ? 'it' : 'them') + ')');
   checkpoint();
   if (s.isNew) app.doc.features.splice(s.at, 0, s.f);
   else { carryRegions(app.doc, s.f.id, app.doc.features[s.at].ents, s.f.ents); app.doc.features[s.at] = s.f; }
@@ -5359,15 +5400,16 @@ function modelGeom() {
   if (!s || !s.F) return { pts: [], edges: [] };
   if (SK.model && SK.model.n === app.regenCount && SK.model.parts === V.parts.size) return SK.model;
   const F = s.F, to = (A, i) => { const d = [A[i] - F.o[0], A[i + 1] - F.o[1], A[i + 2] - F.o[2]]; return [d[0] * F.x[0] + d[1] * F.x[1] + d[2] * F.x[2], d[0] * F.y[0] + d[1] * F.y[1] + d[2] * F.y[2]]; };
-  const pts = [], edges = [], seen = new Set();
+  const pts = [], edges = [], seen = new Set(), offPlane = (A, i) => Math.abs((A[i] - F.o[0]) * F.n[0] + (A[i + 1] - F.o[1]) * F.n[1] + (A[i + 2] - F.o[2]) * F.n[2]);
   for (const o of V.parts.values()) {
     const p = o.userData.p;
     for (let i = 0; i < p.verts.length; i += 3) { const q = to(p.verts, i), key = q.map(v => v.toFixed(5)).join(','); if (!seen.has(key)) { seen.add(key); q.from = { part: p.id, kind: 'vertex', index: i / 3 }; pts.push(q); } }
     for (let j = 0; j < p.edgeGroups.length / 2; j++) {
       const a = p.edgeGroups[2 * j], n = p.edgeGroups[2 * j + 1], P = [];
-      for (let k = a; k < a + n; k++) { if (k === a) P.push(to(p.seg, 6 * k)); P.push(to(p.seg, 6 * k + 3)); }
+      let off = 0;
+      for (let k = a; k < a + n; k++) { if (k === a) P.push(to(p.seg, 6 * k)); P.push(to(p.seg, 6 * k + 3)); off = Math.max(off, offPlane(p.seg, 6 * k), offPlane(p.seg, 6 * k + 3)); }
       const g = edgeShape(P);
-      if (g) { g.from = { part: p.id, kind: 'edge', index: j }; edges.push(g); }
+      if (g) { g.from = { part: p.id, kind: 'edge', index: j }; g.off = off; edges.push(g); }
     }
   }
   return (SK.model = { n: app.regenCount, parts: V.parts.size, pts, edges });
@@ -5386,14 +5428,14 @@ function nearOnEdge(g, q) {
   return { p, d: Math.hypot(p[0] - q[0], p[1] - q[1]) };
 }
 /* a corner or an edge of the model brought into the sketch to be held to: a fixed construction shape, made once */
-function refEnt(g) {
+function refEnt(g, solid) {
   const f = S().f, near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
   const same = e => e.ref && e.t === g.t && (g.t === 'point' ? near(e.c, g.c) : g.t === 'line' ? (near(e.a, g.a) && near(e.b, g.b)) || (near(e.a, g.b) && near(e.b, g.a)) : near(e.c, g.c) && Math.abs(e.r - g.r) < 1e-6 && (g.t === 'circle' || (Math.abs(e.a0 - g.a0) < 1e-6 && Math.abs(e.a1 - g.a1) < 1e-6)));
   const had = f.ents.find(same);
   if (had) return had.id;
   const e = JSON.parse(JSON.stringify(g));
-  delete e.from;
-  e.id = sketchId(e.t[0]); e.ref = true; e.k = true;
+  delete e.from; delete e.off;
+  e.id = sketchId(e.t[0]); e.ref = true; if (!solid) e.k = true;
   // which edge or corner of the model it is, asked of the kernel, so the sketch follows the edge when the model changes
   if (g.from) kernelAsk('refs', { picks: [g.from] }).then(rs => { const r = rs && rs[0], sk = S() && S().f.id === f.id ? S().f : app.doc.features.find(x => x.id === f.id), en = sk && sk.ents.find(x => x.id === e.id); if (en && r && (r.kind === 'edge' || (r.kind === 'vertex' && r.faces && r.faces.length))) en.src = { kind: r.kind, part: r.part, faces: r.faces, pt: r.pt }; }).catch(() => {});
   f.ents.push(e);
@@ -5497,8 +5539,9 @@ function setTool(t) {
       let d; try { d = evalExpr(SK.offsetD, app.result ? app.result.vars : {}, 'len'); } catch (err) { toast('Offset: ' + err.message, true); return; }
       keep(); offsetEnts(S().f, picked, d); resolve(); toast('Offset by ' + fmtNum(d) + ' mm (a negative distance goes the other way)'); SK.tool = 'select'; sketchBar(); return;
     }
-    if (!picked.length) { toast('Select the shapes to mirror, then Mirror, then the line to mirror them in'); SK.tool = 'select'; sketchBar(); return; }
-    SK.mirrorOf = picked;
+    // Mirror has a small panel: the shapes to mirror (what is selected to begin with), then the line to mirror them in
+    SK.sel = SK.sel.filter(x => x.t === 'ent');
+    SK.mirror = { line: null, field: 'shapes' };
   }
   // a centre line is the line tool drawing construction lines
   SK.lineK = t === 'cline';
@@ -5653,7 +5696,13 @@ function sketchDown(e, sx, sy) {
       else toast('Click a corner where two lines meet');
       return true;
     }
-    if (t === 'mirror') { if (it && it.t === 'ent' && entById(it.id).t === 'line') { keep(); mirrorEnts(S().f, SK.mirrorOf || [], it.id); resolve(); SK.tool = 'select'; sketchBar(); } else toast('Click the line to mirror in'); return true; }
+    if (t === 'mirror') {
+      const M = SK.mirror;
+      if (M.field === 'line') { if (it && it.t === 'ent' && entById(it.id).t === 'line') { M.line = it.id; SK.sel = SK.sel.filter(x => x.id !== it.id); } else toast('The mirror line is a line of the sketch: click one (a construction line will do)'); }
+      else if (it && it.t === 'ent') { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else if (it.id !== M.line) SK.sel.push(it); }
+      else if (!it) SK.box = { x0: sx, y0: sy, x1: sx, y1: sy };
+      mirrorPanel(); drawOverlay(); return true;
+    }
     if (t === 'dim') { dimClick(it, sx, sy); return true; }
     // select: a click picks; a drag on a point or shape moves it, solving as it goes; on nothing, a box
     const add = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -5768,6 +5817,7 @@ function sketchUp() {
       const lo = [Math.min(b.x0, b.x1), Math.min(b.y0, b.y1)], hi = [Math.max(b.x0, b.x1), Math.max(b.y0, b.y1)];
       for (const e of ents()) if (entOutline(e, 20).every(p => { const s = toScreen(p); return s[0] >= lo[0] && s[0] <= hi[0] && s[1] >= lo[1] && s[1] <= hi[1]; }) && !SK.sel.some(x => x.t === 'ent' && x.id === e.id)) SK.sel.push({ t: 'ent', id: e.id });
     }
+    if (SK.tool === 'mirror') mirrorPanel();
     drawOverlay(); emit('sketchsel');
   }
 }
@@ -5780,6 +5830,7 @@ function sketchKey(e) {
   if (ctrl) return false;
   if (e.key === 'Escape') { if (SK.dimInput) dimInputClose(); else if (SK.draft) { SK.draft = null; drawOverlay(); } else if (SK.tool !== 'select') setTool('select'); else { SK.sel = []; drawOverlay(); } return true; }
   if (e.key === 'Delete' || e.key === 'Backspace') { deleteSel(); return true; }
+  if (e.key === 'Enter' && !SK.dimInput && SK.tool === 'mirror') { mirrorApply(); return true; }
   if (e.key === 'Enter' && !SK.dimInput) { finishSketch(); return true; }
   // a number typed while a line, circle or rectangle is being drawn: its size, there and then
   if (/^[0-9.]$/.test(e.key) && !SK.dimInput && SK.draft && SK.snap && TYPED[SK.tool] && SK.draft.pts.length === TOOL_STEPS[SK.tool] - 1 && Math.hypot(SK.snap.p[0] - SK.draft.pts[SK.draft.pts.length - 1][0], SK.snap.p[1] - SK.draft.pts[SK.draft.pts.length - 1][1]) > pxToMm(3)) { typeSize(e.key); return true; }
@@ -5936,7 +5987,7 @@ function dimInputCommit() {
   const before = JSON.stringify({ ents: ents(), cons: S().f.cons, dims: S().f.dims });
   if (!D.isNew) keep();
   d.v = v; d.x = txt;
-  const r = solveSketch(S().f.ents, S().f.cons, S().f.dims, null, { iters: 100 });
+  const r = solveNear(S().f.ents, S().f.cons, S().f.dims, dimMoves(S().f, d), { iters: 100 });
   if (!r.ok) { Object.assign(S().f, JSON.parse(before)); if (D.isNew) { S().f.dims = S().f.dims.filter(x => x.id !== d.id); } toast('That dimension cannot hold with the others (over-constrained): taken back', true); }
   inp.remove(); SK.dimInput = null;
   resolve();
@@ -6070,7 +6121,7 @@ function drawDim(c, C, d, at, sel, hov) {
   for (const ln of at.lines) { c.beginPath(); c.moveTo(ln[0][0], ln[0][1]); c.lineTo(ln[1][0], ln[1][1]); c.stroke(); }
   // arrowheads: each a tip and the point it points away from (a length's line has one at each end by default)
   c.fillStyle = C.dim;
-  for (const [tip, from] of at.arrows || (at.lines.length >= 3 ? [[at.lines[2][0], at.lines[2][1]], [at.lines[2][1], at.lines[2][0]]] : [])) {
+  for (const [tip, from] of at.arrows || (at.lines.length === 3 ? [[at.lines[2][0], at.lines[2][1]], [at.lines[2][1], at.lines[2][0]]] : [])) {
     const dx = tip[0] - from[0], dy = tip[1] - from[1], L = Math.hypot(dx, dy); if (L < 14) continue;
     const ux = dx / L, uy = dy / L; c.beginPath(); c.moveTo(tip[0], tip[1]); c.lineTo(tip[0] - ux * 8 - uy * 3, tip[1] - uy * 8 + ux * 3); c.lineTo(tip[0] - ux * 8 + uy * 3, tip[1] - uy * 8 - ux * 3); c.closePath(); c.fill();
   }
@@ -6102,6 +6153,16 @@ function modelDims(c, C) {
 }
 function modelDimAt(sx, sy) { return (SK.mlabels || []).find(b => sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1) || null; }
 function modelDimHover(L) { if ((SK.mhover && SK.mhover.dim) !== (L && L.dim)) { SK.mhover = L; drawOverlay(); } }
+/* the shapes a dimension is let move when its value is typed: of those it measures, the one least held by
+   everything else (so an angle turns the loose line, not the shape it leans on) */
+function dimMoves(f, d) {
+  const ids = [...new Set(d.r.map(x => x.e).filter(id => id !== 'origin'))];
+  const held = id => { const e = f.ents.find(x => x.id === id); return (e && e.ref ? 1000 : 0) + f.cons.filter(c => c.r.some(x => x.e === id)).length + f.dims.filter(x => x !== d && x.id !== d.id && x.r.some(y => y.e === id)).length; };
+  const n = ids.map(held), least = Math.min(...n);
+  // (equally held: the one picked last, so the first stays as the thing measured from)
+  const pick = ids.filter((id, i) => n[i] === least);
+  return pick.slice(-1);
+}
 /* a sketch's dimension typed again from the model view: the sketch is solved with it, and the model follows */
 function modelDimEdit(L) {
   const f = app.doc.features.find(x => x.id === L.sketch), d = f && f.dims.find(x => x.id === L.dim);
@@ -6122,7 +6183,7 @@ function modelDimEdit(L) {
     if (d.t !== 'ang' && !(v > 0) && !(d.t === 'dist' && v === 0)) { toast('A dimension must be more than 0', true); inp.focus(); return; }
     const g = JSON.parse(JSON.stringify(f)), gd = g.dims.find(x => x.id === d.id);
     gd.v = d.t === 'ang' ? v : Math.abs(v); gd.x = txt;
-    const r = solveSketch(g.ents, g.cons, g.dims, null, { iters: 100 });
+    const r = solveNear(g.ents, g.cons, g.dims, dimMoves(g, gd), { iters: 100 });
     close();
     if (!r.ok) { toast('That dimension cannot hold with the others (over-constrained): left as it was', true); return; }
     checkpoint();
@@ -6173,7 +6234,8 @@ function drawSketch(c, C) {
   // shapes: ink when fully defined, blue while free; construction dashed
   for (const e of f.ents) {
     const it = { t: 'ent', id: e.id }, sel = isSel(it), hov = isHov(it);
-    c.strokeStyle = sel ? C.sel : hov ? C.hov : e.ref ? C.con : SK.defined.has(e.id) ? C.ink : C.free;
+    const axis = SK.tool === 'mirror' && SK.mirror && SK.mirror.line === e.id;
+    c.strokeStyle = axis ? '#3aa860' : sel ? C.sel : hov ? C.hov : e.ref ? C.con : SK.defined.has(e.id) ? C.ink : C.free;
     c.lineWidth = sel || hov ? 2.6 : 1.7; c.setLineDash(e.k ? [6, 4] : []);
     strokeEnt(c, e, P);
   }
@@ -6264,8 +6326,33 @@ function dimPlace(d, E, P) {
     const A2 = [A[0] + n[0] * hgt, A[1] + n[1] * hgt], B2 = [B[0] + n[0] * hgt, B[1] + n[1] * hgt];
     return { p: [Ls[0], Ls[1]], lines: [[A, A2], [B, B2], [A2, B2], [[(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], [Ls[0], Ls[1]]]], arrows: [[A2, B2], [B2, A2]] };
   }
+  if (d.t === 'ang') return angDim(d, E, P, [base[0] + d.off[0], base[1] + d.off[1]]) || at;
   if (d.t === 'rad' || d.t === 'dia') { const L = Math.hypot(d.off[0], d.off[1]); return roundDim(d, E.get(d.r[0].e), L > 1e-9 ? [d.off[0] / L, d.off[1] / L] : [1, 0], Ls, P); }
   return { p: [Ls[0], Ls[1]], lines: at.lines };
+}
+/* an angle: an arc about the point where the two lines cross, from one to the other, an arrow at each end, the
+   value at its middle (at: where the value was dragged to, in the sketch, which sets the arc's radius) */
+function angDim(d, E, P, at) {
+  const l1 = E.get(d.r[0].e), l2 = E.get(d.r[1].e);
+  if (!l1 || !l2 || l1.t !== 'line' || l2.t !== 'line') return null;
+  const u = lineDir(l1), w = lineDir(l2), den = u[0] * w[1] - u[1] * w[0], mid = l => [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2], m1 = mid(l1), m2 = mid(l2);
+  if (Math.abs(den) < 1e-9 * (Math.hypot(...u) * Math.hypot(...w) || 1)) { const a = P(m1), b = P(m2); return { p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 10], lines: [[a, b]], arrows: [] }; }
+  const t = ((l2.a[0] - l1.a[0]) * w[1] - (l2.a[1] - l1.a[1]) * w[0]) / den, X = [l1.a[0] + u[0] * t, l1.a[1] + u[1] * t];
+  // each line's side of the crossing: towards its far end; the second turned round if that is the angle the value is
+  const farOf = l => (Math.hypot(l.a[0] - X[0], l.a[1] - X[1]) > Math.hypot(l.b[0] - X[0], l.b[1] - X[1]) ? l.a : l.b), f1 = farOf(l1), f2 = farOf(l2);
+  const a1 = Math.atan2(f1[1] - X[1], f1[0] - X[0]);
+  let a2 = Math.atan2(f2[1] - X[1], f2[0] - X[0]);
+  const between = (p, q) => { let x = Math.abs(p - q) % (2 * Math.PI); if (x > Math.PI) x = 2 * Math.PI - x; return x; };
+  if (Math.abs(between(a1, a2 + Math.PI) * 180 / Math.PI - d.v) < Math.abs(between(a1, a2) * 180 / Math.PI - d.v)) a2 += Math.PI;
+  let sweep = (a2 - a1) % (2 * Math.PI); if (sweep > Math.PI) sweep -= 2 * Math.PI; if (sweep < -Math.PI) sweep += 2 * Math.PI;
+  const reach = Math.min(Math.hypot(f1[0] - X[0], f1[1] - X[1]), Math.hypot(f2[0] - X[0], f2[1] - X[1]));
+  const R = at ? Math.max(pxToMm(12), Math.hypot(at[0] - X[0], at[1] - X[1])) : Math.max(pxToMm(26), Math.min(reach * 0.45, pxToMm(70)));
+  const pt = a => P([X[0] + R * Math.cos(a), X[1] + R * Math.sin(a)]), n = 24, pts = Array.from({ length: n + 1 }, (_, i) => pt(a1 + sweep * i / n)), lines = [];
+  for (let i = 0; i < n; i++) lines.push([pts[i], pts[i + 1]]);
+  // a line that stops short of the arc is carried out to it, faintly, by the same stroke
+  for (const [f, a] of [[f1, a1], [f2, a2]]) if (Math.hypot(f[0] - X[0], f[1] - X[1]) < R) lines.push([P(f), pt(a)]);
+  const lab = P([X[0] + (R + pxToMm(16)) * Math.cos(a1 + sweep / 2), X[1] + (R + pxToMm(16)) * Math.sin(a1 + sweep / 2)]);
+  return { p: [lab[0], lab[1]], lines, arrows: [[pts[0], pts[2]], [pts[n], pts[n - 2]]] };
 }
 function roundDim(d, e0, u, Ls, P) {
   const cs = P(e0.c), B = P([e0.c[0] + e0.r * u[0], e0.c[1] + e0.r * u[1]]), A = d.t === 'dia' ? P([e0.c[0] - e0.r * u[0], e0.c[1] - e0.r * u[1]]) : cs;
@@ -6292,8 +6379,32 @@ function dimPlace0(d, E, P) {
     const A2 = [A[0] + n[0], A[1] + n[1]], B2 = [B[0] + n[0], B[1] + n[1]];
     return { p: [(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], lines: [[A, A2], [B, B2], [A2, B2]] };
   }
-  if (d.t === 'ang') { const l1 = E.get(d.r[0].e), l2 = E.get(d.r[1].e); if (!l1 || !l2) return null; const m1 = P([(l1.a[0] + l1.b[0]) / 2, (l1.a[1] + l1.b[1]) / 2]), m2 = P([(l2.a[0] + l2.b[0]) / 2, (l2.a[1] + l2.b[1]) / 2]); return { p: [(m1[0] + m2[0]) / 2, (m1[1] + m2[1]) / 2 - 10], lines: [[m1, m2]] }; }
+  if (d.t === 'ang') return angDim(d, E, P, null);
   return null;
+}
+/* ---------- Mirror's panel: what to mirror, and in which line; nothing is made until Mirror is pressed ---------- */
+function mirrorApply() {
+  const M = SK.mirror, ids = SK.sel.filter(x => x.t === 'ent' && x.id !== (M && M.line)).map(x => x.id);
+  if (!M || !ids.length) { toast('Click the shapes to mirror first'); if (M) { M.field = 'shapes'; mirrorPanel(); } return; }
+  if (!M.line) { toast('Now click the line to mirror them in'); M.field = 'line'; mirrorPanel(); return; }
+  keep(); mirrorEnts(S().f, ids, M.line); SK.sel = []; resolve();
+  setTool('select');
+}
+function mirrorPanel() {
+  const old = document.getElementById('skPanel'), on = app.sketch && SK.tool === 'mirror' && SK.mirror;
+  if (!on) { if (old) old.remove(); return; }
+  const M = SK.mirror, n = SK.sel.filter(x => x.t === 'ent' && x.id !== M.line).length;
+  const box = (key, label, text, empty) => h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' },
+    h('div', { class: 'cad-selbox' + (M.field === key ? ' on' : '') + (empty ? ' empty' : ''), role: 'button', tabindex: '0', 'data-mirror': key, 'aria-pressed': String(M.field === key), onclick: () => { M.field = key; mirrorPanel(); } }, text),
+    empty ? null : h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: () => { if (key === 'line') M.line = null; else SK.sel = []; M.field = key; mirrorPanel(); drawOverlay(); } }, '×')));
+  const panel = h('div', { class: 'cad-dialog', id: 'skPanel', role: 'group', 'aria-label': 'Mirror' },
+    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': 'mirror' }, 'Mirror')),
+    h('div', { class: 'cad-fbody' },
+      box('shapes', 'Shapes to mirror', n ? n + (n === 1 ? ' shape' : ' shapes') : M.field === 'shapes' ? 'Click shapes in the sketch, or drag a box round them' : 'Nothing chosen', !n),
+      box('line', 'Mirror line', M.line ? 'A line of the sketch' : M.field === 'line' ? 'Click the line to mirror in' : 'Nothing chosen', !M.line)),
+    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mirrorCancel', onclick: () => { SK.sel = []; setTool('select'); } }, 'Cancel'), h('button', { type: 'button', class: 'rt-btn primary', id: 'mirrorOk', disabled: n && M.line ? null : true, onclick: mirrorApply }, '✓ Mirror')));
+  if (old) old.replaceWith(panel); else document.getElementById('stage').append(panel);
+  emit('icons', panel);
 }
 /* ---------- the sketch's bar of tools ---------- */
 const SK_TOOLS = [['select', 'Select (S)', 'select'], ['line', 'Line (L)', 'line'], ['cline', 'Centre line: a construction line', 'construct'], ['mline', 'Midpoint line: its middle, then an end', 'mline'], ['rect', 'Corner rectangle (R)', 'rect'], ['crect', 'Centre rectangle', 'crect'], ['circle', 'Centre circle (C)', 'circle'], ['circle3', '3-point circle', 'circle3'], ['arc3', '3-point arc (A)', 'arc3'], ['tarc', 'Tangent arc (T)', 'tarc'], ['slot', 'Slot', 'slot'], ['polygon', 'Polygon (G)', 'polygon'], ['point', 'Point (P)', 'point'],
@@ -6306,6 +6417,7 @@ function sketchBar() {
   if (!bar) return;
   bar.hidden = !app.sketch;
   document.getElementById('featureBar').hidden = !!app.sketch;
+  mirrorPanel();
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });
   const num = (label, key, title) => h('label', { class: 'cad-skin', title }, label, h('input', { type: 'text', value: String(SK[key]), size: '4', 'data-skopt': key, onchange: e => { SK[key] = key === 'polySides' ? Math.max(3, Math.min(64, parseInt(e.target.value, 10) || 6)) : e.target.value; } }));
@@ -6779,7 +6891,8 @@ function renderParts() {
       h('button', { type: 'button', class: 'cad-more', title: look.hidden ? 'Show' : 'Hide', 'aria-label': (look.hidden ? 'Show ' : 'Hide ') + look.name, onclick: e => { e.stopPropagation(); setPartLook(p.id, 'hidden', look.hidden ? null : true); } }, look.hidden ? '◌' : '●'),
       h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })]]); } }, '⋯'),
       h('div', { class: 'cad-partmat' }, mat));
-    li.addEventListener('click', e => { const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
+    // (not from its colour, its material list or its buttons: choosing the part redraws the row, which would shut the list)
+    li.addEventListener('click', e => { if (e.target.closest('select, input, button')) return; const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
     return li;
   }));
 }
@@ -6910,6 +7023,9 @@ function wirePointer() {
     if (app.editing) return;
     const md = modelDimAt(sx, sy);
     if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
+    // a sketch (a shape of it, or one of its regions): opened to edit
+    const se = overlayPick(sx, sy, 'sketch') || (!pickAt(sx, sy, 'face') ? overlayPick(sx, sy, 'regions') : null);
+    if (se && se.sketch) { const i = app.doc.features.findIndex(f => f.id === se.sketch); if (i >= 0) { app.sel = []; emit('sel'); editFeature(i); return; } }
     // a plane (by its border, or anywhere in it once it is the one selected): a sketch started on it
     const sel0 = app.sel.length === 1 && app.sel[0].kind === 'plane' ? app.sel[0] : null, pl = overlayPick(sx, sy, 'any'), inPl = sel0 && overlayPick(sx, sy, 'plane');
     const plane = pl && pl.kind === 'plane' ? pl : inPl && inPl.kind === 'plane' && (inPl.std ? inPl.std === sel0.std : inPl.feature === sel0.feature) && !pickAt(sx, sy, 'face') ? inPl : null;
@@ -6965,6 +7081,10 @@ const NEWS = [
     '<b>Clicks add to the selection</b>: each click adds what it picks or, if it is chosen already, takes it out; a click on nothing empties it. So several regions of a sketch can be clicked, then extruded.',
     '<b>Extrude</b> adds to the part it meets (a new part where it meets none), and a depth below 0 goes the other way, so Opposite direction is only for Through all and Up to face.',
     '<b>Extrude and Revolve</b> open with their regions ready to click: click a region in the view to take it out or put it in.',
+    'A dimension typed moves the shape it measures and <b>leaves the rest where it is</b>: a loose shape the line touches no longer shifts. An <b>angle</b> is drawn as an arc between its two lines.',
+    '<b>Mirror</b> in a sketch has a small panel: click the shapes into it, then the mirror line, then Mirror.',
+    'A <b>hole of the face</b> you sketch on that lies inside what you draw is brought into the sketch when you finish, so an extrude leaves it open.',
+    '<b>Right-drag</b> turns the part about its own upright axis, its middle staying where it is on the screen. <b>Double-click a sketch</b> in the view to edit it. The material list in a part’s row stays open.',
     'A sketch point locks onto the <b>middle of a straight edge</b> of the model and the <b>centre of a round one</b>, as it does onto the model’s corners and edges.',
   ] },
   { v: '0.2.0', date: '10 Nov 2026', items: [

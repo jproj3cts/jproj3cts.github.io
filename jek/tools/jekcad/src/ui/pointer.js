@@ -101,6 +101,9 @@ export function wirePointer() {
     if (app.editing) return;
     const md = modelDimAt(sx, sy);
     if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
+    // a sketch (a shape of it, or one of its regions): opened to edit
+    const se = overlayPick(sx, sy, 'sketch') || (!pickAt(sx, sy, 'face') ? overlayPick(sx, sy, 'regions') : null);
+    if (se && se.sketch) { const i = app.doc.features.findIndex(f => f.id === se.sketch); if (i >= 0) { app.sel = []; emit('sel'); editFeature(i); return; } }
     // a plane (by its border, or anywhere in it once it is the one selected): a sketch started on it
     const sel0 = app.sel.length === 1 && app.sel[0].kind === 'plane' ? app.sel[0] : null, pl = overlayPick(sx, sy, 'any'), inPl = sel0 && overlayPick(sx, sy, 'plane');
     const plane = pl && pl.kind === 'plane' ? pl : inPl && inPl.kind === 'plane' && (inPl.std ? inPl.std === sel0.std : inPl.feature === sel0.feature) && !pickAt(sx, sy, 'face') ? inPl : null;

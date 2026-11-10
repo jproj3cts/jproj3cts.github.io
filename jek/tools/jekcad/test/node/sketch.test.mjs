@@ -2,7 +2,7 @@
 // the document model (core/doc.js): pure, no kernel.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { definedEnts, solveSketch, dimMeasure, sketchId, normDims } from '../../src/core/sketch.js';
+import { definedEnts, solveSketch, solveNear, dimMeasure, sketchId, normDims } from '../../src/core/sketch.js';
 import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions } from '../../src/core/sketch-tools.js';
 import { evalExpr, evalVars } from '../../src/core/units.js';
 import { normDoc, newDoc, newFeature, prepareDoc, canMove, CAD_FORMAT } from '../../src/core/doc.js';
@@ -167,4 +167,17 @@ test('an angle dimension with rev measures inside the corner two chained lines m
   assert.ok(r.ok);
   near(Math.atan2(ents[1].b[1] - ents[1].a[1], ents[1].a[0] - ents[1].b[0]) * 180 / Math.PI, 30, 1e-4);
   assert.equal(normDims([d], ents)[0].rev, true);
+});
+
+test('a dimension typed moves the shape it measures, and a loose shape it touches stays where it is', () => {
+  // a loose rectangle (nothing holds it to the origin), and a line from its corner; the line's length set to 30
+  const r = rectEnts([-30, 13], [30, 27]), line = { id: 'ln', t: 'line', a: [-30, 13], b: [10, -10] };
+  const ents = [...r.ents, line], cons = [...r.cons, { id: 'cj', t: 'coincident', r: [{ e: 'ln', k: 'a' }, { e: r.ents[0].id, k: 'a' }] }];
+  const before = JSON.stringify(r.ents.map(e => [e.a, e.b]));
+  const out = solveNear(ents, cons, [{ id: 'd', t: 'len', r: [{ e: 'ln' }], v: 30 }], ['ln'], { iters: 100 });
+  assert.ok(out.ok);
+  near(Math.hypot(line.b[0] - line.a[0], line.b[1] - line.a[1]), 30, 1e-6);
+  const after = r.ents.map(e => [e.a, e.b]).flat(2), was = JSON.parse(before).flat(2);
+  assert.ok(Math.max(...after.map((v, i) => Math.abs(v - was[i]))) < 1e-6, 'the rectangle has not moved');
+  near(line.a[0], -30, 1e-6); near(line.a[1], 13, 1e-6);
 });

@@ -324,10 +324,23 @@ export function fit(now, q) {
 export function viewFrom(name) { const v = VIEWS[name]; if (!v) return; fit(false, qView(v[0], v[1])); }
 /* look straight at a plane frame (a sketch's, a face's): its x across, its y up */
 export function normalTo(F, keepZoom) { const q = qBasis(F.x, F.y, F.n); if (keepZoom) animateTo(q); else fit(false, q); }
+/* orbit: the model turned about its own upright axis (the z through the middle of what there is to see) as the
+   pointer goes across, and tipped towards or away as it goes up and down. The middle of the model stays where it
+   is on the screen, wherever the view was panned to; a view left rolled (by a sketch on a tilted face, or a
+   flight) is set upright first; the tip stops just short of straight down and straight up. */
 export function orbit(dx, dy) {
-  const a = camAxes();
+  // (the middle of the parts, where there are any: a sketch or a plane beside them does not shift the axis)
+  let pivot = sceneBounds().c;
+  if (V.parts.size) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]; for (const o of V.parts.values()) { const b = o.userData.p.bbox; for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], b[0][i]); hi[i] = Math.max(hi[i], b[1][i]); } } pivot = lo.map((v, i) => (v + hi[i]) / 2); }
+  const s0 = project(pivot);
+  let a = camAxes();
+  if (Math.abs(a.x[2]) > 1e-3 && Math.abs(a.z[2]) < 0.999) { V.q = qView(a.z); a = camAxes(); }
   V.q = qnorm(qmul(qaxis([0, 0, 1], -dx * 0.008), V.q));
-  V.q = qnorm(qmul(qaxis(a.x, -dy * 0.008), V.q));
+  a = camAxes();
+  const el = Math.asin(Math.max(-1, Math.min(1, a.z[2]))), lim = 89.5 * Math.PI / 180, want = Math.max(-lim, Math.min(lim, el + dy * 0.008));
+  if (Math.abs(a.x[2]) < 1e-3) V.q = qnorm(qmul(qaxis(a.x, -(want - el)), V.q));
+  const s1 = project(pivot);
+  pan(s0[0] - s1[0], s0[1] - s1[1]);
   V.dirty = true;
 }
 export function pan(dx, dy) { const a = camAxes(), s = 2 * V.hh / V.h; V.target = V.target.map((v, i) => v - a.x[i] * dx * s + a.y[i] * dy * s); V.dirty = true; }

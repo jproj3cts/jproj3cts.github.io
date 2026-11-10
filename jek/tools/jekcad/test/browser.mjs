@@ -338,6 +338,78 @@ export async function check(pw, base, shots) {
     v = await vol();
     ok('Extrude starts with every region of the sketch and its regions ready to click: the middle one clicked is left out', r0.n === 3 && r0.field === 'regions' && r1 === 2 && near(v, (2 * Math.PI * 225 - 2 * lensA) * 10, 2), JSON.stringify([r0, r1]) + ' volume ' + v);
 
+    // ---- a plate with a hole; a sketch on it round the hole; mirror by its panel; the hole kept; the rest ----
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    await p.click('[data-skgroup="rect"]'); await p.click('[data-skpick="crect"]');
+    await clickUV([0, 0]); await moveUV([20, 12]); await p.keyboard.type('80'); await p.keyboard.press('Tab'); await p.keyboard.type('50'); await p.keyboard.press('Enter');
+    await p.keyboard.press('c'); await clickUV([20, 0]); await moveUV([23, 2]); await p.keyboard.type('6'); await p.keyboard.press('Enter');
+    await p.click('#sketchOk'); await regen();
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '5'); await p.waitForTimeout(300); await p.click('#featureOk'); await regen();
+    // the material list stays open when clicked (the row is not redrawn under it), and the part is not selected by it
+    await p.click('.cad-part select'); await p.waitForTimeout(150);
+    const matOpen = await p.evaluate(() => ({ focus: document.activeElement && document.activeElement.tagName, sel: window.JEKcad.app.sel.length }));
+    await p.keyboard.press('Escape');
+    ok('The material list in a part’s row stays open when clicked', matOpen.focus === 'SELECT' && matOpen.sel === 0, JSON.stringify(matOpen));
+    // orbit: about the part's upright axis, its middle staying where it is on the screen, though the view was panned
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    const ob3 = await p.locator('#over').boundingBox(), cx = ob3.x + ob3.width / 2, cy = ob3.y + ob3.height / 2;
+    await p.mouse.move(cx, cy); await p.mouse.down({ button: 'middle' }); await p.mouse.move(cx + 180, cy - 120, { steps: 4 }); await p.mouse.up({ button: 'middle' });
+    const eye = () => p.evaluate(() => { const J = window.JEKcad, q = J.view.q, mid = J.project([0, 0, 2.5]); return { up: +(1 - 2 * (q[0] * q[0] + q[1] * q[1])).toFixed(3), mid: mid.slice(0, 2).map(Math.round) }; });
+    const ey0 = await eye();
+    await p.mouse.move(cx, cy + 150); await p.mouse.down({ button: 'right' }); await p.mouse.move(cx - 160, cy + 90, { steps: 8 }); await p.mouse.up({ button: 'right' });
+    const ey1 = await eye();
+    await p.mouse.move(cx, cy + 100); await p.mouse.down({ button: 'right' }); await p.mouse.move(cx, cy + 900, { steps: 10 }); await p.mouse.up({ button: 'right' });
+    const ey2 = await eye();
+    ok('Right-drag turns the part about its own upright axis: its middle stays put on the screen (the view panned first), dragging up lowers the eye, and far down stops just short of straight above', Math.hypot(ey1.mid[0] - ey0.mid[0], ey1.mid[1] - ey0.mid[1]) <= 2 && ey1.up < ey0.up && ey2.up > 0.99 && ey2.up < 1 + 1e-9 && Math.hypot(ey2.mid[0] - ey0.mid[0], ey2.mid[1] - ey0.mid[1]) <= 2, JSON.stringify([ey0, ey1, ey2]));
+    // a sketch on the top face: a slot drawn round the hole; a loose line from it, its length then its angle typed
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    const tf2 = await xy([-20, -15, 5]); await p.mouse.click(tf2[0], tf2[1]); await p.waitForTimeout(100);
+    await p.click('[data-feature="sketch"]');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(300);
+    const rcl = async () => { const b = await p.locator('#over').boundingBox(); await p.mouse.click(b.x + 50, b.y + b.height - 50, { button: 'right' }); };
+    await p.click('[data-sktool="slot"]'); await clickUV([8, 0.2]); await clickUV([30, 0.2]); await clickUV([30, 8]);
+    await p.keyboard.press('l'); await p.keyboard.down('Shift'); await clickUV([-10, -20]); await clickUV([-25, -5]); await p.keyboard.up('Shift'); await rcl();
+    await p.keyboard.press('l'); await clickUV([-10, -20]); await p.keyboard.down('Shift'); await clickUV([5, -12]); await p.keyboard.up('Shift'); await rcl();
+    const pos = () => p.evaluate(() => { const f = window.JEKcad.app.sketch.f, ls = f.ents.filter(e => e.t === 'line' && !e.k && !e.ref); return { first: [...ls[ls.length - 2].a, ...ls[ls.length - 2].b], second: [...ls[ls.length - 1].a, ...ls[ls.length - 1].b] }; });
+    const q0 = await pos();
+    await p.keyboard.press('d'); await clickUV([-17.5, -12.5]); await clickUV([-2.5, -16]);
+    const angShown = await p.evaluate(() => { const i = document.getElementById('dimInput'); return i ? parseFloat(i.value) : null; });
+    if (await p.$('#dimInput')) { await p.fill('#dimInput', '60'); await p.keyboard.press('Enter'); }
+    const q1 = await pos();
+    const angNow = await p.evaluate(() => { const J = window.JEKcad, f = J.app.sketch.f, d = f.dims.find(x => x.t === 'ang'), b = J.sk.labels.find(x => x.item.t === 'dim' && x.item.id === d.id); return { v: d.v, label: !!b }; });
+    ok('An angle between two lines that meet is the one inside their corner (about 107° as drawn), and typing 60 turns the line picked second while the first stays', angShown > 105 && angShown < 109 && angNow.v === 60 && angNow.label && q1.first.every((v, i) => Math.abs(v - q0.first[i]) < 1e-6) && Math.hypot(q1.second[2] - q0.second[2], q1.second[3] - q0.second[3]) > 1, JSON.stringify([angShown, angNow, q0, q1]));
+    await shot(p, 'jekcad-angle');
+    // Mirror: the tool, then the shapes, then the line, then Mirror
+    await p.click('[data-skgroup="line"]'); await p.click('[data-skpick="cline"]'); await p.keyboard.down('Shift'); await clickUV([-35, 10]); await clickUV([-35, -22]); await p.keyboard.up('Shift'); await rcl();
+    await p.keyboard.press('s'); await p.keyboard.press('Escape');
+    await p.click('[data-sktool="mirror"]'); await p.waitForSelector('#skPanel', { timeout: 3000 }).catch(() => {});
+    const mp0 = await p.evaluate(() => ({ ok: document.getElementById('mirrorOk').disabled, field: window.JEKcad.sk.mirror.field }));
+    { const mids = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, ls = f.ents.filter(e => e.t === 'line' && !e.k && !e.ref).slice(-2); return ls.map(l => [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2]); }); for (const q of mids) await clickUV(q); }
+    await p.click('[data-mirror="line"]'); await clickUV([-35, 0]);
+    const mp1 = await p.evaluate(() => ({ text: document.getElementById('skPanel').textContent, ok: document.getElementById('mirrorOk').disabled, n: window.JEKcad.app.sketch.f.ents.length }));
+    await p.click('#mirrorOk'); await p.waitForTimeout(150);
+    const mp2 = await p.evaluate(() => ({ n: window.JEKcad.app.sketch.f.ents.length, panel: !!document.getElementById('skPanel'), tool: window.JEKcad.sk.tool, sym: window.JEKcad.app.sketch.f.cons.filter(c => c.t === 'symmetric').length }));
+    ok('Mirror opens a panel: the shapes clicked into it, then the mirror line, and nothing made until Mirror is pressed', mp0.ok && mp0.field === 'shapes' && /2 shapes/.test(mp1.text) && !mp1.ok && mp2.n === mp1.n + 2 && !mp2.panel && mp2.tool === 'select' && mp2.sym >= 2, JSON.stringify([mp0, mp1, mp2]));
+    // finishing: the face's hole inside the slot is brought in, so the extrude of the slot leaves it open
+    await p.click('#sketchOk'); await regen();
+    const holeIn = await p.evaluate(() => { const f = window.JEKcad.app.doc.features[2]; return f.ents.filter(e => e.t === 'circle' && e.ref && !e.k).map(e => [...e.c, e.r].map(v => +v.toFixed(3)).join()); });
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '4'); await p.waitForTimeout(400);
+    const exr = await p.evaluate(() => window.JEKcad.app.editing.f.regions.length);
+    await p.click('#featureOk'); await regen();
+    v = await vol();
+    const slotA = 22 * 16 + Math.PI * 64 - Math.PI * 9;
+    ok('A hole of the face inside what is drawn on it is brought into the sketch, and the extrude leaves it open', holeIn.join() === '20,0,3' && exr === 1 && near(v, 80 * 50 * 5 - Math.PI * 9 * 5 + slotA * 4, 2), JSON.stringify([holeIn, exr]) + ' volume ' + v);
+    // a sketch double-clicked in the view opens to edit
+    await p.hover('.cad-frow-f[data-i="2"]'); await p.click('.cad-frow-f[data-i="2"] .cad-eye'); await regen();
+    await p.evaluate(() => window.JEKcad.viewFrom('top')); await p.waitForTimeout(300);
+    const sl = await xy([-35, 0, 5]); await p.mouse.dblclick(sl[0], sl[1]);
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    ok('A double-click on a sketch in the view opens it to edit', await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.name === 'Sketch 2'), 'not editing');
+    await p.click('#sketchCancel').catch(() => {}); await regen();
     ok('No page errors', !errs.length, errs.slice(0, 5).join(' | '));
     await p.close();
     // a part studio from the cloud that the API marked JEKray's (as one from before JEKcad was), opened by its link in

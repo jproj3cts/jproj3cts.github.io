@@ -1,9 +1,9 @@
 # JEKsuite
 
 The JEK hub: the apps (JEKray and JEKion) and every bench kept in the cloud, of every app, with the account, plans,
-billing and teams. Served as `jek/tools/jekspace.html`, built from the sources here as JEKion is built.
+billing and teams. Served as `jek/tools/jeksuite.html`, built from the sources here as JEKion is built.
 
-- `node build.mjs` writes `../jekspace.html`, `../jekspace-dev.html` and `src/main.js` (commit them); `--check` says
+- `node build.mjs` writes `../jeksuite.html`, `../jeksuite-dev.html` and `src/main.js` (commit them); `--check` says
   whether they are current. The modules in `order.json` are joined into one scope, with JEKray's lint: unique
   top-level names, imports from where a name is declared, nothing run at load but `ui/boot.js`.
 - Shared from JEKray, as they are: `core/constants.js`, `core/hooks.js`, `core/src-tag.js`, `ui/dom.js` (`h`),
@@ -21,7 +21,7 @@ billing and teams. Served as `jek/tools/jekspace.html`, built from the sources h
   The rail has no folders (they are in the page and the breadcrumbs), and no filter by app (the launch pages are).
 - What it sends the apps: `#cloud=<id>` (and `@<version>` for a copy of one; `:lens`, `:rf`, `:coat` into one of
   JEKray's designers), `#new` (and `#new=lens|rf|coat`) when there is nowhere in the cloud to make the bench, and
-  JEKray's `#s=<id>` for a share link. The apps' My benches open this page in the tab named `jekspace`; JEKray's
+  JEKray's `#s=<id>` for a share link. The apps' My benches open this page in the tab named `jeksuite`; JEKray's
   Manage My parts opens it at `#parts`.
 - Tests: `node test/run.mjs` (the build and lint, `test/node/`, then `test/browser.mjs` in Playwright against the
   stand-in API in `test/fake-api.mjs`); `--shots <folder>` keeps pictures of the page signed in.

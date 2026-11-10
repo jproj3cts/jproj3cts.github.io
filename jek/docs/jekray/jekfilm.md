@@ -7,7 +7,7 @@ description: "JEKfilm, the JEK coating designer: a thin-film stack on a substrat
 
 <p class="dx-lead">JEKfilm designs one thin-film coating at a time: a stack of layers on a substrate, what it is for, what it reflects across the band and against the angle, and the thicknesses that do it best. It uses the thin-film model JEKray traces with, so a coating designed in JEKfilm behaves the same on a JEKray bench.</p>
 
-Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [JEKsuite](/jek/docs/jekray/jekspace/) (**New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list), or from JEKray: **Tools › Coating design in JEKfilm…**, or a face's **Design a coating in JEKfilm…**. It opens in a tab of its own, reused each time.
+Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [JEKsuite](/jek/docs/jekray/jeksuite/) (**New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list), or from JEKray: **Tools › Coating design in JEKfilm…**, or a face's **Design a coating in JEKfilm…**. It opens in a tab of its own, reused each time.
 
 ## The design
 

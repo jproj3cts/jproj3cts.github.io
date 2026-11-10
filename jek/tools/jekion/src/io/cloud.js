@@ -288,15 +288,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKsuite (jek/tools/jekspace.html), the JEK hub: places and
+   The home of every bench, JEKion's with JEKray's, is JEKsuite (jek/tools/jeksuite.html), the JEK hub: places and
    folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
    links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
    each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
-const SPACE_URL = '/jek/tools/jekspace.html';
+const SPACE_URL = '/jek/tools/jeksuite.html';
 export function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
   track('view', 'ion-benches');
-  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
+  const w = window.open(SPACE_URL, 'jeksuite'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 export function cloudGates() {

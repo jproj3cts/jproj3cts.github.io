@@ -5,21 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- What this page may load and talk to: itself and the JEK API (the same accounts as the apps). Its code is inline. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>Dev: JEKsuite</title>
+<title>JEKsuite</title>
 <meta name="description" content="JEKsuite: the JEK apps, JEKray and JEKion, and every bench you keep in the cloud, in one place, with your account, plan and teams.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
-<link rel="stylesheet" href="jekray/style.css">
-<link rel="stylesheet" href="jekspace/style.css">
+<style>
+{{STYLE}}
+</style>
 </head>
 <body class="space-app">
 
   <!-- JEKsuite: the apps and every cloud bench, on a page of its own -->
   <section class="rt-home space-home" id="home" aria-labelledby="homeTitle">
     <header class="rt-hhead">
-      <h1 id="homeTitle"><a class="rt-hmark space-mark" href="/jek/tools/jekspace.html" title="JEKsuite: your apps and benches">JEK<b>suite</b></a> <span id="homeWhere">Your apps and benches</span></h1>
+      <h1 id="homeTitle"><a class="rt-hmark space-mark" href="/jek/tools/jeksuite.html" title="JEKsuite: your apps and benches">JEK<b>suite</b></a> <span id="homeWhere">Your apps and benches</span></h1>
       <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
       <button class="rt-btn rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
       <button class="rt-btn primary" id="homeNew" type="button" aria-haspopup="menu" aria-expanded="false" title="Open one of the apps, or start a new bench in one">New ▾</button>
@@ -86,6 +87,8 @@
     <div class="rt-actions"><button class="rt-btn" id="subClose">Not now</button></div>
   </dialog>
 
-<script type="module" src="jekspace/src/main.js"></script>
+<script>
+{{SCRIPT}}
+</script>
 </body>
 </html>

@@ -2040,7 +2040,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKion controls">
       <div class="rt-row rt-bar">
-        <a class="ion-space" id="btnSpace" href="/jek/tools/jekspace.html" target="jekspace" title="JEKsuite: every bench of every app, in the cloud (in its own tab)"><span class="ion-spacemark" aria-hidden="true"></span>JEKsuite</a>
+        <a class="ion-space" id="btnSpace" href="/jek/tools/jeksuite.html" target="jeksuite" title="JEKsuite: every bench of every app, in the cloud (in its own tab)"><span class="ion-spacemark" aria-hidden="true"></span>JEKsuite</a>
         <h1 class="rt-title"><a href="/jek/products/design-software/jekion/" title="About JEKion: its product page"><span class="jek-wm">JEK<b>ion</b></span></a></h1>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more rt-phonegone">
@@ -5999,7 +5999,7 @@ function cutTo(v) {
 function wireActions() {
   // the arrow at the bar's left: JEKsuite, in its own tab (named, so the same one each time), brought to the front
   const space = document.getElementById('btnSpace');
-  if (space) space.addEventListener('click', e => { e.preventDefault(); const w = window.open(space.href, 'jekspace'); if (w) w.focus(); });
+  if (space) space.addEventListener('click', e => { e.preventDefault(); const w = window.open(space.href, 'jeksuite'); if (w) w.focus(); });
   document.getElementById('cutRange').addEventListener('input', e => cutTo(+e.target.value));
   document.getElementById('cutAt').addEventListener('change', e => { cutTo(Number(e.target.value)); e.target.blur(); });
   document.getElementById('cutDown').addEventListener('click', () => cutTo(V().slice - project.grid.h));
@@ -6774,7 +6774,7 @@ async function importCad(file, at) {
 const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
   ['1.0', APP_DATE, [
-    '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jekspace.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
+    '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jeksuite.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
@@ -8379,15 +8379,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKsuite (jek/tools/jekspace.html), the JEK hub: places and
+   The home of every bench, JEKion's with JEKray's, is JEKsuite (jek/tools/jeksuite.html), the JEK hub: places and
    folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
    links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
    each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
-const SPACE_URL = '/jek/tools/jekspace.html';
+const SPACE_URL = '/jek/tools/jeksuite.html';
 function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
   track('view', 'ion-benches');
-  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
+  const w = window.open(SPACE_URL, 'jeksuite'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 function cloudGates() {

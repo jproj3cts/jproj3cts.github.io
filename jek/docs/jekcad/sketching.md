@@ -24,13 +24,19 @@ Line, rectangle, circle and arc each have several kinds. The button shows the ki
 | | Centre line | A line drawn as construction: an axis to revolve about or to mirror in. |
 | | Midpoint line | Its middle, then one end. The middle is held where you clicked. |
 | R | Corner rectangle | Two opposite corners. |
+| | Aligned rectangle | One side (two clicks), then how far across. For a rectangle on a slope. |
 | | Centre rectangle | The centre, then a corner. |
 | C | Circle | The centre, then a point on it. |
 | | 3-point circle | Three points on it. |
+| | Ellipse | Its centre, the end of one half-width (which turns it), then a point for the other. Size it with dimensions from its centre to its two end points. |
 | A | 3-point arc | Its two ends, then a point on it. |
 | T | Tangent arc | Start at the end of a line or arc, then click where it ends. |
+| | Centre-point arc | Its centre, where it starts, where it ends. It goes the short way round. |
 | | Slot | The two centres, then its width. |
 | G | Polygon | The centre, then a corner. The number of sides is in the bar. |
+| | Polygon by a side | The centre, then the middle of a side. |
+| | Spline | Click the points it goes through. Right-click, Enter or a double-click ends it; clicking its first point closes it. |
+| | Bézier curve | Click its start, the points that steer it, and its end; right-click or Enter ends it. |
 | P | Point | A click. Points mark holes. |
 | Q | Construction | Turns the selected shapes into construction shapes, or back. With nothing selected, the next shapes drawn are construction. Construction shapes are dashed and make no regions. |
 
@@ -58,6 +64,7 @@ Select shapes or points, then click a constraint in the sketch bar:
 | Midpoint | A point and a line |
 | Concentric | Two circles or arcs |
 | Symmetric | Two points and the line between them |
+| Normal | A line and a circle or arc: the line points at its centre |
 | Fix | Points or shapes, held where they are |
 
 Each constraint shows as a glyph beside what it holds. Click a glyph to select it and press Delete to remove it. A constraint that cannot hold with the others is refused and taken back.
@@ -95,9 +102,17 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 | Key | Tool | How |
 |---|---|---|
 | M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. |
+| | Extend | Click a line near an end: the end carries on to the first shape in its way. |
+| | Split | Click a line or an arc where to cut it in two. The halves stay joined. |
+| | Sketch chamfer | Click a corner where two lines meet. The distance back from the corner is in the bar. |
 | | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. Anything that held or measured the corner now holds a construction point left where it was. |
 | O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. |
 | | Mirror | Click Mirror: a small panel opens. Click the shapes to mirror (or drag a box round them), click the Mirror line box and then the line, and press Mirror. Each copy's points are held symmetric to the original. |
+| | Linear pattern | Click the shapes into the panel, type the step across and up and how many in all, then Pattern. Copies keep the constraints and dimensions among the shapes copied. |
+| | Circular pattern | The same, about a point (x, y) and over an angle. |
+| | Transform | Click the shapes into the panel, then move them across and up, turn them and scale them (about their middle). What would hold them where they were is let go. |
+| | Intersection | Click a part: where it cuts the sketch's plane comes in as fixed shapes. |
+| | Insert DXF | A DXF file's lines, circles, arcs, ellipses and polylines come in where the file puts them, selected, ready to drag or Transform. Splines, text and blocks in the file are not read. |
 | U | Use | Click edges of the model to project them into the sketch, fixed where they are. A straight or round edge follows the model when it changes. |
 
 Ctrl+C and Ctrl+V copy and paste shapes, with the constraints between them. Ctrl+Z and Ctrl+Shift+Z undo and redo inside the sketch.

@@ -383,7 +383,11 @@ function cubeLook(hh) {
 /* the view turned a step (15°) about the screen's axes, by the arrows round the cube */
 export function turnStep(dir) {
   const k = (15 * Math.PI / 180) / 0.008;
-  orbit(dir === 'left' ? k : dir === 'right' ? -k : 0, dir === 'up' ? k : dir === 'down' ? -k : 0);
+  if (dir === 'ccw' || dir === 'cw') {
+    // the curved arrows: the view rolled about the line of sight, the middle of the screen staying put
+    const a = camAxes(), z = [a.x[1] * a.y[2] - a.x[2] * a.y[1], a.x[2] * a.y[0] - a.x[0] * a.y[2], a.x[0] * a.y[1] - a.x[1] * a.y[0]];
+    V.q = qnorm(qmul(qaxis(z, (dir === 'ccw' ? -1 : 1) * 15 * Math.PI / 180), V.q)); V.dirty = true;
+  } else orbit(dir === 'left' ? k : dir === 'right' ? -k : 0, dir === 'up' ? k : dir === 'down' ? -k : 0);
   emit('view');
 }
 export function wireCube() {

@@ -16,11 +16,11 @@
    ========================================================================== */
 const deg = Math.PI / 180;
 const num = (v, d) => { const x = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(x) ? x : d; };
-export const CON_KINDS = ['coincident', 'oncurve', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'midpoint', 'concentric', 'fix', 'symmetric'];
+export const CON_KINDS = ['coincident', 'oncurve', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'midpoint', 'concentric', 'fix', 'symmetric', 'normal'];
 export const DIM_KINDS = ['dist', 'len', 'pl', 'rad', 'dia', 'ang'];
-export const ENT_KINDS = ['line', 'arc', 'circle', 'point'];
+export const ENT_KINDS = ['line', 'arc', 'circle', 'point', 'ellipse', 'spline'];
 const sfin = (v, d) => { const x = num(v, d); return Number.isFinite(x) ? x : d; };
-const okRef = r => r && typeof r === 'object' && typeof r.e === 'string' && r.e.length < 30 && (r.k === undefined || /^(a|b|m|c|p0|p1|p2|p3)$/.test(r.k));
+const okRef = r => r && typeof r === 'object' && typeof r.e === 'string' && r.e.length < 30 && (r.k === undefined || /^(a|b|m|c|p0|p1|p2|p3|pa|pb|q\d{1,3})$/.test(r.k));
 const cleanRef = r => (r.k ? { e: r.e, k: r.k } : { e: r.e });
 let sidN = 0;
 export const sketchId = p => p + Date.now().toString(36).slice(-3) + (sidN++).toString(36) + Math.floor(Math.random() * 1296).toString(36);
@@ -42,10 +42,14 @@ export function normDims(dims, ents) {
 /* ---------- a shape's numbers, and its points from them ---------- */
 const PARAMS = {
   line: [['a', 0], ['a', 1], ['b', 0], ['b', 1]], arc: [['c', 0], ['c', 1], ['r'], ['a0'], ['a1']], circle: [['c', 0], ['c', 1], ['r']], hole: [['c', 0], ['c', 1], ['d']],
-  slot: [['a', 0], ['a', 1], ['b', 0], ['b', 1], ['r']], poly: [['c', 0], ['c', 1], ['r'], ['rot']], rect: [['c', 0], ['c', 1], ['w'], ['h'], ['rot']], point: [['c', 0], ['c', 1]],
+  slot: [['a', 0], ['a', 1], ['b', 0], ['b', 1], ['r']], poly: [['c', 0], ['c', 1], ['r'], ['rot']], rect: [['c', 0], ['c', 1], ['w'], ['h'], ['rot']], point: [['c', 0], ['c', 1]], ellipse: [['c', 0], ['c', 1], ['rx'], ['ry'], ['rot']],
 };
-const getP = (e, p) => (p.length === 2 ? e[p[0]][p[1]] : e[p[0]]);
-const setP = (e, p, v) => { if (p.length === 2) e[p[0]][p[1]] = v; else e[p[0]] = v; };
+/* an ellipse: its centre c, half-widths rx (along its own x, turned rot degrees) and ry; its points are c, pa (the
+   end of rx) and pb (the end of ry), which is how it is sized and turned: by dimensions and constraints on them.
+   A spline: its points pts (the curve goes through them; cv: they are a Bézier curve's control points instead) */
+const paramsOf = e => (e.t === 'spline' ? e.pts.flatMap((q, i) => [['pts', i, 0], ['pts', i, 1]]) : PARAMS[e.t] || []);
+const getP = (e, p) => (p.length === 3 ? e[p[0]][p[1]][p[2]] : p.length === 2 ? e[p[0]][p[1]] : e[p[0]]);
+const setP = (e, p, v) => { if (p.length === 3) e[p[0]][p[1]][p[2]] = v; else if (p.length === 2) e[p[0]][p[1]] = v; else e[p[0]] = v; };
 /* a point of a shape, by its key; the origin is [0, 0] */
 export function hpt(E, r) {
   if (r.e === 'origin') return [0, 0];
@@ -60,6 +64,8 @@ export function hpt(E, r) {
       const i = +k.slice(1), w = e.w / 2, hh = e.h / 2, q = [[w, -hh], [w, hh], [-w, hh], [-w, -hh]][i] || [0, 0], a = e.rot * deg;
       return [e.c[0] + q[0] * Math.cos(a) - q[1] * Math.sin(a), e.c[1] + q[0] * Math.sin(a) + q[1] * Math.cos(a)];
     }
+    case 'ellipse': { if (k === 'c') return e.c; const a = e.rot * deg, r = k === 'pa' ? e.rx : e.ry, t = k === 'pa' ? a : a + Math.PI / 2; return [e.c[0] + r * Math.cos(t), e.c[1] + r * Math.sin(t)]; }
+    case 'spline': return e.pts[+String(k).slice(1)] || e.pts[0] || [0, 0];
     default: return e.c || [0, 0];
   }
 }
@@ -70,6 +76,8 @@ export function entKeys(e) {
     case 'slot': return ['a', 'b'];
     case 'arc': return ['p0', 'p1', 'c'];
     case 'rect': return ['p0', 'p1', 'p2', 'p3', 'c'];
+    case 'ellipse': return ['pa', 'pb', 'c'];
+    case 'spline': return e.pts.map((q, i) => 'q' + i);
     default: return ['c'];
   }
 }
@@ -84,6 +92,8 @@ function conResiduals(E, c, out) {
   const P = r => hpt(E, r), en = r => E.get(r.e);
   switch (c.t) {
     case 'coincident': { const a = P(c.r[0]), b = P(c.r[1]); out.push(a[0] - b[0], a[1] - b[1]); return; }
+    // normal: a line square to a circle or an arc where it meets it, which is a line through its centre
+    case 'normal': { const A = en(c.r[0]), B = en(c.r[1]), L = A && A.t === 'line' ? A : B, C = L === A ? B : A; if (L && L.t === 'line' && C && C.c && C.r !== undefined) out.push(sdLine(C.c, L)); return; }
     case 'oncurve': { const p = P(c.r[0]), e = en(c.r[1]); if (!e) return; if (e.t === 'line') out.push(sdLine(p, e)); else out.push(Math.hypot(p[0] - curveC(e)[0], p[1] - curveC(e)[1]) - radiusOf(e)); return; }
     case 'horizontal': case 'vertical': {
       const k = c.t === 'horizontal' ? 1 : 0;
@@ -153,7 +163,7 @@ export function dimMeasure(ents, d) {
 /* every number of every shape (each a variable), and each equation with the shapes it depends on */
 function system(ents, cons, dims, extra) {
   const E = new Map(ents.map(e => [e.id, e])), vars = [], at = new Map();
-  for (const e of ents) { at.set(e.id, vars.length); for (const p of PARAMS[e.t] || []) vars.push([e, p]); }
+  for (const e of ents) { at.set(e.id, vars.length); for (const p of paramsOf(e)) vars.push([e, p]); }
   const eqs = [];
   const deps = rs => [...new Set(rs.filter(r => r.e !== 'origin').map(r => r.e))];
   for (const c of cons) eqs.push({ f: out => conResiduals(E, c, out), d: deps(c.r), src: c });
@@ -223,7 +233,7 @@ export function solveSketch(ents, cons, dims, extra, opts) {
     if (!improved) break;
   }
   // a shape's sizes stay sizes (a radius, a width above nothing)
-  for (const e of ents) { if (e.r !== undefined && e.t !== 'rect') e.r = Math.abs(e.r) || 1e-4; if (e.t === 'hole') e.d = Math.abs(e.d) || 1e-3; if (e.t === 'rect') { e.w = Math.abs(e.w) || 1e-3; e.h = Math.abs(e.h) || 1e-3; } }
+  for (const e of ents) { if (e.r !== undefined && e.t !== 'rect') e.r = Math.abs(e.r) || 1e-4; if (e.t === 'hole') e.d = Math.abs(e.d) || 1e-3; if (e.t === 'rect') { e.w = Math.abs(e.w) || 1e-3; e.h = Math.abs(e.h) || 1e-3; } if (e.t === 'ellipse') { e.rx = Math.abs(e.rx) || 1e-4; e.ry = Math.abs(e.ry) || 1e-4; } }
   return { ok: err <= Math.max(tol * 1e3, 1e-7), err, it };
 }
 /* which shapes are fully defined: none of their numbers can move without breaking a constraint or a dimension (the
@@ -261,7 +271,7 @@ export function definedEnts(ents, cons, dims) {
   const free = new Float64Array(n);
   for (let k = 0; k < n; k++) if (Math.abs(ev[k]) < 1e-9 * top) for (let i = 0; i < n; i++) free[i] += V[i][k] * V[i][k];
   const out = new Set();
-  for (const e of ents) { const a = S.at.get(e.id), np = (PARAMS[e.t] || []).length; let ok = np > 0; for (let j = a; j < a + np; j++) if (free[j] > 1e-8) ok = false; if (ok) out.add(e.id); }
+  for (const e of ents) { const a = S.at.get(e.id), np = paramsOf(e).length; let ok = np > 0; for (let j = a; j < a + np; j++) if (free[j] > 1e-8) ok = false; if (ok) out.add(e.id); }
   return out;
 }
 
@@ -275,7 +285,7 @@ export function sketchRegions(ents, outline) {
   const segs = [], srcOf = [];
   for (const e of ents) {
     if (e.k || e.t === 'point') continue;
-    const P = outline(e), closed = !(e.t === 'line' || e.t === 'arc');
+    const P = outline(e), closed = e.t === 'spline' ? !!e.closed : !(e.t === 'line' || e.t === 'arc');
     for (let i = 0; i + 1 < P.length; i++) { segs.push([P[i], P[i + 1]]); srcOf.push(e); }
     if (closed && P.length > 2) { segs.push([P[P.length - 1], P[0]]); srcOf.push(e); }
   }

@@ -51,6 +51,7 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 | 1 to 7 | Front, back, left, right, top, bottom, isometric |
 | Click a face of the view cube | Look at that side. A strip along one of its sides looks along that edge, and a corner looks from the corner |
 | The arrows round the view cube | Turn the view 15° |
+| The curved arrows above the view cube | Roll the view 15° about the line of sight |
 | The bird in the bar | Fly through the model, full screen |
 | Double-click a face | Edit the feature that made it |
 

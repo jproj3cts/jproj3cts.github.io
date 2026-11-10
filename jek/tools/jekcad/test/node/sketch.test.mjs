@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { definedEnts, solveSketch, solveNear, dimMeasure, sketchId, normDims } from '../../src/core/sketch.js';
-import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions } from '../../src/core/sketch-tools.js';
+import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions, alignedRectEnts, centreArc, chamferCorner, extendEnt, splitEnt, linearPattern, circularPattern, transformEnts, dxfEnts, normEnts, curvePts, distToEnt } from '../../src/core/sketch-tools.js';
 import { evalExpr, evalVars } from '../../src/core/units.js';
 import { normDoc, newDoc, newFeature, prepareDoc, canMove, CAD_FORMAT } from '../../src/core/doc.js';
 
@@ -180,4 +180,55 @@ test('a dimension typed moves the shape it measures, and a loose shape it touche
   const after = r.ents.map(e => [e.a, e.b]).flat(2), was = JSON.parse(before).flat(2);
   assert.ok(Math.max(...after.map((v, i) => Math.abs(v - was[i]))) < 1e-6, 'the rectangle has not moved');
   near(line.a[0], -30, 1e-6); near(line.a[1], 13, 1e-6);
+});
+
+test('more sketch shapes: an aligned rectangle, a centre-point arc, a circumscribed polygon, an ellipse and splines', () => {
+  const r = alignedRectEnts([0, 0], [10, 10], [0, 10]);
+  near(regionsOf(r.ents)[0].area, 100, 1e-6);
+  assert.deepEqual(r.cons.slice(-3).map(c => c.t), ['perpendicular', 'parallel', 'parallel']);
+  const a = centreArc([0, 0], [10, 0], [0, 7]), b = centreArc([0, 0], [10, 0], [0, 7], true);
+  near(a.r, 10); near(a.a0, 0); near(a.a1, 90); near(b.a0, 90); near(b.a1, 0);
+  // a hexagon by the middle of a side: the circle through that point touches every side
+  const pg = polygonEnts([0, 0], [8, 0], 6, true), circ = pg.ents[6];
+  near(circ.r, 8 / Math.cos(Math.PI / 6), 1e-9);
+  near((pg.ents[5].a[0] + pg.ents[5].b[0]) / 2, 8, 1e-9);
+  // an ellipse: its area, its points, and its size set by a dimension to the end of a half-width
+  const el = { id: 'e', t: 'ellipse', c: [0, 0], rx: 10, ry: 5, rot: 30 };
+  near(regionsOf([el])[0].area, Math.PI * 50, 0.1);
+  const out = solveSketch([el], [{ id: 'c1', t: 'coincident', r: [{ e: 'e', k: 'c' }, { e: 'origin' }] }, { id: 'c2', t: 'horizontal', r: [{ e: 'e', k: 'c' }, { e: 'e', k: 'pa' }] }], [{ id: 'd1', t: 'dist', r: [{ e: 'e', k: 'c' }, { e: 'e', k: 'pa' }], v: 14 }], null, { iters: 100 });
+  assert.ok(out.ok); near(el.rx, 14, 1e-6); near(Math.sin(el.rot * Math.PI / 180), 0, 1e-6);
+  // a spline through its points; a Bézier curve from its first to its last; kept by normEnts, dropped when too short
+  const sp = { id: 's', t: 'spline', pts: [[0, 0], [5, 6], [12, 7], [20, 0]] }, P = curvePts(sp, 3);
+  for (const q of sp.pts) assert.ok(distToEnt(sp, q) < 1e-9, 'the spline goes through its points');
+  near(P[0][0], 0); near(P[P.length - 1][0], 20);
+  const bz = { id: 'b', t: 'spline', cv: true, pts: [[0, 0], [5, 12], [15, 12], [20, 0]] };
+  near(regionsOf([bz, { id: 'l', t: 'line', a: [20, 0], b: [0, 0] }])[0].area, 126, 0.05);      // a cubic's area: 3/20 of the control polygon's cross products
+  assert.equal(normEnts([el, sp, bz, { id: 'x', t: 'spline', pts: [[0, 0]] }]).length, 3);
+});
+
+test('sketch edits: chamfer, extend, split, patterns, transform; a line normal to a circle; a DXF read', () => {
+  const sk = { ents: rectEnts([0, 0], [20, 10]).ents, cons: rectEnts([0, 0], [20, 10]).cons.slice(0, 0), dims: [] };
+  assert.ok(chamferCorner(sk, [20, 10], 3));
+  near(regionsOf(sk.ents)[0].area, 200 - 4.5, 1e-6);
+  const s2 = { ents: [{ id: 'a', t: 'line', a: [0, 0], b: [5, 0] }, { id: 'b', t: 'line', a: [10, -5], b: [10, 5] }, { id: 'c', t: 'arc', c: [0, 20], r: 5, a0: 0, a1: 180 }], cons: [], dims: [] };
+  assert.ok(extendEnt(s2, 'a', [5, 0])); near(s2.ents[0].b[0], 10); assert.equal(s2.cons[0].t, 'oncurve');
+  assert.ok(splitEnt(s2, 'b', [10, 1])); assert.ok(splitEnt(s2, 'c', [0, 25]));
+  assert.equal(s2.ents.length, 5); near(s2.ents[2].a1, 90, 1e-9); near(s2.ents[4].a0, 90, 1e-9);
+  assert.equal(extendEnt(s2, 'c', [5, 20]), false);
+  const s3 = { ents: [{ id: 'c', t: 'circle', c: [10, 0], r: 2 }], cons: [], dims: [{ id: 'd', t: 'dia', r: [{ e: 'c' }], v: 4, x: '4' }] };
+  assert.equal(circularPattern(s3, ['c'], [0, 0], 6, 360).length, 5);
+  near(s3.ents[3].c[0], -10, 1e-9); assert.equal(s3.dims.length, 6, 'each copy keeps the diameter');
+  assert.equal(linearPattern(s3, ['c'], [0, 30], 3).length, 2); near(s3.ents[7].c[1], 60, 1e-9);
+  transformEnts(s3, ['c'], { dx: 1, rot: 90, scale: 2, about: [0, 0] });
+  near(s3.ents[0].c[0], 1, 1e-9); near(s3.ents[0].c[1], 20, 1e-9); near(s3.ents[0].r, 4); assert.equal(s3.dims.some(d => d.r[0].e === 'c'), false, 'sized: its old diameter is let go');
+  // normal: the line turned to point at the circle's centre
+  const ln = { id: 'l', t: 'line', a: [0, 12], b: [6, 9] }, ci = { id: 'k', t: 'circle', c: [10, 0], r: 6 };
+  const r = solveSketch([ln, ci], [{ id: 'n', t: 'normal', r: [{ e: 'l' }, { e: 'k' }] }], [], null, { iters: 100 });
+  assert.ok(r.ok);
+  near(((ci.c[0] - ln.a[0]) * (ln.b[1] - ln.a[1]) - (ci.c[1] - ln.a[1]) * (ln.b[0] - ln.a[0])), 0, 1e-6);
+  // a DXF: a line, a circle, and a closed polyline of two bulges that is a circle of radius 5
+  const dxf = ['0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '10', '0', '20', '0', '11', '10', '21', '0', '0', 'CIRCLE', '10', '5', '20', '5', '40', '2', '0', 'LWPOLYLINE', '90', '2', '70', '1', '10', '0', '20', '0', '42', '1', '10', '10', '20', '0', '42', '1', '0', 'ENDSEC', '0', 'EOF'].join('\r\n');
+  const d = dxfEnts(dxf);
+  assert.equal(d.map(e => e.t).join(), 'line,circle,arc,arc');
+  near(regionsOf(d.slice(2))[0].area, Math.PI * 25, 0.05);
 });

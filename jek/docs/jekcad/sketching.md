@@ -10,7 +10,7 @@ description: "JEKcad's sketcher: the drawing tools, constraints inferred and add
 
 ## Where a sketch goes
 
-Click **Sketch**, then a plane or a flat face of a part. If a plane or flat face is already selected, the sketch goes on it straight away. On a face, the sketch's plane follows the face when the model changes.
+Click **Sketch**, then a plane or a flat face of a part. If a plane or flat face is already selected, the sketch goes on it straight away. Double-clicking a plane, in the view or in the feature list, starts a sketch on it too. On a face, the sketch's plane follows the face when the model changes.
 
 To sketch at a distance from a plane, first make a **Plane** feature offset from it.
 
@@ -34,11 +34,13 @@ Line, rectangle, circle and arc each have several kinds. The button shows the ki
 | P | Point | A click. Points mark holes. |
 | Q | Construction | Turns the selected shapes into construction shapes, or back. With nothing selected, the next shapes drawn are construction. Construction shapes are dashed and make no regions. |
 
-As you draw, JEKcad infers constraints and shows each one as a glyph by the pointer. **●** means coincident with a point, **M** the middle of a line, **⌒** on a curve, **H** horizontal and **V** vertical. A line drawn nearly square to the one before it is made perpendicular, and a tangent arc is held tangent where it starts.
+As you draw, JEKcad infers constraints and shows each one as a glyph by the pointer. **●** means coincident with a point, **M** the middle of a line, **⌒** on a curve, **H** horizontal and **V** vertical. A tangent arc is held tangent where it starts.
 
 The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. It also snaps to the middle of a straight edge (**M**) and the centre of a round one (**◎**). Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. A corner comes in as a fixed point. When the model changes and that edge or corner moves, the sketch moves with it.
 
 A first point placed level with the origin, or straight above or below it, is held level or in line with it (**H** or **V** by the pointer). A polygon whose first corner is level with its centre is held that way up.
+
+A line drawn to a circle or an arc, nearly touching it, ends where it touches and is held tangent (**T**). A point placed level with another point, or straight above or below one, is held so; a dashed line runs to the point it is level with. Hold **Shift** while you draw and nothing is inferred.
 
 While you draw, the size of the shape shows by the pointer: a line's length, a rectangle's width and height, a circle's diameter.
 
@@ -62,7 +64,9 @@ Each constraint shows as a glyph beside what it holds. Click a glyph to select i
 
 ## Dimensions
 
-The quickest dimension is typed. Draw a line, a circle or an arc, then type a number and press Enter: that is its length, diameter or radius. After a rectangle, the first number is its width and the second its height. With the select tool, double-click a line, circle or arc to dimension it.
+The quickest dimension is typed as you draw. Click where a line starts, move the pointer the way it should go, type its length and press Enter. The line is made that long and dimensioned, and the next line of the chain starts from its end. A circle takes its diameter the same way. A rectangle takes its width, then Tab or Enter, then its height.
+
+A number typed straight after a shape is drawn, before the pointer moves, dimensions that shape: a line's length, a circle's diameter, an arc's radius, a rectangle's width and then its height. With the select tool, double-click a line, circle or arc to dimension it.
 
 For everything else press **D**, then click:
 

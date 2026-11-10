@@ -263,6 +263,68 @@ export async function check(pw, base, shots) {
     await p.keyboard.press('Escape'); await p.waitForTimeout(200);
     const f2 = await p.evaluate(() => ({ fly: !!window.JEKcad.view.fly, cls: document.getElementById('stage').classList.contains('cad-flying'), hh: window.JEKcad.view.hh }));
     ok('Fly (the bird in the bar): W moves the camera forwards, the mouse turns it, Esc lands and the view carries on from there', f0 && f0.cls && /W A S D/.test(f0.hint) && f1 && Math.hypot(...f1.pos.map((x, i) => x - f0.pos[i])) > 1 && !f2.fly && !f2.cls && f2.hh > 0, JSON.stringify([f0, f1, f2]));
+    // ---- a double-click on a plane starts a sketch on it; what a point is inferred from ----
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    // the Front plane's border, in the view: found as a person's eye finds it
+    const edgePt = await p.evaluate(() => { const J = window.JEKcad; for (let x = 20; x < J.view.w - 20; x += 3) for (let y = 20; y < J.view.h - 20; y += 3) { const k = J.overlayPick(x, y, 'any'); if (k && k.kind === 'plane' && k.std === 'front') return [x, y]; } return null; });
+    const ob2 = await p.locator('#over').boundingBox();
+    if (edgePt) await p.mouse.dblclick(ob2.x + edgePt[0], ob2.y + edgePt[1]);
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    const onFront = await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.plane.std);
+    await p.click('#sketchCancel'); await regen();
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    const onTop = await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.plane.std);
+    ok('A double-click on a plane starts a sketch on it: the Front plane’s border in the view, the Top plane’s row in the list', onFront === 'front' && onTop === 'top', JSON.stringify([edgePt, onFront, onTop]));
+    // a circle, then a line that comes to it nearly touching: ended where it touches, and tangent
+    await p.keyboard.press('c'); await clickUV([0, 0]); await clickUV([10, 0]);
+    await p.keyboard.press('l'); await clickUV([-30, 10.4]); await clickUV([0.5, 10.3]);
+    await p.mouse.click(ob2.x + 60, ob2.y + ob2.height - 60, { button: 'right' });
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, l = f.ents.find(e => e.t === 'line'), c = f.ents.find(e => e.t === 'circle'); const d = [l.b[0] - l.a[0], l.b[1] - l.a[1]], n = Math.hypot(...d); return { cons: f.cons.map(x => x.t), gap: +(Math.abs((c.c[0] - l.a[0]) * d[1] - (c.c[1] - l.a[1]) * d[0]) / n - c.r).toFixed(6), on: +(Math.hypot(l.b[0] - c.c[0], l.b[1] - c.c[1]) - c.r).toFixed(6) }; });
+    ok('A line drawn to a circle, nearly touching it, ends where it touches and is held tangent', sk.cons.includes('tangent') && sk.cons.includes('oncurve') && sk.gap === 0 && sk.on === 0, JSON.stringify(sk));
+    // a point placed nearly level with the circle's centre and nearly above the line's start: held level and in line
+    await p.keyboard.press('p'); await clickUV([-30.3, 0.3]);
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, q = f.ents.find(e => e.t === 'point'), l = f.ents.find(e => e.t === 'line'); return { c: q.c.map(v => +v.toFixed(5)), lx: +l.a[0].toFixed(5), cons: f.cons.slice(-2).map(x => x.t).sort().join() }; });
+    ok('A point placed nearly level with one point and nearly above another is held level with the one and in line with the other', sk.c[1] === 0 && sk.c[0] === sk.lx && sk.cons === 'horizontal,vertical', JSON.stringify(sk));
+    await shot(p, 'jekcad-inference');
+    await p.click('#sketchCancel'); await regen();
+    // sizes typed as a shape is drawn: a line 35 long the way the pointer goes, then 20 up; a rectangle 50 by 30; a circle of 12
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    const moveUV = async uv => { const q = await uvXY(uv); await p.mouse.move(q[0], q[1], { steps: 3 }); await p.waitForTimeout(40); };
+    await clickUV([0, 0]); await moveUV([22, 0.3]); await p.keyboard.type('35'); await p.keyboard.press('Enter');
+    await moveUV([35.2, 12]); await p.keyboard.type('20'); await p.keyboard.press('Enter');
+    await p.mouse.click(ob2.x + 60, ob2.y + ob2.height - 60, { button: 'right' });
+    await p.keyboard.press('r'); await clickUV([-40, -30]); await moveUV([-20, -22]); await p.keyboard.type('50'); await p.keyboard.press('Tab'); await p.keyboard.type('30'); await p.keyboard.press('Enter');
+    await p.keyboard.press('c'); await clickUV([-30, 30]); await moveUV([-25, 31]); await p.keyboard.type('12'); await p.keyboard.press('Enter');
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, r = v => +v.toFixed(4); return { lines: f.ents.filter(e => e.t === 'line').slice(0, 2).map(e => [...e.a, ...e.b].map(r).join()), rect: f.ents.filter(e => e.t === 'line')[2].b.map(r).join(), circ: r(f.ents.find(e => e.t === 'circle').r), dims: f.dims.map(d => d.t + '=' + d.x).join(), box: !!document.getElementById('sizeInput') }; });
+    ok('Sizes typed while drawing: a line 35 long then one 20 up, each dimensioned; a rectangle 50 × 30 (Tab between); a circle of diameter 12', sk.lines[0] === '0,0,35,0' && sk.lines[1] === '35,0,35,20' && sk.rect === '10,-30' && sk.circ === 6 && sk.dims === 'len=35,len=20,len=50,len=30,dia=12' && !sk.box, JSON.stringify(sk));
+    // Shift held: nothing inferred (a line that would have been horizontal is left as drawn)
+    await p.keyboard.press('l'); await p.keyboard.down('Shift'); await clickUV([-40, 10]); await clickUV([-20, 10.2]); await p.keyboard.up('Shift');
+    await p.mouse.click(ob2.x + 60, ob2.y + ob2.height - 60, { button: 'right' });
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, l = f.ents.filter(e => e.t === 'line').pop(); return { y: +l.b[1].toFixed(3), cons: f.cons.filter(c => c.r.some(r => r.e === l.id)).map(c => c.t).join() }; });
+    ok('Shift held while drawing: nothing is inferred', sk.y === 10.2 && sk.cons === '', JSON.stringify(sk));
+    await p.click('#sketchCancel'); await regen();
+    // two circles that overlap, extruded: every region starts chosen, and a click in the view takes one out
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    await p.keyboard.press('c'); await clickUV([-10, 0]); await moveUV([-5, 3]); await p.keyboard.type('30'); await p.keyboard.press('Enter');
+    await clickUV([10, 0]); await moveUV([15, 3]); await p.keyboard.type('30'); await p.keyboard.press('Enter');
+    await p.click('#sketchOk'); await regen();
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '10'); await p.waitForTimeout(400);
+    const r0 = await p.evaluate(() => ({ n: window.JEKcad.app.editing.f.regions.length, field: window.JEKcad.app.editing.field && window.JEKcad.app.editing.field.key }));
+    const lens = await xy([0, 0, 0]); await p.mouse.move(lens[0], lens[1], { steps: 3 }); await p.waitForTimeout(80); await p.mouse.click(lens[0], lens[1]);
+    await p.waitForTimeout(400);
+    const r1 = await p.evaluate(() => window.JEKcad.app.editing.f.regions.length);
+    await p.click('#featureOk'); await regen();
+    const lensA = 2 * 225 * Math.acos(10 / 15) - 20 * Math.sqrt(225 - 100);
+    v = await vol();
+    ok('Extrude starts with every region of the sketch and its regions ready to click: the middle one clicked is left out', r0.n === 3 && r0.field === 'regions' && r1 === 2 && near(v, (2 * Math.PI * 225 - 2 * lensA) * 10, 2), JSON.stringify([r0, r1]) + ' volume ' + v);
+
     ok('No page errors', !errs.length, errs.slice(0, 5).join(' | '));
     await p.close();
     // a part studio from the cloud that the API marked JEKray's (as one from before JEKcad was), opened by its link in

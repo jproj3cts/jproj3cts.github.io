@@ -2,7 +2,7 @@ import { MATERIALS, appliedCount, canMove, featureLabel, partLook } from '../cor
 import { fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { app, changed, checkpoint, emit, on, toast } from './app.js';
-import { editFeature, fieldPick, fieldWants, setPartLook } from './dialog.js';
+import { editFeature, fieldPick, fieldWants, openFeature, setPartLook } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
@@ -91,7 +91,7 @@ export function renderPanel() {
   const doc = app.doc, n = app.sketch ? app.sketch.at : appliedCount(doc), rows = [];
   const wantsFeatures = fieldWants() === 'features';
   const hid = doc.hide || {};
-  const planeRow = (k, name) => h('li', { class: 'cad-frow-p' + (hid[k] ? ' hid' : '') + (app.sel.some(s => s.kind === 'plane' && s.std === k) ? ' picked' : ''), 'data-plane': k, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name), eyeBtn(hid[k], 'the ' + name + ' plane', () => toggleStd(k)));
+  const planeRow = (k, name) => h('li', { class: 'cad-frow-p' + (hid[k] ? ' hid' : '') + (app.sel.some(s => s.kind === 'plane' && s.std === k) ? ' picked' : ''), 'data-plane': k, title: 'Double-click to sketch on it', ondblclick: e => { if (e.target.closest('button') || app.sketch || app.editing) return; app.sel = []; emit('sel'); openFeature('sketch', { plane: { std: k } }); }, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name), eyeBtn(hid[k], 'the ' + name + ' plane', () => toggleStd(k)));
   rows.push(h('li', { class: 'cad-frow-p origin' + (hid.origin ? ' hid' : ''), 'data-plane': 'origin' }, h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, 'Origin'), eyeBtn(hid.origin, 'the origin', () => toggleStd('origin'))),
     planeRow('top', 'Top'), planeRow('front', 'Front'), planeRow('right', 'Right'));
   const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });

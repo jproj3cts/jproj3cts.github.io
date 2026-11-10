@@ -168,6 +168,7 @@ function refEnt(g) {
 function snap(sx, sy, from, skipIds) {
   const uv = uvAt(sx, sy);
   if (!uv) return null;
+  if (SK.free) return { p: uv, ref: null };            // Shift held: the point is where the pointer is, nothing inferred
   const skip = new Set(skipIds || []);
   let best = null, bd = SNAP_PX;
   for (const c of snapPoints()) { if (skip.has(c.r.e)) continue; const s = toScreen(c.p), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; best = c; } }
@@ -198,16 +199,36 @@ function snap(sx, sy, from, skipIds) {
     for (const g of M.edges) { const r = nearOnEdge(g, uv); if (r.d < md) { md = r.d; me = { g, p: r.p }; } }
     if (me) { out.p = me.p; out.mon = me.g; out.glyph = '⌒'; out.kind = 'oncurve'; }
   }
-  // a first point level with the origin, or straight above or below it, is held so
-  if (!from && !out.on && !out.mon) {
-    const os = toScreen([0, 0]), ps = toScreen(uv);
-    if (Math.abs(ps[1] - os[1]) < 5 && Math.abs(ps[0] - os[0]) > 12) { out.p = [uv[0], 0]; out.axis = 'horizontal'; out.glyph = 'H'; }
-    else if (Math.abs(ps[0] - os[0]) < 5 && Math.abs(ps[1] - os[1]) > 12) { out.p = [0, uv[1]]; out.axis = 'vertical'; out.glyph = 'V'; }
+  // a line that comes to a circle or an arc nearly touching it: ended where it touches, and held tangent
+  const round = out.on ? entById(out.on) : out.mon;
+  if (from && round && (round.t === 'circle' || round.t === 'arc')) {
+    const dx = from[0] - round.c[0], dy = from[1] - round.c[1], dd = Math.hypot(dx, dy);
+    if (dd > round.r * 1.0001) {
+      const base = Math.atan2(dy, dx), al = Math.acos(round.r / dd);
+      let tp = null, td = 10 * pxToMm(1);
+      for (const sg of [1, -1]) { const q = [round.c[0] + round.r * Math.cos(base + sg * al), round.c[1] + round.r * Math.sin(base + sg * al)], d = Math.hypot(q[0] - uv[0], q[1] - uv[1]); if (d < td && (round.t === 'circle' || distToEnt(round, q) < 1e-6)) { td = d; tp = q; } }
+      if (tp) { out.p = tp; out.tan = true; out.glyph = 'T'; return out; }
+    }
   }
   if (from) {
     const fs = toScreen(from), ps = toScreen(out.p);
     if (Math.abs(ps[1] - fs[1]) < 6 && Math.abs(ps[0] - fs[0]) > 4) { out.p = [out.p[0], from[1]]; out.hv = 'horizontal'; out.glyph = 'H'; }
     else if (Math.abs(ps[0] - fs[0]) < 6 && Math.abs(ps[1] - fs[1]) > 4) { out.p = [from[0], out.p[1]]; out.hv = 'vertical'; out.glyph = 'V'; }
+  }
+  // level with, or straight above or below, a point already there (the origin among them): held so, one each way
+  if (!out.on && !out.mon) {
+    const ps = toScreen(out.p), al = [];
+    for (const [t, i] of [['horizontal', 1], ['vertical', 0]]) {
+      if (out.hv === t) continue;
+      let pick = null, pd = Infinity;
+      for (const c of snapPoints()) {
+        if (c.mid || skip.has(c.r.e) || (from && Math.hypot(c.p[0] - from[0], c.p[1] - from[1]) < 1e-9)) continue;
+        const z = toScreen(c.p), off = Math.abs(ps[i] - z[i]), along = Math.abs(ps[1 - i] - z[1 - i]);
+        if (off < 5 && along > 12 && along < pd) { pd = along; pick = c; }
+      }
+      if (pick) { al.push({ t, ref: pick.r, p: pick.p.slice() }); out.p = i ? [out.p[0], pick.p[1]] : [pick.p[0], out.p[1]]; }
+    }
+    if (al.length) { out.al = al; if (!out.glyph) out.glyph = al[0].t === 'horizontal' ? 'H' : 'V'; }
   }
   return out;
 }
@@ -221,8 +242,7 @@ function snapCons(sn, e, k) {
   if (sn.mmid) return [mkCon('midpoint', { e, k }, { e: refEnt(sn.mmid) })];
   if (sn.mcen) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mcen), k: 'c' })];
   if (sn.mon && sn.mon.t !== 'poly') return [mkCon('oncurve', { e, k }, { e: refEnt(sn.mon) })];
-  if (sn.axis) return [mkCon(sn.axis, { e, k }, { e: 'origin' })];
-  return [];
+  return (sn.al || []).map(a => mkCon(a.t, { e, k }, a.ref));
 }
 /* ---------- drawing tools ---------- */
 const TOOL_STEPS = { line: 2, mline: 2, rect: 2, crect: 2, circle: 2, circle3: 3, arc3: 3, tarc: 2, slot: 3, polygon: 2, point: 1 };
@@ -249,14 +269,14 @@ export function setTool(t) {
   for (const g of SK_GROUPS) if (g.includes(SK.lineK ? 'cline' : t)) SK.variant[g[0]] = SK.lineK ? 'cline' : t;
   sketchBar(); drawOverlay();
 }
-function cancelDraft() { SK.draft = null; SK.snap = null; dimInputClose(); }
+function cancelDraft() { SK.draft = null; SK.snap = null; dimInputClose(); typeClose(); }
 function addEnts(es, cs) {
   for (const e of es) if (SK.constr && e.t !== 'point') e.k = true;
   S().f.ents.push(...es); S().f.cons.push(...(cs || []));
 }
-function toolClick(sx, sy) {
+function toolClick(sx, sy, forced) {
   const t = SK.tool, d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null;
-  const sn = snap(sx, sy, FROM_TOOLS[t] ? from : null);
+  const sn = forced || snap(sx, sy, FROM_TOOLS[t] ? from : null);
   if (!sn) return;
   const pts = d ? d.pts.concat([sn.p]) : [sn.p], snaps = d ? d.snaps.concat([sn]) : [sn];
   if (pts.length < TOOL_STEPS[t]) { SK.draft = { pts, snaps }; drawOverlay(); return; }
@@ -268,8 +288,8 @@ function toolClick(sx, sy) {
   else if (t === 'line') {
     const e = Object.assign({ id: sketchId('l'), t: 'line', a: p0, b: p1 }, SK.lineK ? { k: true } : {}), cs = [...(d && d.chainFrom ? [mkCon('coincident', { e: e.id, k: 'a' }, d.chainFrom)] : snapCons(snaps[0], e.id, 'a')), ...snapCons(snaps[1], e.id, 'b')];
     if (snaps[1].hv) cs.push(mkCon(snaps[1].hv, { e: e.id }));
-    // square to the line it follows on from, if it nearly is
-    if (d && d.prev) { const P = entById(d.prev); if (P) { const u = lineDir(P), w = lineDir(e), c = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(...u) * Math.hypot(...w) || 1); if (Math.abs(c) < 0.035 && !snaps[1].hv && !(P && cs.some(x => x.t === 'horizontal' || x.t === 'vertical'))) cs.push(mkCon('perpendicular', { e: P.id }, { e: e.id })); } }
+    if (snaps[1].tan) cs.push(mkCon('tangent', { e: e.id }, { e: snaps[1].on || refEnt(snaps[1].mon) }));
+    // (nothing is inferred that was not shown by the pointer as it was drawn)
     addEnts([e], cs); SK.last = [e.id];
     // chained: the next line starts here, unless this one closed the chain on a point already there
     // (only there: a line that lands on some other point carries on, as a profile often runs through points already drawn)
@@ -382,6 +402,7 @@ const sameItem = (a, b) => a && b && a.t === b.t && a.id === b.id && a.e === b.e
 export function sketchDown(e, sx, sy) {
   if (e.button !== 0) return false;
   if (SK.dimInput) dimInputCommit();
+  typeClose();
   const t = SK.tool;
   if (t === 'select' || t === 'dim' || t === 'trim' || t === 'fillet' || t === 'mirror' || t === 'use') {
     const it = sketchPick(sx, sy);
@@ -406,11 +427,12 @@ export function sketchDown(e, sx, sy) {
     drawOverlay(); emit('sketchsel');
     return true;
   }
+  SK.free = !!e.shiftKey;
   toolClick(sx, sy);
   return true;
 }
 export function sketchMove(e, sx, sy) {
-  SK.uv = uvAt(sx, sy);
+  SK.uv = uvAt(sx, sy); SK.free = !!(e && e.shiftKey) && !!TOOL_STEPS[SK.tool];
   if (SK.drag) {
     const d = SK.drag;
     if (!d.moved && Math.hypot(sx - d.sx, sy - d.sy) < 3) return;
@@ -449,6 +471,48 @@ export function sketchRight() {
   if (SK.draft) { cancelDraft(); drawOverlay(); return; }
   if (SK.tool !== 'select') setTool('select');
 }
+/* ---------- sizes typed as a shape is drawn: a line's length (along the way the pointer gives), a circle's
+   diameter, a rectangle's width and then its height. Enter makes the shape that size and dimensions it. ---------- */
+const TYPED = { line: ['Length'], mline: ['Length'], circle: ['Diameter'], rect: ['Width', 'Height'], crect: ['Width', 'Height'] };
+function typeSize(seed) {
+  typeClose();
+  const names = TYPED[SK.tool], vals = [], q = toScreen(SK.snap.p);
+  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'sizeInput', value: seed, spellcheck: 'false', placeholder: names[0], 'aria-label': names[0], title: names.join(', then ') + ' (Enter)' });
+  inp.style.left = Math.max(4, Math.min(V.w - 110, q[0] + 14)) + 'px'; inp.style.top = Math.max(4, Math.min(V.h - 30, q[1] + 12)) + 'px';
+  document.getElementById('stage').append(inp);
+  SK.sizeInput = inp;
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { typeClose(); return; }
+    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+    e.preventDefault();
+    const txt = inp.value.trim();
+    let v; try { v = evalExpr(txt, app.result ? app.result.vars : {}, 'len'); } catch (err) { toast('That value: ' + err.message, true); return; }
+    if (!(v > 0)) { toast('A size must be more than 0', true); return; }
+    vals.push([v, txt]);
+    if (vals.length < names.length) { inp.value = ''; inp.placeholder = names[vals.length]; inp.setAttribute('aria-label', names[vals.length]); return; }
+    typeClose(); typeMake(vals);
+  });
+  inp.focus(); inp.setSelectionRange(seed.length, seed.length);
+}
+function typeClose() { if (SK.sizeInput) { SK.sizeInput.remove(); SK.sizeInput = null; } }
+function typeMake(vals) {
+  const d = SK.draft, sn = SK.snap, t = SK.tool;
+  if (!d || !sn) return;
+  const p0 = d.pts[d.pts.length - 1], dx = sn.p[0] - p0[0], dy = sn.p[1] - p0[1], L = Math.hypot(dx, dy) || 1, sg = v => (v < 0 ? -1 : 1);
+  let p1;
+  if (t === 'line') p1 = [p0[0] + dx / L * vals[0][0], p0[1] + dy / L * vals[0][0]];
+  else if (t === 'mline') p1 = [p0[0] + dx / L * vals[0][0] / 2, p0[1] + dy / L * vals[0][0] / 2];
+  else if (t === 'circle') p1 = [p0[0] + vals[0][0] / 2, p0[1]];
+  else { const k = t === 'crect' ? 0.5 : 1; p1 = [p0[0] + sg(dx) * vals[0][0] * k, p0[1] + sg(dy) * vals[1][0] * k]; }
+  // the shape made as a click there would make it (what the pointer inferred of its direction kept), then dimensioned
+  const n0 = ents().length;
+  toolClick(0, 0, { p: p1, ref: null, hv: t === 'line' || t === 'mline' ? sn.hv : null });
+  if (ents().length === n0) return;
+  const ids = SK.last.splice(0);
+  ids.forEach((id, i) => { const e = entById(id), k = e && SHAPE_DIM[e.t]; if (k && vals[i]) S().f.dims.push({ id: sketchId('d'), t: k, r: [{ e: id }], v: vals[i][0], x: vals[i][1] }); });
+  resolve();
+}
 /* a line's length, a circle's diameter or an arc's radius: its dimension made (or the one it has opened), to type */
 const SHAPE_DIM = { line: 'len', circle: 'dia', arc: 'rad' };
 function dimShape(id, seed) {
@@ -479,6 +543,8 @@ export function sketchKey(e) {
   if (e.key === 'Escape') { if (SK.dimInput) dimInputClose(); else if (SK.draft) { SK.draft = null; drawOverlay(); } else if (SK.tool !== 'select') setTool('select'); else { SK.sel = []; drawOverlay(); } return true; }
   if (e.key === 'Delete' || e.key === 'Backspace') { deleteSel(); return true; }
   if (e.key === 'Enter' && !SK.dimInput) { finishSketch(); return true; }
+  // a number typed while a line, circle or rectangle is being drawn: its size, there and then
+  if (/^[0-9.]$/.test(e.key) && !SK.dimInput && SK.draft && SK.snap && TYPED[SK.tool] && SK.draft.pts.length === TOOL_STEPS[SK.tool] - 1 && Math.hypot(SK.snap.p[0] - SK.draft.pts[SK.draft.pts.length - 1][0], SK.snap.p[1] - SK.draft.pts[SK.draft.pts.length - 1][1]) > pxToMm(3)) { typeSize(e.key); return true; }
   // a number typed straight after a line, circle or arc is drawn: its length, diameter or radius
   if (/^[0-9.]$/.test(e.key) && !SK.dimInput) { while (SK.last.length) { if (dimShape(SK.last.shift(), e.key)) return true; } }
   const keys = { l: 'line', r: 'rect', c: 'circle', a: 'arc3', t: 'tarc', s: 'select', d: 'dim', p: 'point', q: 'construct', m: 'trim', o: 'offset', u: 'use', g: 'polygon' };
@@ -901,7 +967,7 @@ function drawSketch(c, C) {
   c.setLineDash([]);
   const sn = SK.snap;
   // its size as it is drawn, by the pointer
-  if (dr.length && sn && SK.draft) {
+  if (dr.length && sn && SK.draft && !SK.sizeInput) {
     const p0 = SK.draft.pts[0], p1 = SK.draft.pts[1] || sn.p, t = SK.tool, mm = v => fmtNum(v, 2), far = Math.hypot(sn.p[0] - p0[0], sn.p[1] - p0[1]);
     const txt = t === 'line' ? mm(far) + ' mm' : t === 'mline' ? mm(2 * far) + ' mm' : t === 'circle3' && dr[0].t === 'circle' ? 'Ø' + mm(2 * dr[0].r) + ' mm' : t === 'rect' ? mm(Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'crect' ? mm(2 * Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(2 * Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'circle' ? 'Ø' + mm(2 * far) + ' mm' : t === 'polygon' ? 'R' + mm(far) + ' mm'
       : (t === 'arc3' || t === 'tarc') && dr[0].t === 'arc' ? 'R' + mm(dr[0].r) + ' mm' : t === 'slot' && SK.draft.pts.length > 1 ? mm(Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) + ' × ' + mm(2 * distToEnt({ t: 'line', a: p0, b: p1 }, sn.p)) + ' mm' : mm(far) + ' mm';
@@ -914,6 +980,10 @@ function drawSketch(c, C) {
   if (sn && SK.tool !== 'select') {
     const q = P(sn.p);
     c.fillStyle = C.sel; c.fillRect(q[0] - 3, q[1] - 3, 6, 6);
+    // what it is level with: a dashed line to that point
+    c.strokeStyle = C.sel; c.lineWidth = 1; c.setLineDash([3, 4]);
+    for (const a of sn.al || []) { const z = P(a.p); c.beginPath(); c.moveTo(z[0], z[1]); c.lineTo(q[0], q[1]); c.stroke(); }
+    c.setLineDash([]);
     if (sn.glyph) { c.fillStyle = C.glyphBg; c.fillRect(q[0] + 8, q[1] - 22, 14, 14); c.fillStyle = C.glyph; c.font = 'bold 10px system-ui, sans-serif'; c.fillText(sn.glyph, q[0] + 15, q[1] - 14.5); }
   }
   if (SK.dimPick) { const it = SK.dimPick, q = it.t === 'pt' ? P(hpt(E, it)) : SK.dimAt; c.strokeStyle = C.sel; c.lineWidth = 2; c.beginPath(); c.arc(q[0], q[1], 6, 0, 7); c.stroke(); }

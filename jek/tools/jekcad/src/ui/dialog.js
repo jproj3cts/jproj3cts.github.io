@@ -62,7 +62,9 @@ export function openFeature(type, opts) {
   app.editing = { f, at, isNew: true, field: null };
   showDialog();
   const first = (FEATURE_FORMS[type] || []).find(fd => fd[2] === 'sel' && (!fd[3].show || fd[3].show(f)));
-  if (first && !hasValue(f[first[0]])) activate(first[0]);
+  // (an extrude's or a revolve's regions stay ready to be clicked in the view, though they start chosen: one click takes
+  // a region out or puts one in)
+  if (first && (!hasValue(f[first[0]]) || first[0] === 'regions')) activate(first[0]);
   regenSoon(0);
 }
 export function editFeature(i) {
@@ -211,7 +213,7 @@ function selField(E, fd) {
   const on = E.field && E.field.key === key;
   const box = h('div', { class: 'cad-selbox' + (on ? ' on' : '') + (n ? '' : ' empty'), role: 'button', tabindex: '0', 'data-key': key, id: 'fs-' + key, 'aria-pressed': String(on),
     title: on ? 'Click ' + words[1] + ' in the view' + (kind === 'features' ? ' or the feature list' : '') : 'Click here, then ' + words[1] + ' in the view',
-    onclick: () => activate(key) }, what || (on ? 'Click ' + words[1] + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
+    onclick: () => activate(key) }, (what && on && kind === 'regions' ? what + ' · click a region in the view to add it or take it out' : what) || (on ? 'Click ' + words[1] + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
   const clear = n ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: e => { e.stopPropagation(); f[key] = Array.isArray(v) ? [] : null; if (key === 'regions') f.sketch = null; showDialog(); regenSoon(0); } }, '×') : null;
   return h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' }, box, clear));
 }

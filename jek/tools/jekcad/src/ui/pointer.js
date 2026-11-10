@@ -1,7 +1,7 @@
 import { app, emit, redo, toast, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
 import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
-import { closeDialog, editFeature, fieldPick, fieldWants, okDialog } from './dialog.js';
+import { closeDialog, editFeature, fieldPick, fieldWants, okDialog, openFeature } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
@@ -9,7 +9,7 @@ import { kernelAsk } from '../page/kernel.js';
    wheel zooms about the pointer. A left click picks: into the feature dialog's active field when one is open,
    else into the selection (Ctrl or Shift adds to it); a left drag from nothing selects by a box. In a sketch the
    left button belongs to the sketcher, and a right-click (no drag) ends what is being drawn. What a click would
-   pick is lit as the pointer moves over it. A double-click on a sketch's dimension shown on the model types it
+   pick is lit as the pointer moves over it. A double-click on a plane starts a sketch on it; on a sketch's dimension shown on the model types it
    again; on a face, it opens the feature that made the face.
    ========================================================================== */
 const MODEL_KINDS = { edges: 'any', faces: 'face', face: 'face', edge: 'edge', parts: 'part', plane: 'face' };
@@ -97,6 +97,10 @@ export function wirePointer() {
     if (app.editing) return;
     const md = modelDimAt(sx, sy);
     if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
+    // a plane (by its border, or anywhere in it once it is the one selected): a sketch started on it
+    const sel0 = app.sel.length === 1 && app.sel[0].kind === 'plane' ? app.sel[0] : null, pl = overlayPick(sx, sy, 'any'), inPl = sel0 && overlayPick(sx, sy, 'plane');
+    const plane = pl && pl.kind === 'plane' ? pl : inPl && inPl.kind === 'plane' && (inPl.std ? inPl.std === sel0.std : inPl.feature === sel0.feature) && !pickAt(sx, sy, 'face') ? inPl : null;
+    if (plane) { app.sel = []; emit('sel'); openFeature('sketch', { plane: plane.std ? { std: plane.std } : { feature: plane.feature } }); return; }
     const p = pickAt(sx, sy, 'face');
     if (!p) { fit(); return; }
     // the feature that made the face (its names begin with the feature's id), opened to edit

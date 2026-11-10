@@ -90,7 +90,7 @@ on('model', out => { // the section's slider spans the parts
 });
 // the hint line: what the mouse does
 const hint = document.getElementById('hint');
-on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw · Right-click or Esc ends a chain · Type a number after a line or circle to size it · D: dimension · Double-click a dimension to change it · Enter finishes' : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; sketchBar(); renderPanel(); });
+on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw, and type a size as you go (Enter) · Shift: nothing inferred · Right-click or Esc ends a chain · D: dimension · Double-click a dimension to change it' : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; sketchBar(); renderPanel(); });
 emit('sketch');
 bootModes(); themeMenu();
 cadIcons(document);

@@ -7,6 +7,10 @@ export const APP_VERSION = '0.3.0';
 export const NEWS = [
   { v: '0.3.0', date: '10 Nov 2026', items: [
     'The line, rectangle, circle and arc tools each have an arrow beside them listing their kinds. New among them: a <b>centre line</b> (a construction line), a <b>midpoint line</b> (its middle, then an end) and a <b>3-point circle</b>.',
+    '<b>Type sizes as you draw</b>: with a line, circle or rectangle under the pointer, type a number and press Enter. The line is that long the way the pointer goes; a rectangle takes its width, then its height. Each is dimensioned as it is made.',
+    'What is inferred is what the pointer shows: a line that comes to a circle nearly touching it is made <b>tangent</b> (T), and a point level with, or straight above, another is held so (a dashed line to it). The perpendicular that used to be added without a sign is gone. Hold <b>Shift</b> to draw with nothing inferred.',
+    '<b>Double-click a plane</b>, in the view or the list, to start a sketch on it.',
+    '<b>Extrude and Revolve</b> open with their regions ready to click: click a region in the view to take it out or put it in.',
     'A sketch point locks onto the <b>middle of a straight edge</b> of the model and the <b>centre of a round one</b>, as it does onto the model’s corners and edges.',
   ] },
   { v: '0.2.0', date: '10 Nov 2026', items: [

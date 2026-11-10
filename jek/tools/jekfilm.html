@@ -2771,6 +2771,91 @@ const dsSci = v => { const [m, e] = v.toExponential(2).split('e'); return m + '�
 const dsFix = (v, dp) => (!isFinite(v) ? '—' : v === 0 || Math.abs(v) >= Math.pow(10, 1 - dp) ? v.toFixed(dp) : dsSci(v));
 /* the file's text */
 const filmText = f => JSON.stringify(normFilm(f), null, 2);
+/* ==========================================================================
+   Beyond the thicknesses: the optimiser that adds layers (needle optimisation) and the one that chooses each layer's
+   material. Both work on the dielectric layers only (a metal stays as it is), on the merit core/coatdesign.js judges
+   by, and end with the thicknesses settled by its Nelder–Mead. Each yields between steps (onStep), so the page stays
+   drawn while they run, and stops when told (stop()).
+   ========================================================================== */
+const sameLayers = L => L.map(x => ({ n: x.n, d: x.d, ...(x.metal ? { metal: x.metal } : {}) }));
+const tick = () => new Promise(r => setTimeout(r, 0));
+/* the dielectric indices a needle may be made of: those in the stack, or a low and a high pair if it has fewer than two */
+function needleMaterials(layers) {
+  const ns = [...new Set(layers.filter(L => !L.metal).map(L => +L.n))];
+  return ns.length >= 2 ? ns : [...new Set(ns.concat([1.46, 2.10]))];
+}
+/* Needle optimisation: at each round, a thin layer (2 nm) of each material is tried at every place in the stack (at
+   each layer's boundary and inside each dielectric layer, splitting it in three), the one that lowers the merit most is
+   put in, the thicknesses are optimised, and layers thinner than 1 nm are taken out (their neighbours joined where they
+   are the same material). It ends when no needle helps, at maxLayers, or after rounds. */
+async function filmNeedle(layers, spec, opts = {}) {
+  const mats = opts.materials || needleMaterials(layers), maxLayers = opts.maxLayers || Math.max(layers.length + 10, 12), rounds = opts.rounds || 8;
+  const merit = L => coatMerit(L, spec, 25, spec.theta > (spec.theta0 || 0) ? 3 : 1);
+  let cur = sameLayers(layers), fCur = merit(cur);
+  const before = fCur;
+  let added = 0;
+  for (let r = 0; r < rounds && cur.length + 1 <= maxLayers; r++) {
+    if (opts.stop && opts.stop()) break;
+    let best = null;
+    for (let i = 0; i <= cur.length; i++) {
+      // at the boundary before layer i (i = cur.length: next to the substrate), and in the middle of layer i
+      const places = [{ at: i, split: false }];
+      if (i < cur.length && !cur[i].metal && cur[i].d > 6 && cur.length + 2 <= maxLayers) places.push({ at: i, split: true });
+      for (const pl of places) for (const n of mats) {
+        if (!pl.split && ((cur[pl.at - 1] && !cur[pl.at - 1].metal && cur[pl.at - 1].n === n) || (cur[pl.at] && !cur[pl.at].metal && cur[pl.at].n === n))) continue;
+        if (pl.split && cur[pl.at].n === n) continue;
+        const L = cur.slice(), needle = { n, d: 2 };
+        if (pl.split) { const h = cur[pl.at]; L.splice(pl.at, 1, { n: h.n, d: h.d / 2 }, needle, { n: h.n, d: h.d / 2 }); }
+        else L.splice(pl.at, 0, needle);
+        const f = merit(L);
+        if (f < fCur && (!best || f < best.f)) best = { f, L };
+      }
+    }
+    if (!best) break;
+    const o = coatOptimise(best.L, spec, { rounds: 2 });
+    let L = o.layers;
+    // the layers grown too thin to make are taken out, and same-material neighbours joined
+    L = L.filter(x => x.metal || x.d >= 1);
+    for (let k = L.length - 1; k > 0; k--) if (!L[k].metal && !L[k - 1].metal && L[k].n === L[k - 1].n) { L[k - 1] = { n: L[k].n, d: L[k - 1].d + L[k].d }; L.splice(k, 1); }
+    const f = merit(L);
+    if (!(f < fCur * 0.999)) break;
+    added += L.length - cur.length; cur = L; fCur = f;
+    if (opts.onStep) opts.onStep({ round: r + 1, merit: fCur, layers: cur.length });
+    await tick();
+  }
+  return { layers: cur, before, after: fCur, added };
+}
+/* The materials chosen: each dielectric layer tried as each material of the list, keeping its optical thickness (so a
+   quarter wave stays a quarter wave), the change that lowers the merit most kept, layer by layer, for a few passes;
+   then the thicknesses optimised. */
+async function filmMaterials(layers, spec, opts = {}) {
+  const mats = opts.materials || COAT_MATERIALS.map(m => +m[0]), passes = opts.passes || 3;
+  const merit = L => coatMerit(L, spec, 25, spec.theta > (spec.theta0 || 0) ? 3 : 1);
+  let cur = sameLayers(layers), fCur = merit(cur);
+  const before = fCur;
+  let changed = 0;
+  for (let pass = 0; pass < passes; pass++) {
+    let any = false;
+    for (let i = 0; i < cur.length; i++) {
+      if (opts.stop && opts.stop()) break;
+      if (cur[i].metal) continue;
+      let best = null;
+      for (const n of mats) {
+        if (n === cur[i].n) continue;
+        const L = cur.slice(); L[i] = { n, d: cur[i].d * cur[i].n / n };
+        const o = coatOptimise(L, spec, { rounds: 1, maxIt: 40 * L.length, nW: 15 });
+        const f = merit(o.layers);
+        if (f < fCur * 0.995 && (!best || f < best.f)) best = { f, L: o.layers };
+      }
+      if (best) { cur = best.L; fCur = best.f; changed++; any = true; if (opts.onStep) opts.onStep({ pass: pass + 1, layer: i + 1, merit: fCur }); }
+      await tick();
+    }
+    if (!any) break;
+  }
+  const o = coatOptimise(cur, spec);
+  if (o.after < fCur) { cur = o.layers; fCur = o.after; }
+  return { layers: cur, before, after: fCur, changed };
+}
 /* ---------- Usage counts ----------
    How the tool is used, so it can be made better: which parts are added, which designers and analyses are
    opened, what is exported, and the tool's own errors. Only counts leave the page: an event from a fixed list
@@ -4167,12 +4252,37 @@ function layersCard(spec) {
   const pre = dsSelect([['', 'Preset…'], ...FILM_PRESETS], '', v => { if (v) edit(f => { f.layers = filmPreset(v, f.spec.design); }); }, 'A preset stack');
   const opt = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmOptimise', title: 'Nelder–Mead on the thicknesses, from where they stand, against the target over the band and the angles' }, 'Optimise thicknesses'), 'optimise a coating');
   opt.addEventListener('click', () => optimiseNow());
+  const needle = proMark(h('button', { class: 'rt-btn', type: 'button', id: 'filmNeedle', title: 'Needle optimisation: thin layers tried at every place in the stack, the best put in and the thicknesses settled, round by round' }, 'Add layers (needle)'), 'optimise a coating');
+  needle.addEventListener('click', () => { searchNow('needle'); });
+  const mats = proMark(h('button', { class: 'rt-btn', type: 'button', id: 'filmMaterials', title: 'Each layer tried as each material of the list, keeping its optical thickness; the best kept, then the thicknesses settled' }, 'Choose materials'), 'optimise a coating');
+  mats.addEventListener('click', () => { searchNow('materials'); });
   return section('Layers',
     h('div', { class: 'film-twrap' }, tbl),
-    h('div', { class: 'film-tools' }, opt,
+    h('div', { class: 'film-tools' }, opt, needle, mats,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
+}
+/* the searches beyond the thicknesses, JEKrayPro's as the optimiser is: adding layers (needle) or choosing materials;
+   while one runs the buttons wait, and its result is one step of Undo */
+let filmSearching = false;
+async function searchNow(kind) {
+  if (filmSearching) return null;
+  if (!film.layers.some(L => !L.metal)) { toast('Add a dielectric layer first: there is nothing to search', true); return null; }
+  if (!designPro('optimise a coating')) return null;
+  filmSearching = true;
+  const btns = ['filmOptimise', 'filmNeedle', 'filmMaterials'].map(id => document.getElementById(id)).filter(Boolean);
+  for (const b of btns) b.disabled = true;
+  try {
+    const spec = filmSpec(film);
+    const o = kind === 'needle' ? await filmNeedle(film.layers, spec, { onStep: s => toast('Needle: ' + s.layers + ' layers, merit ' + dsFix(s.merit, 3)) })
+      : await filmMaterials(film.layers, spec, { onStep: s => toast('Materials: layer ' + s.layer + ' changed, merit ' + dsFix(s.merit, 3)) });
+    if (o.after < o.before) edit(f => { f.layers = o.layers; });
+    track('optimise', 'film-' + kind);
+    toast(o.after < o.before ? 'Merit ' + dsFix(o.before, 3) + ' to ' + dsFix(o.after, 3) + (kind === 'needle' ? ', ' + o.layers.length + ' layers' : ', ' + o.changed + (o.changed === 1 ? ' layer' : ' layers') + ' of another material')
+      : kind === 'needle' ? 'No layer added helps: this stack is as good as a needle can make it' : 'No other material helps: these are the best of the list', o.after >= o.before);
+    return o;
+  } finally { filmSearching = false; for (const b of btns) b.disabled = false; render(); }
 }
 /* the optimiser, JEKrayPro's: the thicknesses searched from where they stand */
 function optimiseNow() {

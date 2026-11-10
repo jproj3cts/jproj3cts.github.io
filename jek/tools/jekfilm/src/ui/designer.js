@@ -7,6 +7,7 @@ import { METAL_NAMES, metalCovers, metalNK } from '../../../jekray/src/core/meta
 import { coatAngles, coatCurve, coatMerit, coatOptimise, coatWant, stackR } from '../../../jekray/src/core/coatdesign.js';
 import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
 import { linePlotSvg } from './plot.js';
+import { filmMaterials, filmNeedle } from '../core/film-opt.js';
 import { toast } from './bar.js';
 
 /* ==========================================================================
@@ -175,12 +176,37 @@ function layersCard(spec) {
   const pre = dsSelect([['', 'Preset…'], ...FILM_PRESETS], '', v => { if (v) edit(f => { f.layers = filmPreset(v, f.spec.design); }); }, 'A preset stack');
   const opt = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmOptimise', title: 'Nelder–Mead on the thicknesses, from where they stand, against the target over the band and the angles' }, 'Optimise thicknesses'), 'optimise a coating');
   opt.addEventListener('click', () => optimiseNow());
+  const needle = proMark(h('button', { class: 'rt-btn', type: 'button', id: 'filmNeedle', title: 'Needle optimisation: thin layers tried at every place in the stack, the best put in and the thicknesses settled, round by round' }, 'Add layers (needle)'), 'optimise a coating');
+  needle.addEventListener('click', () => { searchNow('needle'); });
+  const mats = proMark(h('button', { class: 'rt-btn', type: 'button', id: 'filmMaterials', title: 'Each layer tried as each material of the list, keeping its optical thickness; the best kept, then the thicknesses settled' }, 'Choose materials'), 'optimise a coating');
+  mats.addEventListener('click', () => { searchNow('materials'); });
   return section('Layers',
     h('div', { class: 'film-twrap' }, tbl),
-    h('div', { class: 'film-tools' }, opt,
+    h('div', { class: 'film-tools' }, opt, needle, mats,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
+}
+/* the searches beyond the thicknesses, JEKrayPro's as the optimiser is: adding layers (needle) or choosing materials;
+   while one runs the buttons wait, and its result is one step of Undo */
+let filmSearching = false;
+export async function searchNow(kind) {
+  if (filmSearching) return null;
+  if (!film.layers.some(L => !L.metal)) { toast('Add a dielectric layer first: there is nothing to search', true); return null; }
+  if (!designPro('optimise a coating')) return null;
+  filmSearching = true;
+  const btns = ['filmOptimise', 'filmNeedle', 'filmMaterials'].map(id => document.getElementById(id)).filter(Boolean);
+  for (const b of btns) b.disabled = true;
+  try {
+    const spec = filmSpec(film);
+    const o = kind === 'needle' ? await filmNeedle(film.layers, spec, { onStep: s => toast('Needle: ' + s.layers + ' layers, merit ' + dsFix(s.merit, 3)) })
+      : await filmMaterials(film.layers, spec, { onStep: s => toast('Materials: layer ' + s.layer + ' changed, merit ' + dsFix(s.merit, 3)) });
+    if (o.after < o.before) edit(f => { f.layers = o.layers; });
+    track('optimise', 'film-' + kind);
+    toast(o.after < o.before ? 'Merit ' + dsFix(o.before, 3) + ' to ' + dsFix(o.after, 3) + (kind === 'needle' ? ', ' + o.layers.length + ' layers' : ', ' + o.changed + (o.changed === 1 ? ' layer' : ' layers') + ' of another material')
+      : kind === 'needle' ? 'No layer added helps: this stack is as good as a needle can make it' : 'No other material helps: these are the best of the list', o.after >= o.before);
+    return o;
+  } finally { filmSearching = false; for (const b of btns) b.disabled = false; render(); }
 }
 /* the optimiser, JEKrayPro's: the thicknesses searched from where they stand */
 export function optimiseNow() {

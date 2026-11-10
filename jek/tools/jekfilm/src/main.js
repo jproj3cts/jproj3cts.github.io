@@ -7,6 +7,7 @@ import './../../jekray/src/core/coatings.js';
 import './../../jekray/src/core/coatdesign.js';
 import './../../jekray/src/core/src-tag.js';
 import './core/film.js';
+import './core/film-opt.js';
 import './../../jekray/src/io/usage.js';
 import './../../jekray/src/ui/dom.js';
 import './../../jekray/src/ui/pro.js';

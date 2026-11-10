@@ -32,6 +32,10 @@ The table lists the stack from the incident medium down to the substrate: each l
 
 **Optimise thicknesses** searches the thicknesses from where they stand (Nelder–Mead, with restarts), keeping each layer's material. Choose the materials and a starting stack, then let the thicknesses settle. Undo (Ctrl+Z) takes it back.
 
+**Add layers (needle)** grows the stack where it helps. At each round a 2 nm layer of each material is tried at every place in the stack (between layers, and inside each layer, splitting it), the one that lowers the merit most is put in, the thicknesses are settled, and any layer thinner than 1 nm is taken out (its neighbours joined if they are the same material). It stops when no layer helps, or at ten layers more than it started with. Its materials are those already in the stack, or SiO2 and Ta2O5 if it has fewer than two.
+
+**Choose materials** tries each layer as each material of the list, keeping its optical thickness so a quarter wave stays one, and keeps the change that helps most, layer by layer, for up to three passes; then the thicknesses are settled. Both leave a metal layer as it is, and both are one step of Undo.
+
 ## Files and the cloud
 
 The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKsuite shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.

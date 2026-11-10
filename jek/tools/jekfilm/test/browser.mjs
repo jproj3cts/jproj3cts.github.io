@@ -26,6 +26,10 @@ export async function check(pw, base, shots) {
       await p.click('#filmOptimise'); await p.waitForTimeout(200);
       const opt = await p.evaluate(() => ({ toast: document.getElementById('filmToast').textContent, d: window.JEKfilm.film().layers.map(L => L.d) }));
       await p.click('#btnUndo'); await p.waitForTimeout(100);
+      await p.click('#filmNeedle'); await p.waitForFunction(() => !document.getElementById('filmNeedle').disabled, null, { timeout: 15000 }).catch(() => {});
+      const nd = await p.evaluate(() => ({ n: window.JEKfilm.film().layers.length, toast: document.getElementById('filmToast').textContent }));
+      ok('Add layers (needle): layers put in where they help, or said that none does', nd.n >= 3 && /^Merit .* layers$|^No layer added helps/.test(nd.toast), JSON.stringify(nd));
+      if (nd.n > 3) { await p.click('#btnUndo'); await p.waitForTimeout(100); }
       const undone = await p.evaluate(() => window.JEKfilm.film().layers.map(L => L.d));
       ok('A preset, then Optimise thicknesses: the merit falls; Undo puts the thicknesses back', before === 3 && /^Merit .* to .* in \d+ tries$/.test(opt.toast) && JSON.stringify(opt.d) !== JSON.stringify(undone) && undone.length === 3, JSON.stringify([opt, undone]));
       await p.selectOption('select[aria-label="What the coating is for"]', 'edge');

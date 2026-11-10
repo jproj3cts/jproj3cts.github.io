@@ -7,6 +7,7 @@
   "../../jekray/src/core/coatdesign.js",
   "../../jekray/src/core/src-tag.js",
   "core/film.js",
+  "core/film-opt.js",
   "../../jekray/src/io/usage.js",
   "../../jekray/src/ui/dom.js",
   "../../jekray/src/ui/pro.js",

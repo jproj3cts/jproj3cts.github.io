@@ -100,3 +100,18 @@ test('a metal layer: kept by the file and by a JEKray face; the protected-silver
   const R = stackR(f.layers, 1, F.filmSpec(f).ns, 1, 633, 'avg');
   assert.ok(R > 0.95 && R < 0.99, 'protected silver at 633 nm: ' + R.toFixed(4));
 });
+
+test('needle optimisation adds layers where they help, and material choice finds better materials', async () => {
+  const O = await import('../../src/core/film-opt.js');
+  const f = F.normFilm({ spec: { target: 'ar', lo: 400, hi: 800, design: 550 }, layers: F.filmPreset('vcoat', 550) });
+  const a = await O.filmNeedle(f.layers, F.filmSpec(f));
+  assert.ok(a.after < a.before / 3 && a.layers.length > 2, 'a V-coat over 400–800 nm: ' + a.before + ' to ' + a.after + ', ' + a.layers.length + ' layers');
+  assert.ok(a.layers.every(L => L.d >= 1), 'no layer thinner than 1 nm');
+  assert.ok(a.layers.every((L, i) => i === 0 || L.n !== a.layers[i - 1].n), 'no two neighbours of one material');
+  assert.deepEqual(O.needleMaterials([{ n: 1.38, d: 1 }]), [1.38, 1.46, 2.1]);
+  const g = F.normFilm({ spec: { target: 'ar', lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.46, d: 94 }, { n: 1.46, d: 65 }, { n: 1.46, d: 84 }] });
+  const b = await O.filmMaterials(g.layers, F.filmSpec(g));
+  assert.ok(b.after < b.before / 10 && b.changed >= 1, 'three SiO2 layers: ' + b.before + ' to ' + b.after);
+  const m = await O.filmNeedle([{ n: 1.46, d: 200 }, { n: 1, d: 150, metal: 'Ag' }], F.filmSpec(F.normFilm({ spec: { target: 'hr', lo: 600, hi: 700, design: 650 } })));
+  assert.ok(m.layers.some(L => L.metal === 'Ag'), 'a metal layer stays');
+});

@@ -1988,7 +1988,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
@@ -2143,7 +2143,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
-          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" data-need="account" data-what="save the bench as a file" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <a class="rt-btn rt-icon rt-cartbtn quiet rt-tbi" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart"><span class="rt-cartcount" id="cartCount" hidden>0</span></a>
           <div class="rt-more rt-phonegone" id="acct" hidden>
@@ -48104,6 +48104,7 @@ function markUnsaved(on) {
   if (d) d.hidden = !on;
 }
 function saveFile() {
+  if (!accountGate('save the bench as a file')) return;
   const name = safeFileName(project.name) + '.jekray';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);
@@ -54432,13 +54433,13 @@ function shareSignIn(saveInstead) {
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
-/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
+/* an export, or the .jekray file, asked for signed out: what is needed and the ways in */
 function exportSignIn(what) {
   track('prompt', 'export.shown');
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
-    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. The bench is kept in this browser meanwhile.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -54493,9 +54494,9 @@ function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
-    freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
-  close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
+    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it.'),
+    freeLead('Create a free account to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+  () => []);
 }
 /* ---------- A free account offered in a note ----------
    The first-visit welcome note (where 'welcome') offers a free account, one click each way, to anyone signed out: a
@@ -54549,7 +54550,6 @@ function workNudge() {
       h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
       h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
       h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
       h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
   track('prompt', 'work.shown');
   document.getElementById('stage').append(card);
@@ -54561,7 +54561,7 @@ function workSignedIn() {
   if (!account) return;                               // cancelled, or it failed: nothing more
   if (cloud) return;                                  // already a cloud bench, saving as it goes
   if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
-  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
+  setTimeout(() => toast('Signed in: saving the file, exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */
@@ -54576,8 +54576,8 @@ function sharedCopyPrompt() {
       h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.pro'); close(); showSubscribe(); } }, 'JEKrayPro and licences\u2026'), no, file(true))]
     : [freeLead('Create a free account or sign in.', cloudLine), uniNote(),
       h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('shared', close)),
-      h('p', { class: 'note' }, 'Or keep it on this computer as a .jekray file.'),
-      h('div', { class: 'rt-actions' }, no, file(false))]));
+      h('p', { class: 'note' }, 'A free account also saves it on this computer as a .jekray file.'),
+      h('div', { class: 'rt-actions' }, no)]));
   dlg.showModal();
 }
 
@@ -54644,6 +54644,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Saving a bench as a .jekray file needs a free account</b> (Save, Ctrl+S). Without one a bench is still kept in this browser as you work.',
     'The Bench panel\u2019s list of parts reads as JEKcad\u2019s feature list: one line a part, its kind small beside it, under a heading for each kind (free space, fibre, circuits, objects, drawings) with its count; the parts selected are marked, and the eye shows on hover (or while the part is hidden in 3D).',
     'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
     '<b>Mates, and parts moved together, in 3D</b>: <b>Mate</b> on the 3D view\u2019s bar holds two parts together. Click a face of the part that stays (a flat face, a round one such as a hole, a shaft or a lens\u2019s rim, or close to a straight edge), then one of the part to move, and choose how they meet: <b>Coincident</b> (flush, facing each other), <b>Concentric</b> (on one axis), <b>Parallel</b>, a <b>Distance</b> apart or at an <b>Angle</b>, with Flip. The second part, with its group, moves to meet the first, and from then on the two move and turn together until the mate is deleted; each part\u2019s panel lists its mates, to change a distance, an angle or Flip, or delete one. Undo takes any of it back, and mates are saved with the bench. In 3D, <b>drag across empty space</b> to select a boxful (Shift-click adds a part); the arrows and rings of several selected move them as one and turn them about their middle, and their panel moves and turns them by numbers typed. <b>Group</b> and <b>Ungroup</b> are on the bar too.',

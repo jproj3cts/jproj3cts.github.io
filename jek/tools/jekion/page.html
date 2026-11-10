@@ -32,7 +32,7 @@
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekion file…</button>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekion<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKsuite (it opens in its own tab)">My benches on JEKsuite…</button>
@@ -105,7 +105,7 @@
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu">Tools</button>
           <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
-            <button type="button" role="menuitem" id="btnFly" data-icon="play" title="Solve the fields if they have changed, then fly every ion group (Space)">Fly the ions<span class="k">Space</span></button>
+            <button type="button" role="menuitem" id="btnFly" data-icon="play" data-need="account" data-what="fly the ions" title="Solve the fields if they have changed, then fly every ion group (Space)">Fly the ions<span class="k">Space</span></button>
             <button type="button" role="menuitem" id="btnStop" data-icon="pause">Stop</button>
             <button type="button" role="menuitemcheckbox" id="btnAuto" aria-checked="true" data-icon="check" title="Solve and fly again after every change; off, press Fly">Fly after every change</button>
             <div class="sep"></div>
@@ -145,7 +145,7 @@
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
-          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" data-need="account" data-what="save the bench as a file" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <div class="rt-more rt-phonegone" id="acct" hidden>
             <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>

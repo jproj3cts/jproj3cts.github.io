@@ -19,6 +19,7 @@ import { V3D } from './view3d.js';
 import { stopSweepsFor, updateSweepButtons } from './optimise.js';
 import { renderPanel, syncPanel } from './panel.js';
 import { h } from './dom.js';
+import { accountGate } from './pro.js';
 import { checkpoint, redoWords, switchTab, undoWords } from './tabs.js';
 import { openProjectData, parseProjectText } from '../io/open.js';
 import { saveToMine } from './myparts.js';
@@ -509,6 +510,7 @@ export function markUnsaved(on) {
   if (d) d.hidden = !on;
 }
 export function saveFile() {
+  if (!accountGate('save the bench as a file')) return;
   const name = safeFileName(project.name) + '.jekray';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);

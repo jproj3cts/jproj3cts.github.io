@@ -200,20 +200,23 @@ const EXPORTS = [['io/layout.js', 'exportLayout', 'export the layout'], ['io/lay
   ['io/cad-export.js', 'exportCad', 'export for CAD'], ['io/zmx-export.js', 'exportZmx', 'export an element'],
   ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view'], ['io/packs.js', 'makePack', 'make a part pack'],
   ['io/packs.js', 'packSave', 'make a part pack'], ['io/packs.js', 'packSignFile', 'make a part pack'],
-  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data'], ['io/figure.js', 'exportFigure', 'export a figure']];
-// downloads that are not exports of images or data: the bench's .jekray file, and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
+  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data'], ['io/figure.js', 'exportFigure', 'export a figure'],
+  // the bench's own .jekray file too (Save, Ctrl+S, every note's Save)
+  ['ui/actions.js', 'saveFile', 'save the bench as a file']];
+// downloads that are not exports of images or data: the scripts window's (JEKrayPro's already: a script's own code, a run's table);
 // the designers' reports, whose every call is behind designPro (checked above)
-const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
+const NOT_EXPORTS = new Set(['ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
 const srcFiles = (d, at = '') => readdirSync(d).flatMap(f => statSync(join(d, f)).isDirectory() ? srcFiles(join(d, f), at + f + '/') : f.endsWith('.js') ? [at + f] : []);
 
-test('each export asks for an account before it does anything, and saving the bench as a .jekray file does not', () => {
+test('each export, and saving the bench as a .jekray file, asks for an account before it does anything', () => {
   for (const [file, name, reason] of EXPORTS) assertGated(file, name, reason, ACCT);
   // a design's .zmx is still JEKrayPro's: after the account, the plan
   const zx = assertGated('io/zmx-export.js', 'exportZmx', 'export a design');
   assert.ok(zx.before.some(s => hasGate(s, 'export an element', ACCT)), 'exportZmx asks for an account first');
-  // the .jekray file (Save, Save as a file, the prompts' file) and the download itself are gated by neither
-  for (const [file, name] of [['ui/actions.js', 'saveFile'], ['ui/actions.js', 'downloadFile']])
-    assert.ok(!hasGate(fnOf(file, name), undefined, [...GATES, ...ACCT, 'acctWhy']), file + ': ' + name + ' is not gated');
+  // the download itself is gated by neither: each thing that downloads asks first
+  assert.ok(!hasGate(fnOf('ui/actions.js', 'downloadFile'), undefined, [...GATES, ...ACCT, 'acctWhy']), 'ui/actions.js: downloadFile is not gated');
+  // the file needs the account alone, not JEKrayPro
+  assert.ok(!hasGate(fnOf('ui/actions.js', 'saveFile'), undefined, GATES), 'saving the .jekray file does not ask for JEKrayPro');
   // the gate is the account's alone: it asks nothing of JEKrayPro's
   const ids = new Set();
   walk.full(fnOf('ui/pro.js', 'accountGate'), n => { if (n.type === 'Identifier') ids.add(n.name); });

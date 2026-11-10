@@ -48,13 +48,13 @@ export function shareSignIn(saveInstead) {
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
-/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
+/* an export, or the .jekray file, asked for signed out: what is needed and the ways in */
 export function exportSignIn(what) {
   track('prompt', 'export.shown');
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
-    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. The bench is kept in this browser meanwhile.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -109,9 +109,9 @@ export function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
-    freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
-  close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
+    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it.'),
+    freeLead('Create a free account to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+  () => []);
 }
 /* ---------- A free account offered in a note ----------
    The first-visit welcome note (where 'welcome') offers a free account, one click each way, to anyone signed out: a
@@ -165,7 +165,6 @@ export function workNudge() {
       h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
       h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
       h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
       h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
   track('prompt', 'work.shown');
   document.getElementById('stage').append(card);
@@ -177,7 +176,7 @@ function workSignedIn() {
   if (!account) return;                               // cancelled, or it failed: nothing more
   if (cloud) return;                                  // already a cloud bench, saving as it goes
   if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
-  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
+  setTimeout(() => toast('Signed in: saving the file, exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */
@@ -192,8 +191,8 @@ export function sharedCopyPrompt() {
       h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.pro'); close(); showSubscribe(); } }, 'JEKrayPro and licences\u2026'), no, file(true))]
     : [freeLead('Create a free account or sign in.', cloudLine), uniNote(),
       h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('shared', close)),
-      h('p', { class: 'note' }, 'Or keep it on this computer as a .jekray file.'),
-      h('div', { class: 'rt-actions' }, no, file(false))]));
+      h('p', { class: 'note' }, 'A free account also saves it on this computer as a .jekray file.'),
+      h('div', { class: 'rt-actions' }, no)]));
   dlg.showModal();
 }
 

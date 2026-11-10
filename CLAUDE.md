@@ -114,15 +114,15 @@ through `core/hooks.js`.
   tolerancing, reports, drawings, design export, share links/QR, scripts, My parts, and data export as XLSX/NPZ/MAT,
   several kinds at once or Export everything (`exportData`/`exportEverything` in `io/data-export.js`: `accountGate`
   first, then `designPro`; `DATA_PRO`). Exports (layout, 3D PNG, plots' PNG/CSV, screen CSV, data as CSV or JSON one
-  kind at a time, .zmx, CAD) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
+  kind at a time, .zmx, CAD) and saving the .jekray file (`saveFile`) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
   and shows the sign-in prompt (`exportSignIn` in `io/nudges.js`, counted as `export.*`); only someone signed out for
-  sure is stopped (account unknown or API down: allowed). Saving the .jekray file is never gated. Badges: `proMark` /
+  sure is stopped (account unknown or API down: allowed). JEKion's .jekion file is the same, and its ions fly only
+  for someone signed in (`flyBar` in `jekion/src/ui/sim.js`: the fields are still solved and drawn). Badges: `proMark` /
   `acctMark` (or `data-need="pro|account" data-what` in `page.html`) give the Pro / Free account chip, redone live by
   `needsShown()` from `cloudGates`; menu items greyed by `gateItem` take the same chips. `test/node/pro-gate.test.mjs`
   checks from the syntax tree that each gated function opens with its gate, that every `downloadFile`/`download:` is
   behind one (`accountGate`, `designPro`/`designWhy`, or the scripts' `scriptsWhy`; or in its short list of
-  non-exports), the data export's split, and that a script's files are made only after a run, never on Stop, and that
-  the .jekray save is not. Experimental features need only
+  non-exports), the data export's split, and that a script's files are made only after a run, never on Stop. Experimental features need only
   a signed-in account (`setExpGate` in `io/cloud.js`). None of it applies in TEST_MODE or without accounts.
   Node scripting (`headless.mjs`, `cli.mjs`) is never gated: it runs from the public source, where a check could just
   be deleted. Anything it gains that touches the cloud (benches, parts, links) goes through the API, whose own account

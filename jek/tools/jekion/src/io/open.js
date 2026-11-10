@@ -7,6 +7,7 @@ import { checkpoint, demoProject, loadProject, serialize } from '../state/elemen
 import { changed, downloadFile, markUnsaved, safeFileName, setStatus, toast, updateUndoButtons } from '../ui/actions.js';
 import { fitView } from '../ui/render.js';
 import { importCad } from './step.js';
+import { accountGate } from '../../../jekray/src/ui/pro.js';
 
 /* ==========================================================================
    Files: saving and opening .jekion files, the autosave in this browser, a new bench, the examples, and what to
@@ -27,6 +28,7 @@ export function restoreSaved() {
   return null;
 }
 export function saveFile() {
+  if (!accountGate('save the bench as a file')) return;
   const name = safeFileName(project.name) + '.jekion';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/json' }));
   toast('Saved ' + name); markUnsaved(false); goal('save');

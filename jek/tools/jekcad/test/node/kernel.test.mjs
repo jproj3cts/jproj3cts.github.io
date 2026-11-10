@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { kernel, rectSketch, circleSketch, pointsSketch, newDoc, newFeature, okAll, errorsOf } from './helpers.mjs';
+import { slotEnts, regionsOf, defaultRegionPts } from '../../src/core/sketch-tools.js';
 
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, (what || '') + ' ' + a + ' is not ' + b);
 /* a 40 × 20 block, 10 high, on the Top plane from the origin */
@@ -221,7 +222,7 @@ test('revolve, sweep and loft; boolean of parts', async () => {
   near(vol(out), Math.PI * 4 * 30, 1e-4, 'swept rod');
   // two blocks, one subtracted from the other
   const d4 = block(20, 20, 10), sb = rectSketch(d4, 10, 10, { std: 'top' }, [15, 5]);
-  d4.features.push(sb, newFeature(d4, 'extrude', { sketch: sb.id, regions: [[20, 10]], depth: '10' }));
+  d4.features.push(sb, newFeature(d4, 'extrude', { sketch: sb.id, regions: [[20, 10]], depth: '10', op: 'new' }));
   out = K.regen(d4);
   assert.equal(out.parts.length, 2);
   d4.features.push(newFeature(d4, 'boolean', { op: 'subtract', targets: [out.parts[0].id], tools: [out.parts[1].id] }));
@@ -254,4 +255,126 @@ test('STEP out and back in; STL out; measure of a part’s mass', async () => {
   const two = K.measure([faceNear(out, [20, 10, 10], K), faceNear(out, [20, 10, 0], K)], doc);
   near(two.distance, 10, 1e-9, 'top to bottom');
   near(two.angle, 0, 1e-6, 'parallel faces');
+});
+
+test('a sketch held to an edge of the model follows the edge: a hole 10 from the block’s end moves when the block grows, and its cut with it', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  let out = K.regen(doc);
+  // the block's far end, on its top face (x 40, z 10): Use brings it into a sketch on that face, with the edge's ref
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0], F = { o: [0, 0, 10], x: [1, 0, 0], y: [0, 1, 0], n: [0, 0, 1] };
+  const [line] = K.project([edgeNear(out, [40, 10, 10])], F);
+  assert.equal(line.t, 'line');
+  assert.ok(line.src && line.src.kind === 'edge' && line.src.faces.length === 2, 'the projected edge carries its ref');
+  Object.assign(line, { id: 'lref', ref: true, k: true });
+  const hole = { id: 'chole', t: 'circle', c: [30, 10], r: 3 };
+  const sk = newFeature(doc, 'sketch', { plane: top, ents: [line, hole],
+    cons: [{ id: 'cf1', t: 'fix', r: [{ e: 'lref', k: 'a' }], at: line.a.slice() }, { id: 'cf2', t: 'fix', r: [{ e: 'lref', k: 'b' }], at: line.b.slice() }],
+    dims: [{ id: 'd1', t: 'dia', r: [{ e: 'chole' }], v: 6, x: '6' }, { id: 'd2', t: 'pl', r: [{ e: 'chole', k: 'c' }, { e: 'lref' }], v: 10, x: '10', s: line.a[1] < line.b[1] ? 1 : -1 }] });
+  doc.features.push(sk);
+  doc.features.push(newFeature(doc, 'extrude', { sketch: sk.id, regions: [[30, 10]], op: 'remove', depth: '10' }));
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  near(vol(out), 8000 - Math.PI * 9 * 10, 0.5, 'the block with its hole');
+  // the block made 60 long: the edge is at x 60 now, the hole 10 from it at x 50, the cut still there
+  doc.features[0].dims[0].x = '60';
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  const rep = out.features.find(f => f.id === sk.id);
+  assert.ok(rep.info.ents, 'the sketch that moved is sent back, for the document to take up');
+  const c = rep.info.ents.find(e => e.id === 'chole').c;
+  near(c[0], 50, 1e-5, 'the hole’s centre');
+  near(vol(out), 12000 - Math.PI * 9 * 10, 0.5, 'the longer block with its hole');
+});
+
+test('a sketch point held to a corner of the model follows the corner; a revolved solid sends no seam as an edge', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  let out = K.regen(doc);
+  // the corner at (40, 20, 10), by the page's pick of it, as a ref with the faces that meet there
+  const part = out.parts[0];
+  let vi = -1; for (let i = 0; i < part.verts.length / 3; i++) if (Math.hypot(part.verts[3 * i] - 40, part.verts[3 * i + 1] - 20, part.verts[3 * i + 2] - 10) < 1e-6) vi = i;
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0], vr = K.refs([{ part: part.id, kind: 'vertex', index: vi }])[0];
+  assert.equal(vr.faces.length, 3, 'three faces meet at a block’s corner');
+  const sk = newFeature(doc, 'sketch', { plane: top, ents: [{ id: 'pref', t: 'point', c: [40, 20], ref: true, k: true, src: vr }, { id: 'ch', t: 'circle', c: [35, 15], r: 2 }],
+    cons: [{ id: 'cf', t: 'fix', r: [{ e: 'pref', k: 'c' }], at: [40, 20] }],
+    dims: [{ id: 'd1', t: 'dia', r: [{ e: 'ch' }], v: 4, x: '4' }, { id: 'd2', t: 'dist', r: [{ e: 'ch', k: 'c' }, { e: 'pref', k: 'c' }], v: 5, x: '5', dir: 'h', s: 1 }, { id: 'd3', t: 'dist', r: [{ e: 'ch', k: 'c' }, { e: 'pref', k: 'c' }], v: 5, x: '5', dir: 'v', s: 1 }] });
+  doc.features.push(sk);
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  doc.features[0].dims[0].x = '70'; doc.features[0].dims[1].x = '30';
+  out = K.regen(doc);
+  const ents = out.features.find(f => f.id === sk.id).info.ents;
+  assert.deepEqual(ents.find(e => e.id === 'pref').c.map(v => +v.toFixed(6)), [70, 30]);
+  assert.deepEqual(ents.find(e => e.id === 'ch').c.map(v => +v.toFixed(5)), [65, 25]);
+  // a cylinder: its two round edges, and no seam along it
+  const d2 = newDoc(), cs = circleSketch(d2, [0, 0], 5);
+  d2.features.push(cs, newFeature(d2, 'extrude', { sketch: cs.id, regions: [[0, 0]], depth: '10' }));
+  const o2 = K.regen(d2), p2 = o2.parts[0];
+  let drawn = 0; for (let j = 0; j < p2.edgeGroups.length / 2; j++) if (p2.edgeGroups[2 * j + 1] > 0) drawn++;
+  assert.equal(drawn, 2, 'only the two circles are edges to see');
+});
+
+test('extrude: a new one adds to the part it meets (a new part where it meets none); a depth below 0 goes the other way', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  assert.equal(newFeature(doc, 'extrude').op, 'add');
+  // a boss on the top face, 5 up: one part, the block and the boss
+  const top = K.refs([faceNear(K.regen(doc), [20, 10, 10], K)])[0], sk = circleSketch(doc, [20, 10], 4, top);
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: [[20, 10]], depth: '5' }));
+  let out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  assert.equal(out.parts.length, 1);
+  near(vol(out), 8000 + Math.PI * 16 * 5, 0.5, 'the block with its boss');
+  near(out.parts[0].bbox[1][2], 15, 1e-6, 'the boss stands 5 above the block');
+  // −5: the other way, into the block, where adding changes nothing
+  doc.features[3].depth = '-5';
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  near(vol(out), 8000, 0.5, 'the boss turned into the block');
+  // a first extrude of −10 hangs below its plane
+  const d2 = newDoc(), s2 = rectSketch(d2, 10, 10);
+  d2.features.push(s2, newFeature(d2, 'extrude', { sketch: s2.id, regions: [[1, 1]], depth: '-10' }));
+  const o2 = K.regen(d2);
+  assert.ok(okAll(o2), errorsOf(o2).join('; '));
+  near(o2.parts[0].bbox[0][2], -10, 1e-6); near(o2.parts[0].bbox[1][2], 0, 1e-6); near(vol(o2), 1000, 1e-3);
+});
+
+test('three slots laid end on end by eye (their ends a hair apart), round holes at the ends: nine regions, any of them cut, and the five of the U cut as one', async () => {
+  const K = await kernel(), doc = block(100, 80, 10);
+  let out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  const v0 = vol(out), top = K.refs([faceNear(out, [50, 40, 10], K)])[0], O = [50, 40], at = q => [q[0] + O[0], q[1] + O[1]];
+  // across the top, then down each side: each drawn onto the last one's end, not quite on it
+  const ents = [...slotEnts(at([-32, 27.5]), at([32, 27.5]), 5).ents, ...slotEnts(at([-32.0000005, 27.5016]), at([-32.0000003, -27.496]), 5).ents, ...slotEnts(at([32.0000002, 27.4985]), at([32, -27.4972]), 5).ents,
+    ...[[-32, 27.5], [32, 27.5], [-32, -27.5], [32, -27.5]].map((c, i) => ({ id: 'hole' + i, t: 'circle', c: at(c), r: 1.65 }))];
+  const R = regionsOf(ents), big = R.filter(r => r.area > 50);
+  assert.equal(R.length, 9, 'the two corners, the three bars between them and the four holes: ' + R.map(r => r.area.toFixed(2)).join());
+  assert.equal(defaultRegionPts(ents).length, 5, 'the U, its holes left out');
+  const sk = newFeature(doc, 'sketch', { plane: top, ents });
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: [], op: 'remove', depth: '5' }));
+  for (const r of big) {
+    doc.features[3].regions = [r.pt];
+    out = K.regen(doc);
+    assert.ok(okAll(out), errorsOf(out).join('; '));
+    near(v0 - vol(out), r.area * 5, 0.02 * r.area * 5 + 0.5, 'the region of ' + r.area.toFixed(1) + ' mm², cut 5 deep:');
+  }
+  for (const pick of [[0, 1], [1, 2], big.map((r, i) => i)]) {
+    doc.features[3].regions = pick.map(i => big[i].pt);
+    out = K.regen(doc);
+    assert.ok(okAll(out), errorsOf(out).join('; '));
+    assert.equal(out.parts.length, 1);
+    const want = pick.reduce((t, i) => t + big[i].area * 5, 0);
+    near(v0 - vol(out), want, 0.01 * want + 0.5, 'regions ' + pick.join() + ' cut together:');
+  }
+});
+
+test('a fillet’s faces are named after the edges they round, the same whatever order the edges come in', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  let out = K.regen(doc);
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0];
+  doc.features.push(newFeature(doc, 'fillet', { edges: [top], radius: '2' }));
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  const names = out.parts[0].faceNames.filter(n => n.startsWith(doc.features[2].id + '.r'));
+  assert.equal(names.length, 4);
+  assert.equal(new Set(names).size, 4, 'four fillet faces, four names');
+  assert.ok(names.every(n => !/\.r\d$/.test(n)), 'none named by its place in a list: ' + names.join());
 });

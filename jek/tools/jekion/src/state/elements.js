@@ -40,6 +40,7 @@ export function normProject(d) {
     show: { pot: POT_SHOWS[d.show && d.show.pot] ? d.show.pot : 'map', contours: Math.max(2, Math.min(200, Math.round(num(d.show && d.show.contours, 24)))), traj: !(d.show && d.show.traj === false), colourBy: COLOUR_BYS[d.show && d.show.colourBy] ? d.show.colourBy : 'group', grid: !(d.show && d.show.grid === false), efield: !!(d.show && d.show.efield) },
     point: Array.isArray(d.point) && d.point.length === 3 && d.point.every(v => typeof v === 'number' && isFinite(v)) ? d.point.slice() : null,
     species: { mass: Math.max(1e-6, num(d.species && d.species.mass, 40)), charge: num(d.species && d.species.charge, 1) || 1, name: str(d.species && d.species.name, 'Ca+', 12) },
+    trapAxes: d.trapAxes === 'xyz' ? 'xyz' : 'principal',    // the trap analysis along the trap's own axes, or along x, y and z
     notes: str(d.notes, '', 4000),
   };
   // ids unique
@@ -53,7 +54,7 @@ export function serialize() {
   const P = project, strip = e => { const o = Object.assign({}, e); delete o.meshT; return o; };
   return { format: ION_FORMAT, version: ION_VERSION, name: P.name, view: Object.assign({}, P.view), grid: JSON.parse(JSON.stringify(P.grid)),
     electrodes: P.electrodes.map(strip), ions: P.ions.map(e => Object.assign({}, e)), detectors: P.detectors.map(e => Object.assign({}, e)),
-    gas: Object.assign({}, P.gas), bfield: Object.assign({}, P.bfield), fly: Object.assign({}, P.fly), show: Object.assign({}, P.show), point: P.point ? P.point.slice() : null, species: Object.assign({}, P.species), notes: P.notes };
+    gas: Object.assign({}, P.gas), bfield: Object.assign({}, P.bfield), fly: Object.assign({}, P.fly), show: Object.assign({}, P.show), point: P.point ? P.point.slice() : null, species: Object.assign({}, P.species), trapAxes: P.trapAxes, notes: P.notes };
 }
 export function loadProject(d) {
   setProject(normProject(d));

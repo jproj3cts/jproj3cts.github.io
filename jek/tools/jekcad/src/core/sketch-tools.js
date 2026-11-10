@@ -22,6 +22,10 @@ export function normEnts(ents) {
     else n.c = pt2(e.c, [0, 0]);
     if (e.k) n.k = true;            // construction
     if (e.ref) n.ref = true;        // projected from the model (Use)
+    // the model edge it came from (the kernel's ref for it), so it can follow the edge when the model changes
+    const sr = e.ref && e.src;
+    if (sr && sr.kind === 'edge' && typeof sr.part === 'string' && sr.part.length < 80 && Array.isArray(sr.faces) && sr.faces.length >= 1 && sr.faces.length <= 2 && sr.faces.every(x => typeof x === 'string' && x.length < 120) && Array.isArray(sr.pt) && sr.pt.length === 3 && sr.pt.every(Number.isFinite)) n.src = { kind: 'edge', part: sr.part, faces: sr.faces.slice(), pt: sr.pt.slice() };
+    else if (sr && sr.kind === 'vertex' && e.t === 'point' && typeof sr.part === 'string' && sr.part.length < 80 && Array.isArray(sr.faces) && sr.faces.length >= 1 && sr.faces.length <= 6 && sr.faces.every(x => typeof x === 'string' && x.length < 120) && Array.isArray(sr.pt) && sr.pt.length === 3 && sr.pt.every(Number.isFinite)) n.src = { kind: 'vertex', part: sr.part, faces: sr.faces.slice(), pt: sr.pt.slice() };
     out.push(n);
   }
   return out;
@@ -38,12 +42,140 @@ export function entOutline(e, step) {
   for (let i = 0; i <= (circ ? n - 1 : n); i++) { const a = (a0 + sw * i / n) * DEG; out.push([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)]); }
   return out;
 }
-/* the regions a feature can use: the plane cut by every shape that is not construction */
-export const regionsOf = ents => sketchRegions(ents.filter(e => !e.k && e.t !== 'point'), e => entOutline(e, 3));
+/* a sketch's shapes with what is all but the same made the same: ends and centres within a few thousandths of a
+   millimetre of each other set to one place, and circles and arcs about one centre with all but the same radius
+   given one radius. Shapes drawn over each other by eye (one slot's end on another's) are a hair apart, and that
+   hair cuts the plane into slivers that are no use as regions and that the kernel cannot make faces of. */
+export const WELD = 0.005;
+export function weldEnts(ents, tol = WELD) {
+  const out = ents.map(e => Object.assign({}, e, e.a ? { a: e.a.slice(), b: e.b.slice() } : {}, e.c ? { c: e.c.slice() } : {})), reps = [];
+  const snap = p => { for (const q of reps) if (Math.hypot(p[0] - q[0], p[1] - q[1]) <= tol) return q.slice(); reps.push(p.slice()); return p; };
+  // centres first, so an end that is all but on a centre goes to it
+  for (const e of out) if (e.c) e.c = snap(e.c);
+  for (const e of out) if (e.a) { e.a = snap(e.a); e.b = snap(e.b); }
+  const round = out.filter(e => e.t === 'arc' || e.t === 'circle');
+  // an arc's ends turned onto the place its neighbours' ends were set to
+  // (and an end all but on another arc's end is drawn to that end: w0, w1, where its outline starts and stops)
+  const arcEnds = [];
+  for (const e of out) if (e.t === 'arc') for (const k of ['a0', 'a1']) {
+    const an = e[k] * Math.PI / 180, p = [e.c[0] + e.r * Math.cos(an), e.c[1] + e.r * Math.sin(an)], q = reps.find(z => Math.hypot(p[0] - z[0], p[1] - z[1]) <= tol && Math.hypot(z[0] - e.c[0], z[1] - e.c[1]) > tol);
+    if (q) { e[k] = Math.atan2(q[1] - e.c[1], q[0] - e.c[0]) * 180 / Math.PI; continue; }
+    const o = arcEnds.find(z => Math.hypot(p[0] - z[0], p[1] - z[1]) <= tol);
+    if (o) { if (Math.hypot(p[0] - o[0], p[1] - o[1]) > 1e-12) e[k === 'a0' ? 'w0' : 'w1'] = o; } else arcEnds.push(p);
+  }
+  for (let i = 0; i < round.length; i++) for (let j = 0; j < i; j++) if (round[i].c[0] === round[j].c[0] && round[i].c[1] === round[j].c[1] && Math.abs(round[i].r - round[j].r) <= tol) { round[i].r = round[j].r; break; }
+  // and a line's end that is all but on a circle or an arc set onto it (where the arc's own end was just turned to)
+  for (const e of out) if (e.t === 'line') for (const k of ['a', 'b']) for (const c of round) { const d = Math.hypot(e[k][0] - c.c[0], e[k][1] - c.c[1]); if (d > tol && Math.abs(d - c.r) <= tol) { e[k] = [c.c[0] + (e[k][0] - c.c[0]) / d * c.r, c.c[1] + (e[k][1] - c.c[1]) / d * c.r]; break; } }
+  return unionEnts(out, tol);
+}
+/* shapes that lie along each other made one: arcs on one circle that overlap or meet become the arc that covers them
+   (a circle, if they go right round, or if one of them is a circle), and lines along one line that overlap become
+   one line. Two curves laid one on the other are one boundary, and a face cannot be made with both. */
+function unionEnts(ents, tol) {
+  const out = [], done = new Set();
+  ents.forEach((e, i) => {
+    if (done.has(i)) return;
+    if (e.t === 'arc' || e.t === 'circle') {
+      const same = ents.map((o, j) => j).filter(j => !done.has(j) && (ents[j].t === 'arc' || ents[j].t === 'circle') && ents[j].c[0] === e.c[0] && ents[j].c[1] === e.c[1] && ents[j].r === e.r);
+      for (const j of same) done.add(j);
+      if (same.length === 1) { out.push(e); return; }
+      // the circle cut at every arc's end, and each piece that some arc (or a circle) covers kept once: the pieces
+      // meet end to end where the arcs did, so what was drawn to an arc's end still meets an end
+      const eps = Math.max(1e-7, tol / e.r * 180 / Math.PI), m360 = v => ((v % 360) + 360) % 360, whole = same.some(j => ents[j].t === 'circle');
+      const arcs = same.filter(j => ents[j].t === 'arc').map(j => [m360(ents[j].a0), arcSweep(ents[j])]);
+      const cuts = [];
+      for (const [a0, sw] of arcs) for (const v of [a0, m360(a0 + sw)]) if (!cuts.some(c => Math.abs(c - v) <= eps || Math.abs(Math.abs(c - v) - 360) <= eps)) cuts.push(v);
+      if (!cuts.length) { out.push(Object.assign({}, e, { t: 'circle' })); return; }
+      cuts.sort((p, q) => p - q);
+      const covered = v => whole || arcs.some(([a0, sw]) => m360(v - a0) <= sw);
+      let k = 0;
+      cuts.forEach((c0, i) => { const c1 = i + 1 < cuts.length ? cuts[i + 1] : cuts[0] + 360; if (c1 - c0 > eps && covered(m360((c0 + c1) / 2))) { out.push({ id: k ? e.id + '~' + k : e.id, t: 'arc', c: e.c, r: e.r, a0: c0, a1: c1 }); k++; } });
+      return;
+    }
+    if (e.t !== 'line') { done.add(i); out.push(e); return; }
+    const d = [e.b[0] - e.a[0], e.b[1] - e.a[1]], L = Math.hypot(d[0], d[1]);
+    if (L < 1e-12) { done.add(i); return; }
+    const u = [d[0] / L, d[1] / L], along = p => (p[0] - e.a[0]) * u[0] + (p[1] - e.a[1]) * u[1], off = p => Math.abs((p[0] - e.a[0]) * u[1] - (p[1] - e.a[1]) * u[0]);
+    const same = ents.map((o, j) => j).filter(j => !done.has(j) && ents[j].t === 'line' && off(ents[j].a) <= tol && off(ents[j].b) <= tol);
+    for (const j of same) done.add(j);
+    const spans = same.map(j => [along(ents[j].a), along(ents[j].b)].sort((p, q) => p - q)).sort((p, q) => p[0] - q[0]), U = [];
+    for (const sp of spans) { const M = U[U.length - 1]; if (M && sp[0] < M[1] - tol) M[1] = Math.max(M[1], sp[1]); else U.push(sp.slice()); }
+    U.forEach((sp, k) => out.push(spans.length === 1 ? e : { id: k ? e.id + '~' + k : e.id, t: 'line', a: [e.a[0] + u[0] * sp[0], e.a[1] + u[1] * sp[0]], b: [e.a[0] + u[0] * sp[1], e.a[1] + u[1] * sp[1]] }));
+  });
+  return out;
+}
+/* the regions a feature can use: the plane cut by every shape that is not construction (slivers left out: the thin
+   scraps between two curves that all but coincide, or between the straight steps two arcs on one circle are drawn in) */
+/* a circle's or an arc's outline for finding regions: its steps, and a corner besides wherever another shape crosses
+   it or only just touches it. Where a line or a circle touches it (or misses, or overlaps, by a hair) the corner is
+   put on the line, or midway between the two circles, so both outlines pass through the one point and the regions
+   either side of the touch are two regions, as they are in truth, not one joined through a gap too thin to see. */
+function roundOutline(e, all, tol) {
+  const circ = e.t === 'circle', sw = circ ? 360 : arcSweep(e), a0 = circ ? 0 : e.a0, m360 = v => ((v % 360) + 360) % 360;
+  const at = [];                                          // [degrees round from a0, the point (null: on the circle)]
+  const add = (p, q) => { const d = m360(Math.atan2(p[1] - e.c[1], p[0] - e.c[0]) * 180 / Math.PI - a0); if (d <= sw + 1e-9) at.push([Math.min(d, sw), q || null]); };
+  for (const o of all) {
+    if (o === e || o.t === 'point') continue;
+    if (o.t === 'line') {
+      const d = lineDir(o), L2 = d[0] * d[0] + d[1] * d[1] || 1e-12, t = ((e.c[0] - o.a[0]) * d[0] + (e.c[1] - o.a[1]) * d[1]) / L2, F = [o.a[0] + d[0] * t, o.a[1] + d[1] * t], dist = Math.hypot(F[0] - e.c[0], F[1] - e.c[1]);
+      if (t > -1e-9 && t < 1 + 1e-9 && Math.abs(dist - e.r) <= tol && dist > tol) { add(F, F); continue; }
+    } else if (o.c) {
+      const dx = o.c[0] - e.c[0], dy = o.c[1] - e.c[1], D = Math.hypot(dx, dy);
+      if (D > tol && (Math.abs(D - (e.r + o.r)) <= tol || Math.abs(D - Math.abs(e.r - o.r)) <= tol)) {
+        // touching: outside each other, or one inside the other; the point between the two circles' own points
+        const u = [dx / D, dy / D], inside = D < Math.max(e.r, o.r), sE = !inside || e.r > o.r ? 1 : -1, sO = !inside ? -1 : o.r > e.r ? 1 : -1;
+        const pE = [e.c[0] + u[0] * e.r * sE, e.c[1] + u[1] * e.r * sE], pO = [o.c[0] + u[0] * o.r * sO, o.c[1] + u[1] * o.r * sO], M = [(pE[0] + pO[0]) / 2, (pE[1] + pO[1]) / 2];
+        if (distToEnt(o, pO) < 1e-6) { add(M, M); continue; }
+      }
+    }
+    for (const p of entCross(e, o)) add(p);
+  }
+  const n = Math.max(circ ? 24 : 2, Math.ceil(sw / 3));
+  for (let i = 0; i <= n; i++) if (!circ || i < n) at.push([sw * i / n, i === 0 && e.w0 ? e.w0.slice() : i === n && e.w1 ? e.w1.slice() : null]);
+  at.sort((p, q) => p[0] - q[0] || (p[1] ? -1 : 1));
+  const out = [];
+  for (const [d, q] of at) {
+    const prev = out[out.length - 1], an = (a0 + d) * Math.PI / 180, p = q || [e.c[0] + e.r * Math.cos(an), e.c[1] + e.r * Math.sin(an)];
+    // a step that all but repeats the corner before it gives way to that corner
+    if (prev && Math.abs(d - prev.d) < 1e-6) { if (q && !prev.q) { p.d = d; p.q = true; out[out.length - 1] = p; } continue; }
+    p.d = d; p.q = !!q; out.push(p);
+  }
+  if (circ && out.length > 1 && Math.abs(out[out.length - 1].d - 360) < 1e-6) out.pop();
+  return out;
+}
+export function regionsOf(ents) {
+  const W = weldEnts(ents.filter(e => !e.k && e.t !== 'point'));
+  return sketchRegions(W, e => (e.t === 'circle' || e.t === 'arc' ? roundOutline(e, W, WELD) : entOutline(e, 3))).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
+}
 /* the regions an extrude takes by default: those not inside another (a ring's hole stays a hole), by their points */
 export function defaultRegionPts(ents) {
   const R = regionsOf(ents);
   return R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0).map(r => r.pt.map(v => +v.toFixed(6)));
+}
+/* a point of a sketch as it was, carried to the sketch as it is now: it keeps its place beside the shape it was
+   nearest to (along a line and off it; round a circle and out from its centre), so a region's point follows the
+   region when its shapes move */
+export function carryPt(was, now, q) {
+  let best = null, bd = Infinity;
+  for (const e of was) { if (e.t === 'point' || e.k) continue; const d = distToEnt(e, q); if (d < bd) { bd = d; best = e; } }
+  const n = best && now.find(x => x.id === best.id && x.t === best.t);
+  if (!n) return q;
+  if (best.t === 'line') {
+    const d = lineDir(best), L = Math.hypot(d[0], d[1]) || 1e-12, u = ((q[0] - best.a[0]) * d[0] + (q[1] - best.a[1]) * d[1]) / (L * L), v = ((q[0] - best.a[0]) * -d[1] + (q[1] - best.a[1]) * d[0]) / L;
+    const d2 = lineDir(n), L2 = Math.hypot(d2[0], d2[1]) || 1e-12;
+    return [n.a[0] + d2[0] * u - d2[1] / L2 * v, n.a[1] + d2[1] * u + d2[0] / L2 * v];
+  }
+  const a = Math.atan2(q[1] - best.c[1], q[0] - best.c[0]), rho = Math.hypot(q[0] - best.c[0], q[1] - best.c[1]) / (best.r || 1e-12);
+  return [n.c[0] + rho * n.r * Math.cos(a), n.c[1] + rho * n.r * Math.sin(a)];
+}
+/* every feature's chosen regions of a sketch that changed, carried to it as it is now (where the carried point is
+   in a region; else left as they were) */
+export function carryRegions(doc, id, was, now) {
+  const R = regionsOf(now), carry = pts => (pts || []).map(q => { const c = carryPt(was, now, q); return regionAt(R, c) ? c.map(v => +v.toFixed(6)) : q; });
+  for (const f of doc.features) {
+    if (f.sketch === id && Array.isArray(f.regions)) f.regions = carry(f.regions);
+    for (const s of f.sections || []) if (s.sketch === id) s.regions = carry(s.regions);
+  }
 }
 /* the region a point is in (the smallest that holds it) */
 export function regionAt(R, q) {
@@ -156,8 +288,19 @@ export function filletCorner(sk, q, r, tol) {
   sk.ents.push(arc);
   // the corner's coincident and anything else on that point go; the arc's ends meet the lines, tangent there, its radius dimensioned
   const atCorner = x => (x.e === A.e.id && x.k === A.k) || (x.e === B.e.id && x.k === B.k);
-  sk.cons = sk.cons.filter(c => !c.r.some(atCorner));
-  sk.dims = sk.dims.filter(dd => !dd.r.some(atCorner));
+  // what else held or measured the corner (a polygon's circle, a dimension to it) holds a construction point left
+  // where the corner was, on both lines; the lines are shorter now, so "equal" and their lengths no longer apply
+  const other = x => x.r.some(atCorner) && !(x.t === 'coincident' && x.r.every(atCorner));
+  if (sk.cons.some(other) || sk.dims.some(other)) {
+    const V = { id: sketchId('p'), t: 'point', c: P.slice(), k: true }, to = x => (atCorner(x) ? { e: V.id, k: 'c' } : x);
+    sk.ents.push(V);
+    sk.cons = sk.cons.filter(c => !(c.t === 'coincident' && c.r.every(atCorner))).map(c => (c.r.some(atCorner) ? Object.assign({}, c, { r: c.r.map(to) }) : c));
+    sk.dims = sk.dims.map(dd => (dd.r.some(atCorner) ? Object.assign({}, dd, { r: dd.r.map(to) }) : dd));
+    sk.cons.push({ id: sketchId('c'), t: 'oncurve', r: [{ e: V.id, k: 'c' }, { e: A.e.id }] }, { id: sketchId('c'), t: 'oncurve', r: [{ e: V.id, k: 'c' }, { e: B.e.id }] });
+  } else sk.cons = sk.cons.filter(c => !c.r.some(atCorner));
+  const whole = x => x.r.some(y => !y.k && (y.e === A.e.id || y.e === B.e.id));
+  sk.cons = sk.cons.filter(c => !(c.t === 'equal' && whole(c)));
+  sk.dims = sk.dims.filter(dd => !(dd.t === 'len' && whole(dd)));
   sk.cons.push({ id: sketchId('c'), t: 'coincident', r: [{ e: arc.id, k: 'p0' }, { e: first.e.id, k: first.k }] }, { id: sketchId('c'), t: 'coincident', r: [{ e: arc.id, k: 'p1' }, { e: second.e.id, k: second.k }] },
     { id: sketchId('c'), t: 'tangent', r: [{ e: first.e.id }, { e: arc.id }], at: 'p0' }, { id: sketchId('c'), t: 'tangent', r: [{ e: second.e.id }, { e: arc.id }], at: 'p1' });
   sk.dims.push({ id: sketchId('d'), t: 'rad', r: [{ e: arc.id }], v: r, x: String(+r.toFixed(6)) });

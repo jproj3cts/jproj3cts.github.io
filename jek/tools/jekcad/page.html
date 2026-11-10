@@ -58,6 +58,8 @@
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Zoom to fit<span class="k">F</span></button>
             <button type="button" role="menuitem" id="btnNormal" data-icon="plane">Normal to the selection<span class="k">N</span></button>
+            <button type="button" role="menuitem" data-click="btnFly" data-icon="fly">Fly through the model</button>
+            <button type="button" role="menuitem" data-click="sideTab" data-icon="panel">Show or hide the feature list</button>
             <button type="button" role="menuitem" data-view="iso" data-icon="cube">Isometric<span class="k">7</span></button>
             <button type="button" role="menuitem" data-view="top" data-icon="cube">Top<span class="k">5</span></button>
             <button type="button" role="menuitem" data-view="front" data-icon="cube">Front<span class="k">1</span></button>
@@ -70,6 +72,7 @@
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnSection" aria-checked="false" data-icon="section">Section view</button>
             <button type="button" role="menuitem" id="btnPlanes" data-icon="plane">Show or hide the planes</button>
+            <button type="button" role="menuitemcheckbox" id="btnDimsShown" aria-checked="true" data-icon="dim">Sketch dimensions on the model</button>
             <div class="sep"></div>
             <button type="button" role="menuitemradio" data-theme="dark" data-icon="check">Dark</button>
             <button type="button" role="menuitemradio" data-theme="light" data-icon="check">Light</button>
@@ -97,12 +100,13 @@
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnRedo" type="button" data-icon="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled></button>
           <span class="rt-qsep" aria-hidden="true"></span>
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Zoom to fit (F)" aria-label="Zoom to fit"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnFly" type="button" data-icon="fly" title="Fly through the model, full screen: W A S D and the mouse, Esc to land" aria-label="Fly"></button>
         </div>
         <div class="rt-more rt-file">
           <input class="rt-name" id="docName" type="text" aria-label="Part Studio name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <button class="rt-btn" id="btnSave" title="Save the Part Studio as a .jekcad file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekcad</span></button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" title="Save the Part Studio as a .jekcad file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekcad</span></button>
           <div class="rt-more" id="acct" hidden>
             <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -135,13 +139,14 @@
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
-    <div class="cad-main">
-      <aside class="cad-side" aria-label="Feature list and parts">
+    <div class="cad-main" id="cadMain">
+      <aside class="cad-side" id="side" aria-label="Feature list and parts">
         <h2 class="cad-shead">Features</h2>
         <ul class="cad-flist" id="featureList"></ul>
         <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
         <ul class="cad-plist" id="partsList"></ul>
       </aside>
+      <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">
         <canvas id="view" aria-hidden="true"></canvas>
         <canvas id="over" tabindex="0" aria-label="The model: click to select faces, edges and vertices; right-drag to orbit"></canvas>
@@ -152,6 +157,7 @@
         <div class="cad-busy" id="busy" hidden>Regenerating…</div>
         <p class="cad-note" id="viewNote" hidden></p>
         <div class="cad-hint" id="hint"></div>
+        <div class="rt-flyhint" id="flyHint" role="status" hidden></div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
     </div>
@@ -166,10 +172,10 @@
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Mouse and keys</h2>
-    <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd></dl>
-    <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Ctrl or Shift and click</dt><dd>add to the selection</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
-    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
-    <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>S or Esc</dt><dd>select; Esc again ends a line chain</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
+    <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd><dt>Fly (the bird in the bar)</dt><dd>W A S D and the mouse, full screen; Esc lands</dd></dl>
+    <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Click again</dt><dd>each click adds to the selection; a click on what is chosen takes it out, a click on nothing empties it</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
+    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a sketch</dt><dd>edit it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
+    <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>A number typed while drawing a line, circle or rectangle</dt><dd>its length, diameter, or width then height (Enter)</dd><dt>A number typed after a line, circle or arc</dt><dd>its length, diameter or radius</dd><dt>Shift held while drawing</dt><dd>nothing is inferred</dd><dt>Double-click a line, circle or arc</dt><dd>dimension it; double-click a dimension to change it</dd><dt>Right-click, or Esc</dt><dd>end a chain of lines</dd><dt>S</dt><dd>select</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
 

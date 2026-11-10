@@ -95,7 +95,7 @@ export async function trapNow() {
   if (!project) return null;
   const G = project.grid, p = project.point || [(G.x0 + G.x1) / 2, G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0];
   try {
-    const T = await iwRequest('trap', projData(), { point: p, species: project.species }, 'trap');
+    const T = await iwRequest('trap', projData(), { point: p, species: project.species, axes: project.trapAxes }, 'trap');
     if (T) { SIM.trap = T; hooks.ionResults(); }
     return T;
   } catch (err) { console.warn('JEKion trap:', err); return null; }

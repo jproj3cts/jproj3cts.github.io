@@ -20,7 +20,7 @@ const SEL_WORDS = { regions: ['region', 'regions'], edges: ['edge or face', 'edg
 export const FEATURE_FORMS = {
   plane: [['ref', 'Plane or face', 'sel', { pick: 'plane' }], ['offset', 'Offset', 'expr', { unit: 'len' }], ['flip', 'Opposite direction', 'check']],
   extrude: [['op', '', 'seg', { options: OPS }], ['regions', 'Faces and sketch regions to extrude', 'sel', { pick: 'regions' }], ['end', 'End', 'select', { options: ENDS }],
-    ['depth', 'Depth', 'expr', { unit: 'len', show: f => f.end === 'blind' || f.end === 'symmetric' }], ['upto', 'Up to face', 'sel', { pick: 'face', show: f => f.end === 'upto' }], ['flip', 'Opposite direction', 'check', { show: f => f.end !== 'symmetric' }],
+    ['depth', 'Depth (below 0: the other way)', 'expr', { unit: 'len', show: f => f.end === 'blind' || f.end === 'symmetric' }], ['upto', 'Up to face', 'sel', { pick: 'face', show: f => f.end === 'upto' }], ['flip', 'Opposite direction', 'check', { show: f => f.end === 'through' || f.end === 'upto' }],
     ['draft', 'Draft angle', 'expr', { unit: 'ang' }], ['second', 'Second end position', 'check', { show: f => f.end !== 'symmetric' }],
     ['end2', 'Second end', 'select', { options: ENDS.filter(e => e[0] !== 'symmetric'), show: f => f.second && f.end !== 'symmetric' }], ['depth2', 'Second depth', 'expr', { unit: 'len', show: f => f.second && f.end !== 'symmetric' && f.end2 === 'blind' }],
     ['upto2', 'Second: up to face', 'sel', { pick: 'face', show: f => f.second && f.end2 === 'upto' }], ['targets', 'Parts to change (none: all it meets)', 'sel', { pick: 'parts', show: f => f.op !== 'new' }]],
@@ -50,9 +50,9 @@ export function openFeature(type, opts) {
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   const at = appliedCount(app.doc), f = newFeature(app.doc, type);
+  const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');     // before prefill empties the selection
   prefill(f, at);
   if (type === 'sketch') {
-    const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');
     if (planeSel) { refFor(planeSel).then(r => { if (!r) { toast('Choose a plane or a flat face to sketch on', true); return; } f.plane = r; startSketch(f, at, true); }); return; }
     if (opts && opts.plane) { f.plane = opts.plane; startSketch(f, at, true); return; }
     // ask for the plane first
@@ -62,7 +62,9 @@ export function openFeature(type, opts) {
   app.editing = { f, at, isNew: true, field: null };
   showDialog();
   const first = (FEATURE_FORMS[type] || []).find(fd => fd[2] === 'sel' && (!fd[3].show || fd[3].show(f)));
-  if (first && !hasValue(f[first[0]])) activate(first[0]);
+  // (an extrude's or a revolve's regions stay ready to be clicked in the view, though they start chosen: one click takes
+  // a region out or puts one in)
+  if (first && (!hasValue(f[first[0]]) || first[0] === 'regions')) activate(first[0]);
   regenSoon(0);
 }
 export function editFeature(i) {
@@ -72,6 +74,8 @@ export function editFeature(i) {
   if (app.editing) closeDialog(false);
   if (f.type === 'sketch') { startSketch(f, i, false); return; }
   app.editing = { f: JSON.parse(JSON.stringify(f)), at: i, isNew: false, field: null };
+  // an extrude to a depth, ticked Opposite direction (from before a depth could be below 0): the same as a negative depth
+  { const g = app.editing.f; if (g.type === 'extrude' && g.flip && (g.end === 'blind' || g.end === 'symmetric')) { g.flip = false; if (g.end === 'blind') g.depth = /^\s*-/.test(g.depth) ? g.depth.replace(/^\s*-\s*/, '') : '-(' + g.depth + ')'; } }
   showDialog();
   regenSoon(0);
 }
@@ -87,6 +91,16 @@ function prefill(f, at) {
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
     if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents); }
   }
+  // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
+  // sweep's profile the last with a region, its path the last without one)
+  if ((f.type === 'loft' && !f.sections.length) || (f.type === 'sweep' && !f.sketch)) {
+    const used = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
+    const free = app.doc.features.slice(0, at).filter(x => x.type === 'sketch' && !x.suppressed && !used.has(x.id)), closed = free.filter(x => regionsCached(x).length), open = free.filter(x => !regionsCached(x).length && x.ents.some(e => !e.k && e.t !== 'point'));
+    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: defaultRegionPts(x.ents) }));
+    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = defaultRegionPts(pr.ents); if (open.length && !f.path) f.path = open[open.length - 1].id; }
+  }
+  // a revolve about the sketch's centre line: its one construction line, if it has just one
+  if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
   const parts = sel.filter(s => s.kind === 'part').map(s => s.part);
   if (f.type === 'boolean' && parts.length) { f.targets = parts.slice(0, 1); f.tools = parts.slice(1); }
@@ -154,7 +168,7 @@ export async function fieldPick(p) {
     if (kind === 'face' || kind === 'edge') f[k] = r;
     else {
       const L = f[k], same = x => x.kind === r.kind && Math.hypot(...x.pt.map((v, j) => v - r.pt[j])) < 1e-6, i = L.findIndex(same);
-      if (i >= 0) L.splice(i, 1); else L.push(r);
+      if (i >= 0) L.splice(i, 1); else { L.push(r); if (kind === 'edges' && r.kind === 'face') toast('The whole face is chosen: every edge round it. Click an edge for just that one (turn the part if it is behind).'); }
     }
   }
   showDialog(); regenSoon(120);
@@ -201,7 +215,7 @@ function selField(E, fd) {
   const on = E.field && E.field.key === key;
   const box = h('div', { class: 'cad-selbox' + (on ? ' on' : '') + (n ? '' : ' empty'), role: 'button', tabindex: '0', 'data-key': key, id: 'fs-' + key, 'aria-pressed': String(on),
     title: on ? 'Click ' + words[1] + ' in the view' + (kind === 'features' ? ' or the feature list' : '') : 'Click here, then ' + words[1] + ' in the view',
-    onclick: () => activate(key) }, what || (on ? 'Click ' + words[1] + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
+    onclick: () => activate(key) }, (what && on && kind === 'regions' ? what + ' · click a region in the view to add it or take it out' : what) || (on ? 'Click ' + words[1] + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
   const clear = n ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: e => { e.stopPropagation(); f[key] = Array.isArray(v) ? [] : null; if (key === 'regions') f.sketch = null; showDialog(); regenSoon(0); } }, '×') : null;
   return h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' }, box, clear));
 }
@@ -220,7 +234,7 @@ export function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;

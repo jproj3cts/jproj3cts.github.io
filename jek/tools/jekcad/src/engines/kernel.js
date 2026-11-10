@@ -1,5 +1,6 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { arcSweep, distToEnt } from '../core/sketch-tools.js';
+import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
+import { entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -78,7 +79,19 @@ export function makeKernel(oc) {
 
   /* ---------- bodies: a shape with its faces and their names ---------- */
   function mkBody(id, shape, faces, names) { return { id, shape, faces, names, ix: indexer(faces) }; }
-  function fresh(id, shape, nameOf) { const faces = subShapes(shape, TA.TopAbs_FACE); return mkBody(id, shape, faces, faces.map((f, i) => [].concat(nameOf(f, i) || []))); }
+  /* faces that have no name of their own are numbered by where they are (their middles in x, y, z order, then
+     their areas), not by the order the kernel lists them in, which is not the same from one visit to the next:
+     the place in that order of each of the faces asked about */
+  function stableRank(faces, which) {
+    const key = which.map(i => { const p = props(faces[i], 'a'); return [i, ...p.c.map(v => Math.round(v * 1e5) / 1e5), Math.round(p.m * 1e5) / 1e5]; });
+    key.sort((p, q) => { for (let k = 1; k < 5; k++) if (p[k] !== q[k]) return p[k] - q[k]; return p[0] - q[0]; });
+    const rank = new Map(); key.forEach((k, r) => rank.set(k[0], r));
+    return rank;
+  }
+  function fresh(id, shape, nameOf) {
+    const faces = subShapes(shape, TA.TopAbs_FACE), rank = nameOf.length >= 2 ? stableRank(faces, faces.map((f, i) => i)) : null;
+    return mkBody(id, shape, faces, faces.map((f, i) => [].concat(nameOf(f, rank ? rank.get(i) : i) || [])));
+  }
   /* the names carried through an operation op from the bodies that went into it to its result: Modified faces take
      the names of what they came from, faces untouched keep theirs, generated faces are named as given, the rest
      after the feature and their place */
@@ -98,7 +111,7 @@ export function makeKernel(oc) {
       try { g = listOf(op.Generated(src)); } catch (err) { g = []; }
       g.forEach((s, k) => { give(s, [nm + (g.length > 1 ? '.' + k : '')]); s.delete(); });
     }
-    faces.forEach((f, i) => { if (!names[i].length) names[i].push(fid + '.n' + i); });
+    { const bare = faces.map((f, i) => i).filter(i => !names[i].length), rank = bare.length ? stableRank(faces, bare) : null; for (const i of bare) names[i].push(fid + '.m' + rank.get(i)); }
     return { faces, names };
   }
   /* a body split into its solids, each a body of its own (names kept face by face) */
@@ -129,7 +142,7 @@ export function makeKernel(oc) {
       const fs = b.edgeFaces[j];
       return { kind: 'edge', part: b.id, faces: fs.map(i => b.names[i][0]), pt: midOf(b, j).map(r6), type: curveType(b.edges[j]) };
     }
-    if (pick.kind === 'vertex') { const vs = vertsOf(b); return { kind: 'vertex', part: b.id, pt: xyz(T(oc.BRep_Tool.Pnt(vs[pick.index]))).map(r6) }; }
+    if (pick.kind === 'vertex') { const vs = vertsOf(b); return { kind: 'vertex', part: b.id, faces: vertFaces(b)[pick.index].map(i => b.names[i][0]).slice(0, 6), pt: xyz(T(oc.BRep_Tool.Pnt(vs[pick.index]))).map(r6) }; }
     throw new Error('not a pick');
   }
   const r6 = v => +v.toFixed(6);
@@ -149,7 +162,7 @@ export function makeKernel(oc) {
     if (best && bd < 1e-4) return best;
     throw new Error('a chosen face is no longer there');
   }
-  function findEdge(S, ref) {
+  function findEdge(S, ref, byName) {
     const cands = [];
     for (const b of [bodyFor(S, ref), ...S.parts].filter(Boolean)) {
       edgesOf(b);
@@ -162,12 +175,33 @@ export function makeKernel(oc) {
       if (cands.length) break;
     }
     if (cands.length) { let best = null, bd = Infinity; for (const [b, j] of cands) { const d = near(midOf(b, j), ref.pt); if (d < bd) { bd = d; best = { b, j }; } } return best; }
+    // (byName: for a sketch that follows this edge, only an edge still known by its faces will do)
+    if (byName) throw new Error('a chosen edge is no longer there');
     let best = null, bd = Infinity;
     for (const b of S.parts) { edgesOf(b); b.edges.forEach((e, j) => { const d = near(midOf(b, j), ref.pt); if (d < bd) { bd = d; best = { b, j }; } }); }
     if (best && bd < 1e-4) return best;
     throw new Error('a chosen edge is no longer there');
   }
   const vertsOf = b => (b.verts || (b.verts = subShapes(b.shape, TA.TopAbs_VERTEX)));
+  /* the faces that meet at each vertex of a body (made once asked) */
+  function vertFaces(b) {
+    if (b.vertFaces) return b.vertFaces;
+    const vs = vertsOf(b), vix = indexer(vs);
+    b.vertFaces = vs.map(() => []);
+    b.faces.forEach((f, i) => { for (const v of subShapes(f, TA.TopAbs_VERTEX)) { const j = vix(v); if (j >= 0 && !b.vertFaces[j].includes(i)) b.vertFaces[j].push(i); v.delete(); } });
+    return b.vertFaces;
+  }
+  /* a corner found again by the faces that met at it (the nearest to where it was, if several do) */
+  function findVertex(S, ref) {
+    let best = null, bd = Infinity;
+    for (const b of [bodyFor(S, ref), ...S.parts].filter(Boolean)) {
+      const vs = vertsOf(b), vf = vertFaces(b);
+      vs.forEach((v, j) => { if (!ref.faces.every(n => vf[j].some(i => b.names[i].includes(n)))) return; const q = xyz(T(oc.BRep_Tool.Pnt(v))), d = near(q, ref.pt); if (d < bd) { bd = d; best = q; } });
+      if (best) break;
+    }
+    if (!best) throw new Error('a chosen corner is no longer there');
+    return best;
+  }
   function surfType(f) {
     const s = T(new oc.BRepAdaptor_Surface(f, true)), t = s.GetType(), G = oc.GeomAbs_SurfaceType;
     return t === G.GeomAbs_Plane ? 'plane' : t === G.GeomAbs_Cylinder ? 'cylinder' : t === G.GeomAbs_Cone ? 'cone' : t === G.GeomAbs_Sphere ? 'sphere' : t === G.GeomAbs_Torus ? 'torus' : 'surface';
@@ -211,9 +245,88 @@ export function makeKernel(oc) {
     }
     return out;
   }
+  /* a region's outline (its corners where the page found them, each side knowing its shape) as a wire of true
+     lines and arcs: each corner set exactly where its two shapes cross or end, each run of steps along one arc
+     made one arc */
+  function ringWire(F, ring) {
+    const n = ring.length, src = ring.src, mw = T(new oc.BRepBuilderAPI_MakeWire());
+    const circOf = e => T(new oc.gp_Circ(T(new oc.gp_Ax2(pnt(toWorld(F, e.c)), gdir(F.n), gdir(F.x))), e.r));
+    const turn = [];
+    for (let i = 0; i < n; i++) if (src[(i - 1 + n) % n] !== src[i]) turn.push(i);
+    if (!turn.length) { if (!src[0] || src[0].t === 'line') throw new Error('an outline of one line'); mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(circOf(src[0]))).Edge()); return mw.Wire(); }
+    const ends = e => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a0, e.a0 + arcSweep(e)].map(a => [e.c[0] + e.r * Math.cos(a * DEGR), e.c[1] + e.r * Math.sin(a * DEGR)]) : []);
+    const exact = i => {
+      const A = src[(i - 1 + n) % n], B = src[i], q = ring[i], reach = 0.02 + 0.002 * Math.max(A.r || 0, B.r || 0);
+      let best = q, bd = reach;
+      for (const c of [...entCross(A, B), ...ends(A), ...ends(B)]) { const d = Math.hypot(c[0] - q[0], c[1] - q[1]); if (d < bd) { bd = d; best = c; } }
+      // shapes that only just touch here (or miss by a hair): the corner is put on the round one, and the other's side ends there
+      if (best === q) { const Rn = A.t !== 'line' ? A : B.t !== 'line' ? B : null; if (Rn) { const d = Math.hypot(q[0] - Rn.c[0], q[1] - Rn.c[1]) || 1; best = [Rn.c[0] + (q[0] - Rn.c[0]) / d * Rn.r, Rn.c[1] + (q[1] - Rn.c[1]) / d * Rn.r]; } }
+      return best;
+    };
+    const P = turn.map(exact), m2pi = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    // where a side truly starts and stops: a line at its corners; an arc on its own circle, which a corner shared with
+    // another arc a hair off it is not quite on (the hair is then bridged by a line as short)
+    const onRound = (E, z) => { const d = Math.hypot(z[0] - E.c[0], z[1] - E.c[1]) || 1; return [E.c[0] + (z[0] - E.c[0]) / d * E.r, E.c[1] + (z[1] - E.c[1]) / d * E.r]; };
+    const span = turn.map((i0, k) => { const E = src[i0], p = P[k], q = P[(k + 1) % turn.length]; return E.t === 'line' ? [p, q] : [onRound(E, p), onRound(E, q)]; });
+    turn.forEach((i0, k) => {
+      { const was = span[(k - 1 + turn.length) % turn.length][1], now = span[k][0], gap = Math.hypot(now[0] - was[0], now[1] - was[1]); if (gap > 1e-9 && gap < 4 * WELD) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, was)), pnt(toWorld(F, now)))).Edge()); }
+      const i1 = turn[(k + 1) % turn.length], E = src[i0], p = P[k], q = P[(k + 1) % turn.length], gap = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (E.t === 'line') { if (gap > 1e-9) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, p)), pnt(toWorld(F, q)))).Edge()); return; }
+      // the way round the circle the outline goes: by a corner in the middle of the run (or the middle of its one step)
+      const steps = (i1 - i0 + n) % n || n, mid = steps > 1 ? ring[(i0 + Math.floor(steps / 2)) % n] : [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      const an = z => Math.atan2(z[1] - E.c[1], z[0] - E.c[0]), ap = an(p), aq = an(q), am = an(mid);
+      const whole = gap < 1e-9, ccw = whole ? true : m2pi(am - ap) < m2pi(aq - ap), a0 = ccw ? ap : aq, sweep = whole ? 2 * Math.PI : ccw ? m2pi(aq - ap) : m2pi(ap - aq);
+      if (sweep > 1e-12) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(circOf(E), a0, a0 + sweep)).Edge());
+    });
+    if (!mw.IsDone()) throw new Error('an outline that does not close');
+    return mw.Wire();
+  }
+  /* a face of an outline and the holes in it, checked against the area it should have */
+  function ringFace(F, outer, holes, area) {
+    let face = T(new oc.BRepBuilderAPI_MakeFace(ringWire(F, outer), true)).Face();
+    for (const hole of holes) {
+      const hf = T(new oc.BRepBuilderAPI_MakeFace(ringWire(F, hole), true)).Face(), op = T(new oc.BRepAlgoAPI_Cut());
+      op.SetArguments(listFrom([face])); op.SetTools(listFrom([hf])); op.Build(prog());
+      // (a hole that touches the outline leaves the region in pieces that meet at a point: kept together as one region)
+      const fs = op.IsDone() ? subShapes(op.Shape(), TA.TopAbs_FACE) : [];
+      if (!fs.length) throw new Error('a hole that does not cut');
+      face = fs.length === 1 ? fs[0] : compound(fs);
+    }
+    if (Math.abs(props(face, 'a').m - area) > 0.02 * area + 1e-3) throw new Error('a face of the wrong size');
+    return face;
+  }
+  /* several regions chosen that touch: one face of each group of them, its outline what is left of theirs when
+     the sides they share are taken away. (One face pushed makes one solid; pushing each region and joining the
+     solids is where the joining goes wrong, on sides that are arcs.) */
+  function unionFaces(sk, idx) {
+    const ids = new Map(), id = v => { if (!ids.has(v)) ids.set(v, ids.size); return ids.get(v); }, sides = [];
+    for (const i of idx) for (const ring of [sk.regions[i].outer, ...sk.regions[i].holes]) ring.forEach((v, k) => sides.push({ a: id(v), b: id(ring[(k + 1) % ring.length]), p: v, src: ring.src[k] }));
+    const have = new Set(sides.map(x => x.a + '>' + x.b)), left = sides.filter(x => !have.has(x.b + '>' + x.a)), from = new Map();
+    for (const x of left) { if (!from.has(x.a)) from.set(x.a, []); from.get(x.a).push(x); }
+    const area = P => { let t = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; t += p[0] * q[1] - q[0] * p[1]; } return t / 2; };
+    const loops = [];
+    for (const x0 of left) {
+      if (x0.used) continue;
+      const ring = [], src = [];
+      for (let x = x0, guard = 0; x && !x.used && guard < 100000; guard++) { x.used = true; ring.push(x.p); src.push(x.src); x = (from.get(x.b) || []).find(y => !y.used); }
+      if (ring.length >= 3) loops.push(Object.assign(ring, { src, area: area(ring) }));
+    }
+    const outers = loops.filter(r => r.area > 0).map(r => ({ outer: r, holes: [] }));
+    for (const h of loops.filter(r => r.area < 0)) { let best = null; for (const o of outers) if (o.outer.area > -h.area && inside(o.outer, h[0]) && (!best || o.outer.area < best.outer.area)) best = o; if (best) best.holes.push(h); }
+    return outers.map(o => ringFace(sk.frame, o.outer, o.holes, o.outer.area + o.holes.reduce((t, h) => t + h.area, 0)));
+  }
+  /* a sketch's regions as faces: the regions the page finds (core/sketch.js, the same ones it shows and lets be
+     chosen), each made of true lines and arcs, its holes cut out. (OpenCascade's own splitting of the plane by
+     the sketch's edges gives wrong faces where a line meets two arcs it is tangent to, as slots laid end on end do.) */
   function regionFaces(sk) {
     if (sk.faces) return sk.faces;
-    const F = sk.frame, es = entEdges(F, sk.ents);
+    const made = [];
+    let Rs = [];
+    try { Rs = regionsOf(sk.ents); for (const R of Rs) { try { made.push(ringFace(sk.frame, R.outer, R.holes, R.area)); } catch (err) { /* left to the splitter below */ made.push(null); } } } catch (err) { made.length = 0; made.push(null); }
+    if (made.length && made.every(Boolean)) { sk.regions = Rs; return (sk.faces = made); }
+    // (shapes a hair apart made the same first, and the split told how near counts as touching: curves that all but
+    // coincide otherwise give faces that cut nothing, or everything)
+    const F = sk.frame, es = entEdges(F, weldEnts(sk.ents));
     if (!es.length) return (sk.faces = []);
     let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
     for (const { e } of es) for (const p of e.t === 'line' ? [e.a, e.b] : [[e.c[0] - e.r, e.c[1] - e.r], [e.c[0] + e.r, e.c[1] + e.r]]) { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; }
@@ -221,7 +334,9 @@ export function makeKernel(oc) {
     const pln = T(new oc.gp_Pln(T(new oc.gp_Ax3(pnt(F.o), gdir(F.n), gdir(F.x)))));
     const big = T(new oc.BRepBuilderAPI_MakeFace(pln, U[0], U[1], W[0], W[1])).Face();
     const sp = T(new oc.BRepAlgoAPI_Splitter());
-    sp.SetArguments(listFrom([big])); sp.SetTools(listFrom(es.map(x => x.edge))); sp.Build(prog());
+    sp.SetArguments(listFrom([big])); sp.SetTools(listFrom(es.map(x => x.edge)));
+    try { sp.SetFuzzyValue(WELD); } catch (err) { /* this build has no fuzzy value: exact */ }
+    sp.Build(prog());
     const eps = m * 0.1;
     sk.faces = subShapes(sp.Shape(), TA.TopAbs_FACE).filter(f => { const b = oc.BRepTools.UVBounds(f); return b.UMin > U[0] + eps && b.UMax < U[1] - eps && b.VMin > W[0] + eps && b.VMax < W[1] - eps; });
     return sk.faces;
@@ -236,13 +351,19 @@ export function makeKernel(oc) {
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
     const out = [];
+    // (where the faces are the page's regions, the region a point is in is found as the page finds it: its point for a
+    // sliver beside a circle can be a hair inside the true circle, the page's circle being drawn in short steps)
+    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
-      const v = vertexAt(toWorld(sk.frame, pt));
-      const f = faces.find(ff => distance(v, ff).d < 1e-6);
+      // a sketch that has just followed the model: the point as it follows its shape, else where it was
+      const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
-    return out;
+    // regions that touch pushed as one face (where the faces are the page's regions, each known by its outline)
+    const each = L => L.flatMap(f => subShapes(f, TA.TopAbs_FACE));
+    if (out.length > 1 && sk.regions) { try { return each(unionFaces(sk, out.map(f => faces.indexOf(f)))); } catch (err) { /* each on its own, as before */ } }
+    return each(out);
   }
   /* the sketch shape an edge of a region face came from (its middle on the shape) */
   function entOfEdge(sk, edge, shift) {
@@ -322,13 +443,49 @@ export function makeKernel(oc) {
   }
   const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches) });
 
+  /* a sketch's shapes that came from edges of the model (src: the edge's ref) follow those edges: each is found
+     again in the model as it is now and flattened onto the sketch's plane; if any has moved, the sketch is solved
+     again, so what was drawn on it or dimensioned from it moves with it. True if the sketch changed. */
+  function followRefs(S, f, F) {
+    let moved = false;
+    const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
+    for (const e of f.ents) {
+      if (!e.ref || !e.src) continue;
+      if (e.src.kind === 'vertex') {
+        if (e.t !== 'point') continue;
+        let q; try { q = toPlane(F, findVertex(S, e.src)); } catch (err) { continue; }
+        if (!far(q, e.c)) continue;
+        e.c = q;
+        for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id) c.at = q.slice();
+        moved = true; continue;
+      }
+      let g;
+      try { const hit = findEdge(S, e.src, true), sh = edgeShapes(hit.b.edges[hit.j], F); if (sh.length !== 1 || sh[0].t !== e.t) continue; g = sh[0]; } catch (err) { continue; }
+      if (e.t === 'line') {
+        // the same way round as it was drawn
+        if (Math.hypot(g.a[0] - e.a[0], g.a[1] - e.a[1]) + Math.hypot(g.b[0] - e.b[0], g.b[1] - e.b[1]) > Math.hypot(g.b[0] - e.a[0], g.b[1] - e.a[1]) + Math.hypot(g.a[0] - e.b[0], g.a[1] - e.b[1])) [g.a, g.b] = [g.b, g.a];
+        if (!far(g.a, e.a) && !far(g.b, e.b)) continue;
+        e.a = g.a; e.b = g.b;
+      } else {
+        if (!far(g.c, e.c) && Math.abs(g.r - e.r) < 1e-7 && (e.t === 'circle' || (Math.abs(g.a0 - e.a0) < 1e-6 && Math.abs(g.a1 - e.a1) < 1e-6))) continue;
+        e.c = g.c; e.r = g.r; if (e.t === 'arc') { e.a0 = g.a0; e.a1 = g.a1; }
+        for (const d of f.dims) if ((d.t === 'rad' || d.t === 'dia') && d.r[0].e === e.id) { d.v = d.t === 'dia' ? 2 * e.r : e.r; d.x = String(+d.v.toFixed(6)); }
+      }
+      const Em = new Map([[e.id, e]]);
+      for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id && entKeys(e).includes(c.r[0].k)) c.at = hpt(Em, c.r[0]).slice();
+      moved = true;
+    }
+    if (moved) solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
+    return moved;
+  }
   /* ---------- the features ---------- */
   const FEAT = {
     sketch(S, f) {
       const frame = planeFrame(S, f.plane);
-      S.sketches[f.id] = { frame, ents: f.ents };
+      const was = f.ents.some(e => e.ref && e.src) ? JSON.parse(JSON.stringify(f.ents)) : null, moved = followRefs(S, f, frame);
+      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null };
       S.frames[f.id] = frame;
-      return { frame, regions: regionFaces(S.sketches[f.id]).length };
+      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
     },
     plane(S, f, V) {
       const base = planeFrame(S, f.ref), off = fieldValue(f, 'offset', V, 'len') * (f.flip ? -1 : 1);
@@ -337,9 +494,10 @@ export function makeKernel(oc) {
     },
     extrude(S, f, V) {
       const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions);
-      const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
-      const L = bigLength(S, sk.frame), d1 = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len');
-      if (!(d1 > 1e-9)) throw new Error('the depth must be more than 0');
+      // a depth below 0 goes the other way (as Opposite direction does for the ends that have no depth)
+      const L = bigLength(S, sk.frame), dv = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len'), d1 = Math.abs(dv);
+      const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
+      if (!(d1 > 1e-9)) throw new Error('the depth cannot be 0');
       const pieces = [];
       const range1 = f.end === 'symmetric' ? [-d1 / 2, d1 / 2] : [0, d1];
       for (const face of faces) {
@@ -399,7 +557,7 @@ export function makeKernel(oc) {
         mk.Build(prog());
         if (!mk.IsDone()) throw new Error('the profile could not be swept along that path');
         mk.MakeSolid();
-        return fresh(f.id, mk.Shape(), (fc, i) => f.id + '.n' + i);
+        return fresh(f.id, mk.Shape(), (fc, i) => f.id + '.m' + i);
       });
       const tool = fuseAll(pieces, f.id, f.id);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
@@ -414,7 +572,7 @@ export function makeKernel(oc) {
       mk.CheckCompatibility(false);
       mk.Build(prog());
       if (!mk.IsDone()) throw new Error('the profiles could not be lofted');
-      const tool = fresh(f.id, mk.Shape(), (fc, i) => f.id + '.n' + i);
+      const tool = fresh(f.id, mk.Shape(), (fc, i) => f.id + '.m' + i);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
       const r = applyTool(S, f.id, tool, f.op, f.targets);
       S.parts = r.parts;
@@ -534,7 +692,7 @@ export function makeKernel(oc) {
       const shape = rd.OneShape(), sols = solidsOf(shape);
       if (!sols.length) throw new Error('the STEP file has no solids');
       const made = [];
-      sols.forEach((s, k) => { const id = k ? f.id + '.' + k : f.id; S.parts.push(fresh(id, s, (fc, i) => id + '.f' + i)); made.push(id); });
+      sols.forEach((s, k) => { const id = k ? f.id + '.' + k : f.id; S.parts.push(fresh(id, s, (fc, i) => id + '.g' + i)); made.push(id); });
       return { made, solids: sols.length };
     },
   };
@@ -557,7 +715,7 @@ export function makeKernel(oc) {
     if (!mk.IsDone()) throw new Error('the draft could not be made');
     const shape = mk.Shape(), faces = subShapes(shape, TA.TopAbs_FACE), ix = indexer(faces), names = faces.map(() => []);
     tool.faces.forEach((f, i) => { let m = f; try { m = mk.ModifiedShape(f); } catch (err) { m = f; } const k = ix(m); if (k >= 0) names[k].push(...tool.names[i]); });
-    faces.forEach((f, i) => { if (!names[i].length) names[i].push(fid + '.d' + i); });
+    { const bare = faces.map((f, i) => i).filter(i => !names[i].length), rank = bare.length ? stableRank(faces, bare) : null; for (const i of bare) names[i].push(fid + '.dm' + rank.get(i)); }
     return mkBody(tool.id, shape, faces, names);
   }
   function edgeOfRef(S, ref) { const { b, j } = findEdge(S, ref); return edgesOf(b)[j]; }
@@ -573,7 +731,12 @@ export function makeKernel(oc) {
     for (const [b, js] of by) {
       const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
       const gen = [];
-      [...js].forEach((j, k) => { mk.Add(size, b.edges[j]); gen.push([b.edges[j], f.id + '.r' + k]); });
+      // each new face named after the edge it rounds: by the two faces that met there (and, where two edges lie
+      // between one pair of faces, their order along x, y, z), not by the order the kernel happens to list edges in,
+      // which is not the same from one visit to the next
+      const keyOf = j => b.edgeFaces[j].map(i => b.names[i][0]).sort().join('|'), seen = new Map();
+      const ordered = [...js].sort((p, q) => { const kp = keyOf(p), kq = keyOf(q); if (kp !== kq) return kp < kq ? -1 : 1; const mp = midOf(b, p), mq = midOf(b, q); for (let i = 0; i < 3; i++) if (Math.abs(mp[i] - mq[i]) > 1e-7) return mp[i] - mq[i]; return 0; });
+      for (const j of ordered) { const key = keyOf(j), n = seen.get(key) || 0; seen.set(key, n + 1); mk.Add(size, b.edges[j]); gen.push([b.edges[j], f.id + '.r' + hashText([2166136261, 1], key)[0].toString(36) + (n ? '.' + n : '')]); }
       let shape;
       try { mk.Build(prog()); shape = mk.Shape(); } catch (err) { throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen'); }
       if (!mk.IsDone()) throw new Error('the ' + kind + ' could not be made');
@@ -608,7 +771,7 @@ export function makeKernel(oc) {
     const copyOf = (b, t, sfx, id) => {
       const mt = T(new oc.BRepBuilderAPI_Transform(b.shape, t, true, false)), shape = mt.Shape(), faces = subShapes(shape, TA.TopAbs_FACE), ix = indexer(faces), names = faces.map(() => []);
       b.faces.forEach((fc, i) => { const k = ix(T(mt.ModifiedShape(fc))); if (k >= 0) names[k].push(...b.names[i].map(n => n + sfx)); });
-      faces.forEach((fc, i) => { if (!names[i].length) names[i].push(f.id + '.n' + i + sfx); });
+      { const bare = faces.map((fc, i) => i).filter(i => !names[i].length), rank = bare.length ? stableRank(faces, bare) : null; for (const i of bare) names[i].push(f.id + '.m' + rank.get(i) + sfx); }
       return mkBody(id, shape, faces, names);
     };
     let made = 0;
@@ -713,9 +876,12 @@ export function makeKernel(oc) {
     // each edge's polyline as segments, grouped
     let nseg = 0; for (let g = 0; g < eg.length; g += 3) nseg += Math.max(0, eg[g + 1] - 1);
     const seg = new Float32Array(nseg * 6), edgeGroups = new Int32Array(b.edges.length * 2);
+    // a seam (where a round face of a solid closes on itself: one face on both sides) is no edge to see or pick
+    const solid = solidsOf(b.shape).length > 0;
     let at = 0;
     for (let g = 0; g < eg.length; g += 3) {
       const s = eg[g], c = eg[g + 1], j = eh.get(eg[g + 2]), start = at;
+      if (solid && j !== undefined && b.edgeFaces[j].length < 2) continue;
       for (let k = 0; k + 1 < c; k++) { for (let q = 0; q < 6; q++) seg[at * 6 + q] = lines[(s + k) * 3 + q]; at++; }
       if (j !== undefined) { edgeGroups[2 * j] = start; edgeGroups[2 * j + 1] = at - start; }
     }
@@ -724,7 +890,7 @@ export function makeKernel(oc) {
     const vp = props(b.shape, 'v'), ap = props(b.shape, 'a');
     const faceKinds = b.faces.map(f => surfType(f)), edgeKinds = b.edges.map(e => curveType(e));
     flush();
-    const m = { id, pos, nrm, idx, faceGroups, seg, edgeGroups, verts, faceKinds, edgeKinds, faceNames: b.names.map(n => n[0]), volume: vp.m, area: ap.m, centroid: vp.c, bbox: bb };
+    const m = { id, pos, nrm, idx, faceGroups, seg: seg.subarray(0, at * 6), edgeGroups, verts, faceKinds, edgeKinds, faceNames: b.names.map(n => n[0]), volume: vp.m, area: ap.m, centroid: vp.c, bbox: bb };
     meshes.set(b, m);
     return m;
   }
@@ -787,7 +953,29 @@ export function makeKernel(oc) {
     } finally { flush(); }
   }
   function refs(picks) { try { return picks.map(p => refOf(last.S, p)); } finally { flush(); } }
-  /* model edges flattened onto a sketch's plane, as sketch shapes (Use): lines and circles where they are, else steps */
+  /* an edge flattened onto a plane, as sketch shapes: a line or a circle where it is, else steps */
+  function edgeShapes(e, F) {
+    const out = [], c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), G = oc.GeomAbs_CurveType;
+    if (c.GetType() === G.GeomAbs_Line) return [{ t: 'line', a: toPlane(F, xyz(T(c.Value(t0)))), b: toPlane(F, xyz(T(c.Value(t1)))) }];
+    if (c.GetType() === G.GeomAbs_Circle) {
+      const ci = T(c.Circle()), ax = xyz(T(T(ci.Axis()).Direction()));
+      if (Math.abs(Math.abs(v3.dot(ax, F.n)) - 1) < 1e-6) {
+        const cc = toPlane(F, xyz(T(ci.Location()))), r = ci.Radius();
+        if (Math.abs(t1 - t0 - 2 * Math.PI) < 1e-6) return [{ t: 'circle', c: cc, r }];
+        const pa = toPlane(F, xyz(T(c.Value(t0)))), pb = toPlane(F, xyz(T(c.Value(t1)))), pm = toPlane(F, xyz(T(c.Value((t0 + t1) / 2))));
+        let a0 = Math.atan2(pa[1] - cc[1], pa[0] - cc[0]) / DEGR, a1 = Math.atan2(pb[1] - cc[1], pb[0] - cc[0]) / DEGR;
+        const am = Math.atan2(pm[1] - cc[1], pm[0] - cc[0]) / DEGR;
+        const ccw = ((am - a0) % 360 + 360) % 360 < ((a1 - a0) % 360 + 360) % 360;
+        if (!ccw) [a0, a1] = [a1, a0];
+        return [{ t: 'arc', c: cc, r, a0, a1 }];
+      }
+    }
+    const n = 16; let prev = toPlane(F, xyz(T(c.Value(t0))));
+    for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
+    return out;
+  }
+  /* model edges flattened onto a sketch's plane, as sketch shapes (Use); one that is a single shape carries its
+     edge's ref (src), so the sketch can follow the edge when the model changes */
   function projectEdges(picks, F) {
     const out = [];
     try {
@@ -796,22 +984,9 @@ export function makeKernel(oc) {
         if (!b) continue;
         const es = p.kind === 'edge' ? [edgesOf(b)[p.index]] : p.kind === 'face' ? subShapes(b.faces[p.index], TA.TopAbs_EDGE) : [];
         for (const e of es) {
-          const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), G = oc.GeomAbs_CurveType;
-          if (c.GetType() === G.GeomAbs_Line) { out.push({ t: 'line', a: toPlane(F, xyz(T(c.Value(t0)))), b: toPlane(F, xyz(T(c.Value(t1)))) }); continue; }
-          if (c.GetType() === G.GeomAbs_Circle) {
-            const ci = T(c.Circle()), ax = xyz(T(T(ci.Axis()).Direction()));
-            if (Math.abs(Math.abs(v3.dot(ax, F.n)) - 1) < 1e-6) {
-              const cc = toPlane(F, xyz(T(ci.Location()))), r = ci.Radius();
-              if (Math.abs(t1 - t0 - 2 * Math.PI) < 1e-6) { out.push({ t: 'circle', c: cc, r }); continue; }
-              const pa = toPlane(F, xyz(T(c.Value(t0)))), pb = toPlane(F, xyz(T(c.Value(t1)))), pm = toPlane(F, xyz(T(c.Value((t0 + t1) / 2))));
-              let a0 = Math.atan2(pa[1] - cc[1], pa[0] - cc[0]) / DEGR, a1 = Math.atan2(pb[1] - cc[1], pb[0] - cc[0]) / DEGR, am = Math.atan2(pm[1] - cc[1], pm[0] - cc[0]) / DEGR;
-              const ccw = ((am - a0) % 360 + 360) % 360 < ((a1 - a0) % 360 + 360) % 360;
-              if (!ccw) [a0, a1] = [a1, a0];
-              out.push({ t: 'arc', c: cc, r, a0, a1 }); continue;
-            }
-          }
-          const n = 16; let prev = toPlane(F, xyz(T(c.Value(t0))));
-          for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
+          const sh = edgeShapes(e, F);
+          if (sh.length === 1) { edgesOf(b); const j = p.kind === 'edge' ? p.index : indexer(b.edges)(e); if (j >= 0) { const r = refOf(last.S, { part: b.id, kind: 'edge', index: j }); sh[0].src = { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt }; } }
+          out.push(...sh);
         }
       }
     } finally { flush(); }

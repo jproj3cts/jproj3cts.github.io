@@ -29,7 +29,7 @@ export const PART_COLOURS = ['#9aa7b4', '#e0892e', '#5b8fd1', '#6aa56a', '#c75a5
 export const FEATURE_KINDS = {
   sketch: { label: 'Sketch', defaults: { plane: { std: 'top' }, ents: [], cons: [], dims: [] } },
   plane: { label: 'Plane', defaults: { ref: { std: 'top' }, offset: '10 mm', flip: false } },
-  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], op: 'new', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
+  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
   revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
   sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], path: null, op: 'new', targets: [] } },
   loft: { label: 'Loft', defaults: { sections: [], op: 'new', ruled: false, targets: [] } },
@@ -54,6 +54,8 @@ const normPlaneRef = (p, d) => (p && typeof p === 'object' ? (STD_PLANES[p.std] 
 /* one feature, every field checked and defaulted */
 export function normFeature(f, i) {
   if (!f || !FEATURE_KINDS[f.type]) return null;
+  // (an extrude from a file that does not say: a new part, as it was before Add became what a new extrude starts as)
+  if (f.type === 'extrude' && typeof f.op !== 'string') f = Object.assign({}, f, { op: 'new' });
   const D = FEATURE_KINDS[f.type].defaults, o = { id: isStr(f.id, 40) && f.id ? f.id : sketchId('f'), type: f.type, name: isStr(f.name, 80) && f.name.trim() ? f.name : featureLabel(f.type) + ' ' + (i + 1) };
   if (f.suppressed) o.suppressed = true;
   if (f.hide) o.hide = true;              // a sketch or plane not drawn
@@ -95,8 +97,11 @@ export function normDoc(d) {
     parts[k] = { ...(isStr(p.name, 80) && p.name ? { name: p.name } : {}), ...(/^#[0-9a-f]{6}$/i.test(p.colour || '') ? { colour: p.colour } : {}),
       ...(isStr(p.material, 80) ? { material: p.material } : {}), ...(Number.isFinite(p.density) && p.density > 0 ? { density: p.density } : {}), ...(p.hidden ? { hidden: true } : {}) };
   }
+  // what of the origin and the three planes is not drawn (hidePlanes: all three planes, from before each had its own)
+  const hide = {};
+  for (const k of ['origin', 'top', 'front', 'right']) if ((d.hide && typeof d.hide === 'object' && d.hide[k]) || (d.hidePlanes && k !== 'origin')) hide[k] = true;
   const rb = Number.isInteger(d.rollback) && d.rollback >= 0 && d.rollback < feats.length ? d.rollback : null;
-  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, ...(d.hidePlanes ? { hidePlanes: true } : {}) };
+  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, hide };
 }
 export const newDoc = () => normDoc({});
 /* a new feature of a kind, with its defaults, named in sequence */

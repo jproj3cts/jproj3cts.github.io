@@ -366,6 +366,16 @@ describe('the tools', () => {
     expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekfilm');
     expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
   });
+  it('migration 0020 marks a part studio saved as a JEKray bench (by an API from before JEKcad) as JEKcad’s, by its content', async () => {
+    const s = await pro('Mig2');
+    const c = await make(s, 'test-part', { content: JSON.stringify({ format: 'jekcad', version: 1, name: 'test-part', units: 'mm', variables: [], features: [], rollback: null, parts: {} }) });
+    const r = await make(s, 'A bench');
+    await env.DB.prepare("UPDATE benches SET tool = 'jekray' WHERE id = ?").bind(c.id).run();
+    const sql = (await import('../migrations/0020_bench_tool_jekcad.sql?raw')).default;
+    for (const st of sql.split(';').map((x) => x.replace(/--.*$/gm, '').trim()).filter(Boolean)) await env.DB.prepare(st).run();
+    expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekcad');
+    expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
+  });
   const ion = (name) => JSON.stringify({ format: 'jekion', version: 1, name, electrodes: [], ions: [] });
   const film = (name) => JSON.stringify({ format: 'jekfilm', version: 1, name, spec: { target: 'ar' }, layers: [{ n: 1.38, d: 99.6 }] });
   it('a bench is JEKray’s or JEKion’s by its content, the list says which and filters by it', async () => {

@@ -2,12 +2,15 @@ import { MATERIALS, appliedCount, canMove, featureLabel, partLook } from '../cor
 import { fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { app, changed, checkpoint, emit, on, toast } from './app.js';
-import { editFeature, fieldPick, fieldWants, setPartLook } from './dialog.js';
+import { editFeature, fieldPick, fieldWants, openFeature, setPartLook } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
    The left panel: the feature list (the origin and the three planes, then each feature in order, the rollback bar
    after the last one applied, which drags), and under it the parts list (each part's name, colour and material).
+   Every row has an eye: the origin, a plane and a sketch are shown or hidden by it; a feature that made parts shows
+   or hides them; a feature that only changes a part (a fillet, a cut) is suppressed by it, the model shown without
+   it. A feature clicked is picked: its sketch's dimensions show on the model, to be double-clicked and changed.
    A feature: double-click to edit; its menu (right-click, or ⋯) to rename, suppress, roll to, move, delete; drag
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
@@ -63,28 +66,48 @@ function featureMenu(i, x, y) {
     'sep', ['Roll to here', () => setRollback(i + 1), i + 1 !== n], ['Move up', () => moveFeature(i, i - 1), canMove(app.doc, i, i - 1)], ['Move down', () => moveFeature(i, i + 1), canMove(app.doc, i, i + 1)],
     'sep', ['Delete', () => deleteFeature(i)]]);
 }
+/* ---------- the eye on each row ---------- */
+const eyeBtn = (off, what, fn) => h('button', { type: 'button', class: 'cad-eye' + (off ? ' off' : ''), 'data-icon': off ? 'eyeoff' : 'eye', 'aria-pressed': String(!off), title: (off ? 'Show ' : 'Hide ') + what, 'aria-label': (off ? 'Show ' : 'Hide ') + what, onclick: e => { e.stopPropagation(); fn(); } });
+function toggleStd(k) { checkpoint(); const hd = app.doc.hide || (app.doc.hide = {}); if (hd[k]) delete hd[k]; else hd[k] = true; changed(); }
+/* the parts a feature made that are still there (what its eye shows and hides) */
+function madeParts(f) { const st = statusOf(f.id), made = st && st.info && st.info.made || [], have = new Set((app.result ? app.result.parts : []).map(p => p.id)); return made.filter(id => have.has(id)); }
+const isHidden = f => (f.type === 'sketch' || f.type === 'plane' ? !!f.hide : (() => { const m = madeParts(f); return m.length ? m.every(id => (app.doc.parts[id] || {}).hidden) : !!f.suppressed; })());
+export function toggleFeatureShown(i) {
+  const f = app.doc.features[i];
+  if (!f) return;
+  checkpoint();
+  if (f.type === 'sketch' || f.type === 'plane') { if (f.hide) delete f.hide; else f.hide = true; }
+  else {
+    const m = madeParts(f);
+    if (m.length) { const hide = !m.every(id => (app.doc.parts[id] || {}).hidden); for (const id of m) { const p = app.doc.parts[id] || (app.doc.parts[id] = {}); if (hide) p.hidden = true; else delete p.hidden; } }
+    else if (f.suppressed) delete f.suppressed; else f.suppressed = true;
+  }
+  changed();
+}
 /* ---------- the feature list ---------- */
 export function renderPanel() {
   const list = document.getElementById('featureList');
   if (!list) return;
   const doc = app.doc, n = app.sketch ? app.sketch.at : appliedCount(doc), rows = [];
   const wantsFeatures = fieldWants() === 'features';
-  const planeRow = (k, name) => h('li', { class: 'cad-frow-p', 'data-plane': k, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name));
-  rows.push(h('li', { class: 'cad-frow-p origin' }, h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, 'Origin')),
+  const hid = doc.hide || {};
+  const planeRow = (k, name) => h('li', { class: 'cad-frow-p' + (hid[k] ? ' hid' : '') + (app.sel.some(s => s.kind === 'plane' && s.std === k) ? ' picked' : ''), 'data-plane': k, title: 'Double-click to sketch on it', ondblclick: e => { if (e.target.closest('button') || app.sketch || app.editing) return; app.sel = []; emit('sel'); openFeature('sketch', { plane: { std: k } }); }, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name), eyeBtn(hid[k], 'the ' + name + ' plane', () => toggleStd(k)));
+  rows.push(h('li', { class: 'cad-frow-p origin' + (hid.origin ? ' hid' : ''), 'data-plane': 'origin' }, h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, 'Origin'), eyeBtn(hid.origin, 'the origin', () => toggleStd('origin'))),
     planeRow('top', 'Top'), planeRow('front', 'Front'), planeRow('right', 'Right'));
   const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });
   doc.features.forEach((f, i) => {
     if (i === n) rows.push(bar());
     const st = statusOf(f.id), err = st && st.ok === false, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
     const chosen = wantsFeatures && app.editing.f.items.includes(f.id);
-    const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
+    const solid = f.type !== 'sketch' && f.type !== 'plane', off = isHidden(f), parts = solid ? madeParts(f) : [];
+    const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : '') + (off && !f.suppressed ? ' hid' : '') + (app.picked === f.id ? ' picked' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
       title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : '') },
     h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name),
-    f.hide ? h('span', { class: 'cad-hid', title: 'Hidden' }, '◌') : null,
-    err ? h('span', { class: 'cad-ferr' }, st.error) : null,
-    h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'));
+    eyeBtn(off, !solid ? f.name : parts.length ? (parts.length === 1 ? 'the part ' : 'the parts ') + f.name + ' made' : f.name + ' (suppress it: the model without it)', () => toggleFeatureShown(i)),
+    h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'),
+    err ? h('span', { class: 'cad-ferr' }, st.error) : null);
     li.addEventListener('dblclick', () => editFeature(i));
-    li.addEventListener('click', () => { if (wantsFeatures) fieldPick({ kind: 'feature', feature: f.id }); });
+    li.addEventListener('click', e => { if (wantsFeatures) { fieldPick({ kind: 'feature', feature: f.id }); return; } if (e.target.closest('button, input') || app.sketch || app.editing) return; app.picked = app.picked === f.id ? null : f.id; emit('picked'); });
     li.addEventListener('keydown', e => { if (e.key === 'Enter') editFeature(i); if (e.key === 'Delete') deleteFeature(i); });
     li.addEventListener('contextmenu', e => { e.preventDefault(); featureMenu(i, e.clientX, e.clientY); });
     li.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-jekcad-feature', String(i)); e.dataTransfer.effectAllowed = 'move'; });
@@ -131,7 +154,8 @@ function renderParts() {
       h('button', { type: 'button', class: 'cad-more', title: look.hidden ? 'Show' : 'Hide', 'aria-label': (look.hidden ? 'Show ' : 'Hide ') + look.name, onclick: e => { e.stopPropagation(); setPartLook(p.id, 'hidden', look.hidden ? null : true); } }, look.hidden ? '◌' : '●'),
       h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })]]); } }, '⋯'),
       h('div', { class: 'cad-partmat' }, mat));
-    li.addEventListener('click', e => { const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
+    // (not from its colour, its material list or its buttons: choosing the part redraws the row, which would shut the list)
+    li.addEventListener('click', e => { if (e.target.closest('select, input, button')) return; const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
     return li;
   }));
 }
@@ -160,7 +184,8 @@ async function measureShown() {
 }
 export function wirePanel() {
   on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
-  on('sel', () => { renderParts(); measureShown(); }); on('model', measureShown);
+  on('sel', () => { renderParts(); measureShown(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);
+  on('picked', renderPanel);
   document.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target)) closeRowMenu(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
 }

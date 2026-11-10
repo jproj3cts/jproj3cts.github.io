@@ -35,7 +35,7 @@ export function normDims(dims, ents) {
   const ids = new Set(ents.map(e => e.id).concat('origin'));
   return (Array.isArray(dims) ? dims : []).slice(0, 1000).filter(d => d && DIM_KINDS.includes(d.t) && Array.isArray(d.r) && d.r.length >= 1 && d.r.length <= 2 && d.r.every(okRef) && d.r.every(r => ids.has(r.e)))
     .map(d => Object.assign({ id: typeof d.id === 'string' && d.id.length < 30 ? d.id : sketchId('d'), t: d.t, r: d.r.map(cleanRef), v: d.t === 'ang' ? sfin(d.v, 90) : Math.max(0, sfin(d.v, 10)) },
-      d.dir === 'h' || d.dir === 'v' ? { dir: d.dir } : {}, d.s === 1 || d.s === -1 ? { s: d.s } : {}, Array.isArray(d.off) && d.off.length === 2 ? { off: [sfin(d.off[0], 0), sfin(d.off[1], 0)] } : {},
+      d.dir === 'h' || d.dir === 'v' ? { dir: d.dir } : {}, d.s === 1 || d.s === -1 ? { s: d.s } : {}, d.rev && d.t === 'ang' ? { rev: true } : {}, Array.isArray(d.off) && d.off.length === 2 ? { off: [sfin(d.off[0], 0), sfin(d.off[1], 0)] } : {},
       typeof d.x === 'string' && d.x.length < 200 ? { x: d.x } : {}));
 }
 
@@ -135,7 +135,8 @@ function dimResidual(E, d, out) {
     case 'rad': case 'dia': { const e = en(d.r[0]); if (!e) return; const r = e.t === 'slot' ? e.r : e.t === 'rect' ? (e.rad || 0) : radiusOf(e); out.push((d.t === 'dia' ? 2 * r : r) - d.v); return; }
     case 'ang': {
       const e1 = en(d.r[0]), e2 = en(d.r[1]); if (!e1 || !e2) return;
-      const u = lineDir(e1), w = lineDir(e2), cr = u[0] * w[1] - u[1] * w[0], dt = u[0] * w[0] + u[1] * w[1];
+      // rev: the second line taken the other way along, so the angle is the one inside the corner the lines make
+      const u = lineDir(e1), k = d.rev ? -1 : 1, w = lineDir(e2).map(x => x * k), cr = u[0] * w[1] - u[1] * w[0], dt = u[0] * w[0] + u[1] * w[1];
       out.push((Math.atan2((d.s || 1) * cr, dt) / deg - d.v) * 0.5);
       return;
     }
@@ -227,6 +228,15 @@ export function solveSketch(ents, cons, dims, extra, opts) {
 }
 /* which shapes are fully defined: none of their numbers can move without breaking a constraint or a dimension (the
    null space of the equations' Jacobian has no part in them). Returns a Set of their ids */
+/* a sketch solved after one thing in it changed (a dimension typed), the rest left where it was as far as it can
+   be: every other shape's points are held, lightly, while the change is taken up, so it is the shape that was
+   dimensioned that moves and a loose shape it touches stays put; then solved once more with nothing held */
+export function solveNear(ents, cons, dims, freeIds, opts) {
+  const free = new Set(freeIds || []), E = new Map(ents.map(e => [e.id, e])), hold = [];
+  for (const e of ents) if (!free.has(e.id)) for (const k of entKeys(e)) hold.push({ r: { e: e.id, k }, to: hpt(E, { e: e.id, k }).slice(), w: 0.03 });
+  solveSketch(ents, cons, dims, hold, opts);
+  return solveSketch(ents, cons, dims, null, opts);
+}
 export function definedEnts(ents, cons, dims) {
   const S = system(ents, cons || [], dims || []);
   const n = S.vars.length; if (!n) return new Set();
@@ -260,12 +270,14 @@ export function definedEnts(ents, cons, dims) {
    each an outline and the holes in it (what lies inside it, not joined to it). A region is chosen by a point inside it,
    so a choice survives the sketch being changed while the region is still there. */
 export function sketchRegions(ents, outline) {
-  const segs = [];
+  // (each step of an outline remembers the shape it is a step of: a region's outline carries, as .src, the shape
+  // each of its sides lies on, so the kernel can make the region's face of true lines and arcs)
+  const segs = [], srcOf = [];
   for (const e of ents) {
     if (e.k || e.t === 'point') continue;
     const P = outline(e), closed = !(e.t === 'line' || e.t === 'arc');
-    for (let i = 0; i + 1 < P.length; i++) segs.push([P[i], P[i + 1]]);
-    if (closed && P.length > 2) segs.push([P[P.length - 1], P[0]]);
+    for (let i = 0; i + 1 < P.length; i++) { segs.push([P[i], P[i + 1]]); srcOf.push(e); }
+    if (closed && P.length > 2) { segs.push([P[P.length - 1], P[0]]); srcOf.push(e); }
   }
   if (!segs.length) return [];
   let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
@@ -299,7 +311,7 @@ export function sketchRegions(ents, outline) {
       if (ts[k + 1] - ts[k] < 1e-12) continue;
       const P = t => [s[0][0] + (s[1][0] - s[0][0]) * t, s[0][1] + (s[1][1] - s[0][1]) * t];
       const a = vid(P(ts[k])), b = vid(P(ts[k + 1]));
-      if (a !== b) edges.set(Math.min(a, b) + '-' + Math.max(a, b), [a, b]);
+      if (a !== b) edges.set(Math.min(a, b) + '-' + Math.max(a, b), [a, b, srcOf[i]]);
     }
   });
   // edges that end nowhere bound nothing: taken away until none is left
@@ -317,15 +329,15 @@ export function sketchRegions(ents, outline) {
   const used = new Set(), cycles = [];
   for (const [a, b] of [...edges.values()].flatMap(([a, b]) => [[a, b], [b, a]])) {
     if (used.has(a + '>' + b)) continue;
-    const cyc = [];
+    const cyc = [], cs = [];
     let u = a, v = b, guard = 0;
     while (!used.has(u + '>' + v) && guard++ < 100000) {
-      used.add(u + '>' + v); cyc.push(u);
+      used.add(u + '>' + v); cyc.push(u); cs.push(edges.get(Math.min(u, v) + '-' + Math.max(u, v))[2]);
       // at v: the edge just clockwise of the way back (v to u)
       const L = adj.get(v), i = L.indexOf(u), w = L[(i - 1 + L.length) % L.length];
       u = v; v = w;
     }
-    if (cyc.length >= 3) cycles.push(cyc.map(i => verts[i]));
+    if (cyc.length >= 3) cycles.push(Object.assign(cyc.map(i => verts[i]), { src: cs }));
   }
   const area = P => { let s = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; s += a[0] * b[1] - b[0] * a[1]; } return s / 2; };
   const faces = cycles.filter(c => area(c) > tol * tol).map(c => ({ outer: c, holes: [], a: area(c) }));

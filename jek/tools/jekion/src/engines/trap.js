@@ -33,7 +33,7 @@ export function axisName(v, cyl) {
   for (let i = 0; i < 3; i++) if (Math.abs(v[i]) > 0.98) return n[i];
   return '(' + v.map(c => (Math.abs(c) < 0.005 ? '0' : (+c.toFixed(2)).toString())).join(', ') + ')';
 }
-export function trapAnalysis(F, S, p, species) {
+export function trapAnalysis(F, S, p, species, opts = {}) {
   const g = F.g, q = species.charge, m = species.mass, qm = qmOf(q, m);   // C/kg
   const C = curvatures(F.G, g, p[0], p[1], p[2]), E = [0, 0, 0];
   if (!C) return null;
@@ -50,7 +50,10 @@ export function trapAnalysis(F, S, p, species) {
     const norm = H => Math.hypot(...H), best = [...byF.values()].reduce((a, b) => (Math.max(norm(b.A), norm(b.B)) > Math.max(norm(a.A), norm(a.B)) ? b : a));
     rfH = norm(best.A) >= norm(best.B) ? best.A : best.B.map((v, i) => (best.A[i] < 0 ? -v : v)); rfW = best.w * 1e6; rfMHz = best.mhz;
   }
-  const basis = eigSym3(rfH || C.dc), axes = [];
+  // along the trap's principal axes (the Hessian's eigenvectors), or along x, y and z as asked (a trap turned
+  // against them then reads the curvature on each coordinate axis, which is what a drive set up along them sees)
+  const xyz = (opts.axes || S.trapAxes) === 'xyz';
+  const basis = xyz ? { vecs: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] } : eigSym3(rfH || C.dc), axes = [];
   for (let i = 0; i < 3; i++) {
     const v = basis.vecs[i];
     if (dims === 2 && Math.abs(v[2]) > 0.5) continue;            // the axis out of a planar or cylindrical array

@@ -7283,9 +7283,9 @@ const TESTS = [
         await V.set(true); J.select(null);
         if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();   // the Bench panel, from the gear
         const s0 = V.stats(), n0 = J.traceInfo().count;
-        const li = [...doc.querySelectorAll('#benchPanel .rt-list li')].find(l => l.textContent.includes('Fixed mirror'));
+        const li = [...doc.querySelectorAll('#benchPanel .rt-plist li.rt-plrow')].find(l => l.textContent.includes('Fixed mirror'));
         li.querySelector('.rt-eye').click();
-        const eye = [...doc.querySelectorAll('#benchPanel .rt-list li')].find(l => l.textContent.includes('Fixed mirror')).querySelector('.rt-eye');
+        const eye = [...doc.querySelectorAll('#benchPanel .rt-plist li.rt-plrow')].find(l => l.textContent.includes('Fixed mirror')).querySelector('.rt-eye');
         const s1 = V.stats(), n1 = J.traceInfo().count;
         const saved = J.serialize().elements.find(e => e.name === 'Fixed mirror').hide3d === true;
         V.undo();
@@ -7317,7 +7317,7 @@ const TESTS = [
     },
   },
   {
-    name: 'The Bench panel lists each bench’s parts on a tab of its own',
+    name: 'The Bench panel lists each bench’s parts on a tab of its own, as a CAD feature list (headings by kind, one line a part, the selected marked)',
     why: 'the Czerny–Turner, two benches: a tab for each, the one on show first and chosen, its count in its name; the list shows only the chosen bench’s parts, and the other tab shows the other’s (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -7326,11 +7326,20 @@ const TESTS = [
       J.select(null);
       if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();
       const tabs = [...doc.querySelectorAll('#benchPanel .rt-listtabs .rt-tab')], cur = J.serialize().elements;
-      const names = () => [...doc.querySelectorAll('#benchPanel .rt-list li > button:not(.rt-eye)')].map(b => b.textContent);
+      const names = () => [...doc.querySelectorAll('#benchPanel .rt-plist .rt-plname .nm')].map(b => b.textContent);
       const first = names();
+      // as a CAD feature list: headings by kind with their counts, each row one line, the selected part's row marked
+      const heads = [...doc.querySelectorAll('#benchPanel .rt-plist .rt-plhead')].map(x => x.textContent);
+      const counted = heads.reduce((a, t) => a + +((t.match(/\((\d+)\)$/) || [0, 0])[1]), 0) === first.length && heads.length > 0;
+      const row = doc.querySelector('#benchPanel .rt-plist .rt-plrow .nm'), oneLine = row && getComputedStyle(row).whiteSpace === 'nowrap' && getComputedStyle(row).textOverflow === 'ellipsis';
+      J.select(first[0]);
+      if (doc.getElementById('benchPanel').style.display === 'none') doc.getElementById('btnSideTab').click();
+      const marked = [...doc.querySelectorAll('#benchPanel .rt-plist .rt-plrow.on .nm')].map(x => x.textContent).join() === first[0];
+      J.select(null);
+      if (!(counted && oneLine && marked)) console.log('bench list', { heads, n: first.length, oneLine, marked });
       tabs[1].click();
       const second = names(), tabs2 = [...doc.querySelectorAll('#benchPanel .rt-listtabs .rt-tab')];
-      return tabs.length === 2 && tabs[0].classList.contains('on') && /\((\d+)\)$/.test(tabs[0].textContent) && first.length > 0 && second.length > 0
+      return counted && oneLine && marked && tabs.length === 2 && tabs[0].classList.contains('on') && /\((\d+)\)$/.test(tabs[0].textContent) && first.length > 0 && second.length > 0
         && !first.some(t => second.includes(t)) && tabs2[1].classList.contains('on') && first.length + second.length === cur.length ? 1 : 0;
     },
   },
@@ -8310,7 +8319,7 @@ const TESTS = [
     },
   },
   {
-    name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode',
+    name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode (in 2D: in 3D there is no switcher)',
     why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits, RF), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -8327,8 +8336,13 @@ const TESTS = [
       D.querySelector('#rail .rt-rgroup.fibre').click();
       const fly = D.querySelector('.rt-flyout'), opened = !fly.hidden && fly.querySelectorAll('[data-add]').length > 0 && /Parts/.test(sw().textContent);
       D.querySelector('#rail .rt-rgroup.fibre').click();
-      if (!(start && listed && draw && back && opened)) console.log('mode switcher', { start, listed, draw, back, opened });
-      return start && listed && draw && back && opened ? 1 : 0;
+      // in 3D there is only Parts (Draw is 2D's): no switcher on the bar there, and it is back in 2D
+      let in3d = false, again = false;
+      try { await J.view3d.set(true); in3d = !sw() && D.querySelectorAll('#rail .rt-rgroup.free').length > 0; }
+      finally { await J.view3d.set(false); }
+      again = !!sw() && /Parts/.test(sw().textContent);
+      if (!(start && listed && draw && back && opened && in3d && again)) console.log('mode switcher', { start, listed, draw, back, opened, in3d, again });
+      return start && listed && draw && back && opened && in3d && again ? 1 : 0;
     },
   },  { group: 'Scripts' },
   {

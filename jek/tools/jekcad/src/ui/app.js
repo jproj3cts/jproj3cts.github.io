@@ -1,6 +1,7 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { appliedCount, newDoc, normDoc } from '../core/doc.js';
+import { carryRegions } from '../core/sketch-tools.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
@@ -13,6 +14,7 @@ export const app = {
   doc: newDoc(), sel: [], hover: null, filter: 'any', history: [], future: [], result: null, error: null,
   editing: null,          // the feature dialog: { f (the feature as edited), at (its place), isNew, field (the active selection field) }
   sketch: null,           // the sketch being edited: see ui/sketcher.js
+  picked: null,           // the feature clicked in the list (its id): its sketch's dimensions show on the model
   unsaved: false, regenAt: 0, regenMs: 0, regenCount: 0, busy: false,
 };
 const BUS = {};
@@ -28,7 +30,7 @@ export function checkpoint() {
 }
 export function undo() { if (!app.history.length) return false; app.future.push(JSON.stringify(app.doc)); app.doc = normDoc(JSON.parse(app.history.pop())); afterHistory(); return true; }
 export function redo() { if (!app.future.length) return false; app.history.push(JSON.stringify(app.doc)); app.doc = normDoc(JSON.parse(app.future.pop())); afterHistory(); return true; }
-function afterHistory() { app.sel = []; emit('history'); emit('sel'); changed(); }
+function afterHistory() { app.sel = []; if (app.picked && !app.doc.features.some(f => f.id === app.picked)) app.picked = null; emit('history'); emit('sel'); changed(); }
 /* the document changed: kept (autosave), told about, and regenerated soon */
 export function changed(opts) {
   app.unsaved = true;
@@ -57,6 +59,8 @@ export async function regenNow() {
   try { out = await kernelAsk('regen', { doc: app.doc, opts }, 'regen'); }
   catch (err) { app.error = err.message; app.busy = false; emit('busy'); toast('The model could not be made: ' + err.message, true); const w = regenWaiters; regenWaiters = []; for (const r of w) r(null); return null; }
   if (!out) return null;                 // replaced by a newer request
+  // a sketch whose shapes followed the model's edges (the kernel moved and solved it): the document takes it up
+  for (const r of out.features) if (r.ok && r.info && r.info.ents) { const f = app.doc.features.find(x => x.id === r.id); if (f && f.type === 'sketch') { if (r.info.was) carryRegions(app.doc, f.id, r.info.was, r.info.ents); f.ents = r.info.ents; f.cons = r.info.cons; f.dims = r.info.dims; } }
   app.result = out; app.error = null; app.busy = false; app.regenMs = performance.now() - t0; app.regenCount++;
   // a selection of parts, faces or edges no longer there goes
   app.sel = app.sel.filter(s => !s.part || out.parts.some(p => p.id === s.part && (s.kind === 'part' || (s.kind === 'face' ? s.index < p.faceGroups.length / 2 : s.kind === 'edge' ? s.index < p.edgeGroups.length / 2 : s.index < p.verts.length / 3))));
@@ -115,8 +119,10 @@ export const CAD_ICONS = {
   star: 'M8 1.5L9.9 6.1L14.5 6.5L11 9.6L12.1 14.5L8 12L3.9 14.5L5 9.6L1.5 6.5L6.1 6.1Z', card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7', sync: 'M13 6A5.2 5.2 0 0 0 3.4 4.6 M3 2V5H6 M3 10A5.2 5.2 0 0 0 12.6 11.4 M13 14V11H10',
   signin: 'M6 2.5H13.5V13.5H6 M2 8H9.5 M7 5.5L9.5 8L7 10.5', signout: 'M10 2.5H2.5V13.5H10 M14 8H6.5 M11.5 5.5L14 8L11.5 10.5', keyboard: 'M1.5 4H14.5V12H1.5Z M4 6.5H5 M7 6.5H8 M10 6.5H11 M4 9.5H12',
   pdf: 'M4 1.5h5.5L12.5 4.5V14.5H4Z', beam: 'M1.5 8H14.5 M10.5 4.5L14.5 8L10.5 11.5', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11', link: 'M6.5 9.5L9.5 6.5 M7 11L5.5 12.5A2.1 2.1 0 0 1 2.5 9.5L4.5 7.5A2.1 2.1 0 0 1 7.5 7.5 M9 5L10.5 3.5A2.1 2.1 0 0 1 13.5 6.5L11.5 8.5A2.1 2.1 0 0 1 8.5 8.5',
-  line: 'M2 14L14 2', rect: 'M2 4H14V12H2Z', crect: 'M2 4H14V12H2Z M8 8H8.1', circle: 'M8 2A6 6 0 1 0 8.01 2', arc3: 'M2 12A7 7 0 0 1 14 12', tarc: 'M2 13H7A6 6 0 0 0 13 7', slot: 'M5 4H11A4 4 0 0 1 11 12H5A4 4 0 0 1 5 4Z',
+  line: 'M2 14L14 2', mline: 'M2 14L14 2 M6.6 8A1.4 1.4 0 1 0 6.61 8', circle3: 'M8 2A6 6 0 1 0 8.01 2 M8 2h.1 M2.8 11h.1 M13.2 11h.1', rect: 'M2 4H14V12H2Z', crect: 'M2 4H14V12H2Z M8 8H8.1', circle: 'M8 2A6 6 0 1 0 8.01 2', arc3: 'M2 12A7 7 0 0 1 14 12', tarc: 'M2 13H7A6 6 0 0 0 13 7', slot: 'M5 4H11A4 4 0 0 1 11 12H5A4 4 0 0 1 5 4Z',
   polygon: 'M8 1.5L14 5V11L8 14.5L2 11V5Z', point: 'M8 6.5A1.5 1.5 0 1 0 8.01 6.5', construct: 'M2 14L4 12 M6 10L8 8 M10 6L12 4', use: 'M2 12H14 M8 2V9 M5.5 6.5L8 9L10.5 6.5', trim: 'M3 3L13 13 M3 13L7 9 M9 7L13 3',
+  fly: 'M1.5 5.5C4 5.5 6 6.8 7.3 9C8.2 6 10.3 4 13.5 3.2C12 5 11.3 6.8 11.3 8.7L14.5 8.6L12.6 9.6C11.7 12 9.6 13.4 6.7 13.8L4.6 15L5 12.6C2.9 11.2 1.9 8.8 1.5 5.5Z',
+  eyeoff: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M2.5 2.5L13.5 13.5', panel: 'M2 2.5H14V13.5H2Z M6 2.5V13.5',
   offset: 'M2 11H10V3 M5 14H13V6', dim: 'M2 12V5 M14 12V5 M2 8.5H14 M4.5 6.5L2 8.5L4.5 10.5 M11.5 6.5L14 8.5L11.5 10.5', select: 'M3 2L3 13L6 10L8.5 14.5L10.5 13.5L8 9H12.5Z',
 };
 export function cadIcons(root) {

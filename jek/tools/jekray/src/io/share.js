@@ -106,6 +106,7 @@ export function shareData() {
   if (d.measures.length) out.measures = d.measures;
   // the assemblies the parts make, with their designs (a lens design, an RF system and its conditions)
   if (d.assemblies && d.assemblies.length) out.assemblies = d.assemblies;
+  if (d.mates && d.mates.length) out.mates = d.mates;                 // parts' faces held together
   const ui = uiState();
   // only what is set: nothing selected, pinned, scrolled or in 3D leaves it out
   const U = {};

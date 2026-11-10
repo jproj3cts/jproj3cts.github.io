@@ -2,6 +2,7 @@ import { hooks } from '../core/hooks.js';
 import { LOCKED, clamp } from '../core/constants.js';
 import { extraSel, future, history, project, selectOne, selectedId, setFuture } from '../state/project.js';
 import { getEl, loadProject, selected } from '../state/elements.js';
+import { normMates } from '../core/mates.js';
 import { benchName, curBench, ensureBenches, onTab } from '../state/tabs.js';
 import { requestRender } from './render.js';
 import { pauseAll } from './sweeps.js';
@@ -131,7 +132,7 @@ export function renderBenchTabs() {
 }
 
 /* History */
-export const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [] });
+export const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [], j: project.mates || [] });
 
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
@@ -139,6 +140,7 @@ function restore(str) {
   project.fibres = S.f || [];
   project.measures = S.m || [];
   project.assemblies = S.a || [];
+  project.mates = S.j || [];
   project.benches = S.b.map(b => ({ id: b.id, name: b.name, view: views.get(b.id) || { cx: 0, cy: 0, scale: 4 } }));
   ensureBenches(project);
   renderBenchTabs();
@@ -150,7 +152,7 @@ function restore(str) {
 export function adoptBench(data, whole) {
   checkpoint();
   if (whole) { loadProject(data); selectOne(null); }
-  else restore(JSON.stringify({ e: data.elements, b: data.benches, f: data.fibres, m: data.measures, a: data.assemblies || [] }));
+  else restore(JSON.stringify({ e: data.elements, b: data.benches, f: data.fibres, m: data.measures, a: data.assemblies || [], j: normMates(data.mates, data.elements || []) }));
   if (selectedId && !getEl(selectedId)) selectOne(null);
   for (const id of [...extraSel]) if (!getEl(id)) extraSel.delete(id);
   renderBenchTabs();

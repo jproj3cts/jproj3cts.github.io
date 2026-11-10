@@ -54,11 +54,11 @@ export const AREAS = {
     browser: ['Import, files and tools', 'Projects written elsewhere, and the AI guide', 'Share links', 'Tabs and link planes', 'Part packs', 'Modules', 'Exercises', 'Optimiser stress'],
   },
   view3d: {
-    what: 'the 3D view, STL objects and the field drawn in 3D',
+    what: 'the 3D view, STL objects, mates and the field drawn in 3D',
     src: ['src/ui/view3d.js', 'src/ui/rf-lens3d.js', 'src/core/stl.js', 'src/core/step.js', 'src/io/step-reader.js', 'src/io/step.js', 'src/parts/stl.js', 'src/ui/parts/stl.js', '../../assets/vendor/occt-import-js/',
-      'src/core/model.js', 'src/core/sketch.js', 'src/ui/model3d.js', '../../assets/vendor/manifold-3d/'],
-    node: ['zoned.test.mjs', 'step-import.test.mjs', 'pro-gate.test.mjs', 'model.test.mjs', 'sketch.test.mjs'],
-    browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Modelling in 3D'],   // The 3D view is two groups of that name
+      'src/core/mates.js', 'src/ui/mate3d.js'],
+    node: ['zoned.test.mjs', 'step-import.test.mjs', 'pro-gate.test.mjs', 'mates.test.mjs', 'model-convert.test.mjs'],
+    browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Mates and groups in 3D'],   // The 3D view is two groups of that name
   },
   'lens-design': {
     what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',

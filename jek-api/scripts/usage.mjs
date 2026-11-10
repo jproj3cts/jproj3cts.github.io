@@ -68,6 +68,21 @@ export function summarise(r) {
   return { ev, days, visits };
 }
 
+/* Each app's share of what is counted: every app sends the same events, its own tokens told apart by a prefix
+   (JEKion's 'ion-', JEKfilm's 'film-'; JEKsuite's visits open as 'space'); the rest is JEKray's. byApp gives, for
+   each app, its visits (the 'open' tokens) and every other event's count. */
+export const APPS = [['jekfilm', 'JEKfilm', (p) => /^film[-.]/.test(p)], ['jekion', 'JEKion', (p) => /^ion-/.test(p)], ['jeksuite', 'JEKsuite', (p) => p === 'space'], ['jekray', 'JEKray', () => true]];
+export const appOfProp = (p) => APPS.find((a) => a[2](String(p || '')))[0];
+export function byApp(r) {
+  const out = Object.fromEntries(APPS.map(([k, name]) => [k, { name, visits: 0, events: {} }]));
+  for (const e of r.events) {
+    if (!e.prop) continue;
+    const a = out[appOfProp(e.prop)];
+    if (e.event === 'open') a.visits += e.n;
+    else a.events[e.event] = (a.events[e.event] || 0) + e.n;
+  }
+  return APPS.map(([k]) => Object.assign({ app: k }, out[k])).filter((a) => a.visits || Object.keys(a.events).length);
+}
 /* People, not visits: the app counts a browser once on its first visit of a day, of an ISO week and of a month
    (and 'new' on its first visit ever), with no id. So a day's 'day' count is the people who came that day, a week's
    'week' counts those who came that week, a month's 'month' counts those who came that month; a week or month the
@@ -224,6 +239,11 @@ export function text(r) {
     console.log(`${label.padEnd(26)} ${String(x.total).padStart(7)}${v.total ? `   ${(x.total / v.total).toFixed(2)} a visit` : ''}`);
     if (what) for (const [p, n] of top(x.props)) console.log(`    ${p.padEnd(30)} ${String(n).padStart(7)}  ${pct(n, x.total)}`);
   }
+  const apps = byApp(r);
+  if (apps.length) {
+    console.log('\nVisits by app (and what was counted in each, its tokens told apart by their prefix)');
+    for (const a of apps) console.log(`    ${a.name.padEnd(12)} ${String(a.visits).padStart(7)}  ${Object.entries(a.events).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([k, n]) => k + ' ' + n).join(', ')}`);
+  }
   if (ev.open && Object.keys(ev.open.props).length) {
     console.log('\nHow visits began');
     for (const [p, n] of top(ev.open.props)) console.log(`    ${p.padEnd(30)} ${String(n).padStart(7)}  ${pct(n, v.total)}`);
@@ -338,6 +358,11 @@ function dayBars(days, series, label) {
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${grid}${bars}${labels}</svg>`;
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+function appsTable(r) {
+  const apps = byApp(r);
+  if (!apps.length) return '';
+  return `<h3 style="margin-top:20px">Visits by app</h3><table><tr><th>app</th><th>visits</th><th>what was counted in it</th></tr>${apps.map((a) => `<tr><td>${esc(a.name)}</td><td>${a.visits}</td><td>${esc(Object.entries(a.events).sort((x, y) => y[1] - x[1]).slice(0, 8).map(([k, n]) => k + ' ' + n).join(', '))}</td></tr>`).join('')}</table>`;
+}
 export function html(r) {
   const { ev, days, visits } = summarise(r);
   const v = ev.open || { total: 0, tiers: {} };
@@ -361,6 +386,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{white-space:nowra
 <h1>JEKray usage</h1><p class="sub">${r.from} to ${r.to}, ${r.days} ${r.days === 1 ? "day" : "days"}. A visit is one opening of the app; people are browsers, each counted once a day, week or month with no id.</p>
 <div class="hero"><div><b>${v.total}</b>visits</div>${TIERS.map((t) => `<div><b>${v.tiers[t] || 0}</b>${TIER_NAMES[t]} (${pct(v.tiers[t] || 0, v.total)})</div>`).join('')}</div>
 <h3>Visits a day</h3>${dayBars(days, TIERS.map((t) => ({ key: t, name: TIER_NAMES[t], of: (d) => visits[d][t] })), 'Visits a day')}
+${appsTable(r)}
 ${peopleBars(r, days)}
 ${peopleTable(r)}
 ${funnelTable(r)}
@@ -378,7 +404,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const { values: o } = parseArgs({ strict: false, options: { days: { type: 'string' }, html: { type: 'string' }, json: { type: 'boolean' } } });
   try {
     const r = await get(o.days);
-    if (o.json) console.log(JSON.stringify(Object.assign({}, r, { prompts: prompts(r) }), null, 2));
+    if (o.json) console.log(JSON.stringify(Object.assign({}, r, { prompts: prompts(r), apps: byApp(r) }), null, 2));
     else text(r);
     if (o.html) { writeFileSync(o.html, html(r)); console.log(`\nWrote ${o.html}: open it in your browser.`); }
   } catch (err) {

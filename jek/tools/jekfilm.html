@@ -4918,7 +4918,7 @@ function tolNow() {
   if (!designPro('tolerance a coating')) return null;
   const result = filmTolerance(film.layers, filmSpec(film), film.tol);
   filmTol = { key: tolKey(), result };
-  track('tolerance', 'film');
+  track('tolerance', 'film-run');
   render();
   return result;
 }
@@ -4949,7 +4949,7 @@ function optimiseNow() {
   if (!designPro('optimise a coating')) return null;
   const o = coatOptimise(film.layers, filmSpec(film));
   edit(f => { f.layers = o.layers; });
-  track('optimise', 'film');
+  track('optimise', 'film-thicknesses');
   toast('Merit ' + dsFix(o.before, 3) + ' to ' + dsFix(o.after, 3) + ' in ' + o.evals + ' tries');
   return o;
 }
@@ -4985,7 +4985,7 @@ function saveFilmFile() {
   if (!designPro('save a coating file')) return false;
   const name = filmFileName(film.name, 'jekfilm');
   downloadBlob(name, new Blob([filmText(film)], { type: 'application/json' }));
-  toast('Saved ' + name); track('save', 'film'); goal('save');
+  toast('Saved ' + name); track('save', 'film-file'); goal('save');
   return true;
 }
 /* a coating's data put here (undoable): from a file, the cloud or an example */
@@ -5004,7 +5004,7 @@ function openFilmFile(file) {
   rd.onload = () => {
     let d = null;
     try { d = JSON.parse(rd.result); } catch (err) { toast('Could not read ' + file.name + ': it is not a JEKfilm file', true); return; }
-    if (openFilmData(d, file.name)) { hooks.filmUnlink(); filmAutosave(); toast('Opened ' + file.name); track('import', 'jekfilm'); }
+    if (openFilmData(d, file.name)) { hooks.filmUnlink(); filmAutosave(); toast('Opened ' + file.name); track('import', 'film-file'); }
   };
   rd.readAsText(file);
 }
@@ -5350,7 +5350,7 @@ async function saveToCloud() {
       setFilmLink({ id: b.id, ws: b.workspace_id || where.value, folder: folder.value || null, version: b.version || 1, name: b.name || nm, dirty: false });
       filmThumb(filmLink, true); filmTell(filmLink);
       render(); filmAutosave();
-      setStatus('saved'); toast('Saved to the cloud: it is on JEKsuite with your benches'); track('cloud', 'film.new');
+      setStatus('saved'); toast('Saved to the cloud: it is on JEKsuite with your benches'); track('cloud', 'film-new');
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? 'Coatings in the cloud need JEKrayPro.' : 'Could not save it: ' + err.message, true);
@@ -5416,7 +5416,7 @@ async function filmCloudOpen(id, version) {
   // an old version opens as a copy: Save to the cloud makes it a coating of its own
   if (version) { setFilmLink(null); toast('Version ' + version + ' of “' + meta.name + '” opened as a copy'); }
   else { setFilmLink({ id: meta.id, ws: meta.workspace_id, folder: meta.folder_id || null, version: meta.version, name: meta.name, dirty: false }); setStatus(''); }
-  filmAutosave(); track('cloud', 'film.open');
+  filmAutosave(); track('cloud', 'film-open');
 }
 /* a cloud coating by its id (#cloud=<id>, or #cloud=<id>@<version> for a copy of a version) */
 async function openCloudFilm(id, version) {

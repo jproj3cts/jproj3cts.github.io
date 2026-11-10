@@ -215,7 +215,7 @@ export async function saveToCloud() {
       setFilmLink({ id: b.id, ws: b.workspace_id || where.value, folder: folder.value || null, version: b.version || 1, name: b.name || nm, dirty: false });
       filmThumb(filmLink, true); filmTell(filmLink);
       render(); filmAutosave();
-      setStatus('saved'); toast('Saved to the cloud: it is on JEKsuite with your benches'); track('cloud', 'film.new');
+      setStatus('saved'); toast('Saved to the cloud: it is on JEKsuite with your benches'); track('cloud', 'film-new');
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? 'Coatings in the cloud need JEKrayPro.' : 'Could not save it: ' + err.message, true);
@@ -281,7 +281,7 @@ async function filmCloudOpen(id, version) {
   // an old version opens as a copy: Save to the cloud makes it a coating of its own
   if (version) { setFilmLink(null); toast('Version ' + version + ' of “' + meta.name + '” opened as a copy'); }
   else { setFilmLink({ id: meta.id, ws: meta.workspace_id, folder: meta.folder_id || null, version: meta.version, name: meta.name, dirty: false }); setStatus(''); }
-  filmAutosave(); track('cloud', 'film.open');
+  filmAutosave(); track('cloud', 'film-open');
 }
 /* a cloud coating by its id (#cloud=<id>, or #cloud=<id>@<version> for a copy of a version) */
 export async function openCloudFilm(id, version) {

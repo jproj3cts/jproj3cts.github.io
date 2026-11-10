@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { call, inOneMinute, signedIn } from './helpers.js';
 import { MAX_ERRORS, purgeUsage } from '../src/usage.js';
-import { cohorts, html, isoWeek, loading, people, peopleFunnel, prompts, promptAnswers, text, weekStart } from '../scripts/usage.mjs';
+import { appOfProp, byApp, cohorts, html, isoWeek, loading, people, peopleFunnel, prompts, promptAnswers, text, weekStart } from '../scripts/usage.mjs';
 
 const OPS = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const post = (body, opts = {}) => call('/v1/events', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'text/plain' }, ...opts });
@@ -169,5 +169,19 @@ describe('usage counts', () => {
     expect(r.daily.filter((d) => d.day === old(800))).toHaveLength(0);
     expect(count(r, 'open', 'kept')).toBe(1);
     expect(r.errors.some((e) => e.msg === 'old')).toBe(false);
+  });
+});
+
+describe('the usage report, by app', () => {
+  it('tells each app’s counts apart by their prefix: JEKfilm’s film-, JEKion’s ion-, JEKsuite’s space, the rest JEKray’s', () => {
+    expect(['film-fresh', 'film.new', 'ion-fresh', 'space', 'fresh', 'restored', ''].map(appOfProp)).toEqual(['jekfilm', 'jekfilm', 'jekion', 'jeksuite', 'jekray', 'jekray', 'jekray']);
+    const r = { events: [
+      { event: 'open', prop: 'film-fresh', n: 3 }, { event: 'open', prop: 'film-restored', n: 2 }, { event: 'open', prop: 'fresh', n: 10 }, { event: 'open', prop: 'ion-fresh', n: 4 },
+      { event: 'optimise', prop: 'film-thicknesses', n: 5 }, { event: 'optimise', prop: 'lens', n: 7 }, { event: 'export', prop: 'film-csv', n: 1 } ] };
+    const a = Object.fromEntries(byApp(r).map((x) => [x.app, x]));
+    expect(a.jekfilm).toMatchObject({ name: 'JEKfilm', visits: 5, events: { optimise: 5, export: 1 } });
+    expect(a.jekray).toMatchObject({ visits: 10, events: { optimise: 7 } });
+    expect(a.jekion.visits).toBe(4);
+    expect(a.jeksuite).toBeUndefined();
   });
 });

@@ -65,7 +65,7 @@ export async function useFilmOn(holder, id) {
   try {
     const coat = await filmCoat(id);
     checkpoint(); holder.coat = coat; changed(true);
-    track('designer', 'film.use');
+    track('designer', 'film-use');
     toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
   } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
 }
@@ -82,7 +82,7 @@ export function filmFileOn(holder) {
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
       if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
       checkpoint(); holder.coat = normCoat(coatFromFilm(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d))); changed(true);
-      track('import', 'jekfilm');
+      track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
     };
     rd.readAsText(f);
@@ -127,8 +127,8 @@ export function filmUpdates() {
     h('p', null, 'These coatings were saved again in JEKfilm since they were put on this bench. The faces keep their copies until you update them.'),
     h('ul', null, ...stale.map(s => h('li', null, h('b', null, s.name), ': version ' + s.to + ' (this bench has version ' + s.from + ', on ' + faces(s.holders.length) + ')'))),
     h('div', { class: 'rt-actions' },
-      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film.keep'); } }, 'Keep these copies'),
-      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film.update'); updateFilms(stale); } }, 'Update the faces')));
+      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film-keep'); } }, 'Keep these copies'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film-update'); updateFilms(stale); } }, 'Update the faces')));
   dlg.showModal();
   return stale;
 }
@@ -136,7 +136,7 @@ export function filmUpdates() {
    starting from the face's glass, the bench's wavelength and the face's stack, and offering the bench's folder to save
    it in. Saved to the cloud there, the coating comes back onto the face (wireFilmCoats hears it, by the face's token). */
 export function designInFilm(from) {
-  track('designer', 'coating');
+  track('designer', 'film-from-jekray');
   const el = from && from.el, holder = from && from.holder;
   const nm = benchNms().find(v => v >= 200 && v <= 20000) || 550, coat = holder && holder.coat;
   let hash = 'new';

@@ -220,7 +220,7 @@ export function tolNow() {
   if (!designPro('tolerance a coating')) return null;
   const result = filmTolerance(film.layers, filmSpec(film), film.tol);
   filmTol = { key: tolKey(), result };
-  track('tolerance', 'film');
+  track('tolerance', 'film-run');
   render();
   return result;
 }
@@ -251,7 +251,7 @@ export function optimiseNow() {
   if (!designPro('optimise a coating')) return null;
   const o = coatOptimise(film.layers, filmSpec(film));
   edit(f => { f.layers = o.layers; });
-  track('optimise', 'film');
+  track('optimise', 'film-thicknesses');
   toast('Merit ' + dsFix(o.before, 3) + ' to ' + dsFix(o.after, 3) + ' in ' + o.evals + ' tries');
   return o;
 }

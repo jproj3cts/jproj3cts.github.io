@@ -39,7 +39,7 @@ export function saveFilmFile() {
   if (!designPro('save a coating file')) return false;
   const name = filmFileName(film.name, 'jekfilm');
   downloadBlob(name, new Blob([filmText(film)], { type: 'application/json' }));
-  toast('Saved ' + name); track('save', 'film'); goal('save');
+  toast('Saved ' + name); track('save', 'film-file'); goal('save');
   return true;
 }
 /* a coating's data put here (undoable): from a file, the cloud or an example */
@@ -58,7 +58,7 @@ export function openFilmFile(file) {
   rd.onload = () => {
     let d = null;
     try { d = JSON.parse(rd.result); } catch (err) { toast('Could not read ' + file.name + ': it is not a JEKfilm file', true); return; }
-    if (openFilmData(d, file.name)) { hooks.filmUnlink(); filmAutosave(); toast('Opened ' + file.name); track('import', 'jekfilm'); }
+    if (openFilmData(d, file.name)) { hooks.filmUnlink(); filmAutosave(); toast('Opened ' + file.name); track('import', 'film-file'); }
   };
   rd.readAsText(file);
 }

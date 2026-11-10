@@ -117,6 +117,23 @@ export async function check(pw, base, shots) {
       ok('JEKrayPro: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
+    // someone else editing a coating: said, saving refused until taken over; the lease let go when the page goes
+    {
+      const { p, errs, api } = await page('#cloud=c2', { signedIn: true, pro: true, othersEditing: true });
+      await p.waitForSelector('#filmLock[open]', { timeout: 8000 }).catch(() => {});
+      const asked = await p.evaluate(() => ({ open: !!document.querySelector('#filmLock[open]'), h: (document.querySelector('#filmLock h2') || {}).textContent, where: document.getElementById('filmWhere').textContent }));
+      ok('A coating someone else is editing: who, and look, take over or copy', asked.open && asked.h === 'Sam Reid is editing this coating' && /Sam Reid is editing/.test(asked.where), JSON.stringify(asked));
+      await p.click('#flLook');
+      await p.click('#filmAddLayer'); await p.keyboard.press('Control+s'); await p.waitForTimeout(300);
+      const refused = !api.calls.some(c => c === 'PUT /v1/benches/c2') && await p.evaluate(() => !!document.querySelector('#filmLock[open]'));
+      await p.click('#flTake'); await p.waitForTimeout(500);
+      const took = api.calls.filter(c => c === 'POST /v1/benches/c2/lease').length >= 2 && api.calls.includes('PUT /v1/benches/c2') && api.benches.c2.version === 3;
+      ok('Looking, Ctrl+S saves nothing and asks again; Take over takes the lease and saves', refused && took, JSON.stringify([refused, api.calls.filter(c => /c2/.test(c))]));
+      await p.evaluate(() => window.dispatchEvent(new Event('pagehide'))); await p.waitForTimeout(200);
+      ok('Leaving the page lets the lease go', api.calls.includes('DELETE /v1/benches/c2/lease'), api.calls.filter(c => /lease/.test(c)).join(' '));
+      ok('Editing leases: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
     // from a JEKray face (#design=…): its glass, wavelength and stack to start; saved to the bench's folder, sent back to the face
     {
       const pass = { seed: { format: 'jekfilm', version: 1, name: 'Window, surface 1 coating', spec: { target: 'ar', sub: { glass: 'Fused silica', n: 1.4496 }, design: 1064, lo: 904, hi: 1224 }, layers: [{ n: 1.38, d: 192.75 }] },

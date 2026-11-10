@@ -2,7 +2,7 @@ import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { designPro } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
-import { account, accountsOn, api, fillAccount, setAccount } from '../../../jekray/src/io/account.js';
+import { API_BASE, account, accountLoaded, accountsOn, api, fillAccount, setAccount } from '../../../jekray/src/io/account.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { filmText } from '../core/film.js';
 import { film, filmCurves, render } from '../ui/designer.js';
@@ -43,15 +43,81 @@ export function linkRestore() {
   try { const l = JSON.parse(localStorage.getItem(FILM_LINK_KEY) || 'null'); filmLink = l && l.id ? l : null; } catch (err) { filmLink = null; }
 }
 export function setFilmLink(link) {
+  if (filmLink && (!link || link.id !== filmLink.id)) leaseStop(filmLink);
   filmLink = link; clearTimeout(filmCloudTimer);
   linkKeep(); cloudShown();
+  leaseStart();
+}
+/* ---------- the editing lease ----------
+   As every JEK app's: whoever has a cloud coating open to edit holds its lease, renewed every minute, so JEKspace shows
+   who is editing it and a save against someone else's lease is refused (423). Opening one someone else is editing
+   says who, to look (changes stay in this browser), take over, or carry on in a copy. */
+const FILM_LEASE_EVERY = 60000;
+export const filmLease = { held: false, editing: null, timer: null };
+async function leaseStart() {
+  clearTimeout(filmLease.timer); filmLease.timer = null;
+  Object.assign(filmLease, { held: false, editing: null });
+  if (!filmLink || !filmCloudOn() || TEST_MODE) return;
+  await leaseRenew();
+}
+export async function leaseRenew(take) {
+  const link = filmLink;
+  if (!link || !filmCloudOn()) return;
+  let r = null;
+  try { r = await api('/v1/benches/' + link.id + '/lease', Object.assign({ method: 'POST' }, filmJson(take ? { take: true } : {}))); }
+  catch (err) {
+    if (filmLink !== link) return;
+    if (err.status === 404) { toast('That coating is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); setFilmLink(null); return; }
+    if (err.status === 401) { setAccount(null); fillAccount(); return; }
+  } finally {
+    if (filmLink === link) { clearTimeout(filmLease.timer); filmLease.timer = setTimeout(() => leaseRenew(), FILM_LEASE_EVERY); }
+  }
+  if (!r || filmLink !== link) return;
+  const was = filmLease.held;
+  filmLease.held = !!r.held; filmLease.editing = r.editing && account && r.editing.id !== account.user.id ? r.editing : null;
+  // the cloud moved on (someone took over and saved): follow it when nothing here would be lost
+  if (r.version > link.version && !link.dirty) { try { await openCloudFilm(link.id); toast((r.updated_by ? r.updated_by.name : 'Someone') + ' saved a newer version of this coating: it is shown now'); } catch (err) { /* the next renewal tries again */ } return; }
+  if (!r.held && filmLease.editing) { setStatus('not saved: ' + filmLease.editing.name + ' is editing'); if (!was && !take) filmLockAsk(); }
+  cloudShown();
+}
+function leaseStop(link) {
+  clearTimeout(filmLease.timer); filmLease.timer = null;
+  if (!link || !filmCloudOn() || TEST_MODE || !filmLease.held) return;
+  filmLease.held = false;
+  fetch(API_BASE + '/v1/benches/' + link.id + '/lease', { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => {});
+}
+/* someone else has the coating open to edit: look, take over, or work on a copy */
+function filmLockAsk() {
+  const e = filmLease.editing, link = filmLink;
+  if (!e || !link) return;
+  let dlg = document.getElementById('filmLock');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmLock', 'aria-labelledby': 'filmLockTitle' }); document.body.append(dlg); }
+  if (dlg.open) return;
+  const done = () => dlg.close();
+  dlg.replaceChildren(h('h2', { id: 'filmLockTitle' }, e.name + ' is editing this coating'),
+    h('p', null, e.name + ' has “' + link.name + '” open to edit. You can look at it (changes you make stay in this browser), take over (their unsaved changes stay with them), or carry on in a copy of your own.'),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn', type: 'button', id: 'flLook', onclick: done }, 'Look'),
+      h('button', { class: 'rt-btn', type: 'button', id: 'flCopy', onclick: async () => { done(); await keepAsCopy(link); } }, 'Work on a copy'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'flTake', onclick: async () => { done(); await leaseRenew(true); if (filmLease.held) { toast('Taken over: this coating saves from here now'); if (link.dirty) filmPush({ checkpoint: true }); } } }, 'Take over')));
+  dlg.showModal();
+}
+/* the coating as it is here, as a new cloud coating beside the one it came from */
+async function keepAsCopy(link) {
+  try {
+    const nm = film.name + ' (my copy)';
+    const b = await api('/v1/workspaces/' + link.ws + '/benches', Object.assign({ method: 'POST' }, filmJson({ name: nm, folder_id: link.folder || null, content: filmText(Object.assign({}, film, { name: nm })) })));
+    film.name = b.name || nm; render();
+    setFilmLink({ id: b.id, ws: b.workspace_id || link.ws, folder: link.folder || null, version: b.version || 1, name: b.name || nm, dirty: false });
+    toast('Carrying on in “' + film.name + '”');
+  } catch (err) { toast(err.status === 402 ? 'Coatings in the cloud need JEKrayPro.' : 'Could not make a copy: ' + err.message, true); }
 }
 /* where the coating is, in the bar: its place in the cloud, or this browser */
 export function cloudShown() {
   const on = accountsOn();
   for (const id of ['btnCloudSave', 'cloudSep']) { const el = document.getElementById(id); if (el) el.hidden = !on; }
   const where = document.getElementById('filmWhere');
-  if (where) where.textContent = filmLink ? 'In the cloud' + (filmLink.dirty ? ', not saved yet' : '') : 'In this browser';
+  if (where) where.textContent = filmLink ? 'In the cloud' + (filmLease.editing && !filmLease.held ? ', ' + filmLease.editing.name + ' is editing' : filmLink.dirty ? ', not saved yet' : '') : 'In this browser';
   const b = document.getElementById('btnCloudSave');
   if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to the cloud' : 'Save to the cloud…';
 }
@@ -66,6 +132,7 @@ export function filmCloudChanged() {
 export async function filmPush(opts = {}) {
   if (!filmLink || !filmCloudOn()) return false;
   if (filmCloudBusy) return false;
+  if (filmLease.editing && !filmLease.held && !opts.over) { setStatus('not saved: ' + filmLease.editing.name + ' is editing'); if (!opts.quiet && !opts.keepalive) filmLockAsk(); return false; }
   clearTimeout(filmCloudTimer);
   filmCloudBusy = true;
   const link = filmLink, content = filmText(film);
@@ -85,7 +152,7 @@ export async function filmPush(opts = {}) {
     if (filmLink !== link) return false;
     if (err.status === 409) { setStatus('not saved: changed somewhere else'); filmConflict(err.version); }
     else if (err.status === 402) { setStatus('not saved to the cloud: that needs JEKrayPro'); if (!opts.quiet) designPro('save to the cloud'); }
-    else if (err.status === 423) { setStatus('not saved: ' + (err.editing ? err.editing.name : 'someone') + ' is editing it'); if (!opts.quiet) toast((err.editing ? err.editing.name : 'Someone') + ' is editing this coating: it is kept in this browser', true); }
+    else if (err.status === 423) { filmLease.held = false; filmLease.editing = err.editing || filmLease.editing; setStatus('not saved: ' + (filmLease.editing ? filmLease.editing.name : 'someone') + ' is editing it'); if (!opts.quiet) filmLockAsk(); }
     else if (err.status === 401) { setStatus('not saved: signed out'); setAccount(null); fillAccount(); }
     else if (err.status === 404) { toast('That coating is no longer in the cloud (it may be in the bin). This copy is kept in this browser.', true); setFilmLink(null); }
     else setStatus('not saved to the cloud: ' + (err.message || 'no connection'));
@@ -231,5 +298,9 @@ export function wireCloud() {
   document.getElementById('btnSpace').addEventListener('click', e => { if (accountsOn()) { e.preventDefault(); openSpace(); } });
   // the page hidden: anything not saved goes up now
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && filmLink && filmLink.dirty && filmCloudOn()) filmPush({ keepalive: true, quiet: true }); });
+  // leaving the page lets the lease go, so JEKspace stops saying this coating is being edited
+  window.addEventListener('pagehide', () => leaseStop(filmLink));
+  // a coating restored with the page takes its lease once the account is known
+  Promise.resolve().then(() => { if (accountLoaded) accountLoaded.then(() => { if (filmLink && !filmLease.held && !filmLease.timer) leaseStart(); }); });
   cloudShown();
 }

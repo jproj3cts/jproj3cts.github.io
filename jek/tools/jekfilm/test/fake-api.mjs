@@ -7,7 +7,8 @@ export async function route(page, opts = {}) {
   const calls = [], bodies = [];
   const me = { user: { id: 'u1', name: 'Jo Kelly', email: 'jo@example.ac.uk' }, identities: [{ provider: 'google', subject: 'x' }],
     workspaces: [{ id: WS, kind: 'personal', name: 'Jo', role: 'owner', active: !!opts.pro, plan: opts.pro ? { plan: 'individual', billing: true, status: 'active', interval: 'month' } : null }] };
-  const benches = { c1: { id: 'c1', name: 'V-coat 1064', tool: 'jekfilm', workspace_id: WS, folder_id: 'f1', version: 3, content: JSON.stringify(COATING) },
+  const benches = { c2: { id: 'c2', name: 'HR 1064', tool: 'jekfilm', workspace_id: WS, folder_id: 'f1', version: 2, content: JSON.stringify(Object.assign({}, COATING, { name: 'HR 1064' })), editing: opts.othersEditing ? { id: 'u2', name: 'Sam Reid' } : null },
+    c1: { id: 'c1', name: 'V-coat 1064', tool: 'jekfilm', workspace_id: WS, folder_id: 'f1', version: 3, content: JSON.stringify(COATING) },
     b1: { id: 'b1', name: 'Michelson', tool: 'jekray', workspace_id: WS, folder_id: null, version: 2, content: '{"format":"jekray"}' } };
   const cors = req => ({ 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' });
   await page.route('http://localhost:8787/**', async r => {
@@ -19,14 +20,23 @@ export async function route(page, opts = {}) {
     if (p === '/v1/me') return opts.signedIn ? j(me) : j({ error: { code: 'signed_out', message: 'Sign in' } }, 401);
     if (p === '/v1/billing/prices') return j({});
     if (p === `/v1/workspaces/${WS}/folders`) return j({ folders: [{ id: 'f1', name: 'Nd:YAG laser', parent_id: null }, { id: 'f2', name: 'Cavity', parent_id: 'f1' }] });
-    if (p === `/v1/workspaces/${WS}/benches` && m === 'POST') { const b = JSON.parse(req.postData()); bodies.push(b); return opts.pro ? j({ id: 'cnew', name: b.name, workspace_id: WS, folder_id: b.folder_id, version: 1, tool: 'jekfilm' }) : j({ error: { message: 'Needs JEKrayPro' } }, 402); }
-    let mm = p.match(/^\/v1\/benches\/(\w+)\/thumb$/);
+    if (p === `/v1/workspaces/${WS}/benches` && m === 'POST') { const b = JSON.parse(req.postData()); bodies.push(b); if (opts.pro) benches.cnew = { id: 'cnew', name: b.name, tool: 'jekfilm', workspace_id: WS, folder_id: b.folder_id, version: 1, content: b.content, editing: null };
+      return opts.pro ? j({ id: 'cnew', name: b.name, workspace_id: WS, folder_id: b.folder_id, version: 1, tool: 'jekfilm' }) : j({ error: { message: 'Needs JEKrayPro' } }, 402); }
+    let mm = p.match(/^\/v1\/benches\/(\w+)\/lease$/);
+    if (mm) {
+      const b = benches[mm[1]], take = m === 'POST' && JSON.parse(req.postData() || '{}').take;
+      if (m === 'DELETE') { if (!b.editing || b.editing.id === 'u1') b.editing = null; return j({ ok: true }); }
+      if (b.editing && b.editing.id !== 'u1' && !take) return j({ held: false, editing: b.editing, version: b.version });
+      b.editing = { id: 'u1', name: 'Jo Kelly' }; return j({ held: true, editing: b.editing, version: b.version });
+    }
+    mm = p.match(/^\/v1\/benches\/(\w+)\/thumb$/);
     if (mm) return j({ thumb: '/t' });
     mm = p.match(/^\/v1\/benches\/(\w+)$/);
     if (mm && m === 'PUT') {
       const b = benches[mm[1]], v = Number((req.headers()['if-match'] || '').replace(/"/g, ''));
       bodies.push(JSON.parse(req.postData()));
       if (!opts.pro) return j({ error: { message: 'Needs JEKrayPro' } }, 402);
+      if (b.editing && b.editing.id !== 'u1') return j({ error: { code: 'locked', message: 'editing', editing: b.editing } }, 423);
       if (v !== b.version) return j({ error: { code: 'conflict', message: 'newer', version: b.version } }, 409);
       b.version++; return j({ id: b.id, name: b.name, version: b.version });
     }

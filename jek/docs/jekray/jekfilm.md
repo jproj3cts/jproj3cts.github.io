@@ -22,7 +22,9 @@ The **Design** table on the left says what the stack is for and the light it is 
 - **Incident medium n**: the index in front (1 for air, about 1.33 for water).
 - **Substrate**: N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion (its index at λ₀ is shown), or an index of your own. JEKfilm says when the substrate is not transparent at λ₀.
 
-## Reflectance
+## Reflectance, transmittance and absorption
+
+The switch above the plots shows **Reflectance** R, **Transmittance** T (what one coated surface passes into the substrate) or **Absorbed** A, what is left, 1 − R − T. The choice is kept in this browser. The dielectric layers are taken as lossless, so only a metal layer absorbs. In each view the plots and the tables under them show that quantity; the target is drawn for R, and for T as what it leaves.
 
 The reflectance against wavelength (at the smallest angle judged, at the largest, and the target dashed), and against the angle of incidence at λ₀, s and p. Move the pointer over a plot to read its values.
 

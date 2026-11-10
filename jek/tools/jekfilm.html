@@ -2126,6 +2126,10 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-yield strong { font-size: 1.15rem; }
 .film-part + .film-part, .film-sec > .rt-lpair + .film-part { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--jek-line); }
 .film-part h3 { margin: 0 0 0.45rem; font-size: 0.82rem; font-weight: 700; color: var(--jek-ink); }
+.film-qsw { display: inline-flex; border: 1px solid var(--jek-line-2); border-radius: 3px; overflow: hidden; margin: 0 0 0.6rem; }
+.film-qsw button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.75rem; background: none; border: 0; color: var(--jek-ink-soft); cursor: pointer; }
+.film-qsw button + button { border-left: 1px solid var(--jek-line-2); }
+.film-qsw button.on { background: var(--jek-line); color: var(--jek-ink); font-weight: 600; }
 </style>
 </head>
 <body class="film-app">
@@ -3670,11 +3674,11 @@ function normMake(m) {
   for (const [k, v] of Object.entries(lim)) if (/^[a-z]{2,8}$/.test(k) && isFinite(+v)) limits[k] = Math.min(100, Math.max(0, +v));
   return { durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits };
 }
-/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged */
-function surfaceT(layers, spec, ci, nm) {
+/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged (or pol) */
+function surfaceT(layers, spec, ci, nm, pol = spec.pol) {
   const F = faceAmps({ coat: { mode: 'stack', layers } }, spec.n0, spec.ns, ci, nm);
   const ts = cabs2(F.ts), tp = cabs2(F.tp);
-  return spec.pol === 's' ? ts : spec.pol === 'p' ? tp : (ts + tp) / 2;
+  return pol === 's' ? ts : pol === 'p' ? tp : (ts + tp) / 2;
 }
 /* the reflectance (or, kind 'T', the transmittance) over the band and the angles judged, five angles across them */
 function sampleR(layers, spec, keep, kind) {
@@ -5332,27 +5336,63 @@ function filmCurves(f) {
   const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
   return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
 }
+/* what the plots show: reflectance R, transmittance T into the substrate, or the share absorbed A = 1 − R − T (kept in
+   this browser, per viewer, not in the coating) */
+const FILM_Q_KEY = 'jek-film-q', FILM_QS = { R: 'Reflectance', T: 'Transmittance', A: 'Absorbed' };
+let filmQ = (() => { try { const q = localStorage.getItem(FILM_Q_KEY); return FILM_QS[q] ? q : 'R'; } catch (err) { return 'R'; } })();
+function setFilmQ(q) {
+  filmQ = FILM_QS[q] ? q : 'R';
+  try { localStorage.setItem(FILM_Q_KEY, filmQ); } catch (err) { /* this visit only */ }
+  render();
+}
+/* the curves as the quantity shown: R as drawn, T worked out at the same points, A what is left */
+function filmCurvesQ(f, q) {
+  const C = filmCurves(f), spec = C.spec;
+  if (q === 'R' || !q) return { ...C, q: 'R' };
+  const deg = d => Math.cos(d * Math.PI / 180), a0 = spec.theta0 || 0;
+  const tBand = d => C.nms.map(nm => surfaceT(f.layers, spec, deg(d), nm));
+  const T0 = tBand(a0), Tt = C.Rt ? tBand(spec.theta) : null;
+  const Ts = C.A.degs.map(d => surfaceT(f.layers, spec, deg(d), spec.design, 's')), Tp = C.A.degs.map(d => surfaceT(f.layers, spec, deg(d), spec.design, 'p'));
+  if (q === 'T') return { ...C, q, R0: T0, Rt: Tt, want: C.want.map(v => 1 - v), A: { degs: C.A.degs, s: Ts, p: Tp } };
+  // A is what is left: rounding leaves ~1e-16 for a lossless stack, which is nothing
+  const left = (R, T) => R.map((r, i) => { const a = 1 - r - T[i]; return a < 1e-9 ? 0 : a; });
+  return { ...C, q, R0: left(C.R0, T0), Rt: Tt ? left(C.Rt, Tt) : null, want: null, A: { degs: C.A.degs, s: left(C.A.s, Ts), p: left(C.A.p, Tp) } };
+}
 function plotsCard() {
-  const C = filmCurves(film), spec = C.spec, a0 = spec.theta0 || 0, deg = d => dsFmt(d, 3) + '°';
-  const series = [{ label: 'R, ' + deg(a0), cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
-  if (C.Rt) series.push({ label: 'R, ' + deg(spec.theta), cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
-  series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
-  const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
+  const q = filmQ, C = filmCurvesQ(film, q), spec = C.spec, a0 = spec.theta0 || 0, deg = d => dsFmt(d, 3) + '°', Q = FILM_QS[q];
+  const series = [{ label: q + ', ' + deg(a0), cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  if (C.Rt) series.push({ label: q + ', ' + deg(spec.theta), cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
+  if (C.want) series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
+  const all = series.flatMap(s => s.ys), lo = Math.min(...all);
+  // R and A from nothing up; T down from 100 %, to a little below its lowest
+  const yr = q === 'T' ? [Math.max(0, Math.floor(lo - Math.max(0.5, 0.15 * (100 - lo)))), 100] : [0, Math.min(100, Math.max(0.5, 1.15 * Math.max(...all)))];
   const wrap = h('div', { class: 'rt-lpair' }), a = h('div'), b = h('div'); wrap.append(a, b);
-  linePlotSvg(a, { id: 'band', label: 'Reflectance against wavelength', xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%', yr: [0, top], series });
-  linePlotSvg(b, { id: 'angle', label: 'Reflectance against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: 'R (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, 100],
-    series: [{ label: 'Rs', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
-  // under the wavelength plot: the band's mean, largest and smallest reflectance at each angle drawn
+  linePlotSvg(a, { id: 'band', label: Q + ' against wavelength', xTitle: 'Wavelength (nm)', yTitle: q + ' (%)', xName: 'nm', yUnit: '%', yr, series });
+  const angTop = q === 'A' ? Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...C.A.s, ...C.A.p))) : 100;
+  linePlotSvg(b, { id: 'angle', label: Q + ' against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: q + ' (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, angTop],
+    series: [{ label: q + 's', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: q + 'p', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
+  // under the wavelength plot: the band's mean, largest and smallest at each angle drawn
   const stat = R => [R.reduce((x, y) => x + y, 0) / R.length, Math.max(...R), Math.min(...R)];
   const bandRows = [[deg(a0), ...stat(C.R0).map(dsR)], ...(C.Rt ? [[deg(spec.theta), ...stat(C.Rt).map(dsR)]] : [])];
   const bare = ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2;
-  a.append(miniTable('filmFigures', 'Reflectance over the band', ['Angle', 'R mean (%)', 'R max (%)', 'R min (%)'], bandRows,
-    'Merit ' + dsFix(coatMerit(film.layers, spec), 3) + ' · bare substrate ' + dsR(bare) + ' %'));
+  a.append(miniTable('filmFigures', Q + ' over the band', ['Angle', q + ' mean (%)', q + ' max (%)', q + ' min (%)'], bandRows,
+    'Merit ' + dsFix(coatMerit(film.layers, spec), 3) + (q === 'A' ? '' : ' · bare substrate ' + dsR(q === 'T' ? 1 - bare : bare) + ' %')));
   // under the angle plot: s, p and their mean at λ₀, square on and at the angles judged
-  const angs = [...new Set([0, a0, spec.theta])], at = (d, pol) => stackR(film.layers, spec.n0, spec.ns, Math.cos(d * Math.PI / 180), spec.design, pol);
-  b.append(miniTable('filmAngleFigures', 'Reflectance at the design wavelength', ['Angle', 'Rs (%)', 'Rp (%)', 'R mean (%)'],
+  const angs = [...new Set([0, a0, spec.theta])], ci = d => Math.cos(d * Math.PI / 180);
+  const at = (d, pol) => {
+    const R = stackR(film.layers, spec.n0, spec.ns, ci(d), spec.design, pol);
+    if (q === 'R') return R;
+    const T = surfaceT(film.layers, spec, ci(d), spec.design, pol);
+    return q === 'T' ? T : 1 - R - T < 1e-9 ? 0 : 1 - R - T;
+  };
+  b.append(miniTable('filmAngleFigures', Q + ' at the design wavelength', ['Angle', q + 's (%)', q + 'p (%)', q + ' mean (%)'],
     angs.map(d => [deg(d), dsR(at(d, 's')), dsR(at(d, 'p')), dsR(at(d, 'avg'))]), 'At λ₀ = ' + dsFmt(spec.design, 5) + ' nm'));
-  return section('Reflectance', wrap);
+  // the switch: which quantity both plots and their tables show
+  const sw = h('div', { class: 'film-qsw', role: 'radiogroup', 'aria-label': 'What the plots show' },
+    ...Object.entries(FILM_QS).map(([k, t]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(k === q), class: k === q ? 'on' : null, 'data-q': k, onclick: () => setFilmQ(k) }, t)));
+  const out = section(Q, sw, wrap);
+  if (q === 'A' && !film.layers.some(L => L.metal)) out.insertBefore(h('p', { class: 'rt-lsub' }, 'No metal in this stack: the dielectric layers are taken as lossless, so nothing is absorbed.'), wrap);
+  return out;
 }
 function layersCard(spec) {
   const layers = film.layers, S = film.spec;
@@ -5394,8 +5434,9 @@ function layersCard(spec) {
   mats.addEventListener('click', () => { searchNow('materials'); });
   return section('Layers',
     h('div', { class: 'film-twrap' }, tbl),
-    h('div', { class: 'film-tools' }, opt, needle, mats,
+    h('div', { class: 'film-tools' }, opt,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
+      needle, mats,
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
 }

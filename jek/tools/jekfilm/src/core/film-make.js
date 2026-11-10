@@ -24,11 +24,11 @@ export function normMake(m) {
   for (const [k, v] of Object.entries(lim)) if (/^[a-z]{2,8}$/.test(k) && isFinite(+v)) limits[k] = Math.min(100, Math.max(0, +v));
   return { durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits };
 }
-/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged */
-export function surfaceT(layers, spec, ci, nm) {
+/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged (or pol) */
+export function surfaceT(layers, spec, ci, nm, pol = spec.pol) {
   const F = faceAmps({ coat: { mode: 'stack', layers } }, spec.n0, spec.ns, ci, nm);
   const ts = cabs2(F.ts), tp = cabs2(F.tp);
-  return spec.pol === 's' ? ts : spec.pol === 'p' ? tp : (ts + tp) / 2;
+  return pol === 's' ? ts : pol === 'p' ? tp : (ts + tp) / 2;
 }
 /* the reflectance (or, kind 'T', the transmittance) over the band and the angles judged, five angles across them */
 function sampleR(layers, spec, keep, kind) {

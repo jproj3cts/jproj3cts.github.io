@@ -57,6 +57,15 @@ export async function check(pw, base, shots) {
       const pdf = await p.evaluate(async () => await (await window.JEKfilm.specPdf({ raw: true })).text());
       ok('The coating specification: a two-page PDF with the order and the design', /^%PDF-1\.4/.test(pdf) && (pdf.match(/\/Type\s*\/Page\b/g) || []).length === 2 && pdf.includes('(Coating specification)') && pdf.includes('(Performance)') && pdf.includes('(Layers, from the incident medium to the substrate)') && pdf.includes('(Coating and substrate)') && pdf.includes('(Durability)') && pdf.includes('(Drawing note)'), pdf.slice(0, 80));
       await p.click('#tabDesign'); await p.waitForTimeout(100);
+      // the plots' switch: reflectance, transmittance into the substrate, or the share absorbed; R + T + A = 100 % everywhere
+      const qs = {};
+      for (const q of ['T', 'A', 'R']) {
+        await p.click('.film-qsw [data-q="' + q + '"]'); await p.waitForTimeout(120);
+        qs[q] = await p.evaluate(() => ({ band: !!document.querySelector('svg.film-plot[aria-label$="against wavelength"]') && document.querySelector('svg.film-plot[aria-label$="against wavelength"]').getAttribute('aria-label'),
+          head: [...document.querySelectorAll('#filmFigures thead th')].map(t => t.textContent).join('|'), mean: +document.querySelector('#filmFigures tbody td').textContent, on: document.querySelector('.film-qsw [aria-checked="true"]').dataset.q }));
+      }
+      ok('The plots switch between R, T and A: titles, columns and the switch follow, and R + T + A comes to 100 %', qs.T.band === 'Transmittance against wavelength' && qs.A.band === 'Absorbed against wavelength' && qs.R.band === 'Reflectance against wavelength'
+        && qs.T.head.startsWith('Angle|T mean') && qs.A.head.startsWith('Angle|A mean') && qs.T.on === 'T' && qs.R.on === 'R' && Math.abs(qs.R.mean + qs.T.mean + qs.A.mean - 100) < 0.01, JSON.stringify(qs));
       ok('The field in the stack is not on the Design tab', !(await p.evaluate(() => !!document.getElementById('filmField'))));
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);

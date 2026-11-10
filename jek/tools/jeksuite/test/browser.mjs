@@ -66,7 +66,7 @@ export async function check(pw, base, shots) {
       await p.click('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const ray = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), sel: !!document.querySelector('.rt-hcard[data-bench=b1].sel'), opened: window.__opened.length,
         counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent) }));
-      ok('JEKray’s launch page: its benches alone, a click picks one, its folders count its benches, its designers to start', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '0 benches,1 bench'
+      ok('JEKray’s launch page: its benches alone, a click picks one, its folders count its benches (Absorption the one in its folder Old runs), its designers to start', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '1 bench,1 bench'
         && ray.starts.join('|') === 'Open JEKray|New bench|Optical design|RF design', JSON.stringify(ray));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-dark.png' });
       await p.dblclick('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);

@@ -552,12 +552,13 @@ export async function fillHome() {
   };
   box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hlaunch' }, h('div', { class: 'rt-hexplore' }, ...out.filter(Boolean)), prev));
   fillPreview();
-  // each folder: how many of the app's benches are in it
+  // each folder: how many of the app's benches are in it, its folders inside it included (a folder whose benches are all
+  // further down is not empty)
   api('/v1/workspaces/' + ws + '/benches').then(all => {
     if (seq !== homeSeq) return;
     const n = new Map();
     trueTools(all.benches, () => { if (seq === homeSeq) fillHome(); });
-    for (const b of all.benches || []) if ((b.tool || 'jekray') === appPage.id && b.folder_id) n.set(b.folder_id, (n.get(b.folder_id) || 0) + 1);
+    for (const b of all.benches || []) if ((b.tool || 'jekray') === appPage.id && b.folder_id) for (const f of pathOf(b.folder_id)) n.set(f.id, (n.get(f.id) || 0) + 1);
     for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) { const k = n.get(c.dataset.folder) || 0, s = c.querySelector('.rt-hopen'); if (s) s.append(h('small', { class: 'rt-hcount' }, k + ' ' + thingOf(appPage.id) + (k === 1 ? '' : thingOf(appPage.id) === 'bench' ? 'es' : 's'))); }
   }, () => {});
 }

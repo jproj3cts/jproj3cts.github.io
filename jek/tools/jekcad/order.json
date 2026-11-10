@@ -21,6 +21,7 @@
   "ui/pointer.js",
   "ui/news.js",
   "io/files.js",
+  "io/share.js",
   "../../jekray/src/io/account.js",
   "io/cad-account.js",
   "io/cloud.js",

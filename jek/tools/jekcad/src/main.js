@@ -21,6 +21,7 @@ import './ui/panel.js';
 import './ui/pointer.js';
 import './ui/news.js';
 import './io/files.js';
+import './io/share.js';
 import './../../jekray/src/io/account.js';
 import './io/cad-account.js';
 import './io/cloud.js';

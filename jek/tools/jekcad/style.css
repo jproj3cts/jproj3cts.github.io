@@ -63,7 +63,8 @@
   .cad-part.hid .nm { opacity: 0.5; }
   .cad-part input[type="color"] { width: 18px; height: 18px; padding: 0; border: 1px solid var(--jek-line); border-radius: 3px; background: none; cursor: pointer; }
   .cad-partmat { flex-basis: 100%; padding-left: 1.5rem; }
-  .cad-partmat select { font-size: 0.72rem; max-width: 100%; }
+  /* (the list of materials opens upwards from the foot of the panel, so its arrow points up) */
+  .cad-partmat select { font-size: 0.72rem; max-width: 100%; appearance: none; -webkit-appearance: none; padding-right: 1.3rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 7.5L6 4L9.5 7.5' fill='none' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.35rem center; background-size: 0.7rem; }
   .cad-rowmenu { position: fixed; z-index: 90; min-width: 11rem; }
   /* the view */
   .cad-app .cad-stage { flex: 1; min-width: 0; height: auto; min-height: 0; border: 0; }
@@ -84,7 +85,12 @@
   .cad-section[hidden] { display: none; }
   .cad-diminput { position: absolute; z-index: 20; width: 100px; font: 12px var(--jek-mono); padding: 0.15rem 0.3rem; border: 2px solid var(--jek-orange); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
   /* the view cube */
-  .cad-cube { position: absolute; right: 14px; top: 10px; width: 76px; z-index: 6; }
+  .cad-cube { position: absolute; right: 12px; top: 8px; width: 112px; z-index: 6; display: grid; grid-template-columns: 18px 76px 18px; grid-template-rows: 16px 76px 16px auto; align-items: center; justify-items: center; }
+  .cad-cube .cad-cubecv { grid-column: 2; grid-row: 2; }
+  .cad-turn { border: 0; background: none; padding: 0; font-size: 0.62rem; line-height: 1; color: var(--rt-over-mute, var(--jek-ink-soft)); cursor: pointer; }
+  .cad-turn:hover { color: var(--jek-orange); }
+  .cad-turn.up { grid-column: 2; grid-row: 1; } .cad-turn.down { grid-column: 2; grid-row: 3; } .cad-turn.left { grid-column: 1; grid-row: 2; } .cad-turn.right { grid-column: 3; grid-row: 2; }
+  .cad-cube .cad-cubebtns { grid-column: 1 / 4; grid-row: 4; }
   .cad-stage #viewCube canvas.cad-cubecv { position: static; display: block; width: 76px; height: 76px; cursor: default; }
   .cad-cubebtns { display: flex; justify-content: center; gap: 2px; }
   .cad-cubebtns .rt-btn { padding: 0.05rem 0.3rem; font-size: 0.68rem; }

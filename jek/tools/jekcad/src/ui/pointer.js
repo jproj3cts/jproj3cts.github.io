@@ -3,6 +3,7 @@ import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from 
 import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, fieldWants, okDialog, openFeature } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
+import { deletePart } from './panel.js';
 
 /* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
@@ -128,6 +129,8 @@ export function wirePointer() {
     if (ctrl) return;
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
+    // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
+    if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }
     const views = { 1: 'front', 2: 'back', 3: 'left', 4: 'right', 5: 'top', 6: 'bottom', 7: 'iso' };

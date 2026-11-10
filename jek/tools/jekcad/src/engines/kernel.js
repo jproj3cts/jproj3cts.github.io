@@ -394,9 +394,10 @@ export function makeKernel(oc) {
     },
     extrude(S, f, V) {
       const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions);
-      const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
-      const L = bigLength(S, sk.frame), d1 = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len');
-      if (!(d1 > 1e-9)) throw new Error('the depth must be more than 0');
+      // a depth below 0 goes the other way (as Opposite direction does for the ends that have no depth)
+      const L = bigLength(S, sk.frame), dv = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len'), d1 = Math.abs(dv);
+      const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
+      if (!(d1 > 1e-9)) throw new Error('the depth cannot be 0');
       const pieces = [];
       const range1 = f.end === 'symmetric' ? [-d1 / 2, d1 / 2] : [0, d1];
       for (const face of faces) {

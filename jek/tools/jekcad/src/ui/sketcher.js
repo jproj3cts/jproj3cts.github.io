@@ -735,8 +735,16 @@ const inPoly = (P, q) => { let c = false; for (let i = 0, j = P.length - 1; i < 
 /* what of the overlay is under a screen point: a plane, or a sketch's region, shape or point */
 export function overlayPick(sx, sy, want) {
   if (want === 'plane' || want === 'any') {
-    for (const P of shownPlanes().reverse()) { const cs = planeCorners(P).map(project); if (inPoly(cs, [sx, sy]) && edgeNear(cs, sx, sy) < 8) return { kind: 'plane', ...P.key, name: P.name }; }
-    if (want === 'plane') for (const P of shownPlanes().reverse()) { const cs = planeCorners(P).map(project); if (inPoly(cs, [sx, sy])) return { kind: 'plane', ...P.key, name: P.name }; }
+    // anywhere in a plane counts; where planes overlap on screen, the one in front there (nearest the eye)
+    let best = null, bz = -Infinity;
+    const r = rayAt(sx, sy);
+    for (const P of shownPlanes()) {
+      const cs = planeCorners(P).map(project), inside = inPoly(cs, [sx, sy]);
+      if (!inside && edgeNear(cs, sx, sy) >= 8) continue;
+      const uv = rayPlane(r, P.F), z = uv ? project(toWorld(P.F, uv))[2] : -Infinity, zz = inside ? z : -1e30;   // (a plane seen edge on: by its line, behind any plane the pointer is in)
+      if (zz > bz || !best) { bz = zz; best = P; }
+    }
+    if (best) return { kind: 'plane', ...best.key, name: best.name };
   }
   for (const { f, F } of shownSketches().reverse()) {
     const uv = rayPlane(rayAt(sx, sy), F);

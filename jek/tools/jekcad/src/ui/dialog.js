@@ -20,7 +20,7 @@ const SEL_WORDS = { regions: ['region', 'regions'], edges: ['edge or face', 'edg
 export const FEATURE_FORMS = {
   plane: [['ref', 'Plane or face', 'sel', { pick: 'plane' }], ['offset', 'Offset', 'expr', { unit: 'len' }], ['flip', 'Opposite direction', 'check']],
   extrude: [['op', '', 'seg', { options: OPS }], ['regions', 'Faces and sketch regions to extrude', 'sel', { pick: 'regions' }], ['end', 'End', 'select', { options: ENDS }],
-    ['depth', 'Depth', 'expr', { unit: 'len', show: f => f.end === 'blind' || f.end === 'symmetric' }], ['upto', 'Up to face', 'sel', { pick: 'face', show: f => f.end === 'upto' }], ['flip', 'Opposite direction', 'check', { show: f => f.end !== 'symmetric' }],
+    ['depth', 'Depth (below 0: the other way)', 'expr', { unit: 'len', show: f => f.end === 'blind' || f.end === 'symmetric' }], ['upto', 'Up to face', 'sel', { pick: 'face', show: f => f.end === 'upto' }], ['flip', 'Opposite direction', 'check', { show: f => f.end === 'through' || f.end === 'upto' }],
     ['draft', 'Draft angle', 'expr', { unit: 'ang' }], ['second', 'Second end position', 'check', { show: f => f.end !== 'symmetric' }],
     ['end2', 'Second end', 'select', { options: ENDS.filter(e => e[0] !== 'symmetric'), show: f => f.second && f.end !== 'symmetric' }], ['depth2', 'Second depth', 'expr', { unit: 'len', show: f => f.second && f.end !== 'symmetric' && f.end2 === 'blind' }],
     ['upto2', 'Second: up to face', 'sel', { pick: 'face', show: f => f.second && f.end2 === 'upto' }], ['targets', 'Parts to change (none: all it meets)', 'sel', { pick: 'parts', show: f => f.op !== 'new' }]],
@@ -74,6 +74,8 @@ export function editFeature(i) {
   if (app.editing) closeDialog(false);
   if (f.type === 'sketch') { startSketch(f, i, false); return; }
   app.editing = { f: JSON.parse(JSON.stringify(f)), at: i, isNew: false, field: null };
+  // an extrude to a depth, ticked Opposite direction (from before a depth could be below 0): the same as a negative depth
+  { const g = app.editing.f; if (g.type === 'extrude' && g.flip && (g.end === 'blind' || g.end === 'symmetric')) { g.flip = false; if (g.end === 'blind') g.depth = /^\s*-/.test(g.depth) ? g.depth.replace(/^\s*-\s*/, '') : '-(' + g.depth + ')'; } }
   showDialog();
   regenSoon(0);
 }

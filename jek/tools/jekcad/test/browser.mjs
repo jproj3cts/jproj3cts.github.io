@@ -266,6 +266,9 @@ export async function check(pw, base, shots) {
     // ---- a double-click on a plane starts a sketch on it; what a point is inferred from ----
     await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
     await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    // a plane is picked anywhere in it, and where two overlap on screen, the one in front there
+    const inPl = await p.evaluate(() => { const J = window.JEKcad, at = w => J.project(w).slice(0, 2), k = w => { const h = J.pickHere(...at(w)); return h && h.kind === 'plane' ? h.std : null; }; return [k([12, -12, 0]), k([12, 0, 12]), k([0, -12, 12]), k([-12, 12, 0])]; });
+    ok('A plane is picked anywhere inside it; where planes overlap on screen, the one nearest the eye', inPl[0] === 'top' && inPl[1] === 'front' && inPl[2] === 'right' && !!inPl[3], JSON.stringify(inPl));
     // the Front plane's border, in the view: found as a person's eye finds it
     const edgePt = await p.evaluate(() => { const J = window.JEKcad; for (let x = 20; x < J.view.w - 20; x += 3) for (let y = 20; y < J.view.h - 20; y += 3) { const k = J.overlayPick(x, y, 'any'); if (k && k.kind === 'plane' && k.std === 'front') return [x, y]; } return null; });
     const ob2 = await p.locator('#over').boundingBox();
@@ -315,6 +318,16 @@ export async function check(pw, base, shots) {
     await p.keyboard.press('c'); await clickUV([-10, 0]); await moveUV([-5, 3]); await p.keyboard.type('30'); await p.keyboard.press('Enter');
     await clickUV([10, 0]); await moveUV([15, 3]); await p.keyboard.type('30'); await p.keyboard.press('Enter');
     await p.click('#sketchOk'); await regen();
+    // regions clicked in the view: each click adds one or takes it out, the others stay; a click on nothing empties
+    await p.evaluate(() => window.JEKcad.viewFrom('top')); await p.waitForTimeout(300);
+    const cl = async w => { const q = await xy(w); await p.mouse.move(q[0], q[1], { steps: 2 }); await p.waitForTimeout(60); await p.mouse.click(q[0], q[1]); await p.waitForTimeout(60); };
+    const nsel = () => p.evaluate(() => window.JEKcad.app.sel.filter(x => x.kind === 'region').length);
+    await cl([-20, 0, 0]); await cl([20, 0, 0]); const s2 = await nsel();
+    await cl([0, 0, 0]); const s3 = await nsel();
+    await cl([-20, 0, 0]); const s2b = await nsel();
+    await p.mouse.click(ob2.x + 40, ob2.y + ob2.height - 40); await p.waitForTimeout(60); const s0 = await p.evaluate(() => window.JEKcad.app.sel.length);
+    ok('Clicking regions adds each to the selection, clicking one again takes it out, and a click on nothing empties it', s2 === 2 && s3 === 3 && s2b === 2 && s0 === 0, JSON.stringify([s2, s3, s2b, s0]));
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
     await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '10'); await p.waitForTimeout(400);
     const r0 = await p.evaluate(() => ({ n: window.JEKcad.app.editing.f.regions.length, field: window.JEKcad.app.editing.field && window.JEKcad.app.editing.field.key }));
     const lens = await xy([0, 0, 0]); await p.mouse.move(lens[0], lens[1], { steps: 3 }); await p.waitForTimeout(80); await p.mouse.click(lens[0], lens[1]);

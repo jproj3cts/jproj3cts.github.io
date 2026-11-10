@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { kernel, rectSketch, circleSketch, pointsSketch, newDoc, newFeature, okAll, errorsOf } from './helpers.mjs';
+import { slotEnts, regionsOf, defaultRegionPts } from '../../src/core/sketch-tools.js';
 
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, (what || '') + ' ' + a + ' is not ' + b);
 /* a 40 × 20 block, 10 high, on the Top plane from the origin */
@@ -334,4 +335,46 @@ test('extrude: a new one adds to the part it meets (a new part where it meets no
   const o2 = K.regen(d2);
   assert.ok(okAll(o2), errorsOf(o2).join('; '));
   near(o2.parts[0].bbox[0][2], -10, 1e-6); near(o2.parts[0].bbox[1][2], 0, 1e-6); near(vol(o2), 1000, 1e-3);
+});
+
+test('three slots laid end on end by eye (their ends a hair apart), round holes at the ends: nine regions, any of them cut, and the five of the U cut as one', async () => {
+  const K = await kernel(), doc = block(100, 80, 10);
+  let out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  const v0 = vol(out), top = K.refs([faceNear(out, [50, 40, 10], K)])[0], O = [50, 40], at = q => [q[0] + O[0], q[1] + O[1]];
+  // across the top, then down each side: each drawn onto the last one's end, not quite on it
+  const ents = [...slotEnts(at([-32, 27.5]), at([32, 27.5]), 5).ents, ...slotEnts(at([-32.0000005, 27.5016]), at([-32.0000003, -27.496]), 5).ents, ...slotEnts(at([32.0000002, 27.4985]), at([32, -27.4972]), 5).ents,
+    ...[[-32, 27.5], [32, 27.5], [-32, -27.5], [32, -27.5]].map((c, i) => ({ id: 'hole' + i, t: 'circle', c: at(c), r: 1.65 }))];
+  const R = regionsOf(ents), big = R.filter(r => r.area > 50);
+  assert.equal(R.length, 9, 'the two corners, the three bars between them and the four holes: ' + R.map(r => r.area.toFixed(2)).join());
+  assert.equal(defaultRegionPts(ents).length, 5, 'the U, its holes left out');
+  const sk = newFeature(doc, 'sketch', { plane: top, ents });
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: [], op: 'remove', depth: '5' }));
+  for (const r of big) {
+    doc.features[3].regions = [r.pt];
+    out = K.regen(doc);
+    assert.ok(okAll(out), errorsOf(out).join('; '));
+    near(v0 - vol(out), r.area * 5, 0.02 * r.area * 5 + 0.5, 'the region of ' + r.area.toFixed(1) + ' mm², cut 5 deep:');
+  }
+  for (const pick of [[0, 1], [1, 2], big.map((r, i) => i)]) {
+    doc.features[3].regions = pick.map(i => big[i].pt);
+    out = K.regen(doc);
+    assert.ok(okAll(out), errorsOf(out).join('; '));
+    assert.equal(out.parts.length, 1);
+    const want = pick.reduce((t, i) => t + big[i].area * 5, 0);
+    near(v0 - vol(out), want, 0.01 * want + 0.5, 'regions ' + pick.join() + ' cut together:');
+  }
+});
+
+test('a fillet’s faces are named after the edges they round, the same whatever order the edges come in', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  let out = K.regen(doc);
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0];
+  doc.features.push(newFeature(doc, 'fillet', { edges: [top], radius: '2' }));
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  const names = out.parts[0].faceNames.filter(n => n.startsWith(doc.features[2].id + '.r'));
+  assert.equal(names.length, 4);
+  assert.equal(new Set(names).size, 4, 'four fillet faces, four names');
+  assert.ok(names.every(n => !/\.r\d$/.test(n)), 'none named by its place in a list: ' + names.join());
 });

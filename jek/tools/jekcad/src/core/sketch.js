@@ -270,12 +270,14 @@ export function definedEnts(ents, cons, dims) {
    each an outline and the holes in it (what lies inside it, not joined to it). A region is chosen by a point inside it,
    so a choice survives the sketch being changed while the region is still there. */
 export function sketchRegions(ents, outline) {
-  const segs = [];
+  // (each step of an outline remembers the shape it is a step of: a region's outline carries, as .src, the shape
+  // each of its sides lies on, so the kernel can make the region's face of true lines and arcs)
+  const segs = [], srcOf = [];
   for (const e of ents) {
     if (e.k || e.t === 'point') continue;
     const P = outline(e), closed = !(e.t === 'line' || e.t === 'arc');
-    for (let i = 0; i + 1 < P.length; i++) segs.push([P[i], P[i + 1]]);
-    if (closed && P.length > 2) segs.push([P[P.length - 1], P[0]]);
+    for (let i = 0; i + 1 < P.length; i++) { segs.push([P[i], P[i + 1]]); srcOf.push(e); }
+    if (closed && P.length > 2) { segs.push([P[P.length - 1], P[0]]); srcOf.push(e); }
   }
   if (!segs.length) return [];
   let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
@@ -309,7 +311,7 @@ export function sketchRegions(ents, outline) {
       if (ts[k + 1] - ts[k] < 1e-12) continue;
       const P = t => [s[0][0] + (s[1][0] - s[0][0]) * t, s[0][1] + (s[1][1] - s[0][1]) * t];
       const a = vid(P(ts[k])), b = vid(P(ts[k + 1]));
-      if (a !== b) edges.set(Math.min(a, b) + '-' + Math.max(a, b), [a, b]);
+      if (a !== b) edges.set(Math.min(a, b) + '-' + Math.max(a, b), [a, b, srcOf[i]]);
     }
   });
   // edges that end nowhere bound nothing: taken away until none is left
@@ -327,15 +329,15 @@ export function sketchRegions(ents, outline) {
   const used = new Set(), cycles = [];
   for (const [a, b] of [...edges.values()].flatMap(([a, b]) => [[a, b], [b, a]])) {
     if (used.has(a + '>' + b)) continue;
-    const cyc = [];
+    const cyc = [], cs = [];
     let u = a, v = b, guard = 0;
     while (!used.has(u + '>' + v) && guard++ < 100000) {
-      used.add(u + '>' + v); cyc.push(u);
+      used.add(u + '>' + v); cyc.push(u); cs.push(edges.get(Math.min(u, v) + '-' + Math.max(u, v))[2]);
       // at v: the edge just clockwise of the way back (v to u)
       const L = adj.get(v), i = L.indexOf(u), w = L[(i - 1 + L.length) % L.length];
       u = v; v = w;
     }
-    if (cyc.length >= 3) cycles.push(cyc.map(i => verts[i]));
+    if (cyc.length >= 3) cycles.push(Object.assign(cyc.map(i => verts[i]), { src: cs }));
   }
   const area = P => { let s = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; s += a[0] * b[1] - b[0] * a[1]; } return s / 2; };
   const faces = cycles.filter(c => area(c) > tol * tol).map(c => ({ outer: c, holes: [], a: area(c) }));

@@ -1,6 +1,6 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { arcSweep, carryPt, distToEnt } from '../core/sketch-tools.js';
-import { entKeys, hpt, solveSketch } from '../core/sketch.js';
+import { WELD, arcSweep, carryPt, distToEnt, entCross, regionsOf, weldEnts } from '../core/sketch-tools.js';
+import { entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -150,7 +150,7 @@ export function makeKernel(oc) {
     if (best && bd < 1e-4) return best;
     throw new Error('a chosen face is no longer there');
   }
-  function findEdge(S, ref) {
+  function findEdge(S, ref, byName) {
     const cands = [];
     for (const b of [bodyFor(S, ref), ...S.parts].filter(Boolean)) {
       edgesOf(b);
@@ -163,6 +163,8 @@ export function makeKernel(oc) {
       if (cands.length) break;
     }
     if (cands.length) { let best = null, bd = Infinity; for (const [b, j] of cands) { const d = near(midOf(b, j), ref.pt); if (d < bd) { bd = d; best = { b, j }; } } return best; }
+    // (byName: for a sketch that follows this edge, only an edge still known by its faces will do)
+    if (byName) throw new Error('a chosen edge is no longer there');
     let best = null, bd = Infinity;
     for (const b of S.parts) { edgesOf(b); b.edges.forEach((e, j) => { const d = near(midOf(b, j), ref.pt); if (d < bd) { bd = d; best = { b, j }; } }); }
     if (best && bd < 1e-4) return best;
@@ -231,9 +233,80 @@ export function makeKernel(oc) {
     }
     return out;
   }
+  /* a region's outline (its corners where the page found them, each side knowing its shape) as a wire of true
+     lines and arcs: each corner set exactly where its two shapes cross or end, each run of steps along one arc
+     made one arc */
+  function ringWire(F, ring) {
+    const n = ring.length, src = ring.src, mw = T(new oc.BRepBuilderAPI_MakeWire());
+    const circOf = e => T(new oc.gp_Circ(T(new oc.gp_Ax2(pnt(toWorld(F, e.c)), gdir(F.n), gdir(F.x))), e.r));
+    const turn = [];
+    for (let i = 0; i < n; i++) if (src[(i - 1 + n) % n] !== src[i]) turn.push(i);
+    if (!turn.length) { if (!src[0] || src[0].t === 'line') throw new Error('an outline of one line'); mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(circOf(src[0]))).Edge()); return mw.Wire(); }
+    const ends = e => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a0, e.a0 + arcSweep(e)].map(a => [e.c[0] + e.r * Math.cos(a * DEGR), e.c[1] + e.r * Math.sin(a * DEGR)]) : []);
+    const exact = i => {
+      const A = src[(i - 1 + n) % n], B = src[i], q = ring[i], reach = 0.02 + 0.002 * Math.max(A.r || 0, B.r || 0);
+      let best = q, bd = reach;
+      for (const c of [...entCross(A, B), ...ends(A), ...ends(B)]) { const d = Math.hypot(c[0] - q[0], c[1] - q[1]); if (d < bd) { bd = d; best = c; } }
+      return best;
+    };
+    const P = turn.map(exact), m2pi = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    turn.forEach((i0, k) => {
+      const i1 = turn[(k + 1) % turn.length], E = src[i0], p = P[k], q = P[(k + 1) % turn.length], gap = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (E.t === 'line') { if (gap > 1e-9) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, p)), pnt(toWorld(F, q)))).Edge()); return; }
+      // the way round the circle the outline goes: by a corner in the middle of the run (or the middle of its one step)
+      const steps = (i1 - i0 + n) % n || n, mid = steps > 1 ? ring[(i0 + Math.floor(steps / 2)) % n] : [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      const an = z => Math.atan2(z[1] - E.c[1], z[0] - E.c[0]), ap = an(p), aq = an(q), am = an(mid);
+      const whole = gap < 1e-9, ccw = whole ? true : m2pi(am - ap) < m2pi(aq - ap), a0 = ccw ? ap : aq, sweep = whole ? 2 * Math.PI : ccw ? m2pi(aq - ap) : m2pi(ap - aq);
+      if (sweep > 1e-12) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(circOf(E), a0, a0 + sweep)).Edge());
+    });
+    if (!mw.IsDone()) throw new Error('an outline that does not close');
+    return mw.Wire();
+  }
+  /* a face of an outline and the holes in it, checked against the area it should have */
+  function ringFace(F, outer, holes, area) {
+    let face = T(new oc.BRepBuilderAPI_MakeFace(ringWire(F, outer), true)).Face();
+    for (const hole of holes) {
+      const hf = T(new oc.BRepBuilderAPI_MakeFace(ringWire(F, hole), true)).Face(), op = T(new oc.BRepAlgoAPI_Cut());
+      op.SetArguments(listFrom([face])); op.SetTools(listFrom([hf])); op.Build(prog());
+      const fs = op.IsDone() ? subShapes(op.Shape(), TA.TopAbs_FACE) : [];
+      if (fs.length !== 1) throw new Error('a hole that does not cut');
+      face = fs[0];
+    }
+    if (Math.abs(props(face, 'a').m - area) > 0.02 * area + 1e-3) throw new Error('a face of the wrong size');
+    return face;
+  }
+  /* several regions chosen that touch: one face of each group of them, its outline what is left of theirs when
+     the sides they share are taken away. (One face pushed makes one solid; pushing each region and joining the
+     solids is where the joining goes wrong, on sides that are arcs.) */
+  function unionFaces(sk, idx) {
+    const ids = new Map(), id = v => { if (!ids.has(v)) ids.set(v, ids.size); return ids.get(v); }, sides = [];
+    for (const i of idx) for (const ring of [sk.regions[i].outer, ...sk.regions[i].holes]) ring.forEach((v, k) => sides.push({ a: id(v), b: id(ring[(k + 1) % ring.length]), p: v, src: ring.src[k] }));
+    const have = new Set(sides.map(x => x.a + '>' + x.b)), left = sides.filter(x => !have.has(x.b + '>' + x.a)), from = new Map();
+    for (const x of left) { if (!from.has(x.a)) from.set(x.a, []); from.get(x.a).push(x); }
+    const area = P => { let t = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; t += p[0] * q[1] - q[0] * p[1]; } return t / 2; };
+    const loops = [];
+    for (const x0 of left) {
+      if (x0.used) continue;
+      const ring = [], src = [];
+      for (let x = x0, guard = 0; x && !x.used && guard < 100000; guard++) { x.used = true; ring.push(x.p); src.push(x.src); x = (from.get(x.b) || []).find(y => !y.used); }
+      if (ring.length >= 3) loops.push(Object.assign(ring, { src, area: area(ring) }));
+    }
+    const outers = loops.filter(r => r.area > 0).map(r => ({ outer: r, holes: [] }));
+    for (const h of loops.filter(r => r.area < 0)) { let best = null; for (const o of outers) if (o.outer.area > -h.area && inside(o.outer, h[0]) && (!best || o.outer.area < best.outer.area)) best = o; if (best) best.holes.push(h); }
+    return outers.map(o => ringFace(sk.frame, o.outer, o.holes, o.outer.area + o.holes.reduce((t, h) => t + h.area, 0)));
+  }
+  /* a sketch's regions as faces: the regions the page finds (core/sketch.js, the same ones it shows and lets be
+     chosen), each made of true lines and arcs, its holes cut out. (OpenCascade's own splitting of the plane by
+     the sketch's edges gives wrong faces where a line meets two arcs it is tangent to, as slots laid end on end do.) */
   function regionFaces(sk) {
     if (sk.faces) return sk.faces;
-    const F = sk.frame, es = entEdges(F, sk.ents);
+    const made = [];
+    let Rs = [];
+    try { Rs = regionsOf(sk.ents); for (const R of Rs) { try { made.push(ringFace(sk.frame, R.outer, R.holes, R.area)); } catch (err) { /* left to the splitter below */ made.push(null); } } } catch (err) { made.length = 0; made.push(null); }
+    if (made.length && made.every(Boolean)) { sk.regions = Rs; return (sk.faces = made); }
+    // (shapes a hair apart made the same first, and the split told how near counts as touching: curves that all but
+    // coincide otherwise give faces that cut nothing, or everything)
+    const F = sk.frame, es = entEdges(F, weldEnts(sk.ents));
     if (!es.length) return (sk.faces = []);
     let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
     for (const { e } of es) for (const p of e.t === 'line' ? [e.a, e.b] : [[e.c[0] - e.r, e.c[1] - e.r], [e.c[0] + e.r, e.c[1] + e.r]]) { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; }
@@ -241,7 +314,9 @@ export function makeKernel(oc) {
     const pln = T(new oc.gp_Pln(T(new oc.gp_Ax3(pnt(F.o), gdir(F.n), gdir(F.x)))));
     const big = T(new oc.BRepBuilderAPI_MakeFace(pln, U[0], U[1], W[0], W[1])).Face();
     const sp = T(new oc.BRepAlgoAPI_Splitter());
-    sp.SetArguments(listFrom([big])); sp.SetTools(listFrom(es.map(x => x.edge))); sp.Build(prog());
+    sp.SetArguments(listFrom([big])); sp.SetTools(listFrom(es.map(x => x.edge)));
+    try { sp.SetFuzzyValue(WELD); } catch (err) { /* this build has no fuzzy value: exact */ }
+    sp.Build(prog());
     const eps = m * 0.1;
     sk.faces = subShapes(sp.Shape(), TA.TopAbs_FACE).filter(f => { const b = oc.BRepTools.UVBounds(f); return b.UMin > U[0] + eps && b.UMax < U[1] - eps && b.VMin > W[0] + eps && b.VMax < W[1] - eps; });
     return sk.faces;
@@ -263,6 +338,8 @@ export function makeKernel(oc) {
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
+    // regions that touch pushed as one face (where the faces are the page's regions, each known by its outline)
+    if (out.length > 1 && sk.regions) { try { return unionFaces(sk, out.map(f => faces.indexOf(f))); } catch (err) { /* each on its own, as before */ } }
     return out;
   }
   /* the sketch shape an edge of a region face came from (its middle on the shape) */
@@ -360,7 +437,7 @@ export function makeKernel(oc) {
         moved = true; continue;
       }
       let g;
-      try { const hit = findEdge(S, e.src), sh = edgeShapes(hit.b.edges[hit.j], F); if (sh.length !== 1 || sh[0].t !== e.t) continue; g = sh[0]; } catch (err) { continue; }
+      try { const hit = findEdge(S, e.src, true), sh = edgeShapes(hit.b.edges[hit.j], F); if (sh.length !== 1 || sh[0].t !== e.t) continue; g = sh[0]; } catch (err) { continue; }
       if (e.t === 'line') {
         // the same way round as it was drawn
         if (Math.hypot(g.a[0] - e.a[0], g.a[1] - e.a[1]) + Math.hypot(g.b[0] - e.b[0], g.b[1] - e.b[1]) > Math.hypot(g.b[0] - e.a[0], g.b[1] - e.a[1]) + Math.hypot(g.a[0] - e.b[0], g.a[1] - e.b[1])) [g.a, g.b] = [g.b, g.a];
@@ -631,7 +708,12 @@ export function makeKernel(oc) {
     for (const [b, js] of by) {
       const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
       const gen = [];
-      [...js].forEach((j, k) => { mk.Add(size, b.edges[j]); gen.push([b.edges[j], f.id + '.r' + k]); });
+      // each new face named after the edge it rounds: by the two faces that met there (and, where two edges lie
+      // between one pair of faces, their order along x, y, z), not by the order the kernel happens to list edges in,
+      // which is not the same from one visit to the next
+      const keyOf = j => b.edgeFaces[j].map(i => b.names[i][0]).sort().join('|'), seen = new Map();
+      const ordered = [...js].sort((p, q) => { const kp = keyOf(p), kq = keyOf(q); if (kp !== kq) return kp < kq ? -1 : 1; const mp = midOf(b, p), mq = midOf(b, q); for (let i = 0; i < 3; i++) if (Math.abs(mp[i] - mq[i]) > 1e-7) return mp[i] - mq[i]; return 0; });
+      for (const j of ordered) { const key = keyOf(j), n = seen.get(key) || 0; seen.set(key, n + 1); mk.Add(size, b.edges[j]); gen.push([b.edges[j], f.id + '.r' + hashText([2166136261, 1], key)[0].toString(36) + (n ? '.' + n : '')]); }
       let shape;
       try { mk.Build(prog()); shape = mk.Shape(); } catch (err) { throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen'); }
       if (!mk.IsDone()) throw new Error('the ' + kind + ' could not be made');

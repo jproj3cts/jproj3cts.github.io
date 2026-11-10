@@ -42,8 +42,64 @@ export function entOutline(e, step) {
   for (let i = 0; i <= (circ ? n - 1 : n); i++) { const a = (a0 + sw * i / n) * DEG; out.push([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)]); }
   return out;
 }
-/* the regions a feature can use: the plane cut by every shape that is not construction */
-export const regionsOf = ents => sketchRegions(ents.filter(e => !e.k && e.t !== 'point'), e => entOutline(e, 3));
+/* a sketch's shapes with what is all but the same made the same: ends and centres within a few thousandths of a
+   millimetre of each other set to one place, and circles and arcs about one centre with all but the same radius
+   given one radius. Shapes drawn over each other by eye (one slot's end on another's) are a hair apart, and that
+   hair cuts the plane into slivers that are no use as regions and that the kernel cannot make faces of. */
+export const WELD = 0.005;
+export function weldEnts(ents, tol = WELD) {
+  const out = ents.map(e => Object.assign({}, e, e.a ? { a: e.a.slice(), b: e.b.slice() } : {}, e.c ? { c: e.c.slice() } : {})), reps = [];
+  const snap = p => { for (const q of reps) if (Math.hypot(p[0] - q[0], p[1] - q[1]) <= tol) return q.slice(); reps.push(p.slice()); return p; };
+  // centres first, so an end that is all but on a centre goes to it
+  for (const e of out) if (e.c) e.c = snap(e.c);
+  for (const e of out) if (e.a) { e.a = snap(e.a); e.b = snap(e.b); }
+  const round = out.filter(e => e.t === 'arc' || e.t === 'circle');
+  // an arc's ends turned onto the place its neighbours' ends were set to
+  for (const e of out) if (e.t === 'arc') for (const k of ['a0', 'a1']) { const an = e[k] * Math.PI / 180, p = [e.c[0] + e.r * Math.cos(an), e.c[1] + e.r * Math.sin(an)], q = reps.find(z => Math.hypot(p[0] - z[0], p[1] - z[1]) <= tol && Math.hypot(z[0] - e.c[0], z[1] - e.c[1]) > tol); if (q) e[k] = Math.atan2(q[1] - e.c[1], q[0] - e.c[0]) * 180 / Math.PI; }
+  for (let i = 0; i < round.length; i++) for (let j = 0; j < i; j++) if (round[i].c[0] === round[j].c[0] && round[i].c[1] === round[j].c[1] && Math.abs(round[i].r - round[j].r) <= tol) { round[i].r = round[j].r; break; }
+  // and a line's end that is all but on a circle or an arc set onto it (where the arc's own end was just turned to)
+  for (const e of out) if (e.t === 'line') for (const k of ['a', 'b']) for (const c of round) { const d = Math.hypot(e[k][0] - c.c[0], e[k][1] - c.c[1]); if (d > tol && Math.abs(d - c.r) <= tol) { e[k] = [c.c[0] + (e[k][0] - c.c[0]) / d * c.r, c.c[1] + (e[k][1] - c.c[1]) / d * c.r]; break; } }
+  return unionEnts(out, tol);
+}
+/* shapes that lie along each other made one: arcs on one circle that overlap or meet become the arc that covers them
+   (a circle, if they go right round, or if one of them is a circle), and lines along one line that overlap become
+   one line. Two curves laid one on the other are one boundary, and a face cannot be made with both. */
+function unionEnts(ents, tol) {
+  const out = [], done = new Set();
+  ents.forEach((e, i) => {
+    if (done.has(i)) return;
+    if (e.t === 'arc' || e.t === 'circle') {
+      const same = ents.map((o, j) => j).filter(j => !done.has(j) && (ents[j].t === 'arc' || ents[j].t === 'circle') && ents[j].c[0] === e.c[0] && ents[j].c[1] === e.c[1] && ents[j].r === e.r);
+      for (const j of same) done.add(j);
+      if (same.length === 1) { out.push(e); return; }
+      // the circle cut at every arc's end, and each piece that some arc (or a circle) covers kept once: the pieces
+      // meet end to end where the arcs did, so what was drawn to an arc's end still meets an end
+      const eps = Math.max(1e-7, tol / e.r * 180 / Math.PI), m360 = v => ((v % 360) + 360) % 360, whole = same.some(j => ents[j].t === 'circle');
+      const arcs = same.filter(j => ents[j].t === 'arc').map(j => [m360(ents[j].a0), arcSweep(ents[j])]);
+      const cuts = [];
+      for (const [a0, sw] of arcs) for (const v of [a0, m360(a0 + sw)]) if (!cuts.some(c => Math.abs(c - v) <= eps || Math.abs(Math.abs(c - v) - 360) <= eps)) cuts.push(v);
+      if (!cuts.length) { out.push(Object.assign({}, e, { t: 'circle' })); return; }
+      cuts.sort((p, q) => p - q);
+      const covered = v => whole || arcs.some(([a0, sw]) => m360(v - a0) <= sw);
+      let k = 0;
+      cuts.forEach((c0, i) => { const c1 = i + 1 < cuts.length ? cuts[i + 1] : cuts[0] + 360; if (c1 - c0 > eps && covered(m360((c0 + c1) / 2))) { out.push({ id: k ? e.id + '~' + k : e.id, t: 'arc', c: e.c, r: e.r, a0: c0, a1: c1 }); k++; } });
+      return;
+    }
+    if (e.t !== 'line') { done.add(i); out.push(e); return; }
+    const d = [e.b[0] - e.a[0], e.b[1] - e.a[1]], L = Math.hypot(d[0], d[1]);
+    if (L < 1e-12) { done.add(i); return; }
+    const u = [d[0] / L, d[1] / L], along = p => (p[0] - e.a[0]) * u[0] + (p[1] - e.a[1]) * u[1], off = p => Math.abs((p[0] - e.a[0]) * u[1] - (p[1] - e.a[1]) * u[0]);
+    const same = ents.map((o, j) => j).filter(j => !done.has(j) && ents[j].t === 'line' && off(ents[j].a) <= tol && off(ents[j].b) <= tol);
+    for (const j of same) done.add(j);
+    const spans = same.map(j => [along(ents[j].a), along(ents[j].b)].sort((p, q) => p - q)).sort((p, q) => p[0] - q[0]), U = [];
+    for (const sp of spans) { const M = U[U.length - 1]; if (M && sp[0] < M[1] - tol) M[1] = Math.max(M[1], sp[1]); else U.push(sp.slice()); }
+    U.forEach((sp, k) => out.push(spans.length === 1 ? e : { id: k ? e.id + '~' + k : e.id, t: 'line', a: [e.a[0] + u[0] * sp[0], e.a[1] + u[1] * sp[0]], b: [e.a[0] + u[0] * sp[1], e.a[1] + u[1] * sp[1]] }));
+  });
+  return out;
+}
+/* the regions a feature can use: the plane cut by every shape that is not construction (slivers left out: the thin
+   scraps between two curves that all but coincide, or between the straight steps two arcs on one circle are drawn in) */
+export const regionsOf = ents => sketchRegions(weldEnts(ents.filter(e => !e.k && e.t !== 'point')), e => entOutline(e, 3)).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
 /* the regions an extrude takes by default: those not inside another (a ring's hole stays a hole), by their points */
 export function defaultRegionPts(ents) {
   const R = regionsOf(ents);

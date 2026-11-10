@@ -17,6 +17,8 @@ export const NEWS = [
     '<b>Mirror</b> in a sketch has a small panel: click the shapes into it, then the mirror line, then Mirror.',
     'A <b>hole of the face</b> you sketch on that lies inside what you draw is brought into the sketch when you finish, so an extrude leaves it open.',
     '<b>Right-drag</b> turns the part about its own upright axis, its middle staying where it is on the screen. <b>Double-click a sketch</b> in the view to edit it. The material list in a part’s row stays open.',
+    'Fixed: <b>shapes drawn over each other</b> (slots laid end on end, a circle on a line’s end) gave regions that cut nothing, or the whole part. Regions are now made the same way on the page and in the kernel, shapes a hair apart are treated as touching, and regions that touch are pushed as one.',
+    'Fixed: a sketch held to a corner or an edge beside a <b>fillet</b> could jump to another corner when the Part Studio was opened again. A fillet’s faces are now named after the edges they round.',
     'A sketch point locks onto the <b>middle of a straight edge</b> of the model and the <b>centre of a round one</b>, as it does onto the model’s corners and edges.',
   ] },
   { v: '0.2.0', date: '10 Nov 2026', items: [

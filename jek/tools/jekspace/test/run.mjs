@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Run JEKspace's tests: the build (and its lint), the Node tests, then the browser check (test/browser.mjs) on the
+/* Run JEKsuite's tests: the build (and its lint), the Node tests, then the browser check (test/browser.mjs) on the
    repository served locally, in Playwright, against the stand-in API. --no-browser runs the Node tests only;
    --port N serves on that port; --shots <folder> keeps pictures of the page. */
 import { execFileSync, spawn } from 'node:child_process';

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/* Builds jek/tools/jekspace.html, the page JEKspace (the JEK hub: the apps, and every cloud bench of every app) is
+/* Builds jek/tools/jekspace.html, the page JEKsuite (the JEK hub: the apps, and every cloud bench of every app) is
    served as, from the sources here: page.html (the markup, with {{STYLE}} and {{SCRIPT}} where they go), JEKray's
    style.css followed by style.css here, and the modules in the order of order.json. A module is listed by its path
-   from src/: JEKspace's own (ui/home.js) or one of JEKray's, shared as it is (../../jekray/src/core/hooks.js). The
+   from src/: JEKsuite's own (ui/home.js) or one of JEKray's, shared as it is (../../jekray/src/core/hooks.js). The
    modules are joined into one script in one scope as JEKray's and JEKion's are (JEKray's build.mjs does the
    stripping, and lends its parser and the lint's helpers), so every top-level name must be unique across the
    modules here, and the same lint applies: imports from where a name is declared, no code run at load (ui/boot.js

@@ -134,8 +134,6 @@
   .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
   .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -1093,10 +1091,11 @@
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
-  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  /* JEKsuite, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
   .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
   .rt-space:hover { background: var(--jek-well); text-decoration: none; }
   .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  :root[data-rt-theme="dark"] .rt-bar a.rt-space, :root[data-rt-theme="dark"] .rt-bar a.rt-space:hover { color: #4fc0d8; }   /* in the dark, cyan, as on JEKion's bar */
   /* on a phone the bar is full: the mark alone (its name in its title and label) */
   @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
   .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
@@ -1126,6 +1125,10 @@
   .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.35rem 0 0.1rem; font-size: 1.1rem; }
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
   .rt-title a { color: inherit; text-decoration: none; }
+  /* the app's name in the bar as JEKsuite's own mark: JEK, then the app's word in a dark box (JEK<b>ray</b>), no stripe */
+  .rt-bar .rt-title::after { content: none; }
+  .rt-bar .rt-title { font-size: 1rem; letter-spacing: 0.01em; }
+  .rt-bar .rt-title b { background: var(--rt-strong); color: var(--rt-on-strong); padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
   .rt-title a:hover { color: var(--jek-cyan-dark); }
   .rt-title a:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 3px; border-radius: 2px; }
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
@@ -1259,7 +1262,6 @@
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
-  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
@@ -1281,7 +1283,7 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-tight, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
     .rt-bar .rt-phonegone { position: static; }
@@ -2023,7 +2025,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .ion-cut button:hover { border-color: var(--jek-cyan); }
   .ion-cut.flat input, .ion-cut.flat button, .ion-cut.flat .unit { display: none; }
   @media (max-width: 760px) { .ion-cut { display: none; } }
-  /* JEKspace at the bar's left, as a CAD system names its documents page: the JEK mark and the word */
+  /* JEKsuite at the bar's left, as a CAD system names its documents page: the JEK mark and the word */
   .ion-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
   .ion-space:hover { background: var(--jek-well); text-decoration: none; }
   .ion-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
@@ -2036,8 +2038,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKion controls">
       <div class="rt-row rt-bar">
-        <a class="ion-space" id="btnSpace" href="/jek/tools/jekspace.html" target="jekspace" title="JEKspace: every bench of every app, in the cloud (in its own tab)"><span class="ion-spacemark" aria-hidden="true"></span>JEKspace</a>
-        <h1 class="rt-title"><a href="/jek/products/design-software/jekion/" title="About JEKion: its product page">JEKion</a></h1>
+        <a class="ion-space" id="btnSpace" href="/jek/tools/jekspace.html" target="jekspace" title="JEKsuite: every bench of every app, in the cloud (in its own tab)"><span class="ion-spacemark" aria-hidden="true"></span>JEKsuite</a>
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekion/" title="About JEKion: its product page" aria-label="JEKion">JEK<b>ion</b></a></h1>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
@@ -2049,7 +2051,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKspace (it opens in its own tab)">My benches on JEKspace…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKsuite (it opens in its own tab)">My benches on JEKsuite…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this bench in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <div class="sep"></div>
@@ -2229,7 +2231,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   </dialog>
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKspace. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
@@ -2451,7 +2453,7 @@ const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
-  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  // the account (io/account.js, shared by JEKray, JEKion and JEKsuite): what each app adds to it or does around it
   appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
   keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
   planActive() {},                      // a plan has just become active, back from paying
@@ -5239,7 +5241,7 @@ async function stepImportBytes(bytes, fileName, say) {
 }
 
 /* ==========================================================================
-   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKsuite (each lists it
    in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
    way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
    left out); kids: nodes or text, with null, undefined and false left out.
@@ -5991,7 +5993,7 @@ function cutTo(v) {
   V().slice = +Math.max(lo, Math.min(hi, v)).toPrecision(8); changed(false);
 }
 function wireActions() {
-  // the arrow at the bar's left: JEKspace, in its own tab (named, so the same one each time), brought to the front
+  // the arrow at the bar's left: JEKsuite, in its own tab (named, so the same one each time), brought to the front
   const space = document.getElementById('btnSpace');
   if (space) space.addEventListener('click', e => { e.preventDefault(); const w = window.open(space.href, 'jekspace'); if (w) w.focus(); });
   document.getElementById('cutRange').addEventListener('input', e => cutTo(+e.target.value));
@@ -6768,12 +6770,12 @@ async function importCad(file, at) {
 const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
   ['1.0', APP_DATE, [
-    '<b>JEKspace</b>, the JEK hub: File \u203a My benches on JEKspace opens <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
+    '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jekspace.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
-    'JEKspace at the bar\u2019s left opens the hub, the hub of every cloud bench, in its own tab. The cut\u2019s position is a control in the bench\u2019s corner: a slider over the array, a number, a step either way; it works in the 3D view too. Typing a number into the panel no longer loses what was typed: the field being typed in is left alone while the bench follows, and a flight\u2019s results wait for it to be left before the panel is redrawn.',
+    'JEKsuite at the bar\u2019s left opens the hub, the hub of every cloud bench, in its own tab. The cut\u2019s position is a control in the bench\u2019s corner: a slider over the array, a number, a step either way; it works in the 3D view too. Typing a number into the panel no longer loses what was typed: the field being typed in is left alone while the bench follows, and a flight\u2019s results wait for it to be left before the panel is redrawn.',
     '<b>Cloud benches</b>, as JEKray\u2019s: File \u203a Save to cloud puts the bench in your cloud benches or a team\u2019s, where it saves as you work with its history; My benches opens the home of every bench, JEKray\u2019s page, where a JEKion bench is marked and opens back here; Fork this bench carries on in a new one. A link #cloud=<id> opens a bench here. Saving there is JEKrayPro\u2019s.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',
     'A heavy particle at a small energy now moves: the speed was taken from γ, which a nanosphere’s thermal energy (1e-21 of its rest energy) left at exactly 1. A cut that falls outside the array (a file saved on another plane) goes to the analysis point rather than drawing nothing; the 3D view follows every change of the View menu and shows the equipotentials too; labels of electrodes at the same spot stack. The View menu is the one place for what the bench shows, in three submenus, Cut, Potential and Paths (the paths’ colouring moved there from the Bench panel’s Display section, which keeps only the numbers); the potential plots along x, y or z through the analysis point; the Notes section is gone; the end-time histogram waits for three ions.',
@@ -7082,7 +7084,7 @@ function wireView3d() {
   V3D.setOn(false);
 }
 /* ==========================================================================
-   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
    API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
    code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
    invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
@@ -7886,7 +7888,7 @@ function wireAccount() {
 }
 
 /* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
-   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+   and JEKsuite; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
 function authOutcome() {
   const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
   if (outcome || billing) {
@@ -8370,7 +8372,7 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKspace (jek/tools/jekspace.html), the JEK hub: places and
+   The home of every bench, JEKion's with JEKray's, is JEKsuite (jek/tools/jekspace.html), the JEK hub: places and
    folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
    links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
    each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
@@ -8474,8 +8476,8 @@ const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]d
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
-// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens JEKspace, where the
-// benches are; #new (JEKspace's New, for someone with nowhere in the cloud to put it) starts a new bench
+// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens JEKsuite, where the
+// benches are; #new (JEKsuite's New, for someone with nowhere in the cloud to put it) starts a new bench
 const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/), benchesAt = !TEST_MODE && !EMBED && location.hash === '#benches';
 const cloudHash = async (cl, benches) => { window.history.replaceState(null, '', location.pathname); await accountLoaded; if (cl) openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); else if (benches) openCloudList(); };
 if (cloudAt || benchesAt) cloudHash(cloudAt, benchesAt);

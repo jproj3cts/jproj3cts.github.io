@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- What this page may load and talk to: itself and the JEK API (the same accounts as the apps). Its code is inline. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>JEKspace</title>
-<meta name="description" content="JEKspace: the JEK apps, JEKray and JEKion, and every bench you keep in the cloud, in one place, with your account, plan and teams.">
+<title>JEKsuite</title>
+<meta name="description" content="JEKsuite: the JEK apps, JEKray and JEKion, and every bench you keep in the cloud, in one place, with your account, plan and teams.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
@@ -134,8 +134,6 @@
   .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
   .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -1093,10 +1091,11 @@
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
-  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  /* JEKsuite, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
   .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
   .rt-space:hover { background: var(--jek-well); text-decoration: none; }
   .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  :root[data-rt-theme="dark"] .rt-bar a.rt-space, :root[data-rt-theme="dark"] .rt-bar a.rt-space:hover { color: #4fc0d8; }   /* in the dark, cyan, as on JEKion's bar */
   /* on a phone the bar is full: the mark alone (its name in its title and label) */
   @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
   .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
@@ -1126,6 +1125,10 @@
   .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.35rem 0 0.1rem; font-size: 1.1rem; }
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
   .rt-title a { color: inherit; text-decoration: none; }
+  /* the app's name in the bar as JEKsuite's own mark: JEK, then the app's word in a dark box (JEK<b>ray</b>), no stripe */
+  .rt-bar .rt-title::after { content: none; }
+  .rt-bar .rt-title { font-size: 1rem; letter-spacing: 0.01em; }
+  .rt-bar .rt-title b { background: var(--rt-strong); color: var(--rt-on-strong); padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
   .rt-title a:hover { color: var(--jek-cyan-dark); }
   .rt-title a:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 3px; border-radius: 2px; }
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
@@ -1259,7 +1262,6 @@
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
-  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
@@ -1281,7 +1283,7 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-tight, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
     .rt-bar .rt-phonegone { position: static; }
@@ -1955,7 +1957,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
-/* JEKspace: on top of JEKray's style.css (its tokens, buttons, dialogs and the My benches page it grew from) */
+/* JEKsuite: on top of JEKray's style.css (its tokens, buttons, dialogs and the My benches page it grew from) */
 html, body { margin: 0; background: var(--jek-well); }
 .space-home { position: fixed; inset: 0; }
 .space-mark { color: inherit; text-decoration: none; }
@@ -2028,10 +2030,10 @@ html, body { margin: 0; background: var(--jek-well); }
 </head>
 <body class="space-app">
 
-  <!-- JEKspace: the apps and every cloud bench, on a page of its own -->
+  <!-- JEKsuite: the apps and every cloud bench, on a page of its own -->
   <section class="rt-home space-home" id="home" aria-labelledby="homeTitle">
     <header class="rt-hhead">
-      <h1 id="homeTitle"><a class="rt-hmark space-mark" href="/jek/tools/jekspace.html" title="JEKspace: your apps and benches">JEK<b>space</b></a> <span id="homeWhere">Your apps and benches</span></h1>
+      <h1 id="homeTitle"><a class="rt-hmark space-mark" href="/jek/tools/jekspace.html" title="JEKsuite: your apps and benches">JEK<b>suite</b></a> <span id="homeWhere">Your apps and benches</span></h1>
       <input type="search" id="homeSearch" placeholder="Search by name" aria-label="Search benches">
       <button class="rt-btn rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
       <button class="rt-btn primary" id="homeNew" type="button" aria-haspopup="menu" aria-expanded="false" title="Open one of the apps, or start a new bench in one">New ▾</button>
@@ -2173,7 +2175,7 @@ const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
-  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  // the account (io/account.js, shared by JEKray, JEKion and JEKsuite): what each app adds to it or does around it
   appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
   keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
   planActive() {},                      // a plan has just become active, back from paying
@@ -2558,7 +2560,7 @@ function wireUsage() {
   addEventListener('pagehide', () => { if (!usageLeft) { usageLeft = true; track('leave', usageMinutes(Date.now() - USAGE_T0)); } usageFlush(); });
 }
 /* ==========================================================================
-   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKsuite (each lists it
    in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
    way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
    left out); kids: nodes or text, with null, undefined and false left out.
@@ -2669,7 +2671,7 @@ function setSpaceTheme(v) {
   themeApply();
 }
 /* ==========================================================================
-   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
    API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
    code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
    invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
@@ -3473,7 +3475,7 @@ function wireAccount() {
 }
 
 /* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
-   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+   and JEKsuite; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
 function authOutcome() {
   const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
   if (outcome || billing) {
@@ -3486,7 +3488,7 @@ function authOutcome() {
   if (billing === 'success' && accountsOn()) setTimeout(() => awaitPlan(), 300);
 }
 /* ==========================================================================
-   JEKspace's home: every cloud bench of every app, as a CAD system's documents page. Places down the left (the
+   JEKsuite's home: every cloud bench of every app, as a CAD system's documents page. Places down the left (the
    apps, each workspace, Recent, its folders, My parts, My links, the bin), the benches as cards with their pictures,
    or as rows, of every app or one. A bench opens in its own app, in that app's tab (#cloud=<id>); a card's ⋯ menu
    also gives its history, forks, renames, moves, copies to another workspace and deletes; a bench's history opens a
@@ -4102,7 +4104,7 @@ function startNew(app, into) {
 /* Signed out: what the hub is, the ways in, and the apps (which need no account to use) */
 function signedOutView() {
   const rail = document.getElementById('homeRail'), box = document.getElementById('homeList');
-  document.getElementById('homeCrumbs').replaceChildren('JEKspace');
+  document.getElementById('homeCrumbs').replaceChildren('JEKsuite');
   document.getElementById('homeTools').replaceChildren();
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
@@ -4120,7 +4122,7 @@ function signedOutView() {
   box.replaceChildren(
     h('div', { class: 'rt-hsignin' },
       h('h2', null, 'Sign in to see your benches'),
-      h('p', null, 'JEKspace holds every bench you keep in the cloud, from every JEK app, in your workspace and your teams’: open any of them in its app, see its history, fork, compare and merge versions, and manage your account, plan and teams. One account signs you in to every app.'),
+      h('p', null, 'JEKsuite holds every bench you keep in the cloud, from every JEK app, in your workspace and your teams’: open any of them in its app, see its history, fork, compare and merge versions, and manage your account, plan and teams. One account signs you in to every app.'),
       h('div', { class: 'rt-actions', style: 'justify-content:flex-start' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'homeSignIn', onclick: openAccountMenu }, 'Sign in or create an account'),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => showSubscribe() }, 'JEKrayPro: plans and prices'))),
     appLinks());
@@ -4170,7 +4172,7 @@ function spaceAccountExtra(signedIn) {
   return signedIn ? [theme] : [plans, theme];
 }
 /* ==========================================================================
-   JEKspace's start: the theme (JEKray's, so the hub and the apps look alike), the account and the home wired, the
+   JEKsuite's start: the theme (JEKray's, so the hub and the apps look alike), the account and the home wired, the
    visit counted, and the account looked up; the benches come once it is known. This tab is the hub's: the apps'
    My benches open here (window 'jekspace') rather than a new tab each time.
    ========================================================================== */
@@ -4181,7 +4183,7 @@ if (!window.name) window.name = 'jekspace';
 // the benches, once the account is known (signed in, or signed out for sure)
 // the shared account's hooks: the hub's name and toasts, its pop-up account menu (made as it opens) with the theme in it
 installHooks({
-  appName: 'JEKspace', toast,
+  appName: 'JEKsuite', toast,
   accountChanged: () => { if (account || accountKnown) fillHome(); },
   accountMenuExtra: spaceAccountExtra, accountMenuDone: closeMenu, openAccountMenu,
 });

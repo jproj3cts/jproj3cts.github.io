@@ -638,7 +638,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     openDemo(demo[1]);
   }
   // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
-  // #benches opens JEKspace, where the benches are; and from JEKspace, #cloud=<id> (or <id>@<version>, a copy of a version)
+  // #benches opens JEKsuite, where the benches are; and from JEKsuite, #cloud=<id> (or <id>@<version>, a copy of a version)
   // opens a cloud bench, :lens, :rf or :coat after it into a designer, and #new (or #new=lens|rf|coat) starts a new bench
   const helpLink = () => {
     const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';

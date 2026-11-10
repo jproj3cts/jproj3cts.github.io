@@ -5,7 +5,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 import { API_BASE, account, accountMenuRows, api, avatarNode, fillAccount, setAccount, showSubscribe } from '../../../jekray/src/io/account.js';
 
 /* ==========================================================================
-   JEKspace's home: every cloud bench of every app, as a CAD system's documents page. Places down the left (the
+   JEKsuite's home: every cloud bench of every app, as a CAD system's documents page. Places down the left (the
    apps, each workspace, Recent, its folders, My parts, My links, the bin), the benches as cards with their pictures,
    or as rows, of every app or one. A bench opens in its own app, in that app's tab (#cloud=<id>); a card's ⋯ menu
    also gives its history, forks, renames, moves, copies to another workspace and deletes; a bench's history opens a
@@ -621,7 +621,7 @@ export function startNew(app, into) {
 /* Signed out: what the hub is, the ways in, and the apps (which need no account to use) */
 export function signedOutView() {
   const rail = document.getElementById('homeRail'), box = document.getElementById('homeList');
-  document.getElementById('homeCrumbs').replaceChildren('JEKspace');
+  document.getElementById('homeCrumbs').replaceChildren('JEKsuite');
   document.getElementById('homeTools').replaceChildren();
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
@@ -639,7 +639,7 @@ export function signedOutView() {
   box.replaceChildren(
     h('div', { class: 'rt-hsignin' },
       h('h2', null, 'Sign in to see your benches'),
-      h('p', null, 'JEKspace holds every bench you keep in the cloud, from every JEK app, in your workspace and your teams’: open any of them in its app, see its history, fork, compare and merge versions, and manage your account, plan and teams. One account signs you in to every app.'),
+      h('p', null, 'JEKsuite holds every bench you keep in the cloud, from every JEK app, in your workspace and your teams’: open any of them in its app, see its history, fork, compare and merge versions, and manage your account, plan and teams. One account signs you in to every app.'),
       h('div', { class: 'rt-actions', style: 'justify-content:flex-start' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'homeSignIn', onclick: openAccountMenu }, 'Sign in or create an account'),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => showSubscribe() }, 'JEKrayPro: plans and prices'))),
     appLinks());

@@ -1,4 +1,4 @@
-/* JEKspace: on top of JEKray's style.css (its tokens, buttons, dialogs and the My benches page it grew from) */
+/* JEKsuite: on top of JEKray's style.css (its tokens, buttons, dialogs and the My benches page it grew from) */
 html, body { margin: 0; background: var(--jek-well); }
 .space-home { position: fixed; inset: 0; }
 .space-mark { color: inherit; text-decoration: none; }

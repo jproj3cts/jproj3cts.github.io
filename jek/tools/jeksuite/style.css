@@ -34,10 +34,7 @@ html, body { margin: 0; background: var(--jek-well); }
 
 /* an app's launch page: what the app does and the ways to start in it, then its benches beside the one picked */
 .rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
-.rt-happhead.jekray { border-left-color: var(--jek-amber); }
-.rt-happhead.jekion { border-left-color: var(--jek-sky); }
-.rt-happhead.jekfilm { border-left-color: #000; }
-.rt-happhead.jekcad { border-left-color: var(--jek-red); }
+.rt-happhead[class] { border-left-color: var(--app); }
 :root[data-rt-theme="dark"] .rt-happhead.jekfilm { box-shadow: -1px 0 0 var(--jek-line-2); }
 .rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
 .rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
@@ -56,12 +53,19 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
 .rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
 .rt-hprev .rt-hprevmore { margin-left: auto; }
-.rt-hprev .rt-htool { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKfilm black, JEKcad red */
-.rt-hprev .rt-htool.jekray, .rt-hcard .rt-hinfo .rt-htool.jekray { background: var(--jek-amber); color: #1a1a1a; }
-.rt-hprev .rt-htool.jekion, .rt-hcard .rt-hinfo .rt-htool.jekion { background: var(--jek-sky); color: #1a1a1a; }
-.rt-hprev .rt-htool.jekfilm, .rt-hcard .rt-hinfo .rt-htool.jekfilm { background: #000; color: #fff; }
-.rt-hprev .rt-htool.jekcad, .rt-hcard .rt-hinfo .rt-htool.jekcad { background: var(--jek-red); color: #fff; }
+/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKfilm black, JEKcad red. --app is
+   the colour itself (a tag's fill, an edge), --app-on what is written on it, --app-ink the colour as a line on the
+   page (an icon, a dot), which the theme sets so that it shows on light and on dark */
+.space-home .jekray { --app: var(--jek-amber); --app-on: #1a1a1a; --app-ink: #c27a12; }
+.space-home .jekion { --app: var(--jek-sky); --app-on: #1a1a1a; --app-ink: #3d93aa; }
+.space-home .jekfilm { --app: #000; --app-on: #fff; --app-ink: #000; }
+.space-home .jekcad { --app: var(--jek-red); --app-on: #fff; --app-ink: var(--jek-red); }
+:root[data-rt-theme="dark"] .space-home .jekray { --app-ink: var(--jek-amber); }
+:root[data-rt-theme="dark"] .space-home .jekion { --app-ink: var(--jek-sky); }
+:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #f2f2f2; }
+:root[data-rt-theme="dark"] .space-home .jekcad { --app-ink: #ef5d75; }
+.space-home .rt-htool, .space-home .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--app, var(--jek-cyan)); color: var(--app-on, #fff); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; white-space: nowrap; }
+.rt-hprev .rt-htool { margin-right: 0; }
 :root[data-rt-theme="dark"] .rt-htool.jekfilm { box-shadow: 0 0 0 1px var(--jek-line-2); }
 .rt-hlaunch .rt-hgrid.folders { grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
 .rt-hcard.sel { box-shadow: 0 0 0 2px var(--jek-cyan); }
@@ -76,3 +80,89 @@ html, body { margin: 0; background: var(--jek-well); }
   .rt-hhead #homeApps { display: none; }
   .rt-hhead .rt-getpro { order: 2; }
 }
+
+
+/* ---------- the file system: the rail's tree, cards and rows, picking, dragging ---------- */
+/* the rail: each app's own mark in its colour; the workspace's folders as a tree under it */
+.rt-hrail .rt-happbtn .ic { color: var(--app-ink); }
+.rt-hrail .rt-htnode { display: flex; align-items: center; min-width: 0; }
+.rt-hrail .rt-htnode .rt-htwist { flex: none; width: 1.15rem; height: 1.6rem; padding: 0; display: grid; place-items: center; justify-content: center; font-size: 0.7rem; color: var(--jek-ink-soft); }
+.rt-hrail .rt-htnode span.rt-htwist { visibility: hidden; }
+.rt-hrail .rt-htnode .rt-htgo { flex: 1; width: auto; min-width: 0; padding-left: 0.3rem; }
+.rt-hrail .rt-htgo span { overflow: hidden; text-overflow: ellipsis; }
+.rt-hrail .rt-htgo .rt-hcount { margin-left: auto; padding-left: 0.4rem; font-size: 0.72rem; color: var(--jek-ink-soft); }
+/* somewhere to drop what is dragged */
+.space-home .drop, .space-home .rt-hrail button.drop { outline: 2px solid var(--jek-cyan); outline-offset: -2px; background: color-mix(in srgb, var(--jek-cyan) 14%, transparent); }
+.rt-hcrumbs .rt-link.drop { border-radius: 2px; outline-offset: 2px; }
+.rt-hcard.dragging { opacity: 0.45; }
+.rt-hcard[draggable=true] { cursor: grab; }
+.rt-hcard[draggable=true] > .rt-hopen { cursor: pointer; }
+
+/* one app's benches: a chip for each app with benches here */
+.rt-hchips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.9rem; }
+.rt-hchip { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.22rem 0.6rem; font: inherit; font-size: 0.8rem; color: inherit; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 999px; cursor: pointer; }
+.rt-hchip:hover { border-color: var(--jek-line-2); }
+.rt-hchip[aria-pressed=true] { border-color: var(--app-ink, var(--jek-ink)); box-shadow: inset 0 0 0 1px var(--app-ink, var(--jek-ink)); font-weight: 600; }
+.rt-hchip small { color: var(--jek-ink-soft); font-weight: 400; }
+.rt-hchip i, .rt-hdots i { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--app); }
+:root[data-rt-theme="dark"] .rt-hchip i.jekfilm, :root[data-rt-theme="dark"] .rt-hdots i.jekfilm { box-shadow: 0 0 0 1px var(--jek-ink-soft); }
+
+/* a folder's card: what it holds */
+.rt-hcard.folder > .rt-hopen .rt-hdots { display: inline-flex; gap: 0.2rem; margin-left: auto; padding-left: 0.5rem; }
+.rt-hcard.folder > .rt-hopen .rt-hcount { margin-left: 0; padding-left: 0; }
+.rt-hdots { display: inline-flex; align-items: center; gap: 0.2rem; }
+.rt-hgrid.folders { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+/* a name typed in place */
+.rt-hrename { width: 100%; min-width: 0; box-sizing: border-box; padding: 0.15rem 0.35rem; font: inherit; font-weight: 600; color: inherit; background: var(--rt-surface, var(--jek-panel)); border: 1px solid var(--jek-cyan); border-radius: 2px; }
+.rt-hcard.folder > .rt-hopen.editing { cursor: default; }
+.rt-hnewfolder { display: flex; align-items: center; gap: 0.6rem; max-width: 24rem; margin: 0 0 0.9rem; padding: 0.5rem 0.7rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
+.rt-hnewfolder .ic { width: 20px; height: 20px; color: var(--jek-ink-soft); }
+
+/* a bench with no picture yet: its app's mark, on a wash of the app's colour */
+.rt-hcard span.thumb.rt-happpic, .rt-hprev span.thumb.rt-happpic { background: color-mix(in srgb, var(--app-ink) 13%, var(--jek-panel)); color: var(--app-ink); }
+.rt-happpic .ic { width: 3rem; height: 3rem; stroke-width: 0.9; opacity: 0.85; }
+.rt-hprev span.thumb.rt-happpic { display: flex; flex-direction: column; justify-content: center; gap: 0.6rem; }
+.rt-hprev span.thumb.rt-happpic small { color: var(--jek-ink-soft); font-size: 0.78rem; line-height: 1.4; }
+/* where a found bench is: its folder, which goes there */
+.rt-hcard .rt-hinfo small.rt-hwhere { white-space: normal; overflow-wrap: anywhere; }
+.rt-hcard .rt-hinfo small.rt-hwhere .rt-link, .rt-hc.where .rt-link { font-size: inherit; }
+
+/* picking: a tick on each bench (shown under the pointer, and on all once one is picked), and what to do with them */
+.rt-hcard .rt-hpick { position: absolute; z-index: 1; top: 0.45rem; left: 0.45rem; width: 1.05rem; height: 1.05rem; margin: 0; opacity: 0; cursor: pointer; accent-color: var(--jek-cyan); }
+.rt-hcard:hover .rt-hpick, .rt-hcard .rt-hpick:focus-visible, .rt-hlist.picking .rt-hpick, .rt-hcard.picked .rt-hpick { opacity: 1; }
+.rt-hcard.picked, .rt-hlist.tbl .rt-hcard.picked { border-color: var(--jek-cyan); box-shadow: 0 0 0 1px var(--jek-cyan); background: color-mix(in srgb, var(--jek-cyan) 9%, var(--jek-panel)); }
+.rt-hpickbar { position: sticky; top: -0.9rem; z-index: 3; display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 0.9rem; padding: 0.45rem 0.7rem; background: var(--jek-panel); border: 1px solid var(--jek-cyan); border-radius: 3px; font-size: 0.875rem; }
+.rt-hpickbar[hidden] { display: none; }
+.rt-hpickbar b { margin-right: 0.4rem; }
+.rt-hpickbar .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; }
+.rt-hpickbar .rt-btn.danger { color: var(--jek-red); }
+.rt-hpickbar .rt-link { margin-left: auto; }
+
+/* the list: a table, a column each for the name, the app, the folder (where benches of several folders are shown),
+   when it changed and its size; a heading sorts by its column */
+.rt-htable { border: 1px solid var(--jek-line); border-radius: 3px; background: var(--jek-panel); }
+.rt-htable .rt-hrow { display: grid; grid-template-columns: 1.7rem 3.3rem minmax(9rem, 1fr) 5.4rem 9.5rem 6rem 2.3rem; align-items: center; column-gap: 0.7rem; padding: 0 0.4rem 0 0.6rem; min-height: 2.9rem; }
+.rt-htable.where .rt-hrow { grid-template-columns: 1.7rem 3.3rem minmax(9rem, 1fr) 5.4rem minmax(5rem, 12rem) 9.5rem 6rem 2.3rem; }
+.rt-htable .rt-hth { min-height: 2.1rem; border-bottom: 1px solid var(--jek-line); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--jek-ink-soft); }
+.rt-htable .rt-hsort { justify-self: start; padding: 0.2rem 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: none; border: 0; cursor: pointer; white-space: nowrap; }
+.rt-htable .rt-hsort:hover, .rt-htable .rt-hsort[aria-pressed=true] { color: var(--jek-ink); }
+.rt-htable .rt-hcard { flex-direction: unset; border: 0; border-radius: 0; background: none; overflow: visible; }
+.rt-htable .rt-hcard + .rt-hcard, .rt-htable .rt-hth + .rt-hcard { border-top: 1px solid var(--jek-line); }
+.rt-htable .rt-hcard:hover, .rt-htable .rt-hcard:focus-within { box-shadow: none; background: var(--jek-well); }
+.rt-htable .rt-hcard .rt-hpick, .rt-htable .rt-hpickall { position: static; opacity: 1; width: 1rem; height: 1rem; margin: 0; accent-color: var(--jek-cyan); cursor: pointer; }
+.rt-htable .rt-hcard .thumb { width: 3.3rem; margin: 0.3rem 0; border-radius: 2px; }
+.rt-htable .rt-happpic .ic { width: 1.25rem; height: 1.25rem; stroke-width: 1.2; }
+.rt-htable .rt-hcard .rt-hinfo { padding: 0; }
+.rt-htable .rt-hc { min-width: 0; font-size: 0.8rem; color: var(--jek-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-htable .rt-hc.app { overflow: visible; }
+.rt-htable .rt-hc .rt-htool { margin: 0; vertical-align: 0; }
+.rt-htable .rt-hcard .rt-hmore, .rt-htable .rt-hcard.folder .rt-hmore { position: static; transform: none; justify-self: end; }
+.rt-htable .rt-hcard.folder > .rt-hopen { grid-column: 2 / 4; padding: 0; gap: 0.75rem; }
+.rt-htable .rt-hcard.folder > .rt-hopen .ic { margin: 0 0.95rem 0 1.05rem; }
+.rt-htable .rt-hcard.folder > .rt-hopen.editing { display: flex; align-items: center; }
+@media (max-width: 62rem) {
+  .rt-htable .rt-hrow, .rt-htable.where .rt-hrow { grid-template-columns: 1.7rem 3.3rem minmax(7rem, 1fr) 5.4rem 2.3rem; }
+  .rt-htable .rt-hc.where, .rt-htable .rt-hc.when, .rt-htable .rt-hc.size, .rt-htable .rt-hth > :nth-child(n+5):not(:last-child) { display: none; }
+}
+.rt-hlaunch .rt-htable .rt-hrow, .rt-hlaunch .rt-htable.where .rt-hrow { grid-template-columns: 1.7rem 3.3rem minmax(7rem, 1fr) 8.5rem 5rem 2.3rem; }
+.rt-hlaunch .rt-htable .rt-hc.app, .rt-hlaunch .rt-htable .rt-hc.where, .rt-hlaunch .rt-htable .rt-hth > :nth-child(4), .rt-hlaunch .rt-htable.where .rt-hth > :nth-child(5) { display: none; }

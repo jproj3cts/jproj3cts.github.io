@@ -47,7 +47,9 @@ export async function check(pw, base, shots) {
       ok('Signed in: the benches of both apps and the folders, no app cards', s.benches.join() === 'b1,b2' && s.tools.join() === 'JEKray,JEKion' && s.folders === 2 && !s.cards && s.acct, JSON.stringify(s));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-dark.png' });
       const rail = await p.evaluate(() => [...document.querySelectorAll('#homeRail button')].map(x => x.textContent));
-      ok('My benches: no filter by app (the launch pages are), and no folders in the rail (they are in the page)', !(await p.$('#homeApp')) && !rail.includes('Levisense') && !rail.includes('Absorption') && rail.includes('Bin'), rail.join('|'));
+      const tree = await p.evaluate(() => [...document.querySelectorAll('#homeRail .rt-htnode .rt-htgo')].map(x => x.textContent));
+      const chips0 = await p.evaluate(() => [...document.querySelectorAll('#homeChips .rt-hchip')].map(x => x.textContent));
+      ok('My benches: the workspace’s folders as a tree in the rail, each with what it holds, and a chip for each app with benches here', tree.join() === 'Absorption3,Levisense2' && rail.includes('My benches') && rail.includes('Bin') && !rail.includes('All benches') && chips0.join() === 'All2,JEKray1,JEKion1', JSON.stringify([rail, tree, chips0]));
       // the rail's JEKion: its launch page here (not a new tab), its benches alone, the last changed picked, Open in JEKion
       const n0 = await p.evaluate(() => window.__opened.length);
       await p.evaluate(() => [...document.querySelectorAll('#homeRail button')].find(x => x.textContent === 'JEKion').click());
@@ -59,21 +61,21 @@ export async function check(pw, base, shots) {
       await p.click('#appPreviewOpen'); await p.waitForTimeout(200);
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('Open in JEKion: the bench in JEKion’s tab, at #cloud=<id>', op && op[0] === '/jek/tools/jekion.html#cloud=b2' && op[1] === 'jekion', JSON.stringify(op));
-      // JEKray's: a click picks a bench (it does not open it), a double-click or Enter opens it; its folders count its benches
+      // JEKray's: the bench under the pointer is shown beside the list, a click or Enter opens it; its folders count its benches
       await p.evaluate(() => [...document.querySelectorAll('#homeRail button')].find(x => x.textContent === 'JEKray').click());
       await p.waitForSelector('.rt-happhead.jekray', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
       const n1 = await p.evaluate(() => window.__opened.length);
-      await p.click('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
+      await p.hover('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const ray = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), sel: !!document.querySelector('.rt-hcard[data-bench=b1].sel'), opened: window.__opened.length,
         counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent) }));
-      ok('JEKray’s launch page: its benches alone, a click picks one, its folders count its benches (Absorption the one in its folder Old runs), its designers to start', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '1 bench,1 bench'
+      ok('JEKray’s launch page: its benches alone, the one under the pointer shown (not opened), its folders count its benches (Absorption the one in its folder Old runs), its designers to start', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '1 bench,1 bench'
         && ray.starts.join('|') === 'Open JEKray|New bench|Optical design|RF design', JSON.stringify(ray));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-dark.png' });
-      await p.dblclick('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
+      await p.click('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const dbl = await p.evaluate(() => window.__opened.slice(-1)[0]);
       await p.focus('.rt-hcard[data-bench=b1] .rt-hopen'); await p.keyboard.press('Enter'); await p.waitForTimeout(150);
       const ent = await p.evaluate(() => [window.__opened.slice(-1)[0], window.__opened.length]);
-      ok('A double-click, or Enter, opens the bench in JEKray', dbl && dbl[0] === '/jek/tools/jekray.html#cloud=b1' && ent[0][0] === '/jek/tools/jekray.html#cloud=b1' && ent[1] >= n1 + 2, JSON.stringify([dbl, ent]));
+      ok('A single click, or Enter, opens the bench in JEKray', dbl && dbl[0] === '/jek/tools/jekray.html#cloud=b1' && ent[0][0] === '/jek/tools/jekray.html#cloud=b1' && ent[1] === n1 + 2, JSON.stringify([dbl, ent]));
       // anything else in the rail leaves it; the back button comes back to it
       await p.evaluate(() => [...document.querySelectorAll('#homeRail button')].find(x => x.textContent === 'My benches' || x.textContent === 'All benches').click());
       await p.waitForTimeout(300);
@@ -195,6 +197,90 @@ export async function check(pw, base, shots) {
       ok('A part studio in its folder, marked JEKcad, opens in JEKcad’s tab', tag && tag[0] === 'JEKcad' && /jekcad/.test(tag[1]) && op && op[0] === '/jek/tools/jekcad.html#cloud=b6' && op[1] === 'jekcad', JSON.stringify([tag, op]));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekcad.png' });
       ok('JEKcad’s launch page: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
+    // the file system: the tree, the chips, the table, picking, dragging, names typed in place
+    {
+      const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
+      const calls = await route(p, { signedIn: true });
+      await p.goto(base + '/jek/tools/jeksuite.html');
+      await p.waitForSelector('.rt-hcard[data-bench]', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
+      const benchesNow = () => p.evaluate(() => [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench));
+      const railGo = t => p.evaluate(t => [...document.querySelectorAll('#homeRail button')].find(x => x.textContent.startsWith(t)).click(), t);
+      const sent = re => calls.filter(c => re.test(c));
+      // a folder's card says what it holds; a bench with no picture has its app's mark
+      const cards = await p.evaluate(() => ({ counts: [...document.querySelectorAll('.rt-hcard.folder')].map(c => c.querySelector('.rt-hcount').textContent + ':' + [...c.querySelectorAll('.rt-hdots i')].map(i => i.className).join('+')),
+        pics: [...document.querySelectorAll('.rt-hcard[data-bench] .rt-happpic')].map(x => x.className.split(' ').pop() + (x.querySelector('svg') ? '' : '?')) }));
+      ok('A folder’s card: how many benches are in it and which apps’; a bench with no picture: its app’s mark', cards.counts.join() === '3 benches:jekray+jekfilm+jekcad,2 benches:jekray+jekcad' && cards.pics.join() === 'jekray,jekion', JSON.stringify(cards));
+      // a chip: that app's benches alone, and again for all
+      await p.click('#homeChips .rt-hchip.jekion'); await p.waitForSelector('#homeChips .rt-hchip.jekion[aria-pressed=true]', { timeout: 5000 }).catch(() => {});
+      const one = await benchesNow();
+      await p.click('#homeChips .rt-hchip.jekion'); await p.waitForTimeout(300);
+      ok('A chip shows one app’s benches; pressed again, all of them', one.join() === 'b2' && (await benchesNow()).join() === 'b1,b2', JSON.stringify(one));
+      // the tree: a folder with folders in it opens; a folder in it goes there
+      await p.click('#homeRail .rt-htnode[data-tree=f2] .rt-htwist'); await p.waitForSelector('#homeRail .rt-htnode[data-tree=f3]', { timeout: 5000 }).catch(() => {});
+      await p.click('#homeRail .rt-htnode[data-tree=f3] .rt-htgo'); await p.waitForSelector('.rt-hcard[data-bench=b7]', { timeout: 5000 }).catch(() => {});
+      const deep = await p.evaluate(() => ({ crumbs: document.getElementById('homeCrumbs').textContent, cur: [...document.querySelectorAll('#homeRail [aria-current=true]')].map(x => x.textContent) }));
+      ok('The tree opens a folder’s folders and goes to one', (await benchesNow()).join() === 'b7' && deep.crumbs === 'My benches › Absorption › Old runs' && deep.cur.join() === 'Old runs1', JSON.stringify(deep));
+      // Recent as cards: where each bench is, as a link there
+      await railGo('Recent'); await p.waitForSelector('.rt-hcard[data-bench=b7]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
+      const where = await p.evaluate(() => (document.querySelector('.rt-hcard[data-bench=b7] .rt-hwhere') || {}).textContent);
+      // picking: a tick, Shift for a run, Ctrl+A for all, Escape for none
+      await p.click('.rt-hcard[data-bench=b1] .rt-hpick'); await p.click('.rt-hcard[data-bench=b6] .rt-hopen', { modifiers: ['Shift'] });
+      const run = await p.evaluate(() => ({ picked: [...document.querySelectorAll('.rt-hcard.picked')].map(c => c.dataset.bench), bar: document.querySelector('#homePicked b').textContent, opened: window.__opened.length }));
+      await p.keyboard.press('Control+a');
+      const all = await p.evaluate(() => document.querySelectorAll('.rt-hcard.picked').length);
+      await p.keyboard.press('Escape');
+      const none = await p.evaluate(() => [document.querySelectorAll('.rt-hcard.picked').length, document.getElementById('homePicked').hidden]);
+      ok('Recent: a bench’s folder in full, as a link; a tick and a Shift-click pick a run (nothing opens), Ctrl+A all, Escape none', where === 'in Absorption › Old runs' && run.picked.join() === 'b1,b5,b6' && run.bar === '3 benches picked' && run.opened === 0 && all === 7 && none[0] === 0 && none[1], JSON.stringify([where, run, all, none]));
+      // the list: a table, sorted by a heading, turned round by pressing it again
+      await p.click('#homeTools .rt-btn'); await p.waitForSelector('.rt-htable', { timeout: 5000 }).catch(() => {});
+      const heads = await p.evaluate(() => [...document.querySelectorAll('.rt-hth .rt-hsort')].map(x => x.textContent.trim()));
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hth .rt-hsort')].find(x => x.textContent.startsWith('Name')).click()); await p.waitForTimeout(300);
+      const az = await benchesNow();
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hth .rt-hsort')].find(x => x.textContent.startsWith('Name')).click()); await p.waitForTimeout(300);
+      const za = await benchesNow();
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hth .rt-hsort')].find(x => x.textContent.startsWith('App')).click()); await p.waitForTimeout(300);
+      const byApp = await p.evaluate(() => [...document.querySelectorAll('.rt-hcard[data-bench] .rt-htool')].map(t => t.textContent));
+      ok('The list is a table: Name, App, Folder, Changed and Size, each heading sorting by its column and turning it round', heads.join() === 'Name,App,Folder,Changed ▾,Size' && az.join() === 'b8,b5,b7,b6,b3,b2,b1' && za.join() === az.slice().reverse().join()
+        && byApp.join() === 'JEKcad,JEKcad,JEKfilm,JEKion,JEKray,JEKray,JEKray', JSON.stringify([heads, az, za, byApp]));
+      // picked benches moved with the bar, then binned with Delete
+      await p.click('.rt-hcard[data-bench=b1] .rt-hpick'); await p.click('.rt-hcard[data-bench=b2] .rt-hpick');
+      await p.evaluate(() => [...document.querySelectorAll('#homePicked .rt-btn')].find(x => /Move to/.test(x.textContent)).click());
+      await p.selectOption('.rt-hmenu select', 'f1'); await p.waitForTimeout(400);
+      const movedBar = sent(/^PATCH \/v1\/benches\/b[12]$/).length;
+      await p.click('.rt-hcard[data-bench=b2] .rt-hpick'); await p.keyboard.press('Delete'); await p.waitForTimeout(400);
+      ok('The picked benches move together from the bar, and Delete bins them', movedBar === 2 && sent(/^DELETE \/v1\/benches\/b2$/).length === 1 && !(await benchesNow()).includes('b2'), JSON.stringify(calls.slice(-8)));
+      await p.click('#homeTools .rt-btn'); await p.waitForTimeout(300);
+      // dragging: a bench onto a folder's card, onto a folder in the tree, onto the top in the breadcrumbs; a folder into a folder
+      await railGo('My benches'); await p.waitForSelector('.rt-hcard.folder[data-folder=f1]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      await railGo('Levisense'); await p.waitForSelector('.rt-hcard[data-bench=b1]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
+      await p.dragAndDrop('.rt-hcard[data-bench=b1]', '#homeRail .rt-htnode[data-tree=f2] .rt-htgo'); await p.waitForTimeout(400);
+      const toTree = sent(/^PATCH \/v1\/benches\/b1$/).length === 2 && !(await benchesNow()).includes('b1');
+      await p.dragAndDrop('.rt-hcard[data-bench=b3]', '#homeCrumbs .rt-link'); await p.waitForTimeout(400);
+      const toTop = sent(/^PATCH \/v1\/benches\/b3$/).length === 1;
+      await railGo('My benches'); await p.waitForSelector('.rt-hcard[data-bench=b3]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
+      await p.dragAndDrop('.rt-hcard[data-bench=b3]', '.rt-hcard.folder[data-folder=f2]'); await p.waitForTimeout(400);
+      const toCard = sent(/^PATCH \/v1\/benches\/b3$/).length === 2 && !(await benchesNow()).includes('b3');
+      await p.dragAndDrop('.rt-hcard.folder[data-folder=f1]', '.rt-hcard.folder[data-folder=f2]'); await p.waitForTimeout(400);
+      const folderIn = sent(/^PATCH \/v1\/workspaces\/w_me\/folders\/f1$/).length === 1 && !(await p.$('.rt-hcard.folder[data-folder=f1]'));
+      ok('Dragging: a bench onto a folder in the tree, onto the top in the breadcrumbs and onto a folder’s card; a folder into a folder', toTree && toTop && toCard && folderIn, JSON.stringify([toTree, toTop, toCard, folderIn, calls.slice(-6)]));
+      // names typed in place: a folder made, a folder and a bench renamed (F2, or the menu), Escape leaving it as it was
+      await p.click('#homeNewFolder'); await p.fill('.rt-hnewfolder input', 'Traps'); await p.keyboard.press('Enter'); await p.waitForSelector('.rt-hcard.folder[data-folder^=fnew]', { timeout: 5000 }).catch(() => {});
+      const made = sent(/^POST \/v1\/workspaces\/w_me\/folders$/).length === 1;
+      await p.focus('.rt-hcard.folder[data-folder=f2] .rt-hopen'); await p.keyboard.press('F2'); await p.fill('.rt-hcard.folder[data-folder=f2] .rt-hrename', 'Absorption cell'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
+      const fname = await p.evaluate(() => document.querySelector('.rt-hcard.folder[data-folder=f2] .rt-hopen span').textContent);
+      await railGo('Absorption cell'); await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
+      await p.click('.rt-hcard[data-bench=b5] .rt-hmore');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Rename').click());
+      await p.waitForSelector('.rt-hcard[data-bench=b5] .rt-hrename', { timeout: 5000 }).catch(() => {});
+      await p.fill('.rt-hcard[data-bench=b5] .rt-hrename', 'Not this'); await p.keyboard.press('Escape');
+      const kept = await p.evaluate(() => document.querySelector('.rt-hcard[data-bench=b5] .rt-hname').textContent);
+      await p.focus('.rt-hcard[data-bench=b5] .rt-hopen'); await p.keyboard.press('F2'); await p.fill('.rt-hcard[data-bench=b5] .rt-hrename', 'BBAR visible'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
+      const bname = await p.evaluate(() => document.querySelector('.rt-hcard[data-bench=b5] .rt-hname').textContent);
+      ok('Names are typed in place: a new folder, a folder and a bench renamed with F2 or the menu, Escape leaving the name alone', made && fname === 'Absorption cell' && kept === 'JEKfilmBBAR 450–650' && bname === 'JEKfilmBBAR visible' && sent(/^PATCH \/v1\/benches\/b5$/).length === 1, JSON.stringify([made, fname, kept, bname]));
+      if (shots) { await railGo('Recent'); await p.waitForTimeout(400); await p.screenshot({ path: shots + '/jeksuite-recent.png' }); await p.click('#homeTools .rt-btn'); await p.waitForTimeout(400); await p.screenshot({ path: shots + '/jeksuite-table.png' }); }
+      ok('The file system: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
   } finally { await b.close(); }

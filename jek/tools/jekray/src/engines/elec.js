@@ -244,17 +244,27 @@ function sum(A, B, ga, gb) {
 }
 /* the peak a signal reaches: from its waveform over one period when its tones are all
    harmonics of the lowest, or else at most its DC and every tone's amplitude together */
+// (asked of the same signal more than once as a circuit is solved: a check, then its note)
+const peakMemo = new WeakMap();
+const PEAK_N = 2048, PEAK_COS = new Float64Array(PEAK_N), PEAK_SIN = new Float64Array(PEAK_N);
+let peakTable = false;                 // (filled the first time it is needed)
 function peak(S) {
+  const had = peakMemo.get(S);
+  if (had && had.dc === S.dc && had.n === S.tones.length) return had.pk;
   const bound = Math.abs(S.dc) + S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
   if (!S.tones.length) return bound;
   const f0 = S.tones[0].f;
   if (!S.tones.every(t => Math.abs(t.f / f0 - Math.round(t.f / f0)) < 1e-6) || S.tones.length > 400) return bound;
-  let pk = 0;
-  for (let i = 0; i < 2048; i++) {
-    const th = 2 * Math.PI * i / 2048;
-    let v = S.dc; for (const t of S.tones) { const a = Math.round(t.f / f0) * th; v += t.re * Math.cos(a) - t.im * Math.sin(a); }
-    pk = Math.max(pk, Math.abs(v));
+  if (!peakTable) { for (let i = 0; i < PEAK_N; i++) { PEAK_COS[i] = Math.cos(2 * Math.PI * i / PEAK_N); PEAK_SIN[i] = Math.sin(2 * Math.PI * i / PEAK_N); } peakTable = true; }
+  // its waveform over one period at PEAK_N points: harmonic n at point i is at angle 2 pi (n i mod N) / N, from a table
+  const v = new Float64Array(PEAK_N).fill(S.dc);
+  for (const t of S.tones) {
+    const n = Math.round(t.f / f0);
+    for (let i = 0, m = 0; i < PEAK_N; i++, m = (m + n) % PEAK_N) v[i] += t.re * PEAK_COS[m] - t.im * PEAK_SIN[m];
   }
+  let pk = 0;
+  for (let i = 0; i < PEAK_N; i++) pk = Math.max(pk, Math.abs(v[i]));
+  peakMemo.set(S, { dc: S.dc, n: S.tones.length, pk });
   return pk;
 }
 /* a comparator: vhi where its input is above the threshold, vlo below. For a periodic input

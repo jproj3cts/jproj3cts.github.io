@@ -89,6 +89,15 @@ function apertureShare(s, ly, cth, w, wv, hz = 0, at = null, dark = null) {
   // each sample counted by how far inside it is (the edge function is a distance), which
   // takes the edge between samples smoothly and the share to a fraction of a percent
   const N = 64, c = Math.max(1e-6, cth), h = 2 * 2.6 * Math.max(w / c, wv) / N;
+  // a round aperture, the beam's samples mapped to its face in a straight line (affine): when its four
+  // corners lie more than half a sample inside the rim, so does every sample (the distance from the
+  // centre is convex), each counts in full, and the share is exactly 1 without adding them up
+  if (!s.maskMargin && (!at || at.affine)) {
+    const X = 2.6 * w * (1 - 1 / N), Y = 2.6 * wv * (1 - 1 / N);
+    let far = 0;
+    for (const [x, y] of [[-X, -Y], [-X, Y], [X, -Y], [X, Y]]) { const uv = at ? at(x, y) : [ly + x / c, y + hz]; far = Math.max(far, Math.hypot(uv[0], uv[1])); }
+    if (s.semi - far >= h / 2) return 1;
+  }
   let tot = 0, inn = 0;
   for (let i = 0; i < N; i++) {
     const x = ((i + 0.5) / N * 2 - 1) * 2.6 * w, gx = Math.exp(-2 * x * x / (w * w));
@@ -115,7 +124,9 @@ function beamMap(s, X, Y, Z, dx, dy, uz, anyZ) {
     };
   }
   const [lx0] = toLocal(s.f, X, Y), [ldx, ldy] = toLocalDir(s.f, dx, dy), k = ldy / ((ldx < 0 ? -1 : 1) * Math.max(1e-6, Math.abs(ldx)));
-  return (x, y) => { const [lx, ly] = toLocal(s.f, X - dy * x, Y + dx * x); return [ly + (lx0 - lx) * k, h0 + y]; };
+  const at = (x, y) => { const [lx, ly] = toLocal(s.f, X - dy * x, Y + dx * x); return [ly + (lx0 - lx) * k, h0 + y]; };
+  at.affine = true;                    // (a straight-line map: apertureShare can bound it by its corners)
+  return at;
 }
 /* the share of a beam of radius bw (as beamMap places it) that lands on surface s, of the light it still has:
    a branch that went round a part, or through one, is dark where dark(x, y) says (see beamCut) */

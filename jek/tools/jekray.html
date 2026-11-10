@@ -1155,11 +1155,12 @@
   .rt-file .rt-name { flex: 0 1 15rem; width: 15rem; }
   .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.35rem 0 0.1rem; font-size: 1.1rem; }
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
+  /* an app's name in the bar, the same in every app: JEK, then the app's word in a dark box (no stripe under it) */
+  .jek-wm { display: inline-flex; align-items: center; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--rt-strong, var(--jek-ink)); color: var(--rt-on-strong, #fff); font-weight: 700; font-size: 0.92em; letter-spacing: 0; }   /* the themes' dark box: light on dark, dark on light */
+  .rt-title:has(.jek-wm)::after { display: none; }
+  .rt-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
   .rt-title a { color: inherit; text-decoration: none; }
-  /* the app's name in the bar as JEKsuite's own mark: JEK, then the app's word in a dark box (JEK<b>ray</b>), no stripe */
-  .rt-bar .rt-title::after { content: none; }
-  .rt-bar .rt-title { font-size: 1rem; letter-spacing: 0.01em; }
-  .rt-bar .rt-title b { background: var(--rt-strong); color: var(--rt-on-strong); padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
   .rt-title a:hover { color: var(--jek-cyan-dark); }
   .rt-title a:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 3px; border-radius: 2px; }
   .rt-btn.rt-icon { min-width: 2.1rem; padding: 0.4rem 0.5rem; text-align: center; }
@@ -2001,7 +2002,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
            + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
         <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jekspace.html" target="jekspace" aria-label="JEKsuite" title="JEKsuite: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKsuite</span></a>
-        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page" aria-label="JEKray">JEK<b>ray</b></a></h1>
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page" ><span class="jek-wm">JEK<b>ray</b></span></a></h1>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
@@ -13060,6 +13061,15 @@ function apertureShare(s, ly, cth, w, wv, hz = 0, at = null, dark = null) {
   // each sample counted by how far inside it is (the edge function is a distance), which
   // takes the edge between samples smoothly and the share to a fraction of a percent
   const N = 64, c = Math.max(1e-6, cth), h = 2 * 2.6 * Math.max(w / c, wv) / N;
+  // a round aperture, the beam's samples mapped to its face in a straight line (affine): when its four
+  // corners lie more than half a sample inside the rim, so does every sample (the distance from the
+  // centre is convex), each counts in full, and the share is exactly 1 without adding them up
+  if (!s.maskMargin && (!at || at.affine)) {
+    const X = 2.6 * w * (1 - 1 / N), Y = 2.6 * wv * (1 - 1 / N);
+    let far = 0;
+    for (const [x, y] of [[-X, -Y], [-X, Y], [X, -Y], [X, Y]]) { const uv = at ? at(x, y) : [ly + x / c, y + hz]; far = Math.max(far, Math.hypot(uv[0], uv[1])); }
+    if (s.semi - far >= h / 2) return 1;
+  }
   let tot = 0, inn = 0;
   for (let i = 0; i < N; i++) {
     const x = ((i + 0.5) / N * 2 - 1) * 2.6 * w, gx = Math.exp(-2 * x * x / (w * w));
@@ -13086,7 +13096,9 @@ function beamMap(s, X, Y, Z, dx, dy, uz, anyZ) {
     };
   }
   const [lx0] = toLocal(s.f, X, Y), [ldx, ldy] = toLocalDir(s.f, dx, dy), k = ldy / ((ldx < 0 ? -1 : 1) * Math.max(1e-6, Math.abs(ldx)));
-  return (x, y) => { const [lx, ly] = toLocal(s.f, X - dy * x, Y + dx * x); return [ly + (lx0 - lx) * k, h0 + y]; };
+  const at = (x, y) => { const [lx, ly] = toLocal(s.f, X - dy * x, Y + dx * x); return [ly + (lx0 - lx) * k, h0 + y]; };
+  at.affine = true;                    // (a straight-line map: apertureShare can bound it by its corners)
+  return at;
 }
 /* the share of a beam of radius bw (as beamMap places it) that lands on surface s, of the light it still has:
    a branch that went round a part, or through one, is dark where dark(x, y) says (see beamCut) */
@@ -20754,17 +20766,27 @@ function sum(A, B, ga, gb) {
 }
 /* the peak a signal reaches: from its waveform over one period when its tones are all
    harmonics of the lowest, or else at most its DC and every tone's amplitude together */
+// (asked of the same signal more than once as a circuit is solved: a check, then its note)
+const peakMemo = new WeakMap();
+const PEAK_N = 2048, PEAK_COS = new Float64Array(PEAK_N), PEAK_SIN = new Float64Array(PEAK_N);
+let peakTable = false;                 // (filled the first time it is needed)
 function peak(S) {
+  const had = peakMemo.get(S);
+  if (had && had.dc === S.dc && had.n === S.tones.length) return had.pk;
   const bound = Math.abs(S.dc) + S.tones.reduce((a, t) => a + Math.hypot(t.re, t.im), 0);
   if (!S.tones.length) return bound;
   const f0 = S.tones[0].f;
   if (!S.tones.every(t => Math.abs(t.f / f0 - Math.round(t.f / f0)) < 1e-6) || S.tones.length > 400) return bound;
-  let pk = 0;
-  for (let i = 0; i < 2048; i++) {
-    const th = 2 * Math.PI * i / 2048;
-    let v = S.dc; for (const t of S.tones) { const a = Math.round(t.f / f0) * th; v += t.re * Math.cos(a) - t.im * Math.sin(a); }
-    pk = Math.max(pk, Math.abs(v));
+  if (!peakTable) { for (let i = 0; i < PEAK_N; i++) { PEAK_COS[i] = Math.cos(2 * Math.PI * i / PEAK_N); PEAK_SIN[i] = Math.sin(2 * Math.PI * i / PEAK_N); } peakTable = true; }
+  // its waveform over one period at PEAK_N points: harmonic n at point i is at angle 2 pi (n i mod N) / N, from a table
+  const v = new Float64Array(PEAK_N).fill(S.dc);
+  for (const t of S.tones) {
+    const n = Math.round(t.f / f0);
+    for (let i = 0, m = 0; i < PEAK_N; i++, m = (m + n) % PEAK_N) v[i] += t.re * PEAK_COS[m] - t.im * PEAK_SIN[m];
   }
+  let pk = 0;
+  for (let i = 0; i < PEAK_N; i++) pk = Math.max(pk, Math.abs(v[i]));
+  peakMemo.set(S, { dc: S.dc, n: S.tones.length, pk });
   return pk;
 }
 /* a comparator: vhi where its input is above the threshold, vlo below. For a periodic input
@@ -26243,8 +26265,20 @@ function elecWirePanel(F) {
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete wire')));
 }
 /* the scope and the analyser: the shared instrument views (INST), fed what reaches their inputs */
-function drawScope(cv, el) {
+/* while sweeps play, what reaches the scope is solved afresh at most once in three times as long as that
+   took (each step moves the light, and solving the circuit traces the bench again for its photodiodes),
+   the last solve drawn meanwhile: the 3D view and the bench keep their frames; with nothing playing,
+   always afresh */
+function scopeInputs(cv, el) {
+  const now = performance.now(), B = cv._solve;
+  if (B && playing.size && B.id === el.id && now - B.at < 3 * B.cost) return B.chans;
   const chans = [0, 1].map(i => ({ S: inputOf(el, i), key: el.id + ':' + i, name: 'ch' + (i + 1) }));
+  const took = performance.now() - now;
+  cv._solve = { id: el.id, at: now, cost: Math.max(took, B && B.id === el.id ? 0.7 * B.cost : 0), chans };
+  return chans;
+}
+function drawScope(cv, el) {
+  const chans = scopeInputs(cv, el);
   return INST.scope(cv, chans, { mode: el.mode, span: el.span, ch: [{ vdiv: el.v1div, off: el.v1off }, { vdiv: el.v2div, off: el.v2off }] }, el.name, () => drawScope(cv, el));
 }
 function drawSpectrum(cv, el) {
@@ -55909,6 +55943,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     'Fixed: a sweep that renders the diffracted field keeps every frame it rendered through what does not change the light: pausing and playing again, moving a part the light never reaches (or a drawing), changing <b>Field intensity</b> (linear or logarithmic is how the field is drawn, so it is drawn again at once) and the Light ticks. An edit that does change the light renders the field again for the bench as it now is and plays on. In 3D every step of the sweep is kept (a sweep of 120 steps lost its first ones each cycle), and its steps share one brightness scale, so light before an absorber whose density is swept stays as bright while the light after it dims.',
+    'Fixed: turning the 3D view while a sweep plays stayed choppy with an oscilloscope showing in Roll (each step solved its circuit again, tracing the bench for every photodiode, at ten frames a second): a beam that lands well inside a round part is no longer summed point by point, an amplifier\u2019s clipping check is worked out once and from a table, and while sweeps play the scope solves afresh only as often as it can without taking the view\u2019s frames.',
     'Fixed: in 3D, turning the view while a sweep plays is smooth: the view is drawn once a frame however fast the pointer moves, and a sweep\u2019s step that leaves the light and the cables where they were keeps their models and shadows rather than making them again.',
     'Fixed: changing a sweep\u2019s Steps while it renders or plays its diffracted field renders it again at the new steps and plays on (it was left working the field out live at every step, never catching up).',
     'Fixed: a beam wider than a part it passes, the part above or below it or tipped, lost the light that missed the part. A gain sheet now amplifies only the light inside its disc; the rest goes on past it unchanged, in the beams, the field and the 3D view, and a detector after it reads both.',

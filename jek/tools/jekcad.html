@@ -8340,6 +8340,9 @@ const whenAgo = t => {
 function cloudKeep() {
   if (TEST_MODE || EMBED) return;
   try { if (cloud) localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); else localStorage.removeItem(CLOUD_KEY); } catch (err) { /* no store */ }
+  // JEKsuite is told, in the store the apps share, that this one is a part studio: an API from before JEKcad marks it
+  // JEKray's, and JEKsuite goes by this note (as it goes by a bench's content) where the mark is behind
+  try { if (cloud && cloud.id) { const k = 'jeksuite-tools', m = JSON.parse(localStorage.getItem(k)) || {}; if (m[cloud.id] !== 'jekcad') { m[cloud.id] = 'jekcad'; localStorage.setItem(k, JSON.stringify(m)); } } } catch (err) { /* no store */ }
 }
 function cloudRestore() {
   if (TEST_MODE || EMBED) return;

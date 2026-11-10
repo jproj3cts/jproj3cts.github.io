@@ -350,7 +350,8 @@ function toolClick(sx, sy, forced) {
     const a = tangentArc(p0, tdir, p1); if (!a) { toast('That end is straight on: draw a line instead', true); SK.draft = null; return; }
     const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 }, start = a.rev ? 'p1' : 'p0', end = a.rev ? 'p0' : 'p1';
     addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]); SK.last = [e.id];
-  } else if (t === 'slot') { const r = slotEnts(p0, p1, Math.max(pxToMm(2), Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)))); addEnts(r.ents, r.cons); }
+  } else if (t === 'slot') { const r = slotEnts(p0, p1, Math.max(pxToMm(2), Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)))); // (its two centres held to what they were clicked on: a slot drawn from a hole's centre, or from another slot's end, stays on it)
+    const kl = r.ents.find(e => e.k && e.t === 'line'); addEnts(r.ents, r.cons.concat(kl ? [...snapCons(snaps[0], kl.id, 'a'), ...snapCons(snaps[1], kl.id, 'b')] : [])); }
   else if (t === 'polygon') { const r = polygonEnts(p0, p1, SK.polySides); const cid = r.ents[r.ents.length - 1].id; addEnts(r.ents, r.cons.concat(snapCons(snaps[0], cid, 'c'), snaps[1].hv ? [mkCon(snaps[1].hv, { e: cid, k: 'c' }, { e: r.ents[0].id, k: 'a' })] : [])); SK.last = [cid]; }
   SK.draft = null;
   resolve();

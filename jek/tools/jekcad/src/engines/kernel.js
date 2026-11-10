@@ -1,5 +1,5 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { WELD, arcSweep, carryPt, distToEnt, entCross, regionsOf, weldEnts } from '../core/sketch-tools.js';
+import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
 import { entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
@@ -79,7 +79,19 @@ export function makeKernel(oc) {
 
   /* ---------- bodies: a shape with its faces and their names ---------- */
   function mkBody(id, shape, faces, names) { return { id, shape, faces, names, ix: indexer(faces) }; }
-  function fresh(id, shape, nameOf) { const faces = subShapes(shape, TA.TopAbs_FACE); return mkBody(id, shape, faces, faces.map((f, i) => [].concat(nameOf(f, i) || []))); }
+  /* faces that have no name of their own are numbered by where they are (their middles in x, y, z order, then
+     their areas), not by the order the kernel lists them in, which is not the same from one visit to the next:
+     the place in that order of each of the faces asked about */
+  function stableRank(faces, which) {
+    const key = which.map(i => { const p = props(faces[i], 'a'); return [i, ...p.c.map(v => Math.round(v * 1e5) / 1e5), Math.round(p.m * 1e5) / 1e5]; });
+    key.sort((p, q) => { for (let k = 1; k < 5; k++) if (p[k] !== q[k]) return p[k] - q[k]; return p[0] - q[0]; });
+    const rank = new Map(); key.forEach((k, r) => rank.set(k[0], r));
+    return rank;
+  }
+  function fresh(id, shape, nameOf) {
+    const faces = subShapes(shape, TA.TopAbs_FACE), rank = nameOf.length >= 2 ? stableRank(faces, faces.map((f, i) => i)) : null;
+    return mkBody(id, shape, faces, faces.map((f, i) => [].concat(nameOf(f, rank ? rank.get(i) : i) || [])));
+  }
   /* the names carried through an operation op from the bodies that went into it to its result: Modified faces take
      the names of what they came from, faces untouched keep theirs, generated faces are named as given, the rest
      after the feature and their place */
@@ -99,7 +111,7 @@ export function makeKernel(oc) {
       try { g = listOf(op.Generated(src)); } catch (err) { g = []; }
       g.forEach((s, k) => { give(s, [nm + (g.length > 1 ? '.' + k : '')]); s.delete(); });
     }
-    faces.forEach((f, i) => { if (!names[i].length) names[i].push(fid + '.n' + i); });
+    { const bare = faces.map((f, i) => i).filter(i => !names[i].length), rank = bare.length ? stableRank(faces, bare) : null; for (const i of bare) names[i].push(fid + '.m' + rank.get(i)); }
     return { faces, names };
   }
   /* a body split into its solids, each a body of its own (names kept face by face) */
@@ -247,10 +259,17 @@ export function makeKernel(oc) {
       const A = src[(i - 1 + n) % n], B = src[i], q = ring[i], reach = 0.02 + 0.002 * Math.max(A.r || 0, B.r || 0);
       let best = q, bd = reach;
       for (const c of [...entCross(A, B), ...ends(A), ...ends(B)]) { const d = Math.hypot(c[0] - q[0], c[1] - q[1]); if (d < bd) { bd = d; best = c; } }
+      // shapes that only just touch here (or miss by a hair): the corner is put on the round one, and the other's side ends there
+      if (best === q) { const Rn = A.t !== 'line' ? A : B.t !== 'line' ? B : null; if (Rn) { const d = Math.hypot(q[0] - Rn.c[0], q[1] - Rn.c[1]) || 1; best = [Rn.c[0] + (q[0] - Rn.c[0]) / d * Rn.r, Rn.c[1] + (q[1] - Rn.c[1]) / d * Rn.r]; } }
       return best;
     };
     const P = turn.map(exact), m2pi = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    // where a side truly starts and stops: a line at its corners; an arc on its own circle, which a corner shared with
+    // another arc a hair off it is not quite on (the hair is then bridged by a line as short)
+    const onRound = (E, z) => { const d = Math.hypot(z[0] - E.c[0], z[1] - E.c[1]) || 1; return [E.c[0] + (z[0] - E.c[0]) / d * E.r, E.c[1] + (z[1] - E.c[1]) / d * E.r]; };
+    const span = turn.map((i0, k) => { const E = src[i0], p = P[k], q = P[(k + 1) % turn.length]; return E.t === 'line' ? [p, q] : [onRound(E, p), onRound(E, q)]; });
     turn.forEach((i0, k) => {
+      { const was = span[(k - 1 + turn.length) % turn.length][1], now = span[k][0], gap = Math.hypot(now[0] - was[0], now[1] - was[1]); if (gap > 1e-9 && gap < 4 * WELD) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, was)), pnt(toWorld(F, now)))).Edge()); }
       const i1 = turn[(k + 1) % turn.length], E = src[i0], p = P[k], q = P[(k + 1) % turn.length], gap = Math.hypot(q[0] - p[0], q[1] - p[1]);
       if (E.t === 'line') { if (gap > 1e-9) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, p)), pnt(toWorld(F, q)))).Edge()); return; }
       // the way round the circle the outline goes: by a corner in the middle of the run (or the middle of its one step)
@@ -268,9 +287,10 @@ export function makeKernel(oc) {
     for (const hole of holes) {
       const hf = T(new oc.BRepBuilderAPI_MakeFace(ringWire(F, hole), true)).Face(), op = T(new oc.BRepAlgoAPI_Cut());
       op.SetArguments(listFrom([face])); op.SetTools(listFrom([hf])); op.Build(prog());
+      // (a hole that touches the outline leaves the region in pieces that meet at a point: kept together as one region)
       const fs = op.IsDone() ? subShapes(op.Shape(), TA.TopAbs_FACE) : [];
-      if (fs.length !== 1) throw new Error('a hole that does not cut');
-      face = fs[0];
+      if (!fs.length) throw new Error('a hole that does not cut');
+      face = fs.length === 1 ? fs[0] : compound(fs);
     }
     if (Math.abs(props(face, 'a').m - area) > 0.02 * area + 1e-3) throw new Error('a face of the wrong size');
     return face;
@@ -331,7 +351,9 @@ export function makeKernel(oc) {
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
     const out = [];
-    const at = q => { const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
+    // (where the faces are the page's regions, the region a point is in is found as the page finds it: its point for a
+    // sliver beside a circle can be a hair inside the true circle, the page's circle being drawn in short steps)
+    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
       // a sketch that has just followed the model: the point as it follows its shape, else where it was
       const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
@@ -339,8 +361,9 @@ export function makeKernel(oc) {
       if (!out.includes(f)) out.push(f);
     }
     // regions that touch pushed as one face (where the faces are the page's regions, each known by its outline)
-    if (out.length > 1 && sk.regions) { try { return unionFaces(sk, out.map(f => faces.indexOf(f))); } catch (err) { /* each on its own, as before */ } }
-    return out;
+    const each = L => L.flatMap(f => subShapes(f, TA.TopAbs_FACE));
+    if (out.length > 1 && sk.regions) { try { return each(unionFaces(sk, out.map(f => faces.indexOf(f)))); } catch (err) { /* each on its own, as before */ } }
+    return each(out);
   }
   /* the sketch shape an edge of a region face came from (its middle on the shape) */
   function entOfEdge(sk, edge, shift) {
@@ -534,7 +557,7 @@ export function makeKernel(oc) {
         mk.Build(prog());
         if (!mk.IsDone()) throw new Error('the profile could not be swept along that path');
         mk.MakeSolid();
-        return fresh(f.id, mk.Shape(), (fc, i) => f.id + '.n' + i);
+        return fresh(f.id, mk.Shape(), (fc, i) => f.id + '.m' + i);
       });
       const tool = fuseAll(pieces, f.id, f.id);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
@@ -549,7 +572,7 @@ export function makeKernel(oc) {
       mk.CheckCompatibility(false);
       mk.Build(prog());
       if (!mk.IsDone()) throw new Error('the profiles could not be lofted');
-      const tool = fresh(f.id, mk.Shape(), (fc, i) => f.id + '.n' + i);
+      const tool = fresh(f.id, mk.Shape(), (fc, i) => f.id + '.m' + i);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
       const r = applyTool(S, f.id, tool, f.op, f.targets);
       S.parts = r.parts;
@@ -669,7 +692,7 @@ export function makeKernel(oc) {
       const shape = rd.OneShape(), sols = solidsOf(shape);
       if (!sols.length) throw new Error('the STEP file has no solids');
       const made = [];
-      sols.forEach((s, k) => { const id = k ? f.id + '.' + k : f.id; S.parts.push(fresh(id, s, (fc, i) => id + '.f' + i)); made.push(id); });
+      sols.forEach((s, k) => { const id = k ? f.id + '.' + k : f.id; S.parts.push(fresh(id, s, (fc, i) => id + '.g' + i)); made.push(id); });
       return { made, solids: sols.length };
     },
   };
@@ -692,7 +715,7 @@ export function makeKernel(oc) {
     if (!mk.IsDone()) throw new Error('the draft could not be made');
     const shape = mk.Shape(), faces = subShapes(shape, TA.TopAbs_FACE), ix = indexer(faces), names = faces.map(() => []);
     tool.faces.forEach((f, i) => { let m = f; try { m = mk.ModifiedShape(f); } catch (err) { m = f; } const k = ix(m); if (k >= 0) names[k].push(...tool.names[i]); });
-    faces.forEach((f, i) => { if (!names[i].length) names[i].push(fid + '.d' + i); });
+    { const bare = faces.map((f, i) => i).filter(i => !names[i].length), rank = bare.length ? stableRank(faces, bare) : null; for (const i of bare) names[i].push(fid + '.dm' + rank.get(i)); }
     return mkBody(tool.id, shape, faces, names);
   }
   function edgeOfRef(S, ref) { const { b, j } = findEdge(S, ref); return edgesOf(b)[j]; }
@@ -748,7 +771,7 @@ export function makeKernel(oc) {
     const copyOf = (b, t, sfx, id) => {
       const mt = T(new oc.BRepBuilderAPI_Transform(b.shape, t, true, false)), shape = mt.Shape(), faces = subShapes(shape, TA.TopAbs_FACE), ix = indexer(faces), names = faces.map(() => []);
       b.faces.forEach((fc, i) => { const k = ix(T(mt.ModifiedShape(fc))); if (k >= 0) names[k].push(...b.names[i].map(n => n + sfx)); });
-      faces.forEach((fc, i) => { if (!names[i].length) names[i].push(f.id + '.n' + i + sfx); });
+      { const bare = faces.map((fc, i) => i).filter(i => !names[i].length), rank = bare.length ? stableRank(faces, bare) : null; for (const i of bare) names[i].push(f.id + '.m' + rank.get(i) + sfx); }
       return mkBody(id, shape, faces, names);
     };
     let made = 0;

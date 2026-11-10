@@ -55,7 +55,14 @@ export function weldEnts(ents, tol = WELD) {
   for (const e of out) if (e.a) { e.a = snap(e.a); e.b = snap(e.b); }
   const round = out.filter(e => e.t === 'arc' || e.t === 'circle');
   // an arc's ends turned onto the place its neighbours' ends were set to
-  for (const e of out) if (e.t === 'arc') for (const k of ['a0', 'a1']) { const an = e[k] * Math.PI / 180, p = [e.c[0] + e.r * Math.cos(an), e.c[1] + e.r * Math.sin(an)], q = reps.find(z => Math.hypot(p[0] - z[0], p[1] - z[1]) <= tol && Math.hypot(z[0] - e.c[0], z[1] - e.c[1]) > tol); if (q) e[k] = Math.atan2(q[1] - e.c[1], q[0] - e.c[0]) * 180 / Math.PI; }
+  // (and an end all but on another arc's end is drawn to that end: w0, w1, where its outline starts and stops)
+  const arcEnds = [];
+  for (const e of out) if (e.t === 'arc') for (const k of ['a0', 'a1']) {
+    const an = e[k] * Math.PI / 180, p = [e.c[0] + e.r * Math.cos(an), e.c[1] + e.r * Math.sin(an)], q = reps.find(z => Math.hypot(p[0] - z[0], p[1] - z[1]) <= tol && Math.hypot(z[0] - e.c[0], z[1] - e.c[1]) > tol);
+    if (q) { e[k] = Math.atan2(q[1] - e.c[1], q[0] - e.c[0]) * 180 / Math.PI; continue; }
+    const o = arcEnds.find(z => Math.hypot(p[0] - z[0], p[1] - z[1]) <= tol);
+    if (o) { if (Math.hypot(p[0] - o[0], p[1] - o[1]) > 1e-12) e[k === 'a0' ? 'w0' : 'w1'] = o; } else arcEnds.push(p);
+  }
   for (let i = 0; i < round.length; i++) for (let j = 0; j < i; j++) if (round[i].c[0] === round[j].c[0] && round[i].c[1] === round[j].c[1] && Math.abs(round[i].r - round[j].r) <= tol) { round[i].r = round[j].r; break; }
   // and a line's end that is all but on a circle or an arc set onto it (where the arc's own end was just turned to)
   for (const e of out) if (e.t === 'line') for (const k of ['a', 'b']) for (const c of round) { const d = Math.hypot(e[k][0] - c.c[0], e[k][1] - c.c[1]); if (d > tol && Math.abs(d - c.r) <= tol) { e[k] = [c.c[0] + (e[k][0] - c.c[0]) / d * c.r, c.c[1] + (e[k][1] - c.c[1]) / d * c.r]; break; } }
@@ -99,7 +106,47 @@ function unionEnts(ents, tol) {
 }
 /* the regions a feature can use: the plane cut by every shape that is not construction (slivers left out: the thin
    scraps between two curves that all but coincide, or between the straight steps two arcs on one circle are drawn in) */
-export const regionsOf = ents => sketchRegions(weldEnts(ents.filter(e => !e.k && e.t !== 'point')), e => entOutline(e, 3)).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
+/* a circle's or an arc's outline for finding regions: its steps, and a corner besides wherever another shape crosses
+   it or only just touches it. Where a line or a circle touches it (or misses, or overlaps, by a hair) the corner is
+   put on the line, or midway between the two circles, so both outlines pass through the one point and the regions
+   either side of the touch are two regions, as they are in truth, not one joined through a gap too thin to see. */
+function roundOutline(e, all, tol) {
+  const circ = e.t === 'circle', sw = circ ? 360 : arcSweep(e), a0 = circ ? 0 : e.a0, m360 = v => ((v % 360) + 360) % 360;
+  const at = [];                                          // [degrees round from a0, the point (null: on the circle)]
+  const add = (p, q) => { const d = m360(Math.atan2(p[1] - e.c[1], p[0] - e.c[0]) * 180 / Math.PI - a0); if (d <= sw + 1e-9) at.push([Math.min(d, sw), q || null]); };
+  for (const o of all) {
+    if (o === e || o.t === 'point') continue;
+    if (o.t === 'line') {
+      const d = lineDir(o), L2 = d[0] * d[0] + d[1] * d[1] || 1e-12, t = ((e.c[0] - o.a[0]) * d[0] + (e.c[1] - o.a[1]) * d[1]) / L2, F = [o.a[0] + d[0] * t, o.a[1] + d[1] * t], dist = Math.hypot(F[0] - e.c[0], F[1] - e.c[1]);
+      if (t > -1e-9 && t < 1 + 1e-9 && Math.abs(dist - e.r) <= tol && dist > tol) { add(F, F); continue; }
+    } else if (o.c) {
+      const dx = o.c[0] - e.c[0], dy = o.c[1] - e.c[1], D = Math.hypot(dx, dy);
+      if (D > tol && (Math.abs(D - (e.r + o.r)) <= tol || Math.abs(D - Math.abs(e.r - o.r)) <= tol)) {
+        // touching: outside each other, or one inside the other; the point between the two circles' own points
+        const u = [dx / D, dy / D], inside = D < Math.max(e.r, o.r), sE = !inside || e.r > o.r ? 1 : -1, sO = !inside ? -1 : o.r > e.r ? 1 : -1;
+        const pE = [e.c[0] + u[0] * e.r * sE, e.c[1] + u[1] * e.r * sE], pO = [o.c[0] + u[0] * o.r * sO, o.c[1] + u[1] * o.r * sO], M = [(pE[0] + pO[0]) / 2, (pE[1] + pO[1]) / 2];
+        if (distToEnt(o, pO) < 1e-6) { add(M, M); continue; }
+      }
+    }
+    for (const p of entCross(e, o)) add(p);
+  }
+  const n = Math.max(circ ? 24 : 2, Math.ceil(sw / 3));
+  for (let i = 0; i <= n; i++) if (!circ || i < n) at.push([sw * i / n, i === 0 && e.w0 ? e.w0.slice() : i === n && e.w1 ? e.w1.slice() : null]);
+  at.sort((p, q) => p[0] - q[0] || (p[1] ? -1 : 1));
+  const out = [];
+  for (const [d, q] of at) {
+    const prev = out[out.length - 1], an = (a0 + d) * Math.PI / 180, p = q || [e.c[0] + e.r * Math.cos(an), e.c[1] + e.r * Math.sin(an)];
+    // a step that all but repeats the corner before it gives way to that corner
+    if (prev && Math.abs(d - prev.d) < 1e-6) { if (q && !prev.q) { p.d = d; p.q = true; out[out.length - 1] = p; } continue; }
+    p.d = d; p.q = !!q; out.push(p);
+  }
+  if (circ && out.length > 1 && Math.abs(out[out.length - 1].d - 360) < 1e-6) out.pop();
+  return out;
+}
+export function regionsOf(ents) {
+  const W = weldEnts(ents.filter(e => !e.k && e.t !== 'point'));
+  return sketchRegions(W, e => (e.t === 'circle' || e.t === 'arc' ? roundOutline(e, W, WELD) : entOutline(e, 3))).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
+}
 /* the regions an extrude takes by default: those not inside another (a ring's hole stays a hole), by their points */
 export function defaultRegionPts(ents) {
   const R = regionsOf(ents);

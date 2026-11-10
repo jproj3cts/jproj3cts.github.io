@@ -257,7 +257,6 @@ export function sketchDown(e, sx, sy) {
       if (add) { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else SK.sel.push(it); }
       else if (!SK.sel.some(x => sameItem(x, it))) SK.sel = [it];
       if (it.t === 'pt' || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
-      if (it.t === 'dim' && e.detail >= 2) dimEdit(S().f.dims.find(d => d.id === it.id));
     } else { if (!add) SK.sel = []; SK.box = { x0: sx, y0: sy, x1: sx, y1: sy }; }
     drawOverlay(); emit('sketchsel');
     return true;
@@ -286,6 +285,12 @@ export function sketchMove(e, sx, sy) {
   else if (SK.tool === 'use') { app.hover = pickAt(sx, sy, 'edge'); emit('hover'); }
   else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' ? from : null); }
   drawOverlay();
+}
+/* a double-click: a dimension's value to type again */
+export function sketchDbl(sx, sy) {
+  const it = sketchPick(sx, sy);
+  if (it && it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return true; }
+  return false;
 }
 export function sketchUp() {
   if (SK.drag) { const d = SK.drag; SK.drag = null; if (d.moved) resolve(); return; }
@@ -456,8 +461,8 @@ function dimInputClose(cancel) {
   const D = SK.dimInput;
   if (!D) return;
   D.inp.remove(); SK.dimInput = null;
-  // a new dimension not given a value stays, as measured
-  void cancel;
+  // Esc on a new dimension takes it away; otherwise it stays as it was
+  if (cancel && D.isNew) { S().f.dims = S().f.dims.filter(x => x.id !== D.d.id); resolve(); return; }
   drawOverlay();
 }
 /* ---------- the overlay ---------- */
@@ -668,7 +673,7 @@ export function sketchBar() {
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });
   const num = (label, key, title) => h('label', { class: 'cad-skin', title }, label, h('input', { type: 'text', value: String(SK[key]), size: '4', 'data-skopt': key, onchange: e => { SK[key] = key === 'polySides' ? Math.max(3, Math.min(64, parseInt(e.target.value, 10) || 6)) : e.target.value; } }));
-  bar.replaceChildren(h('span', { class: 'cad-skname' }, app.sketch.f.name),
+  bar.replaceChildren(...[h('span', { class: 'cad-skname' }, app.sketch.f.name),
     ...SK_TOOLS.map(t => (t === 'sep' ? h('span', { class: 'rt-qsep' }) : btn(t[0], t[1], t[2], SK.tool === t[0] || (t[0] === 'construct' && SK.constr)))),
     h('span', { class: 'rt-qsep' }),
     ...SK_CONS.map(([t, title, g]) => h('button', { type: 'button', class: 'rt-btn quiet cad-con', 'data-con': t, title: title + ' (on what is selected)', 'aria-label': title, onclick: () => addConstraint(t) }, g)),
@@ -676,7 +681,7 @@ export function sketchBar() {
     SK.tool === 'polygon' ? num('Sides ', 'polySides', 'The polygon’s sides') : null, SK.tool === 'fillet' ? num('R ', 'filletR', 'The fillet’s radius') : null, num('Offset ', 'offsetD', 'The distance Offset copies shapes by (negative: the other side)'),
     h('span', { class: 'cad-grow' }),
     h('button', { type: 'button', class: 'rt-btn', id: 'sketchCancel', onclick: cancelSketch }, 'Cancel'),
-    h('button', { type: 'button', class: 'rt-btn primary', id: 'sketchOk', onclick: finishSketch, title: 'Finish the sketch (Enter)' }, '✓ Finish sketch'));
+    h('button', { type: 'button', class: 'rt-btn primary', id: 'sketchOk', onclick: finishSketch, title: 'Finish the sketch (Enter)' }, '✓ Finish')].filter(Boolean));
   for (const n of bar.querySelectorAll('[data-icon]')) if (!n.querySelector('svg')) { /* icons drawn by the caller */ }
   emit('icons', bar);
 }

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 const near = (a, b, t) => Math.abs(a - b) <= t;
 export async function check(pw, base, shots) {
-  const out = [], ok = (name, pass, why) => out.push({ name, ok: !!pass, why: pass ? '' : why });
+  const out = [], ok = (name, pass, why) => { out.push({ name, ok: !!pass, why: pass ? '' : why }); if (process.env.JEKCAD_LOG) console.log((pass ? 'ok   ' : 'FAIL ') + name + (pass ? '' : ' :: ' + String(why).slice(0, 300))); };
   const b = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const shot = async (p, name) => { if (shots) await p.screenshot({ path: shots + '/' + name + '.png' }); };
   try {
@@ -17,7 +17,7 @@ export async function check(pw, base, shots) {
     await p.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
     const st = await p.evaluate(() => ({ ready: !!(window.JEKcad && window.JEKcad.view.ready), n: window.JEKcad && window.JEKcad.app.regenCount, err: window.JEKcad && window.JEKcad.app.error }));
     ok('The page loads, three.js draws, and the kernel worker regenerates an empty Part Studio', st.ready && st.n > 0 && !st.err, JSON.stringify(st) + errs.join(' | '));
-    const regen = () => p.evaluate(() => window.JEKcad.regenDone());
+    const regen = () => p.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
     const vol = () => p.evaluate(() => window.JEKcad.app.result.parts.reduce((s, x) => s + x.volume, 0));
     const xy = async w => { const r = await p.evaluate(w2 => window.JEKcad.project(w2), w); const box = await p.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
     const uvXY = async uv => { const r = await p.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await p.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
@@ -40,9 +40,10 @@ export async function check(pw, base, shots) {
     const dimLine = async (uv, v) => { const q = await uvXY(uv); await p.mouse.click(q[0], q[1]); await p.mouse.click(q[0], q[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }); await p.fill('#dimInput', v); await p.keyboard.press('Enter'); };
     await dimLine([15, 0], '40');
     await dimLine([40, 10], '#h');
+    const refused = !!(await p.$('#dimInput'));
+    if (refused) await p.keyboard.press('Escape');
     sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f; return { dims: f.dims.map(d => [d.t, d.x, +d.v.toFixed(4)]), err: f.dims.some(d => d.err) }; });
-    ok('The dimension tool: values typed in place; an unknown #variable is refused', sk.dims.length === 1 && sk.dims[0][2] === 40, JSON.stringify(sk));
-    if (await p.$('#dimInput')) await p.keyboard.press('Escape');
+    ok('The dimension tool: values typed in place; an unknown #variable is refused, Esc takes the new dimension back', refused && sk.dims.length === 1 && sk.dims[0][2] === 40, JSON.stringify(sk));
     // the variable made (from the console, as the table would) and the dimension typed again with it
     await p.evaluate(() => { window.JEKcad.app.doc.variables.push({ name: 'h', expr: '20 mm', kind: 'len' }); window.JEKcad.app.result.vars.h = 20; });
     await p.keyboard.press('d');
@@ -63,7 +64,7 @@ export async function check(pw, base, shots) {
     await regen();
     let v = await vol();
     ok('Extrude 10 mm: one part of 8000 mm³', near(v, 8000, 1e-3), 'volume ' + v);
-    await p.evaluate(() => window.JEKcad.fit());
+    await p.evaluate(() => window.JEKcad.viewFrom('iso'));
     await p.waitForTimeout(400);
     // fillet the vertical edge at x 40, y 20: picked in the view
     await p.click('[data-feature="fillet"]');
@@ -119,7 +120,6 @@ export async function check(pw, base, shots) {
     const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#btnSave')]);
     const saved = JSON.parse(readFileSync(await dl.path(), 'utf8'));
     ok('Save: a .jekcad file of the feature list', dl.suggestedFilename().endsWith('.jekcad') && saved.format === 'jekcad' && saved.features.length === 3 && saved.variables[0].name === 'h', dl.suggestedFilename() + ' ' + JSON.stringify(saved).slice(0, 200));
-    await p.click('#btnNew').catch(() => {});
     await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
     const before = await vol();
     const [chooser] = await Promise.all([p.waitForEvent('filechooser'), p.click('#btnFile').then(() => p.click('#btnOpen'))]);
@@ -147,7 +147,7 @@ export async function check(pw, base, shots) {
     await p.mouse.click(top[0], top[1]);
     await p.waitForFunction(() => !document.getElementById('measure').hidden, null, { timeout: 5000 }).catch(() => {});
     const meas = await p.textContent('#measure');
-    ok('Click the top face: it is selected and measured', /Face \(plane\)/.test(meas) && /1491\.\d+ mm²|1491 mm²/.test(meas.replace(/,/g, '')), meas);
+    ok('Click the top face: it is selected and measured', /Face \(plane\)/.test(meas) && /1499\.14\d* mm²/.test(meas.replace(/,/g, '')), meas);
     // the view cube's Front face, the display modes, the section view
     { const cb = await p.locator('#viewCube canvas').boundingBox(); await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300); await p.mouse.click(cb.x + 30, cb.y + 50); }
     await p.waitForTimeout(400);
@@ -158,7 +158,7 @@ export async function check(pw, base, shots) {
     await shot(p, 'jekcad-hidden-edges');
     await p.click('#btnViewMenu'); await p.click('[data-mode="shadedEdges"]');
     await p.click('#btnViewMenu'); await p.click('#btnSection');
-    await p.fill('#secAt', '-10'); await p.dispatchEvent('#secAt', 'input');
+    await p.evaluate(() => { const r = document.getElementById('secAt'); r.value = '-10'; r.dispatchEvent(new Event('input')); });
     await p.waitForTimeout(200);
     ok('The section view: a plane cuts the parts', await p.evaluate(() => !!window.JEKcad.view.section && !document.getElementById('sectionCtl').hidden), 'no section');
     await shot(p, 'jekcad-section');

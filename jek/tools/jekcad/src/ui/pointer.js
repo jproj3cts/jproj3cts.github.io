@@ -1,6 +1,6 @@
 import { app, emit, redo, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
-import { overlayPick, setBoxSel, sketchDown, sketchKey, sketchMove, sketchUp } from './sketcher.js';
+import { overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchUp } from './sketcher.js';
 import { closeDialog, fieldPick, fieldWants, okDialog } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
@@ -19,7 +19,8 @@ export function pickHere(sx, sy) {
   if (want === 'sketch') return overlayPick(sx, sy, 'sketch') || overlayPick(sx, sy, 'regions');
   if (want === 'features') return null;
   if (want === 'plane') return pickAt(sx, sy, 'face') || overlayPick(sx, sy, 'plane');
-  if (want) { const m = pickAt(sx, sy, MODEL_KINDS[want] || 'any'); if (want === 'edges' && m && m.kind === 'vertex') return null; return m; }
+  if (want === 'edges') return pickAt(sx, sy, 'edge') || pickAt(sx, sy, 'face');
+  if (want) return pickAt(sx, sy, MODEL_KINDS[want] || 'any');
   const f = app.filter;
   if (f === 'plane') return overlayPick(sx, sy, 'plane');
   if (f === 'region') return overlayPick(sx, sy, 'regions');
@@ -86,7 +87,7 @@ export function wirePointer() {
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
   over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
-  over.addEventListener('dblclick', e => { if (app.sketch) return; const [sx, sy] = xy(e); const p = pickAt(sx, sy, 'face'); if (!p) fit(); });
+  over.addEventListener('dblclick', e => { if (app.sketch) { sketchDbl(...xy(e)); return; } const [sx, sy] = xy(e); const p = pickAt(sx, sy, 'face'); if (!p) fit(); });
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
     if (document.querySelector('dialog[open]')) return;

@@ -134,8 +134,6 @@
   .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
   .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -893,7 +891,8 @@
   .rt-hcard .rt-hinfo small.rt-hfork { display: flex; align-items: center; gap: 0.25rem; }
   /* the other tool's bench: a chip before its name (both tools' benches share the workspaces) */
   .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
-  .rt-hcard .rt-hinfo .rt-htool.ion { background: var(--jek-orange); }
+  .rt-hcard .rt-hinfo .rt-htool.ion, .rt-hcard .rt-hinfo .rt-htool.jekion { background: var(--jek-orange); }
+  .rt-hcard .rt-hinfo .rt-htool.jekfilm { background: var(--jek-amber); color: #1a1a1a; }
   .rt-hcard .rt-hinfo small.rt-hfork .ic { width: 12px; height: 12px; }
   .rt-hcard .rt-hmore { position: absolute; right: 0.35rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid transparent; border-radius: 2px; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
   .rt-hcard .rt-hmore:hover, .rt-hcard .rt-hmore[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); color: var(--jek-ink); }
@@ -1093,10 +1092,11 @@
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
-  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  /* JEKsuite, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
   .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
   .rt-space:hover { background: var(--jek-well); text-decoration: none; }
   .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  :root[data-rt-theme="dark"] .rt-bar a.rt-space, :root[data-rt-theme="dark"] .rt-bar a.rt-space:hover { color: #4fc0d8; }   /* in the dark, cyan, as on JEKion's bar */
   /* on a phone the bar is full: the mark alone (its name in its title and label) */
   @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
   .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
@@ -1127,7 +1127,7 @@
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
   /* an app's name in the bar, the same in every app: JEK, then the app's word in a dark box (no stripe under it) */
   .jek-wm { display: inline-flex; align-items: center; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--jek-ink); color: #fff; font-weight: 700; font-size: 0.92em; letter-spacing: 0; }
+  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--rt-strong, var(--jek-ink)); color: var(--rt-on-strong, #fff); font-weight: 700; font-size: 0.92em; letter-spacing: 0; }   /* the themes' dark box: light on dark, dark on light */
   .rt-title:has(.jek-wm)::after { display: none; }
   .rt-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
   .rt-title a { color: inherit; text-decoration: none; }
@@ -1264,7 +1264,6 @@
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
-  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
@@ -1286,7 +1285,7 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-tight, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
     .rt-bar .rt-phonegone { position: static; }
@@ -1354,9 +1353,9 @@
   .rt-rail .rt-radd { flex-direction: row; width: auto; height: 32px; padding: 0 10px 0 8px; gap: 4px; font-size: 0.72rem; margin-right: 2px; }
   .rt-rail .rt-rswitch { flex-direction: row; width: auto; min-height: 32px; height: 32px; padding: 0 17px 0 7px; gap: 5px; font-size: 0.72rem; margin-right: 4px; }
   .rt-rail .rt-rswitch::after { right: 6px; bottom: auto; top: calc(50% - 1px); }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 30px; height: 30px; padding: 2px; }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 24px; height: 24px; }
-  .rt-rail .rt-rgroup.rt-rtool:not(.rt-rmfeat) svg { width: 20px; height: 20px; }
+  .rt-rail .rt-rgroup { width: 30px; height: 30px; padding: 2px; }
+  .rt-rail .rt-rgroup img { width: 24px; height: 24px; }
+  .rt-rail .rt-rgroup.rt-rtool svg { width: 20px; height: 20px; }
   .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 3px; background: var(--rt-over-line); }
   .rt-rail[hidden] { display: none; }
   /* Add part, the rail's topmost button: the strong (black) one, as the main action */
@@ -1372,7 +1371,7 @@
   .rt-rswitch:hover, .rt-rswitch[aria-expanded="true"], .rt-rswitch:focus-visible { border-color: var(--c); outline: none; }
   .rt-rswitch .ic, .rt-palmenu .ic { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--c); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .rt-rswitch::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-top-color: var(--rt-over-mute); border-bottom: 0; }
-  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; } .model { --c: #1d6fd8; }
+  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; }
   .rt-palmenu { position: absolute; left: 0; z-index: 7; width: 15rem; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
   .rt-palmenu[hidden] { display: none; }
   .rt-palmenu button { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.45rem 0.75rem; border: 0; background: none; text-align: left; font: inherit; color: var(--jek-ink); cursor: pointer; }
@@ -1892,70 +1891,23 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-poldiag { flex: none; width: 96px; height: 96px; }
 .rt-polcap { margin: 0 !important; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
-/* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
-   under it with what the moment needs; the hint goes to the bottom while they are on */
-/* the sketch's tools hang from the parts rail, under its Model, Sketch, Extrude and Revolve: joined to it, as one piece */
-.rt-mdltop { position: absolute; left: 0; right: 124px; top: calc(var(--rt-top) - 1px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
-.rt-mdltop[hidden] { display: none; }
-.rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
-.rt-tbar { padding: 3px 4px; }
-.rt-mdltop > .rt-tbar { border-top-left-radius: 0; }
-.rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
-.rt-tbsub:empty, .rt-tbar:empty { display: none; }
-.rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
-.rt-tbsep { width: 1px; align-self: stretch; margin: 3px 4px; background: var(--jek-line); }
-.rt-tb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--jek-ink); cursor: pointer; font: 600 0.74rem var(--jek-sans); }
-.rt-tb.wide { padding: 0 8px; }
-.rt-tb:hover:not(:disabled) { background: rgba(127, 127, 127, 0.14); }
-.rt-tb.on { background: rgba(29, 111, 216, 0.16); color: #1d6fd8; border-color: rgba(29, 111, 216, 0.45); }
-.rt-tb:disabled { opacity: 0.38; cursor: default; }
-.rt-tb.rt-tbok { color: #fff; background: #2a8a4a; }
-.rt-tb.rt-tbok:hover { background: #237a40; }
-.rt-tb.rt-tbno { color: var(--jek-red, #b3261e); }
-.rt-tbgrp { display: inline-flex; align-items: center; }
-.rt-tbgrp > .rt-tb:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.rt-tbcar { min-width: 0; padding: 0 3px; }
-.rt-tbgrp > .rt-tb + .rt-tbcar { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.rt-car { font-size: 0.65rem; color: var(--jek-ink-soft); }
-.rt-tbmenu { position: absolute; z-index: 9; min-width: 11rem; max-height: 60vh; overflow: auto; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22); font: 0.76rem var(--jek-sans); }
-.rt-tbmenu button { display: block; width: 100%; text-align: left; padding: 5px 12px 5px 24px; border: 0; background: none; color: var(--jek-ink); cursor: pointer; position: relative; font: inherit; white-space: nowrap; }
-.rt-tbmenu button:hover { background: rgba(29, 111, 216, 0.12); }
-.rt-tbmenu button.on::before { content: '\2713'; position: absolute; left: 8px; color: #1d6fd8; }
-.rt-tbmenu hr { border: 0; border-top: 1px solid var(--jek-line); margin: 4px 0; }
-.rt-tbar .rt-mdlf, .rt-tbsub .rt-mdlf { flex-direction: row; align-items: center; gap: 5px; padding: 0 4px; }
-.rt-mdlf { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.rt-mdlf > span { font-size: 0.68rem; font-weight: 600; color: var(--jek-ink-soft); white-space: nowrap; }
-.rt-mdlf > input { width: 4.8rem; box-sizing: border-box; height: 1.6rem; padding: 0.1rem 0.35rem; font: 0.75rem var(--jek-mono); }
-.rt-mdlrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.rt-mdltyped .rt-mdlf > input { border-color: #1d6fd8; }
-.rt-mdlnote { font-size: 0.7rem; color: var(--jek-ink-soft); }
-.rt-mdlerr { color: var(--jek-red, #b3261e); }
-.rt-mdlon .rt-v3dhint { top: auto; bottom: 2.4rem; }
-.rt-mdlon .rt-v3dkey { display: none !important; }
-.rt-mdltip { position: absolute; z-index: 7; pointer-events: none; font: 600 0.66rem var(--jek-sans); color: #fff; background: #f28a1a; padding: 1px 5px; border-radius: 3px; }
-.rt-mdltip[hidden] { display: none; }
-/* a modelled part's features in its panel */
-.rt-mfeats { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.2rem 0 0.5rem; }
-.rt-mfeat { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.45rem; padding: 0.3rem 0.4rem; font-size: 0.78rem; border: 1px solid var(--jek-line); border-radius: 4px; }
-.rt-mfeat > b { min-width: 4.8rem; font-weight: 600; }
-.rt-mfeat > span { color: var(--jek-ink-soft); }
-.rt-mfeat input[type=text] { width: 4.6rem; height: 1.6rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
-.rt-mfeat .rt-link:last-child { margin-left: auto; }
-/* the sketch's dimensions and constraints over the 3D view (ui/model3d.js annots) */
-.rt-mdlann { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
-.rt-mdlann[hidden] { display: none; }
-.rt-dimlbl, .rt-conglyph, .rt-dimin { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; font: 600 0.72rem var(--jek-mono); cursor: pointer; white-space: nowrap; }
-.rt-dimlbl { padding: 1px 5px; color: var(--jek-ink); background: var(--jek-panel); border: 1px solid #5b6670; border-radius: 3px; }
-.rt-dimlbl.on { border-color: #f28a1a; color: #f28a1a; }
-.rt-dimin { width: 5.5rem; padding: 2px 4px; border: 2px solid #1d6fd8; border-radius: 3px; background: var(--jek-panel); color: var(--jek-ink); cursor: text; }
-.rt-conglyph { min-width: 14px; height: 14px; padding: 0 2px; line-height: 12px; font: 700 0.6rem var(--jek-sans); color: #1d6fd8; background: var(--jek-panel); border: 1px solid rgba(29, 111, 216, 0.5); border-radius: 3px; transform: none; }
-.rt-conglyph.on { color: #fff; background: #f28a1a; border-color: #f28a1a; }
-.rt-mdldef { color: #2a8a4a; font-weight: 600; }
-.rt-mdims { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: 3px 8px; align-items: center; margin: -0.1rem 0 0.25rem 0.8rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
-.rt-mdims input { height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
-.rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
-.rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
-.rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }
+/* the 3D view's box select, as it is dragged (ui/view3d.js) */
+.rt-v3dbox { position: absolute; z-index: 6; pointer-events: none; border: 1px dashed var(--jek-orange); background: rgba(244, 119, 66, 0.1); }
+.rt-v3dbox[hidden] { display: none; }
+/* the mate tool's card: how two picked faces meet (ui/mate3d.js) */
+.rt-matecard { position: absolute; z-index: 7; left: 12px; top: calc(var(--rt-top, 0px) + 12px); max-width: min(23rem, calc(100% - 24px)); box-sizing: border-box; padding: 0.55rem 0.7rem; background: var(--jek-panel); color: var(--jek-ink); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); font: 0.78rem/1.35 var(--jek-sans); }
+.rt-matehead { margin: 0 0 0.45rem; }
+.rt-matetypes { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.45rem; }
+.rt-matetypes .rt-btn.on { border-color: var(--jek-orange); background: rgba(244, 119, 66, 0.14); }
+.rt-matetypes .rt-btn:disabled { opacity: 0.4; }
+.rt-materow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; margin-top: 0.35rem; }
+.rt-matef input { width: 4.5rem; height: 1.6rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+/* a part's mates, in its panel */
+.rt-mates { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.2rem 0 0.3rem; }
+.rt-mate { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem; padding: 0.3rem 0.4rem; font-size: 0.78rem; border: 1px solid var(--jek-line); border-radius: 4px; }
+.rt-matectl { display: inline-flex; align-items: center; gap: 0.35rem; }
+.rt-matectl input[type=text] { width: 4.2rem; height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+.rt-gmove .rt-pcell input { width: 100%; box-sizing: border-box; }
 /* Get Pro, in the bar: for anyone without JEKrayPro; the plans and prices, signed in or not */
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
@@ -2013,7 +1965,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-rowmenu { position: fixed; z-index: 90; min-width: 11rem; }
   /* the view */
   .cad-stage { height: max(460px, calc(100vh - 170px)); }
-  .cad-stage canvas { position: absolute; left: 0; top: 0; }
+  .cad-stage > canvas { position: absolute; left: 0; top: 0; }
   .cad-stage #over { cursor: default; outline: none; }
   .cad-stage.dropping::after { content: 'Drop a .jekcad or a STEP file'; position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--jek-orange); border-radius: 6px; color: var(--jek-orange); font-weight: 700; pointer-events: none; }
   .cad-hint { position: absolute; left: 0.6rem; bottom: 0.45rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
@@ -2028,7 +1980,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-diminput { position: absolute; z-index: 20; width: 100px; font: 12px var(--jek-mono); padding: 0.15rem 0.3rem; border: 2px solid var(--jek-orange); border-radius: 2px; background: var(--rt-surface); color: var(--jek-ink); }
   /* the view cube */
   .cad-cube { position: absolute; right: 14px; top: 10px; width: 76px; z-index: 6; }
-  .cad-cubecv { display: block; width: 76px; height: 76px; }
+  .cad-stage #viewCube canvas.cad-cubecv { position: static; display: block; width: 76px; height: 76px; cursor: default; }
   .cad-cubebtns { display: flex; justify-content: center; gap: 2px; }
   .cad-cubebtns .rt-btn { padding: 0.05rem 0.3rem; font-size: 0.68rem; }
   /* the feature dialog */
@@ -2359,7 +2311,7 @@ const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
-  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  // the account (io/account.js, shared by JEKray, JEKion and JEKsuite): what each app adds to it or does around it
   appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
   keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
   planActive() {},                      // a plan has just become active, back from paying
@@ -2371,6 +2323,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
+  cloudLinked() {},
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -4516,7 +4470,7 @@ function wireUsage() {
   addEventListener('pagehide', () => { if (!usageLeft) { usageLeft = true; track('leave', usageMinutes(Date.now() - USAGE_T0)); } usageFlush(); });
 }
 /* ==========================================================================
-   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKsuite (each lists it
    in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
    way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
    left out); kids: nodes or text, with null, undefined and false left out.
@@ -5289,7 +5243,6 @@ function sketchDown(e, sx, sy) {
       if (add) { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else SK.sel.push(it); }
       else if (!SK.sel.some(x => sameItem(x, it))) SK.sel = [it];
       if (it.t === 'pt' || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
-      if (it.t === 'dim' && e.detail >= 2) dimEdit(S().f.dims.find(d => d.id === it.id));
     } else { if (!add) SK.sel = []; SK.box = { x0: sx, y0: sy, x1: sx, y1: sy }; }
     drawOverlay(); emit('sketchsel');
     return true;
@@ -5318,6 +5271,12 @@ function sketchMove(e, sx, sy) {
   else if (SK.tool === 'use') { app.hover = pickAt(sx, sy, 'edge'); emit('hover'); }
   else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' ? from : null); }
   drawOverlay();
+}
+/* a double-click: a dimension's value to type again */
+function sketchDbl(sx, sy) {
+  const it = sketchPick(sx, sy);
+  if (it && it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return true; }
+  return false;
 }
 function sketchUp() {
   if (SK.drag) { const d = SK.drag; SK.drag = null; if (d.moved) resolve(); return; }
@@ -5488,8 +5447,8 @@ function dimInputClose(cancel) {
   const D = SK.dimInput;
   if (!D) return;
   D.inp.remove(); SK.dimInput = null;
-  // a new dimension not given a value stays, as measured
-  void cancel;
+  // Esc on a new dimension takes it away; otherwise it stays as it was
+  if (cancel && D.isNew) { S().f.dims = S().f.dims.filter(x => x.id !== D.d.id); resolve(); return; }
   drawOverlay();
 }
 /* ---------- the overlay ---------- */
@@ -5700,7 +5659,7 @@ function sketchBar() {
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });
   const num = (label, key, title) => h('label', { class: 'cad-skin', title }, label, h('input', { type: 'text', value: String(SK[key]), size: '4', 'data-skopt': key, onchange: e => { SK[key] = key === 'polySides' ? Math.max(3, Math.min(64, parseInt(e.target.value, 10) || 6)) : e.target.value; } }));
-  bar.replaceChildren(h('span', { class: 'cad-skname' }, app.sketch.f.name),
+  bar.replaceChildren(...[h('span', { class: 'cad-skname' }, app.sketch.f.name),
     ...SK_TOOLS.map(t => (t === 'sep' ? h('span', { class: 'rt-qsep' }) : btn(t[0], t[1], t[2], SK.tool === t[0] || (t[0] === 'construct' && SK.constr)))),
     h('span', { class: 'rt-qsep' }),
     ...SK_CONS.map(([t, title, g]) => h('button', { type: 'button', class: 'rt-btn quiet cad-con', 'data-con': t, title: title + ' (on what is selected)', 'aria-label': title, onclick: () => addConstraint(t) }, g)),
@@ -5708,7 +5667,7 @@ function sketchBar() {
     SK.tool === 'polygon' ? num('Sides ', 'polySides', 'The polygon’s sides') : null, SK.tool === 'fillet' ? num('R ', 'filletR', 'The fillet’s radius') : null, num('Offset ', 'offsetD', 'The distance Offset copies shapes by (negative: the other side)'),
     h('span', { class: 'cad-grow' }),
     h('button', { type: 'button', class: 'rt-btn', id: 'sketchCancel', onclick: cancelSketch }, 'Cancel'),
-    h('button', { type: 'button', class: 'rt-btn primary', id: 'sketchOk', onclick: finishSketch, title: 'Finish the sketch (Enter)' }, '✓ Finish sketch'));
+    h('button', { type: 'button', class: 'rt-btn primary', id: 'sketchOk', onclick: finishSketch, title: 'Finish the sketch (Enter)' }, '✓ Finish')].filter(Boolean));
   for (const n of bar.querySelectorAll('[data-icon]')) if (!n.querySelector('svg')) { /* icons drawn by the caller */ }
   emit('icons', bar);
 }
@@ -6170,7 +6129,8 @@ function pickHere(sx, sy) {
   if (want === 'sketch') return overlayPick(sx, sy, 'sketch') || overlayPick(sx, sy, 'regions');
   if (want === 'features') return null;
   if (want === 'plane') return pickAt(sx, sy, 'face') || overlayPick(sx, sy, 'plane');
-  if (want) { const m = pickAt(sx, sy, MODEL_KINDS[want] || 'any'); if (want === 'edges' && m && m.kind === 'vertex') return null; return m; }
+  if (want === 'edges') return pickAt(sx, sy, 'edge') || pickAt(sx, sy, 'face');
+  if (want) return pickAt(sx, sy, MODEL_KINDS[want] || 'any');
   const f = app.filter;
   if (f === 'plane') return overlayPick(sx, sy, 'plane');
   if (f === 'region') return overlayPick(sx, sy, 'regions');
@@ -6237,7 +6197,7 @@ function wirePointer() {
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
   over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
-  over.addEventListener('dblclick', e => { if (app.sketch) return; const [sx, sy] = xy(e); const p = pickAt(sx, sy, 'face'); if (!p) fit(); });
+  over.addEventListener('dblclick', e => { if (app.sketch) { sketchDbl(...xy(e)); return; } const [sx, sy] = xy(e); const p = pickAt(sx, sy, 'face'); if (!p) fit(); });
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
     if (document.querySelector('dialog[open]')) return;
@@ -6382,7 +6342,7 @@ function wireFiles() {
   nm.addEventListener('change', () => { const v = nm.value.trim(); if (v && v !== app.doc.name) { checkpoint(); app.doc.name = v; changed(); } });
 }
 /* ==========================================================================
-   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
    API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
    code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
    invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
@@ -7186,7 +7146,7 @@ function wireAccount() {
 }
 
 /* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
-   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+   and JEKsuite; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
 function authOutcome() {
   const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
   if (outcome || billing) {

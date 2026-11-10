@@ -1,6 +1,6 @@
 /* ---------- Comparing and merging benches ----------
    A saved bench is a few bench-wide settings and some lists keyed by id: elements, fibres, the
-   tabs (benches), the parts it carries (library). Two versions are compared item by item and
+   tabs (benches), the parts it carries (library), the mates holding parts together. Two versions are compared item by item and
    field by field; three (a common base and the two sides that grew from it) merge the git way:
    a change on one side goes in, the same change on both goes in once, and a different change
    to the same field (or one side changing what the other removed) is a conflict to be chosen.
@@ -8,7 +8,7 @@
 
 /* the lists keyed by id, and the settings compared whole; the rest (format, version, saved,
    the name) is left to the bench the merge lands in */
-const KEYED = ['elements', 'fibres', 'benches', 'library'];
+const KEYED = ['elements', 'fibres', 'benches', 'library', 'mates'];
 const SETTINGS = ['view', 'snap', 'maxBounces', 'minPower', 'ghosts', 'light', 'cavityLock', 'notes', 'labelMm', 'style', 'tab', 'measures', 'mods'];
 const same = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
 const copy = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
@@ -21,9 +21,10 @@ export function itemLabel(kind, e) {
   if (kind === 'fibres') return (e.wire ? 'wire ' : 'fibre ') + (Array.isArray(e.a) ? e.a[0] : '?') + ' to ' + (Array.isArray(e.b) ? e.b[0] : '?');
   if (kind === 'benches') return 'tab “' + (e.name || e.id) + '”';
   if (kind === 'library') return 'part “' + (e.name || e.id) + '”';
+  if (kind === 'mates') return (e.type || 'mate') + ' ' + (e.a && e.a.el || '?') + ' to ' + (e.b && e.b.el || '?');
   return e.id;
 }
-export const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', settings: 'setting' };
+export const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', mates: 'mate', settings: 'setting' };
 /* a value as a person reads it */
 export function showValue(v) {
   if (v === undefined || v === null) return 'none';

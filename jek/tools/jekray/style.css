@@ -1878,7 +1878,23 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-poldiag { flex: none; width: 96px; height: 96px; }
 .rt-polcap { margin: 0 !important; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
-/*MATECSS*/
+/* the 3D view's box select, as it is dragged (ui/view3d.js) */
+.rt-v3dbox { position: absolute; z-index: 6; pointer-events: none; border: 1px dashed var(--jek-orange); background: rgba(244, 119, 66, 0.1); }
+.rt-v3dbox[hidden] { display: none; }
+/* the mate tool's card: how two picked faces meet (ui/mate3d.js) */
+.rt-matecard { position: absolute; z-index: 7; left: 12px; top: calc(var(--rt-top, 0px) + 12px); max-width: min(23rem, calc(100% - 24px)); box-sizing: border-box; padding: 0.55rem 0.7rem; background: var(--jek-panel); color: var(--jek-ink); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); font: 0.78rem/1.35 var(--jek-sans); }
+.rt-matehead { margin: 0 0 0.45rem; }
+.rt-matetypes { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.45rem; }
+.rt-matetypes .rt-btn.on { border-color: var(--jek-orange); background: rgba(244, 119, 66, 0.14); }
+.rt-matetypes .rt-btn:disabled { opacity: 0.4; }
+.rt-materow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; margin-top: 0.35rem; }
+.rt-matef input { width: 4.5rem; height: 1.6rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+/* a part's mates, in its panel */
+.rt-mates { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.2rem 0 0.3rem; }
+.rt-mate { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem; padding: 0.3rem 0.4rem; font-size: 0.78rem; border: 1px solid var(--jek-line); border-radius: 4px; }
+.rt-matectl { display: inline-flex; align-items: center; gap: 0.35rem; }
+.rt-matectl input[type=text] { width: 4.2rem; height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+.rt-gmove .rt-pcell input { width: 100%; box-sizing: border-box; }
 /* Get Pro, in the bar: for anyone without JEKrayPro; the plans and prices, signed in or not */
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }

@@ -1354,9 +1354,9 @@
   .rt-rail .rt-radd { flex-direction: row; width: auto; height: 32px; padding: 0 10px 0 8px; gap: 4px; font-size: 0.72rem; margin-right: 2px; }
   .rt-rail .rt-rswitch { flex-direction: row; width: auto; min-height: 32px; height: 32px; padding: 0 17px 0 7px; gap: 5px; font-size: 0.72rem; margin-right: 4px; }
   .rt-rail .rt-rswitch::after { right: 6px; bottom: auto; top: calc(50% - 1px); }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) { width: 30px; height: 30px; padding: 2px; }
-  .rt-rail .rt-rgroup:not(.rt-rmfeat) img { width: 24px; height: 24px; }
-  .rt-rail .rt-rgroup.rt-rtool:not(.rt-rmfeat) svg { width: 20px; height: 20px; }
+  .rt-rail .rt-rgroup { width: 30px; height: 30px; padding: 2px; }
+  .rt-rail .rt-rgroup img { width: 24px; height: 24px; }
+  .rt-rail .rt-rgroup.rt-rtool svg { width: 20px; height: 20px; }
   .rt-rsep { flex: none; width: 1px; height: 22px; margin: 0 3px; background: var(--rt-over-line); }
   .rt-rail[hidden] { display: none; }
   /* Add part, the rail's topmost button: the strong (black) one, as the main action */
@@ -1372,7 +1372,7 @@
   .rt-rswitch:hover, .rt-rswitch[aria-expanded="true"], .rt-rswitch:focus-visible { border-color: var(--c); outline: none; }
   .rt-rswitch .ic, .rt-palmenu .ic { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--c); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .rt-rswitch::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-top-color: var(--rt-over-mute); border-bottom: 0; }
-  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; } .model { --c: #1d6fd8; }
+  .free { --c: var(--jek-orange); } .fibre { --c: var(--jek-red); } .elec { --c: #c08a12; } .rf { --c: #e09a2f; } .pic { --c: #3a9d5d; } .draw { --c: #8b6ee0; }
   .rt-palmenu { position: absolute; left: 0; z-index: 7; width: 15rem; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line-2); border-radius: 5px; box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
   .rt-palmenu[hidden] { display: none; }
   .rt-palmenu button { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.45rem 0.75rem; border: 0; background: none; text-align: left; font: inherit; color: var(--jek-ink); cursor: pointer; }
@@ -1892,70 +1892,23 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-poldiag { flex: none; width: 96px; height: 96px; }
 .rt-polcap { margin: 0 !important; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .rt-polcap b { color: var(--jek-ink); font-weight: 600; }
-/* the 3D view's Model tools (ui/model3d.js): a toolbar across the top, as a CAD program's (icons, menus), and a strip
-   under it with what the moment needs; the hint goes to the bottom while they are on */
-/* the sketch's tools hang from the parts rail, under its Model, Sketch, Extrude and Revolve: joined to it, as one piece */
-.rt-mdltop { position: absolute; left: 0; right: 124px; top: calc(var(--rt-top) - 1px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; font: 0.75rem/1.3 var(--jek-sans); color: var(--jek-ink); }
-.rt-mdltop[hidden] { display: none; }
-.rt-tbar, .rt-tbsub { pointer-events: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; box-sizing: border-box; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16); }
-.rt-tbar { padding: 3px 4px; }
-.rt-mdltop > .rt-tbar { border-top-left-radius: 0; }
-.rt-tbsub { padding: 3px 8px; gap: 4px 10px; }
-.rt-tbsub:empty, .rt-tbar:empty { display: none; }
-.rt-tbname { font-size: 0.78rem; font-weight: 700; padding: 0 6px 0 4px; white-space: nowrap; }
-.rt-tbsep { width: 1px; align-self: stretch; margin: 3px 4px; background: var(--jek-line); }
-.rt-tb { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 30px; height: 30px; padding: 0 5px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--jek-ink); cursor: pointer; font: 600 0.74rem var(--jek-sans); }
-.rt-tb.wide { padding: 0 8px; }
-.rt-tb:hover:not(:disabled) { background: rgba(127, 127, 127, 0.14); }
-.rt-tb.on { background: rgba(29, 111, 216, 0.16); color: #1d6fd8; border-color: rgba(29, 111, 216, 0.45); }
-.rt-tb:disabled { opacity: 0.38; cursor: default; }
-.rt-tb.rt-tbok { color: #fff; background: #2a8a4a; }
-.rt-tb.rt-tbok:hover { background: #237a40; }
-.rt-tb.rt-tbno { color: var(--jek-red, #b3261e); }
-.rt-tbgrp { display: inline-flex; align-items: center; }
-.rt-tbgrp > .rt-tb:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.rt-tbcar { min-width: 0; padding: 0 3px; }
-.rt-tbgrp > .rt-tb + .rt-tbcar { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.rt-car { font-size: 0.65rem; color: var(--jek-ink-soft); }
-.rt-tbmenu { position: absolute; z-index: 9; min-width: 11rem; max-height: 60vh; overflow: auto; padding: 4px 0; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22); font: 0.76rem var(--jek-sans); }
-.rt-tbmenu button { display: block; width: 100%; text-align: left; padding: 5px 12px 5px 24px; border: 0; background: none; color: var(--jek-ink); cursor: pointer; position: relative; font: inherit; white-space: nowrap; }
-.rt-tbmenu button:hover { background: rgba(29, 111, 216, 0.12); }
-.rt-tbmenu button.on::before { content: '\2713'; position: absolute; left: 8px; color: #1d6fd8; }
-.rt-tbmenu hr { border: 0; border-top: 1px solid var(--jek-line); margin: 4px 0; }
-.rt-tbar .rt-mdlf, .rt-tbsub .rt-mdlf { flex-direction: row; align-items: center; gap: 5px; padding: 0 4px; }
-.rt-mdlf { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.rt-mdlf > span { font-size: 0.68rem; font-weight: 600; color: var(--jek-ink-soft); white-space: nowrap; }
-.rt-mdlf > input { width: 4.8rem; box-sizing: border-box; height: 1.6rem; padding: 0.1rem 0.35rem; font: 0.75rem var(--jek-mono); }
-.rt-mdlrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.rt-mdltyped .rt-mdlf > input { border-color: #1d6fd8; }
-.rt-mdlnote { font-size: 0.7rem; color: var(--jek-ink-soft); }
-.rt-mdlerr { color: var(--jek-red, #b3261e); }
-.rt-mdlon .rt-v3dhint { top: auto; bottom: 2.4rem; }
-.rt-mdlon .rt-v3dkey { display: none !important; }
-.rt-mdltip { position: absolute; z-index: 7; pointer-events: none; font: 600 0.66rem var(--jek-sans); color: #fff; background: #f28a1a; padding: 1px 5px; border-radius: 3px; }
-.rt-mdltip[hidden] { display: none; }
-/* a modelled part's features in its panel */
-.rt-mfeats { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.2rem 0 0.5rem; }
-.rt-mfeat { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.45rem; padding: 0.3rem 0.4rem; font-size: 0.78rem; border: 1px solid var(--jek-line); border-radius: 4px; }
-.rt-mfeat > b { min-width: 4.8rem; font-weight: 600; }
-.rt-mfeat > span { color: var(--jek-ink-soft); }
-.rt-mfeat input[type=text] { width: 4.6rem; height: 1.6rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
-.rt-mfeat .rt-link:last-child { margin-left: auto; }
-/* the sketch's dimensions and constraints over the 3D view (ui/model3d.js annots) */
-.rt-mdlann { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
-.rt-mdlann[hidden] { display: none; }
-.rt-dimlbl, .rt-conglyph, .rt-dimin { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; font: 600 0.72rem var(--jek-mono); cursor: pointer; white-space: nowrap; }
-.rt-dimlbl { padding: 1px 5px; color: var(--jek-ink); background: var(--jek-panel); border: 1px solid #5b6670; border-radius: 3px; }
-.rt-dimlbl.on { border-color: #f28a1a; color: #f28a1a; }
-.rt-dimin { width: 5.5rem; padding: 2px 4px; border: 2px solid #1d6fd8; border-radius: 3px; background: var(--jek-panel); color: var(--jek-ink); cursor: text; }
-.rt-conglyph { min-width: 14px; height: 14px; padding: 0 2px; line-height: 12px; font: 700 0.6rem var(--jek-sans); color: #1d6fd8; background: var(--jek-panel); border: 1px solid rgba(29, 111, 216, 0.5); border-radius: 3px; transform: none; }
-.rt-conglyph.on { color: #fff; background: #f28a1a; border-color: #f28a1a; }
-.rt-mdldef { color: #2a8a4a; font-weight: 600; }
-.rt-mdims { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: 3px 8px; align-items: center; margin: -0.1rem 0 0.25rem 0.8rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
-.rt-mdims input { height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
-.rt-rgroup.rt-rmfeat { --c: #1d6fd8; height: auto; min-height: 44px; flex-direction: column; gap: 2px; padding: 4px 1px 5px; font: 700 0.56rem/1.05 var(--jek-sans); }
-.rt-rgroup.rt-rmfeat.on { border-color: var(--c); background: rgba(29, 111, 216, 0.16); }
-.rt-rgroup.rt-rmfeat:disabled { opacity: 0.4; cursor: default; }
+/* the 3D view's box select, as it is dragged (ui/view3d.js) */
+.rt-v3dbox { position: absolute; z-index: 6; pointer-events: none; border: 1px dashed var(--jek-orange); background: rgba(244, 119, 66, 0.1); }
+.rt-v3dbox[hidden] { display: none; }
+/* the mate tool's card: how two picked faces meet (ui/mate3d.js) */
+.rt-matecard { position: absolute; z-index: 7; left: 12px; top: calc(var(--rt-top, 0px) + 12px); max-width: min(23rem, calc(100% - 24px)); box-sizing: border-box; padding: 0.55rem 0.7rem; background: var(--jek-panel); color: var(--jek-ink); border: 1px solid var(--jek-line); border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); font: 0.78rem/1.35 var(--jek-sans); }
+.rt-matehead { margin: 0 0 0.45rem; }
+.rt-matetypes { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.45rem; }
+.rt-matetypes .rt-btn.on { border-color: var(--jek-orange); background: rgba(244, 119, 66, 0.14); }
+.rt-matetypes .rt-btn:disabled { opacity: 0.4; }
+.rt-materow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; margin-top: 0.35rem; }
+.rt-matef input { width: 4.5rem; height: 1.6rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+/* a part's mates, in its panel */
+.rt-mates { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.2rem 0 0.3rem; }
+.rt-mate { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.5rem; padding: 0.3rem 0.4rem; font-size: 0.78rem; border: 1px solid var(--jek-line); border-radius: 4px; }
+.rt-matectl { display: inline-flex; align-items: center; gap: 0.35rem; }
+.rt-matectl input[type=text] { width: 4.2rem; height: 1.55rem; box-sizing: border-box; padding: 0.1rem 0.35rem; }
+.rt-gmove .rt-pcell input { width: 100%; box-sizing: border-box; }
 /* Get Pro, in the bar: for anyone without JEKrayPro; the plans and prices, signed in or not */
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
@@ -2250,7 +2203,7 @@ function backMarks(now, first) {
 }
 /* ---------- Comparing and merging benches ----------
    A saved bench is a few bench-wide settings and some lists keyed by id: elements, fibres, the
-   tabs (benches), the parts it carries (library). Two versions are compared item by item and
+   tabs (benches), the parts it carries (library), the mates holding parts together. Two versions are compared item by item and
    field by field; three (a common base and the two sides that grew from it) merge the git way:
    a change on one side goes in, the same change on both goes in once, and a different change
    to the same field (or one side changing what the other removed) is a conflict to be chosen.
@@ -2258,7 +2211,7 @@ function backMarks(now, first) {
 
 /* the lists keyed by id, and the settings compared whole; the rest (format, version, saved,
    the name) is left to the bench the merge lands in */
-const KEYED = ['elements', 'fibres', 'benches', 'library'];
+const KEYED = ['elements', 'fibres', 'benches', 'library', 'mates'];
 const SETTINGS = ['view', 'snap', 'maxBounces', 'minPower', 'ghosts', 'light', 'cavityLock', 'notes', 'labelMm', 'style', 'tab', 'measures', 'mods'];
 const same = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
 const copy = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
@@ -2271,9 +2224,10 @@ function itemLabel(kind, e) {
   if (kind === 'fibres') return (e.wire ? 'wire ' : 'fibre ') + (Array.isArray(e.a) ? e.a[0] : '?') + ' to ' + (Array.isArray(e.b) ? e.b[0] : '?');
   if (kind === 'benches') return 'tab “' + (e.name || e.id) + '”';
   if (kind === 'library') return 'part “' + (e.name || e.id) + '”';
+  if (kind === 'mates') return (e.type || 'mate') + ' ' + (e.a && e.a.el || '?') + ' to ' + (e.b && e.b.el || '?');
   return e.id;
 }
-const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', settings: 'setting' };
+const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', mates: 'mate', settings: 'setting' };
 /* a value as a person reads it */
 function showValue(v) {
   if (v === undefined || v === null) return 'none';

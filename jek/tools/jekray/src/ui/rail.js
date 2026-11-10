@@ -7,7 +7,6 @@ import {
 } from './render.js';
 import { DRAW_TOOLS, drawIcon, drawTool, drawToolsShown, setDrawTool } from './drawings.js';
 import { V3D } from './view3d.js';
-import { modelRailItems, setModelExit, startModel, stopModel } from './model3d.js';
 import { h } from './dom.js';
 import { addElement } from './actions.js';
 import {
@@ -37,16 +36,16 @@ export function flyShown(btn, g) {
   flyout.style.top = (br.bottom - sr.top + 4) + 'px';
   flyout.style.left = Math.max(0, Math.min(br.left - sr.left, sr.width - flyout.offsetWidth - 8)) + 'px';
 }
-/* the bar's modes: Parts (every palette's groups along it), Draw (2D) and Model (3D); a parts palette is the one in use
-   for the picker's first tab and the like, kept as the palette while in Parts */
-const MODE_NAMES = { parts: 'Parts', draw: 'Draw', model: 'Model' };
-const MODE_ABOUT = { parts: 'every palette\u2019s parts along the bar', draw: 'shapes, arrows and text on the bench (2D)', model: 'sketch and extrude parts of your own (3D)' };
-const modeOf = pal => (pal === 'draw' || pal === 'model' ? pal : 'parts');
-let lastParts = 'free';                                                   // the parts palette to come back to from Draw or Model
+/* the bar's modes: Parts (every palette's groups along it) and Draw (2D); a parts palette is the one in use for the
+   picker's first tab and the like, kept as the palette while in Parts */
+const MODE_NAMES = { parts: 'Parts', draw: 'Draw' };
+const MODE_ABOUT = { parts: 'every palette\u2019s parts along the bar', draw: 'shapes, arrows and text on the bench (2D)' };
+const modeOf = pal => (pal === 'draw' ? pal : 'parts');
+let lastParts = 'free';                                                   // the parts palette to come back to from Draw
 /* the palettes: an icon and a line of what each holds, for the switcher and its list */
 const PAL_ICON = { free: 'M2 10H18 M10 4C12 6 12 14 10 16C8 14 8 6 10 4Z', fibre: 'M2 14C6 14 6 6 10 6S14 14 18 14 M2.5 12.8A1.2 1.2 0 1 0 2.51 12.8 M17.5 12.8A1.2 1.2 0 1 0 17.51 12.8',
   elec: 'M2 10H5L7 6L10 14L13 6L15 10H18', rf: 'M3 7L9 10L3 13Z M12 6.5A5 5 0 0 1 12 13.5 M15 4.5A8 8 0 0 1 15 15.5',
-  pic: 'M4 4H16V16H4Z M4 10H8A2 2 0 0 1 12 10H16 M10 8V4', parts: 'M3 3H9V9H3Z M11 3H17V9H11Z M3 11H9V17H3Z M11 11H17V17H11Z', draw: 'M4 16L5 12L13 4L16 7L8 15Z M11 6L14 9', model: 'M3 14L10 17L17 14L10 11Z M10 11V3 M7 6L10 3L13 6' };
+  pic: 'M4 4H16V16H4Z M4 10H8A2 2 0 0 1 12 10H16 M10 8V4', parts: 'M3 3H9V9H3Z M11 3H17V9H11Z M3 11H9V17H3Z M11 11H17V17H11Z', draw: 'M4 16L5 12L13 4L16 7L8 15Z M11 6L14 9' };
 function palIcon(pal) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   svg.setAttribute('viewBox', '0 0 20 20'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -58,8 +57,8 @@ function palMenuShown(on) {
   const sw = document.getElementById('palSwitch');
   if (!on || !sw) { palMenu.hidden = true; if (sw) sw.setAttribute('aria-expanded', 'false'); return; }
   flyShown(null);
-  // drawings are 2D's; the Model tools 3D's
-  const list = ['parts', V3D.active() ? 'model' : 'draw'], cur = modeOf(palette);
+  // drawings are 2D's
+  const list = V3D.active() ? ['parts'] : ['parts', 'draw'], cur = modeOf(palette);
   palMenu.replaceChildren(...list.map(m => {
     const b = h('button', { type: 'button', role: 'menuitemradio', class: m + (m === cur ? ' on' : ''), 'aria-checked': m === cur ? 'true' : 'false' },
       palIcon(m), h('span', null, h('b', null, MODE_NAMES[m]), h('small', null, MODE_ABOUT[m])));
@@ -86,8 +85,8 @@ export function fillRail() {
     title: MODE_NAMES[mode] + ': ' + MODE_ABOUT[mode] + ' (change the mode)', 'aria-label': 'Mode: ' + MODE_NAMES[mode] + '. Change it' }, palIcon(mode), h('span', null, MODE_NAMES[mode]));
   sw.addEventListener('click', e => { e.stopPropagation(); palMenuShown(palMenu.hidden); });
   const pals = h('div', { class: 'rt-rpals' }, sw);
-  // the Draw palette: its tools instead of groups of parts; the Model palette: its tools are its toolbar, over the 3D view
-  const groups = palette === 'model' ? modelRailButtons() : palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
+  // the Draw palette: its tools instead of groups of parts
+  const groups = palette === 'draw' ? DRAW_TOOLS.map(([k, name, key, tip]) => {
     const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool draw', 'data-dtool': k, title: name + ' (' + key + '): ' + tip.replace(/^[^:]*: /, ''), 'aria-label': name, 'aria-pressed': 'false' }, drawIcon(k));
     b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); setDrawTool(k); });
     return b;
@@ -104,40 +103,18 @@ export function fillRail() {
   drawToolsShown();
   railHeight();
 }
-// the Model palette's features down the rail, each an icon and its name; kept current as the Model tools change stage
-function modelRailButtons() {
-  return modelRailItems().map(it => {
-    const b = h('button', { type: 'button', class: 'rt-rgroup rt-rtool rt-rmfeat model' + (it.on ? ' on' : ''), 'data-mfeat': it.k, title: it.title, 'aria-label': it.name, 'aria-pressed': it.on ? 'true' : 'false' }, it.icon, h('span', null, it.name));
-    if (it.disabled) b.disabled = true;
-    b.addEventListener('click', e => { e.stopPropagation(); flyShown(null); it.run(); });
-    return b;
-  });
-}
-function modelRailSyncNow() {
-  if (palette !== 'model' || !railOn) return;
-  const old = [...rail.querySelectorAll('[data-mfeat]')];
-  if (!old.length) return;
-  const now = modelRailButtons();
-  old.forEach((b, i) => { if (now[i]) b.replaceWith(now[i]); });
-}
 // what the bar covers of the bench (it wraps to a second row when the bench is narrow): the overlays at the top sit under it
 function railHeight() { stage.style.setProperty('--rt-top', railOn && !rail.hidden ? rail.offsetHeight + 'px' : '0px'); }
 export function setPalette(pal) {
   if (modeOf(pal) === 'parts') lastParts = pal;
-  // the Model palette: its tools on while it is the palette, in the 3D view only
-  if (pal === 'model' && !V3D.active()) pal = 'free';
-  const was = palette;
-  if (was === 'model' && pal !== 'model') { assignPalette(pal); stopModel(); }
   if (pal === 'draw' && palette !== 'draw' && typeof selection === 'function') {
     const keep = selection().filter(e => e.type === 'draw');
     if (keep.length !== selection().length || selFibreId) { setSelFibreId(null); assignPalette(pal); setSelection(keep); }
   }
   assignPalette(pal);
   if (pal !== 'draw' && drawTool !== 'select') setDrawTool('select');
-  // (the Model palette is not kept: the page opens in 2D)
-  if (pal !== 'model') try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
+  try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
   fillRail();
-  if (pal === 'model' && was !== 'model' && !startModel()) setPalette('free');
 }
 /* the palettes offered change with the experimental switch */
 export function layoutPalette() {
@@ -151,8 +128,6 @@ export function layoutPalette() {
 export function wireRail() {
   stage.append(rail);
   if (typeof ResizeObserver === 'function') new ResizeObserver(() => railHeight()).observe(rail);
-  // the Model tools put away (their ×, Esc, the 3D view closed): back to the free-space palette
-  setModelExit(() => { if (palette === 'model') setPalette(lastParts); }, () => setPalette('model'), modelRailSyncNow);
 
   stage.append(flyout);
 

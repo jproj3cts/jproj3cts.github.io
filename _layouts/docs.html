@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-{%- comment -%} One layout for both tools' documentation: a page says which with `docs: jekion` in its front matter (JEKray's say nothing) {%- endcomment -%}
-{%- if page.docs == "jekion" %}{% assign tool = "JEKion" %}{% assign home = "/jek/docs/jekion/" %}{% assign tree = site.data.jekion_docs %}{% else %}{% assign tool = "JEKray" %}{% assign home = "/jek/docs/jekray/" %}{% assign tree = site.data.jekray_docs %}{% endif %}
+{%- comment -%} One layout for the tools' documentation: a page says which with `docs: jekion` or `docs: jekcad` in its front matter (JEKray's say nothing) {%- endcomment -%}
+{%- if page.docs == "jekion" %}{% assign tool = "JEKion" %}{% assign home = "/jek/docs/jekion/" %}{% assign tree = site.data.jekion_docs %}{% elsif page.docs == "jekcad" %}{% assign tool = "JEKcad" %}{% assign home = "/jek/docs/jekcad/" %}{% assign tree = site.data.jekcad_docs %}{% else %}{% assign tool = "JEKray" %}{% assign home = "/jek/docs/jekray/" %}{% assign tree = site.data.jekray_docs %}{% endif %}
 <title>{% if page.url == home %}{{ tool }} documentation{% else %}{{ page.title }} | {{ tool }} documentation{% endif %} | JEK Systems</title>
 {%- if page.description %}
 <meta name="description" content="{{ page.description | escape }}">
@@ -61,7 +61,11 @@
       {%- endfor %}
       </ul>
       <div class="dx-navfoot">
-        {%- if page.docs == "jekion" %}
+        {%- if page.docs == "jekcad" %}
+        <a href="/jek/tools/jekcad.html">Open JEKcad</a>
+        <a href="/jek/products/design-software/jekcad/">About JEKcad</a>
+        <a href="/jek/docs/jekray/">JEKray docs</a>
+        {%- elsif page.docs == "jekion" %}
         <a href="/jek/tools/jekion.html">Open JEKion</a>
         <a href="/jek/tools/jekion-tests.html">Checks</a>
         <a href="/jek/docs/jekray/">JEKray docs</a>
@@ -95,7 +99,7 @@
         <a class="next" href="{{ next.url }}"><small>Next</small>{{ next.title }}</a>
         {%- endif %}
       </nav>
-      <p class="dx-foot">{{ tool }} documentation{% if page.docs != "jekion" %}, for file format version {{ site.data.jekray_params.version }}{% endif %}. Something wrong or unclear? Tell us at <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
+      <p class="dx-foot">{{ tool }} documentation{% if page.docs != "jekion" and page.docs != "jekcad" %}, for file format version {{ site.data.jekray_params.version }}{% endif %}. Something wrong or unclear? Tell us at <a href="mailto:support@jeksys.net">support@jeksys.net</a>.</p>
     </main>
 
     <aside class="dx-toc" aria-label="On this page">

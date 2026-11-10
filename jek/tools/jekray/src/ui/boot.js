@@ -38,7 +38,7 @@ import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '..
 import { antennaNow } from '../engines/antenna-field.js';
 import { specReading } from '../engines/spectrometer.js';
 import { V3D, wireView3d } from './view3d.js';
-import { MODEL3D_API, wireModel3d } from './model3d.js';
+import { MATE3D_API, wireMate3d } from './mate3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
@@ -139,7 +139,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -199,7 +199,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray = {
     view3d: V3D.api,
-    model3d: MODEL3D_API,
+    mates: MATE3D_API,
     ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
     // on the page, a change made by J.set or J.setFibre is drawn, and its panel follows
     set(name, props) { const el = scriptCalls().set.call(this, name, props); renderPanel(); requestRender(); return el; },

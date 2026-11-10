@@ -1,5 +1,5 @@
 /* A stand-in for the JEK API at http://localhost:8787 (the page's API on localhost), for the browser check and its
-   screenshots: one person, their workspace and a team, two folders, benches of every app (a JEKfilm coating among them), a bench's history, prices.
+   screenshots: one person, their workspace and a team, two folders, benches of every app (a JEKfilm coating and a JEKcad part studio among them), a bench's history, prices.
    route(page, { signedIn }) installs it on a Playwright page; what the page asked for is kept in calls. */
 const T0 = Date.UTC(2026, 10, 8, 12);
 export const WS = 'w_me', TEAM = 'w_lab';
@@ -15,6 +15,7 @@ export function fakeData() {
         { id: 'b2', name: 'Quadrupole trap', tool: 'jekion', folder_id: null, workspace_id: WS, updated_at: T0 - 7200e3, size_bytes: 9100, version: 3 },
         { id: 'b3', name: 'Michelson, 1064 nm', tool: 'jekray', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 86400e3, size_bytes: 12000, version: 2 },
         { id: 'b5', name: 'BBAR 450–650', tool: 'jekfilm', folder_id: 'f2', workspace_id: WS, updated_at: T0 - 5400e3, size_bytes: 600, version: 4 },
+        { id: 'b6', name: 'Lens mount', tool: 'jekcad', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 6400e3, size_bytes: 5200, version: 2 },
       ],
       [TEAM]: [{ id: 'b4', name: 'Shared trap', tool: 'jekion', folder_id: null, workspace_id: TEAM, updated_at: T0 - 4000e3, size_bytes: 4000, version: 1, updated_by: { name: 'Sam' } }],
     },

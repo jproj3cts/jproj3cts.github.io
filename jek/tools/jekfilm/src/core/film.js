@@ -80,6 +80,8 @@ export function filmSpec(f) {
   const s = f.spec;
   return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta0: s.theta0, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
 }
+/* a substrate in words: its glass, or its index */
+export const subLabelOf = sub => (sub && sub.glass ? sub.glass : 'n ' + (+(sub && sub.n) || 1.5));
 /* the presets: a starting stack for the design wavelength */
 export const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs'],
   ['agp', 'Protected silver'], ['alp', 'Protected aluminium'], ['ale', 'Enhanced aluminium'], ['au', 'Gold']];

@@ -136,3 +136,5 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-ex:hover, .film-ex:focus-visible { border-color: var(--jek-orange); outline: none; }
 .film-ex small { font-size: 0.78rem; color: var(--jek-ink-soft); line-height: 1.4; }
 @media (max-width: 560px) { .film-exgrid { grid-template-columns: 1fr; } }
+.film-fmts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0; }
+.film-fmts .rt-btn[aria-checked="true"] { border-color: var(--jek-ink); box-shadow: inset 0 0 0 1px var(--jek-ink); }

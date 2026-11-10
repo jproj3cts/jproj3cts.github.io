@@ -8,6 +8,7 @@ import { film, optimiseNow, redo, render, setFilm, undo } from './designer.js';
 import { filmThemeApply, toast, wireBar } from './bar.js';
 import { filmAutosave, filmCsv, filmRestore, newFilmHere, openFilmData, openFilmExample, saveFilmFile, wireFiles } from '../io/files.js';
 import { wireFilmAccount } from '../io/film-account.js';
+import { filmDataSet, filmExportData, wireFilmData } from '../io/film-data.js';
 import { openFilmHash, openFilmShort, shareFilm, wireShare, filmShareHash, readFilmHash } from '../io/share.js';
 import { filmCloudChanged, filmFor, filmLink, filmPush, openCloudFilm, saveToCloud, setFilmFor, setFilmLink, wireCloud } from '../io/cloud.js';
 
@@ -28,7 +29,7 @@ installHooks({
 });
 const kept = filmRestore();
 setFilm(kept || newFilm(), true);
-wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireShare(); wireUsage();
+wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireShare(); wireFilmData(); wireUsage();
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 {
@@ -69,5 +70,5 @@ if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', fi
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
 };

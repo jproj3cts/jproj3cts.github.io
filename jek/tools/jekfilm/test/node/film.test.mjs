@@ -148,3 +148,16 @@ test('the examples are what their descriptions say', async () => {
   assert.ok([...c.R, ...d.R].every(v => v >= 0.45 && v <= 0.55), 'splitter: 45–55% at 40° and 50°');
   s = S(load('protected-silver')); assert.ok(Math.abs(pc(s.mean) - 98.9) < 0.05, 'protected silver ' + pc(s.mean));
 });
+
+test('the data export: the band, the angle and the layers as tables with units, written in every format', async () => {
+  globalThis.document = undefined;
+  const { dfWrite } = await import('../../../jekray/src/core/datafiles.js');
+  // filmDataSet reads the designer's coating: built here from the same parts, without the page
+  const src = (await import('node:fs')).readFileSync(new URL('../../src/io/film-data.js', import.meta.url), 'utf8');
+  assert.match(src, /name: 'band'/); assert.match(src, /name: 'angle'/); assert.match(src, /name: 'layers'/);
+  const f = F.normFilm({ name: 'Protected silver', spec: { target: 'hr', design: 633, lo: 600, hi: 660 }, layers: F.filmPreset('agp', 633) });
+  const CD = await import('../../../jekray/src/core/coatdesign.js'), s = F.filmSpec(f), c = CD.coatCurve(f.layers, s, 0, 21);
+  const set = { meta: { title: f.name, tool: 'JEKfilm' }, items: [{ kind: 'table', name: 'band', cols: [{ name: 'wavelength', unit: 'nm', values: c.nms }, { name: 'R', unit: '%', values: c.R.map(v => 100 * v) }] },
+    { kind: 'table', name: 'layers', cols: [{ name: 'material', unit: '', values: ['n 1.46', 'Ag'], type: 'str' }, { name: 'QWOT', unit: '', values: [2, NaN] }] }] };
+  for (const fmt of ['csv', 'json', 'xlsx', 'npz', 'mat']) { const W = await dfWrite(set, fmt); assert.ok(W.bytes.length > 100, fmt); }
+});

@@ -46,6 +46,8 @@ How the coating fares as made. Give each layer's thickness error σ, as a share 
 
 The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKsuite shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.
 
+**File › Export data…** writes the coating's numbers as three tables with their units: the reflectance across the band (at the smallest and largest angles judged, and the target), against the angle at λ₀ (Rs and Rp), and the layers (material, n and k at λ₀, thickness, QWOT). As CSV (a zip of one file a table) or JSON it needs a free account; as Excel, NumPy (.npz) or MATLAB (.mat), JEKrayPro.
+
 ## On a JEKray bench
 
 **Designing for a face.** A face's **Design a coating in JEKfilm…** (or the lens designer's face table) opens JEKfilm on that face's glass, at the bench's wavelength, with the face's stack, and a line along the top says which face it is for. **Save to the cloud…** then starts in the bench's own workspace and folder, and once saved the coating goes onto that face in JEKray, linked to it. Saving to the cloud is JEKrayPro's.

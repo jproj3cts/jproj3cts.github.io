@@ -56,6 +56,13 @@ export async function check(pw, base, shots) {
       await p.click('#filmExamples [data-ex="hr-1064"]'); await p.waitForFunction(() => window.JEKfilm.film().name === 'HR mirror, 1064 nm', null, { timeout: 5000 }).catch(() => {});
       const hr = await p.evaluate(() => window.JEKfilm.film().layers.length);
       ok('File › Open an example…: six examples; one opens as a coating', exs.length === 6 && hr === 21, JSON.stringify([exs, hr]));
+      // File › Export data…: the formats, each written (no accounts here, so no gate)
+      const dl = [];
+      p.on('download', d => dl.push(d.suggestedFilename()));
+      for (const fm of ['csv', 'xlsx', 'npz', 'mat']) await p.evaluate(x => window.JEKfilm.exportData(x), fm);
+      await p.waitForTimeout(300);
+      const ds = await p.evaluate(() => window.JEKfilm.dataSet().items.map(i => i.name + ':' + i.cols.length));
+      ok('Export data: the band, angle and layer tables, as CSV (zip), Excel, NumPy and MATLAB files', dl.join('|') === 'HR mirror, 1064 nm data.zip|HR mirror, 1064 nm data.xlsx|HR mirror, 1064 nm data.npz|HR mirror, 1064 nm data.mat' && ds.join() === 'band:3,angle:3,layers:6', JSON.stringify([dl, ds]));
       // renamed in the bar
       await p.fill('#filmName', 'V-coat, fused silica'); await p.press('#filmName', 'Enter'); await p.waitForTimeout(100);
       ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | JEKfilm'), 'not renamed');

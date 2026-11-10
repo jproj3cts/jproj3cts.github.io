@@ -16,7 +16,7 @@ test('jekfilm.html, its dev page and main.js are current (node build.mjs)', () =
 });
 test('it shares only JEKray modules that reach no bench: the thin-film physics, constants, hooks, usage counts, the account and its gates', () => {
   const shared = order().filter(f => f.startsWith('../')).map(f => f.replace(/^(\.\.\/)+jekray\/src\//, ''));
-  assert.deepEqual(shared.sort(), ['core/coatdesign.js', 'core/coatings.js', 'core/constants.js', 'core/hooks.js', 'core/metals.js', 'core/numeric.js', 'core/src-tag.js', 'io/account.js', 'io/usage.js', 'ui/dom.js', 'ui/pro.js']);
+  assert.deepEqual(shared.sort(), ['core/coatdesign.js', 'core/coatings.js', 'core/constants.js', 'core/datafiles.js', 'core/hooks.js', 'core/metals.js', 'core/numeric.js', 'core/src-tag.js', 'io/account.js', 'io/usage.js', 'ui/dom.js', 'ui/pro.js']);
 });
 test('saving a file, saving to the cloud and optimising are JEKrayPro’s, each gated first; exporting the curves a free account’s', () => {
   assert.match(src('io/files.js'), /export function saveFilmFile\(\) \{\n {2}if \(!designPro\('save a coating file'\)\) return false;/);
@@ -25,7 +25,8 @@ test('saving a file, saving to the cloud and optimising are JEKrayPro’s, each 
   assert.match(src('ui/designer.js'), /if \(!designPro\('optimise a coating'\)\) return null;\n {2}const o = coatOptimise/);
   // every file made on the page goes through one of those: downloadBlob is declared once and called twice
   const all = order().filter(f => !f.startsWith('../')).map(src).join('\n');
-  assert.equal((all.match(/downloadBlob\(/g) || []).length, 3);
+  assert.equal((all.match(/downloadBlob\(/g) || []).length, 4);
+  assert.match(src('io/film-data.js'), /export async function filmExportData\(fmt\) \{\n {2}if \(!accountGate\('export data'\)\) return false;\n {2}if \(FILM_DATA_PRO\.has\(fmt\) && !designPro\(/);
   // the optimisers run from the page only behind the gate: the thicknesses (optimiseNow) and the searches (searchNow)
   assert.equal((src('ui/designer.js').match(/coatOptimise\(/g) || []).length, 1);
   assert.match(src('ui/designer.js'), /if \(!designPro\('optimise a coating'\)\) return null;\n {2}filmSearching = true;/);

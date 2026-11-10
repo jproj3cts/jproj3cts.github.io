@@ -10,7 +10,7 @@ description: "Saving and opening .jekcad files, autosave, part studios in the cl
 
 ## .jekcad files
 
-**Save .jekcad** (Ctrl+S) downloads the part studio: its variables, its features in order, the rollback bar, and its parts' names, colours and materials. **File › Open** opens one, as does dropping it on the view. Saving and opening need no account.
+**Save** (Ctrl+S; **File › Save as .jekcad**) downloads the part studio as a .jekcad file: its variables, its features in order, the rollback bar, and its parts' names, colours and materials. **File › Open** opens one, as does dropping it on the view. Saving and opening need no account.
 
 **File › Share a link** writes the part studio, as it is now, into a link. Nothing is uploaded: the part studio travels in the link itself, so a big one makes a long link. Anyone with the link opens it to look, turn and measure. Making a link needs a free account.
 

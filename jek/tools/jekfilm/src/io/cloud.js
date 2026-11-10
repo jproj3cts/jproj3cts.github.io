@@ -11,7 +11,7 @@ import { filmAutosave, openFilmData } from './files.js';
 
 /* ==========================================================================
    Coatings in the cloud: the same accounts, workspaces, folders and API as every JEK app's benches, so a coating sits
-   in a folder beside the benches that use it, with its history, forks and the bin, all on JEKspace. The API keeps a
+   in a folder beside the benches that use it, with its history, forks and the bin, all on JEKsuite. The API keeps a
    coating's tool from its content (format 'jekfilm'): it opens here, and no other app's file saves over it. Keeping a
    coating in the cloud is JEKrayPro's (the API refuses it otherwise, 402). A coating opened from, or saved to, the
    cloud stays linked to it (filmLink: its id, workspace, the version this copy is based on): changes save themselves
@@ -202,7 +202,7 @@ export async function saveToCloud() {
     h('h2', { id: 'filmCloudNewTitle' }, 'Save to the cloud'),
     h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudWhere' }, 'In'), where),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudFolder' }, 'Folder'), folder)),
-    h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKspace.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKspace.'),
+    h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKsuite.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKsuite.'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), go));
   document.body.append(dlg);
   go.addEventListener('click', async () => {
@@ -215,7 +215,7 @@ export async function saveToCloud() {
       setFilmLink({ id: b.id, ws: b.workspace_id || where.value, folder: folder.value || null, version: b.version || 1, name: b.name || nm, dirty: false });
       filmThumb(filmLink, true); filmTell(filmLink);
       render(); filmAutosave();
-      setStatus('saved'); toast('Saved to the cloud: it is on JEKspace with your benches'); track('cloud', 'film.new');
+      setStatus('saved'); toast('Saved to the cloud: it is on JEKsuite with your benches'); track('cloud', 'film.new');
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? 'Coatings in the cloud need JEKrayPro.' : 'Could not save it: ' + err.message, true);
@@ -233,7 +233,7 @@ function filmTell(link) {
     if (filmFor) { toast('Saved, and on ' + filmFor.label + ' in JEKray'); setFilmFor(null); }
   } catch (err) { /* no channel: JEKray finds out when the bench is next opened */ }
 }
-/* ---------- the picture JEKspace shows: the stack, and its reflectance across the band ---------- */
+/* ---------- the picture JEKsuite shows: the stack, and its reflectance across the band ---------- */
 const FILM_THUMB_EVERY = 5 * 60000;
 export function filmThumbCanvas(f) {
   const W = 480, H = 300, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -289,7 +289,7 @@ export async function openCloudFilm(id, version) {
   try { if (filmLink && filmLink.dirty && filmLink.id !== id) await filmPush({ quiet: true }); await filmCloudOpen(id, version); }
   catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that coating' : err.status === 404 ? 'That coating is not available to you' : err.message, true); }
 }
-/* JEKspace, in its own tab, at JEKfilm's page: every coating, in its folders */
+/* JEKsuite, in its own tab, at JEKfilm's page: every coating, in its folders */
 export function openSpace() {
   track('view', 'film-space');
   const w = window.open(SPACE_URL + '#app=jekfilm', 'jekspace'); if (w) w.focus();

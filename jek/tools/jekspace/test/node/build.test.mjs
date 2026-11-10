@@ -1,4 +1,4 @@
-// JEKspace's page is built from its sources and committed: it must be current, and its modules pass the lint.
+// JEKsuite's page is built from its sources and committed: it must be current, and its modules pass the lint.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

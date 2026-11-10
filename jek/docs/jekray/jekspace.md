@@ -1,11 +1,11 @@
 ---
 layout: docs
-title: JEKspace
+title: JEKsuite
 permalink: /jek/docs/jekray/jekspace/
-description: "JEKspace, the JEK hub: the apps (JEKray, JEKion and JEKfilm) and every bench you keep in the cloud, of every app, in one place, with your account, plan and teams."
+description: "JEKsuite, the JEK hub: the apps (JEKray, JEKion and JEKfilm) and every bench you keep in the cloud, of every app, in one place, with your account, plan and teams."
 ---
 
-**JEKspace** ([jeksys.net/jek/tools/jekspace.html](/jek/tools/jekspace.html)) is where the JEK apps and your cloud benches meet. It opens in a tab of its own: from an app, the cloud button beside the bench's name, **File › My benches on JEKspace…**, or a link ending `#benches`. The same tab is reused each time, and so is each app's, so a bench chosen in JEKspace opens in its app's tab rather than a new one.
+**JEKsuite** ([jeksys.net/jek/tools/jekspace.html](/jek/tools/jekspace.html)) is where the JEK apps and your cloud benches meet. It opens in a tab of its own: from an app, the cloud button beside the bench's name, **File › My benches on JEKsuite…**, or a link ending `#benches`. The same tab is reused each time, and so is each app's, so a bench chosen in JEKsuite opens in its app's tab rather than a new one.
 
 ## The apps
 
@@ -23,7 +23,7 @@ Down the left: the apps, your workspaces (your own, and each team you are in), *
 
 ## An app's page
 
-Click **JEKray**, **JEKion** or **JEKfilm** at the top of the left-hand list for that app's page in JEKspace, rather than the app itself; **Open JEKray** (or JEKion, or JEKfilm) there opens the app. The page says what the app does and has its buttons: **Open JEKray** (or JEKion, or JEKfilm), **New bench** (**New coating** for JEKfilm), and for JEKray **Optical design** and **RF design**. Under them are that app's benches alone, with the same folders, search, sorting and cards or rows as My benches; each folder says how many of the app's benches it holds. Beside them, the bench you picked is shown larger, with where it is, when it last changed and by whom, its size and its version: **Open in JEKray** opens it, **History** shows its versions, and **⋯** has the rest. Click a bench to pick it; double-click it, or press Enter, to open it. Until you pick one, the one changed last is shown.
+Click **JEKray**, **JEKion** or **JEKfilm** at the top of the left-hand list for that app's page in JEKsuite, rather than the app itself; **Open JEKray** (or JEKion, or JEKfilm) there opens the app. The page says what the app does and has its buttons: **Open JEKray** (or JEKion, or JEKfilm), **New bench** (**New coating** for JEKfilm), and for JEKray **Optical design** and **RF design**. Under them are that app's benches alone, with the same folders, search, sorting and cards or rows as My benches; each folder says how many of the app's benches it holds. Beside them, the bench you picked is shown larger, with where it is, when it last changed and by whom, its size and its version: **Open in JEKray** opens it, **History** shows its versions, and **⋯** has the rest. Click a bench to pick it; double-click it, or press Enter, to open it. Until you pick one, the one changed last is shown.
 
 Each app's page has its own address, `jekspace.html#app=jekray`, `#app=jekion` or `#app=jekfilm`, so it can be bookmarked, and the browser's Back button comes back to it. Anything else in the left-hand list leaves it. Signed out, the page still says what the app does and opens it; its benches show once you sign in.
 

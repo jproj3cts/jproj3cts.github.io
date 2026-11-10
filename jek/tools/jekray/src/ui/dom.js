@@ -1,5 +1,5 @@
 /* ==========================================================================
-   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKsuite (each lists it
    in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
    way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
    left out); kids: nodes or text, with null, undefined and false left out.

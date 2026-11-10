@@ -3,7 +3,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    JEKfilm's bar and what every module shows through it: the toast, the status line, the pop-up menus (a button with
    aria-controls and its role="menu" box, as JEKray's and JEKion's), their icons, and the theme (JEKray's, kept as
-   'jekray-theme', so the apps and JEKspace look alike).
+   'jekray-theme', so the apps and JEKsuite look alike).
    ========================================================================== */
 let barToastTimer = null;
 export function toast(msg, bad) {

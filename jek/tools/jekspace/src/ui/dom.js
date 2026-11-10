@@ -1,6 +1,6 @@
 import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
-   JEKspace's page helpers: elements, icons, the note at the foot, the pop-up menus, the theme, and the apps it
+   JEKsuite's page helpers: elements, icons, the note at the foot, the pop-up menus, the theme, and the apps it
    opens (each in a tab of its own, named, so a second bench opens in the same tab rather than a new one each time).
    ========================================================================== */
 

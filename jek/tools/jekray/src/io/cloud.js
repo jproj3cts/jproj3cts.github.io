@@ -368,8 +368,8 @@ function conflictMerge(link, base, who) {
     toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
   });
 }
-/* ---------- My benches: JEKspace ----------
-   Every cloud bench, of every app, is on JEKspace (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
+/* ---------- My benches: JEKsuite ----------
+   Every cloud bench, of every app, is on JEKsuite (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
    (named, so it is the same tab each time): the bar's cloud button, File › My benches, #benches and My parts' Manage
    link open it there. A bench opened from it comes back here as #cloud=<id>. */
 export const SPACE_URL = '/jek/tools/jekspace.html';
@@ -394,7 +394,7 @@ const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
 /* ---------- merging a save conflict ----------
    This copy's changes and the cloud's newer version, item by item (src/io/merge.js), over the version this copy
    came from. The cloud's is kept as a version first ("Before merging"), the merged bench is opened on the bench
-   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKspace's. */
+   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKsuite's. */
 function diffNodes(d, fromName, toName) {
   if (!d.count) return [h('p', null, 'No difference between ' + fromName + ' and ' + toName + '.')];
   const word = i => KIND_WORD[i.kind] + ' ' + i.label;
@@ -454,7 +454,7 @@ async function mergeDialog(o) {
     }
   };
 }
-/* the File menu's cloud items: there with accounts, greyed when not possible (JEKspace's mark at the bar's left is always there) */
+/* the File menu's cloud items: there with accounts, greyed when not possible (JEKsuite's mark at the bar's left is always there) */
 function cloudGates() {
   const show = accountsOn(), why = proWhy();
   loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
@@ -486,7 +486,7 @@ export function wireCloud() {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
-    // JEKspace's mark at the bar's far left, always there (JEKspace signs people in itself): its own tab, the same one
+    // JEKsuite's mark at the bar's far left, always there (JEKsuite signs people in itself): its own tab, the same one
     // each time, brought to the front
     document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one

@@ -4,7 +4,7 @@ import { goal, setUsageOff, track, usageBrowserSaysNo, usageFlush, usageOff } fr
 import { h } from '../ui/dom.js';
 
 /* ==========================================================================
-   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
    API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
    code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
    invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
@@ -808,7 +808,7 @@ export function wireAccount() {
 }
 
 /* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
-   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+   and JEKsuite; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
 export function authOutcome() {
   const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
   if (outcome || billing) {

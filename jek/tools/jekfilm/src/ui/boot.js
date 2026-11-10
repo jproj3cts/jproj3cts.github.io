@@ -19,7 +19,7 @@ import { filmCloudChanged, filmFor, filmLink, filmPush, openCloudFilm, saveToClo
 filmThemeApply();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', filmThemeApply);
 window.addEventListener('storage', e => { if (e.key === 'jekray-theme') filmThemeApply(); });
-// this tab is JEKfilm's: JEKspace and the other apps open a coating here rather than in a new tab each time
+// this tab is JEKfilm's: JEKsuite and the other apps open a coating here rather than in a new tab each time
 if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekfilm';
 installHooks({
   toast, needsShown,

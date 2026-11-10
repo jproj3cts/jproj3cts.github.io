@@ -103,8 +103,8 @@ const demo = !TEST_MODE && (location.hash + '&' + location.search).match(/[#?&]d
 if (!saved && !demo && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKion. This is an einzel lens: drag a tube, change its voltage, and the ions fly again. File › Import brings in a trap from CAD.'), 600);
 if (demo) { window.history.replaceState(null, '', location.pathname); openDemo(demo[1]); }
 if (!TEST_MODE && location.hash === '#examples') { window.history.replaceState(null, '', location.pathname); setTimeout(openGallery, 0); }
-// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens JEKspace, where the
-// benches are; #new (JEKspace's New, for someone with nowhere in the cloud to put it) starts a new bench
+// #cloud=<id> (or #cloud=<id>@<version>, a copy of a version) opens a cloud bench; #benches opens JEKsuite, where the
+// benches are; #new (JEKsuite's New, for someone with nowhere in the cloud to put it) starts a new bench
 const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/), benchesAt = !TEST_MODE && !EMBED && location.hash === '#benches';
 const cloudHash = async (cl, benches) => { window.history.replaceState(null, '', location.pathname); await accountLoaded; if (cl) openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); else if (benches) openCloudList(); };
 if (cloudAt || benchesAt) cloudHash(cloudAt, benchesAt);

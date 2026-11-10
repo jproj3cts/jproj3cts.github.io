@@ -165,8 +165,6 @@
   .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
   .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -1125,10 +1123,11 @@
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
-  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  /* JEKsuite, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
   .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
   .rt-space:hover { background: var(--jek-well); text-decoration: none; }
   .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  :root[data-rt-theme="dark"] .rt-bar a.rt-space, :root[data-rt-theme="dark"] .rt-bar a.rt-space:hover { color: #4fc0d8; }   /* in the dark, cyan, as on JEKion's bar */
   /* on a phone the bar is full: the mark alone (its name in its title and label) */
   @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
   .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
@@ -1159,7 +1158,7 @@
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
   /* an app's name in the bar, the same in every app: JEK, then the app's word in a dark box (no stripe under it) */
   .jek-wm { display: inline-flex; align-items: center; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--jek-ink); color: #fff; font-weight: 700; font-size: 0.92em; letter-spacing: 0; }
+  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--rt-strong, var(--jek-ink)); color: var(--rt-on-strong, #fff); font-weight: 700; font-size: 0.92em; letter-spacing: 0; }   /* the themes' dark box: light on dark, dark on light */
   .rt-title:has(.jek-wm)::after { display: none; }
   .rt-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
   .rt-title a { color: inherit; text-decoration: none; }
@@ -1296,7 +1295,6 @@
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
-  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
@@ -1318,7 +1316,7 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-tight, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
     .rt-bar .rt-phonegone { position: static; }
@@ -2000,13 +1998,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
-      <!-- the bar: JEKspace's mark (every bench of every app, in its own tab), the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
+      <!-- the bar: JEKsuite's mark (every bench of every app, in its own tab), the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
            bench's name, then Add part, Share, Save, Examples, the cart and the account. On a phone: the name,
            + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
-        <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jekspace.html" target="jekspace" aria-label="JEKspace" title="JEKspace: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKspace</span></a>
-        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
-        <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
+        <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jekspace.html" target="jekspace" aria-label="JEKsuite" title="JEKsuite: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKsuite</span></a>
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page" ><span class="jek-wm">JEK<b>ray</b></span></a></h1>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
@@ -2018,7 +2015,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKspace (in its own tab)">My benches on JEKspace…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
@@ -2596,7 +2593,7 @@ const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
-  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  // the account (io/account.js, shared by JEKray, JEKion and JEKsuite): what each app adds to it or does around it
   appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
   keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
   planActive() {},                      // a plan has just become active, back from paying
@@ -29597,7 +29594,7 @@ function updateSweepButtons() {
 }
 
 /* ==========================================================================
-   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKsuite (each lists it
    in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
    way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
    left out); kids: nodes or text, with null, undefined and false left out.
@@ -53415,7 +53412,7 @@ async function saveToMine(list, opts) {
     const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Optical design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
     if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
-    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on JEKspace (My benches), under ' + w.name + ' › Team parts');
+    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on JEKsuite (My benches), under ' + w.name + ' › Team parts');
     return p;
   } catch (err) {
     if (err.status === 402) { showSubscribe(); return; }
@@ -54274,7 +54271,7 @@ function resolve(merge) {
   return merge.film ? filmBack(out, merge.film) : out;
 }
 /* ==========================================================================
-   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
    API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
    code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
    invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
@@ -55078,7 +55075,7 @@ function wireAccount() {
 }
 
 /* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
-   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+   and JEKsuite; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
 function authOutcome() {
   const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
   if (outcome || billing) {
@@ -55616,8 +55613,8 @@ function conflictMerge(link, base, who) {
     toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
   });
 }
-/* ---------- My benches: JEKspace ----------
-   Every cloud bench, of every app, is on JEKspace (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
+/* ---------- My benches: JEKsuite ----------
+   Every cloud bench, of every app, is on JEKsuite (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
    (named, so it is the same tab each time): the bar's cloud button, File › My benches, #benches and My parts' Manage
    link open it there. A bench opened from it comes back here as #cloud=<id>. */
 const SPACE_URL = '/jek/tools/jekspace.html';
@@ -55642,7 +55639,7 @@ const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
 /* ---------- merging a save conflict ----------
    This copy's changes and the cloud's newer version, item by item (src/io/merge.js), over the version this copy
    came from. The cloud's is kept as a version first ("Before merging"), the merged bench is opened on the bench
-   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKspace's. */
+   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKsuite's. */
 function diffNodes(d, fromName, toName) {
   if (!d.count) return [h('p', null, 'No difference between ' + fromName + ' and ' + toName + '.')];
   const word = i => KIND_WORD[i.kind] + ' ' + i.label;
@@ -55702,7 +55699,7 @@ async function mergeDialog(o) {
     }
   };
 }
-/* the File menu's cloud items: there with accounts, greyed when not possible (JEKspace's mark at the bar's left is always there) */
+/* the File menu's cloud items: there with accounts, greyed when not possible (JEKsuite's mark at the bar's left is always there) */
 function cloudGates() {
   const show = accountsOn(), why = proWhy();
   loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
@@ -55734,7 +55731,7 @@ function wireCloud() {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
-    // JEKspace's mark at the bar's far left, always there (JEKspace signs people in itself): its own tab, the same one
+    // JEKsuite's mark at the bar's far left, always there (JEKsuite signs people in itself): its own tab, the same one
     // each time, brought to the front
     document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
@@ -55956,7 +55953,7 @@ function wireFilmCoats() {
   });
 }
 /* ==========================================================================
-   JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKspace,
+   JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKsuite,
    whose hooks JEKray installs here (wireNudges): its work kept before the page leaves to sign in or pay, its cloud
    bench sent up once the account or a plan is there, the account menu put in the bar's menu.
    ========================================================================== */
@@ -56209,10 +56206,10 @@ const NEWS = [
     'Fixed: in 3D, turning the view while a sweep plays is smooth: the view is drawn once a frame however fast the pointer moves, and a sweep\u2019s step that leaves the light and the cables where they were keeps their models and shadows rather than making them again.',
     'Fixed: changing a sweep\u2019s Steps while it renders or plays its diffracted field renders it again at the new steps and plays on (it was left working the field out live at every step, never catching up).',
     'Fixed: a beam wider than a part it passes, the part above or below it or tipped, lost the light that missed the part. A gain sheet now amplifies only the light inside its disc; the rest goes on past it unchanged, in the beams, the field and the 3D view, and a detector after it reads both.',
-    '<b>JEKspace</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
+    '<b>JEKsuite</b> has its mark at the bar\u2019s far left, as in JEKion: it opens every bench of every app in its own tab (the same tab each time), signed in or not. It takes the place of the cloud button.',
     'Fixed: in 3D, a sweep that renders the diffracted field now plays through its steps as fast as they can be drawn (each step waited four seconds, for the 2D field, which is not drawn in 3D); and the 3D field could stay at \u201cworking out\u201d until the page was reloaded after a part was dragged into a beam (a request left waiting on a stopped worker).',
     'Fixed in the optimisers: Undo after <b>Let the optimiser find it</b> in an exercise puts the start back (it went back past the exercise); the bench optimiser gives the same answer each time it is run on the same bench, and a peak narrower than its first scan\u2019s step is no longer lost; the Optical designer\u2019s global search brings a design that breaks the limits set on its values within them, as the local optimiser does; the coating designer never hands back a stack worse than it was given, and a blank thickness starts at a quarter wave.',
-    '<b>JEKspace</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKspace</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKspace take you to it).',
+    '<b>JEKsuite</b>, the JEK hub: My benches is now a page of its own, <a href="/jek/tools/jekspace.html" target="_blank">JEKsuite</a>, in its own tab, with every bench you keep in the cloud from every JEK app, JEKray\u2019s and JEKion\u2019s, labelled and filtered by app. Open either app from it, start a bench in one (or straight into the Optical, RF or coating designer), and manage your account, plan, billing and teams there. A bench chosen there opens here (the bar\u2019s cloud button and File \u203a My benches on JEKsuite take you to it).',
     '<b>Light drawn by its power</b>, on for every bench: each ray and each beam\u2019s envelope, in 2D and 3D, is as bright as the power it carries against the brightest source on the bench, on a log scale over four decades (a sixteenth plainly there, a five-thousandth all but gone, below a ten-thousandth not drawn). Light fades as a splitter, a filter or a polariser takes it, and a crystal\u2019s second harmonic brightens and dims as it comes into and out of phase matching. Untick <b>Draw light by its power</b> under Light to draw every beam at full strength; scripts read and set it as <code>J.project().light.byPower</code>.',
     'A sweep that renders the diffracted field takes enough frames to play smoothly at its rate (about 30 a second, up to 240 a cycle), so a slow sweep glides rather than steps; Steps still sets its own number.',
     'The bench JEKray opens with now has a Gaussian beam as well as its rays, so its envelope and diffracted field show (it was rays alone).',
@@ -57864,7 +57861,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   for (const m of all) if (m.fam === famBox.dataset.fam) metricSel.append(h('option', { value: m.key }, m.label));
 }
 
-/* a new bench, from JEKspace's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
+/* a new bench, from JEKsuite's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
 function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); }
 function newProject() {
   pauseAll();
@@ -59918,7 +59915,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     openDemo(demo[1]);
   }
   // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
-  // #benches opens JEKspace, where the benches are; and from JEKspace, #cloud=<id> (or <id>@<version>, a copy of a version)
+  // #benches opens JEKsuite, where the benches are; and from JEKsuite, #cloud=<id> (or <id>@<version>, a copy of a version)
   // opens a cloud bench, :lens, :rf or :coat after it into a designer, and #new (or #new=lens|rf|coat) starts a new bench
   const helpLink = () => {
     const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';

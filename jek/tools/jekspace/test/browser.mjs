@@ -1,4 +1,4 @@
-/* JEKspace in a browser (Playwright), against the stand-in API (fake-api.mjs): what a person sees signed out and
+/* JEKsuite in a browser (Playwright), against the stand-in API (fake-api.mjs): what a person sees signed out and
    signed in, and where each thing they do sends them. check(pw, base) returns [{ name, ok, why }]; shots, when
    given a folder, keeps pictures of the page signed in, dark and light. */
 import { route } from './fake-api.mjs';

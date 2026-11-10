@@ -237,7 +237,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   for (const m of all) if (m.fam === famBox.dataset.fam) metricSel.append(h('option', { value: m.key }, m.label));
 }
 
-/* a new bench, from JEKspace's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
+/* a new bench, from JEKsuite's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
 export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); }
 export function newProject() {
   pauseAll();

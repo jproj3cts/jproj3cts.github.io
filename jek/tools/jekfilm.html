@@ -134,8 +134,6 @@
   .rt-btn .rt-savedot { display: inline-block; width: 7px; height: 7px; margin-right: 0.4rem; border-radius: 50%; background: var(--jek-cyan); vertical-align: 0.1em; }
   .rt-btn .rt-savedot[hidden] { display: none; }
   .rt-btn.danger { color: var(--jek-red); }
-  .rt-beta-pill { align-self: center; flex: none; padding: 0.1rem 0.45rem; border: 1px solid var(--jek-orange); border-radius: 3px; background: none; color: var(--jek-orange); font: inherit; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
-  .rt-beta-pill:hover, .rt-beta-pill:focus-visible { background: var(--jek-orange); color: #fff; }
   .rt-btn.primary.danger, .rt-btn.primary.danger:hover { color: #fff; background: var(--jek-red); border-color: var(--jek-red); }
   .rt-btn.primary.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   #uniBody h3, #teamBody h3 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
@@ -1094,10 +1092,11 @@
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
     html.rt-noscroll body > footer { display: none; }
   }
-  /* JEKspace, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
+  /* JEKsuite, at the bar's far left: the five-colour mark and the word, opening the hub in its own tab (as JEKion's) */
   .rt-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
   .rt-space:hover { background: var(--jek-well); text-decoration: none; }
   .rt-bar a.rt-space, .rt-bar a.rt-space:hover { color: var(--jek-ink); }        /* not the themes' link colour (role="link" keeps the dark theme's off it) */
+  :root[data-rt-theme="dark"] .rt-bar a.rt-space, :root[data-rt-theme="dark"] .rt-bar a.rt-space:hover { color: #4fc0d8; }   /* in the dark, cyan, as on JEKion's bar */
   /* on a phone the bar is full: the mark alone (its name in its title and label) */
   @media (max-width: 760px) { .rt-spaceword { display: none; } .rt-space { margin-right: 0.4rem; padding-right: 0.3rem; } .rt-bar .rt-file .rt-name { min-width: 3rem; } }
   .rt-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
@@ -1128,7 +1127,7 @@
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
   /* an app's name in the bar, the same in every app: JEK, then the app's word in a dark box (no stripe under it) */
   .jek-wm { display: inline-flex; align-items: center; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--jek-ink); color: #fff; font-weight: 700; font-size: 0.92em; letter-spacing: 0; }
+  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--rt-strong, var(--jek-ink)); color: var(--rt-on-strong, #fff); font-weight: 700; font-size: 0.92em; letter-spacing: 0; }   /* the themes' dark box: light on dark, dark on light */
   .rt-title:has(.jek-wm)::after { display: none; }
   .rt-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
   .rt-title a { color: inherit; text-decoration: none; }
@@ -1265,7 +1264,6 @@
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
   @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
-  @media (max-width: 1240px) { .rt-pillopen { display: none; } }        /* "Beta" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
@@ -1287,7 +1285,7 @@
     .rt-bar .rt-title { font-size: 1rem; margin: 0 0.15rem 0 0; }
     .rt-file { flex: 1 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 1 1 auto; width: auto; min-width: 3rem; }
-    .rt-bar .rt-tight, .rt-bar .rt-beta-pill, #btnCart { display: none; }
+    .rt-bar .rt-tight, #btnCart { display: none; }
     .rt-bar .rt-group.rt-right { flex: none; gap: 0.25rem; }
     .rt-moremenu { display: block; }
     .rt-bar .rt-phonegone { position: static; }
@@ -2099,7 +2097,7 @@ html, body { margin: 0; background: var(--jek-well); }
   <!-- JEKfilm: one coating, its settings, its curves and its layers -->
   <section class="rt-lens rt-coatws film-ws" id="filmWs" aria-label="JEKfilm, the coating designer">
     <header class="rt-lhead film-head">
-      <a class="film-space" id="btnSpace" href="/jek/tools/jekspace.html#app=jekfilm" target="jekspace" title="JEKspace: every coating and bench you keep in the cloud (in its own tab)"><span class="film-spacemark" aria-hidden="true"></span>JEKspace</a>
+      <a class="film-space" id="btnSpace" href="/jek/tools/jekspace.html#app=jekfilm" target="jekspace" title="JEKsuite: every coating and bench you keep in the cloud (in its own tab)"><span class="film-spacemark" aria-hidden="true"></span>JEKsuite</a>
       <h1 class="film-title"><a href="/jek/products/design-software/jekfilm/" title="About JEKfilm: its product page"><span class="jek-wm">JEK<b>film</b></span></a></h1>
       <input type="text" id="filmName" class="film-name" aria-label="The coating’s name" spellcheck="false" maxlength="120">
       <div class="rt-more">
@@ -2247,7 +2245,7 @@ const hooks = {
   account: () => ({ on: false, signedIn: false, known: false }), exportSignIn() {},
   // the usage counts (io/usage.js, shared with JEKion): the API's address, and the plan tier the counts are filed under
   apiBase: () => '', usageTier: () => 'anon',
-  // the account (io/account.js, shared by JEKray, JEKion and JEKspace): what each app adds to it or does around it
+  // the account (io/account.js, shared by JEKray, JEKion and JEKsuite): what each app adds to it or does around it
   appName: 'JEKray',                    // the app, in words ('usage counts of what is used in …')
   keepWork() {},                        // the app's work kept (its autosave) before the page leaves to sign in or to pay
   planActive() {},                      // a plan has just become active, back from paying
@@ -2885,7 +2883,7 @@ function wireUsage() {
   addEventListener('pagehide', () => { if (!usageLeft) { usageLeft = true; track('leave', usageMinutes(Date.now() - USAGE_T0)); } usageFlush(); });
 }
 /* ==========================================================================
-   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKspace (each lists it
+   The page's elements, made: h(tag, attrs, ...kids). Shared as it is by JEKray, JEKion and JEKsuite (each lists it
    in its order.json), so the account (io/account.js), which all three share, makes its menus and dialogs the same
    way in each. attrs: class, on<event> handlers, and attributes (true for a bare one; null, undefined and false are
    left out); kids: nodes or text, with null, undefined and false left out.
@@ -2977,7 +2975,7 @@ const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */
 const acctMark = (btn, what) => needMark(btn, 'account', what);
 /* ==========================================================================
-   The account, shared as it is by JEKray, JEKion and JEKspace (each lists this module in its order.json): the same
+   The account, shared as it is by JEKray, JEKion and JEKsuite (each lists this module in its order.json): the same
    API, the same cookie on its host, so signing in to one signs in to all. Sign-in (Google, Microsoft, an email link,
    code or password), the account menu, JEKrayPro's plans and billing, the account's own page, teams (members,
    invitations, roles, billing, signing packs as the team), a university's licence for those who look after it, and
@@ -3781,7 +3779,7 @@ function wireAccount() {
 }
 
 /* the outcome of a sign-in or a payment, back from the API or Stripe: said once, and taken out of the address (JEKion
-   and JEKspace; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
+   and JEKsuite; JEKray reads it in io/cloud.js, with what its cloud bench does then) */
 function authOutcome() {
   const q = new URLSearchParams(location.search), outcome = q.get('jekauth'), code = q.get('jekauthcode'), billing = q.get('jekbilling');
   if (outcome || billing) {
@@ -3796,7 +3794,7 @@ function authOutcome() {
 /* ==========================================================================
    JEKfilm's bar and what every module shows through it: the toast, the status line, the pop-up menus (a button with
    aria-controls and its role="menu" box, as JEKray's and JEKion's), their icons, and the theme (JEKray's, kept as
-   'jekray-theme', so the apps and JEKspace look alike).
+   'jekray-theme', so the apps and JEKsuite look alike).
    ========================================================================== */
 let barToastTimer = null;
 function toast(msg, bad) {
@@ -4275,7 +4273,7 @@ function wireFilmAccount() {
 }
 /* ==========================================================================
    Coatings in the cloud: the same accounts, workspaces, folders and API as every JEK app's benches, so a coating sits
-   in a folder beside the benches that use it, with its history, forks and the bin, all on JEKspace. The API keeps a
+   in a folder beside the benches that use it, with its history, forks and the bin, all on JEKsuite. The API keeps a
    coating's tool from its content (format 'jekfilm'): it opens here, and no other app's file saves over it. Keeping a
    coating in the cloud is JEKrayPro's (the API refuses it otherwise, 402). A coating opened from, or saved to, the
    cloud stays linked to it (filmLink: its id, workspace, the version this copy is based on): changes save themselves
@@ -4466,7 +4464,7 @@ async function saveToCloud() {
     h('h2', { id: 'filmCloudNewTitle' }, 'Save to the cloud'),
     h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudWhere' }, 'In'), where),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudFolder' }, 'Folder'), folder)),
-    h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKspace.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKspace.'),
+    h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKsuite.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKsuite.'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), go));
   document.body.append(dlg);
   go.addEventListener('click', async () => {
@@ -4479,7 +4477,7 @@ async function saveToCloud() {
       setFilmLink({ id: b.id, ws: b.workspace_id || where.value, folder: folder.value || null, version: b.version || 1, name: b.name || nm, dirty: false });
       filmThumb(filmLink, true); filmTell(filmLink);
       render(); filmAutosave();
-      setStatus('saved'); toast('Saved to the cloud: it is on JEKspace with your benches'); track('cloud', 'film.new');
+      setStatus('saved'); toast('Saved to the cloud: it is on JEKsuite with your benches'); track('cloud', 'film.new');
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? 'Coatings in the cloud need JEKrayPro.' : 'Could not save it: ' + err.message, true);
@@ -4497,7 +4495,7 @@ function filmTell(link) {
     if (filmFor) { toast('Saved, and on ' + filmFor.label + ' in JEKray'); setFilmFor(null); }
   } catch (err) { /* no channel: JEKray finds out when the bench is next opened */ }
 }
-/* ---------- the picture JEKspace shows: the stack, and its reflectance across the band ---------- */
+/* ---------- the picture JEKsuite shows: the stack, and its reflectance across the band ---------- */
 const FILM_THUMB_EVERY = 5 * 60000;
 function filmThumbCanvas(f) {
   const W = 480, H = 300, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -4553,7 +4551,7 @@ async function openCloudFilm(id, version) {
   try { if (filmLink && filmLink.dirty && filmLink.id !== id) await filmPush({ quiet: true }); await filmCloudOpen(id, version); }
   catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that coating' : err.status === 404 ? 'That coating is not available to you' : err.message, true); }
 }
-/* JEKspace, in its own tab, at JEKfilm's page: every coating, in its folders */
+/* JEKsuite, in its own tab, at JEKfilm's page: every coating, in its folders */
 function openSpace() {
   track('view', 'film-space');
   const w = window.open(SPACE_URL + '#app=jekfilm', 'jekspace'); if (w) w.focus();
@@ -4661,7 +4659,7 @@ function wireShare() {
 filmThemeApply();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', filmThemeApply);
 window.addEventListener('storage', e => { if (e.key === 'jekray-theme') filmThemeApply(); });
-// this tab is JEKfilm's: JEKspace and the other apps open a coating here rather than in a new tab each time
+// this tab is JEKfilm's: JEKsuite and the other apps open a coating here rather than in a new tab each time
 if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekfilm';
 installHooks({
   toast, needsShown,

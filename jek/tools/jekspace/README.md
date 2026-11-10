@@ -1,4 +1,4 @@
-# JEKspace
+# JEKsuite
 
 The JEK hub: the apps (JEKray and JEKion) and every bench kept in the cloud, of every app, with the account, plans,
 billing and teams. Served as `jek/tools/jekspace.html`, built from the sources here as JEKion is built.

@@ -96,7 +96,7 @@ export async function check(pw, base, shots) {
       await p.keyboard.press('Control+s'); await p.waitForTimeout(400);
       const put = api.bodies.slice(-1)[0], saved = await p.evaluate(() => window.JEKfilm.link());
       ok('Edited, then Ctrl+S: saved to the cloud as a version, with three layers', dirty === 'In the cloud, not saved yet' && put && put.checkpoint && JSON.parse(put.content).layers.length === 3 && saved.version === 4 && !saved.dirty, JSON.stringify([dirty, put && put.checkpoint, saved]));
-      ok('Its picture sent for JEKspace', api.calls.includes('PUT /v1/benches/c1/thumb'), api.calls.join(' '));
+      ok('Its picture sent for JEKsuite', api.calls.includes('PUT /v1/benches/c1/thumb'), api.calls.join(' '));
       // a newer version saved elsewhere: the person chooses
       api.benches.c1.version = 9;
       await p.click('#filmAddLayer'); await p.keyboard.press('Control+s'); await p.waitForTimeout(400);

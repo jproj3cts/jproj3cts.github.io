@@ -49,7 +49,7 @@ export function setFilmLink(link) {
   leaseStart();
 }
 /* ---------- the editing lease ----------
-   As every JEK app's: whoever has a cloud coating open to edit holds its lease, renewed every minute, so JEKspace shows
+   As every JEK app's: whoever has a cloud coating open to edit holds its lease, renewed every minute, so JEKsuite shows
    who is editing it and a save against someone else's lease is refused (423). Opening one someone else is editing
    says who, to look (changes stay in this browser), take over, or carry on in a copy. */
 const FILM_LEASE_EVERY = 60000;
@@ -301,7 +301,7 @@ export function wireCloud() {
   document.getElementById('btnSpace').addEventListener('click', e => { if (accountsOn()) { e.preventDefault(); openSpace(); } });
   // the page hidden: anything not saved goes up now
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && filmLink && filmLink.dirty && filmCloudOn()) filmPush({ keepalive: true, quiet: true }); });
-  // leaving the page lets the lease go, so JEKspace stops saying this coating is being edited
+  // leaving the page lets the lease go, so JEKsuite stops saying this coating is being edited
   window.addEventListener('pagehide', () => leaseStop(filmLink));
   // a coating restored with the page takes its lease once the account is known
   Promise.resolve().then(() => { if (accountLoaded) accountLoaded.then(() => { if (filmLink && !filmLease.held && !filmLease.timer) leaseStart(); }); });

@@ -62,7 +62,7 @@ export async function shareFilm() {
   const box = h('input', { type: 'text', id: 'filmShareUrl', readonly: '', value: url, 'aria-label': 'The link', class: 'film-shareurl' });
   const copyBtn = h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { box.select(); navigator.clipboard.writeText(url).then(() => { copyBtn.textContent = 'Copied'; }, () => {}); } }, 'Copy link');
   dlg.replaceChildren(h('h2', { id: 'filmShareTitle' }, 'Share this coating'), box,
-    h('p', { class: 'rt-subsmall' }, short ? 'Anyone with the link opens this coating as it is now, as a copy of their own. The link is kept with your account: JEKspace’s My links lists it, to delete.'
+    h('p', { class: 'rt-subsmall' }, short ? 'Anyone with the link opens this coating as it is now, as a copy of their own. The link is kept with your account: JEKsuite’s My links lists it, to delete.'
       : url.length.toLocaleString() + ' characters. Anyone with the link opens this coating as it is now; it travels in the link itself.'),
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close'), copyBtn));
   dlg.showModal(); box.select();

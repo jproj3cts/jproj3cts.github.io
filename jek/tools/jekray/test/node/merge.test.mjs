@@ -68,3 +68,32 @@ test('merge: fibres and tabs are keyed lists too; a field removed on one side go
   assert.equal('disp' in m.result.fibres[0], false);
   assert.deepEqual(m.result.benches.map(b => b.id), ['b1', 'b2']);
 });
+
+test('a JEKfilm coating: compared setting by setting and layer by layer; merged setting by setting with its layers whole', async () => {
+  const { diffProject, merge3, resolve } = await import('../../src/io/merge.js');
+  const film = (spec, layers) => ({ format: 'jekfilm', version: 1, name: 'BBAR', spec: Object.assign({ target: 'ar', sub: { glass: 'N-BK7' }, lo: 450, hi: 650, design: 550, theta: 0 }, spec), layers });
+  const L = [{ n: 1.38, d: 99.6 }, { n: 2.1, d: 65.5 }, { n: 1.63, d: 84.4 }];
+  const base = film({}, L);
+  // compare: a setting by its name, a changed layer by its place, an added one
+  const b = film({ hi: 700 }, [L[0], { n: 2.1, d: 70 }, L[2], { n: 1.46, d: 90 }]);
+  const d = diffProject(base, b);
+  assert.deepEqual(d.settings.map(s => [s.key, s.from, s.to]), [['band to (nm)', 650, 700]]);
+  assert.deepEqual(d.items.map(i => [i.kind, i.change, i.label]), [['layers', 'changed', '2'], ['layers', 'added', '4']]);
+  assert.deepEqual(d.items[0].fields, [{ key: 'd', from: 65.5, to: 70 }]);
+  assert.equal(d.count, 3);
+  assert.equal(diffProject(base, film({}, L)).count, 0, 'the same coating: no changes');
+  // merge: one side's band, the other's layers, both kept
+  const t = film({ hi: 700 }, L), s = film({}, [L[0], { n: 2.1, d: 70 }, L[2]]);
+  const m = merge3(base, t, s);
+  assert.equal(m.conflicts.length, 0);
+  const out = resolve(m);
+  assert.equal(out.format, 'jekfilm'); assert.equal(out.name, 'BBAR');
+  assert.equal(out.spec.hi, 700); assert.equal(out.layers[1].d, 70);
+  // both sides changed the layers differently: one conflict over the stack, chosen whole
+  const m2 = merge3(base, film({}, [L[0]]), film({}, [L[1], L[2]]));
+  assert.deepEqual(m2.conflicts.map(c => [c.kind, c.key, c.label]), [['settings', 'layers', 'the layers']]);
+  m2.conflicts[0].choice = 'source';
+  assert.deepEqual(resolve(m2).layers, [L[1], L[2]]);
+  // a JEKray bench is merged as before
+  assert.equal(merge3({ elements: [] }, { elements: [{ id: 'a' }] }, { elements: [] }).result.elements.length, 1);
+});

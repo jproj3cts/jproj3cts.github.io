@@ -1,3 +1,5 @@
+import { metalNK } from './metals.js';
+
 /* ---------- Thin-film stacks ----------
    Characteristic matrix method: each layer contributes a 2x2 matrix in its tilted
    admittance, and the stack gives the complex amplitude reflection for s and p. */
@@ -41,11 +43,37 @@ export function filmAdmit(n, sin0, pol) {
   const b = Math.sqrt(-q);
   return pol === 's' ? [0, -n * b, 0, -b] : [0, n / b, 0, -b];
 }
-/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances */
+/* An absorbing layer's matrix (a metal: index N = n − ik, the matrix's e^{-ikz} convention), complex throughout:
+   cos θ = √(1 − (sin0/N)²) on the branch whose wave decays into the layer, η = N cos θ (s) or N / cos θ (p), δ = 2π N d
+   cos θ / λ, and the matrix [[cos δ, i sin δ / η], [i η sin δ, cos δ]]: four [re, im] */
+const fcx = { mul: (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]], div: (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; },
+  sqrt: a => { const r = Math.hypot(a[0], a[1]), re = Math.sqrt(Math.max(0, (r + a[0]) / 2)), im = Math.sqrt(Math.max(0, (r - a[0]) / 2)); return [re, a[1] < 0 ? -im : im]; },
+  cos: a => [Math.cos(a[0]) * Math.cosh(a[1]), -Math.sin(a[0]) * Math.sinh(a[1])], sin: a => [Math.sin(a[0]) * Math.cosh(a[1]), Math.cos(a[0]) * Math.sinh(a[1])] };
+export function filmLayerC(N, d, sin0, nm, pol) {
+  const s = fcx.div([sin0, 0], N), s2 = fcx.mul(s, s);
+  let c = fcx.sqrt([1 - s2[0], -s2[1]]);
+  if (c[1] > 0) c = [-c[0], -c[1]];                                   // the decaying branch: Im(N cos θ) ≤ 0
+  const eta = pol === 's' ? fcx.mul(N, c) : fcx.div(N, c);
+  const k2 = 2 * Math.PI * d / nm, dl = fcx.mul(fcx.mul(N, c), [k2, 0]);
+  const C = fcx.cos(dl), S = fcx.sin(dl), iS = [-S[1], S[0]];
+  return [C, fcx.div(iS, eta), fcx.mul(iS, eta), C];
+}
+/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances. A layer of a metal
+   (L.metal, its index from core/metals.js at this wavelength) absorbs; any other is lossless, index L.n */
 export function filmBC(layers, n0, ns, ci, nmWave, pol) {
   const sin0 = Math.sqrt(Math.max(0, 1 - ci * ci)) * n0;   // n0 sin(theta0), invariant
   let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
   for (const L of layers) {
+    if (L.metal) {
+      // times the absorbing layer's complex matrix
+      const nk = metalNK(L.metal, nmWave), [a, b, c2, e] = filmLayerC([nk[0], -nk[1]], L.d, sin0, nmWave, pol);
+      const M11 = [m11r, m11i], M12 = [m12r, m12i], M21 = [m21r, m21i], M22 = [m22r, m22i];
+      const n11 = fcx.mul(M11, a), n11b = fcx.mul(M12, c2), n12 = fcx.mul(M11, b), n12b = fcx.mul(M12, e);
+      const n21 = fcx.mul(M21, a), n21b = fcx.mul(M22, c2), n22 = fcx.mul(M21, b), n22b = fcx.mul(M22, e);
+      m11r = n11[0] + n11b[0]; m11i = n11[1] + n11b[1]; m12r = n12[0] + n12b[0]; m12i = n12[1] + n12b[1];
+      m21r = n21[0] + n21b[0]; m21i = n21[1] + n21b[1]; m22r = n22[0] + n22b[0]; m22i = n22[1] + n22b[1];
+      continue;
+    }
     // times the layer's [[c, i x], [i y, c]]
     const [c, x, y] = filmLayer(L.n, L.d, sin0, nmWave, pol);
     const n11r = m11r * c - m12i * y, n11i = m11i * c + m12r * y;

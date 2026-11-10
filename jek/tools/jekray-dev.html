@@ -50,13 +50,12 @@
 
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKray controls">
-      <!-- the bar: JEKspace's mark (every bench of every app, in its own tab), the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
+      <!-- the bar: JEKsuite's mark (every bench of every app, in its own tab), the logo, a menu bar (File, Edit, View, Tools, Sweeps, Help), a few one-click icons, the
            bench's name, then Add part, Share, Save, Examples, the cart and the account. On a phone: the name,
            + Add part, Save and ⋯, whose items open the same menus under the bar's right end -->
       <div class="rt-row rt-bar">
-        <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jekspace.html" target="jekspace" aria-label="JEKspace" title="JEKspace: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKspace</span></a>
-        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page">JEKray</a></h1>
-        <button class="rt-beta-pill" type="button" data-click="btnBug" title="JEKray is in open beta: if something looks wrong, tell us"><span class="rt-pillopen">Open </span>beta</button>
+        <a class="rt-space" id="btnSpace" role="link" href="/jek/tools/jeksuite.html" target="jeksuite" aria-label="JEKsuite" title="JEKsuite: every bench of every app, in the cloud (in its own tab)"><span class="rt-spacemark" aria-hidden="true"></span><span class="rt-spaceword">JEKsuite</span></a>
+        <h1 class="rt-title"><a href="/jek/products/design-software/jekray/" title="About JEKray: its product page" ><span class="jek-wm">JEK<b>ray</b></span></a></h1>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu" title="New, open, save, import and export">File</button>
@@ -68,7 +67,7 @@
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKspace (in its own tab)">My benches on JEKspace…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
@@ -153,7 +152,7 @@
             <button type="button" role="menuitem" id="btnNewRf" data-ws="rf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
             <button type="button" role="menuitem" id="btnRfOfSel" data-ws="rf" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
+            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed in JEKfilm (in its own tab): an anti-reflection stack, a reflector, a splitter or an edge, kept in the cloud for every face’s Coating list">Coating design in JEKfilm…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
             <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
@@ -210,10 +209,13 @@
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Fit the view to the bench" aria-label="Fit view"></button>
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnMeasure" data-icon="ruler" title="Measure distances, angles and optical paths (M)" aria-label="Measure"></button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnCmd" type="button" data-icon="search" title="Search commands (Ctrl+K)" aria-label="Search commands" aria-haspopup="dialog"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnQGroup" type="button" data-icon="group" title="Group the selected parts: picked and moved as one (Ctrl+G)" aria-label="Group"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnQUngroup" type="button" data-icon="ungroup" title="Ungroup the selected parts (Ctrl+Shift+G)" aria-label="Ungroup"></button>
           <!-- the 3D view's own, shown while it is -->
           <span class="rt-qsep rt-v3donly" id="v3dSep" aria-hidden="true" hidden></span>
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dFly" type="button" data-icon="fly" hidden title="Fly through the bench, full screen: W A S D and the mouse, Esc to land" aria-label="Fly"></button>
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dMouse" type="button" data-icon="mouse" hidden aria-pressed="false" title="Mouse: default (right-drag turns the view). Click for a trackpad" aria-label="Trackpad controls"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dMate" type="button" data-icon="mate" hidden aria-pressed="false" title="Mate two parts: pick a face, edge or round face on each, then how they meet (Esc to stop)" aria-label="Mate two parts"></button>
           <button class="rt-btn rt-icon quiet rt-tbi rt-v3donly" id="btn3dPng" type="button" data-icon="camera" hidden data-need="account" data-what="save a picture of the 3D view" title="Save the 3D view as a picture" aria-label="Save the 3D view as a picture"></button>
         </div>
         <div class="rt-more rt-file">

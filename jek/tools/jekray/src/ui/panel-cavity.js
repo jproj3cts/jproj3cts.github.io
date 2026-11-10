@@ -5,7 +5,7 @@ import { deg, project, selectOne, typeLabel } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { curBench } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
-import { getCss, inkA, requestRender } from './render.js';
+import { getCss, inkA, requestRender, selection } from './render.js';
 import { V3D } from './view3d.js';
 import { updateReadouts } from './readouts.js';
 import { BENCH_PIN, bindSync, fid, infoDialog, numInput, panel, pinTitle, renderPanel, selectField, setFid, syncPanel } from './panel.js';
@@ -230,6 +230,9 @@ export let benchTab = 'bench';
 // the Bench panel's list: the bench whose parts it shows, and the bench on show when it was chosen
 let listTab = null, listShown = null;
 export function setBenchTab(v) { return (benchTab = v); }
+/* the Bench panel's list, by kind: free-space parts, the fibre network, circuits, chips, objects brought in, drawings */
+const LIST_KINDS = [['free', 'Free space'], ['fibre', 'Fibre'], ['elec', 'Circuits'], ['pic', 'Photonic'], ['stl', 'Objects'], ['draw', 'Drawings']];
+const listKind = el => el.type === 'fcomp' ? 'fibre' : el.type === 'elec' || el.type === 'pic' || el.type === 'stl' || el.type === 'draw' ? el.type : 'free';
 const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
 const EYE_SHUT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2 10s3.6 5 10 5 10-5 10-5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 13.2 3.4 15.6M9.2 14.7l-.8 2.7M14.8 14.7l.8 2.7M19 13.2l1.6 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 export function renderOverview() {
@@ -248,7 +251,7 @@ export function renderOverview() {
     if (benchTab === 'cavity') { for (const c of cavs) panel.append(cavityCard(c)); return; }
   }
   if (project.elements.length) {
-    const list = h('ul', { class: 'rt-list' });
+    const list = h('ul', { class: 'rt-plist' });
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
       grating: '#c9a6ff', crystal: '#b79bff', fibre: '#e86fa6', detector: '#7ee0a1', faraday: '#ff9f6b', isolator: '#ff9f6b',
@@ -261,19 +264,29 @@ export function renderOverview() {
       ...[curBench(), ...project.benches.filter(b2 => b2 !== curBench())].map(b => h('button', { class: 'rt-tab' + (b.id === listTab ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(b.id === listTab),
         title: b === curBench() ? 'The parts on this bench (on show)' : 'The parts on the bench ' + b.name, onclick: () => { listTab = b.id; renderPanel(); } },
         b.name + ' (' + project.elements.filter(e => e.bench === b.id).length + ')'))));
+    // as a CAD feature list: a heading for each kind of part with its count, a row each, one line, its kind small at the
+    // end; the eye only on hover (or while hidden); the selected parts marked
+    const chosen = new Set(selection().map(e => e.id));
     for (const b of project.benches.filter(b2 => !multi || b2.id === listTab)) {
       const mine = project.elements.filter(e => e.bench === b.id);
       if (multi && !mine.length) list.append(h('li', { class: 'tabhead' }, 'No parts on ' + b.name + ' yet'));
-      for (const el of mine) {
-        // the eye: shown or hidden in the 3D view, for a part drawn there; hidden, the light still meets it
-        const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
-          title: el.hide3d ? 'Hidden in the 3D view (the light still meets it): show it' : 'Hide it in the 3D view (the light still meets it)',
-          'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' in the 3D view',
-          onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
-        if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
-        list.append(h('li', { class: eye ? 'has-eye' : null }, h('button', { onclick: () => selectEl(el) },
-          h('span', { class: 'swatch', style: 'background:' + (col[el.type] || (el.type === 'draw' ? (el.stroke !== 'none' ? el.stroke : el.fill !== 'none' ? el.fill : '#9aa4ab') : el.colour)) }),
-          el.name, h('span', { class: 't' }, typeLabel(el))), ...(eye ? [eye] : [])));
+      for (const [key, title] of LIST_KINDS) {
+        const of = mine.filter(e => listKind(e) === key);
+        if (!of.length) continue;
+        list.append(h('li', { class: 'rt-plhead' }, title + ' (' + of.length + ')'));
+        for (const el of of) {
+          // the eye: shown or hidden in the 3D view, for a part drawn there; hidden, the light still meets it
+          const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
+            title: el.hide3d ? 'Hidden in the 3D view (the light still meets it): show it' : 'Hide it in the 3D view (the light still meets it)',
+            'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' in the 3D view',
+            onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
+          if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
+          const kind = typeLabel(el);
+          list.append(h('li', { class: 'rt-plrow' + (chosen.has(el.id) ? ' on' : '') + (el.hide3d ? ' hid' : '') },
+            h('button', { type: 'button', class: 'rt-plname', title: el.name + ' (' + kind + ')', onclick: () => selectEl(el) },
+              h('span', { class: 'swatch', style: 'background:' + (col[el.type] || (el.type === 'draw' ? (el.stroke !== 'none' ? el.stroke : el.fill !== 'none' ? el.fill : '#9aa4ab') : el.colour)) }),
+              h('span', { class: 'nm' }, el.name), h('span', { class: 't' }, kind)), ...(eye ? [eye] : [])));
+        }
       }
     }
     panel.append(list);

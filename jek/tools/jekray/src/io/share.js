@@ -106,6 +106,7 @@ export function shareData() {
   if (d.measures.length) out.measures = d.measures;
   // the assemblies the parts make, with their designs (a lens design, an RF system and its conditions)
   if (d.assemblies && d.assemblies.length) out.assemblies = d.assemblies;
+  if (d.mates && d.mates.length) out.mates = d.mates;                 // parts' faces held together
   const ui = uiState();
   // only what is set: nothing selected, pinned, scrolled or in 3D leaves it out
   const U = {};
@@ -240,6 +241,9 @@ export async function openShortLink(id) {
   let r;
   try { r = await api('/v1/links/' + encodeURIComponent(id)); }
   catch (err) { toast('Could not open that link: ' + err.message, true); return; }
+  // another app's link (JEKsuite's My links gives every link on /s/): opened in that app
+  const other = { i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm' }[String(r.data || '')[0]];
+  if (other) { location.replace('/jek/tools/' + other + '.html#s=' + encodeURIComponent(id)); return; }
   return openShareHash(r.data);
 }
 /* a link opened: its bench replaces this one (Ctrl+Z brings this one back) */

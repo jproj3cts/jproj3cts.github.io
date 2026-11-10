@@ -11,6 +11,7 @@ import {
   elecNoiseRms, elecPsdAt, inputOf, isDet, isLaser, line, partner, portList, signalOf, solve
 } from '../engines/elec.js';
 import { INST } from './instruments.js';
+import { playing } from './sweeps.js';
 import { helpLine, bindSync, panel, param, selectField, textField } from './panel.js';
 import { h } from './dom.js';
 import { readoutBox } from './panels.js';
@@ -207,8 +208,20 @@ function elecWirePanel(F) {
   panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, h('button', { class: 'rt-btn danger wide', type: 'button', onclick: () => removeFibre(F) }, 'Delete wire')));
 }
 /* the scope and the analyser: the shared instrument views (INST), fed what reaches their inputs */
-function drawScope(cv, el) {
+/* while sweeps play, what reaches the scope is solved afresh at most once in three times as long as that
+   took (each step moves the light, and solving the circuit traces the bench again for its photodiodes),
+   the last solve drawn meanwhile: the 3D view and the bench keep their frames; with nothing playing,
+   always afresh */
+function scopeInputs(cv, el) {
+  const now = performance.now(), B = cv._solve;
+  if (B && playing.size && B.id === el.id && now - B.at < 3 * B.cost) return B.chans;
   const chans = [0, 1].map(i => ({ S: inputOf(el, i), key: el.id + ':' + i, name: 'ch' + (i + 1) }));
+  const took = performance.now() - now;
+  cv._solve = { id: el.id, at: now, cost: Math.max(took, B && B.id === el.id ? 0.7 * B.cost : 0), chans };
+  return chans;
+}
+function drawScope(cv, el) {
+  const chans = scopeInputs(cv, el);
   return INST.scope(cv, chans, { mode: el.mode, span: el.span, ch: [{ vdiv: el.v1div, off: el.v1off }, { vdiv: el.v2div, off: el.v2off }] }, el.name, () => drawScope(cv, el));
 }
 export function drawSpectrum(cv, el) {

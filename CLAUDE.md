@@ -1,7 +1,7 @@
 # jeksys.net — working notes
 
 The repo is the jeksys.net site (GitHub Pages) plus JEKray, a browser optics/photonics/RF simulator, JEKion, a
-charged-particle optics simulator built the same way beside it, and their API. The root README has the site
+charged-particle optics simulator built the same way beside it, JEKfilm, a thin-film coating designer, JEKcad, a parametric CAD Part Studio, and their API. The root README has the site
 conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tools/jekion/README.md` JEKion's.
 
 ## Working rules
@@ -44,7 +44,9 @@ The site should read as written by the people who build the things on it. Before
 | Docs parameter tables / AI guide (generated) | `_data/jekray_params.json`, `jek/tools/jekray-ai-guide.md` |
 | JEKion (source) | `jek/tools/jekion/src/` — built into `jek/tools/jekion.html` (committed); shares JEKray's modules by path in its `order.json`; tests `jek/tools/jekion/test/` + `jek/tools/jekion-tests.html`; demos `jek/tools/demos/*.jekion`; docs `jek/docs/jekion/` (`_data/jekion_docs.yml`, `docs: jekion` in front matter) |
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
-| JEKspace, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jekspace/` — built into `jek/tools/jekspace.html` (committed), as JEKion is; `README.md` there; tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jekspace.md` |
+| JEKsuite, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jeksuite/` — built into `jek/tools/jeksuite.html` (committed), as JEKion is; `README.md` there; tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jeksuite.md` |
+| JEKfilm, the coating designer (`.jekfilm`; a cloud bench with tool `jekfilm`) | `jek/tools/jekfilm/` — built into `jek/tools/jekfilm.html` (committed), as JEKsuite is; `README.md` there; shares JEKray's `core/coatings.js` and `core/coatdesign.js`; saving and optimising are Pro; tests `node test/run.mjs`; docs `jek/docs/jekray/jekfilm.md` |
+| JEKcad, the Part Studio CAD app (`.jekcad`; a cloud bench with tool `jekcad`, also known by its content's format) | `jek/tools/jekcad/` — built into `jek/tools/jekcad.html` (committed), as JEKfilm is; `README.md` there; OpenCascade (replicad-opencascadejs, LGPL-2.1) vendored in `jek/assets/vendor/replicad-opencascadejs/<version>/`, run in a worker, loaded on first use; feature list, sketch solver and tools in `src/core/`; exports need a free account, the cloud Pro (as JEKion); tests `node test/run.mjs`; docs `jek/docs/jekcad/` (`_data/jekcad_docs.yml`); demo `jek/tools/demos/*.jekcad` |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |
@@ -61,11 +63,14 @@ through `core/hooks.js`.
 - **UI**: bench `ui/render.js`, `pointer.js`, `actions.js` (toast, context menu, save); panel framework `ui/panel.js`
   (`param`, `numInput`, `selectField`), shared sections `ui/panels.js`, readouts `ui/readouts.js`, plots `ui/plots.js`,
   sweeps `ui/sweeps.js`, optimiser `ui/optimise.js`, 3D `ui/view3d.js`, Optical designer `ui/lens-*.js`, RF designer
-  `ui/rf-workspace.js`, coating designer `ui/coat-workspace.js`, instruments `ui/instruments.js`, tours `ui/tours.js`,
+  `ui/rf-workspace.js`, RF matching-layer workspace `ui/coat-workspace.js` (optical faces go to JEKfilm: `designInFilm` in `io/film-coats.js`), instruments `ui/instruments.js`, tours `ui/tours.js`,
   news/version `ui/news.js` (`APP_VERSION`, `NEWS`), experimental flags `ui/experimental.js`.
   Toolbar/menus/dialogs markup: `page.html`; wiring in each module's `wire…()`, called from `ui/boot.js`.
 - **Files and sharing**: `io/open.js`, `io/autosave.js`, `io/share.js`, `.zmx/.zar` `io/zmx-import.js` /
-  `io/zmx-export.js`, packs `io/packs.js`, mods `io/mods.js` + `engines/mods.js`, cloud `io/cloud.js`, usage counts
+  `io/zmx-export.js`, packs `io/packs.js`, mods `io/mods.js` + `engines/mods.js`, cloud `io/cloud.js`, JEKfilm coatings on faces `io/film-coats.js` (the cloud
+  folder's `.jekfilm` coatings in a face's Coating list as ◆, a .jekfilm file; the face keeps a copy, `coat.src` `{ id, v }`
+  links it, updates offered never forced; `coatFromFilm` in `core/coatdesign.js`; JEKfilm's saves heard on BroadcastChannel
+  `jek-film`), usage counts
   `io/usage.js`, AI guide/docs tables `io/guide.js`.
   STEP import: `io/step.js` (blob worker, dialog, `importStep`) + `core/step.js` (units, tessellation passes, bodies);
   OpenCascade's occt-import-js vendored in `jek/assets/vendor/occt-import-js/<version>/` (LGPL-2.1, loaded on first use).
@@ -175,30 +180,31 @@ through `core/hooks.js`.
 - Site nav and CSS stamp are single-sourced: edit the nav in `_includes/site-nav.html`; after changing `jek.css` bump
   `css_v` in `_config.yml`. Pages get them via front matter + `{% include site-nav.html %}` / `?v={{ site.css_v }}`
   (so no stray `{{`/`{%` in a page: wrap in `{% raw %}`). Unbuilt copies to update by hand: `jekray-tests.html` and
-  `jekion-tests.html` (nav + stamp) and `jekray/page.html`, `jekion/page.html`, `jekspace/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs`
+  `jekion-tests.html` (nav + stamp) and `jekray/page.html`, `jekion/page.html`, `jeksuite/page.html` (stamp; rebuild). `test/node/site-nav.test.mjs`
   checks all of it. Preview: README.
 - JEKion shares JEKray's modules as they are (`core/constants.js`, `hooks.js`, `numeric.js`, `datafiles.js`, `src-tag.js`,
   `step.js`, `worker/shim.js`, `ui/pro.js`, `ui/dom.js`, `io/usage.js`, `io/account.js`, `io/step-reader.js`): a change to one of those is a change
   to both tools, so rebuild and test both (`cd jek/tools/jekion && node build.mjs && node test/run.mjs`). A shared module
   reaches the page only through `core/hooks.js` (JEKion installs its own entries: `ionChanged`, `apiBase`, `usageTier`…).
   Top-level names must be unique across both tools' modules in JEKion's build. Accounts, usage counts and the data
-  writers are JEKray's; JEKion's usage tokens are prefixed `ion-`.
-- My benches is JEKspace (`jek/tools/jekspace.html`): every app's My benches opens it in the tab named `jekspace`
+  writers are JEKray's; JEKion's usage tokens are prefixed `ion-`, JEKfilm's (and JEKray's about JEKfilm) `film-`: the usage
+  report's "Visits by app" (`byApp` in `jek-api/scripts/usage.mjs`) tells the apps apart by that prefix.
+- My benches is JEKsuite (`jek/tools/jeksuite.html`): every app's My benches opens it in the tab named `jeksuite`
   (JEKray `openSpace` in `io/cloud.js`, JEKion `openCloudList`), and it opens a bench in its app's named tab at
   `#cloud=<id>[@v][:lens|rf|coat]`, or `#new[=lens|rf|coat]` (JEKray `startNewBench` in `ui/tours.js`, JEKion
-  `newProject`). The rail's apps open each app's launch page in JEKspace (`#app=jekray|jekion`, `showApp` in
-  `jekspace/src/ui/home.js`): its benches alone, the one picked beside them; New › Open opens the apps. JEKray keeps the
-  home page's CSS (`.rt-home`, `.rt-h*` in `style.css`), which JEKspace is styled with, and the merge dialog for a
-  save conflict; comparing versions and merging forks are JEKspace's.
+  `newProject`). The rail's apps open each app's launch page in JEKsuite (`#app=jekray|jekion`, `showApp` in
+  `jeksuite/src/ui/home.js`): its benches alone, the one picked beside them; New › Open opens the apps. JEKray keeps the
+  home page's CSS (`.rt-home`, `.rt-h*` in `style.css`), which JEKsuite is styled with, and the merge dialog for a
+  save conflict; comparing versions and merging forks are JEKsuite's.
 - One account for every app: `jek/tools/jekray/src/io/account.js` (sign-in incl. the email dialog, the account menu's
   rows `accountMenuRows`, plans and billing, the account dialog, teams, invitations, a university's licence, deleting
-  the account, `authOutcome` for the ?jekauth/?jekbilling return) is shared as it is by JEKray, JEKion and JEKspace,
+  the account, `authOutcome` for the ?jekauth/?jekbilling return) is shared as it is by JEKray, JEKion and JEKsuite,
   with `ui/dom.js` (`h`, which every module imports from there). It reaches each app only through `core/hooks.js`:
   `appName`, `toast`, `keepWork` (the autosave before the page leaves to sign in or pay), `planActive`,
   `accountLoadedHere`, `accountChanged`, `accountMenu(rows)` / `accountMenuExtra` / `accountMenuDone` /
   `openAccountMenu` (where the menu goes), `sayUnreachable`, `accountDeleted`. JEKray installs them in `io/nudges.js`
   (`wireNudges`, which also holds its bench sign-in prompts: shareSignIn, exportSignIn, gateSignIn, the save/return/work
-  notes), JEKion in `io/ion-account.js` (`wireIonAccount`, with its own sign-in prompt `showSignIn`), JEKspace in
+  notes), JEKion in `io/ion-account.js` (`wireIonAccount`, with its own sign-in prompt `showSignIn`), JEKsuite in
   `src/ui/boot.js`. A change to sign-in, plans, billing or teams is made once, there; rebuild all three.
 - Site search: the box in the nav bar (`_includes/site-nav.html`, `.nav-search`) sends `?q=` to `jek/search-results.html`, which reads
   only the pages listed in its `PAGES`: add a new page there.

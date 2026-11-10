@@ -325,6 +325,8 @@ describe('export', () => {
     await make(s, 'Same');
     await make(s, 'Same');
     await make(s, 'In / folder', { folder_id: f.id });
+    await make(s, 'Trap', { content: JSON.stringify({ format: 'jekion', version: 1, name: 'Trap' }) });
+    await make(s, 'BBAR', { content: JSON.stringify({ format: 'jekfilm', version: 1, name: 'BBAR' }) });
     const gone = await make(s, 'Deleted one');
     await call(`/v1/benches/${gone.id}`, { method: 'DELETE', token: s.token });
     const res = await call('/v1/me/export', { token: s.token });
@@ -332,7 +334,7 @@ describe('export', () => {
     expect(res.headers.get('Content-Disposition')).toMatch(/attachment; filename="jekray-export-\d{4}-\d\d-\d\d\.zip"/);
     const files = unzip(await res.arrayBuffer());
     expect(Object.keys(files).sort()).toEqual([
-      'My benches/Lasers/In folder.jekray', 'My benches/Same (2).jekray', 'My benches/Same.jekray', 'account.json',
+      'My benches/BBAR.jekfilm', 'My benches/Lasers/In folder.jekray', 'My benches/Same (2).jekray', 'My benches/Same.jekray', 'My benches/Trap.jekion', 'account.json',
     ]);
     expect(JSON.parse(files['account.json']).user.name).toBe('Exporter');
     expect(files['My benches/Same.jekray']).toBe(bench('Same'));
@@ -352,8 +354,30 @@ describe('the export', () => {
   });
 });
 
-describe('the two tools', () => {
+describe('the tools', () => {
+  it('migration 0019 marks a coating saved as a JEKray bench (by an API from before JEKfilm) as JEKfilm\u2019s, by its content', async () => {
+    const s = await pro('Mig');
+    const c = await make(s, 'Saved early', { content: JSON.stringify({ format: 'jekfilm', version: 1, name: 'Saved early', layers: [] }) });
+    const r = await make(s, 'A bench');
+    await env.DB.prepare("UPDATE benches SET tool = 'jekray' WHERE id = ?").bind(c.id).run();
+    expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekray');
+    const sql = (await import('../migrations/0019_bench_tool_from_content.sql?raw')).default;
+    for (const st of sql.split(';').map((x) => x.replace(/--.*$/gm, '').trim()).filter(Boolean)) await env.DB.prepare(st).run();
+    expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekfilm');
+    expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
+  });
+  it('migration 0020 marks a part studio saved as a JEKray bench (by an API from before JEKcad) as JEKcad’s, by its content', async () => {
+    const s = await pro('Mig2');
+    const c = await make(s, 'test-part', { content: JSON.stringify({ format: 'jekcad', version: 1, name: 'test-part', units: 'mm', variables: [], features: [], rollback: null, parts: {} }) });
+    const r = await make(s, 'A bench');
+    await env.DB.prepare("UPDATE benches SET tool = 'jekray' WHERE id = ?").bind(c.id).run();
+    const sql = (await import('../migrations/0020_bench_tool_jekcad.sql?raw')).default;
+    for (const st of sql.split(';').map((x) => x.replace(/--.*$/gm, '').trim()).filter(Boolean)) await env.DB.prepare(st).run();
+    expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekcad');
+    expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
+  });
   const ion = (name) => JSON.stringify({ format: 'jekion', version: 1, name, electrodes: [], ions: [] });
+  const film = (name) => JSON.stringify({ format: 'jekfilm', version: 1, name, spec: { target: 'ar' }, layers: [{ n: 1.38, d: 99.6 }] });
   it('a bench is JEKray’s or JEKion’s by its content, the list says which and filters by it', async () => {
     const s = await pro('Ida');
     const r = await make(s, 'Optics');
@@ -381,5 +405,36 @@ describe('the two tools', () => {
     const back = await json(await send(`/v1/benches/${i.id}/versions/1/restore`, 'POST', s.token, {}));
     expect(back.status).toBe(200);
     expect((await json(await call(`/v1/benches/${i.id}`, { token: s.token }))).body.tool).toBe('jekion');
+  });
+  it('a JEKfilm coating is its own tool: listed by it, and no other tool’s content saves over it, nor it over theirs', async () => {
+    const s = await pro('Ines');
+    const r = await make(s, 'Optics');
+    const c = await make(s, 'BBAR', { content: film('BBAR') });
+    expect(c.tool).toBe('jekfilm');
+    const films = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekfilm`, { token: s.token }))).body.benches;
+    expect(films.map((b) => b.id)).toEqual([c.id]);
+    const over = await json(await put(s, c.id, 1, bench('BBAR')));
+    expect(over.status).toBe(400);
+    expect(over.body.error.message).toMatch(/JEKfilm coating/);
+    const back = await json(await put(s, r.id, 1, film('Optics')));
+    expect(back.status).toBe(400);
+    expect((await json(await put(s, c.id, 1, film('BBAR 2')))).status).toBe(200);
+  });
+  const cad = (name) => JSON.stringify({ format: 'jekcad', version: 1, name, units: 'mm', variables: [], features: [], rollback: null, parts: {} });
+  it('a JEKcad part studio is its own tool: listed by it, kept by forks, and no other tool’s content saves over it, nor it over theirs', async () => {
+    const s = await pro('Isla');
+    const r = await make(s, 'Optics');
+    const c = await make(s, 'Mount', { content: cad('Mount') });
+    expect(c.tool).toBe('jekcad');
+    const cads = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekcad`, { token: s.token }))).body.benches;
+    expect(cads.map((b) => b.id)).toEqual([c.id]);
+    const over = await json(await put(s, c.id, 1, bench('Mount')));
+    expect(over.status).toBe(400);
+    expect(over.body.error.message).toMatch(/JEKcad part studio: a \.jekray cannot/);
+    const back = await json(await put(s, r.id, 1, cad('Optics')));
+    expect(back.status).toBe(400);
+    expect((await json(await put(s, c.id, 1, cad('Mount 2'), { checkpoint: true }))).status).toBe(200);
+    const f = (await json(await send(`/v1/benches/${c.id}/fork`, 'POST', s.token, {}))).body;
+    expect(f.tool).toBe('jekcad');
   });
 });

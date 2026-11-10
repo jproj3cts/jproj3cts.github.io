@@ -22,6 +22,7 @@ import {
   requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
 } from './render.js';
 import { groupOf } from './drawings.js';
+import { mateSpread, poseCarry, poseSnap, poseTurn } from '../core/mates.js';
 import { snapVal } from './pointer.js';
 import { SW, fieldHeld, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
 import { qW } from '../engines/fibre-face.js';
@@ -60,11 +61,11 @@ export const V3D = (() => {
   const st = new Map();                                   // per tab: { on, cam: { p, t } }
   let ctrl = (() => { try { return localStorage.getItem('jek-3d-mouse') === 'trackpad' ? 'trackpad' : 'default'; } catch (e) { return 'default'; } })();
   let names = false;                                    // (the parts' names over them: View › Names in 3D)
-  // a tool of the view's own (the Model tools, ui/model3d.js): it sees the canvas's presses and the keys first, and takes
-  // those it wants (the left button, as a rule: turning and panning stay the view's); and what it adds to the bar
+  // a tool of the view's own (the mate tool, ui/mate3d.js): it sees the canvas's presses and the keys first, and takes
+  // those it wants (the left button, as a rule: turning and panning stay the view's)
   let tool = null;
-  // what the tool asks of the view: no turning it (sketching, square on), no parts taken hold of (the Model tools)
-  const lockView = () => !!(tool && tool.lockView && tool.lockView()), noParts = () => !!(tool && tool.noParts && tool.noParts());
+  // what the tool asks of the view: no parts taken hold of (picking faces)
+  const noParts = () => !!(tool && tool.noParts && tool.noParts());
 
   // fibre, electronic and chip parts (and drawings) are not drawn in 3D: their tab still opens there
   const blockers = id => project.elements.filter(e => e.bench === id && !FREE_3D.has(e.type) && !NET_3D.has(e.type));
@@ -112,12 +113,13 @@ export const V3D = (() => {
     nm.addEventListener('click', () => { names = !names; nm.setAttribute('aria-checked', String(names)); if (R) R.key = null; requestRender(); });
     flyBtn.addEventListener('click', () => flyStart());
     pngBtn.addEventListener('click', png);
-    const bar = [byId('v3dSep'), flyBtn, mouse, pngBtn];
+    const bar = [byId('v3dSep'), flyBtn, mouse, byId('btn3dMate'), pngBtn];
     const hint = h('div', { class: 'rt-v3dhint', hidden: true, role: 'status' });
     const flyHint = h('div', { class: 'rt-flyhint', hidden: true, role: 'status' });
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
-    stage.append(sw, hint, flyHint, vkey);
-    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, flyBtn, flyHint, vkey };
+    const box = h('div', { class: 'rt-v3dbox', hidden: true, 'aria-hidden': 'true' });
+    stage.append(sw, hint, flyHint, vkey, box);
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, flyBtn, flyHint, vkey, box };
     // the view's own tool first: a press it takes is not the view's
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'dblclick']) cv.addEventListener(type, e => {
       if (tool && !fly && R && tool[type] && tool[type](e)) { e.stopImmediatePropagation(); e.preventDefault(); }
@@ -141,11 +143,11 @@ export const V3D = (() => {
     const draw = project.elements.some(e => e.bench === project.tab && e.type === 'draw') ? ' · Drawings show in 2D only' : '';
     const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
     D.touch = touch;
-    const parts = 'Click a part: arrows to move it (orange x, green y, blue up) · Click it again: rings to turn it (blue: facing, green: tip, orange: roll; Alt: fine, Shift: 15°) · Drag a part: move it on the table · ';
+    const parts = 'Click a part: arrows to move it (orange x, green y, blue up) · Click it again: rings to turn it (blue: facing, green: tip, orange: roll; Alt: fine, Shift: 15°) · Drag a part: move it on the table · Shift-click: add a part · ';
     if (touch) { D.hint.textContent = 'Tap a part: arrows to move it · Tap again: rings to turn it · One finger: turn the view · Two: pan and zoom' + draw; return; }
     D.hint.textContent = parts + (ctrl === 'default'
-      ? 'Right-drag: turn the view · Middle-drag: pan · Scroll: zoom · Right-click: menu · F: fit'
-      : 'Drag elsewhere: turn the view · Shift-drag: pan · Pinch: zoom · Right-click: menu · F: fit') + draw;
+      ? 'Drag across empty space: select a boxful · Right-drag: turn the view · Middle-drag: pan · Scroll: zoom · Right-click: menu · F: fit'
+      : 'Alt-drag: select a boxful · Drag elsewhere: turn the view · Shift-drag: pan · Pinch: zoom · Right-click: menu · F: fit') + draw;
   }
   /* the switch's state, and the 3D view shown or hidden, for the tab now showing */
   function show() {
@@ -250,7 +252,7 @@ export const V3D = (() => {
     R.mid = mid;
     R.w = w; R.h = hgt;
     R.gl.setSize(w, hgt, false);
-    R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix(); if (R.persp && R.persp !== R.camera) { R.persp.aspect = w / hgt; R.persp.updateProjectionMatrix(); } camFit();
+    R.camera.aspect = w / hgt; R.camera.updateProjectionMatrix();
     // as in 2D, what is drawn stays where it was on the screen when a panel opens or closes on either side: the view
     // moved by as much as the bench's middle moved
     // (not while flying: a first-person view stays on its course)
@@ -272,7 +274,7 @@ export const V3D = (() => {
     spreadNames(camera);
     volPass();
     gl.render(scene, camera);
-    // a tool's own overlay kept with the picture (the Model tools' labels, as the view turns)
+    // a tool's own overlay kept with the picture (as the view turns)
     if (tool && tool.frame) tool.frame();
     // the view cube, looking the way the camera looks
     const c = cubeRect();
@@ -304,9 +306,8 @@ export const V3D = (() => {
     const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
-    // (and where the one selected part is and how it is turned, so its handles follow it, through an undo too)
-    const sel1 = selection().length === 1 ? selection()[0] : null;
-    const sk = selection().map(e => e.id).join() + '|' + gz.mode + (sel1 ? '|' + [sel1.x, sel1.y, zOf(sel1), sel1.angle, sel1.tip || 0, sel1.roll || 0, sel1.locked ? 1 : 0].join() : '');
+    // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
+    const sk = gz.mode + '|' + selection().map(e => [e.id, e.x, e.y, zOf(e), e.angle, e.tip || 0, e.roll || 0, e.locked ? 1 : 0].join()).join('|');
     if (sk !== R.selKey) { R.selKey = sk; highlight(); }
     need();
   }
@@ -319,28 +320,9 @@ export const V3D = (() => {
     else if (R.heading === undefined) R.heading = -Math.PI / 2;
     const th = Math.acos(clamp(d.z / r, -1, 1));
     cam.quaternion.setFromEuler(new T.Euler(th, 0, R.heading + Math.PI / 2, 'ZYX'));
-    cam.updateMatrixWorld(); camFit();
+    cam.updateMatrixWorld();
   }
   function setCam(p, t) { R.camera.position.fromArray(p); R.target.fromArray(t); aim(); }
-  /* a flat view (the Model tools' sketch, as a CAD program shows one square on): an orthographic camera in the
-     perspective one's place, as wide as the perspective one sees at the point it looks at, so turning, panning and
-     zooming (which move the camera) work as they do */
-  function camFit() {
-    const c = R && R.camera; if (!c || !c.isOrthographicCamera) return;
-    const d = c.position.distanceTo(R.target), hh = d * Math.tan(c.fov * deg / 2), hw = hh * (R.w / Math.max(1, R.h));
-    c.left = -hw; c.right = hw; c.top = hh; c.bottom = -hh; c.updateProjectionMatrix();
-  }
-  function setFlat(on) {
-    if (!R) return;
-    const P = R.persp || (R.persp = R.camera);
-    if (on && !R.camera.isOrthographicCamera) {
-      const O = R.ortho || (R.ortho = new T.OrthographicCamera(-1, 1, 1, -1, -2e5, 2e5));
-      O.fov = P.fov; O.up.copy(P.up); O.position.copy(P.position); O.quaternion.copy(P.quaternion); R.camera = O; camFit(); O.updateMatrixWorld();
-    } else if (!on && R.camera.isOrthographicCamera) {
-      P.position.copy(R.camera.position); P.quaternion.copy(R.camera.quaternion); P.updateMatrixWorld(); R.camera = P;
-    }
-    need();
-  }
   function keepCam() {
     const s = tabState(); if (s) s.cam = { p: R.camera.position.toArray(), t: R.target.toArray() };
     // the tab's 2D view centred where this one looks: a part added from the menu lands in sight
@@ -1266,11 +1248,20 @@ export const V3D = (() => {
     // round it, crossing, to turn it about each of its three axes, each the colour of the axis
     // it turns about: blue about the vertical (its facing), green about its own across axis (its
     // tip), orange about the way it faces (its roll)
-    const one = selection().length === 1 ? selection()[0] : null, P = one && R.groups.parts.children.find(q => q.userData.id === one.id);
-    if (!one || gz.id !== one.id) gz = { id: one ? one.id : null, mode: 'move' };
-    if (P && !one.locked) {
-      const b = new T.Box3().setFromObject(P), rr = Math.max(10, Math.hypot(b.max.x - b.min.x, b.max.y - b.min.y) / 2 + 6);
-      const c = new T.Vector3(one.x, one.y, z3(one) + (NET_3D.has(one.type) ? netBox(one).h / 2 : 0)), a = one.angle * deg, ca = Math.cos(a), sa = Math.sin(a);
+    // Several selected (a group, a boxful): the same arrows and rings for them all, at the middle of their box, moving
+    // them as one and turning them about that middle (blue about the vertical; green and orange about the bench's y and
+    // x, when every one of them can tip)
+    const S = selection(), one = S.length === 1 ? S[0] : null, P = one && R.groups.parts.children.find(q => q.userData.id === one.id);
+    const many = S.length > 1 ? S.filter(e => e.bench === project.tab && R.groups.parts.children.some(q => q.userData.id === e.id)) : [];
+    const gid = one ? one.id : many.length > 1 ? 'm:' + many.map(e => e.id).join() : null;
+    if (gz.id !== gid) gz = { id: gid, mode: 'move' };
+    const multi = !one && many.length > 1 && many.some(e => !e.locked);
+    if ((P && !one.locked) || multi) {
+      const b = new T.Box3();
+      if (P) b.setFromObject(P); else for (const q of R.groups.parts.children) if (many.some(e => e.id === q.userData.id)) b.expandByObject(q);
+      const rr = Math.max(10, Math.hypot(b.max.x - b.min.x, b.max.y - b.min.y) / 2 + 6);
+      const c = P ? new T.Vector3(one.x, one.y, z3(one) + (NET_3D.has(one.type) ? netBox(one).h / 2 : 0)) : b.getCenter(new T.Vector3());
+      const a = P ? one.angle * deg : 0, ca = Math.cos(a), sa = Math.sin(a), els = P ? [one] : many;
       const ORANGE = 0xf47742, GREEN = 0x3a9d5d, BLUE = 0x0092b2;
       // drawn over the parts, so a handle behind a part still shows and can be taken hold of
       const mat = (color, op) => new T.MeshBasicMaterial({ color, transparent: true, opacity: op || 1, depthTest: false, depthWrite: false });
@@ -1290,11 +1281,11 @@ export const V3D = (() => {
             const h = new T.Mesh(new T.CylinderGeometry(3.5, 3.5, len + 5, 8), unseen()); h.quaternion.copy(q); h.position.copy(c).addScaledVector(d, s0 + (len + 5) / 2);
             R.groups.sel.add(h); hit.push(cone, h); ends.push(c.clone().addScaledVector(d, s0 + len + 2.5));
           }
-          return { el: one, dir, hit, end: ends[0] };
+          return { el: one, els, multi: !P, o: c.clone(), dir, hit, end: ends[0] };
         };
         R.moveX = arrow(new T.Vector3(1, 0, 0), ORANGE);
         R.moveY = arrow(new T.Vector3(0, 1, 0), GREEN);
-        R.lift = NET_3D.has(one.type) ? null : arrow(new T.Vector3(0, 0, 1), BLUE);                // (a network's part stays on the table)
+        R.lift = els.some(e => NET_3D.has(e.type)) ? null : arrow(new T.Vector3(0, 0, 1), BLUE);                // (a network's part stays on the table)
       } else {
         // the rings: one size, square to each other, so they cross where the axes meet the sphere
         const ring = (n, u, v, color, ang, off) => {
@@ -1308,14 +1299,21 @@ export const V3D = (() => {
           const grab = at(ang + off);
           const knob = put(new T.Mesh(new T.SphereGeometry(2.6, 16, 12), mat(color))); knob.position.copy(grab);
           const kh = new T.Mesh(new T.SphereGeometry(4, 10, 8), unseen()); kh.position.copy(grab); R.groups.sel.add(kh);
-          return { el: one, grip, knob, hit: [grip, knob, kh], dot: [knob, kh], n, u, v, c, at, grab };
+          return { el: one, els, multi: !P, grip, knob, hit: [grip, knob, kh], dot: [knob, kh], n, u, v, c, at, grab };
         };
         const Z = new T.Vector3(0, 0, 1), fw = new T.Vector3(ca, sa, 0), ac = new T.Vector3(-sa, ca, 0);
-        R.ring = ring(Z, new T.Vector3(1, 0, 0), new T.Vector3(0, 1, 0), BLUE, a, Math.PI / 4);
-        if (tippable(one)) {
-          const tp = (one.tip || 0) * deg, f = new T.Vector3(Math.cos(tp) * ca, Math.cos(tp) * sa, Math.sin(tp));
-          R.tip = ring(ac, fw, Z, GREEN, tp, Math.PI / 4);
-          R.roll = ring(f, ac, f.clone().cross(ac), ORANGE, (one.roll || 0) * deg, -Math.PI / 4);
+        if (P) {
+          R.ring = ring(Z, new T.Vector3(1, 0, 0), new T.Vector3(0, 1, 0), BLUE, a, Math.PI / 4);
+          if (tippable(one)) {
+            const tp = (one.tip || 0) * deg, f = new T.Vector3(Math.cos(tp) * ca, Math.cos(tp) * sa, Math.sin(tp));
+            R.tip = ring(ac, fw, Z, GREEN, tp, Math.PI / 4);
+            R.roll = ring(f, ac, f.clone().cross(ac), ORANGE, (one.roll || 0) * deg, -Math.PI / 4);
+          }
+        } else {
+          // (each ring's u to v turns the right way about its axis: an angle round it is a turn about it)
+          const X = new T.Vector3(1, 0, 0), Y = new T.Vector3(0, 1, 0);
+          R.ring = ring(Z, X, Y, BLUE, 0, Math.PI / 4);
+          if (els.every(e => tippable(e) && !NET_3D.has(e.type))) { R.tip = ring(Y, Z, X, GREEN, 0, Math.PI / 4); R.roll = ring(X, Y, Z, ORANGE, 0, -Math.PI / 4); }
         }
       }
       R.groups.sel.updateMatrixWorld(true);              // placed now, so a press can find it before the next frame
@@ -1491,16 +1489,42 @@ export const V3D = (() => {
     const cam = R.camera, d = depthAt ? cam.position.distanceTo(depthAt) : cam.position.distanceTo(R.target);
     const k = 2 * d * Math.tan(cam.fov * deg / 2) / R.h, right = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
     const m = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
-    cam.position.add(m); R.target.add(m); cam.updateMatrixWorld(); camFit();
+    cam.position.add(m); R.target.add(m); cam.updateMatrixWorld();
   }
   function zoom(f, at) {
     const P = at || R.target, cam = R.camera;
     if (cam.position.distanceTo(P) * f < 5 && f < 1) return;
-    cam.position.sub(P).multiplyScalar(f).add(P); R.target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld(); camFit();
+    cam.position.sub(P).multiplyScalar(f).add(P); R.target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld();
+  }
+  /* the parts whose middles lie in a box on the screen (client px) selected, each with its group; add: to the selection */
+  function boxSelect(x0, y0, x1, y1, add) {
+    const b = D.cv.getBoundingClientRect(), lx = Math.min(x0, x1), hx = Math.max(x0, x1), ly = Math.min(y0, y1), hy = Math.max(y0, y1), got = [];
+    R.groups.parts.updateMatrixWorld(true);
+    for (const p of R.groups.parts.children) {
+      const el = getEl(p.userData.id); if (!el || el.bench !== project.tab || !project.elements.includes(el)) continue;
+      const v = new T.Vector3().setFromMatrixPosition(p.matrixWorld).project(R.camera);
+      if (!(v.z > -1 && v.z < 1)) continue;
+      const sx = b.left + (v.x + 1) / 2 * b.width, sy = b.top + (1 - v.y) / 2 * b.height;
+      if (sx >= lx && sx <= hx && sy >= ly && sy <= hy) for (const g of groupOf(el)) if (!got.includes(g)) got.push(g);
+    }
+    const cur = selection(), list = add ? cur.concat(got.filter(g => !cur.includes(g))) : got;
+    if (selFibre()) setSelFibreId(null);
+    if (list.length) setSelection(list); else { extraSel.clear(); selectOne(null); }
+    renderPanel(); requestRender();
+    return got.length;
   }
   function events() {
     const cv = D.cv, P = new Map();
     let drag = null, hoverQ = false;
+    // what an arrow or a ring moves: the part (or the several) with whatever is mated to it, as one body
+    const dragBody = d => {
+      const body = mateSpread(d.el ? [d.el] : d.els).filter(x => x.bench === project.tab), locked = body.find(x => x.locked);
+      if (locked) { toast(locked.name + ' is locked in place'); return false; }
+      const flat = d.mode === 'rot' && d.key !== 'ring' && body.length > 1 && body.find(x => !tippable(x) || NET_3D.has(x.type));
+      if (flat) { toast(flat.name + ' turns only on the table, so these cannot be tipped or rolled together'); return false; }
+      d.body = body; d.starts = body.map(poseSnap); d.lead0 = d.el ? poseSnap(d.el) : null;
+      return true;
+    };
     const plane = (e, z) => { const n = ndc(e); return tablePointNdc(n.x, n.y, z); };
     const handleAt = e => handleUnder(ndc(e));
     const liftAt = e => handleAt(e) === 'lift', ringAt = e => /^(ring|tip|roll)$/.test(handleAt(e) || '');
@@ -1529,15 +1553,15 @@ export const V3D = (() => {
         const hk = handleAt(e);
         if (hk === 'lift' || hk === 'x' || hk === 'y') {
           // an arrow: along its picture on the screen, 10 mm of it
-          const G = hk === 'lift' ? R.lift : hk === 'x' ? R.moveX : R.moveY, el = getEl(G.el.id) || G.el, o = new T.Vector3(el.x, el.y, z3(el));
+          const G = hk === 'lift' ? R.lift : hk === 'x' ? R.moveX : R.moveY, el = G.el && (getEl(G.el.id) || G.el), o = G.o;
           const a = o.clone().project(R.camera), b = o.clone().addScaledVector(G.dir, 10).project(R.camera);
           const vx = (b.x - a.x) / 2 * R.w, vy = -(b.y - a.y) / 2 * R.h, L2 = vx * vx + vy * vy;
-          drag = { mode: hk === 'lift' ? 'lift' : 'axis', key: hk, el, v0: hk === 'lift' ? zOf(el) : el[hk], x: e.clientX, y: e.clientY, vx, vy, L2, moved: 0, started: false };
+          drag = { mode: hk === 'lift' ? 'lift' : 'axis', key: hk, el, els: G.els, multi: G.multi, v0: el ? (hk === 'lift' ? zOf(el) : el[hk]) : 0, x: e.clientX, y: e.clientY, vx, vy, L2, moved: 0, started: false };
           return;
         }
         if (hk === 'ring' || hk === 'tip' || hk === 'roll') {
-          const G = R[hk], el = getEl(G.el.id) || G.el;
-          drag = { mode: 'rot', key: hk, G, el, v0: hk === 'ring' ? el.angle : hk === 'tip' ? el.tip || 0 : el.roll || 0, last: ringAngle(G, e), acc: 0, x: e.clientX, y: e.clientY, moved: 0, started: false };
+          const G = R[hk], el = G.el && (getEl(G.el.id) || G.el);
+          drag = { mode: 'rot', key: hk, G, el, els: G.els, multi: G.multi, v0: !el ? 0 : hk === 'ring' ? el.angle : hk === 'tip' ? el.tip || 0 : el.roll || 0, last: ringAngle(G, e), acc: 0, x: e.clientX, y: e.clientY, moved: 0, started: false };
           return;
         }
         const el = !(e.shiftKey && ctrl === 'trackpad') && partAt(e);       // Shift-drag pans, on a trackpad
@@ -1549,10 +1573,9 @@ export const V3D = (() => {
       let mode;
       if (touch) mode = 'orbit';
       else if (ctrl === 'default') mode = e.button === 2 ? (e.ctrlKey ? 'pan' : 'orbit') : e.button === 1 ? 'pan' : 'click';
-      else mode = e.button === 0 ? (e.shiftKey ? 'pan' : 'orbit') : e.button === 1 || e.button === 2 ? 'pan' : null;
-      if (mode === 'orbit' && lockView()) mode = 'pan';                  // sketching: the view moves, it does not turn
+      else mode = e.button === 0 ? (e.altKey ? 'click' : e.shiftKey ? 'pan' : 'orbit') : e.button === 1 || e.button === 2 ? 'pan' : null;
       if (e.button === 1) e.preventDefault();
-      drag = { mode, moved: 0, pivot, button: e.button };
+      drag = { mode, moved: 0, pivot, button: e.button, x0: e.clientX, y0: e.clientY };
     });
     cv.addEventListener('pointerleave', () => { if (R) cubeHover(null); });
     cv.addEventListener('pointermove', e => {
@@ -1561,7 +1584,7 @@ export const V3D = (() => {
         // over a part, or the ring: say what a drag would do
         if (hoverQ || e.pointerType === 'touch') return;
         hoverQ = true;
-        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = lockView() ? null : cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) || fibreAt(e) ? 'pointer' : ''; } });
+        requestAnimationFrame(() => { hoverQ = false; if (drag || !R) return; readVol(e); const cr = cubeRegion(e); cubeHover(cr); if (cr) { cv.style.cursor = 'pointer'; return; } { if (noParts()) { cv.style.cursor = ''; return; } const k = handleAt(e); cv.style.cursor = k === 'lift' ? 'ns-resize' : k === 'x' || k === 'y' ? 'move' : k ? 'grab' : partAt(e) || fibreAt(e) ? 'pointer' : ''; } });
         return;
       }
       const last = P.get(e.pointerId), dx = e.clientX - last.x, dy = e.clientY - last.y;
@@ -1573,7 +1596,7 @@ export const V3D = (() => {
           if (drag.moved < 4 || !drag.p0) return;
           const el = drag.el;
           if (!(el.id === selectedId || extraSel.has(el.id))) { setSelection(groupOf(el)); renderPanel(); }
-          drag.group = selection().filter(x => !x.locked && x.bench === project.tab);
+          drag.group = mateSpread(selection()).filter(x => !x.locked && x.bench === project.tab);
           if (el.locked || !drag.group.includes(el)) { toast(el.name + ' is locked in place'); drag = null; return; }
           checkpoint(); drag.started = true;
           drag.x0 = el.x; drag.y0 = el.y; drag.starts = drag.group.map(g => [g.x, g.y]);
@@ -1606,18 +1629,26 @@ export const V3D = (() => {
         return;
       }
       if (drag.mode === 'lift' || drag.mode === 'axis') {
-        if (!drag.started) { if (drag.moved < 3 || !(drag.L2 > 1e-6)) return; if (drag.el.locked) { toast(drag.el.name + ' is locked in place'); drag = null; return; } checkpoint(); drag.started = true; cv.style.cursor = 'grabbing'; }
-        // how far along the arrow's picture the pointer has gone, in mm; snapped as on the bench
+        if (!drag.started) {
+          if (drag.moved < 3 || !(drag.L2 > 1e-6)) return;
+          if (!dragBody(drag)) { drag = null; return; }
+          checkpoint(); drag.started = true; cv.style.cursor = 'grabbing';
+        }
+        // how far along the arrow's picture the pointer has gone, in mm; snapped as on the bench (one part: where it
+        // lands; several: how far they go)
         const mm = ((e.clientX - drag.x) * drag.vx + (e.clientY - drag.y) * drag.vy) / drag.L2 * 10;
+        let d;
         if (drag.mode === 'lift') {
           const st = e.shiftKey ? 0.1 : project.snap || 0.5;
-          setZ(drag.el, clamp(Math.round((drag.v0 + mm) / st) * st, 0, 2000));
-        } else drag.el[drag.key] = snapVal(drag.v0 + mm, e);
+          d = (drag.el ? clamp(Math.round((drag.v0 + mm) / st) * st, 0, 2000) : Math.round(mm / st) * st) - drag.v0;
+        } else d = (drag.el ? snapVal(drag.v0 + mm, e) : snapVal(mm, e)) - drag.v0;
+        const k = drag.mode === 'lift' ? 2 : drag.key === 'x' ? 0 : 1;
+        drag.body.forEach((g, i) => { const s = drag.starts[i]; if (k === 2) setZ(g, s.p[2] + d); else g[drag.key] = +(s.p[k] + d).toFixed(6); });
         syncPanel(); requestRender();
         return;
       }
       if (drag.mode === 'rot') {
-        if (!drag.started) { if (drag.moved < 3) return; if (drag.el.locked) { toast(drag.el.name + ' is locked in place'); drag = null; return; } checkpoint(); drag.started = true; cv.style.cursor = 'grabbing'; }
+        if (!drag.started) { if (drag.moved < 3) return; if (!dragBody(drag)) { drag = null; return; } checkpoint(); drag.started = true; cv.style.cursor = 'grabbing'; }
         // round the ring from where it was taken hold of; Alt for a tenth as fast, Shift in 15° steps
         const G = drag.G, a = ringAngle(G, e);
         if (a !== null && drag.last !== null) { let d = a - drag.last; d -= 2 * Math.PI * Math.round(d / (2 * Math.PI)); drag.acc += d; }
@@ -1631,14 +1662,25 @@ export const V3D = (() => {
         let v = drag.v0 + drag.acc / deg * (e.altKey ? 0.1 : 1);
         v = e.shiftKey ? Math.round(v / 15) * 15 : e.altKey ? Math.round(v * 1000) / 1000 : Math.round(v * 10) / 10;
         const el = drag.el;
-        if (drag.key === 'ring') el.angle = ((v % 360) + 540) % 360 - 180;
-        else if (drag.key === 'tip') setTip(el, v);
-        else setRoll(el, v);
+        if (!el) poseTurn(drag.body, drag.starts, G.n.toArray(), v, G.c.toArray());          // several: about their middle
+        else {
+          if (drag.key === 'ring') el.angle = ((v % 360) + 540) % 360 - 180;
+          else if (drag.key === 'tip') setTip(el, v);
+          else setRoll(el, v);
+          poseCarry(el, drag.lead0, drag.body.filter(g => g !== el), drag.starts.filter((s, i) => drag.body[i] !== el));
+        }
         syncPanel(); requestRender();
         return;
       }
-      if (drag.mode === 'orbit' && !lockView()) orbit(dx, dy, drag.pivot);
-      else if (drag.mode === 'orbit') pan(dx, dy, drag.pivot);
+      // a drag across empty space: a box, and what it holds selected as it is let go
+      if (drag.mode === 'click' && drag.moved >= 5 && e.pointerType !== 'touch' && !noParts()) drag.mode = 'box';
+      if (drag.mode === 'box') {
+        const sr = D.stage.getBoundingClientRect(), x0 = Math.min(drag.x0, e.clientX), y0 = Math.min(drag.y0, e.clientY);
+        Object.assign(D.box.style, { left: (x0 - sr.left) + 'px', top: (y0 - sr.top) + 'px', width: Math.abs(e.clientX - drag.x0) + 'px', height: Math.abs(e.clientY - drag.y0) + 'px' });
+        D.box.hidden = false;
+        return;
+      }
+      if (drag.mode === 'orbit') orbit(dx, dy, drag.pivot);
       else if (drag.mode === 'pan') pan(dx, dy, drag.pivot);
       else if (drag.mode === 'touch2') {
         const [a, b] = [...P.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -1658,18 +1700,19 @@ export const V3D = (() => {
       if (P.size) { if (d.mode === 'touch2' && P.size === 1) d.mode = 'orbit'; return; }
       drag = null;
       cv.style.cursor = '';
-      if (d.cube) { if (d.moved < 5 && !lockView()) cubeClick(e); return; }
+      if (d.cube) { if (d.moved < 5) cubeClick(e); return; }
+      if (d.mode === 'box') { D.box.hidden = true; boxSelect(d.x0, d.y0, e.clientX, e.clientY, e.shiftKey || e.ctrlKey || e.metaKey); return; }
       if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis' || d.mode === 'fibre') && d.started) { changed(); return; }
       if (d.mode === 'fibre') { setSelFibreId(d.F.id); selectOne(null); renderPanel(); requestRender(); return; }
       if (d.mode === 'lift' || d.mode === 'axis' || d.mode === 'rot') {
         // a handle pressed and let go without a drag, over the part: a click on it, so its handles change over
         const el = d.moved < 5 && partAt(e);
-        if (el && el.id === d.el.id) { gz = { id: el.id, mode: gz.mode === 'rotate' ? 'move' : 'rotate' }; requestRender(); }
+        if (el && (d.multi ? d.els.includes(el) : el.id === d.el.id)) { gz = { id: gz.id, mode: gz.mode === 'rotate' ? 'move' : 'rotate' }; requestRender(); }
         return;
       }
       if (d.mode !== 'grab' && d.mode !== 'rot') keepCam();
       // the right button without a drag: the bench's menu, for the part under it (or the bench)
-      if (noParts()) return;                                              // (the Model tools: no part menu, no selecting)
+      if (noParts()) return;                                              // (picking faces: no part menu, no selecting)
       if (d.moved < 5 && d.button === 2 && e.pointerType !== 'touch') {
         const el = partAt(e), at = plane(e) || [R.target.x, R.target.y];
         benchMenu(e.clientX, e.clientY, el, [snapVal(at[0]), snapVal(at[1])], true);
@@ -1679,9 +1722,10 @@ export const V3D = (() => {
       const click = d.moved < 5 && (d.mode === 'click' || d.mode === 'grab' || (ctrl === 'trackpad' && d.button === 0) || e.pointerType === 'touch');
       if (!click) return;
       const el = d.mode === 'grab' ? d.el : partAt(e);
-      // the one part selected clicked again: from its arrows to its rings, and back
-      if (el && !(e.shiftKey || e.ctrlKey || e.metaKey) && selection().length === 1 && selection()[0].id === el.id) {
-        gz = { id: el.id, mode: gz.id === el.id && gz.mode === 'rotate' ? 'move' : 'rotate' };
+      // the one part selected (or the group) clicked again: from its arrows to its rings, and back
+      const S0 = selection(), G0 = el ? groupOf(el) : [];
+      if (el && !(e.shiftKey || e.ctrlKey || e.metaKey) && S0.length === G0.length && G0.every(x => S0.includes(x))) {
+        gz = { id: gz.id, mode: gz.mode === 'rotate' ? 'move' : 'rotate' };
         requestRender(); return;
       }
       if (el && (e.shiftKey || e.ctrlKey || e.metaKey) && e.pointerType !== 'touch') setSelection(selection().some(x => x.id === el.id) ? selection().filter(x => x.id !== el.id) : selection().concat([el]));
@@ -1710,7 +1754,7 @@ export const V3D = (() => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.code, views = { Digit1: 'front', Digit2: 'back', Digit3: 'left', Digit4: 'right', Digit5: 'top', Digit6: 'bottom', Digit7: 'iso' };
     if (!e.shiftKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); e.stopPropagation(); fit(null, true); return; }
-    if (e.shiftKey && views[k] && !lockView()) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
+    if (e.shiftKey && views[k]) { e.preventDefault(); e.stopPropagation(); view(views[k]); return; }
     if (!e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); e.stopPropagation(); zoomSel(); return; }
     if (e.key === ' ' || e.key === 'm' || e.key === 'M') { e.preventDefault(); e.stopPropagation(); }
   }
@@ -1880,12 +1924,12 @@ export const V3D = (() => {
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox, fieldReady,
-    // the view's own tool (ui/model3d.js), and what it adds to the bar (kept until the bar is made)
-    setTool(t) { tool = t || null; if (R) R.selKey = null; if (!tool) { hintText(); if (R) setFlat(false); } need0(); },
+    // the view's own tool (ui/mate3d.js)
+    setTool(t) { tool = t || null; if (R) R.selKey = null; hintText(); need0(); },
     tool: () => tool,
     // what a tool of the view's own works with: three.js, the renderer's scene and camera, the page's canvas and hint, picking,
     // and the camera moved (null until the view has opened)
-    kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, setFlat, inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
+    kit: () => (T && R && D ? { T, R, D, pick, ndc, need, go, sync, BEAM_H, PITCH, keepCam, partObj: id => (R ? R.groups.parts.children.find(q => q.userData.id === id) || null : null), inCube: e => inCube(ndc(e)), hint: () => { hintText(); D.hint.classList.remove('faded'); } } : null),
     // a bench opened in 3D (a link made there), from a camera if given
     open(cam) { st.set(project.tab, Object.assign(st.get(project.tab) || {}, cam ? { cam } : {})); if (R) R.camTab = null; return setOn(true); },
     free: el => shown3(el),
@@ -1923,6 +1967,8 @@ export const V3D = (() => {
       sync: () => { if (R) sync(); },
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },
       view: name => { if (R) sync(); fit(name, false); return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
+      // a box dragged across the canvas (css px from its top left): what it selects, by name
+      boxSelect(x0, y0, x1, y1, add) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); boxSelect(b.left + x0, b.top + y0, b.left + x1, b.top + y1, add); return selection().map(e => e.name); },
       // the part a canvas point lands on, the canvas measured in css px from its top left
       fibreAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const F = fibreAt({ clientX: b.left + px, clientY: b.top + py }); return F ? F.id : null; },
       pickAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(); const hit = pick({ clientX: b.left + px, clientY: b.top + py }, true); return hit ? (getEl(hit.object.userData.id) || {}).name || null : null; },

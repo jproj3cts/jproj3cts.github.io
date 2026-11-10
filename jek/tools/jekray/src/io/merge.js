@@ -1,6 +1,6 @@
 /* ---------- Comparing and merging benches ----------
    A saved bench is a few bench-wide settings and some lists keyed by id: elements, fibres, the
-   tabs (benches), the parts it carries (library). Two versions are compared item by item and
+   tabs (benches), the parts it carries (library), the mates holding parts together. Two versions are compared item by item and
    field by field; three (a common base and the two sides that grew from it) merge the git way:
    a change on one side goes in, the same change on both goes in once, and a different change
    to the same field (or one side changing what the other removed) is a conflict to be chosen.
@@ -8,8 +8,31 @@
 
 /* the lists keyed by id, and the settings compared whole; the rest (format, version, saved,
    the name) is left to the bench the merge lands in */
-const KEYED = ['elements', 'fibres', 'benches', 'library'];
+const KEYED = ['elements', 'fibres', 'benches', 'library', 'mates'];
 const SETTINGS = ['view', 'snap', 'maxBounces', 'minPower', 'ghosts', 'light', 'cavityLock', 'notes', 'labelMm', 'style', 'tab', 'measures', 'mods'];
+/* A JEKfilm coating (format 'jekfilm') is its design settings (spec) and its layers, from the outside in, which have no
+   ids: compared, each setting by its name and each layer by its place; merged, the settings one by one and the layer
+   stack whole (two sides' layers put together by place would make a stack neither designed). */
+const FILM_SETTINGS = ['target', 'sub', 'n0', 'lo', 'hi', 'design', 'angles', 'theta0', 'theta', 'pol', 'R', 'edge', 'passBelow'];
+export const FILM_SETTING_NAMES = { target: 'target', sub: 'substrate', n0: 'incident medium n', lo: 'band from (nm)', hi: 'band to (nm)', design: 'reference λ₀ (nm)',
+  angles: 'angles', theta0: 'angles from (°)', theta: 'angles to (°)', pol: 'polarisation', R: 'reflectance wanted (%)', edge: 'edge (nm)', passBelow: 'passes below the edge', layers: 'the layers' };
+const isFilm = p => !!p && p.format === 'jekfilm';
+/* a coating's settings as top-level keys, and its layers keyed by place, for comparing */
+function filmFlat(p, keyedLayers) {
+  const out = {}, s = (p && p.spec) || {};
+  for (const k of FILM_SETTINGS) if (s[k] !== undefined) out[k] = copy(s[k]);
+  const L = Array.isArray(p && p.layers) ? p.layers : [];
+  if (keyedLayers) out.layers = L.map((x, i) => Object.assign({ id: String(i + 1) }, copy(x)));
+  else out.layers = copy(L);
+  return out;
+}
+function filmBack(flat, into) {
+  const out = copy(into) || {};
+  out.spec = Object.assign({}, out.spec || {});
+  for (const k of FILM_SETTINGS) { if (flat[k] === undefined) delete out.spec[k]; else out.spec[k] = copy(flat[k]); }
+  out.layers = copy(flat.layers) || [];
+  return out;
+}
 const same = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
 const copy = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
 const listOf = (p, k) => Array.isArray(p && p[k]) ? p[k].filter(e => e && typeof e === 'object' && typeof e.id === 'string') : [];
@@ -21,9 +44,11 @@ export function itemLabel(kind, e) {
   if (kind === 'fibres') return (e.wire ? 'wire ' : 'fibre ') + (Array.isArray(e.a) ? e.a[0] : '?') + ' to ' + (Array.isArray(e.b) ? e.b[0] : '?');
   if (kind === 'benches') return 'tab “' + (e.name || e.id) + '”';
   if (kind === 'library') return 'part “' + (e.name || e.id) + '”';
+  if (kind === 'mates') return (e.type || 'mate') + ' ' + (e.a && e.a.el || '?') + ' to ' + (e.b && e.b.el || '?');
+  if (kind === 'layers') return e.id;
   return e.id;
 }
-export const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', settings: 'setting' };
+export const KIND_WORD = { elements: 'element', fibres: 'fibre', benches: 'tab', library: 'part', mates: 'mate', layers: 'layer', settings: 'setting' };
 /* a value as a person reads it */
 export function showValue(v) {
   if (v === undefined || v === null) return 'none';
@@ -46,6 +71,15 @@ function fieldDiff(a, b) {
    from a to b: for each keyed list, the items added, removed and changed (with their fields);
    and the settings that differ. `count` is the number of changes in all. */
 export function diffProject(a, b) {
+  if (isFilm(a) || isFilm(b)) {
+    // a coating: its settings by name, its layers by place
+    const d = diffWith(filmFlat(a, true), filmFlat(b, true), ['layers'], FILM_SETTINGS);
+    for (const s of d.settings) s.key = FILM_SETTING_NAMES[s.key] || s.key;
+    return d;
+  }
+  return diffWith(a, b, KEYED, SETTINGS);
+}
+function diffWith(a, b, KEYED, SETTINGS) {
   const out = { items: [], settings: [], count: 0 };
   for (const kind of KEYED) {
     const A = mapOf(a, kind), B = mapOf(b, kind);
@@ -67,6 +101,15 @@ export function diffProject(a, b) {
    changed it; or both added an item of that id, differently). `taken` counts what went in from
    each side. Call resolve() with the choices made to get the bench. */
 export function merge3(base, target, source) {
+  if (isFilm(target) || isFilm(source)) {
+    // a coating: its settings one by one and its layers whole, then put back as a coating (target's name and the rest)
+    const m = mergeWith(filmFlat(base), filmFlat(target), filmFlat(source), [], FILM_SETTINGS.concat(['layers']));
+    for (const c of m.conflicts) c.label = FILM_SETTING_NAMES[c.key] || c.key;
+    return Object.assign(m, { film: copy(target) });
+  }
+  return mergeWith(base, target, source, KEYED, SETTINGS);
+}
+function mergeWith(base, target, source, KEYED, SETTINGS) {
   const conflicts = [], taken = { target: 0, source: 0, both: 0 };
   const result = copy(target) || {};
   for (const kind of KEYED) {
@@ -130,5 +173,5 @@ export function resolve(merge) {
     if (v) { if (at >= 0) list[at] = copy(v); else list.push(copy(v)); }
     else if (at >= 0) list.splice(at, 1);
   }
-  return out;
+  return merge.film ? filmBack(out, merge.film) : out;
 }

@@ -1,5 +1,5 @@
 # The checks a change must pass before it reaches main: the JEKray page is built from its sources and
-# current, the docs tables and AI guide are the tool's own, the Node tests, the browser suite, JEKion's build and suites, and the API's tests.
+# current, the docs tables and AI guide are the tool's own, the Node tests, the browser suite, JEKion's, JEKfilm's and JEKcad's builds and suites, and the API's tests.
 name: tests
 
 on:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   jekray:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 30
     defaults:
       run:
@@ -44,7 +44,7 @@ jobs:
         run: node test/run.mjs --full
 
   jekion:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 30
     defaults:
       run:
@@ -63,12 +63,12 @@ jobs:
       - name: Node tests and the browser suite
         run: node test/run.mjs
 
-  jekspace:
-    runs-on: ubuntu-latest
+  jeksuite:
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: jek/tools/jekspace
+        working-directory: jek/tools/jeksuite
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,6 +81,46 @@ jobs:
           npm i --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium
       - name: Node tests and the browser check
+        run: node test/run.mjs
+
+  jekfilm:
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: jek/tools/jekfilm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The page is built from its sources (and JEKray's shared modules)
+        run: node build.mjs --check
+      - name: Playwright for the browser check
+        run: |
+          npm i --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Node tests and the browser check
+        run: node test/run.mjs
+
+  jekcad:
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: jek/tools/jekcad
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The page is built from its sources (and JEKray's shared modules)
+        run: node build.mjs --check
+      - name: Playwright for the browser check
+        run: |
+          npm i --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Node tests (the kernel on the vendored OpenCascade) and the browser suite
         run: node test/run.mjs
 
   jek-api:

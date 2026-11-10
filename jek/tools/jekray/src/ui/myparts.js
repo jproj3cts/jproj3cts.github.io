@@ -106,7 +106,7 @@ export async function saveToMine(list, opts) {
     const p = await api('/v1/workspaces/' + w.id + '/parts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: (name || '').trim() || undefined, summary: asm ? (asm.kind === 'rf' ? 'RF design, ' : 'Optical design, ') + list.length + (one ? ' part' : ' parts') : one ? typeLabel(list[0]) : list.length + ' parts', palette: palOf(list[0]), content, icon }) });
     if (w.kind === 'personal') { if (MINE.list) MINE.list.push(p); mineChanged(); }
-    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on JEKspace (My benches), under ' + w.name + ' › Team parts');
+    toast(w.kind === 'personal' ? 'Kept “' + p.name + '” in My parts: find it under + Add part' : 'Kept “' + p.name + '” in ' + w.name + '’s parts: find it on JEKsuite (My benches), under ' + w.name + ' › Team parts');
     return p;
   } catch (err) {
     if (err.status === 402) { showSubscribe(); return; }

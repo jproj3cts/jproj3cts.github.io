@@ -6,6 +6,8 @@ import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { V, extraSel, project, selectOne, typeLabel } from '../state/project.js';
 import { getEl, selected, NET_3D } from '../state/elements.js';
+import { mateFollow, mateHold, matesOf } from '../core/mates.js';
+import { matesPanel } from './mate3d.js';
 import { tippable } from '../engines/trace.js';
 import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './render.js';
 import { drawBarShown } from './drawings.js';
@@ -132,7 +134,7 @@ const sweepOpen = new Set();
 function paramBits(label, el, path, opts, id) {
   const sweeps = el.sweeps || (el.sweeps = {});
   const sw = sweeps[path], key = sweepKey(el, path), open = !!sw && sweepOpen.has(key);
-  const inp = numInput(id, () => getPath(el, path), v => { pause(el, path); setParam(el, path, v); }, opts);
+  const inp = numInput(id, () => getPath(el, path), v => { const H = opts.carry ? mateHold(el) : null; pause(el, path); setParam(el, path, v); mateFollow(H); }, opts);
   inp.dataset.path = path;                      // which setting it is (an exercise lets only some be changed: ui/challenge.js)
   const name = label.replace(/\s*\(.*\)$/, '');
   const tip = sw ? (open ? 'Fold the sweep of ' : 'Edit the sweep of ') + name : 'Sweep ' + name + ' over a range';
@@ -671,8 +673,9 @@ function renderPanelBody(el) {
   // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
   const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
-  const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw }, pc);
-  const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw }, ac);
+  // (typed, what is mated to it goes with it)
+  const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw, carry: true }, pc);
+  const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw, carry: true }, ac);
   if (hasZ) pc[2].title = 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise; light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.';
   if (tips) {
     const [, tc, rc] = ac;
@@ -692,6 +695,7 @@ function renderPanelBody(el) {
   if (el.mod) modPanel(el);                                                                   // a mod's part
   // the part's own sections (a horn's stand in for a source's or a detector's; a mod's for its part's)
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
+  if (matesOf(el).length) matesPanel(el);                                                    // its mates (ui/mate3d.js)
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },

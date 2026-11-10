@@ -259,7 +259,15 @@ async function cloudThumb(link, force) {
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
-  if (meta.tool === 'jekray') { const w = window.open(JEKRAY_URL + '#cloud=' + id + (version ? '@' + version : ''), 'jekray'); if (w) w.focus(); toast('“' + meta.name + '” is a JEKray bench: opened in JEKray'); return; }
+  // another app's, by its mark or its content (a coating or part studio saved by an API from before its app is marked JEKray's)
+  const fmt = (() => { try { return JSON.parse(b.content).format; } catch (err) { return null; } })();
+  const tool = fmt === 'jekfilm' || fmt === 'jekcad' ? fmt : meta.tool;
+  if (tool !== 'jekion') {
+    const app = tool === 'jekfilm' ? { url: '/jek/tools/jekfilm.html', tab: 'jekfilm', what: 'a JEKfilm coating', name: 'JEKfilm' }
+      : tool === 'jekcad' ? { url: '/jek/tools/jekcad.html', tab: 'jekcad', what: 'a JEKcad part studio', name: 'JEKcad' }
+      : { url: JEKRAY_URL, tab: 'jekray', what: 'a JEKray bench', name: 'JEKray' };
+    const w = window.open(app.url + '#cloud=' + id + (version ? '@' + version : ''), app.tab); if (w) w.focus(); toast('“' + meta.name + '” is ' + app.what + ': opened in ' + app.name); return;
+  }
   setCloudOpening(true);
   try { if (!openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud')) return; }
   finally { setCloudOpening(false); }
@@ -285,15 +293,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKspace (jek/tools/jekspace.html), the JEK hub: places and
+   The home of every bench, JEKion's with JEKray's, is JEKsuite (jek/tools/jeksuite.html), the JEK hub: places and
    folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
    links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
    each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
-const SPACE_URL = '/jek/tools/jekspace.html';
+const SPACE_URL = '/jek/tools/jeksuite.html';
 export function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
   track('view', 'ion-benches');
-  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
+  const w = window.open(SPACE_URL, 'jeksuite'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 export function cloudGates() {

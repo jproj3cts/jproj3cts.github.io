@@ -1,0 +1,107 @@
+---
+# processed by Jekyll for the shared nav (_includes/site-nav.html) and the jek.css stamp (css_v in _config.yml)
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEKcad, parametric CAD | JEK Systems</title>
+<meta name="description" content="A parametric Part Studio in your browser: sketches with constraints and dimensions, a feature list you can roll back and edit, and solids made by OpenCascade, with STEP in and out.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="JEKcad, parametric CAD">
+<meta property="og:description" content="A parametric Part Studio in your browser: sketches with constraints and dimensions, a feature list you can roll back and edit, and solids made by OpenCascade, with STEP in and out.">
+<meta property="og:url" content="https://jeksys.net/jek/products/design-software/jekcad/">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
+<style>
+  .jek-hero .jek-wrap { align-items: start; }
+  .cad-plans { width: 100%; max-width: 46rem; border-collapse: collapse; font-size: 0.95rem; }
+  .cad-plans th, .cad-plans td { text-align: left; padding: 0.55rem 0.8rem 0.55rem 0; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
+  .cad-plans thead th { font-size: 0.8rem; color: var(--jek-ink-soft); font-weight: 600; border-bottom-width: 2px; }
+  .cad-plans td:last-child { white-space: nowrap; }
+  .cad-checks { margin: 0.6rem 0 0; padding-left: 1.1rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
+  .cad-checks li + li { margin-top: 0.35rem; }
+</style>
+</head>
+
+<body>
+
+{% include site-nav.html %}
+
+  <main class="main-content jek-flush">
+
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <h1>JEKcad, parametric CAD</h1>
+          <p class="jek-lede">A Part Studio in your browser. Sketch on a plane or a face, constrain and dimension it, and build solids from a feature list you can roll back and edit. The solids are made by Open CASCADE Technology, running on your computer.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/tools/jekcad.html">Open JEKcad</a>
+            <a href="/jek/docs/jekcad/">Documentation</a>
+          </div>
+          <div class="jek-facts"><span>Runs in your browser</span><span>In development</span></div>
+        </div>
+        <figure class="jek-shot cover">
+          <img src="img/plate.png" alt="JEKcad with a lens mount plate: the feature list on the left (two sketches, the plate's extrude, corner fillets, four counterbored holes, a boss and a one-inch bore), the part in aluminium, and the view cube" width="2560" height="1520">
+          <figcaption>An 80 × 50 mm mount plate for a one-inch optic in eight features. Its width is the variable #width; change it and every feature follows.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="jek-section" style="padding-top: 0">
+      <div class="jek-wrap">
+        <div class="jek-feature">
+          <div><h2>Sketches</h2><p>Lines, rectangles, circles, arcs, slots, polygons and points, with the usual constraints inferred as you draw: coincident, horizontal, vertical, tangent, perpendicular, midpoint. Add the others from the sketch bar, and type each dimension where it sits. A dimension can be a number with a unit, an expression, or a variable such as <code>#width * 5 / 8</code>.</p><p>Shapes still free to move are blue; once fully defined they turn to ink. Drag what is free and the sketch solves as it moves.</p><p><a href="/jek/docs/jekcad/sketching/">Sketching &rarr;</a></p></div>
+          <figure class="jek-shot"><img src="img/sketch.png" alt="The plate's outline sketch: a rectangle centred on the origin by a construction diagonal, its sides dimensioned as #width and #width × 5/8, every shape fully defined" loading="lazy" width="2560" height="1520"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>Features</h2><p>Extrude, revolve, sweep and loft, as new parts or added to, cut from or intersected with others. Fillet, chamfer, shell, and holes with counterbores or countersinks. Linear and circular patterns, mirrors, booleans and offset planes.</p><p>A feature's dialog shows its result over the model as you change it, green where it adds and red where it cuts. Faces and edges keep their names when the model changes, so an edit lower in the list carries through to the fillets and holes above it.</p><p><a href="/jek/docs/jekcad/features/">Features &rarr;</a></p></div>
+          <figure class="jek-shot"><img src="img/hole.png" alt="The Hole feature edited: counterbores of 4.5 mm through, 8 mm across and 4.4 mm deep at the four points of a sketch, their cutters shown in red through the plate" loading="lazy" width="2560" height="1520"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>Checked against</h2><ul class="cad-checks">
+            <li>A 40 × 20 × 10 mm block is 8000 mm³, and a 2 mm fillet on one edge takes (4 &minus; &pi;) × 10 mm³ from it.</li>
+            <li>Counterbored, countersunk and blind holes with a 118° tip remove the volumes worked out by hand, to 10<sup>&minus;6</sup> mm³.</li>
+            <li>A frustum lofted between squares of 20 and 10 mm, 10 mm apart, is (h/3)(A<sub>1</sub> + A<sub>2</sub> + &radic;(A<sub>1</sub>A<sub>2</sub>)).</li>
+            <li>A part written as STEP and read back has the same volume, and a part's mass is its volume times its material's density.</li>
+          </ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section jek-band" id="plans">
+      <div class="jek-wrap">
+        <h2>Plans</h2>
+        <p>JEKcad shares JEKray&rsquo;s accounts: one sign-in for every JEK app, and a JEKrayPro subscription covers JEKcad too.</p>
+        <table class="cad-plans">
+          <thead><tr><th scope="col">What you do</th><th scope="col">What it needs</th></tr></thead>
+          <tbody>
+            <tr><td>Model parts; save and open .jekcad files; import STEP</td><td>Nothing</td></tr>
+            <tr><td>Export parts as STEP or STL</td><td>A free account</td></tr>
+            <tr><td>Keep part studios in the cloud, with their history, beside your benches on JEKsuite</td><td><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro</a></td></tr>
+          </tbody>
+        </table>
+        <div class="jek-acts" style="margin-top: 1.2rem"><a class="jek-btn primary" href="/jek/tools/jekcad.html">Open JEKcad</a></div>
+      </div>
+    </section>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+</body>
+</html>

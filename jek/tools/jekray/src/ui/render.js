@@ -32,7 +32,7 @@ import { drawPop } from './heavy.js';
 import { drawCloseup } from './closeup.js';
 import { changed, drawMeasures, drawMinimap } from './actions.js';
 import { checkpoint } from './tabs.js';
-import { cssColour } from '../io/layout.js';
+import { cssColour } from '../io/pdf.js';
 import { scheduleSave } from '../io/autosave.js';
 import { updateEmpty } from './tours.js';
 import { TW, traceLater } from '../page/workers.js';

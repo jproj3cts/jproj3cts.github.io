@@ -131,3 +131,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-shareurl { width: 100%; box-sizing: border-box; font: 0.85rem var(--jek-mono); padding: 0.45rem; margin: 0.3rem 0 0.4rem; }
 .film-tolset label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
 .film-tolset .rt-lnum { width: 4.5rem; }
+.film-exgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.6rem 0; }
+.film-ex { display: flex; flex-direction: column; gap: 0.2rem; text-align: left; padding: 0.6rem 0.75rem; font: inherit; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; }
+.film-ex:hover, .film-ex:focus-visible { border-color: var(--jek-orange); outline: none; }
+.film-ex small { font-size: 0.78rem; color: var(--jek-ink-soft); line-height: 1.4; }
+@media (max-width: 560px) { .film-exgrid { grid-template-columns: 1fr; } }

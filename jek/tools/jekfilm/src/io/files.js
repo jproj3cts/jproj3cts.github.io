@@ -106,7 +106,37 @@ function keptDialog() {
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
   dlg.showModal();
 }
+/* the examples, jek/tools/demos/<slug>.jekfilm: each opened as a new coating here, linked to nothing */
+export const FILM_EXAMPLES = [
+  ['vcoat-1064', 'V-coat, 1064 nm', 'Two layers on fused silica: nothing reflected at one laser line (0.002% across 1054–1074 nm).'],
+  ['bbar-visible', 'Broadband AR, 420–680 nm', 'Five layers on N-BK7 from a needle search: 0.13% mean square on and 0.20% at 30°, against 4.2% bare.'],
+  ['hr-1064', 'HR mirror, 1064 nm', 'Twenty-one quarter waves of Ta2O5 and SiO2: 99.9% reflected over 1030–1100 nm.'],
+  ['longpass-600', 'Long-pass edge, 600 nm', 'Seventeen layers on N-BK7: blue and green reflected, red passed.'],
+  ['splitter-45', 'Plate beam splitter, 45°', 'Three layers on fused silica for s light: 47–53% reflected from 40° to 50° over 1030–1100 nm.'],
+  ['protected-silver', 'Protected silver', 'Silver under a half-wave of SiO2: 98.9% mean reflected from 450 to 1100 nm, out to 45°.'],
+];
+export async function openFilmExample(slug) {
+  try {
+    if (!FILM_EXAMPLES.some(e => e[0] === slug)) throw new Error('there is no example by that name');
+    const res = await fetch('demos/' + slug + '.jekfilm');
+    if (!res.ok) throw new Error('that example could not be fetched');
+    const d = await res.json();
+    if (!openFilmData(d)) return false;
+    hooks.filmUnlink(); filmAutosave(); track('example', 'film-' + slug);
+    toast('Opened the example “' + d.name + '”. Undo brings yours back.');
+    return true;
+  } catch (err) { toast('Could not open the example: ' + err.message, true); return false; }
+}
+function examplesDialog() {
+  let dlg = document.getElementById('filmExamples');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog rt-wide', id: 'filmExamples', 'aria-labelledby': 'filmExamplesTitle' }); document.body.append(dlg); }
+  dlg.replaceChildren(h('h2', { id: 'filmExamplesTitle' }, 'Examples'),
+    h('div', { class: 'film-exgrid' }, ...FILM_EXAMPLES.map(([slug, name, line]) => h('button', { type: 'button', class: 'film-ex', 'data-ex': slug, onclick: () => { dlg.close(); openFilmExample(slug); } }, h('b', null, name), h('small', null, line)))),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
+  dlg.showModal();
+}
 export function wireFiles() {
+  document.getElementById('btnExamples').addEventListener('click', examplesDialog);
   document.getElementById('btnKept').addEventListener('click', keptDialog);
   keptShown();
   const fi = document.getElementById('fileFilm');

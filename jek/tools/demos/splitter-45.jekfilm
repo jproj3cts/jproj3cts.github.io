@@ -1,0 +1,42 @@
+{
+  "format": "jekfilm",
+  "version": 1,
+  "name": "Plate beam splitter, 45\u00b0, s",
+  "spec": {
+    "target": "split",
+    "sub": {
+      "glass": "Fused silica"
+    },
+    "n0": 1,
+    "lo": 1030,
+    "hi": 1100,
+    "design": 1064,
+    "angles": "band",
+    "theta0": 40,
+    "theta": 50,
+    "pol": "s",
+    "R": 50,
+    "edge": 1064,
+    "passBelow": true
+  },
+  "layers": [
+    {
+      "n": 2.1,
+      "d": 150.89
+    },
+    {
+      "n": 1.46,
+      "d": 185.22
+    },
+    {
+      "n": 2.1,
+      "d": 49.4
+    }
+  ],
+  "tol": {
+    "kind": "rel",
+    "sigma": 1,
+    "runs": 200,
+    "seed": 1
+  }
+}

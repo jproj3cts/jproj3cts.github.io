@@ -26,6 +26,18 @@
   .film-plans td:last-child { white-space: nowrap; }
   .film-checks { margin: 0.6rem 0 0; padding-left: 1.1rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
   .film-checks li + li { margin-top: 0.35rem; }
+  /* the examples: one grid, each card a plot from the example and what it shows */
+  .film-examples > p { margin: 0 0 0.9rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
+  .film-example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; }
+  @media (max-width: 760px) { .film-example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 480px) { .film-example-grid { grid-template-columns: 1fr; } }
+  .film-example { display: flex; flex-direction: column; overflow: hidden; color: inherit; text-decoration: none; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
+  .film-example:hover { border-color: var(--jek-orange); text-decoration: none; }
+  .film-example:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .film-example img { display: block; width: 100%; aspect-ratio: 902 / 566; object-fit: cover; background: #fff; }
+  .film-example-body { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.75rem 0.75rem; flex: 1; }
+  .film-example h3 { margin: 0; font-size: 0.95rem; color: var(--jek-ink); }
+  .film-example p { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
 </style>
 </head>
 
@@ -42,6 +54,7 @@
           <p class="jek-lede">A thin-film stack on a substrate, judged over a band of wavelengths and a range of angles, with its thicknesses optimised. It uses the thin-film model JEKray traces with, so a coating designed here behaves the same on a JEKray bench.</p>
           <div class="jek-acts">
             <a class="jek-btn primary" href="/jek/tools/jekfilm.html">Open JEKfilm</a>
+            <a class="jek-btn quiet" href="#examples">Open an example</a>
             <a href="/jek/docs/jekray/jekfilm/">Documentation</a>
           </div>
           <div class="jek-facts"><span>Runs in your browser</span><span>Free to design in</span></div>
@@ -74,7 +87,22 @@
       </div>
     </section>
 
-    <section class="jek-section jek-band" id="plans">
+    <section class="jek-section jek-band" id="examples" style="padding-block: 1.8rem 2rem">
+      <div class="jek-wrap film-examples">
+        <h2 style="margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
+        <p>Each opens in JEKfilm. The plots show each one&rsquo;s reflectance across its band.</p>
+        <div class="film-example-grid">
+          <a class="film-example" href="/jek/tools/jekfilm.html?demo=vcoat-1064"><img src="img/ex-vcoat-1064.png" alt="" loading="lazy"><div class="film-example-body"><h3>V-coat, 1064 nm</h3><p>Two layers on fused silica: 0.002% reflected across 1054–1074 nm.</p></div></a>
+          <a class="film-example" href="/jek/tools/jekfilm.html?demo=bbar-visible"><img src="img/ex-bbar-visible.png" alt="" loading="lazy"><div class="film-example-body"><h3>Broadband AR, 420–680 nm</h3><p>Five layers on N-BK7 from a needle search: 0.13% mean square on, 0.20% at 30°.</p></div></a>
+          <a class="film-example" href="/jek/tools/jekfilm.html?demo=hr-1064"><img src="img/ex-hr-1064.png" alt="" loading="lazy"><div class="film-example-body"><h3>HR mirror, 1064 nm</h3><p>Twenty-one quarter waves of Ta<sub>2</sub>O<sub>5</sub> and SiO<sub>2</sub>: 99.9% reflected over 1030–1100 nm.</p></div></a>
+          <a class="film-example" href="/jek/tools/jekfilm.html?demo=longpass-600"><img src="img/ex-longpass-600.png" alt="" loading="lazy"><div class="film-example-body"><h3>Long-pass edge, 600 nm</h3><p>Seventeen layers on N-BK7: blue and green reflected, red passed.</p></div></a>
+          <a class="film-example" href="/jek/tools/jekfilm.html?demo=splitter-45"><img src="img/ex-splitter-45.png" alt="" loading="lazy"><div class="film-example-body"><h3>Plate beam splitter, 45°</h3><p>Three layers on fused silica for s light: 47–53% reflected from 40° to 50°.</p></div></a>
+          <a class="film-example" href="/jek/tools/jekfilm.html?demo=protected-silver"><img src="img/ex-protected-silver.png" alt="" loading="lazy"><div class="film-example-body"><h3>Protected silver</h3><p>Silver under a half-wave of SiO<sub>2</sub>: 98.9% mean reflected from 450 to 1100 nm, out to 45°.</p></div></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section" id="plans">
       <div class="jek-wrap">
         <h2>Plans</h2>
         <p>JEKfilm shares JEKray&rsquo;s accounts: one sign-in for every JEK app, and a JEKrayPro subscription covers JEKfilm too.</p>

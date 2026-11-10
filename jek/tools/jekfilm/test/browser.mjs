@@ -51,6 +51,11 @@ export async function check(pw, base, shots) {
       await p.evaluate(c => window.JEKfilm.load(c), COATING);
       const l = await p.evaluate(() => ({ name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, fig: document.getElementById('filmAngleFigures').innerText, heads: [...document.querySelectorAll('#filmFigures thead th')].map(t => t.textContent), csv: window.JEKfilm.csv().split('\r\n').slice(0, 2) }));
       ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /At λ₀ = 1064 nm/.test(l.fig) && l.heads.join('|') === 'Angle|R mean (%)|R max (%)|R min (%)' && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
+      await p.click('#btnFile'); await p.click('#btnExamples'); await p.waitForTimeout(100);
+      const exs = await p.evaluate(() => [...document.querySelectorAll('#filmExamples .film-ex')].map(b => b.dataset.ex));
+      await p.click('#filmExamples [data-ex="hr-1064"]'); await p.waitForFunction(() => window.JEKfilm.film().name === 'HR mirror, 1064 nm', null, { timeout: 5000 }).catch(() => {});
+      const hr = await p.evaluate(() => window.JEKfilm.film().layers.length);
+      ok('File › Open an example…: six examples; one opens as a coating', exs.length === 6 && hr === 21, JSON.stringify([exs, hr]));
       // renamed in the bar
       await p.fill('#filmName', 'V-coat, fused silica'); await p.press('#filmName', 'Enter'); await p.waitForTimeout(100);
       ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | JEKfilm'), 'not renamed');

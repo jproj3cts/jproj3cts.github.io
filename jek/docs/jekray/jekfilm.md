@@ -9,6 +9,8 @@ description: "JEKfilm, the JEK coating designer: a thin-film stack on a substrat
 
 Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [JEKsuite](/jek/docs/jekray/jeksuite/) (**New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list), or from JEKray: **Tools › Coating design in JEKfilm…**, or a face's **Design a coating in JEKfilm…**. It opens in a tab of its own, reused each time.
 
+**File › Open an example…** opens one of six coatings to start from: a V-coat for 1064 nm, a broadband AR over 420–680 nm, a 1064 nm HR mirror, a long-pass edge at 600 nm, a 45° plate beam splitter and protected silver. A link to `jekfilm.html?demo=hr-1064` (or any of `vcoat-1064`, `bbar-visible`, `longpass-600`, `splitter-45`, `protected-silver`) opens one directly.
+
 ## The design
 
 The **Design** table on the left says what the stack is for and the light it is judged in:

@@ -1,0 +1,50 @@
+{
+  "format": "jekfilm",
+  "version": 1,
+  "name": "Broadband AR, 420\u2013680 nm",
+  "spec": {
+    "target": "ar",
+    "sub": {
+      "glass": "N-BK7"
+    },
+    "n0": 1,
+    "lo": 420,
+    "hi": 680,
+    "design": 550,
+    "angles": "upto",
+    "theta0": 0,
+    "theta": 30,
+    "pol": "avg",
+    "R": 50,
+    "edge": 550,
+    "passBelow": true
+  },
+  "layers": [
+    {
+      "n": 1.38,
+      "d": 104.98
+    },
+    {
+      "n": 2.1,
+      "d": 43.65
+    },
+    {
+      "n": 1.63,
+      "d": 24.93
+    },
+    {
+      "n": 2.1,
+      "d": 42.07
+    },
+    {
+      "n": 1.63,
+      "d": 88.87
+    }
+  ],
+  "tol": {
+    "kind": "rel",
+    "sigma": 1,
+    "runs": 200,
+    "seed": 1
+  }
+}

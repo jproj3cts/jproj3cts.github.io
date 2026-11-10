@@ -129,3 +129,22 @@ test('tolerancing: no error gives the nominal coating; an error spreads it, the 
   assert.deepEqual(T.normTol({ sigma: -3, runs: 5, kind: 'x' }), { kind: 'rel', sigma: 0, runs: 10, seed: 1 });
   assert.deepEqual(F.normFilm({}).tol, T.TOL_DEFAULT);
 });
+test('the examples are what their descriptions say', async () => {
+  const fs = await import('node:fs');
+  const { FILM_EXAMPLES } = await import('../../src/io/files.js');
+  const CD = await import('../../../jekray/src/core/coatdesign.js');
+  const load = slug => F.normFilm(JSON.parse(fs.readFileSync(new URL('../../../demos/' + slug + '.jekfilm', import.meta.url), 'utf8')));
+  const S = f => CD.coatSummary(f.layers, F.filmSpec(f)), pc = v => 100 * v;
+  assert.deepEqual(FILM_EXAMPLES.map(e => e[0]), ['vcoat-1064', 'bbar-visible', 'hr-1064', 'longpass-600', 'splitter-45', 'protected-silver']);
+  for (const [slug, name] of FILM_EXAMPLES) assert.equal(load(slug).name.replace(', s', ''), name.replace(', s', ''), slug);
+  let s = S(load('vcoat-1064')); assert.ok(pc(s.worst) < 0.01 && load('vcoat-1064').layers.length === 2, 'V-coat');
+  s = S(load('bbar-visible')); assert.ok(Math.abs(pc(s.mean) - 0.13) < 0.01 && Math.abs(pc(s.meanAt) - 0.20) < 0.01 && load('bbar-visible').layers.length === 5, 'BBAR ' + pc(s.mean) + ' ' + pc(s.meanAt));
+  s = S(load('hr-1064')); assert.ok(Math.round(pc(s.mean) * 10) / 10 >= 99.9 && load('hr-1064').layers.length === 21, 'HR');
+  const lp = load('longpass-600'), sp = F.filmSpec(lp), R = nm => pc(stackR(lp.layers, 1, sp.ns, 1, nm, 'avg'));
+  for (const nm of [460, 500, 540]) assert.ok(R(nm) > 90, 'long-pass reflects ' + nm + ' nm: ' + R(nm));
+  for (const nm of [650, 700, 740]) assert.ok(R(nm) < 10, 'long-pass passes ' + nm + ' nm: ' + R(nm));
+  assert.equal(lp.layers.length, 17);
+  const sp45 = load('splitter-45'), c = CD.coatCurve(sp45.layers, F.filmSpec(sp45), 40), d = CD.coatCurve(sp45.layers, F.filmSpec(sp45), 50);
+  assert.ok([...c.R, ...d.R].every(v => v >= 0.45 && v <= 0.55), 'splitter: 45–55% at 40° and 50°');
+  s = S(load('protected-silver')); assert.ok(Math.abs(pc(s.mean) - 98.9) < 0.05, 'protected silver ' + pc(s.mean));
+});

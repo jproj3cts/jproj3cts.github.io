@@ -1,0 +1,39 @@
+{
+  "format": "jekfilm",
+  "version": 1,
+  "name": "Protected silver",
+  "spec": {
+    "target": "hr",
+    "sub": {
+      "glass": "N-BK7"
+    },
+    "n0": 1,
+    "lo": 450,
+    "hi": 1100,
+    "design": 633,
+    "angles": "upto",
+    "theta0": 0,
+    "theta": 45,
+    "pol": "avg",
+    "R": 50,
+    "edge": 633,
+    "passBelow": true
+  },
+  "layers": [
+    {
+      "n": 1.46,
+      "d": 216.78
+    },
+    {
+      "n": 1,
+      "d": 150,
+      "metal": "Ag"
+    }
+  ],
+  "tol": {
+    "kind": "rel",
+    "sigma": 1,
+    "runs": 200,
+    "seed": 1
+  }
+}

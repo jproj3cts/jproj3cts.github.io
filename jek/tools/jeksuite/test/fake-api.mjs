@@ -25,7 +25,7 @@ export function fakeData() {
   };
 }
 export async function route(page, opts = {}) {
-  const D = fakeData(), calls = [];
+  const D = fakeData(), calls = [], binned = [];
   const corsOf = req => ({ 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' });
   await page.route('http://localhost:8787/**', async r => {
     const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname, cors = corsOf(req);
@@ -50,9 +50,13 @@ export async function route(page, opts = {}) {
     // what the file system changes: a bench moved, renamed or binned, a folder made, renamed or moved
     mm = p.match(/^\/v1\/benches\/(\w+)$/);
     if (mm && (m === 'PATCH' || m === 'DELETE')) {
-      for (const list of Object.values(D.benches)) { const i = list.findIndex(x => x.id === mm[1]); if (i < 0) continue; if (m === 'DELETE') list.splice(i, 1); else Object.assign(list[i], JSON.parse(req.postData())); }
+      for (const [w, list] of Object.entries(D.benches)) { const i = list.findIndex(x => x.id === mm[1]); if (i < 0) continue; if (m === 'DELETE') binned.push([w, list.splice(i, 1)[0]]); else Object.assign(list[i], JSON.parse(req.postData())); }
       return j({ ok: true });
     }
+    mm = p.match(/^\/v1\/benches\/(\w+)\/undelete$/);
+    if (mm) { const i = binned.findIndex(x => x[1].id === mm[1]); if (i >= 0) { const [w, b] = binned.splice(i, 1)[0]; D.benches[w].push(b); } return j({ ok: true }); }
+    mm = p.match(/^\/v1\/benches\/(\w+)\/fork$/);
+    if (mm) { const body = JSON.parse(req.postData() || '{}'); return j({ id: 'bfork', name: body.name || 'A fork' }); }
     mm = p.match(/^\/v1\/workspaces\/(\w+)\/folders\/(\w+)$/);
     if (mm && m === 'PATCH') { const f = (D.folders[mm[1]] || []).find(x => x.id === mm[2]); if (f) Object.assign(f, JSON.parse(req.postData())); return j(f || {}); }
     mm = p.match(/^\/v1\/benches\/(\w+)$/);

@@ -33,13 +33,16 @@ export function helpLine(short, long, cls) {
   return h('p', { class: cls || 'rt-lsub' }, short, ' ', btn, more);
 }
 let toastTimer = null;
-export function toast(msg, bad) {
+/* (action: { label, fn }, a button beside the note for as long as it shows, which is longer: an Undo) */
+export function toast(msg, bad, action) {
   const t = document.getElementById('homeToast');
   t.textContent = msg;
+  if (action) t.append(' ', h('button', { type: 'button', class: 'rt-link', onclick: () => { t.classList.remove('show', 'act'); action.fn(); } }, action.label));
   t.classList.toggle('bad', !!bad);
+  t.classList.toggle('act', !!action);
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), bad ? 5000 : 2500);
+  toastTimer = setTimeout(() => t.classList.remove('show', 'act'), action ? 9000 : bad ? 5000 : 2500);
 }
 
 /* the icons (JEKray's menu icons, those used here) */

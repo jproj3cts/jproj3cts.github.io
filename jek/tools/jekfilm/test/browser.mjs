@@ -162,7 +162,7 @@ export async function check(pw, base, shots) {
       const folders = await p.evaluate(() => [...document.querySelectorAll('#filmCloudFolder option')].map(o => o.textContent));
       await p.selectOption('#filmCloudFolder', 'f2'); await p.fill('#filmCloudName', 'AR 1064'); await p.click('#filmCloudMake'); await p.waitForTimeout(400);
       const post = api.bodies.slice(-1)[0], nl = await p.evaluate(() => window.JEKfilm.link());
-      ok('Save to the cloud…: a new coating named and put in a folder (its path shown), then linked', folders.join('|') === 'The top folder|Nd:YAG laser|Nd:YAG laser › Cavity' && post.folder_id === 'f2' && post.name === 'AR 1064'
+      ok('Save to cloud…: a new coating named and put in a folder (its path shown), then linked', folders.join('|') === 'The top folder|Nd:YAG laser|Nd:YAG laser › Cavity' && post.folder_id === 'f2' && post.name === 'AR 1064'
         && JSON.parse(post.content).format === 'jekfilm' && nl && nl.id === 'cnew', JSON.stringify([folders, post && post.folder_id, nl]));
       if (shots) await p.screenshot({ path: shots + '/jekfilm-cloud.png' });
       // a JEKray bench sent here goes to JEKray

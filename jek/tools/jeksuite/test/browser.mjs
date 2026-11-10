@@ -168,9 +168,9 @@ export async function check(pw, base, shots) {
       await route(p, { signedIn: true });
       await p.goto(base + '/jek/tools/jeksuite.html#app=jekfilm');
       await p.waitForSelector('.rt-happhead.jekfilm', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
-      const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent),
+      const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), counts: [...document.querySelectorAll('.rt-hcard.folder:not([hidden]) .rt-hcount')].map(x => x.textContent), put: [...document.querySelectorAll('.rt-hcard.folder[hidden]')].map(c => c.dataset.folder),
         starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), about: !!document.querySelector('.rt-happhead a') }));
-      ok('#app=jekfilm: JEKfilm’s launch page, its coatings counted in their folders, New coating, About JEKfilm', !d.benches.length && d.counts.join() === '1 coating,0 coatings' && d.starts.join('|') === 'Open JEKfilm|New coating' && d.about, JSON.stringify(d));
+      ok('#app=jekfilm: JEKfilm’s launch page, its coatings counted in their folders, a folder with none of them not shown, New coating, About JEKfilm', !d.benches.length && d.counts.join() === '1 coating' && d.put.join() === 'f1' && d.starts.join('|') === 'Open JEKfilm|New coating' && d.about, JSON.stringify(d));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Absorption/.test(x.textContent)).click());
       await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
       const tag = await p.evaluate(() => { const t = document.querySelector('.rt-hcard[data-bench=b5] .rt-htool'); return t ? [t.textContent, t.className, t.title] : null; });
@@ -279,6 +279,53 @@ export async function check(pw, base, shots) {
       await p.focus('.rt-hcard[data-bench=b5] .rt-hopen'); await p.keyboard.press('F2'); await p.fill('.rt-hcard[data-bench=b5] .rt-hrename', 'BBAR visible'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
       const bname = await p.evaluate(() => document.querySelector('.rt-hcard[data-bench=b5] .rt-hname').textContent);
       ok('Names are typed in place: a new folder, a folder and a bench renamed with F2 or the menu, Escape leaving the name alone', made && fname === 'Absorption cell' && kept === 'JEKfilmBBAR 450–650' && bname === 'JEKfilmBBAR visible' && sent(/^PATCH \/v1\/benches\/b5$/).length === 1, JSON.stringify([made, fname, kept, bname]));
+      // a folder moved from its menu; folders picked with benches; a bench binned and brought back with Undo
+      await railGo('My benches'); await p.waitForSelector('.rt-hcard.folder[data-folder=f2]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      const newF = await p.evaluate(() => document.querySelector('.rt-hcard.folder[data-folder^=fnew]').dataset.folder);
+      await p.click('.rt-hcard.folder[data-folder=' + newF + '] .rt-hmore');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Move to…').click());
+      await p.waitForSelector('.rt-hmenu select', { timeout: 5000 }).catch(() => {});
+      const offered = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu select option')].map(o => o.textContent));
+      await p.selectOption('.rt-hmenu select', 'f2'); await p.waitForTimeout(400);
+      const fmoved = sent(new RegExp('^PATCH /v1/workspaces/w_me/folders/' + newF + '$')).length === 1 && !(await p.$('.rt-hcard.folder[data-folder=' + newF + ']'));
+      ok('A folder’s menu moves it into another folder (not into itself, nor where it is)', fmoved && offered.join('|') === 'Choose…|Absorption cell|Absorption cell › Levisense|Absorption cell › Old runs', JSON.stringify([fmoved, offered]));
+      await railGo('Absorption cell'); await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      await p.click('.rt-hcard.folder[data-folder=f3] .rt-hpick'); await p.click('.rt-hcard[data-bench=b5] .rt-hpick');
+      const mixed = await p.evaluate(() => document.querySelector('#homePicked b').textContent);
+      await p.keyboard.press('Escape');
+      const n0 = sent(/^POST \/v1\/benches\/b5\/undelete$/).length;
+      await p.click('.rt-hcard[data-bench=b5] .rt-hmore');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Delete').click());
+      await p.waitForSelector('#homeToast.act button', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
+      const gone = !(await benchesNow()).includes('b5'), note = await p.evaluate(() => document.getElementById('homeToast').textContent);
+      await p.click('#homeToast button'); await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {});
+      ok('Folders are picked with benches; a bench binned has an Undo in its note, which brings it back', mixed === '1 bench and 1 folder picked' && gone && /moved to the bin for 30 days Undo$/.test(note) && sent(/^POST \/v1\/benches\/b5\/undelete$/).length === n0 + 1 && (await benchesNow()).includes('b5'), JSON.stringify([mixed, gone, note]));
+      // the arrows go from card to card; a fork's name is asked for in the page; the chip pressed is kept; dark and light
+      await p.focus('.rt-hcard[data-bench=b5] .rt-hopen'); await p.keyboard.press('ArrowRight');
+      const right = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.bench);
+      await p.keyboard.press('ArrowUp');
+      const up = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.folder);
+      await p.keyboard.press('End');
+      const end = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.bench);
+      const here = await benchesNow();
+      ok('The arrow keys go from card to card, up to the folders, End to the last', right === here[here.indexOf('b5') + 1] && !!up && end === here[here.length - 1], JSON.stringify([here, right, up, end]));
+      let asked = 0; p.on('dialog', d => { asked++; d.dismiss(); });
+      await p.click('.rt-hcard[data-bench=b5] .rt-hmore');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Fork…').click());
+      await p.waitForSelector('#spaceNameDialog[open]', { timeout: 5000 }).catch(() => {});
+      await p.fill('#spaceNameInput', 'BBAR try'); await p.click('#spaceNameOk'); await p.waitForTimeout(400);
+      const forked = calls.includes('POST /v1/benches/b5/fork') && !(await p.$('#spaceNameDialog'));
+      ok('A fork’s name is asked for in the page, not in the browser’s own box', forked && !asked, JSON.stringify([forked, asked]));
+      await p.click('#homeChips .rt-hchip.jekfilm'); await p.waitForTimeout(300);
+      await p.reload(); await p.waitForSelector('#homeChips', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(400);
+      const keptChip = await p.evaluate(() => (document.querySelector('#homeChips .rt-hchip[aria-pressed=true]') || {}).textContent);
+      await p.evaluate(() => document.querySelector('#homeChips .rt-hchip').click());
+      const t0 = await p.evaluate(() => document.documentElement.dataset.rtTheme);
+      await p.click('#homeTheme');
+      const t1 = await p.evaluate(() => [document.documentElement.dataset.rtTheme, localStorage.getItem('jekray-theme')]);
+      await p.click('#homeTheme');
+      const t2 = await p.evaluate(() => document.documentElement.dataset.rtTheme);
+      ok('The chip pressed is kept for the next visit; the bar’s button turns the page light and dark', /^JEKfilm/.test(keptChip || '') && t0 === 'dark' && t1.join() === 'light,light' && t2 === 'dark', JSON.stringify([keptChip, t0, t1, t2]));
       if (shots) { await railGo('Recent'); await p.waitForTimeout(400); await p.screenshot({ path: shots + '/jeksuite-recent.png' }); await p.click('#homeTools .rt-btn'); await p.waitForTimeout(400); await p.screenshot({ path: shots + '/jeksuite-table.png' }); }
       ok('The file system: no page errors', !errs.length, errs.join(' | '));
       await p.close();

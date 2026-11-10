@@ -1,5 +1,6 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { arcSweep, distToEnt } from '../core/sketch-tools.js';
+import { arcSweep, carryPt, distToEnt } from '../core/sketch-tools.js';
+import { entKeys, hpt, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -236,9 +237,10 @@ export function makeKernel(oc) {
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
     const out = [];
+    const at = q => { const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
-      const v = vertexAt(toWorld(sk.frame, pt));
-      const f = faces.find(ff => distance(v, ff).d < 1e-6);
+      // a sketch that has just followed the model: the point as it follows its shape, else where it was
+      const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
@@ -322,13 +324,41 @@ export function makeKernel(oc) {
   }
   const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches) });
 
+  /* a sketch's shapes that came from edges of the model (src: the edge's ref) follow those edges: each is found
+     again in the model as it is now and flattened onto the sketch's plane; if any has moved, the sketch is solved
+     again, so what was drawn on it or dimensioned from it moves with it. True if the sketch changed. */
+  function followRefs(S, f, F) {
+    let moved = false;
+    const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
+    for (const e of f.ents) {
+      if (!e.ref || !e.src) continue;
+      let g;
+      try { const hit = findEdge(S, e.src), sh = edgeShapes(hit.b.edges[hit.j], F); if (sh.length !== 1 || sh[0].t !== e.t) continue; g = sh[0]; } catch (err) { continue; }
+      if (e.t === 'line') {
+        // the same way round as it was drawn
+        if (Math.hypot(g.a[0] - e.a[0], g.a[1] - e.a[1]) + Math.hypot(g.b[0] - e.b[0], g.b[1] - e.b[1]) > Math.hypot(g.b[0] - e.a[0], g.b[1] - e.a[1]) + Math.hypot(g.a[0] - e.b[0], g.a[1] - e.b[1])) [g.a, g.b] = [g.b, g.a];
+        if (!far(g.a, e.a) && !far(g.b, e.b)) continue;
+        e.a = g.a; e.b = g.b;
+      } else {
+        if (!far(g.c, e.c) && Math.abs(g.r - e.r) < 1e-7 && (e.t === 'circle' || (Math.abs(g.a0 - e.a0) < 1e-6 && Math.abs(g.a1 - e.a1) < 1e-6))) continue;
+        e.c = g.c; e.r = g.r; if (e.t === 'arc') { e.a0 = g.a0; e.a1 = g.a1; }
+        for (const d of f.dims) if ((d.t === 'rad' || d.t === 'dia') && d.r[0].e === e.id) { d.v = d.t === 'dia' ? 2 * e.r : e.r; d.x = String(+d.v.toFixed(6)); }
+      }
+      const Em = new Map([[e.id, e]]);
+      for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id && entKeys(e).includes(c.r[0].k)) c.at = hpt(Em, c.r[0]).slice();
+      moved = true;
+    }
+    if (moved) solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
+    return moved;
+  }
   /* ---------- the features ---------- */
   const FEAT = {
     sketch(S, f) {
       const frame = planeFrame(S, f.plane);
-      S.sketches[f.id] = { frame, ents: f.ents };
+      const was = f.ents.some(e => e.ref && e.src) ? JSON.parse(JSON.stringify(f.ents)) : null, moved = followRefs(S, f, frame);
+      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null };
       S.frames[f.id] = frame;
-      return { frame, regions: regionFaces(S.sketches[f.id]).length };
+      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
     },
     plane(S, f, V) {
       const base = planeFrame(S, f.ref), off = fieldValue(f, 'offset', V, 'len') * (f.flip ? -1 : 1);
@@ -787,7 +817,29 @@ export function makeKernel(oc) {
     } finally { flush(); }
   }
   function refs(picks) { try { return picks.map(p => refOf(last.S, p)); } finally { flush(); } }
-  /* model edges flattened onto a sketch's plane, as sketch shapes (Use): lines and circles where they are, else steps */
+  /* an edge flattened onto a plane, as sketch shapes: a line or a circle where it is, else steps */
+  function edgeShapes(e, F) {
+    const out = [], c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), G = oc.GeomAbs_CurveType;
+    if (c.GetType() === G.GeomAbs_Line) return [{ t: 'line', a: toPlane(F, xyz(T(c.Value(t0)))), b: toPlane(F, xyz(T(c.Value(t1)))) }];
+    if (c.GetType() === G.GeomAbs_Circle) {
+      const ci = T(c.Circle()), ax = xyz(T(T(ci.Axis()).Direction()));
+      if (Math.abs(Math.abs(v3.dot(ax, F.n)) - 1) < 1e-6) {
+        const cc = toPlane(F, xyz(T(ci.Location()))), r = ci.Radius();
+        if (Math.abs(t1 - t0 - 2 * Math.PI) < 1e-6) return [{ t: 'circle', c: cc, r }];
+        const pa = toPlane(F, xyz(T(c.Value(t0)))), pb = toPlane(F, xyz(T(c.Value(t1)))), pm = toPlane(F, xyz(T(c.Value((t0 + t1) / 2))));
+        let a0 = Math.atan2(pa[1] - cc[1], pa[0] - cc[0]) / DEGR, a1 = Math.atan2(pb[1] - cc[1], pb[0] - cc[0]) / DEGR;
+        const am = Math.atan2(pm[1] - cc[1], pm[0] - cc[0]) / DEGR;
+        const ccw = ((am - a0) % 360 + 360) % 360 < ((a1 - a0) % 360 + 360) % 360;
+        if (!ccw) [a0, a1] = [a1, a0];
+        return [{ t: 'arc', c: cc, r, a0, a1 }];
+      }
+    }
+    const n = 16; let prev = toPlane(F, xyz(T(c.Value(t0))));
+    for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
+    return out;
+  }
+  /* model edges flattened onto a sketch's plane, as sketch shapes (Use); one that is a single shape carries its
+     edge's ref (src), so the sketch can follow the edge when the model changes */
   function projectEdges(picks, F) {
     const out = [];
     try {
@@ -796,22 +848,9 @@ export function makeKernel(oc) {
         if (!b) continue;
         const es = p.kind === 'edge' ? [edgesOf(b)[p.index]] : p.kind === 'face' ? subShapes(b.faces[p.index], TA.TopAbs_EDGE) : [];
         for (const e of es) {
-          const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), G = oc.GeomAbs_CurveType;
-          if (c.GetType() === G.GeomAbs_Line) { out.push({ t: 'line', a: toPlane(F, xyz(T(c.Value(t0)))), b: toPlane(F, xyz(T(c.Value(t1)))) }); continue; }
-          if (c.GetType() === G.GeomAbs_Circle) {
-            const ci = T(c.Circle()), ax = xyz(T(T(ci.Axis()).Direction()));
-            if (Math.abs(Math.abs(v3.dot(ax, F.n)) - 1) < 1e-6) {
-              const cc = toPlane(F, xyz(T(ci.Location()))), r = ci.Radius();
-              if (Math.abs(t1 - t0 - 2 * Math.PI) < 1e-6) { out.push({ t: 'circle', c: cc, r }); continue; }
-              const pa = toPlane(F, xyz(T(c.Value(t0)))), pb = toPlane(F, xyz(T(c.Value(t1)))), pm = toPlane(F, xyz(T(c.Value((t0 + t1) / 2))));
-              let a0 = Math.atan2(pa[1] - cc[1], pa[0] - cc[0]) / DEGR, a1 = Math.atan2(pb[1] - cc[1], pb[0] - cc[0]) / DEGR, am = Math.atan2(pm[1] - cc[1], pm[0] - cc[0]) / DEGR;
-              const ccw = ((am - a0) % 360 + 360) % 360 < ((a1 - a0) % 360 + 360) % 360;
-              if (!ccw) [a0, a1] = [a1, a0];
-              out.push({ t: 'arc', c: cc, r, a0, a1 }); continue;
-            }
-          }
-          const n = 16; let prev = toPlane(F, xyz(T(c.Value(t0))));
-          for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
+          const sh = edgeShapes(e, F);
+          if (sh.length === 1) { edgesOf(b); const j = p.kind === 'edge' ? p.index : indexer(b.edges)(e); if (j >= 0) { const r = refOf(last.S, { part: b.id, kind: 'edge', index: j }); sh[0].src = { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt }; } }
+          out.push(...sh);
         }
       }
     } finally { flush(); }

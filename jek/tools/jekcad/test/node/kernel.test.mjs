@@ -255,3 +255,32 @@ test('STEP out and back in; STL out; measure of a part’s mass', async () => {
   near(two.distance, 10, 1e-9, 'top to bottom');
   near(two.angle, 0, 1e-6, 'parallel faces');
 });
+
+test('a sketch held to an edge of the model follows the edge: a hole 10 from the block’s end moves when the block grows, and its cut with it', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  let out = K.regen(doc);
+  // the block's far end, on its top face (x 40, z 10): Use brings it into a sketch on that face, with the edge's ref
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0], F = { o: [0, 0, 10], x: [1, 0, 0], y: [0, 1, 0], n: [0, 0, 1] };
+  const [line] = K.project([edgeNear(out, [40, 10, 10])], F);
+  assert.equal(line.t, 'line');
+  assert.ok(line.src && line.src.kind === 'edge' && line.src.faces.length === 2, 'the projected edge carries its ref');
+  Object.assign(line, { id: 'lref', ref: true, k: true });
+  const hole = { id: 'chole', t: 'circle', c: [30, 10], r: 3 };
+  const sk = newFeature(doc, 'sketch', { plane: top, ents: [line, hole],
+    cons: [{ id: 'cf1', t: 'fix', r: [{ e: 'lref', k: 'a' }], at: line.a.slice() }, { id: 'cf2', t: 'fix', r: [{ e: 'lref', k: 'b' }], at: line.b.slice() }],
+    dims: [{ id: 'd1', t: 'dia', r: [{ e: 'chole' }], v: 6, x: '6' }, { id: 'd2', t: 'pl', r: [{ e: 'chole', k: 'c' }, { e: 'lref' }], v: 10, x: '10', s: line.a[1] < line.b[1] ? 1 : -1 }] });
+  doc.features.push(sk);
+  doc.features.push(newFeature(doc, 'extrude', { sketch: sk.id, regions: [[30, 10]], op: 'remove', depth: '10' }));
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  near(vol(out), 8000 - Math.PI * 9 * 10, 0.5, 'the block with its hole');
+  // the block made 60 long: the edge is at x 60 now, the hole 10 from it at x 50, the cut still there
+  doc.features[0].dims[0].x = '60';
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  const rep = out.features.find(f => f.id === sk.id);
+  assert.ok(rep.info.ents, 'the sketch that moved is sent back, for the document to take up');
+  const c = rep.info.ents.find(e => e.id === 'chole').c;
+  near(c[0], 50, 1e-5, 'the hole’s centre');
+  near(vol(out), 12000 - Math.PI * 9 * 10, 0.5, 'the longer block with its hole');
+});

@@ -50,9 +50,9 @@ export function openFeature(type, opts) {
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   const at = appliedCount(app.doc), f = newFeature(app.doc, type);
+  const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');     // before prefill empties the selection
   prefill(f, at);
   if (type === 'sketch') {
-    const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');
     if (planeSel) { refFor(planeSel).then(r => { if (!r) { toast('Choose a plane or a flat face to sketch on', true); return; } f.plane = r; startSketch(f, at, true); }); return; }
     if (opts && opts.plane) { f.plane = opts.plane; startSketch(f, at, true); return; }
     // ask for the plane first
@@ -87,6 +87,8 @@ function prefill(f, at) {
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
     if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents); }
   }
+  // a revolve about the sketch's centre line: its one construction line, if it has just one
+  if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
   const parts = sel.filter(s => s.kind === 'part').map(s => s.part);
   if (f.type === 'boolean' && parts.length) { f.targets = parts.slice(0, 1); f.tools = parts.slice(1); }
@@ -220,7 +222,7 @@ export function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;

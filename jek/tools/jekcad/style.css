@@ -20,8 +20,13 @@
   .cad-skin { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); margin: 0 0.25rem; }
   .cad-skin input { width: 3.6rem; font-size: 0.78rem; }
   /* the page: the feature list beside the view */
-  .cad-main { display: grid; grid-template-columns: 272px minmax(300px, 1fr); gap: 0.6rem; margin-top: 0.45rem; }
-  .cad-side { height: max(460px, calc(100vh - 170px)); overflow: auto; background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
+  .cad-main { position: relative; display: flex; flex: 1; min-height: 0; }
+  .cad-side { flex: none; width: 272px; overflow: auto; background: var(--rt-surface); border-right: 1px solid var(--jek-line); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
+  .cad-main.side-off .cad-side { display: none; }
+  /* the tab on the list's edge: it closes the list, and opens it again from the view's edge */
+  .cad-sidetab { position: absolute; left: 272px; top: 50%; z-index: 12; transform: translateY(-50%); width: 15px; height: 58px; padding: 0; border: 1px solid var(--jek-line); border-left: 0; border-radius: 0 6px 6px 0; background: var(--rt-surface); color: var(--jek-ink-soft); font-size: 0.95rem; line-height: 1; cursor: pointer; }
+  .cad-sidetab:hover { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
+  .cad-main.side-off .cad-sidetab { left: 0; }
   .cad-shead { font-size: 0.72rem; font-weight: 700; text-transform: none; letter-spacing: 0.02em; color: var(--jek-ink-soft); margin: 0.4rem 0.4rem 0.2rem; }
   .cad-flist, .cad-plist { list-style: none; margin: 0 0 0.5rem; padding: 0; }
   .cad-flist li, .cad-plist li { display: flex; align-items: center; gap: 0.35rem; padding: 0.22rem 0.4rem; border-radius: 3px; cursor: default; position: relative; flex-wrap: wrap; }
@@ -39,6 +44,13 @@
   .cad-hid { font-size: 0.7rem; color: var(--jek-ink-soft); }
   .cad-more { border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; padding: 0 0.25rem; font-size: 0.9rem; line-height: 1; }
   .cad-more:hover { color: var(--jek-ink); }
+  .cad-eye { border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; padding: 0 0.15rem; line-height: 1; display: inline-flex; align-items: center; opacity: 0; }
+  .cad-eye svg.ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+  .cad-flist li:hover .cad-eye, .cad-flist li:focus-within .cad-eye, .cad-eye.off, .cad-eye:focus-visible { opacity: 1; }
+  .cad-eye:hover { color: var(--jek-ink); }
+  .cad-eye.off { color: var(--jek-orange); }
+  .cad-flist li.hid .nm { opacity: 0.5; }
+  .cad-frow-f.picked, .cad-frow-p.picked { background: rgba(224, 137, 46, 0.18); }
   .cad-rollbar { height: 0; padding: 0 !important; margin: 0.25rem 0.2rem; border-top: 4px solid var(--jek-orange); border-radius: 2px; cursor: ns-resize; list-style: none; }
   .cad-rollbar.drag { border-top-color: var(--jek-red); }
   .cad-empty { color: var(--jek-ink-soft); font-size: 0.78rem; line-height: 1.4; }
@@ -50,11 +62,14 @@
   .cad-partmat select { font-size: 0.72rem; max-width: 100%; }
   .cad-rowmenu { position: fixed; z-index: 90; min-width: 11rem; }
   /* the view */
-  .cad-stage { height: max(460px, calc(100vh - 170px)); }
+  .cad-app .cad-stage { flex: 1; min-width: 0; height: auto; min-height: 0; border: 0; }
+  .cad-stage.cad-flying { position: fixed; inset: 0; z-index: 1000; }
+  .cad-stage.cad-flying > :not(#view):not(.rt-flyhint) { display: none !important; }
+  .cad-stage.cad-flying #view { cursor: crosshair; }
   .cad-stage > canvas { position: absolute; left: 0; top: 0; }
   .cad-stage #over { cursor: default; outline: none; }
   .cad-stage.dropping::after { content: 'Drop a .jekcad or a STEP file'; position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--jek-orange); border-radius: 6px; color: var(--jek-orange); font-weight: 700; pointer-events: none; }
-  .cad-hint { position: absolute; left: 0.6rem; bottom: 0.45rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
+  .cad-hint { position: absolute; left: 1.4rem; bottom: 0.45rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
   .cad-busy { position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%); font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 2px; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); pointer-events: none; }
   .cad-note { position: absolute; inset: auto 1rem 3rem; padding: 0.6rem; background: var(--rt-bad-bg); color: var(--jek-red); }
   .cad-measure { position: absolute; right: 0.6rem; bottom: 2rem; min-width: 12rem; max-width: 20rem; padding: 0.4rem 0.6rem; font-size: 0.75rem; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); border-radius: 2px; }
@@ -70,7 +85,7 @@
   .cad-cubebtns { display: flex; justify-content: center; gap: 2px; }
   .cad-cubebtns .rt-btn { padding: 0.05rem 0.3rem; font-size: 0.68rem; }
   /* the feature dialog */
-  .cad-dialog { position: absolute; left: 0.6rem; top: 0.6rem; z-index: 10; width: 300px; max-height: calc(100% - 3rem); overflow: auto; background: var(--rt-surface); color: var(--jek-ink); border: 1px solid var(--jek-line); border-top: 3px solid var(--jek-orange); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); font-size: 0.8rem; }
+  .cad-dialog { position: absolute; left: 1.4rem; top: 0.6rem; z-index: 10; width: 300px; max-height: calc(100% - 3rem); overflow: auto; background: var(--rt-surface); color: var(--jek-ink); border: 1px solid var(--jek-line); border-top: 3px solid var(--jek-orange); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); font-size: 0.8rem; }
   .cad-dialog[hidden] { display: none; }
   .cad-fhead { display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.6rem 0.3rem; }
   .cad-fkind { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; }
@@ -100,4 +115,4 @@
   .cad-table th, .cad-table td { text-align: left; padding: 0.2rem 0.3rem; border-bottom: 1px solid var(--jek-line); }
   .cad-table td.n { font-family: var(--jek-mono); }
   .cad-table td.bad { color: var(--jek-red); }
-  @media (max-width: 800px) { .cad-main { grid-template-columns: 1fr; } .cad-side { height: auto; max-height: 30vh; } .cad-hint { display: none; } }
+  @media (max-width: 800px) { .cad-main { flex-direction: column; } .cad-side { width: auto; max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--jek-line); } .cad-sidetab { display: none; } .cad-hint { display: none; } }

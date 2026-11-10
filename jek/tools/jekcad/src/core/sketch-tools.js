@@ -22,6 +22,9 @@ export function normEnts(ents) {
     else n.c = pt2(e.c, [0, 0]);
     if (e.k) n.k = true;            // construction
     if (e.ref) n.ref = true;        // projected from the model (Use)
+    // the model edge it came from (the kernel's ref for it), so it can follow the edge when the model changes
+    const sr = e.ref && e.src;
+    if (sr && sr.kind === 'edge' && typeof sr.part === 'string' && sr.part.length < 80 && Array.isArray(sr.faces) && sr.faces.length >= 1 && sr.faces.length <= 2 && sr.faces.every(x => typeof x === 'string' && x.length < 120) && Array.isArray(sr.pt) && sr.pt.length === 3 && sr.pt.every(Number.isFinite)) n.src = { kind: 'edge', part: sr.part, faces: sr.faces.slice(), pt: sr.pt.slice() };
     out.push(n);
   }
   return out;
@@ -44,6 +47,31 @@ export const regionsOf = ents => sketchRegions(ents.filter(e => !e.k && e.t !== 
 export function defaultRegionPts(ents) {
   const R = regionsOf(ents);
   return R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0).map(r => r.pt.map(v => +v.toFixed(6)));
+}
+/* a point of a sketch as it was, carried to the sketch as it is now: it keeps its place beside the shape it was
+   nearest to (along a line and off it; round a circle and out from its centre), so a region's point follows the
+   region when its shapes move */
+export function carryPt(was, now, q) {
+  let best = null, bd = Infinity;
+  for (const e of was) { if (e.t === 'point' || e.k) continue; const d = distToEnt(e, q); if (d < bd) { bd = d; best = e; } }
+  const n = best && now.find(x => x.id === best.id && x.t === best.t);
+  if (!n) return q;
+  if (best.t === 'line') {
+    const d = lineDir(best), L = Math.hypot(d[0], d[1]) || 1e-12, u = ((q[0] - best.a[0]) * d[0] + (q[1] - best.a[1]) * d[1]) / (L * L), v = ((q[0] - best.a[0]) * -d[1] + (q[1] - best.a[1]) * d[0]) / L;
+    const d2 = lineDir(n), L2 = Math.hypot(d2[0], d2[1]) || 1e-12;
+    return [n.a[0] + d2[0] * u - d2[1] / L2 * v, n.a[1] + d2[1] * u + d2[0] / L2 * v];
+  }
+  const a = Math.atan2(q[1] - best.c[1], q[0] - best.c[0]), rho = Math.hypot(q[0] - best.c[0], q[1] - best.c[1]) / (best.r || 1e-12);
+  return [n.c[0] + rho * n.r * Math.cos(a), n.c[1] + rho * n.r * Math.sin(a)];
+}
+/* every feature's chosen regions of a sketch that changed, carried to it as it is now (where the carried point is
+   in a region; else left as they were) */
+export function carryRegions(doc, id, was, now) {
+  const R = regionsOf(now), carry = pts => (pts || []).map(q => { const c = carryPt(was, now, q); return regionAt(R, c) ? c.map(v => +v.toFixed(6)) : q; });
+  for (const f of doc.features) {
+    if (f.sketch === id && Array.isArray(f.regions)) f.regions = carry(f.regions);
+    for (const s of f.sections || []) if (s.sketch === id) s.regions = carry(s.regions);
+  }
 }
 /* the region a point is in (the smallest that holds it) */
 export function regionAt(R, q) {

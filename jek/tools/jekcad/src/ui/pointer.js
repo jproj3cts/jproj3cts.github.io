@@ -1,14 +1,16 @@
-import { app, emit, redo, undo } from './app.js';
+import { app, emit, redo, toast, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
-import { overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchUp } from './sketcher.js';
-import { closeDialog, fieldPick, fieldWants, okDialog } from './dialog.js';
+import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
+import { closeDialog, editFeature, fieldPick, fieldWants, okDialog } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits, middle-drag (or Shift with the right button) pans, the
    wheel zooms about the pointer. A left click picks: into the feature dialog's active field when one is open,
    else into the selection (Ctrl or Shift adds to it); a left drag from nothing selects by a box. In a sketch the
-   left button belongs to the sketcher. What a click would pick is lit as the pointer moves over it.
+   left button belongs to the sketcher, and a right-click (no drag) ends what is being drawn. What a click would
+   pick is lit as the pointer moves over it. A double-click on a sketch's dimension shown on the model types it
+   again; on a face, it opens the feature that made the face.
    ========================================================================== */
 const MODEL_KINDS = { edges: 'any', faces: 'face', face: 'face', edge: 'edge', parts: 'part', plane: 'face' };
 /* what is under the pointer, for what is wanted now */
@@ -47,7 +49,7 @@ export function wirePointer() {
   over.addEventListener('pointerdown', e => {
     const [sx, sy] = xy(e);
     over.setPointerCapture(e.pointerId);
-    if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false }; return; }
+    if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
     drag = { mode: 'pick', x: sx, y: sy, moved: false, add: e.ctrlKey || e.shiftKey || e.metaKey };
   });
@@ -55,7 +57,8 @@ export function wirePointer() {
     const [sx, sy] = xy(e);
     lastXY = [sx, sy];
     if (drag && (drag.mode === 'orbit' || drag.mode === 'pan')) {
-      const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true;
+      const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true; drag.travel += Math.abs(dx) + Math.abs(dy);
+      if (drag.travel < 4) return;
       if (drag.mode === 'orbit' && !app.sketch) orbit(dx, dy); else pan(dx, dy);
       return;
     }
@@ -66,14 +69,15 @@ export function wirePointer() {
       return;
     }
     if (app.sketch) { sketchMove(e, sx, sy); return; }
-    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; if (!lastXY) return; const p = pickHere(...lastXY); if (JSON.stringify(p) !== JSON.stringify(app.hover)) { app.hover = p; emit('hover'); emit('sel'); } });
+    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; if (!lastXY) return; const md = app.editing ? null : modelDimAt(...lastXY); modelDimHover(md); over.style.cursor = md ? 'text' : ''; const p = md ? null : pickHere(...lastXY); if (JSON.stringify(p) !== JSON.stringify(app.hover)) { app.hover = p; emit('hover'); emit('sel'); } });
   });
   over.addEventListener('pointerup', async e => {
     const [sx, sy] = xy(e), d = drag;
     drag = null;
     if (!d) return;
     if (d.mode === 'sketch') { sketchUp(e, sx, sy); return; }
-    if (d.mode !== 'pick') return;
+    // the right button let go where it went down: in a sketch, what is being drawn ends
+    if (d.mode !== 'pick') { if (d.button === 2 && d.travel < 4 && app.sketch) sketchRight(); return; }
     if (d.moved) {
       setBoxSel(null);
       const got = pickBox(d.x, d.y, sx, sy, app.filter === 'any' ? 'edge' : app.filter);
@@ -87,7 +91,22 @@ export function wirePointer() {
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
   over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
-  over.addEventListener('dblclick', e => { if (app.sketch) { sketchDbl(...xy(e)); return; } const [sx, sy] = xy(e); const p = pickAt(sx, sy, 'face'); if (!p) fit(); });
+  over.addEventListener('dblclick', async e => {
+    const [sx, sy] = xy(e);
+    if (app.sketch) { sketchDbl(sx, sy); return; }
+    if (app.editing) return;
+    const md = modelDimAt(sx, sy);
+    if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
+    const p = pickAt(sx, sy, 'face');
+    if (!p) { fit(); return; }
+    // the feature that made the face (its names begin with the feature's id), opened to edit
+    try {
+      const [r] = await kernelAsk('refs', { picks: [p] });
+      const ids = (r && r.names || []).map(nm => String(nm).split('~').pop().split('.')[0].replace(/'+$/, ''));
+      const i = app.doc.features.findIndex(f => ids.includes(f.id));
+      if (i >= 0 && !app.sketch && !app.editing) { app.sel = []; emit('sel'); toast('Editing ' + app.doc.features[i].name + ' (it made this face)'); editFeature(i); }
+    } catch (err) { /* nothing to open */ }
+  });
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
     if (document.querySelector('dialog[open]')) return;
@@ -96,7 +115,7 @@ export function wirePointer() {
     if (ctrl && k === 'z') { e.preventDefault(); if (app.editing) return; if (e.shiftKey) redo(); else undo(); return; }
     if (ctrl && k === 'y') { e.preventDefault(); if (!app.editing) redo(); return; }
     if (ctrl) return;
-    if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length) { app.sel = []; emit('sel'); } return; }
+    if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }

@@ -1,6 +1,6 @@
 import { STD_PLANES, appliedCount } from '../core/doc.js';
 import { definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveSketch } from '../core/sketch.js';
-import { arc3, arcSweep, distToEnt, entOutline, filletCorner, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, tangentArc, trimEnt } from '../core/sketch-tools.js';
+import { arc3, arcSweep, carryRegions, distToEnt, entOutline, filletCorner, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, tangentArc, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
 import { app, changed, checkpoint, emit, isDark, on, regenNow, toast } from './app.js';
@@ -19,9 +19,12 @@ import { h } from '../../../jekray/src/ui/dom.js';
    distance between points, a point from a line, a radius or diameter, or an angle, and takes a value or an
    expression typed in place. Free shapes are blue, fully defined ones in ink. Dragging a point or a shape solves
    the sketch as it moves. Trim, fillet, offset, mirror, Use (model edges projected) and construction too.
+   The model is inferred from as well: a point drawn on one of its corners or edges is held there (the corner or
+   edge comes into the sketch as a fixed construction shape, as Use would bring it). While a shape is drawn its
+   size shows by the pointer; a number typed straight after a line, circle or arc dimensions it.
    ========================================================================== */
-export const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null };
-const SNAP_PX = 8, ON_PX = 6;
+export const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null, model: null, last: [] };
+const SNAP_PX = 10, ON_PX = 8;
 /* ---------- the sketch being edited ---------- */
 const S = () => app.sketch;
 const ents = () => S().f.ents;
@@ -30,9 +33,9 @@ export const toScreen = uv => project(toWorld(S().F, uv));
 const uvAt = (sx, sy) => rayPlane(rayAt(sx, sy), S().F);
 /* ---------- starting and ending ---------- */
 export async function startSketch(f, at, isNew) {
-  app.sel = []; emit('sel');
+  app.sel = []; app.hover = null; emit('sel');
   app.sketch = { f: JSON.parse(JSON.stringify(f)), at, isNew, F: null, orig: JSON.stringify(f) };
-  Object.assign(SK, { tool: 'line', draft: null, sel: [], hover: null, undo: [], redoStack: [], constr: false, drag: null, box: null });
+  Object.assign(SK, { tool: 'line', draft: null, sel: [], hover: null, undo: [], redoStack: [], constr: false, drag: null, box: null, model: null, last: [], dimPick: null });
   // the plane's frame: a standard plane's at once; a face's or a datum plane's from the kernel
   let F = f.plane && f.plane.std ? STD_PLANES[f.plane.std] : null;
   const out = await regenNow();
@@ -51,7 +54,7 @@ export function finishSketch() {
   cancelDraft();
   checkpoint();
   if (s.isNew) app.doc.features.splice(s.at, 0, s.f);
-  else app.doc.features[s.at] = s.f;
+  else { carryRegions(app.doc, s.f.id, app.doc.features[s.at].ents, s.f.ents); app.doc.features[s.at] = s.f; }
   if (app.doc.rollback !== null && s.isNew) app.doc.rollback = Math.min(app.doc.features.length, app.doc.rollback + 1);
   if (app.doc.rollback !== null && app.doc.rollback >= app.doc.features.length) app.doc.rollback = null;
   app.sketch = null;
@@ -69,6 +72,9 @@ export function resolve() {
   const f = S().f;
   solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
   SK.defined = definedEnts(f.ents, f.cons, f.dims);
+  // a chain of lines carries on from where its last line ends now (a dimension typed may have moved it)
+  const d = SK.draft;
+  if (d && d.chainFrom && entById(d.chainFrom.e)) { const q = hpt(new Map(f.ents.map(e => [e.id, e])), d.chainFrom).slice(); d.pts = [q]; d.snaps = [{ p: q }]; }
   redraw(); drawOverlay();
 }
 function keep() { SK.undo.push(JSON.stringify({ ents: ents(), cons: S().f.cons, dims: S().f.dims })); if (SK.undo.length > 200) SK.undo.shift(); SK.redoStack.length = 0; }
@@ -83,6 +89,81 @@ function snapPoints() {
   }
   return out;
 }
+/* ---------- the model, as the sketch sees it: its corners and edges flattened onto the sketch's plane ---------- */
+function edgeShape(P) {
+  const pts = [];
+  for (const q of P) if (!pts.length || Math.hypot(q[0] - pts[pts.length - 1][0], q[1] - pts[pts.length - 1][1]) > 1e-7) pts.push(q);
+  if (pts.length < 2) return null;                       // an edge seen end on
+  const a = pts[0], b = pts[pts.length - 1], closed = Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-6, n = pts.length;
+  let size = 0; for (const q of pts) size = Math.max(size, Math.hypot(q[0] - a[0], q[1] - a[1]));
+  if (size < 1e-6) return null;
+  if (!closed) { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy); if (L > 1e-6 && pts.every(q => Math.abs((q[0] - a[0]) * dy - (q[1] - a[1]) * dx) / L < 1e-6 * Math.max(1, L))) return { t: 'line', a, b }; }
+  if (n >= 4) {
+    // a circle through three of its points, if every point is on it
+    const p = a, q = pts[closed ? Math.floor(n / 3) : Math.floor(n / 2)], r = closed ? pts[Math.floor(2 * n / 3)] : b;
+    const D = 2 * (p[0] * (q[1] - r[1]) + q[0] * (r[1] - p[1]) + r[0] * (p[1] - q[1]));
+    if (Math.abs(D) > 1e-9) {
+      const pp = p[0] * p[0] + p[1] * p[1], qq = q[0] * q[0] + q[1] * q[1], rr = r[0] * r[0] + r[1] * r[1];
+      const c = [(pp * (q[1] - r[1]) + qq * (r[1] - p[1]) + rr * (p[1] - q[1])) / D, (pp * (r[0] - q[0]) + qq * (p[0] - r[0]) + rr * (q[0] - p[0])) / D], R = Math.hypot(p[0] - c[0], p[1] - c[1]);
+      if (pts.every(z => Math.abs(Math.hypot(z[0] - c[0], z[1] - c[1]) - R) < 1e-5 * Math.max(1, R))) {
+        if (closed) return { t: 'circle', c, r: R };
+        const ang = z => Math.atan2(z[1] - c[1], z[0] - c[0]) * 180 / Math.PI, m360 = v => ((v % 360) + 360) % 360;
+        let a0 = ang(a), a1 = ang(b);
+        if (m360(ang(q) - a0) > m360(a1 - a0)) [a0, a1] = [a1, a0];
+        return { t: 'arc', c, r: R, a0, a1 };
+      }
+    }
+  }
+  return { t: 'poly', pts };
+}
+export function modelGeom() {
+  const s = S();
+  if (!s || !s.F) return { pts: [], edges: [] };
+  if (SK.model && SK.model.n === app.regenCount && SK.model.parts === V.parts.size) return SK.model;
+  const F = s.F, to = (A, i) => { const d = [A[i] - F.o[0], A[i + 1] - F.o[1], A[i + 2] - F.o[2]]; return [d[0] * F.x[0] + d[1] * F.x[1] + d[2] * F.x[2], d[0] * F.y[0] + d[1] * F.y[1] + d[2] * F.y[2]]; };
+  const pts = [], edges = [], seen = new Set();
+  for (const o of V.parts.values()) {
+    const p = o.userData.p;
+    for (let i = 0; i < p.verts.length; i += 3) { const q = to(p.verts, i), key = q.map(v => v.toFixed(5)).join(','); if (!seen.has(key)) { seen.add(key); pts.push(q); } }
+    for (let j = 0; j < p.edgeGroups.length / 2; j++) {
+      const a = p.edgeGroups[2 * j], n = p.edgeGroups[2 * j + 1], P = [];
+      for (let k = a; k < a + n; k++) { if (k === a) P.push(to(p.seg, 6 * k)); P.push(to(p.seg, 6 * k + 3)); }
+      const g = edgeShape(P);
+      if (g) { g.from = { part: p.id, kind: 'edge', index: j }; edges.push(g); }
+    }
+  }
+  return (SK.model = { n: app.regenCount, parts: V.parts.size, pts, edges });
+}
+/* the nearest point of a model edge to q, and how far it is */
+function nearOnEdge(g, q) {
+  const onSeg = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2)); return [a[0] + dx * t, a[1] + dy * t]; };
+  let p;
+  if (g.t === 'line') p = onSeg(g.a, g.b);
+  else if (g.t === 'poly') { let bd = Infinity; for (let i = 1; i < g.pts.length; i++) { const z = onSeg(g.pts[i - 1], g.pts[i]), d = Math.hypot(z[0] - q[0], z[1] - q[1]); if (d < bd) { bd = d; p = z; } } }
+  else {
+    const a = Math.atan2(q[1] - g.c[1], q[0] - g.c[0]);
+    p = [g.c[0] + g.r * Math.cos(a), g.c[1] + g.r * Math.sin(a)];
+    if (g.t === 'arc' && distToEnt(g, p) > 1e-6) { const e0 = [g.c[0] + g.r * Math.cos(g.a0 * Math.PI / 180), g.c[1] + g.r * Math.sin(g.a0 * Math.PI / 180)], e1 = [g.c[0] + g.r * Math.cos(g.a1 * Math.PI / 180), g.c[1] + g.r * Math.sin(g.a1 * Math.PI / 180)]; p = Math.hypot(e0[0] - q[0], e0[1] - q[1]) < Math.hypot(e1[0] - q[0], e1[1] - q[1]) ? e0 : e1; }
+  }
+  return { p, d: Math.hypot(p[0] - q[0], p[1] - q[1]) };
+}
+/* a corner or an edge of the model brought into the sketch to be held to: a fixed construction shape, made once */
+function refEnt(g) {
+  const f = S().f, near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
+  const same = e => e.ref && e.t === g.t && (g.t === 'point' ? near(e.c, g.c) : g.t === 'line' ? (near(e.a, g.a) && near(e.b, g.b)) || (near(e.a, g.b) && near(e.b, g.a)) : near(e.c, g.c) && Math.abs(e.r - g.r) < 1e-6 && (g.t === 'circle' || (Math.abs(e.a0 - g.a0) < 1e-6 && Math.abs(e.a1 - g.a1) < 1e-6)));
+  const had = f.ents.find(same);
+  if (had) return had.id;
+  const e = JSON.parse(JSON.stringify(g));
+  delete e.from;
+  e.id = sketchId(e.t[0]); e.ref = true; e.k = true;
+  // which edge of the model it is, asked of the kernel, so the sketch follows the edge when the model changes
+  if (g.from) kernelAsk('refs', { picks: [g.from] }).then(rs => { const r = rs && rs[0], sk = S() && S().f.id === f.id ? S().f : app.doc.features.find(x => x.id === f.id), en = sk && sk.ents.find(x => x.id === e.id); if (en && r && r.kind === 'edge') en.src = { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt }; }).catch(() => {});
+  f.ents.push(e);
+  const Em = new Map([[e.id, e]]);
+  for (const k of entKeys(e)) f.cons.push({ id: sketchId('c'), t: 'fix', r: [{ e: e.id, k }], at: hpt(Em, { e: e.id, k }).slice() });
+  if (e.t === 'circle' || e.t === 'arc') f.dims.push({ id: sketchId('d'), t: 'rad', r: [{ e: e.id }], v: e.r, x: fmtNum(e.r, 6) });
+  return e.id;
+}
 /* the point the pointer gives, with the constraints it implies: from is where the shape being drawn starts */
 function snap(sx, sy, from, skipIds) {
   const uv = uvAt(sx, sy);
@@ -91,6 +172,11 @@ function snap(sx, sy, from, skipIds) {
   let best = null, bd = SNAP_PX;
   for (const c of snapPoints()) { if (skip.has(c.r.e)) continue; const s = toScreen(c.p), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; best = c; } }
   if (best) return { p: best.p.slice(), ref: best.r, glyph: best.mid ? 'M' : '●', kind: best.mid ? 'midpoint' : 'coincident' };
+  // a corner of the model
+  const M = modelGeom();
+  let mp = null;
+  for (const q of M.pts) { const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mp = q; } }
+  if (mp) return { p: mp.slice(), ref: null, mref: { t: 'point', c: mp.slice() }, glyph: '●', kind: 'coincident' };
   let onEnt = null, od = ON_PX;
   for (const e of ents()) { if (skip.has(e.id) || e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < od) { od = d; onEnt = e; } }
   const out = { p: uv, ref: null };
@@ -100,6 +186,11 @@ function snap(sx, sy, from, skipIds) {
     if (E1.t === 'line') { const d = lineDir(E1), L2 = d[0] * d[0] + d[1] * d[1] || 1, t = ((uv[0] - E1.a[0]) * d[0] + (uv[1] - E1.a[1]) * d[1]) / L2; out.p = [E1.a[0] + d[0] * t, E1.a[1] + d[1] * t]; }
     else { const a = Math.atan2(uv[1] - E1.c[1], uv[0] - E1.c[0]); out.p = [E1.c[0] + E1.r * Math.cos(a), E1.c[1] + E1.r * Math.sin(a)]; }
     out.on = E1.id; out.glyph = '⌒'; out.kind = 'oncurve';
+  } else {
+    // an edge of the model
+    let me = null, md = ON_PX * pxToMm(1);
+    for (const g of M.edges) { const r = nearOnEdge(g, uv); if (r.d < md) { md = r.d; me = { g, p: r.p }; } }
+    if (me) { out.p = me.p; out.mon = me.g; out.glyph = '⌒'; out.kind = 'oncurve'; }
   }
   if (from) {
     const fs = toScreen(from), ps = toScreen(out.p);
@@ -114,6 +205,8 @@ function snapCons(sn, e, k) {
   if (!sn) return [];
   if (sn.ref) return [sn.kind === 'midpoint' ? mkCon('midpoint', { e, k }, { e: sn.ref.e }) : mkCon('coincident', { e, k }, sn.ref)];
   if (sn.on) return [mkCon('oncurve', { e, k }, { e: sn.on })];
+  if (sn.mref) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mref), k: 'c' })];
+  if (sn.mon && sn.mon.t !== 'poly') return [mkCon('oncurve', { e, k }, { e: refEnt(sn.mon) })];
   return [];
 }
 /* ---------- drawing tools ---------- */
@@ -146,27 +239,28 @@ function toolClick(sx, sy) {
   if (!sn) return;
   const pts = d ? d.pts.concat([sn.p]) : [sn.p], snaps = d ? d.snaps.concat([sn]) : [sn];
   if (pts.length < TOOL_STEPS[t]) { SK.draft = { pts, snaps }; drawOverlay(); return; }
-  keep();
   const [p0, p1, p2] = pts;
+  if (t === 'line' && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < pxToMm(2)) return;
+  keep();
+  SK.last = [];
   if (t === 'point') { const e = { id: sketchId('p'), t: 'point', c: p0 }; addEnts([e], snapCons(snaps[0], e.id, 'c')); }
   else if (t === 'line') {
-    if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < pxToMm(2)) return;
     const e = { id: sketchId('l'), t: 'line', a: p0, b: p1 }, cs = [...(d && d.chainFrom ? [mkCon('coincident', { e: e.id, k: 'a' }, d.chainFrom)] : snapCons(snaps[0], e.id, 'a')), ...snapCons(snaps[1], e.id, 'b')];
     if (snaps[1].hv) cs.push(mkCon(snaps[1].hv, { e: e.id }));
     // square to the line it follows on from, if it nearly is
     if (d && d.prev) { const P = entById(d.prev); if (P) { const u = lineDir(P), w = lineDir(e), c = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(...u) * Math.hypot(...w) || 1); if (Math.abs(c) < 0.035 && !snaps[1].hv && !(P && cs.some(x => x.t === 'horizontal' || x.t === 'vertical'))) cs.push(mkCon('perpendicular', { e: P.id }, { e: e.id })); } }
-    addEnts([e], cs);
+    addEnts([e], cs); SK.last = [e.id];
     // chained: the next line starts here, unless this one closed the chain on a point already there
-    const closed = snaps[1].ref && snaps[1].ref.e !== 'origin';
-    SK.draft = closed ? null : { pts: [p1], snaps: [{ p: p1 }], chainFrom: { e: e.id, k: 'b' }, prev: e.id };
+    const first = d && d.first ? d.first : p0, closed = (snaps[1].ref && snaps[1].ref.e !== 'origin') || Math.hypot(p1[0] - first[0], p1[1] - first[1]) < 1e-9;
+    SK.draft = closed ? null : { pts: [p1], snaps: [{ p: p1 }], chainFrom: { e: e.id, k: 'b' }, prev: e.id, first };
     resolve(); return;
   }
-  else if (t === 'rect' || t === 'crect') { const r = rectEnts(p0, p1, t === 'crect'); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], t === 'crect' ? r.ents[5].id : r.ents[0].id, t === 'crect' ? 'c' : 'a'))); }
-  else if (t === 'circle') { const e = { id: sketchId('c'), t: 'circle', c: p0, r: Math.max(pxToMm(2), Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) }; addEnts([e], snapCons(snaps[0], e.id, 'c')); }
+  else if (t === 'rect' || t === 'crect') { const r = rectEnts(p0, p1, t === 'crect'); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], t === 'crect' ? r.ents[5].id : r.ents[0].id, t === 'crect' ? 'c' : 'a'), snapCons(snaps[1], r.ents[2].id, 'a'))); SK.last = [r.ents[0].id, r.ents[1].id]; }
+  else if (t === 'circle') { const e = { id: sketchId('c'), t: 'circle', c: p0, r: Math.max(pxToMm(2), Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) }; addEnts([e], snapCons(snaps[0], e.id, 'c')); SK.last = [e.id]; }
   else if (t === 'arc3') {
     const a = arc3(p0, p1, p2); if (!a) { toast('The three points are in a line: no arc', true); SK.draft = null; return; }
     const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 };
-    addEnts([e], [...snapCons(snaps[0], e.id, a.rev ? 'p1' : 'p0'), ...snapCons(snaps[1], e.id, a.rev ? 'p0' : 'p1')]);
+    addEnts([e], [...snapCons(snaps[0], e.id, a.rev ? 'p1' : 'p0'), ...snapCons(snaps[1], e.id, a.rev ? 'p0' : 'p1')]); SK.last = [e.id];
   } else if (t === 'tarc') {
     // from the end of a line or arc, along it
     const r0 = snaps[0].ref, E0 = r0 && entById(r0.e);
@@ -176,7 +270,7 @@ function toolClick(sx, sy) {
     else { const ang = (r0.k === 'p1' ? E0.a0 + arcSweep(E0) : E0.a0) * Math.PI / 180; tdir = r0.k === 'p1' ? [-Math.sin(ang), Math.cos(ang)] : [Math.sin(ang), -Math.cos(ang)]; }
     const a = tangentArc(p0, tdir, p1); if (!a) { toast('That end is straight on: draw a line instead', true); SK.draft = null; return; }
     const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 }, start = a.rev ? 'p1' : 'p0', end = a.rev ? 'p0' : 'p1';
-    addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]);
+    addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]); SK.last = [e.id];
   } else if (t === 'slot') { const r = slotEnts(p0, p1, Math.max(pxToMm(2), Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)))); addEnts(r.ents, r.cons); }
   else if (t === 'polygon') { const r = polygonEnts(p0, p1, SK.polySides); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], r.ents[r.ents.length - 1].id, 'c'))); }
   SK.draft = null;
@@ -221,15 +315,26 @@ async function useEdges(picks) {
 function sketchPick(sx, sy) {
   const s = S(), E = new Map(ents().map(e => [e.id, e]));
   // a dimension's label or a constraint's glyph
-  for (const b of SK.labels || []) if (sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1) return b.item;
+  // (a constraint's glyph only with the select tool: it must not hide the line under it from the others)
+  for (const b of SK.labels || []) if (sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1 && (b.item.t !== 'con' || SK.tool === 'select')) return b.item;
   let best = null, bd = 7;
   for (const e of ents()) for (const k of entKeys(e)) { const p = toScreen(hpt(E, { e: e.id, k })), d = Math.hypot(p[0] - sx, p[1] - sy); if (d < bd) { bd = d; best = { t: 'pt', e: e.id, k }; } }
   if (best) return best;
+  // the origin: a point like any other to dimension from and constrain to
+  { const o = toScreen([0, 0]); if (Math.hypot(o[0] - sx, o[1] - sy) < 7) return { t: 'pt', e: 'origin' }; }
   const uv = uvAt(sx, sy);
   if (!uv) return null;
   bd = 6;
   for (const e of ents()) { if (e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < bd) { bd = d; best = { t: 'ent', id: e.id }; } }
   void s;
+  if (best || SK.tool !== 'dim') return best;
+  // the dimension tool reaches the model too: a corner or an edge of it (brought into the sketch when clicked)
+  const M = modelGeom();
+  bd = 8;
+  for (const q of M.pts) { const z = toScreen(q), d = Math.hypot(z[0] - sx, z[1] - sy); if (d < bd) { bd = d; best = { t: 'mpt', c: q.slice() }; } }
+  if (best) return best;
+  bd = 6 * pxToMm(1);
+  for (const g of M.edges) { if (g.t === 'poly') continue; const r = nearOnEdge(g, uv); if (r.d < bd) { bd = r.d; best = { t: 'ment', g }; } }
   return best;
 }
 const sameItem = (a, b) => a && b && a.t === b.t && a.id === b.id && a.e === b.e && a.k === b.k;
@@ -256,7 +361,7 @@ export function sketchDown(e, sx, sy) {
     if (it) {
       if (add) { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else SK.sel.push(it); }
       else if (!SK.sel.some(x => sameItem(x, it))) SK.sel = [it];
-      if (it.t === 'pt' || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
+      if ((it.t === 'pt' && it.e !== 'origin') || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
     } else { if (!add) SK.sel = []; SK.box = { x0: sx, y0: sy, x1: sx, y1: sy }; }
     drawOverlay(); emit('sketchsel');
     return true;
@@ -286,11 +391,30 @@ export function sketchMove(e, sx, sy) {
   else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' ? from : null); }
   drawOverlay();
 }
-/* a double-click: a dimension's value to type again */
+/* a double-click: a dimension's value to type again; a line, circle or arc dimensioned; a chain of lines ended */
 export function sketchDbl(sx, sy) {
+  if (TOOL_STEPS[SK.tool]) { if (SK.draft) { cancelDraft(); drawOverlay(); } return true; }
+  if (SK.tool !== 'select') return false;
   const it = sketchPick(sx, sy);
   if (it && it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return true; }
+  if (it && it.t === 'ent') return dimShape(it.id);
   return false;
+}
+/* a right-click (the button let go where it went down): the chain of lines, or the shape half drawn, ends; with
+   nothing being drawn, the tool is put down */
+export function sketchRight() {
+  if (SK.dimInput) { dimInputClose(true); return; }
+  if (SK.draft) { cancelDraft(); drawOverlay(); return; }
+  if (SK.tool !== 'select') setTool('select');
+}
+/* a line's length, a circle's diameter or an arc's radius: its dimension made (or the one it has opened), to type */
+const SHAPE_DIM = { line: 'len', circle: 'dia', arc: 'rad' };
+function dimShape(id, seed) {
+  const e = entById(id), t = e && SHAPE_DIM[e.t];
+  if (!t || e.ref) return false;
+  const had = S().f.dims.find(d => d.r.length === 1 && d.r[0].e === id && (d.t === t || (d.t === 'rad' && t === 'dia') || (d.t === 'dia' && t === 'rad')));
+  if (had) dimEdit(had, false, seed); else makeDim({ t, r: [{ e: id }] }, seed);
+  return true;
 }
 export function sketchUp() {
   if (SK.drag) { const d = SK.drag; SK.drag = null; if (d.moved) resolve(); return; }
@@ -313,6 +437,8 @@ export function sketchKey(e) {
   if (e.key === 'Escape') { if (SK.dimInput) dimInputClose(); else if (SK.draft) { SK.draft = null; drawOverlay(); } else if (SK.tool !== 'select') setTool('select'); else { SK.sel = []; drawOverlay(); } return true; }
   if (e.key === 'Delete' || e.key === 'Backspace') { deleteSel(); return true; }
   if (e.key === 'Enter' && !SK.dimInput) { finishSketch(); return true; }
+  // a number typed straight after a line, circle or arc is drawn: its length, diameter or radius
+  if (/^[0-9.]$/.test(e.key) && !SK.dimInput) { while (SK.last.length) { if (dimShape(SK.last.shift(), e.key)) return true; } }
   const keys = { l: 'line', r: 'rect', c: 'circle', a: 'arc3', t: 'tarc', s: 'select', d: 'dim', p: 'point', q: 'construct', m: 'trim', o: 'offset', u: 'use', g: 'polygon' };
   if (keys[k]) { setTool(keys[k]); return true; }
   return false;
@@ -349,7 +475,7 @@ function pasteClip() {
   for (const e of c.ents) for (const p of entOutline(e, 30)) { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; }
   const mid = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2], to = SK.uv || [mid[0] + pxToMm(30), mid[1] - pxToMm(30)], dv = [to[0] - mid[0], to[1] - mid[1]];
   const mv = p => [p[0] + dv[0], p[1] + dv[1]];
-  for (const e of c.ents) { if (e.a) { e.a = mv(e.a); e.b = mv(e.b); } if (e.c) e.c = mv(e.c); delete e.ref; }
+  for (const e of c.ents) { if (e.a) { e.a = mv(e.a); e.b = mv(e.b); } if (e.c) e.c = mv(e.c); delete e.ref; delete e.src; }
   keep();
   S().f.ents.push(...c.ents); S().f.cons.push(...c.cons); S().f.dims.push(...c.dims);
   SK.sel = c.ents.map(e => ({ t: 'ent', id: e.id }));
@@ -388,7 +514,11 @@ export function addConstraint(t) {
 }
 /* ---------- dimensions ---------- */
 function dimClick(it, sx, sy) {
-  if (!it) { SK.dimPick = null; return; }
+  // a line clicked, then somewhere off it: its length
+  if (!it) { const was = SK.dimPick; SK.dimPick = null; if (was && was.t === 'ent' && entById(was.id) && entById(was.id).t === 'line') makeDim({ t: 'len', r: [{ e: was.id }] }); else drawOverlay(); return; }
+  // a corner or an edge of the model: brought into the sketch as a fixed construction shape, and measured from
+  if (it.t === 'mpt') it = { t: 'pt', e: refEnt({ t: 'point', c: it.c }), k: 'c' };
+  else if (it.t === 'ment') it = { t: 'ent', id: refEnt(it.g) };
   const E = new Map(ents().map(e => [e.id, e]));
   if (it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return; }
   const prev = SK.dimPick;
@@ -420,26 +550,27 @@ function dimClick(it, sx, sy) {
   }
   toast('Dimension: click a line, a circle or arc, two points, a point and a line, or two lines');
 }
-function makeDim(d) {
+function makeDim(d, seed) {
   d.id = sketchId('d');
   const v = dimMeasure(ents(), d);
   d.v = d.t === 'ang' ? Math.abs(v) : Math.abs(v); d.x = fmtNum(d.v, 4);
   keep();
   S().f.dims.push(d);
   drawOverlay();
-  dimEdit(d, true);
+  dimEdit(d, true, seed);
 }
 /* the value of a dimension typed in place: a number, a unit, an expression or a #variable */
-function dimEdit(d, isNew) {
+function dimEdit(d, isNew, seed) {
   if (!d) return;
   dimInputClose();
   const pos = SK.dimPos && SK.dimPos.get(d.id) || [V.w / 2, V.h / 2];
-  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
+  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: seed || d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
   inp.style.left = Math.max(4, pos[0] - 50) + 'px'; inp.style.top = Math.max(4, pos[1] - 13) + 'px';
   document.getElementById('stage').append(inp);
   SK.dimInput = { d, inp, isNew };
   inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') dimInputCommit(); else if (e.key === 'Escape') dimInputClose(true); });
-  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  // typed: the key that began it is in the box already; clicked: the view takes the focus first, so wait for it
+  if (seed) { inp.focus(); inp.setSelectionRange(seed.length, seed.length); } else setTimeout(() => { inp.focus(); inp.select(); }, 0);
 }
 function dimInputCommit() {
   const D = SK.dimInput;
@@ -478,7 +609,8 @@ export function shownSketches() {
 /* the planes the overlay shows: the three standard ones and the Plane features before the bar */
 export function shownPlanes() {
   const out = [], frames = app.result ? app.result.frames : {}, n = app.sketch ? app.sketch.at : app.editing ? app.editing.at : appliedCount(app.doc);
-  if (!app.doc.hidePlanes) for (const [k, P] of Object.entries(STD_PLANES)) out.push({ key: { std: k }, F: P, name: P.name, std: true });
+  const hide = app.doc.hide || {};
+  for (const [k, P] of Object.entries(STD_PLANES)) if (!hide[k]) out.push({ key: { std: k }, F: P, name: P.name, std: true });
   app.doc.features.forEach((f, i) => { if (f.type === 'plane' && i < n && !f.suppressed && !f.hide && frames[f.id]) out.push({ key: { feature: f.id }, F: frames[f.id], name: f.name }); });
   return out;
 }
@@ -544,13 +676,96 @@ export function drawOverlay() {
     }
     c.setLineDash([]);
   }
+  // the origin: a dot and the three axes
+  if (!app.sketch && !(app.doc.hide || {}).origin) {
+    const o = project([0, 0, 0]), L = pxToMm(26);
+    c.lineWidth = 1.5; c.font = '10px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (const [ax, col, nm] of [[[L, 0, 0], '#d04a3a', 'x'], [[0, L, 0], '#3a9a4a', 'y'], [[0, 0, L], '#3a6fd0', 'z']]) { const q = project(ax); c.strokeStyle = col; c.beginPath(); c.moveTo(o[0], o[1]); c.lineTo(q[0], q[1]); c.stroke(); c.fillStyle = col; c.fillText(nm, o[0] + (q[0] - o[0]) * 1.25, o[1] + (q[1] - o[1]) * 1.25); }
+    c.fillStyle = C.ink; c.beginPath(); c.arc(o[0], o[1], 2.5, 0, 7); c.fill();
+    c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+  }
+  SK.mlabels = [];
   if (app.sketch && app.sketch.F) drawSketch(c, C);
-  else { SK.labels = []; }
+  else { SK.labels = []; if (!V.fly) modelDims(c, C); }
   if (SK.box || boxSel) { const b = SK.box || boxSel; c.setLineDash([4, 3]); c.strokeStyle = C.sel; c.lineWidth = 1; c.strokeRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0)); c.setLineDash([]); }
   // what overlays add to the view's bounds (so Fit takes them in)
   V.overlays = [];
   for (const { f, F } of shownSketches()) for (const e of f.ents) for (const p of entOutline(e, 45)) V.overlays.push(toWorld(F, p));
   if (app.sketch && app.sketch.F) for (const e of ents()) for (const p of entOutline(e, 45)) V.overlays.push(toWorld(app.sketch.F, p));
+}
+/* ---------- dimensions on the model: a sketch's, shown without opening it, and changed by a double-click ---------- */
+const DIMS_KEY = 'jekcad-dims';
+export const dimsShown = () => { try { return localStorage.getItem(DIMS_KEY) !== 'off'; } catch (err) { return true; } };
+export function setDimsShown(v) { try { if (v) localStorage.removeItem(DIMS_KEY); else localStorage.setItem(DIMS_KEY, 'off'); } catch (err) { /* this visit */ } drawOverlay(); }
+/* the sketches of the feature picked in the list: itself, or what it was made from */
+function pickedSketches() {
+  const f = app.picked && app.doc.features.find(x => x.id === app.picked);
+  if (!f) return [];
+  return f.type === 'sketch' ? [f.id] : [f.sketch, f.path, ...(f.sections || []).map(x => x.sketch)].filter(x => typeof x === 'string');
+}
+function dimText(d) { return (d.t === 'dia' ? 'Ø' : d.t === 'rad' ? 'R' : '') + fmtNum(d.v, 3) + (d.t === 'ang' ? '°' : '') + (d.x && /[#a-z(]/i.test(d.x.replace(/\b(mm|cm|in|m|deg|rad)\b/g, '')) ? ' (' + d.x + ')' : ''); }
+function drawDim(c, C, d, at, sel, hov) {
+  c.strokeStyle = C.dim; c.lineWidth = 1; c.font = '11px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (const ln of at.lines) { c.beginPath(); c.moveTo(ln[0][0], ln[0][1]); c.lineTo(ln[1][0], ln[1][1]); c.stroke(); }
+  const txt = dimText(d), w = c.measureText(txt).width + 8;
+  c.fillStyle = sel ? C.sel : hov ? C.hov : isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.88)';
+  c.fillRect(at.p[0] - w / 2, at.p[1] - 8, w, 16);
+  c.fillStyle = d.err ? '#d04040' : sel ? '#fff' : hov ? '#1f232a' : C.dim; c.fillText(txt, at.p[0], at.p[1] + 0.5);
+  return { x0: at.p[0] - w / 2, x1: at.p[0] + w / 2, y0: at.p[1] - 8, y1: at.p[1] + 8 };
+}
+function modelDims(c, C) {
+  const picked = new Set(pickedSketches()), frames = app.result ? app.result.frames : {}, n = app.editing ? app.editing.at : appliedCount(app.doc), all = dimsShown();
+  app.doc.features.forEach((f, i) => {
+    if (f.type !== 'sketch' || i >= n || f.suppressed || !frames[f.id]) return;
+    const isPicked = picked.has(f.id);
+    if (!isPicked && (f.hide || !all)) return;
+    const F = frames[f.id], P = uv => project(toWorld(F, uv)), E = new Map(f.ents.map(e => [e.id, e]));
+    // a picked sketch that is hidden shows its shapes too, so its dimensions have something to measure
+    if (isPicked) { for (const e of f.ents) { c.strokeStyle = C.sel; c.lineWidth = 1.6; c.setLineDash(e.k ? [5, 4] : []); strokeEnt(c, e, P); } c.setLineDash([]); }
+    for (const d of f.dims) {
+      if (d.r.some(r => { const e = E.get(r.e); return e && e.ref; })) continue;
+      const at = dimPlace(d, E, P);
+      if (!at) continue;
+      const hov = SK.mhover && SK.mhover.dim === d.id;
+      SK.mlabels.push(Object.assign(drawDim(c, C, d, at, false, hov), { sketch: f.id, dim: d.id, p: at.p }));
+    }
+  });
+  c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+}
+export function modelDimAt(sx, sy) { return (SK.mlabels || []).find(b => sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1) || null; }
+export function modelDimHover(L) { if ((SK.mhover && SK.mhover.dim) !== (L && L.dim)) { SK.mhover = L; drawOverlay(); } }
+/* a sketch's dimension typed again from the model view: the sketch is solved with it, and the model follows */
+export function modelDimEdit(L) {
+  const f = app.doc.features.find(x => x.id === L.sketch), d = f && f.dims.find(x => x.id === L.dim);
+  if (!d) return false;
+  const old = document.getElementById('dimInput'); if (old) old.remove();
+  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
+  inp.style.left = Math.max(4, L.p[0] - 50) + 'px'; inp.style.top = Math.max(4, L.p[1] - 13) + 'px';
+  document.getElementById('stage').append(inp);
+  let done = false;
+  const close = () => { if (done) return; done = true; inp.remove(); };
+  const commit = () => {
+    if (done) return;
+    const txt = inp.value.trim();
+    if (txt === (d.x || fmtNum(d.v))) { close(); return; }
+    let v;
+    try { v = evalExpr(txt, app.result ? app.result.vars : {}, d.t === 'ang' ? 'ang' : 'len'); }
+    catch (err) { toast('That value: ' + err.message, true); inp.focus(); return; }
+    if (d.t !== 'ang' && !(v > 0) && !(d.t === 'dist' && v === 0)) { toast('A dimension must be more than 0', true); inp.focus(); return; }
+    const g = JSON.parse(JSON.stringify(f)), gd = g.dims.find(x => x.id === d.id);
+    gd.v = d.t === 'ang' ? v : Math.abs(v); gd.x = txt;
+    const r = solveSketch(g.ents, g.cons, g.dims, null, { iters: 100 });
+    close();
+    if (!r.ok) { toast('That dimension cannot hold with the others (over-constrained): left as it was', true); return; }
+    checkpoint();
+    carryRegions(app.doc, f.id, f.ents, g.ents);
+    f.ents = g.ents; f.dims = g.dims;
+    changed();
+  };
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') commit(); else if (e.key === 'Escape') close(); });
+  inp.addEventListener('blur', () => setTimeout(commit, 0));
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  return true;
 }
 let boxSel = null;
 export function setBoxSel(b) { boxSel = b; drawOverlay(); }
@@ -597,6 +812,9 @@ function drawSketch(c, C) {
     const r = sel || hov ? 3.5 : k === 'c' && e.t !== 'point' ? 1.8 : 2.6;
     c.fillRect(q[0] - r, q[1] - r, 2 * r, 2 * r);
   }
+  if (isSel({ t: 'pt', e: 'origin' }) || isHov({ t: 'pt', e: 'origin' })) { c.fillStyle = isSel({ t: 'pt', e: 'origin' }) ? C.sel : C.hov; c.fillRect(o[0] - 4, o[1] - 4, 8, 8); }
+  if (SK.hover && SK.hover.t === 'mpt') { const q = P(SK.hover.c); c.strokeStyle = C.hov; c.lineWidth = 2; c.beginPath(); c.arc(q[0], q[1], 5, 0, 7); c.stroke(); }
+  if (SK.hover && SK.hover.t === 'ment') { c.strokeStyle = C.hov; c.lineWidth = 2.6; strokeEnt(c, SK.hover.g, P); }
   SK.labels = [];
   // constraint glyphs, stacked by where they are
   const slots = new Map();
@@ -616,18 +834,10 @@ function drawSketch(c, C) {
   }
   // dimensions: a leader and the value
   SK.dimPos = new Map();
-  c.font = '11px system-ui, sans-serif';
   for (const d of f.dims) {
     const it = { t: 'dim', id: d.id }, sel = isSel(it), hov = isHov(it), at = dimPlace(d, E, P);
     if (!at) continue;
-    c.strokeStyle = C.dim; c.lineWidth = 1;
-    for (const ln of at.lines) { c.beginPath(); c.moveTo(ln[0][0], ln[0][1]); c.lineTo(ln[1][0], ln[1][1]); c.stroke(); }
-    const txt = (d.t === 'dia' ? 'Ø' : d.t === 'rad' ? 'R' : '') + fmtNum(d.v, 3) + (d.t === 'ang' ? '°' : '') + (d.x && /[#a-z(]/i.test(d.x.replace(/\b(mm|cm|in|m|deg|rad)\b/g, '')) ? ' (' + d.x + ')' : '');
-    const w = c.measureText(txt).width + 8;
-    c.fillStyle = sel ? C.sel : hov ? C.hov : isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.88)';
-    c.fillRect(at.p[0] - w / 2, at.p[1] - 8, w, 16);
-    c.fillStyle = d.err ? '#d04040' : sel ? '#fff' : C.dim; c.fillText(txt, at.p[0], at.p[1] + 0.5);
-    SK.labels.push({ x0: at.p[0] - w / 2, x1: at.p[0] + w / 2, y0: at.p[1] - 8, y1: at.p[1] + 8, item: it });
+    SK.labels.push(Object.assign(drawDim(c, C, d, at, sel, hov), { item: it }));
     SK.dimPos.set(d.id, at.p);
   }
   // the shape being drawn, and what the pointer infers
@@ -636,6 +846,17 @@ function drawSketch(c, C) {
   for (const e of dr) strokeEnt(c, e, P);
   c.setLineDash([]);
   const sn = SK.snap;
+  // its size as it is drawn, by the pointer
+  if (dr.length && sn && SK.draft) {
+    const p0 = SK.draft.pts[0], p1 = SK.draft.pts[1] || sn.p, t = SK.tool, mm = v => fmtNum(v, 2), far = Math.hypot(sn.p[0] - p0[0], sn.p[1] - p0[1]);
+    const txt = t === 'line' ? mm(far) + ' mm' : t === 'rect' ? mm(Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'crect' ? mm(2 * Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(2 * Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'circle' ? 'Ø' + mm(2 * far) + ' mm' : t === 'polygon' ? 'R' + mm(far) + ' mm'
+      : (t === 'arc3' || t === 'tarc') && dr[0].t === 'arc' ? 'R' + mm(dr[0].r) + ' mm' : t === 'slot' && SK.draft.pts.length > 1 ? mm(Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) + ' × ' + mm(2 * distToEnt({ t: 'line', a: p0, b: p1 }, sn.p)) + ' mm' : mm(far) + ' mm';
+    const q = P(sn.p); c.font = '11px system-ui, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    const w = c.measureText(txt).width + 8;
+    c.fillStyle = isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.9)'; c.fillRect(q[0] + 12, q[1] + 10, w, 16);
+    c.fillStyle = C.dim; c.fillText(txt, q[0] + 16, q[1] + 18.5);
+    c.textAlign = 'center';
+  }
   if (sn && SK.tool !== 'select') {
     const q = P(sn.p);
     c.fillStyle = C.sel; c.fillRect(q[0] - 3, q[1] - 3, 6, 6);
@@ -646,7 +867,11 @@ function drawSketch(c, C) {
 /* where a dimension's value goes, and its leader lines (screen) */
 function dimPlace(d, E, P) {
   const e0 = E.get(d.r[0].e);
-  if (d.t === 'len' && e0) { const a = P(e0.a), b = P(e0.b), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L * 18, dx / L * 18]; const A = [a[0] + n[0], a[1] + n[1]], B = [b[0] + n[0], b[1] + n[1]]; return { p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lines: [[a, A], [b, B], [A, B]] }; }
+  // the side of a line a dimension goes: away from the middle of the sketch, so it sits outside the shape
+  let mid = E.mid;
+  if (!mid) { let n = 0; const m = [0, 0]; for (const e of E.values()) for (const q of e.t === 'line' ? [e.a, e.b] : [e.c]) { m[0] += q[0]; m[1] += q[1]; n++; } mid = E.mid = n ? [m[0] / n, m[1] / n] : [0, 0]; }
+  const out = (a, b, n) => { const c = P(mid), s = (((a[0] + b[0]) / 2 - c[0]) * n[0] + ((a[1] + b[1]) / 2 - c[1]) * n[1]) < -1e-6 ? -1 : 1; return [n[0] * s, n[1] * s]; };
+  if (d.t === 'len' && e0) { const a = P(e0.a), b = P(e0.b), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, n = out(a, b, [-dy / L * 24, dx / L * 24]); const A = [a[0] + n[0], a[1] + n[1]], B = [b[0] + n[0], b[1] + n[1]]; return { p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lines: [[a, A], [b, B], [A, B]] }; }
   if ((d.t === 'rad' || d.t === 'dia') && e0 && e0.c) { const ang = e0.t === 'arc' ? (e0.a0 + arcSweep(e0) / 2) * Math.PI / 180 : Math.PI / 4, q = [e0.c[0] + e0.r * Math.cos(ang), e0.c[1] + e0.r * Math.sin(ang)], cs = P(e0.c), qs = P(q), dx = qs[0] - cs[0], dy = qs[1] - cs[1], L = Math.hypot(dx, dy) || 1, out = [qs[0] + dx / L * 24, qs[1] + dy / L * 24]; return { p: out, lines: [[d.t === 'dia' ? [cs[0] - dx, cs[1] - dy] : cs, out]] }; }
   if (d.t === 'dist' || d.t === 'pl') {
     const a = hpt(E, d.r[0]);
@@ -654,7 +879,7 @@ function dimPlace(d, E, P) {
     if (d.t === 'pl') { const L = E.get(d.r[1].e); if (!L) return null; const dd = lineDir(L), L2 = dd[0] * dd[0] + dd[1] * dd[1] || 1, t = ((a[0] - L.a[0]) * dd[0] + (a[1] - L.a[1]) * dd[1]) / L2; b = [L.a[0] + dd[0] * t, L.a[1] + dd[1] * t]; }
     else b = hpt(E, d.r[1]);
     if (d.dir === 'h') b = [b[0], a[1]]; else if (d.dir === 'v') b = [a[0], b[1]];
-    const A = P(a), B = P(b), dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L * 14, dx / L * 14];
+    const A = P(a), B = P(b), dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, n = out(A, B, [-dy / L * 24, dx / L * 24]);
     const A2 = [A[0] + n[0], A[1] + n[1]], B2 = [B[0] + n[0], B[1] + n[1]];
     return { p: [(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], lines: [[A, A2], [B, B2], [A2, B2]] };
   }

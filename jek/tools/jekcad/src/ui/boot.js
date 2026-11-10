@@ -5,10 +5,10 @@ import { usageDrawn, usageStart, wireUsage } from '../../../jekray/src/io/usage.
 import { accountLoaded } from '../../../jekray/src/io/account.js';
 import { STD_PLANES, normDoc } from '../core/doc.js';
 import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, on, redo, regenDone, regenNow, setCadTheme, themeNow, toast, undo, wireMenus } from './app.js';
-import { V, fit, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube } from './view3d.js';
-import { SK, addConstraint, cancelSketch, drawOverlay, finishSketch, overlayPick, setTool, sketchBar, sketchUndo, startSketch, toScreen, wireSketcher } from './sketcher.js';
+import { V, fit, flyStart, flyStop, flyTurn, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
+import { SK, addConstraint, cancelSketch, dimsShown, drawOverlay, finishSketch, modelDimEdit, modelGeom, overlayPick, setDimsShown, setTool, sketchBar, sketchRight, sketchUndo, startSketch, toScreen, wireSketcher } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, okDialog, openFeature, showVariables, wireDialog } from './dialog.js';
-import { deleteFeature, moveFeature, renderPanel, setRollback, wirePanel } from './panel.js';
+import { deleteFeature, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
 import { normalToSel, pickHere, selectPick, wirePointer } from './pointer.js';
 import { exportParts, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
 import { wireCadAccount } from '../io/cad-account.js';
@@ -27,7 +27,7 @@ if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)')
 const saved = restoreSaved();
 if (saved) app.doc = saved;
 on('icons', el => cadIcons(el));
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireNews(); wireCadAccount(); wireCloud(); wireUsage();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -44,7 +44,24 @@ function themeMenu() { for (const b of document.querySelectorAll('[data-theme]')
 for (const b of document.querySelectorAll('[data-theme]')) b.addEventListener('click', () => { setCadTheme(b.dataset.theme); themeMenu(); });
 const filter = document.getElementById('selFilter');
 filter.addEventListener('change', () => { app.filter = filter.value; app.hover = null; emit('sel'); });
-click('btnPlanes', () => { checkpoint(); app.doc.hidePlanes = !app.doc.hidePlanes; drawOverlay(); });
+// the three planes together: hidden if any shows, shown if none does (each has its own eye in the list)
+click('btnPlanes', () => { checkpoint(); const hd = app.doc.hide || (app.doc.hide = {}), any = ['top', 'front', 'right'].some(k => !hd[k]); for (const k of ['top', 'front', 'right']) { if (any) hd[k] = true; else delete hd[k]; } changed(); });
+click('btnFly', () => { closeMenus(); flyStart(); });
+const dimsBtn = document.getElementById('btnDimsShown');
+dimsBtn.setAttribute('aria-checked', String(dimsShown()));
+dimsBtn.addEventListener('click', () => { setDimsShown(!dimsShown()); dimsBtn.setAttribute('aria-checked', String(dimsShown())); });
+on('picked', drawOverlay);
+/* the feature list's tab: the list closed, the view has the whole window; kept for the next visit */
+const SIDE_KEY = 'jekcad-side';
+function sideShown(open) {
+  const main = document.getElementById('cadMain'), tab = document.getElementById('sideTab');
+  main.classList.toggle('side-off', !open);
+  tab.setAttribute('aria-expanded', String(open)); tab.title = open ? 'Hide the feature list' : 'Show the feature list'; tab.setAttribute('aria-label', tab.title);
+  tab.firstElementChild.textContent = open ? '‹' : '›';
+  try { if (open) localStorage.removeItem(SIDE_KEY); else localStorage.setItem(SIDE_KEY, 'off'); } catch (err) { /* this visit */ }
+}
+click('sideTab', () => sideShown(document.getElementById('cadMain').classList.contains('side-off')));
+try { if (!TEST_MODE && localStorage.getItem(SIDE_KEY) === 'off') sideShown(false); } catch (err) { /* open */ }
 click('btnHelpKeys', () => document.getElementById('helpDialog').showModal());
 click('helpClose', () => document.getElementById('helpDialog').close());
 on('history', () => { document.getElementById('btnUndo').disabled = !app.history.length && !app.sketch; document.getElementById('btnRedo').disabled = !app.future.length; });
@@ -73,7 +90,7 @@ on('model', out => { // the section's slider spans the parts
 });
 // the hint line: what the mouse does
 const hint = document.getElementById('hint');
-on('sketch', () => { hint.textContent = app.sketch ? 'Sketch: draw with the tools; Esc ends a chain; D dimensions; drag to move what is free (blue). Right-drag pans, wheel zooms. Enter finishes.' : 'Right-drag: orbit · Middle-drag or Shift+right-drag: pan · Wheel: zoom · Left: select, drag for a box · F: fit · N: normal to'; sketchBar(); renderPanel(); });
+on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw · Right-click or Esc ends a chain · Type a number after a line or circle to size it · D: dimension · Double-click a dimension to change it · Enter finishes' : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; sketchBar(); renderPanel(); });
 emit('sketch');
 bootModes(); themeMenu();
 cadIcons(document);
@@ -96,4 +113,5 @@ window.JEKcad = {
   openFeature, editFeature, okDialog, closeDialog, fieldPick, startSketch, finishSketch, cancelSketch, setTool, addConstraint,
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
+  flyStart, flyStop, flyTurn, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

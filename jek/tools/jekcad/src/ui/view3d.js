@@ -1,5 +1,5 @@
 import { TEST_MODE } from '../../../jekray/src/core/constants.js';
-import { app, emit, isDark, on } from './app.js';
+import { app, emit, isDark, on, toast } from './app.js';
 
 /* ==========================================================================
    The 3D view: the parts as the kernel meshed them (faces, edges and vertices, each pickable), drawn with three.js
@@ -12,7 +12,7 @@ import { app, emit, isDark, on } from './app.js';
    ========================================================================== */
 let T = null, loading = null;
 export const V = { ready: false, renderer: null, scene: null, cam: null, parts: new Map(), target: [0, 0, 0], q: [0, 0, 0, 1], hh: 60, mode: 'shadedEdges',
-  section: null, preview: null, anim: null, w: 1, h: 1, dirty: true, overlays: [] };
+  section: null, preview: null, anim: null, w: 1, h: 1, dirty: true, overlays: [], fly: null };
 const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
 const qaxis = (ax, ang) => { const s = Math.sin(ang / 2), l = Math.hypot(...ax) || 1; return [ax[0] / l * s, ax[1] / l * s, ax[2] / l * s, Math.cos(ang / 2)]; };
 const qrot = (q, v) => { const [x, y, z, w] = q, ix = w * v[0] + y * v[2] - z * v[1], iy = w * v[1] + z * v[0] - x * v[2], iz = w * v[2] + x * v[1] - y * v[0], iw = -x * v[0] - y * v[1] - z * v[2]; return [ix * w + iw * -x + iy * -z - iz * -y, iy * w + iw * -y + iz * -x - ix * -z, iz * w + iw * -z + ix * -y - iy * -x]; };
@@ -110,6 +110,7 @@ function loop() {
     if (t >= 1) V.anim = null;
     V.dirty = true;
   }
+  if (V.fly) flyStep();
   if (!V.dirty) return;
   V.dirty = false;
   draw();
@@ -118,8 +119,10 @@ function loop() {
 export const redraw = () => { V.dirty = true; };
 function draw() {
   if (!V.ready) return;
-  const C = COL(), { x, y, z } = camAxes(), far = V.hh * 200;
+  const C = COL();
   V.renderer.setClearColor(C.bg);
+  if (V.fly) { drawFly(); return; }
+  const { x, y, z } = camAxes(), far = V.hh * 200;
   V.cam.left = -V.hh * V.w / V.h; V.cam.right = V.hh * V.w / V.h; V.cam.top = V.hh; V.cam.bottom = -V.hh;
   V.cam.near = 0.01; V.cam.far = far * 2 + V.hh * 400;
   V.cam.position.set(V.target[0] + z[0] * far, V.target[1] + z[1] * far, V.target[2] + z[2] * far);
@@ -371,6 +374,108 @@ function cubeShown() {
     c.fill(); c.strokeStyle = dark ? '#8a93a0' : '#7c8591'; c.lineWidth = 0.8; c.stroke();
     if (f.vis > 0.25) { const m = f.pts.reduce((s2, p) => [s2[0] + p[0] / 4, s2[1] + p[1] / 4], [0, 0]); c.fillStyle = f.k === cubeHover ? '#fff' : dark ? '#e9e6df' : '#1f232a'; c.fillText(f.label, m[0], m[1]); }
   }
+}
+/* ---------- fly: the model full screen, flown through, as JEKray's 3D view is ----------
+   The view is orthographic, which cannot be flown through (nothing grows as you near it), so flying has a camera
+   of its own, in perspective, starting where the view looks from. W A S D or the arrows move the way it looks and
+   across it, Space and Ctrl up and down, Shift four times as fast; the mouse looks round and up and down, never
+   rolled; the wheel sets the speed. Esc lands: the view is left looking the way the flight ended. */
+const FLY_FOV = 50, FLY_PITCH = 88 * Math.PI / 180;
+const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
+const flyDir = () => { const f = V.fly; return [Math.cos(f.yaw) * Math.cos(f.pitch), Math.sin(f.yaw) * Math.cos(f.pitch), Math.sin(f.pitch)]; };
+const flyCv = () => document.getElementById('view');
+function flyHintText() {
+  const f = V.fly, el = document.getElementById('flyHint');
+  if (!f || !el) return;
+  const locked = document.pointerLockElement === flyCv();
+  el.textContent = 'Flying · W A S D: move · ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' · Space / Ctrl: up, down · Shift: faster · Wheel: speed (' + (f.speed >= 1000 ? +(f.speed / 1000).toPrecision(2) + ' m' : Math.round(f.speed) + ' mm') + '/s) · Esc: land';
+}
+function flyLock() { try { const cv = flyCv(), q = cv.requestPointerLock && cv.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (err) { /* no pointer lock: drag to look */ } }
+export function flyStart() {
+  if (V.fly || !V.ready) return false;
+  if (app.sketch || app.editing) { toast('Finish the ' + (app.sketch ? 'sketch' : 'feature') + ' first, then fly'); return false; }
+  V.anim = null;
+  const z = camAxes().z, dist = V.hh / Math.tan(FLY_FOV * Math.PI / 360), d = [-z[0], -z[1], -z[2]];
+  V.fly = { pos: V.target.map((v, i) => v + z[i] * dist), yaw: Math.atan2(d[1], d[0]), pitch: Math.max(-FLY_PITCH, Math.min(FLY_PITCH, Math.asin(Math.max(-1, Math.min(1, d[2]))))), dist, speed: Math.max(5, Math.min(5000, dist * 0.5)), keys: new Set(), last: null, fs: false };
+  if (!V.pcam) V.pcam = new T.PerspectiveCamera(FLY_FOV, 1, 0.1, 1e6);
+  const st = document.getElementById('stage');
+  st.classList.add('cad-flying');
+  document.getElementById('flyHint').hidden = false;
+  window.addEventListener('keydown', flyKey, true); window.addEventListener('keyup', flyKey, true);
+  document.addEventListener('mousemove', flyMouse);
+  document.addEventListener('pointerlockchange', flyHintText);
+  document.addEventListener('fullscreenchange', flyFull);
+  window.addEventListener('blur', flyBlur);
+  try { const q = st.requestFullscreen && st.requestFullscreen(); if (q && q.then) q.then(() => { if (V.fly) V.fly.fs = true; }, () => {}); } catch (err) { /* the stage fills the window itself */ }
+  flyLock(); flyHintText();
+  app.hover = null; emit('fly');
+  V.dirty = true;
+  return true;
+}
+export function flyStop() {
+  const f = V.fly;
+  if (!f) return;
+  window.removeEventListener('keydown', flyKey, true); window.removeEventListener('keyup', flyKey, true);
+  document.removeEventListener('mousemove', flyMouse);
+  document.removeEventListener('pointerlockchange', flyHintText);
+  document.removeEventListener('fullscreenchange', flyFull);
+  window.removeEventListener('blur', flyBlur);
+  // the view left looking the way the flight ended, at a point as far ahead as the model was at take-off
+  const d = flyDir();
+  V.q = qView([-d[0], -d[1], -d[2]]); V.target = f.pos.map((v, i) => v + d[i] * f.dist); V.hh = f.dist * Math.tan(FLY_FOV * Math.PI / 360);
+  V.fly = null;
+  const st = document.getElementById('stage');
+  st.classList.remove('cad-flying');
+  document.getElementById('flyHint').hidden = true;
+  if (document.pointerLockElement === flyCv()) try { document.exitPointerLock(); } catch (err) { /* gone already */ }
+  if (document.fullscreenElement === st) { const q = document.exitFullscreen(); if (q && q.catch) q.catch(() => {}); }
+  for (const o of V.parts.values()) modeShown(o);
+  emit('fly');
+  V.dirty = true;
+}
+/* full screen left (Esc, which the browser keeps for itself there): landed */
+function flyFull() { const f = V.fly; if (!f) return; if (document.fullscreenElement === document.getElementById('stage')) f.fs = true; else if (f.fs) flyStop(); V.dirty = true; }
+function flyBlur() { if (V.fly) V.fly.keys.clear(); }
+function flyKey(e) {
+  const f = V.fly;
+  if (!f) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.type === 'keydown') flyStop(); return; }
+  const k = FLY_KEYS[e.code];
+  if (!k || e.metaKey || e.altKey) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.type === 'keydown') f.keys.add(k); else f.keys.delete(k);
+}
+function flyMouse(e) {
+  const f = V.fly, cv = flyCv();
+  if (!f || !(document.pointerLockElement === cv || (e.buttons && e.target === cv))) return;
+  flyTurn(e.movementX || 0, e.movementY || 0);
+}
+export function flyTurn(dx, dy) { const f = V.fly; if (!f) return; f.yaw -= dx * 0.0022; f.pitch = Math.max(-FLY_PITCH, Math.min(FLY_PITCH, f.pitch - dy * 0.0022)); V.dirty = true; }
+function flyStep() {
+  const f = V.fly, t = performance.now(), dt = f.last === null ? 0 : Math.min(0.1, (t - f.last) / 1000), K = f.keys;
+  f.last = t;
+  const d = flyDir(), right = [Math.sin(f.yaw), -Math.cos(f.yaw), 0];
+  const m = [0, 1, 2].map(i => d[i] * ((K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0)) + right[i] * ((K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0)) + (i === 2 ? (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0) : 0)), L = Math.hypot(...m);
+  if (L > 0 && dt > 0) { const s = f.speed * (K.has('fast') ? 4 : 1) * dt / L; f.pos = f.pos.map((v, i) => v + m[i] * s); V.dirty = true; }
+}
+function drawFly() {
+  const f = V.fly, d = flyDir(), c = V.pcam, size = Math.max(100, sceneBounds().w * 4, f.dist * 4);
+  c.aspect = V.w / Math.max(1, V.h); c.near = Math.max(0.05, size / 20000); c.far = size * 50;
+  c.position.set(...f.pos); c.up.set(0, 0, 1); c.lookAt(f.pos[0] + d[0], f.pos[1] + d[1], f.pos[2] + d[2]);
+  c.updateProjectionMatrix();
+  // the lights come with the camera, as they do in the ordinary view
+  const right = [Math.sin(f.yaw), -Math.cos(f.yaw), 0], up = cross(right, d), far = size;
+  const L = (a, b, e) => f.pos.map((v, i) => v + (right[i] * a + up[i] * b - d[i] * e) * far), ahead = f.pos.map((v, i) => v + d[i] * f.dist);
+  V.key.position.set(...L(-0.5, 0.8, 1)); V.fill.position.set(...L(0.9, -0.3, 0.6));
+  V.key.target.position.set(...ahead); V.fill.target.position.set(...ahead);
+  V.key.target.updateMatrixWorld(); V.fill.target.updateMatrixWorld();
+  V.renderer.render(V.scene, c);
+}
+export function wireFly() {
+  const cv = flyCv();
+  if (!cv) return;
+  cv.addEventListener('pointerdown', e => { if (!V.fly) return; e.preventDefault(); if (document.pointerLockElement !== cv) flyLock(); });
+  cv.addEventListener('wheel', e => { const f = V.fly; if (!f) return; e.preventDefault(); f.speed = Math.max(1, Math.min(20000, f.speed * Math.exp(-e.deltaY * 0.0015))); flyHintText(); }, { passive: false });
 }
 /* a picture of the view (for cloud thumbnails and the tests) */
 export function viewPng() { if (!V.ready) return null; draw(); return document.getElementById('view').toDataURL('image/png'); }

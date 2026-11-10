@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { definedEnts, solveSketch, dimMeasure, sketchId } from '../../src/core/sketch.js';
-import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross } from '../../src/core/sketch-tools.js';
+import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions } from '../../src/core/sketch-tools.js';
 import { evalExpr, evalVars } from '../../src/core/units.js';
 import { normDoc, newDoc, newFeature, prepareDoc, canMove, CAD_FORMAT } from '../../src/core/doc.js';
 
@@ -137,4 +137,19 @@ test('the document: defaults for what an old file lacks, prepared dimensions, re
   doc.features.push(newFeature(doc, 'extrude', { sketch: sk.id }));
   assert.equal(canMove(doc, 1, 0), false);
   assert.equal(canMove(doc, 0, 1), false);
+});
+
+test('a region’s point is carried with its shapes: beside the line or circle it was nearest to', () => {
+  const was = [{ id: 'c1', t: 'circle', c: [30, 15], r: 3 }, { id: 'l1', t: 'line', a: [0, 0], b: [40, 0] }, { id: 'l2', t: 'line', a: [40, 0], b: [40, 20] }, { id: 'l3', t: 'line', a: [40, 20], b: [0, 20] }, { id: 'l4', t: 'line', a: [0, 20], b: [0, 0] }];
+  const now = JSON.parse(JSON.stringify(was));
+  now[0].c = [50, 15]; now[1].b = [60, 0]; now[2].a = [60, 0]; now[2].b = [60, 20]; now[3].a = [60, 20];
+  // the hole's own point goes with the hole; a point in the plate keeps its place along and off its nearest line
+  const h = carryPt(was, now, [30, 15]);
+  near(h[0], 50, 1e-9); near(h[1], 15, 1e-9);
+  const q = carryPt(was, now, [20, 2]);
+  near(q[0], 30, 1e-9); near(q[1], 2, 1e-9);
+  // and a feature's chosen regions with them
+  const doc = { features: [{ id: 'sk', type: 'sketch', ents: was }, { id: 'ex', type: 'extrude', sketch: 'sk', regions: [[30, 15]] }] };
+  carryRegions(doc, 'sk', was, now);
+  near(doc.features[1].regions[0][0], 50, 1e-6);
 });

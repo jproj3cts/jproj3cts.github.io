@@ -1934,8 +1934,13 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-skin { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.78rem; color: var(--jek-ink-soft); margin: 0 0.25rem; }
   .cad-skin input { width: 3.6rem; font-size: 0.78rem; }
   /* the page: the feature list beside the view */
-  .cad-main { display: grid; grid-template-columns: 272px minmax(300px, 1fr); gap: 0.6rem; margin-top: 0.45rem; }
-  .cad-side { height: max(460px, calc(100vh - 170px)); overflow: auto; background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
+  .cad-main { position: relative; display: flex; flex: 1; min-height: 0; }
+  .cad-side { flex: none; width: 272px; overflow: auto; background: var(--rt-surface); border-right: 1px solid var(--jek-line); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
+  .cad-main.side-off .cad-side { display: none; }
+  /* the tab on the list's edge: it closes the list, and opens it again from the view's edge */
+  .cad-sidetab { position: absolute; left: 272px; top: 50%; z-index: 12; transform: translateY(-50%); width: 15px; height: 58px; padding: 0; border: 1px solid var(--jek-line); border-left: 0; border-radius: 0 6px 6px 0; background: var(--rt-surface); color: var(--jek-ink-soft); font-size: 0.95rem; line-height: 1; cursor: pointer; }
+  .cad-sidetab:hover { background: var(--jek-orange); border-color: var(--jek-orange); color: #fff; }
+  .cad-main.side-off .cad-sidetab { left: 0; }
   .cad-shead { font-size: 0.72rem; font-weight: 700; text-transform: none; letter-spacing: 0.02em; color: var(--jek-ink-soft); margin: 0.4rem 0.4rem 0.2rem; }
   .cad-flist, .cad-plist { list-style: none; margin: 0 0 0.5rem; padding: 0; }
   .cad-flist li, .cad-plist li { display: flex; align-items: center; gap: 0.35rem; padding: 0.22rem 0.4rem; border-radius: 3px; cursor: default; position: relative; flex-wrap: wrap; }
@@ -1953,6 +1958,13 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-hid { font-size: 0.7rem; color: var(--jek-ink-soft); }
   .cad-more { border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; padding: 0 0.25rem; font-size: 0.9rem; line-height: 1; }
   .cad-more:hover { color: var(--jek-ink); }
+  .cad-eye { border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; padding: 0 0.15rem; line-height: 1; display: inline-flex; align-items: center; opacity: 0; }
+  .cad-eye svg.ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+  .cad-flist li:hover .cad-eye, .cad-flist li:focus-within .cad-eye, .cad-eye.off, .cad-eye:focus-visible { opacity: 1; }
+  .cad-eye:hover { color: var(--jek-ink); }
+  .cad-eye.off { color: var(--jek-orange); }
+  .cad-flist li.hid .nm { opacity: 0.5; }
+  .cad-frow-f.picked, .cad-frow-p.picked { background: rgba(224, 137, 46, 0.18); }
   .cad-rollbar { height: 0; padding: 0 !important; margin: 0.25rem 0.2rem; border-top: 4px solid var(--jek-orange); border-radius: 2px; cursor: ns-resize; list-style: none; }
   .cad-rollbar.drag { border-top-color: var(--jek-red); }
   .cad-empty { color: var(--jek-ink-soft); font-size: 0.78rem; line-height: 1.4; }
@@ -1964,11 +1976,14 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-partmat select { font-size: 0.72rem; max-width: 100%; }
   .cad-rowmenu { position: fixed; z-index: 90; min-width: 11rem; }
   /* the view */
-  .cad-stage { height: max(460px, calc(100vh - 170px)); }
+  .cad-app .cad-stage { flex: 1; min-width: 0; height: auto; min-height: 0; border: 0; }
+  .cad-stage.cad-flying { position: fixed; inset: 0; z-index: 1000; }
+  .cad-stage.cad-flying > :not(#view):not(.rt-flyhint) { display: none !important; }
+  .cad-stage.cad-flying #view { cursor: crosshair; }
   .cad-stage > canvas { position: absolute; left: 0; top: 0; }
   .cad-stage #over { cursor: default; outline: none; }
   .cad-stage.dropping::after { content: 'Drop a .jekcad or a STEP file'; position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--jek-orange); border-radius: 6px; color: var(--jek-orange); font-weight: 700; pointer-events: none; }
-  .cad-hint { position: absolute; left: 0.6rem; bottom: 0.45rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
+  .cad-hint { position: absolute; left: 1.4rem; bottom: 0.45rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
   .cad-busy { position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%); font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 2px; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); pointer-events: none; }
   .cad-note { position: absolute; inset: auto 1rem 3rem; padding: 0.6rem; background: var(--rt-bad-bg); color: var(--jek-red); }
   .cad-measure { position: absolute; right: 0.6rem; bottom: 2rem; min-width: 12rem; max-width: 20rem; padding: 0.4rem 0.6rem; font-size: 0.75rem; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); border-radius: 2px; }
@@ -1984,7 +1999,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-cubebtns { display: flex; justify-content: center; gap: 2px; }
   .cad-cubebtns .rt-btn { padding: 0.05rem 0.3rem; font-size: 0.68rem; }
   /* the feature dialog */
-  .cad-dialog { position: absolute; left: 0.6rem; top: 0.6rem; z-index: 10; width: 300px; max-height: calc(100% - 3rem); overflow: auto; background: var(--rt-surface); color: var(--jek-ink); border: 1px solid var(--jek-line); border-top: 3px solid var(--jek-orange); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); font-size: 0.8rem; }
+  .cad-dialog { position: absolute; left: 1.4rem; top: 0.6rem; z-index: 10; width: 300px; max-height: calc(100% - 3rem); overflow: auto; background: var(--rt-surface); color: var(--jek-ink); border: 1px solid var(--jek-line); border-top: 3px solid var(--jek-orange); border-radius: var(--jek-radius); box-shadow: var(--jek-shadow); font-size: 0.8rem; }
   .cad-dialog[hidden] { display: none; }
   .cad-fhead { display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.6rem 0.3rem; }
   .cad-fkind { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; }
@@ -2014,7 +2029,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-table th, .cad-table td { text-align: left; padding: 0.2rem 0.3rem; border-bottom: 1px solid var(--jek-line); }
   .cad-table td.n { font-family: var(--jek-mono); }
   .cad-table td.bad { color: var(--jek-red); }
-  @media (max-width: 800px) { .cad-main { grid-template-columns: 1fr; } .cad-side { height: auto; max-height: 30vh; } .cad-hint { display: none; } }
+  @media (max-width: 800px) { .cad-main { flex-direction: column; } .cad-side { width: auto; max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--jek-line); } .cad-sidetab { display: none; } .cad-hint { display: none; } }
 </style>
 </head>
 <body>
@@ -2060,6 +2075,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <div class="rt-menu rt-imenu" id="viewMenu" role="menu" hidden>
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Zoom to fit<span class="k">F</span></button>
             <button type="button" role="menuitem" id="btnNormal" data-icon="plane">Normal to the selection<span class="k">N</span></button>
+            <button type="button" role="menuitem" data-click="btnFly" data-icon="fly">Fly through the model</button>
+            <button type="button" role="menuitem" data-click="sideTab" data-icon="panel">Show or hide the feature list</button>
             <button type="button" role="menuitem" data-view="iso" data-icon="cube">Isometric<span class="k">7</span></button>
             <button type="button" role="menuitem" data-view="top" data-icon="cube">Top<span class="k">5</span></button>
             <button type="button" role="menuitem" data-view="front" data-icon="cube">Front<span class="k">1</span></button>
@@ -2072,6 +2089,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitemcheckbox" id="btnSection" aria-checked="false" data-icon="section">Section view</button>
             <button type="button" role="menuitem" id="btnPlanes" data-icon="plane">Show or hide the planes</button>
+            <button type="button" role="menuitemcheckbox" id="btnDimsShown" aria-checked="true" data-icon="dim">Sketch dimensions on the model</button>
             <div class="sep"></div>
             <button type="button" role="menuitemradio" data-theme="dark" data-icon="check">Dark</button>
             <button type="button" role="menuitemradio" data-theme="light" data-icon="check">Light</button>
@@ -2099,6 +2117,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnRedo" type="button" data-icon="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled></button>
           <span class="rt-qsep" aria-hidden="true"></span>
           <button class="rt-btn rt-icon quiet rt-tbi" type="button" data-click="btnFit" data-icon="fit" title="Zoom to fit (F)" aria-label="Zoom to fit"></button>
+          <button class="rt-btn rt-icon quiet rt-tbi" id="btnFly" type="button" data-icon="fly" title="Fly through the model, full screen: W A S D and the mouse, Esc to land" aria-label="Fly"></button>
         </div>
         <div class="rt-more rt-file">
           <input class="rt-name" id="docName" type="text" aria-label="Part Studio name" spellcheck="false">
@@ -2137,13 +2156,14 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
-    <div class="cad-main">
-      <aside class="cad-side" aria-label="Feature list and parts">
+    <div class="cad-main" id="cadMain">
+      <aside class="cad-side" id="side" aria-label="Feature list and parts">
         <h2 class="cad-shead">Features</h2>
         <ul class="cad-flist" id="featureList"></ul>
         <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
         <ul class="cad-plist" id="partsList"></ul>
       </aside>
+      <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">
         <canvas id="view" aria-hidden="true"></canvas>
         <canvas id="over" tabindex="0" aria-label="The model: click to select faces, edges and vertices; right-drag to orbit"></canvas>
@@ -2154,6 +2174,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="cad-busy" id="busy" hidden>Regenerating…</div>
         <p class="cad-note" id="viewNote" hidden></p>
         <div class="cad-hint" id="hint"></div>
+        <div class="rt-flyhint" id="flyHint" role="status" hidden></div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
     </div>
@@ -2168,10 +2189,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <dialog class="rt-dialog rt-wide" id="helpDialog" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Mouse and keys</h2>
-    <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd></dl>
+    <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd><dt>Fly (the bird in the bar)</dt><dd>W A S D and the mouse, full screen; Esc lands</dd></dl>
     <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Ctrl or Shift and click</dt><dd>add to the selection</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
-    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
-    <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>S or Esc</dt><dd>select; Esc again ends a line chain</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
+    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
+    <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>A number typed after a line, circle or arc</dt><dd>its length, diameter or radius</dd><dt>Double-click a line, circle or arc</dt><dd>dimension it; double-click a dimension to change it</dd><dt>Right-click, or Esc</dt><dd>end a chain of lines</dd><dt>S</dt><dd>select</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
 
@@ -2868,6 +2889,9 @@ function normEnts(ents) {
     else n.c = pt2(e.c, [0, 0]);
     if (e.k) n.k = true;            // construction
     if (e.ref) n.ref = true;        // projected from the model (Use)
+    // the model edge it came from (the kernel's ref for it), so it can follow the edge when the model changes
+    const sr = e.ref && e.src;
+    if (sr && sr.kind === 'edge' && typeof sr.part === 'string' && sr.part.length < 80 && Array.isArray(sr.faces) && sr.faces.length >= 1 && sr.faces.length <= 2 && sr.faces.every(x => typeof x === 'string' && x.length < 120) && Array.isArray(sr.pt) && sr.pt.length === 3 && sr.pt.every(Number.isFinite)) n.src = { kind: 'edge', part: sr.part, faces: sr.faces.slice(), pt: sr.pt.slice() };
     out.push(n);
   }
   return out;
@@ -2890,6 +2914,31 @@ const regionsOf = ents => sketchRegions(ents.filter(e => !e.k && e.t !== 'point'
 function defaultRegionPts(ents) {
   const R = regionsOf(ents);
   return R.filter(r => R.filter(o => o !== r && inside(o.outer, r.pt)).length % 2 === 0).map(r => r.pt.map(v => +v.toFixed(6)));
+}
+/* a point of a sketch as it was, carried to the sketch as it is now: it keeps its place beside the shape it was
+   nearest to (along a line and off it; round a circle and out from its centre), so a region's point follows the
+   region when its shapes move */
+function carryPt(was, now, q) {
+  let best = null, bd = Infinity;
+  for (const e of was) { if (e.t === 'point' || e.k) continue; const d = distToEnt(e, q); if (d < bd) { bd = d; best = e; } }
+  const n = best && now.find(x => x.id === best.id && x.t === best.t);
+  if (!n) return q;
+  if (best.t === 'line') {
+    const d = lineDir(best), L = Math.hypot(d[0], d[1]) || 1e-12, u = ((q[0] - best.a[0]) * d[0] + (q[1] - best.a[1]) * d[1]) / (L * L), v = ((q[0] - best.a[0]) * -d[1] + (q[1] - best.a[1]) * d[0]) / L;
+    const d2 = lineDir(n), L2 = Math.hypot(d2[0], d2[1]) || 1e-12;
+    return [n.a[0] + d2[0] * u - d2[1] / L2 * v, n.a[1] + d2[1] * u + d2[0] / L2 * v];
+  }
+  const a = Math.atan2(q[1] - best.c[1], q[0] - best.c[0]), rho = Math.hypot(q[0] - best.c[0], q[1] - best.c[1]) / (best.r || 1e-12);
+  return [n.c[0] + rho * n.r * Math.cos(a), n.c[1] + rho * n.r * Math.sin(a)];
+}
+/* every feature's chosen regions of a sketch that changed, carried to it as it is now (where the carried point is
+   in a region; else left as they were) */
+function carryRegions(doc, id, was, now) {
+  const R = regionsOf(now), carry = pts => (pts || []).map(q => { const c = carryPt(was, now, q); return regionAt(R, c) ? c.map(v => +v.toFixed(6)) : q; });
+  for (const f of doc.features) {
+    if (f.sketch === id && Array.isArray(f.regions)) f.regions = carry(f.regions);
+    for (const s of f.sections || []) if (s.sketch === id) s.regions = carry(s.regions);
+  }
 }
 /* the region a point is in (the smallest that holds it) */
 function regionAt(R, q) {
@@ -3210,8 +3259,11 @@ function normDoc(d) {
     parts[k] = { ...(isStr(p.name, 80) && p.name ? { name: p.name } : {}), ...(/^#[0-9a-f]{6}$/i.test(p.colour || '') ? { colour: p.colour } : {}),
       ...(isStr(p.material, 80) ? { material: p.material } : {}), ...(Number.isFinite(p.density) && p.density > 0 ? { density: p.density } : {}), ...(p.hidden ? { hidden: true } : {}) };
   }
+  // what of the origin and the three planes is not drawn (hidePlanes: all three planes, from before each had its own)
+  const hide = {};
+  for (const k of ['origin', 'top', 'front', 'right']) if ((d.hide && typeof d.hide === 'object' && d.hide[k]) || (d.hidePlanes && k !== 'origin')) hide[k] = true;
   const rb = Number.isInteger(d.rollback) && d.rollback >= 0 && d.rollback < feats.length ? d.rollback : null;
-  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, ...(d.hidePlanes ? { hidePlanes: true } : {}) };
+  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, hide };
 }
 const newDoc = () => normDoc({});
 /* a new feature of a kind, with its defaults, named in sequence */
@@ -3512,9 +3564,10 @@ function makeKernel(oc) {
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
     const out = [];
+    const at = q => { const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
-      const v = vertexAt(toWorld(sk.frame, pt));
-      const f = faces.find(ff => distance(v, ff).d < 1e-6);
+      // a sketch that has just followed the model: the point as it follows its shape, else where it was
+      const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
@@ -3598,13 +3651,41 @@ function makeKernel(oc) {
   }
   const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches) });
 
+  /* a sketch's shapes that came from edges of the model (src: the edge's ref) follow those edges: each is found
+     again in the model as it is now and flattened onto the sketch's plane; if any has moved, the sketch is solved
+     again, so what was drawn on it or dimensioned from it moves with it. True if the sketch changed. */
+  function followRefs(S, f, F) {
+    let moved = false;
+    const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
+    for (const e of f.ents) {
+      if (!e.ref || !e.src) continue;
+      let g;
+      try { const hit = findEdge(S, e.src), sh = edgeShapes(hit.b.edges[hit.j], F); if (sh.length !== 1 || sh[0].t !== e.t) continue; g = sh[0]; } catch (err) { continue; }
+      if (e.t === 'line') {
+        // the same way round as it was drawn
+        if (Math.hypot(g.a[0] - e.a[0], g.a[1] - e.a[1]) + Math.hypot(g.b[0] - e.b[0], g.b[1] - e.b[1]) > Math.hypot(g.b[0] - e.a[0], g.b[1] - e.a[1]) + Math.hypot(g.a[0] - e.b[0], g.a[1] - e.b[1])) [g.a, g.b] = [g.b, g.a];
+        if (!far(g.a, e.a) && !far(g.b, e.b)) continue;
+        e.a = g.a; e.b = g.b;
+      } else {
+        if (!far(g.c, e.c) && Math.abs(g.r - e.r) < 1e-7 && (e.t === 'circle' || (Math.abs(g.a0 - e.a0) < 1e-6 && Math.abs(g.a1 - e.a1) < 1e-6))) continue;
+        e.c = g.c; e.r = g.r; if (e.t === 'arc') { e.a0 = g.a0; e.a1 = g.a1; }
+        for (const d of f.dims) if ((d.t === 'rad' || d.t === 'dia') && d.r[0].e === e.id) { d.v = d.t === 'dia' ? 2 * e.r : e.r; d.x = String(+d.v.toFixed(6)); }
+      }
+      const Em = new Map([[e.id, e]]);
+      for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id && entKeys(e).includes(c.r[0].k)) c.at = hpt(Em, c.r[0]).slice();
+      moved = true;
+    }
+    if (moved) solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
+    return moved;
+  }
   /* ---------- the features ---------- */
   const FEAT = {
     sketch(S, f) {
       const frame = planeFrame(S, f.plane);
-      S.sketches[f.id] = { frame, ents: f.ents };
+      const was = f.ents.some(e => e.ref && e.src) ? JSON.parse(JSON.stringify(f.ents)) : null, moved = followRefs(S, f, frame);
+      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null };
       S.frames[f.id] = frame;
-      return { frame, regions: regionFaces(S.sketches[f.id]).length };
+      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
     },
     plane(S, f, V) {
       const base = planeFrame(S, f.ref), off = fieldValue(f, 'offset', V, 'len') * (f.flip ? -1 : 1);
@@ -4063,7 +4144,29 @@ function makeKernel(oc) {
     } finally { flush(); }
   }
   function refs(picks) { try { return picks.map(p => refOf(last.S, p)); } finally { flush(); } }
-  /* model edges flattened onto a sketch's plane, as sketch shapes (Use): lines and circles where they are, else steps */
+  /* an edge flattened onto a plane, as sketch shapes: a line or a circle where it is, else steps */
+  function edgeShapes(e, F) {
+    const out = [], c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), G = oc.GeomAbs_CurveType;
+    if (c.GetType() === G.GeomAbs_Line) return [{ t: 'line', a: toPlane(F, xyz(T(c.Value(t0)))), b: toPlane(F, xyz(T(c.Value(t1)))) }];
+    if (c.GetType() === G.GeomAbs_Circle) {
+      const ci = T(c.Circle()), ax = xyz(T(T(ci.Axis()).Direction()));
+      if (Math.abs(Math.abs(v3.dot(ax, F.n)) - 1) < 1e-6) {
+        const cc = toPlane(F, xyz(T(ci.Location()))), r = ci.Radius();
+        if (Math.abs(t1 - t0 - 2 * Math.PI) < 1e-6) return [{ t: 'circle', c: cc, r }];
+        const pa = toPlane(F, xyz(T(c.Value(t0)))), pb = toPlane(F, xyz(T(c.Value(t1)))), pm = toPlane(F, xyz(T(c.Value((t0 + t1) / 2))));
+        let a0 = Math.atan2(pa[1] - cc[1], pa[0] - cc[0]) / DEGR, a1 = Math.atan2(pb[1] - cc[1], pb[0] - cc[0]) / DEGR;
+        const am = Math.atan2(pm[1] - cc[1], pm[0] - cc[0]) / DEGR;
+        const ccw = ((am - a0) % 360 + 360) % 360 < ((a1 - a0) % 360 + 360) % 360;
+        if (!ccw) [a0, a1] = [a1, a0];
+        return [{ t: 'arc', c: cc, r, a0, a1 }];
+      }
+    }
+    const n = 16; let prev = toPlane(F, xyz(T(c.Value(t0))));
+    for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
+    return out;
+  }
+  /* model edges flattened onto a sketch's plane, as sketch shapes (Use); one that is a single shape carries its
+     edge's ref (src), so the sketch can follow the edge when the model changes */
   function projectEdges(picks, F) {
     const out = [];
     try {
@@ -4072,22 +4175,9 @@ function makeKernel(oc) {
         if (!b) continue;
         const es = p.kind === 'edge' ? [edgesOf(b)[p.index]] : p.kind === 'face' ? subShapes(b.faces[p.index], TA.TopAbs_EDGE) : [];
         for (const e of es) {
-          const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), G = oc.GeomAbs_CurveType;
-          if (c.GetType() === G.GeomAbs_Line) { out.push({ t: 'line', a: toPlane(F, xyz(T(c.Value(t0)))), b: toPlane(F, xyz(T(c.Value(t1)))) }); continue; }
-          if (c.GetType() === G.GeomAbs_Circle) {
-            const ci = T(c.Circle()), ax = xyz(T(T(ci.Axis()).Direction()));
-            if (Math.abs(Math.abs(v3.dot(ax, F.n)) - 1) < 1e-6) {
-              const cc = toPlane(F, xyz(T(ci.Location()))), r = ci.Radius();
-              if (Math.abs(t1 - t0 - 2 * Math.PI) < 1e-6) { out.push({ t: 'circle', c: cc, r }); continue; }
-              const pa = toPlane(F, xyz(T(c.Value(t0)))), pb = toPlane(F, xyz(T(c.Value(t1)))), pm = toPlane(F, xyz(T(c.Value((t0 + t1) / 2))));
-              let a0 = Math.atan2(pa[1] - cc[1], pa[0] - cc[0]) / DEGR, a1 = Math.atan2(pb[1] - cc[1], pb[0] - cc[0]) / DEGR, am = Math.atan2(pm[1] - cc[1], pm[0] - cc[0]) / DEGR;
-              const ccw = ((am - a0) % 360 + 360) % 360 < ((a1 - a0) % 360 + 360) % 360;
-              if (!ccw) [a0, a1] = [a1, a0];
-              out.push({ t: 'arc', c: cc, r, a0, a1 }); continue;
-            }
-          }
-          const n = 16; let prev = toPlane(F, xyz(T(c.Value(t0))));
-          for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
+          const sh = edgeShapes(e, F);
+          if (sh.length === 1) { edgesOf(b); const j = p.kind === 'edge' ? p.index : indexer(b.edges)(e); if (j >= 0) { const r = refOf(last.S, { part: b.id, kind: 'edge', index: j }); sh[0].src = { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt }; } }
+          out.push(...sh);
         }
       }
     } finally { flush(); }
@@ -4497,6 +4587,7 @@ const app = {
   doc: newDoc(), sel: [], hover: null, filter: 'any', history: [], future: [], result: null, error: null,
   editing: null,          // the feature dialog: { f (the feature as edited), at (its place), isNew, field (the active selection field) }
   sketch: null,           // the sketch being edited: see ui/sketcher.js
+  picked: null,           // the feature clicked in the list (its id): its sketch's dimensions show on the model
   unsaved: false, regenAt: 0, regenMs: 0, regenCount: 0, busy: false,
 };
 const BUS = {};
@@ -4512,7 +4603,7 @@ function checkpoint() {
 }
 function undo() { if (!app.history.length) return false; app.future.push(JSON.stringify(app.doc)); app.doc = normDoc(JSON.parse(app.history.pop())); afterHistory(); return true; }
 function redo() { if (!app.future.length) return false; app.history.push(JSON.stringify(app.doc)); app.doc = normDoc(JSON.parse(app.future.pop())); afterHistory(); return true; }
-function afterHistory() { app.sel = []; emit('history'); emit('sel'); changed(); }
+function afterHistory() { app.sel = []; if (app.picked && !app.doc.features.some(f => f.id === app.picked)) app.picked = null; emit('history'); emit('sel'); changed(); }
 /* the document changed: kept (autosave), told about, and regenerated soon */
 function changed(opts) {
   app.unsaved = true;
@@ -4541,6 +4632,8 @@ async function regenNow() {
   try { out = await kernelAsk('regen', { doc: app.doc, opts }, 'regen'); }
   catch (err) { app.error = err.message; app.busy = false; emit('busy'); toast('The model could not be made: ' + err.message, true); const w = regenWaiters; regenWaiters = []; for (const r of w) r(null); return null; }
   if (!out) return null;                 // replaced by a newer request
+  // a sketch whose shapes followed the model's edges (the kernel moved and solved it): the document takes it up
+  for (const r of out.features) if (r.ok && r.info && r.info.ents) { const f = app.doc.features.find(x => x.id === r.id); if (f && f.type === 'sketch') { if (r.info.was) carryRegions(app.doc, f.id, r.info.was, r.info.ents); f.ents = r.info.ents; f.cons = r.info.cons; f.dims = r.info.dims; } }
   app.result = out; app.error = null; app.busy = false; app.regenMs = performance.now() - t0; app.regenCount++;
   // a selection of parts, faces or edges no longer there goes
   app.sel = app.sel.filter(s => !s.part || out.parts.some(p => p.id === s.part && (s.kind === 'part' || (s.kind === 'face' ? s.index < p.faceGroups.length / 2 : s.kind === 'edge' ? s.index < p.edgeGroups.length / 2 : s.index < p.verts.length / 3))));
@@ -4601,6 +4694,8 @@ const CAD_ICONS = {
   pdf: 'M4 1.5h5.5L12.5 4.5V14.5H4Z', beam: 'M1.5 8H14.5 M10.5 4.5L14.5 8L10.5 11.5', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11', link: 'M6.5 9.5L9.5 6.5 M7 11L5.5 12.5A2.1 2.1 0 0 1 2.5 9.5L4.5 7.5A2.1 2.1 0 0 1 7.5 7.5 M9 5L10.5 3.5A2.1 2.1 0 0 1 13.5 6.5L11.5 8.5A2.1 2.1 0 0 1 8.5 8.5',
   line: 'M2 14L14 2', rect: 'M2 4H14V12H2Z', crect: 'M2 4H14V12H2Z M8 8H8.1', circle: 'M8 2A6 6 0 1 0 8.01 2', arc3: 'M2 12A7 7 0 0 1 14 12', tarc: 'M2 13H7A6 6 0 0 0 13 7', slot: 'M5 4H11A4 4 0 0 1 11 12H5A4 4 0 0 1 5 4Z',
   polygon: 'M8 1.5L14 5V11L8 14.5L2 11V5Z', point: 'M8 6.5A1.5 1.5 0 1 0 8.01 6.5', construct: 'M2 14L4 12 M6 10L8 8 M10 6L12 4', use: 'M2 12H14 M8 2V9 M5.5 6.5L8 9L10.5 6.5', trim: 'M3 3L13 13 M3 13L7 9 M9 7L13 3',
+  fly: 'M1.5 5.5C4 5.5 6 6.8 7.3 9C8.2 6 10.3 4 13.5 3.2C12 5 11.3 6.8 11.3 8.7L14.5 8.6L12.6 9.6C11.7 12 9.6 13.4 6.7 13.8L4.6 15L5 12.6C2.9 11.2 1.9 8.8 1.5 5.5Z',
+  eyeoff: 'M1.5 8Q8 1.5 14.5 8Q8 14.5 1.5 8Z M2.5 2.5L13.5 13.5', panel: 'M2 2.5H14V13.5H2Z M6 2.5V13.5',
   offset: 'M2 11H10V3 M5 14H13V6', dim: 'M2 12V5 M14 12V5 M2 8.5H14 M4.5 6.5L2 8.5L4.5 10.5 M11.5 6.5L14 8.5L11.5 10.5', select: 'M3 2L3 13L6 10L8.5 14.5L10.5 13.5L8 9H12.5Z',
 };
 function cadIcons(root) {
@@ -4633,7 +4728,7 @@ const isDark = () => document.documentElement.dataset.rtTheme === 'dark';
    ========================================================================== */
 let T = null, loading = null;
 const V = { ready: false, renderer: null, scene: null, cam: null, parts: new Map(), target: [0, 0, 0], q: [0, 0, 0, 1], hh: 60, mode: 'shadedEdges',
-  section: null, preview: null, anim: null, w: 1, h: 1, dirty: true, overlays: [] };
+  section: null, preview: null, anim: null, w: 1, h: 1, dirty: true, overlays: [], fly: null };
 const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
 const qaxis = (ax, ang) => { const s = Math.sin(ang / 2), l = Math.hypot(...ax) || 1; return [ax[0] / l * s, ax[1] / l * s, ax[2] / l * s, Math.cos(ang / 2)]; };
 const qrot = (q, v) => { const [x, y, z, w] = q, ix = w * v[0] + y * v[2] - z * v[1], iy = w * v[1] + z * v[0] - x * v[2], iz = w * v[2] + x * v[1] - y * v[0], iw = -x * v[0] - y * v[1] - z * v[2]; return [ix * w + iw * -x + iy * -z - iz * -y, iy * w + iw * -y + iz * -x - ix * -z, iz * w + iw * -z + ix * -y - iy * -x]; };
@@ -4731,6 +4826,7 @@ function loop() {
     if (t >= 1) V.anim = null;
     V.dirty = true;
   }
+  if (V.fly) flyStep();
   if (!V.dirty) return;
   V.dirty = false;
   draw();
@@ -4739,8 +4835,10 @@ function loop() {
 const redraw = () => { V.dirty = true; };
 function draw() {
   if (!V.ready) return;
-  const C = COL(), { x, y, z } = camAxes(), far = V.hh * 200;
+  const C = COL();
   V.renderer.setClearColor(C.bg);
+  if (V.fly) { drawFly(); return; }
+  const { x, y, z } = camAxes(), far = V.hh * 200;
   V.cam.left = -V.hh * V.w / V.h; V.cam.right = V.hh * V.w / V.h; V.cam.top = V.hh; V.cam.bottom = -V.hh;
   V.cam.near = 0.01; V.cam.far = far * 2 + V.hh * 400;
   V.cam.position.set(V.target[0] + z[0] * far, V.target[1] + z[1] * far, V.target[2] + z[2] * far);
@@ -4993,6 +5091,108 @@ function cubeShown() {
     if (f.vis > 0.25) { const m = f.pts.reduce((s2, p) => [s2[0] + p[0] / 4, s2[1] + p[1] / 4], [0, 0]); c.fillStyle = f.k === cubeHover ? '#fff' : dark ? '#e9e6df' : '#1f232a'; c.fillText(f.label, m[0], m[1]); }
   }
 }
+/* ---------- fly: the model full screen, flown through, as JEKray's 3D view is ----------
+   The view is orthographic, which cannot be flown through (nothing grows as you near it), so flying has a camera
+   of its own, in perspective, starting where the view looks from. W A S D or the arrows move the way it looks and
+   across it, Space and Ctrl up and down, Shift four times as fast; the mouse looks round and up and down, never
+   rolled; the wheel sets the speed. Esc lands: the view is left looking the way the flight ended. */
+const FLY_FOV = 50, FLY_PITCH = 88 * Math.PI / 180;
+const FLY_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', Space: 'u', ControlLeft: 'd', ControlRight: 'd', ShiftLeft: 'fast', ShiftRight: 'fast' };
+const flyDir = () => { const f = V.fly; return [Math.cos(f.yaw) * Math.cos(f.pitch), Math.sin(f.yaw) * Math.cos(f.pitch), Math.sin(f.pitch)]; };
+const flyCv = () => document.getElementById('view');
+function flyHintText() {
+  const f = V.fly, el = document.getElementById('flyHint');
+  if (!f || !el) return;
+  const locked = document.pointerLockElement === flyCv();
+  el.textContent = 'Flying · W A S D: move · ' + (locked ? 'Mouse: look' : 'Click, then the mouse: look') + ' · Space / Ctrl: up, down · Shift: faster · Wheel: speed (' + (f.speed >= 1000 ? +(f.speed / 1000).toPrecision(2) + ' m' : Math.round(f.speed) + ' mm') + '/s) · Esc: land';
+}
+function flyLock() { try { const cv = flyCv(), q = cv.requestPointerLock && cv.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (err) { /* no pointer lock: drag to look */ } }
+function flyStart() {
+  if (V.fly || !V.ready) return false;
+  if (app.sketch || app.editing) { toast('Finish the ' + (app.sketch ? 'sketch' : 'feature') + ' first, then fly'); return false; }
+  V.anim = null;
+  const z = camAxes().z, dist = V.hh / Math.tan(FLY_FOV * Math.PI / 360), d = [-z[0], -z[1], -z[2]];
+  V.fly = { pos: V.target.map((v, i) => v + z[i] * dist), yaw: Math.atan2(d[1], d[0]), pitch: Math.max(-FLY_PITCH, Math.min(FLY_PITCH, Math.asin(Math.max(-1, Math.min(1, d[2]))))), dist, speed: Math.max(5, Math.min(5000, dist * 0.5)), keys: new Set(), last: null, fs: false };
+  if (!V.pcam) V.pcam = new T.PerspectiveCamera(FLY_FOV, 1, 0.1, 1e6);
+  const st = document.getElementById('stage');
+  st.classList.add('cad-flying');
+  document.getElementById('flyHint').hidden = false;
+  window.addEventListener('keydown', flyKey, true); window.addEventListener('keyup', flyKey, true);
+  document.addEventListener('mousemove', flyMouse);
+  document.addEventListener('pointerlockchange', flyHintText);
+  document.addEventListener('fullscreenchange', flyFull);
+  window.addEventListener('blur', flyBlur);
+  try { const q = st.requestFullscreen && st.requestFullscreen(); if (q && q.then) q.then(() => { if (V.fly) V.fly.fs = true; }, () => {}); } catch (err) { /* the stage fills the window itself */ }
+  flyLock(); flyHintText();
+  app.hover = null; emit('fly');
+  V.dirty = true;
+  return true;
+}
+function flyStop() {
+  const f = V.fly;
+  if (!f) return;
+  window.removeEventListener('keydown', flyKey, true); window.removeEventListener('keyup', flyKey, true);
+  document.removeEventListener('mousemove', flyMouse);
+  document.removeEventListener('pointerlockchange', flyHintText);
+  document.removeEventListener('fullscreenchange', flyFull);
+  window.removeEventListener('blur', flyBlur);
+  // the view left looking the way the flight ended, at a point as far ahead as the model was at take-off
+  const d = flyDir();
+  V.q = qView([-d[0], -d[1], -d[2]]); V.target = f.pos.map((v, i) => v + d[i] * f.dist); V.hh = f.dist * Math.tan(FLY_FOV * Math.PI / 360);
+  V.fly = null;
+  const st = document.getElementById('stage');
+  st.classList.remove('cad-flying');
+  document.getElementById('flyHint').hidden = true;
+  if (document.pointerLockElement === flyCv()) try { document.exitPointerLock(); } catch (err) { /* gone already */ }
+  if (document.fullscreenElement === st) { const q = document.exitFullscreen(); if (q && q.catch) q.catch(() => {}); }
+  for (const o of V.parts.values()) modeShown(o);
+  emit('fly');
+  V.dirty = true;
+}
+/* full screen left (Esc, which the browser keeps for itself there): landed */
+function flyFull() { const f = V.fly; if (!f) return; if (document.fullscreenElement === document.getElementById('stage')) f.fs = true; else if (f.fs) flyStop(); V.dirty = true; }
+function flyBlur() { if (V.fly) V.fly.keys.clear(); }
+function flyKey(e) {
+  const f = V.fly;
+  if (!f) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (e.type === 'keydown') flyStop(); return; }
+  const k = FLY_KEYS[e.code];
+  if (!k || e.metaKey || e.altKey) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.type === 'keydown') f.keys.add(k); else f.keys.delete(k);
+}
+function flyMouse(e) {
+  const f = V.fly, cv = flyCv();
+  if (!f || !(document.pointerLockElement === cv || (e.buttons && e.target === cv))) return;
+  flyTurn(e.movementX || 0, e.movementY || 0);
+}
+function flyTurn(dx, dy) { const f = V.fly; if (!f) return; f.yaw -= dx * 0.0022; f.pitch = Math.max(-FLY_PITCH, Math.min(FLY_PITCH, f.pitch - dy * 0.0022)); V.dirty = true; }
+function flyStep() {
+  const f = V.fly, t = performance.now(), dt = f.last === null ? 0 : Math.min(0.1, (t - f.last) / 1000), K = f.keys;
+  f.last = t;
+  const d = flyDir(), right = [Math.sin(f.yaw), -Math.cos(f.yaw), 0];
+  const m = [0, 1, 2].map(i => d[i] * ((K.has('f') ? 1 : 0) - (K.has('b') ? 1 : 0)) + right[i] * ((K.has('r') ? 1 : 0) - (K.has('l') ? 1 : 0)) + (i === 2 ? (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0) : 0)), L = Math.hypot(...m);
+  if (L > 0 && dt > 0) { const s = f.speed * (K.has('fast') ? 4 : 1) * dt / L; f.pos = f.pos.map((v, i) => v + m[i] * s); V.dirty = true; }
+}
+function drawFly() {
+  const f = V.fly, d = flyDir(), c = V.pcam, size = Math.max(100, sceneBounds().w * 4, f.dist * 4);
+  c.aspect = V.w / Math.max(1, V.h); c.near = Math.max(0.05, size / 20000); c.far = size * 50;
+  c.position.set(...f.pos); c.up.set(0, 0, 1); c.lookAt(f.pos[0] + d[0], f.pos[1] + d[1], f.pos[2] + d[2]);
+  c.updateProjectionMatrix();
+  // the lights come with the camera, as they do in the ordinary view
+  const right = [Math.sin(f.yaw), -Math.cos(f.yaw), 0], up = cross(right, d), far = size;
+  const L = (a, b, e) => f.pos.map((v, i) => v + (right[i] * a + up[i] * b - d[i] * e) * far), ahead = f.pos.map((v, i) => v + d[i] * f.dist);
+  V.key.position.set(...L(-0.5, 0.8, 1)); V.fill.position.set(...L(0.9, -0.3, 0.6));
+  V.key.target.position.set(...ahead); V.fill.target.position.set(...ahead);
+  V.key.target.updateMatrixWorld(); V.fill.target.updateMatrixWorld();
+  V.renderer.render(V.scene, c);
+}
+function wireFly() {
+  const cv = flyCv();
+  if (!cv) return;
+  cv.addEventListener('pointerdown', e => { if (!V.fly) return; e.preventDefault(); if (document.pointerLockElement !== cv) flyLock(); });
+  cv.addEventListener('wheel', e => { const f = V.fly; if (!f) return; e.preventDefault(); f.speed = Math.max(1, Math.min(20000, f.speed * Math.exp(-e.deltaY * 0.0015))); flyHintText(); }, { passive: false });
+}
 /* a picture of the view (for cloud thumbnails and the tests) */
 function viewPng() { if (!V.ready) return null; draw(); return document.getElementById('view').toDataURL('image/png'); }
 
@@ -5007,9 +5207,12 @@ function viewPng() { if (!V.ready) return null; draw(); return document.getEleme
    distance between points, a point from a line, a radius or diameter, or an angle, and takes a value or an
    expression typed in place. Free shapes are blue, fully defined ones in ink. Dragging a point or a shape solves
    the sketch as it moves. Trim, fillet, offset, mirror, Use (model edges projected) and construction too.
+   The model is inferred from as well: a point drawn on one of its corners or edges is held there (the corner or
+   edge comes into the sketch as a fixed construction shape, as Use would bring it). While a shape is drawn its
+   size shows by the pointer; a number typed straight after a line, circle or arc dimensions it.
    ========================================================================== */
-const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null };
-const SNAP_PX = 8, ON_PX = 6;
+const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null, model: null, last: [] };
+const SNAP_PX = 10, ON_PX = 8;
 /* ---------- the sketch being edited ---------- */
 const S = () => app.sketch;
 const ents = () => S().f.ents;
@@ -5018,9 +5221,9 @@ const toScreen = uv => project(toWorld(S().F, uv));
 const uvAt = (sx, sy) => rayPlane(rayAt(sx, sy), S().F);
 /* ---------- starting and ending ---------- */
 async function startSketch(f, at, isNew) {
-  app.sel = []; emit('sel');
+  app.sel = []; app.hover = null; emit('sel');
   app.sketch = { f: JSON.parse(JSON.stringify(f)), at, isNew, F: null, orig: JSON.stringify(f) };
-  Object.assign(SK, { tool: 'line', draft: null, sel: [], hover: null, undo: [], redoStack: [], constr: false, drag: null, box: null });
+  Object.assign(SK, { tool: 'line', draft: null, sel: [], hover: null, undo: [], redoStack: [], constr: false, drag: null, box: null, model: null, last: [], dimPick: null });
   // the plane's frame: a standard plane's at once; a face's or a datum plane's from the kernel
   let F = f.plane && f.plane.std ? STD_PLANES[f.plane.std] : null;
   const out = await regenNow();
@@ -5039,7 +5242,7 @@ function finishSketch() {
   cancelDraft();
   checkpoint();
   if (s.isNew) app.doc.features.splice(s.at, 0, s.f);
-  else app.doc.features[s.at] = s.f;
+  else { carryRegions(app.doc, s.f.id, app.doc.features[s.at].ents, s.f.ents); app.doc.features[s.at] = s.f; }
   if (app.doc.rollback !== null && s.isNew) app.doc.rollback = Math.min(app.doc.features.length, app.doc.rollback + 1);
   if (app.doc.rollback !== null && app.doc.rollback >= app.doc.features.length) app.doc.rollback = null;
   app.sketch = null;
@@ -5057,6 +5260,9 @@ function resolve() {
   const f = S().f;
   solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
   SK.defined = definedEnts(f.ents, f.cons, f.dims);
+  // a chain of lines carries on from where its last line ends now (a dimension typed may have moved it)
+  const d = SK.draft;
+  if (d && d.chainFrom && entById(d.chainFrom.e)) { const q = hpt(new Map(f.ents.map(e => [e.id, e])), d.chainFrom).slice(); d.pts = [q]; d.snaps = [{ p: q }]; }
   redraw(); drawOverlay();
 }
 function keep() { SK.undo.push(JSON.stringify({ ents: ents(), cons: S().f.cons, dims: S().f.dims })); if (SK.undo.length > 200) SK.undo.shift(); SK.redoStack.length = 0; }
@@ -5071,6 +5277,81 @@ function snapPoints() {
   }
   return out;
 }
+/* ---------- the model, as the sketch sees it: its corners and edges flattened onto the sketch's plane ---------- */
+function edgeShape(P) {
+  const pts = [];
+  for (const q of P) if (!pts.length || Math.hypot(q[0] - pts[pts.length - 1][0], q[1] - pts[pts.length - 1][1]) > 1e-7) pts.push(q);
+  if (pts.length < 2) return null;                       // an edge seen end on
+  const a = pts[0], b = pts[pts.length - 1], closed = Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-6, n = pts.length;
+  let size = 0; for (const q of pts) size = Math.max(size, Math.hypot(q[0] - a[0], q[1] - a[1]));
+  if (size < 1e-6) return null;
+  if (!closed) { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy); if (L > 1e-6 && pts.every(q => Math.abs((q[0] - a[0]) * dy - (q[1] - a[1]) * dx) / L < 1e-6 * Math.max(1, L))) return { t: 'line', a, b }; }
+  if (n >= 4) {
+    // a circle through three of its points, if every point is on it
+    const p = a, q = pts[closed ? Math.floor(n / 3) : Math.floor(n / 2)], r = closed ? pts[Math.floor(2 * n / 3)] : b;
+    const D = 2 * (p[0] * (q[1] - r[1]) + q[0] * (r[1] - p[1]) + r[0] * (p[1] - q[1]));
+    if (Math.abs(D) > 1e-9) {
+      const pp = p[0] * p[0] + p[1] * p[1], qq = q[0] * q[0] + q[1] * q[1], rr = r[0] * r[0] + r[1] * r[1];
+      const c = [(pp * (q[1] - r[1]) + qq * (r[1] - p[1]) + rr * (p[1] - q[1])) / D, (pp * (r[0] - q[0]) + qq * (p[0] - r[0]) + rr * (q[0] - p[0])) / D], R = Math.hypot(p[0] - c[0], p[1] - c[1]);
+      if (pts.every(z => Math.abs(Math.hypot(z[0] - c[0], z[1] - c[1]) - R) < 1e-5 * Math.max(1, R))) {
+        if (closed) return { t: 'circle', c, r: R };
+        const ang = z => Math.atan2(z[1] - c[1], z[0] - c[0]) * 180 / Math.PI, m360 = v => ((v % 360) + 360) % 360;
+        let a0 = ang(a), a1 = ang(b);
+        if (m360(ang(q) - a0) > m360(a1 - a0)) [a0, a1] = [a1, a0];
+        return { t: 'arc', c, r: R, a0, a1 };
+      }
+    }
+  }
+  return { t: 'poly', pts };
+}
+function modelGeom() {
+  const s = S();
+  if (!s || !s.F) return { pts: [], edges: [] };
+  if (SK.model && SK.model.n === app.regenCount && SK.model.parts === V.parts.size) return SK.model;
+  const F = s.F, to = (A, i) => { const d = [A[i] - F.o[0], A[i + 1] - F.o[1], A[i + 2] - F.o[2]]; return [d[0] * F.x[0] + d[1] * F.x[1] + d[2] * F.x[2], d[0] * F.y[0] + d[1] * F.y[1] + d[2] * F.y[2]]; };
+  const pts = [], edges = [], seen = new Set();
+  for (const o of V.parts.values()) {
+    const p = o.userData.p;
+    for (let i = 0; i < p.verts.length; i += 3) { const q = to(p.verts, i), key = q.map(v => v.toFixed(5)).join(','); if (!seen.has(key)) { seen.add(key); pts.push(q); } }
+    for (let j = 0; j < p.edgeGroups.length / 2; j++) {
+      const a = p.edgeGroups[2 * j], n = p.edgeGroups[2 * j + 1], P = [];
+      for (let k = a; k < a + n; k++) { if (k === a) P.push(to(p.seg, 6 * k)); P.push(to(p.seg, 6 * k + 3)); }
+      const g = edgeShape(P);
+      if (g) { g.from = { part: p.id, kind: 'edge', index: j }; edges.push(g); }
+    }
+  }
+  return (SK.model = { n: app.regenCount, parts: V.parts.size, pts, edges });
+}
+/* the nearest point of a model edge to q, and how far it is */
+function nearOnEdge(g, q) {
+  const onSeg = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2)); return [a[0] + dx * t, a[1] + dy * t]; };
+  let p;
+  if (g.t === 'line') p = onSeg(g.a, g.b);
+  else if (g.t === 'poly') { let bd = Infinity; for (let i = 1; i < g.pts.length; i++) { const z = onSeg(g.pts[i - 1], g.pts[i]), d = Math.hypot(z[0] - q[0], z[1] - q[1]); if (d < bd) { bd = d; p = z; } } }
+  else {
+    const a = Math.atan2(q[1] - g.c[1], q[0] - g.c[0]);
+    p = [g.c[0] + g.r * Math.cos(a), g.c[1] + g.r * Math.sin(a)];
+    if (g.t === 'arc' && distToEnt(g, p) > 1e-6) { const e0 = [g.c[0] + g.r * Math.cos(g.a0 * Math.PI / 180), g.c[1] + g.r * Math.sin(g.a0 * Math.PI / 180)], e1 = [g.c[0] + g.r * Math.cos(g.a1 * Math.PI / 180), g.c[1] + g.r * Math.sin(g.a1 * Math.PI / 180)]; p = Math.hypot(e0[0] - q[0], e0[1] - q[1]) < Math.hypot(e1[0] - q[0], e1[1] - q[1]) ? e0 : e1; }
+  }
+  return { p, d: Math.hypot(p[0] - q[0], p[1] - q[1]) };
+}
+/* a corner or an edge of the model brought into the sketch to be held to: a fixed construction shape, made once */
+function refEnt(g) {
+  const f = S().f, near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
+  const same = e => e.ref && e.t === g.t && (g.t === 'point' ? near(e.c, g.c) : g.t === 'line' ? (near(e.a, g.a) && near(e.b, g.b)) || (near(e.a, g.b) && near(e.b, g.a)) : near(e.c, g.c) && Math.abs(e.r - g.r) < 1e-6 && (g.t === 'circle' || (Math.abs(e.a0 - g.a0) < 1e-6 && Math.abs(e.a1 - g.a1) < 1e-6)));
+  const had = f.ents.find(same);
+  if (had) return had.id;
+  const e = JSON.parse(JSON.stringify(g));
+  delete e.from;
+  e.id = sketchId(e.t[0]); e.ref = true; e.k = true;
+  // which edge of the model it is, asked of the kernel, so the sketch follows the edge when the model changes
+  if (g.from) kernelAsk('refs', { picks: [g.from] }).then(rs => { const r = rs && rs[0], sk = S() && S().f.id === f.id ? S().f : app.doc.features.find(x => x.id === f.id), en = sk && sk.ents.find(x => x.id === e.id); if (en && r && r.kind === 'edge') en.src = { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt }; }).catch(() => {});
+  f.ents.push(e);
+  const Em = new Map([[e.id, e]]);
+  for (const k of entKeys(e)) f.cons.push({ id: sketchId('c'), t: 'fix', r: [{ e: e.id, k }], at: hpt(Em, { e: e.id, k }).slice() });
+  if (e.t === 'circle' || e.t === 'arc') f.dims.push({ id: sketchId('d'), t: 'rad', r: [{ e: e.id }], v: e.r, x: fmtNum(e.r, 6) });
+  return e.id;
+}
 /* the point the pointer gives, with the constraints it implies: from is where the shape being drawn starts */
 function snap(sx, sy, from, skipIds) {
   const uv = uvAt(sx, sy);
@@ -5079,6 +5360,11 @@ function snap(sx, sy, from, skipIds) {
   let best = null, bd = SNAP_PX;
   for (const c of snapPoints()) { if (skip.has(c.r.e)) continue; const s = toScreen(c.p), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; best = c; } }
   if (best) return { p: best.p.slice(), ref: best.r, glyph: best.mid ? 'M' : '●', kind: best.mid ? 'midpoint' : 'coincident' };
+  // a corner of the model
+  const M = modelGeom();
+  let mp = null;
+  for (const q of M.pts) { const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mp = q; } }
+  if (mp) return { p: mp.slice(), ref: null, mref: { t: 'point', c: mp.slice() }, glyph: '●', kind: 'coincident' };
   let onEnt = null, od = ON_PX;
   for (const e of ents()) { if (skip.has(e.id) || e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < od) { od = d; onEnt = e; } }
   const out = { p: uv, ref: null };
@@ -5088,6 +5374,11 @@ function snap(sx, sy, from, skipIds) {
     if (E1.t === 'line') { const d = lineDir(E1), L2 = d[0] * d[0] + d[1] * d[1] || 1, t = ((uv[0] - E1.a[0]) * d[0] + (uv[1] - E1.a[1]) * d[1]) / L2; out.p = [E1.a[0] + d[0] * t, E1.a[1] + d[1] * t]; }
     else { const a = Math.atan2(uv[1] - E1.c[1], uv[0] - E1.c[0]); out.p = [E1.c[0] + E1.r * Math.cos(a), E1.c[1] + E1.r * Math.sin(a)]; }
     out.on = E1.id; out.glyph = '⌒'; out.kind = 'oncurve';
+  } else {
+    // an edge of the model
+    let me = null, md = ON_PX * pxToMm(1);
+    for (const g of M.edges) { const r = nearOnEdge(g, uv); if (r.d < md) { md = r.d; me = { g, p: r.p }; } }
+    if (me) { out.p = me.p; out.mon = me.g; out.glyph = '⌒'; out.kind = 'oncurve'; }
   }
   if (from) {
     const fs = toScreen(from), ps = toScreen(out.p);
@@ -5102,6 +5393,8 @@ function snapCons(sn, e, k) {
   if (!sn) return [];
   if (sn.ref) return [sn.kind === 'midpoint' ? mkCon('midpoint', { e, k }, { e: sn.ref.e }) : mkCon('coincident', { e, k }, sn.ref)];
   if (sn.on) return [mkCon('oncurve', { e, k }, { e: sn.on })];
+  if (sn.mref) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mref), k: 'c' })];
+  if (sn.mon && sn.mon.t !== 'poly') return [mkCon('oncurve', { e, k }, { e: refEnt(sn.mon) })];
   return [];
 }
 /* ---------- drawing tools ---------- */
@@ -5134,27 +5427,28 @@ function toolClick(sx, sy) {
   if (!sn) return;
   const pts = d ? d.pts.concat([sn.p]) : [sn.p], snaps = d ? d.snaps.concat([sn]) : [sn];
   if (pts.length < TOOL_STEPS[t]) { SK.draft = { pts, snaps }; drawOverlay(); return; }
-  keep();
   const [p0, p1, p2] = pts;
+  if (t === 'line' && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < pxToMm(2)) return;
+  keep();
+  SK.last = [];
   if (t === 'point') { const e = { id: sketchId('p'), t: 'point', c: p0 }; addEnts([e], snapCons(snaps[0], e.id, 'c')); }
   else if (t === 'line') {
-    if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < pxToMm(2)) return;
     const e = { id: sketchId('l'), t: 'line', a: p0, b: p1 }, cs = [...(d && d.chainFrom ? [mkCon('coincident', { e: e.id, k: 'a' }, d.chainFrom)] : snapCons(snaps[0], e.id, 'a')), ...snapCons(snaps[1], e.id, 'b')];
     if (snaps[1].hv) cs.push(mkCon(snaps[1].hv, { e: e.id }));
     // square to the line it follows on from, if it nearly is
     if (d && d.prev) { const P = entById(d.prev); if (P) { const u = lineDir(P), w = lineDir(e), c = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(...u) * Math.hypot(...w) || 1); if (Math.abs(c) < 0.035 && !snaps[1].hv && !(P && cs.some(x => x.t === 'horizontal' || x.t === 'vertical'))) cs.push(mkCon('perpendicular', { e: P.id }, { e: e.id })); } }
-    addEnts([e], cs);
+    addEnts([e], cs); SK.last = [e.id];
     // chained: the next line starts here, unless this one closed the chain on a point already there
-    const closed = snaps[1].ref && snaps[1].ref.e !== 'origin';
-    SK.draft = closed ? null : { pts: [p1], snaps: [{ p: p1 }], chainFrom: { e: e.id, k: 'b' }, prev: e.id };
+    const first = d && d.first ? d.first : p0, closed = (snaps[1].ref && snaps[1].ref.e !== 'origin') || Math.hypot(p1[0] - first[0], p1[1] - first[1]) < 1e-9;
+    SK.draft = closed ? null : { pts: [p1], snaps: [{ p: p1 }], chainFrom: { e: e.id, k: 'b' }, prev: e.id, first };
     resolve(); return;
   }
-  else if (t === 'rect' || t === 'crect') { const r = rectEnts(p0, p1, t === 'crect'); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], t === 'crect' ? r.ents[5].id : r.ents[0].id, t === 'crect' ? 'c' : 'a'))); }
-  else if (t === 'circle') { const e = { id: sketchId('c'), t: 'circle', c: p0, r: Math.max(pxToMm(2), Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) }; addEnts([e], snapCons(snaps[0], e.id, 'c')); }
+  else if (t === 'rect' || t === 'crect') { const r = rectEnts(p0, p1, t === 'crect'); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], t === 'crect' ? r.ents[5].id : r.ents[0].id, t === 'crect' ? 'c' : 'a'), snapCons(snaps[1], r.ents[2].id, 'a'))); SK.last = [r.ents[0].id, r.ents[1].id]; }
+  else if (t === 'circle') { const e = { id: sketchId('c'), t: 'circle', c: p0, r: Math.max(pxToMm(2), Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) }; addEnts([e], snapCons(snaps[0], e.id, 'c')); SK.last = [e.id]; }
   else if (t === 'arc3') {
     const a = arc3(p0, p1, p2); if (!a) { toast('The three points are in a line: no arc', true); SK.draft = null; return; }
     const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 };
-    addEnts([e], [...snapCons(snaps[0], e.id, a.rev ? 'p1' : 'p0'), ...snapCons(snaps[1], e.id, a.rev ? 'p0' : 'p1')]);
+    addEnts([e], [...snapCons(snaps[0], e.id, a.rev ? 'p1' : 'p0'), ...snapCons(snaps[1], e.id, a.rev ? 'p0' : 'p1')]); SK.last = [e.id];
   } else if (t === 'tarc') {
     // from the end of a line or arc, along it
     const r0 = snaps[0].ref, E0 = r0 && entById(r0.e);
@@ -5164,7 +5458,7 @@ function toolClick(sx, sy) {
     else { const ang = (r0.k === 'p1' ? E0.a0 + arcSweep(E0) : E0.a0) * Math.PI / 180; tdir = r0.k === 'p1' ? [-Math.sin(ang), Math.cos(ang)] : [Math.sin(ang), -Math.cos(ang)]; }
     const a = tangentArc(p0, tdir, p1); if (!a) { toast('That end is straight on: draw a line instead', true); SK.draft = null; return; }
     const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 }, start = a.rev ? 'p1' : 'p0', end = a.rev ? 'p0' : 'p1';
-    addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]);
+    addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]); SK.last = [e.id];
   } else if (t === 'slot') { const r = slotEnts(p0, p1, Math.max(pxToMm(2), Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)))); addEnts(r.ents, r.cons); }
   else if (t === 'polygon') { const r = polygonEnts(p0, p1, SK.polySides); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], r.ents[r.ents.length - 1].id, 'c'))); }
   SK.draft = null;
@@ -5209,15 +5503,26 @@ async function useEdges(picks) {
 function sketchPick(sx, sy) {
   const s = S(), E = new Map(ents().map(e => [e.id, e]));
   // a dimension's label or a constraint's glyph
-  for (const b of SK.labels || []) if (sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1) return b.item;
+  // (a constraint's glyph only with the select tool: it must not hide the line under it from the others)
+  for (const b of SK.labels || []) if (sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1 && (b.item.t !== 'con' || SK.tool === 'select')) return b.item;
   let best = null, bd = 7;
   for (const e of ents()) for (const k of entKeys(e)) { const p = toScreen(hpt(E, { e: e.id, k })), d = Math.hypot(p[0] - sx, p[1] - sy); if (d < bd) { bd = d; best = { t: 'pt', e: e.id, k }; } }
   if (best) return best;
+  // the origin: a point like any other to dimension from and constrain to
+  { const o = toScreen([0, 0]); if (Math.hypot(o[0] - sx, o[1] - sy) < 7) return { t: 'pt', e: 'origin' }; }
   const uv = uvAt(sx, sy);
   if (!uv) return null;
   bd = 6;
   for (const e of ents()) { if (e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < bd) { bd = d; best = { t: 'ent', id: e.id }; } }
   void s;
+  if (best || SK.tool !== 'dim') return best;
+  // the dimension tool reaches the model too: a corner or an edge of it (brought into the sketch when clicked)
+  const M = modelGeom();
+  bd = 8;
+  for (const q of M.pts) { const z = toScreen(q), d = Math.hypot(z[0] - sx, z[1] - sy); if (d < bd) { bd = d; best = { t: 'mpt', c: q.slice() }; } }
+  if (best) return best;
+  bd = 6 * pxToMm(1);
+  for (const g of M.edges) { if (g.t === 'poly') continue; const r = nearOnEdge(g, uv); if (r.d < bd) { bd = r.d; best = { t: 'ment', g }; } }
   return best;
 }
 const sameItem = (a, b) => a && b && a.t === b.t && a.id === b.id && a.e === b.e && a.k === b.k;
@@ -5244,7 +5549,7 @@ function sketchDown(e, sx, sy) {
     if (it) {
       if (add) { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else SK.sel.push(it); }
       else if (!SK.sel.some(x => sameItem(x, it))) SK.sel = [it];
-      if (it.t === 'pt' || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
+      if ((it.t === 'pt' && it.e !== 'origin') || it.t === 'ent') SK.drag = { it, sx, sy, moved: false, start: uvAt(sx, sy) };
     } else { if (!add) SK.sel = []; SK.box = { x0: sx, y0: sy, x1: sx, y1: sy }; }
     drawOverlay(); emit('sketchsel');
     return true;
@@ -5274,11 +5579,30 @@ function sketchMove(e, sx, sy) {
   else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' ? from : null); }
   drawOverlay();
 }
-/* a double-click: a dimension's value to type again */
+/* a double-click: a dimension's value to type again; a line, circle or arc dimensioned; a chain of lines ended */
 function sketchDbl(sx, sy) {
+  if (TOOL_STEPS[SK.tool]) { if (SK.draft) { cancelDraft(); drawOverlay(); } return true; }
+  if (SK.tool !== 'select') return false;
   const it = sketchPick(sx, sy);
   if (it && it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return true; }
+  if (it && it.t === 'ent') return dimShape(it.id);
   return false;
+}
+/* a right-click (the button let go where it went down): the chain of lines, or the shape half drawn, ends; with
+   nothing being drawn, the tool is put down */
+function sketchRight() {
+  if (SK.dimInput) { dimInputClose(true); return; }
+  if (SK.draft) { cancelDraft(); drawOverlay(); return; }
+  if (SK.tool !== 'select') setTool('select');
+}
+/* a line's length, a circle's diameter or an arc's radius: its dimension made (or the one it has opened), to type */
+const SHAPE_DIM = { line: 'len', circle: 'dia', arc: 'rad' };
+function dimShape(id, seed) {
+  const e = entById(id), t = e && SHAPE_DIM[e.t];
+  if (!t || e.ref) return false;
+  const had = S().f.dims.find(d => d.r.length === 1 && d.r[0].e === id && (d.t === t || (d.t === 'rad' && t === 'dia') || (d.t === 'dia' && t === 'rad')));
+  if (had) dimEdit(had, false, seed); else makeDim({ t, r: [{ e: id }] }, seed);
+  return true;
 }
 function sketchUp() {
   if (SK.drag) { const d = SK.drag; SK.drag = null; if (d.moved) resolve(); return; }
@@ -5301,6 +5625,8 @@ function sketchKey(e) {
   if (e.key === 'Escape') { if (SK.dimInput) dimInputClose(); else if (SK.draft) { SK.draft = null; drawOverlay(); } else if (SK.tool !== 'select') setTool('select'); else { SK.sel = []; drawOverlay(); } return true; }
   if (e.key === 'Delete' || e.key === 'Backspace') { deleteSel(); return true; }
   if (e.key === 'Enter' && !SK.dimInput) { finishSketch(); return true; }
+  // a number typed straight after a line, circle or arc is drawn: its length, diameter or radius
+  if (/^[0-9.]$/.test(e.key) && !SK.dimInput) { while (SK.last.length) { if (dimShape(SK.last.shift(), e.key)) return true; } }
   const keys = { l: 'line', r: 'rect', c: 'circle', a: 'arc3', t: 'tarc', s: 'select', d: 'dim', p: 'point', q: 'construct', m: 'trim', o: 'offset', u: 'use', g: 'polygon' };
   if (keys[k]) { setTool(keys[k]); return true; }
   return false;
@@ -5337,7 +5663,7 @@ function pasteClip() {
   for (const e of c.ents) for (const p of entOutline(e, 30)) { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; }
   const mid = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2], to = SK.uv || [mid[0] + pxToMm(30), mid[1] - pxToMm(30)], dv = [to[0] - mid[0], to[1] - mid[1]];
   const mv = p => [p[0] + dv[0], p[1] + dv[1]];
-  for (const e of c.ents) { if (e.a) { e.a = mv(e.a); e.b = mv(e.b); } if (e.c) e.c = mv(e.c); delete e.ref; }
+  for (const e of c.ents) { if (e.a) { e.a = mv(e.a); e.b = mv(e.b); } if (e.c) e.c = mv(e.c); delete e.ref; delete e.src; }
   keep();
   S().f.ents.push(...c.ents); S().f.cons.push(...c.cons); S().f.dims.push(...c.dims);
   SK.sel = c.ents.map(e => ({ t: 'ent', id: e.id }));
@@ -5376,7 +5702,11 @@ function addConstraint(t) {
 }
 /* ---------- dimensions ---------- */
 function dimClick(it, sx, sy) {
-  if (!it) { SK.dimPick = null; return; }
+  // a line clicked, then somewhere off it: its length
+  if (!it) { const was = SK.dimPick; SK.dimPick = null; if (was && was.t === 'ent' && entById(was.id) && entById(was.id).t === 'line') makeDim({ t: 'len', r: [{ e: was.id }] }); else drawOverlay(); return; }
+  // a corner or an edge of the model: brought into the sketch as a fixed construction shape, and measured from
+  if (it.t === 'mpt') it = { t: 'pt', e: refEnt({ t: 'point', c: it.c }), k: 'c' };
+  else if (it.t === 'ment') it = { t: 'ent', id: refEnt(it.g) };
   const E = new Map(ents().map(e => [e.id, e]));
   if (it.t === 'dim') { dimEdit(S().f.dims.find(d => d.id === it.id)); return; }
   const prev = SK.dimPick;
@@ -5408,26 +5738,27 @@ function dimClick(it, sx, sy) {
   }
   toast('Dimension: click a line, a circle or arc, two points, a point and a line, or two lines');
 }
-function makeDim(d) {
+function makeDim(d, seed) {
   d.id = sketchId('d');
   const v = dimMeasure(ents(), d);
   d.v = d.t === 'ang' ? Math.abs(v) : Math.abs(v); d.x = fmtNum(d.v, 4);
   keep();
   S().f.dims.push(d);
   drawOverlay();
-  dimEdit(d, true);
+  dimEdit(d, true, seed);
 }
 /* the value of a dimension typed in place: a number, a unit, an expression or a #variable */
-function dimEdit(d, isNew) {
+function dimEdit(d, isNew, seed) {
   if (!d) return;
   dimInputClose();
   const pos = SK.dimPos && SK.dimPos.get(d.id) || [V.w / 2, V.h / 2];
-  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
+  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: seed || d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
   inp.style.left = Math.max(4, pos[0] - 50) + 'px'; inp.style.top = Math.max(4, pos[1] - 13) + 'px';
   document.getElementById('stage').append(inp);
   SK.dimInput = { d, inp, isNew };
   inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') dimInputCommit(); else if (e.key === 'Escape') dimInputClose(true); });
-  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  // typed: the key that began it is in the box already; clicked: the view takes the focus first, so wait for it
+  if (seed) { inp.focus(); inp.setSelectionRange(seed.length, seed.length); } else setTimeout(() => { inp.focus(); inp.select(); }, 0);
 }
 function dimInputCommit() {
   const D = SK.dimInput;
@@ -5466,7 +5797,8 @@ function shownSketches() {
 /* the planes the overlay shows: the three standard ones and the Plane features before the bar */
 function shownPlanes() {
   const out = [], frames = app.result ? app.result.frames : {}, n = app.sketch ? app.sketch.at : app.editing ? app.editing.at : appliedCount(app.doc);
-  if (!app.doc.hidePlanes) for (const [k, P] of Object.entries(STD_PLANES)) out.push({ key: { std: k }, F: P, name: P.name, std: true });
+  const hide = app.doc.hide || {};
+  for (const [k, P] of Object.entries(STD_PLANES)) if (!hide[k]) out.push({ key: { std: k }, F: P, name: P.name, std: true });
   app.doc.features.forEach((f, i) => { if (f.type === 'plane' && i < n && !f.suppressed && !f.hide && frames[f.id]) out.push({ key: { feature: f.id }, F: frames[f.id], name: f.name }); });
   return out;
 }
@@ -5532,13 +5864,96 @@ function drawOverlay() {
     }
     c.setLineDash([]);
   }
+  // the origin: a dot and the three axes
+  if (!app.sketch && !(app.doc.hide || {}).origin) {
+    const o = project([0, 0, 0]), L = pxToMm(26);
+    c.lineWidth = 1.5; c.font = '10px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (const [ax, col, nm] of [[[L, 0, 0], '#d04a3a', 'x'], [[0, L, 0], '#3a9a4a', 'y'], [[0, 0, L], '#3a6fd0', 'z']]) { const q = project(ax); c.strokeStyle = col; c.beginPath(); c.moveTo(o[0], o[1]); c.lineTo(q[0], q[1]); c.stroke(); c.fillStyle = col; c.fillText(nm, o[0] + (q[0] - o[0]) * 1.25, o[1] + (q[1] - o[1]) * 1.25); }
+    c.fillStyle = C.ink; c.beginPath(); c.arc(o[0], o[1], 2.5, 0, 7); c.fill();
+    c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+  }
+  SK.mlabels = [];
   if (app.sketch && app.sketch.F) drawSketch(c, C);
-  else { SK.labels = []; }
+  else { SK.labels = []; if (!V.fly) modelDims(c, C); }
   if (SK.box || boxSel) { const b = SK.box || boxSel; c.setLineDash([4, 3]); c.strokeStyle = C.sel; c.lineWidth = 1; c.strokeRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0)); c.setLineDash([]); }
   // what overlays add to the view's bounds (so Fit takes them in)
   V.overlays = [];
   for (const { f, F } of shownSketches()) for (const e of f.ents) for (const p of entOutline(e, 45)) V.overlays.push(toWorld(F, p));
   if (app.sketch && app.sketch.F) for (const e of ents()) for (const p of entOutline(e, 45)) V.overlays.push(toWorld(app.sketch.F, p));
+}
+/* ---------- dimensions on the model: a sketch's, shown without opening it, and changed by a double-click ---------- */
+const DIMS_KEY = 'jekcad-dims';
+const dimsShown = () => { try { return localStorage.getItem(DIMS_KEY) !== 'off'; } catch (err) { return true; } };
+function setDimsShown(v) { try { if (v) localStorage.removeItem(DIMS_KEY); else localStorage.setItem(DIMS_KEY, 'off'); } catch (err) { /* this visit */ } drawOverlay(); }
+/* the sketches of the feature picked in the list: itself, or what it was made from */
+function pickedSketches() {
+  const f = app.picked && app.doc.features.find(x => x.id === app.picked);
+  if (!f) return [];
+  return f.type === 'sketch' ? [f.id] : [f.sketch, f.path, ...(f.sections || []).map(x => x.sketch)].filter(x => typeof x === 'string');
+}
+function dimText(d) { return (d.t === 'dia' ? 'Ø' : d.t === 'rad' ? 'R' : '') + fmtNum(d.v, 3) + (d.t === 'ang' ? '°' : '') + (d.x && /[#a-z(]/i.test(d.x.replace(/\b(mm|cm|in|m|deg|rad)\b/g, '')) ? ' (' + d.x + ')' : ''); }
+function drawDim(c, C, d, at, sel, hov) {
+  c.strokeStyle = C.dim; c.lineWidth = 1; c.font = '11px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (const ln of at.lines) { c.beginPath(); c.moveTo(ln[0][0], ln[0][1]); c.lineTo(ln[1][0], ln[1][1]); c.stroke(); }
+  const txt = dimText(d), w = c.measureText(txt).width + 8;
+  c.fillStyle = sel ? C.sel : hov ? C.hov : isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.88)';
+  c.fillRect(at.p[0] - w / 2, at.p[1] - 8, w, 16);
+  c.fillStyle = d.err ? '#d04040' : sel ? '#fff' : hov ? '#1f232a' : C.dim; c.fillText(txt, at.p[0], at.p[1] + 0.5);
+  return { x0: at.p[0] - w / 2, x1: at.p[0] + w / 2, y0: at.p[1] - 8, y1: at.p[1] + 8 };
+}
+function modelDims(c, C) {
+  const picked = new Set(pickedSketches()), frames = app.result ? app.result.frames : {}, n = app.editing ? app.editing.at : appliedCount(app.doc), all = dimsShown();
+  app.doc.features.forEach((f, i) => {
+    if (f.type !== 'sketch' || i >= n || f.suppressed || !frames[f.id]) return;
+    const isPicked = picked.has(f.id);
+    if (!isPicked && (f.hide || !all)) return;
+    const F = frames[f.id], P = uv => project(toWorld(F, uv)), E = new Map(f.ents.map(e => [e.id, e]));
+    // a picked sketch that is hidden shows its shapes too, so its dimensions have something to measure
+    if (isPicked) { for (const e of f.ents) { c.strokeStyle = C.sel; c.lineWidth = 1.6; c.setLineDash(e.k ? [5, 4] : []); strokeEnt(c, e, P); } c.setLineDash([]); }
+    for (const d of f.dims) {
+      if (d.r.some(r => { const e = E.get(r.e); return e && e.ref; })) continue;
+      const at = dimPlace(d, E, P);
+      if (!at) continue;
+      const hov = SK.mhover && SK.mhover.dim === d.id;
+      SK.mlabels.push(Object.assign(drawDim(c, C, d, at, false, hov), { sketch: f.id, dim: d.id, p: at.p }));
+    }
+  });
+  c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+}
+function modelDimAt(sx, sy) { return (SK.mlabels || []).find(b => sx >= b.x0 && sx <= b.x1 && sy >= b.y0 && sy <= b.y1) || null; }
+function modelDimHover(L) { if ((SK.mhover && SK.mhover.dim) !== (L && L.dim)) { SK.mhover = L; drawOverlay(); } }
+/* a sketch's dimension typed again from the model view: the sketch is solved with it, and the model follows */
+function modelDimEdit(L) {
+  const f = app.doc.features.find(x => x.id === L.sketch), d = f && f.dims.find(x => x.id === L.dim);
+  if (!d) return false;
+  const old = document.getElementById('dimInput'); if (old) old.remove();
+  const inp = h('input', { type: 'text', class: 'cad-diminput', id: 'dimInput', value: d.x || fmtNum(d.v), spellcheck: 'false', 'aria-label': 'The dimension’s value' });
+  inp.style.left = Math.max(4, L.p[0] - 50) + 'px'; inp.style.top = Math.max(4, L.p[1] - 13) + 'px';
+  document.getElementById('stage').append(inp);
+  let done = false;
+  const close = () => { if (done) return; done = true; inp.remove(); };
+  const commit = () => {
+    if (done) return;
+    const txt = inp.value.trim();
+    if (txt === (d.x || fmtNum(d.v))) { close(); return; }
+    let v;
+    try { v = evalExpr(txt, app.result ? app.result.vars : {}, d.t === 'ang' ? 'ang' : 'len'); }
+    catch (err) { toast('That value: ' + err.message, true); inp.focus(); return; }
+    if (d.t !== 'ang' && !(v > 0) && !(d.t === 'dist' && v === 0)) { toast('A dimension must be more than 0', true); inp.focus(); return; }
+    const g = JSON.parse(JSON.stringify(f)), gd = g.dims.find(x => x.id === d.id);
+    gd.v = d.t === 'ang' ? v : Math.abs(v); gd.x = txt;
+    const r = solveSketch(g.ents, g.cons, g.dims, null, { iters: 100 });
+    close();
+    if (!r.ok) { toast('That dimension cannot hold with the others (over-constrained): left as it was', true); return; }
+    checkpoint();
+    carryRegions(app.doc, f.id, f.ents, g.ents);
+    f.ents = g.ents; f.dims = g.dims;
+    changed();
+  };
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') commit(); else if (e.key === 'Escape') close(); });
+  inp.addEventListener('blur', () => setTimeout(commit, 0));
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  return true;
 }
 let boxSel = null;
 function setBoxSel(b) { boxSel = b; drawOverlay(); }
@@ -5585,6 +6000,9 @@ function drawSketch(c, C) {
     const r = sel || hov ? 3.5 : k === 'c' && e.t !== 'point' ? 1.8 : 2.6;
     c.fillRect(q[0] - r, q[1] - r, 2 * r, 2 * r);
   }
+  if (isSel({ t: 'pt', e: 'origin' }) || isHov({ t: 'pt', e: 'origin' })) { c.fillStyle = isSel({ t: 'pt', e: 'origin' }) ? C.sel : C.hov; c.fillRect(o[0] - 4, o[1] - 4, 8, 8); }
+  if (SK.hover && SK.hover.t === 'mpt') { const q = P(SK.hover.c); c.strokeStyle = C.hov; c.lineWidth = 2; c.beginPath(); c.arc(q[0], q[1], 5, 0, 7); c.stroke(); }
+  if (SK.hover && SK.hover.t === 'ment') { c.strokeStyle = C.hov; c.lineWidth = 2.6; strokeEnt(c, SK.hover.g, P); }
   SK.labels = [];
   // constraint glyphs, stacked by where they are
   const slots = new Map();
@@ -5604,18 +6022,10 @@ function drawSketch(c, C) {
   }
   // dimensions: a leader and the value
   SK.dimPos = new Map();
-  c.font = '11px system-ui, sans-serif';
   for (const d of f.dims) {
     const it = { t: 'dim', id: d.id }, sel = isSel(it), hov = isHov(it), at = dimPlace(d, E, P);
     if (!at) continue;
-    c.strokeStyle = C.dim; c.lineWidth = 1;
-    for (const ln of at.lines) { c.beginPath(); c.moveTo(ln[0][0], ln[0][1]); c.lineTo(ln[1][0], ln[1][1]); c.stroke(); }
-    const txt = (d.t === 'dia' ? 'Ø' : d.t === 'rad' ? 'R' : '') + fmtNum(d.v, 3) + (d.t === 'ang' ? '°' : '') + (d.x && /[#a-z(]/i.test(d.x.replace(/\b(mm|cm|in|m|deg|rad)\b/g, '')) ? ' (' + d.x + ')' : '');
-    const w = c.measureText(txt).width + 8;
-    c.fillStyle = sel ? C.sel : hov ? C.hov : isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.88)';
-    c.fillRect(at.p[0] - w / 2, at.p[1] - 8, w, 16);
-    c.fillStyle = d.err ? '#d04040' : sel ? '#fff' : C.dim; c.fillText(txt, at.p[0], at.p[1] + 0.5);
-    SK.labels.push({ x0: at.p[0] - w / 2, x1: at.p[0] + w / 2, y0: at.p[1] - 8, y1: at.p[1] + 8, item: it });
+    SK.labels.push(Object.assign(drawDim(c, C, d, at, sel, hov), { item: it }));
     SK.dimPos.set(d.id, at.p);
   }
   // the shape being drawn, and what the pointer infers
@@ -5624,6 +6034,17 @@ function drawSketch(c, C) {
   for (const e of dr) strokeEnt(c, e, P);
   c.setLineDash([]);
   const sn = SK.snap;
+  // its size as it is drawn, by the pointer
+  if (dr.length && sn && SK.draft) {
+    const p0 = SK.draft.pts[0], p1 = SK.draft.pts[1] || sn.p, t = SK.tool, mm = v => fmtNum(v, 2), far = Math.hypot(sn.p[0] - p0[0], sn.p[1] - p0[1]);
+    const txt = t === 'line' ? mm(far) + ' mm' : t === 'rect' ? mm(Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'crect' ? mm(2 * Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(2 * Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'circle' ? 'Ø' + mm(2 * far) + ' mm' : t === 'polygon' ? 'R' + mm(far) + ' mm'
+      : (t === 'arc3' || t === 'tarc') && dr[0].t === 'arc' ? 'R' + mm(dr[0].r) + ' mm' : t === 'slot' && SK.draft.pts.length > 1 ? mm(Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) + ' × ' + mm(2 * distToEnt({ t: 'line', a: p0, b: p1 }, sn.p)) + ' mm' : mm(far) + ' mm';
+    const q = P(sn.p); c.font = '11px system-ui, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    const w = c.measureText(txt).width + 8;
+    c.fillStyle = isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.9)'; c.fillRect(q[0] + 12, q[1] + 10, w, 16);
+    c.fillStyle = C.dim; c.fillText(txt, q[0] + 16, q[1] + 18.5);
+    c.textAlign = 'center';
+  }
   if (sn && SK.tool !== 'select') {
     const q = P(sn.p);
     c.fillStyle = C.sel; c.fillRect(q[0] - 3, q[1] - 3, 6, 6);
@@ -5634,7 +6055,11 @@ function drawSketch(c, C) {
 /* where a dimension's value goes, and its leader lines (screen) */
 function dimPlace(d, E, P) {
   const e0 = E.get(d.r[0].e);
-  if (d.t === 'len' && e0) { const a = P(e0.a), b = P(e0.b), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L * 18, dx / L * 18]; const A = [a[0] + n[0], a[1] + n[1]], B = [b[0] + n[0], b[1] + n[1]]; return { p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lines: [[a, A], [b, B], [A, B]] }; }
+  // the side of a line a dimension goes: away from the middle of the sketch, so it sits outside the shape
+  let mid = E.mid;
+  if (!mid) { let n = 0; const m = [0, 0]; for (const e of E.values()) for (const q of e.t === 'line' ? [e.a, e.b] : [e.c]) { m[0] += q[0]; m[1] += q[1]; n++; } mid = E.mid = n ? [m[0] / n, m[1] / n] : [0, 0]; }
+  const out = (a, b, n) => { const c = P(mid), s = (((a[0] + b[0]) / 2 - c[0]) * n[0] + ((a[1] + b[1]) / 2 - c[1]) * n[1]) < -1e-6 ? -1 : 1; return [n[0] * s, n[1] * s]; };
+  if (d.t === 'len' && e0) { const a = P(e0.a), b = P(e0.b), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, n = out(a, b, [-dy / L * 24, dx / L * 24]); const A = [a[0] + n[0], a[1] + n[1]], B = [b[0] + n[0], b[1] + n[1]]; return { p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lines: [[a, A], [b, B], [A, B]] }; }
   if ((d.t === 'rad' || d.t === 'dia') && e0 && e0.c) { const ang = e0.t === 'arc' ? (e0.a0 + arcSweep(e0) / 2) * Math.PI / 180 : Math.PI / 4, q = [e0.c[0] + e0.r * Math.cos(ang), e0.c[1] + e0.r * Math.sin(ang)], cs = P(e0.c), qs = P(q), dx = qs[0] - cs[0], dy = qs[1] - cs[1], L = Math.hypot(dx, dy) || 1, out = [qs[0] + dx / L * 24, qs[1] + dy / L * 24]; return { p: out, lines: [[d.t === 'dia' ? [cs[0] - dx, cs[1] - dy] : cs, out]] }; }
   if (d.t === 'dist' || d.t === 'pl') {
     const a = hpt(E, d.r[0]);
@@ -5642,7 +6067,7 @@ function dimPlace(d, E, P) {
     if (d.t === 'pl') { const L = E.get(d.r[1].e); if (!L) return null; const dd = lineDir(L), L2 = dd[0] * dd[0] + dd[1] * dd[1] || 1, t = ((a[0] - L.a[0]) * dd[0] + (a[1] - L.a[1]) * dd[1]) / L2; b = [L.a[0] + dd[0] * t, L.a[1] + dd[1] * t]; }
     else b = hpt(E, d.r[1]);
     if (d.dir === 'h') b = [b[0], a[1]]; else if (d.dir === 'v') b = [a[0], b[1]];
-    const A = P(a), B = P(b), dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L * 14, dx / L * 14];
+    const A = P(a), B = P(b), dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, n = out(A, B, [-dy / L * 24, dx / L * 24]);
     const A2 = [A[0] + n[0], A[1] + n[1]], B2 = [B[0] + n[0], B[1] + n[1]];
     return { p: [(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], lines: [[A, A2], [B, B2], [A2, B2]] };
   }
@@ -5721,9 +6146,9 @@ function openFeature(type, opts) {
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   const at = appliedCount(app.doc), f = newFeature(app.doc, type);
+  const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');     // before prefill empties the selection
   prefill(f, at);
   if (type === 'sketch') {
-    const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');
     if (planeSel) { refFor(planeSel).then(r => { if (!r) { toast('Choose a plane or a flat face to sketch on', true); return; } f.plane = r; startSketch(f, at, true); }); return; }
     if (opts && opts.plane) { f.plane = opts.plane; startSketch(f, at, true); return; }
     // ask for the plane first
@@ -5758,6 +6183,8 @@ function prefill(f, at) {
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
     if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents); }
   }
+  // a revolve about the sketch's centre line: its one construction line, if it has just one
+  if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
   const parts = sel.filter(s => s.kind === 'part').map(s => s.part);
   if (f.type === 'boolean' && parts.length) { f.targets = parts.slice(0, 1); f.tools = parts.slice(1); }
@@ -5891,7 +6318,7 @@ function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;
@@ -5960,6 +6387,9 @@ function wireDialog() {
 /* ==========================================================================
    The left panel: the feature list (the origin and the three planes, then each feature in order, the rollback bar
    after the last one applied, which drags), and under it the parts list (each part's name, colour and material).
+   Every row has an eye: the origin, a plane and a sketch are shown or hidden by it; a feature that made parts shows
+   or hides them; a feature that only changes a part (a fillet, a cut) is suppressed by it, the model shown without
+   it. A feature clicked is picked: its sketch's dimensions show on the model, to be double-clicked and changed.
    A feature: double-click to edit; its menu (right-click, or ⋯) to rename, suppress, roll to, move, delete; drag
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
@@ -6015,28 +6445,48 @@ function featureMenu(i, x, y) {
     'sep', ['Roll to here', () => setRollback(i + 1), i + 1 !== n], ['Move up', () => moveFeature(i, i - 1), canMove(app.doc, i, i - 1)], ['Move down', () => moveFeature(i, i + 1), canMove(app.doc, i, i + 1)],
     'sep', ['Delete', () => deleteFeature(i)]]);
 }
+/* ---------- the eye on each row ---------- */
+const eyeBtn = (off, what, fn) => h('button', { type: 'button', class: 'cad-eye' + (off ? ' off' : ''), 'data-icon': off ? 'eyeoff' : 'eye', 'aria-pressed': String(!off), title: (off ? 'Show ' : 'Hide ') + what, 'aria-label': (off ? 'Show ' : 'Hide ') + what, onclick: e => { e.stopPropagation(); fn(); } });
+function toggleStd(k) { checkpoint(); const hd = app.doc.hide || (app.doc.hide = {}); if (hd[k]) delete hd[k]; else hd[k] = true; changed(); }
+/* the parts a feature made that are still there (what its eye shows and hides) */
+function madeParts(f) { const st = statusOf(f.id), made = st && st.info && st.info.made || [], have = new Set((app.result ? app.result.parts : []).map(p => p.id)); return made.filter(id => have.has(id)); }
+const isHidden = f => (f.type === 'sketch' || f.type === 'plane' ? !!f.hide : (() => { const m = madeParts(f); return m.length ? m.every(id => (app.doc.parts[id] || {}).hidden) : !!f.suppressed; })());
+function toggleFeatureShown(i) {
+  const f = app.doc.features[i];
+  if (!f) return;
+  checkpoint();
+  if (f.type === 'sketch' || f.type === 'plane') { if (f.hide) delete f.hide; else f.hide = true; }
+  else {
+    const m = madeParts(f);
+    if (m.length) { const hide = !m.every(id => (app.doc.parts[id] || {}).hidden); for (const id of m) { const p = app.doc.parts[id] || (app.doc.parts[id] = {}); if (hide) p.hidden = true; else delete p.hidden; } }
+    else if (f.suppressed) delete f.suppressed; else f.suppressed = true;
+  }
+  changed();
+}
 /* ---------- the feature list ---------- */
 function renderPanel() {
   const list = document.getElementById('featureList');
   if (!list) return;
   const doc = app.doc, n = app.sketch ? app.sketch.at : appliedCount(doc), rows = [];
   const wantsFeatures = fieldWants() === 'features';
-  const planeRow = (k, name) => h('li', { class: 'cad-frow-p', 'data-plane': k, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name));
-  rows.push(h('li', { class: 'cad-frow-p origin' }, h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, 'Origin')),
+  const hid = doc.hide || {};
+  const planeRow = (k, name) => h('li', { class: 'cad-frow-p' + (hid[k] ? ' hid' : '') + (app.sel.some(s => s.kind === 'plane' && s.std === k) ? ' picked' : ''), 'data-plane': k, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name), eyeBtn(hid[k], 'the ' + name + ' plane', () => toggleStd(k)));
+  rows.push(h('li', { class: 'cad-frow-p origin' + (hid.origin ? ' hid' : ''), 'data-plane': 'origin' }, h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, 'Origin'), eyeBtn(hid.origin, 'the origin', () => toggleStd('origin'))),
     planeRow('top', 'Top'), planeRow('front', 'Front'), planeRow('right', 'Right'));
   const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });
   doc.features.forEach((f, i) => {
     if (i === n) rows.push(bar());
     const st = statusOf(f.id), err = st && st.ok === false, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
     const chosen = wantsFeatures && app.editing.f.items.includes(f.id);
-    const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
+    const solid = f.type !== 'sketch' && f.type !== 'plane', off = isHidden(f), parts = solid ? madeParts(f) : [];
+    const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : '') + (off && !f.suppressed ? ' hid' : '') + (app.picked === f.id ? ' picked' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
       title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : '') },
     h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name),
-    f.hide ? h('span', { class: 'cad-hid', title: 'Hidden' }, '◌') : null,
-    err ? h('span', { class: 'cad-ferr' }, st.error) : null,
-    h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'));
+    eyeBtn(off, !solid ? f.name : parts.length ? (parts.length === 1 ? 'the part ' : 'the parts ') + f.name + ' made' : f.name + ' (suppress it: the model without it)', () => toggleFeatureShown(i)),
+    h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'),
+    err ? h('span', { class: 'cad-ferr' }, st.error) : null);
     li.addEventListener('dblclick', () => editFeature(i));
-    li.addEventListener('click', () => { if (wantsFeatures) fieldPick({ kind: 'feature', feature: f.id }); });
+    li.addEventListener('click', e => { if (wantsFeatures) { fieldPick({ kind: 'feature', feature: f.id }); return; } if (e.target.closest('button, input') || app.sketch || app.editing) return; app.picked = app.picked === f.id ? null : f.id; emit('picked'); });
     li.addEventListener('keydown', e => { if (e.key === 'Enter') editFeature(i); if (e.key === 'Delete') deleteFeature(i); });
     li.addEventListener('contextmenu', e => { e.preventDefault(); featureMenu(i, e.clientX, e.clientY); });
     li.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-jekcad-feature', String(i)); e.dataTransfer.effectAllowed = 'move'; });
@@ -6112,7 +6562,8 @@ async function measureShown() {
 }
 function wirePanel() {
   on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
-  on('sel', () => { renderParts(); measureShown(); }); on('model', measureShown);
+  on('sel', () => { renderParts(); measureShown(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);
+  on('picked', renderPanel);
   document.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target)) closeRowMenu(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
 }
@@ -6120,7 +6571,9 @@ function wirePanel() {
    The pointer and the keys on the view. Right-drag orbits, middle-drag (or Shift with the right button) pans, the
    wheel zooms about the pointer. A left click picks: into the feature dialog's active field when one is open,
    else into the selection (Ctrl or Shift adds to it); a left drag from nothing selects by a box. In a sketch the
-   left button belongs to the sketcher. What a click would pick is lit as the pointer moves over it.
+   left button belongs to the sketcher, and a right-click (no drag) ends what is being drawn. What a click would
+   pick is lit as the pointer moves over it. A double-click on a sketch's dimension shown on the model types it
+   again; on a face, it opens the feature that made the face.
    ========================================================================== */
 const MODEL_KINDS = { edges: 'any', faces: 'face', face: 'face', edge: 'edge', parts: 'part', plane: 'face' };
 /* what is under the pointer, for what is wanted now */
@@ -6159,7 +6612,7 @@ function wirePointer() {
   over.addEventListener('pointerdown', e => {
     const [sx, sy] = xy(e);
     over.setPointerCapture(e.pointerId);
-    if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false }; return; }
+    if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
     drag = { mode: 'pick', x: sx, y: sy, moved: false, add: e.ctrlKey || e.shiftKey || e.metaKey };
   });
@@ -6167,7 +6620,8 @@ function wirePointer() {
     const [sx, sy] = xy(e);
     lastXY = [sx, sy];
     if (drag && (drag.mode === 'orbit' || drag.mode === 'pan')) {
-      const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true;
+      const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true; drag.travel += Math.abs(dx) + Math.abs(dy);
+      if (drag.travel < 4) return;
       if (drag.mode === 'orbit' && !app.sketch) orbit(dx, dy); else pan(dx, dy);
       return;
     }
@@ -6178,14 +6632,15 @@ function wirePointer() {
       return;
     }
     if (app.sketch) { sketchMove(e, sx, sy); return; }
-    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; if (!lastXY) return; const p = pickHere(...lastXY); if (JSON.stringify(p) !== JSON.stringify(app.hover)) { app.hover = p; emit('hover'); emit('sel'); } });
+    if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; if (!lastXY) return; const md = app.editing ? null : modelDimAt(...lastXY); modelDimHover(md); over.style.cursor = md ? 'text' : ''; const p = md ? null : pickHere(...lastXY); if (JSON.stringify(p) !== JSON.stringify(app.hover)) { app.hover = p; emit('hover'); emit('sel'); } });
   });
   over.addEventListener('pointerup', async e => {
     const [sx, sy] = xy(e), d = drag;
     drag = null;
     if (!d) return;
     if (d.mode === 'sketch') { sketchUp(e, sx, sy); return; }
-    if (d.mode !== 'pick') return;
+    // the right button let go where it went down: in a sketch, what is being drawn ends
+    if (d.mode !== 'pick') { if (d.button === 2 && d.travel < 4 && app.sketch) sketchRight(); return; }
     if (d.moved) {
       setBoxSel(null);
       const got = pickBox(d.x, d.y, sx, sy, app.filter === 'any' ? 'edge' : app.filter);
@@ -6199,7 +6654,22 @@ function wirePointer() {
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
   over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
-  over.addEventListener('dblclick', e => { if (app.sketch) { sketchDbl(...xy(e)); return; } const [sx, sy] = xy(e); const p = pickAt(sx, sy, 'face'); if (!p) fit(); });
+  over.addEventListener('dblclick', async e => {
+    const [sx, sy] = xy(e);
+    if (app.sketch) { sketchDbl(sx, sy); return; }
+    if (app.editing) return;
+    const md = modelDimAt(sx, sy);
+    if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
+    const p = pickAt(sx, sy, 'face');
+    if (!p) { fit(); return; }
+    // the feature that made the face (its names begin with the feature's id), opened to edit
+    try {
+      const [r] = await kernelAsk('refs', { picks: [p] });
+      const ids = (r && r.names || []).map(nm => String(nm).split('~').pop().split('.')[0].replace(/'+$/, ''));
+      const i = app.doc.features.findIndex(f => ids.includes(f.id));
+      if (i >= 0 && !app.sketch && !app.editing) { app.sel = []; emit('sel'); toast('Editing ' + app.doc.features[i].name + ' (it made this face)'); editFeature(i); }
+    } catch (err) { /* nothing to open */ }
+  });
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
     if (document.querySelector('dialog[open]')) return;
@@ -6208,7 +6678,7 @@ function wirePointer() {
     if (ctrl && k === 'z') { e.preventDefault(); if (app.editing) return; if (e.shiftKey) redo(); else undo(); return; }
     if (ctrl && k === 'y') { e.preventDefault(); if (!app.editing) redo(); return; }
     if (ctrl) return;
-    if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length) { app.sel = []; emit('sel'); } return; }
+    if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }
@@ -6231,8 +6701,16 @@ async function normalToSel() {
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.2.0';
 const NEWS = [
+  { v: '0.2.0', date: '10 Nov 2026', items: [
+    '<b>Sketches lock onto the model</b>: a point drawn near a corner or an edge of a part snaps to it and is held there, and the dimension tool measures from the model’s edges and corners and from the origin. A shape held to an edge follows that edge when the model changes.',
+    '<b>Sizes as you draw</b>: the length, width and height or diameter shows by the pointer; type a number straight after a line, circle, arc or rectangle to dimension it. Double-click a line, circle or arc to dimension it; right-click ends a chain of lines.',
+    '<b>Dimensions on the model</b>: click a sketch, or the feature made from it, in the list and its dimensions show on the part; double-click one to change it without opening the sketch. Double-click a face to edit the feature that made it.',
+    'The view fills the window, and the feature list closes and opens from the tab on its edge. Every row of the list has an eye: the origin, each plane, each sketch and each feature’s parts.',
+    '<b>Fly</b> (the bird in the bar): through the model, full screen, with W A S D and the mouse.',
+    'Fixed: Sketch on a face selected beforehand; a cut losing its region when its sketch changed; choosing parts in Mirror and the patterns; a chain of lines that closes on the origin now ends.',
+  ] },
   { v: '0.1.0', date: '10 Nov 2026', items: [
     'The first JEKcad: a Part Studio with a feature list you can roll back, reorder, suppress and edit.',
     'Sketches with lines, rectangles, circles, arcs, slots, polygons and points; constraints inferred as you draw and added from the bar; dimensions typed in place, with units, expressions and #variables.',
@@ -6245,7 +6723,7 @@ function wireNews() {
   const btn = document.getElementById('btnNews'), dlg = document.getElementById('newsDialog');
   if (!btn || !dlg) return;
   btn.addEventListener('click', () => {
-    document.getElementById('newsBody').replaceChildren(...NEWS.map(n => h('section', null, h('h3', null, 'JEKcad ' + n.v + ' · ' + n.date), h('ul', null, ...n.items.map(t => h('li', null, t))))));
+    document.getElementById('newsBody').replaceChildren(...NEWS.map(n => h('section', null, h('h3', null, 'JEKcad ' + n.v + ' · ' + n.date), h('ul', null, ...n.items.map(t => (() => { const li = h('li'); li.innerHTML = t; return li; })())))));
     dlg.showModal();
   });
   document.getElementById('newsClose').addEventListener('click', () => dlg.close());
@@ -7542,7 +8020,7 @@ if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)')
 const saved = restoreSaved();
 if (saved) app.doc = saved;
 on('icons', el => cadIcons(el));
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireNews(); wireCadAccount(); wireCloud(); wireUsage();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -7559,7 +8037,24 @@ function themeMenu() { for (const b of document.querySelectorAll('[data-theme]')
 for (const b of document.querySelectorAll('[data-theme]')) b.addEventListener('click', () => { setCadTheme(b.dataset.theme); themeMenu(); });
 const filter = document.getElementById('selFilter');
 filter.addEventListener('change', () => { app.filter = filter.value; app.hover = null; emit('sel'); });
-click('btnPlanes', () => { checkpoint(); app.doc.hidePlanes = !app.doc.hidePlanes; drawOverlay(); });
+// the three planes together: hidden if any shows, shown if none does (each has its own eye in the list)
+click('btnPlanes', () => { checkpoint(); const hd = app.doc.hide || (app.doc.hide = {}), any = ['top', 'front', 'right'].some(k => !hd[k]); for (const k of ['top', 'front', 'right']) { if (any) hd[k] = true; else delete hd[k]; } changed(); });
+click('btnFly', () => { closeMenus(); flyStart(); });
+const dimsBtn = document.getElementById('btnDimsShown');
+dimsBtn.setAttribute('aria-checked', String(dimsShown()));
+dimsBtn.addEventListener('click', () => { setDimsShown(!dimsShown()); dimsBtn.setAttribute('aria-checked', String(dimsShown())); });
+on('picked', drawOverlay);
+/* the feature list's tab: the list closed, the view has the whole window; kept for the next visit */
+const SIDE_KEY = 'jekcad-side';
+function sideShown(open) {
+  const main = document.getElementById('cadMain'), tab = document.getElementById('sideTab');
+  main.classList.toggle('side-off', !open);
+  tab.setAttribute('aria-expanded', String(open)); tab.title = open ? 'Hide the feature list' : 'Show the feature list'; tab.setAttribute('aria-label', tab.title);
+  tab.firstElementChild.textContent = open ? '‹' : '›';
+  try { if (open) localStorage.removeItem(SIDE_KEY); else localStorage.setItem(SIDE_KEY, 'off'); } catch (err) { /* this visit */ }
+}
+click('sideTab', () => sideShown(document.getElementById('cadMain').classList.contains('side-off')));
+try { if (!TEST_MODE && localStorage.getItem(SIDE_KEY) === 'off') sideShown(false); } catch (err) { /* open */ }
 click('btnHelpKeys', () => document.getElementById('helpDialog').showModal());
 click('helpClose', () => document.getElementById('helpDialog').close());
 on('history', () => { document.getElementById('btnUndo').disabled = !app.history.length && !app.sketch; document.getElementById('btnRedo').disabled = !app.future.length; });
@@ -7588,7 +8083,7 @@ on('model', out => { // the section's slider spans the parts
 });
 // the hint line: what the mouse does
 const hint = document.getElementById('hint');
-on('sketch', () => { hint.textContent = app.sketch ? 'Sketch: draw with the tools; Esc ends a chain; D dimensions; drag to move what is free (blue). Right-drag pans, wheel zooms. Enter finishes.' : 'Right-drag: orbit · Middle-drag or Shift+right-drag: pan · Wheel: zoom · Left: select, drag for a box · F: fit · N: normal to'; sketchBar(); renderPanel(); });
+on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw · Right-click or Esc ends a chain · Type a number after a line or circle to size it · D: dimension · Double-click a dimension to change it · Enter finishes' : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; sketchBar(); renderPanel(); });
 emit('sketch');
 bootModes(); themeMenu();
 cadIcons(document);
@@ -7611,6 +8106,7 @@ window.JEKcad = {
   openFeature, editFeature, okDialog, closeDialog, fieldPick, startSketch, finishSketch, cancelSketch, setTool, addConstraint,
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
+  flyStart, flyStop, flyTurn, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };
 })();
 </script>

@@ -18,7 +18,7 @@ To sketch at a distance from a plane, first make a **Plane** feature offset from
 
 | Key | Tool | How |
 |---|---|---|
-| L | Line | Click each point. Lines chain end to end. Esc ends the chain, and clicking the chain's first point closes it. |
+| L | Line | Click each point. Lines chain end to end. Right-click, Esc or a double-click ends the chain, and clicking the chain's first point closes it. |
 | R | Corner rectangle | Two opposite corners. |
 | | Centre rectangle | The centre, then a corner. |
 | C | Circle | The centre, then a point on it. |
@@ -30,6 +30,10 @@ To sketch at a distance from a plane, first make a **Plane** feature offset from
 | Q | Construction | Turns the selected shapes into construction shapes, or back. With nothing selected, the next shapes drawn are construction. Construction shapes are dashed and make no regions. |
 
 As you draw, JEKcad infers constraints and shows each one as a glyph by the pointer. **●** means coincident with a point, **M** the middle of a line, **⌒** on a curve, **H** horizontal and **V** vertical. A line drawn nearly square to the one before it is made perpendicular, and a tangent arc is held tangent where it starts.
+
+The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. When the model changes and that edge moves, the sketch moves with it. A corner comes in as a fixed point, which stays where it was.
+
+While you draw, the size of the shape shows by the pointer: a line's length, a rectangle's width and height, a circle's diameter.
 
 ## Constraints
 
@@ -51,13 +55,17 @@ Each constraint shows as a glyph beside what it holds. Click a glyph to select i
 
 ## Dimensions
 
-Press **D**, then click:
+The quickest dimension is typed. Draw a line, a circle or an arc, then type a number and press Enter: that is its length, diameter or radius. After a rectangle, the first number is its width and the second its height. With the select tool, double-click a line, circle or arc to dimension it.
 
-- a line twice, for its length;
+For everything else press **D**, then click:
+
+- a line, then anywhere off it, for its length;
 - a circle for its diameter, or an arc for its radius;
 - two points, for the distance between them (horizontal or vertical when they line up on screen);
 - a point and a line, for the distance from the line;
 - two lines, for the angle between them (or the distance, if they are parallel).
+
+The origin counts as a point. So do the corners of the model, and its straight and round edges count as lines and circles, so a hole can be dimensioned 10 mm from the edge of the part it is cut in.
 
 Type the value in the box that appears and press Enter. Esc takes back a dimension you have just made. Double-click a dimension to change it.
 
@@ -77,7 +85,7 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 | | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. |
 | O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. |
 | | Mirror | Select shapes, click Mirror, then click the line to mirror them in. Each copy's points are held symmetric to the original. |
-| U | Use | Click edges of the model to project them into the sketch, fixed where they are. |
+| U | Use | Click edges of the model to project them into the sketch, fixed where they are. A straight or round edge follows the model when it changes. |
 
 Ctrl+C and Ctrl+V copy and paste shapes, with the constraints between them. Ctrl+Z and Ctrl+Shift+Z undo and redo inside the sketch.
 

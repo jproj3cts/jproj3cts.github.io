@@ -65,6 +65,8 @@ What a coater needs, kept with the coating. It covers the coating and the substr
 
 The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKsuite shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.
 
+**Share** (top right, or **File › Copy a share link…**; on a narrow screen only the File menu has it) copies a short link, jeksys.net/f/ and ten letters, that opens the coating as it is now. Making one is JEKrayPro's; anyone with the link can open it, without an account. What opens is a copy: changes to it do not reach yours, and changes to yours after sharing are not in the link.
+
 **File › Export data…** writes the coating's numbers as three tables with their units: the reflectance across the band (at the smallest and largest angles judged, and the target), against the angle at λ₀ (Rs and Rp), and the layers (material, n and k at λ₀, thickness, QWOT). As CSV (a zip of one file a table) or JSON it needs a free account; as Excel, NumPy (.npz) or MATLAB (.mat), JEKrayPro.
 
 ## On a JEKray bench

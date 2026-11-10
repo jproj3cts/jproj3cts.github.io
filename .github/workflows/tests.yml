@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   jekray:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 30
     defaults:
       run:
@@ -44,7 +44,7 @@ jobs:
         run: node test/run.mjs --full
 
   jekion:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 30
     defaults:
       run:
@@ -64,7 +64,7 @@ jobs:
         run: node test/run.mjs
 
   jekspace:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 15
     defaults:
       run:
@@ -84,7 +84,7 @@ jobs:
         run: node test/run.mjs
 
   jekfilm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 15
     defaults:
       run:

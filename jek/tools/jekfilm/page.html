@@ -32,7 +32,7 @@
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
-          <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to the cloud…</span></button>
+          <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to cloud…</span></button>
           <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnExportCsv" data-icon="export" data-need="account" data-what="export the curves" title="The reflectance across the band and against the angle, as a CSV file">Export the curves (CSV)</button>
@@ -43,6 +43,7 @@
       <button class="rt-btn quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" data-icon="redo"></button>
       <span class="film-where"><span id="filmWhere">In this browser</span> <span id="filmStatus" class="rt-status" aria-live="polite"></span></span>
       <span class="rt-lgap"></span>
+      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="pro" data-what="save a coating file" title="Save the coating as a .jekfilm file (Ctrl+S)">Save</button>
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnTheme" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu" aria-label="Theme" title="Theme" data-icon="theme"></button>
         <div class="rt-menu rt-menu-right rt-imenu" id="themeMenu" role="menu" hidden></div>

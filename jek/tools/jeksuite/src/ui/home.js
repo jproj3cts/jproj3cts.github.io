@@ -18,11 +18,25 @@ export const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', histo
 const HOME_KEY = 'jek-home-view';
 const homeView = { sort: 'changed', flip: false, rows: false, open: [] };
 /* the benches picked (Ctrl-click, Shift-click, a card's tick): kept while the place shown stays the same */
-const picked = new Set();
+const picked = new Set(), pickedF = new Set();   // benches, and folders
 let pickedAt = '', pickAnchor = null;
 /* what is being dragged ({ benches, folders }), every bench of the workspace as last read (for what each folder
    holds), and what the keys do in the list shown (Ctrl+A, Delete, F2, Escape) */
 let dragItems = null, allSeen = null, homeKeys = null;
+/* a name asked for in a small dialog (a fork's, a copy's): the name given, or null when it is cancelled */
+function askName(title, label, value, okLabel) {
+  return new Promise(res => {
+    let dlg = document.getElementById('spaceNameDialog'), out = null;
+    if (dlg) dlg.remove();
+    const inp = h('input', { type: 'text', id: 'spaceNameInput', value, spellcheck: 'false', maxlength: '120' });
+    dlg = h('dialog', { class: 'rt-dialog', id: 'spaceNameDialog', 'aria-labelledby': 'spaceNameTitle' }, h('h2', { id: 'spaceNameTitle' }, title),
+      h('form', { method: 'dialog', onsubmit: e => { e.preventDefault(); out = inp.value.trim(); dlg.close(); } },
+        h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'spaceNameInput' }, label), inp)),
+        h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), h('button', { class: 'rt-btn primary', type: 'submit', id: 'spaceNameOk' }, okLabel))));
+    dlg.addEventListener('close', () => { dlg.remove(); res(out); });
+    document.body.append(dlg); dlg.showModal(); inp.select();
+  });
+}
 /* a name typed in place: Enter or leaving it keeps it, Escape puts things back */
 function nameInput(value, label, save, cancel) {
   const inp = h('input', { type: 'text', class: 'rt-hrename', value, maxlength: '120', spellcheck: 'false', 'aria-label': label, placeholder: label });
@@ -109,25 +123,27 @@ function homeCopy(b, btn) {
     const w = places.find(x => x.id === sel.value);
     if (!w) return;
     closeHomeMenu();
-    const name = prompt('Name of the copy in ' + placeName(w), b.name);
-    if (name === null) return;
-    homeSay(async () => {
-      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: w.id })));
-      Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
-      return f;
-    }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
+    askName('Copy “' + b.name + '” to ' + placeName(w), 'Name of the copy', b.name, 'Copy').then(name => {
+      if (name === null) return;
+      homeSay(async () => {
+        const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name || undefined, workspace_id: w.id })));
+        Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
+        return f;
+      }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
+    });
   });
   openHomeMenu(btn, [h('div', { class: 'rt-menunote' }, 'Copy “' + b.name + '” to'), sel]);
 }
 // a fork: of the bench as it is now, or of one of its versions; named first
 function homeFork(b, version, after) {
-  const name = prompt('Name of the fork', b.name + (version ? ' (v' + version + ')' : ' (fork)'));
-  if (name === null) return;
-  homeSay(async () => {
-    const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody(Object.assign({ name: name.trim() || undefined }, version ? { version } : {}))));
-    if (after) after(f); else cloudPlace.flash = f.id;
-    return f;
-  }, f => 'Forked as “' + f.name + '”')();
+  askName('Fork “' + b.name + '”' + (version ? ' from version ' + version : ''), 'Name of the fork', b.name + (version ? ' (v' + version + ')' : ' (fork)'), 'Fork').then(name => {
+    if (name === null) return;
+    homeSay(async () => {
+      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody(Object.assign({ name: name || undefined }, version ? { version } : {}))));
+      if (after) after(f); else cloudPlace.flash = f.id;
+      return f;
+    }, f => 'Forked as “' + f.name + '”')();
+  });
 }
 /* ---------- compare and merge ----------
    Compare: two versions of a bench, item by item (src/io/merge.js). Merge: a fork back into
@@ -253,7 +269,7 @@ export async function fillHome() {
   const can = writer && active;
   const keepView = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify(homeView)); } catch (err) { /* this visit only */ } };
   const placeKey = [ws, P.view, P.folder, P.q, P.app].join('|');
-  if (placeKey !== pickedAt) { picked.clear(); pickAnchor = null; pickedAt = placeKey; }
+  if (placeKey !== pickedAt) { picked.clear(); pickedF.clear(); pickAnchor = null; pickedAt = placeKey; }
   homeKeys = null;
   // what is dragged goes where it is dropped: benches and folders into a folder (or the top), benches onto the bin
   const sayItems = (bs, fs) => [bs.length === 1 && !fs.length ? '“' + bs[0].name + '”' : bs.length ? countOf(bs.length, 'bench') : null,
@@ -266,16 +282,44 @@ export async function fillHome() {
     homeSay(async () => {
       for (const b of bs) await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: into })));
       for (const f of fs) await api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, jsonBody({ parent_id: into })));
-      picked.clear();
+      picked.clear(); pickedF.clear();
     }, 'Moved ' + sayItems(bs, fs) + ' to ' + (into && byId.get(into) ? '“' + byId.get(into).name + '”' : top))();
   };
-  const binItems = bs => homeSay(async () => { for (const b of bs) await api('/v1/benches/' + b.id, { method: 'DELETE' }); picked.clear(); },
-    bs.length === 1 ? '“' + bs[0].name + '” moved to the bin for 30 days' : bs.length + ' benches moved to the bin for 30 days')();
-  const takes = target => { if (!dragItems || !can) return false; if (target.bin) return dragItems.benches.length > 0 && !dragItems.folders.length; const g = goesInto(dragItems, target.folder); return g.benches.length + g.folders.length > 0; };
+  // benches go to the bin, with an Undo beside the note that says so; a folder goes only when it is empty
+  const binItems = async (bs, fs = []) => {
+    let kept = 0;
+    try {
+      for (const b of bs) await api('/v1/benches/' + b.id, { method: 'DELETE' });
+      for (const f of fs) { try { await api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }); } catch (err) { if (err.status === 409) kept++; else throw err; } }
+    } catch (err) { toast(err.status === 402 ? 'That needs JEKrayPro.' : err.message, true); fillHome(); return; }
+    picked.clear(); pickedF.clear();
+    toast([bs.length ? sayItems(bs, []) + ' moved to the bin for 30 days' : null, fs.length - kept ? (fs.length - kept === 1 ? 'Folder' : countOf(fs.length - kept, 'folder')) + ' deleted' : null,
+      kept ? countOf(kept, 'folder') + ' kept: empty ' + (kept === 1 ? 'it' : 'them') + ' first' : null].filter(Boolean).join('. '), !bs.length && kept === fs.length,
+    bs.length ? { label: 'Undo', fn: homeSay(async () => { for (const b of bs) await api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }); }, 'Restored ' + sayItems(bs, [])) } : null);
+    fillHome();
+  };
+  // a place chosen from a list in a pop-up (where to move or copy to)
+  const choose = (x, note, options, done) => {
+    const sel = h('select', { 'aria-label': note }, h('option', { value: '?' }, 'Choose…'), ...options.map(([v, t]) => h('option', { value: v }, t)));
+    sel.addEventListener('change', () => { if (sel.value === '?') return; closeHomeMenu(); done(sel.value); });
+    openHomeMenu(x, [h('div', { class: 'rt-menunote' }, note), sel]);
+  };
+  const placesFor = fs => [['', top], ...folders.filter(x => fs.every(f => f.id !== x.id && folderFits(folders, f.id, x.id))).map(x => [x.id, pathText(x.id)]).sort((a, b) => a[1].localeCompare(b[1]))];
+  // to another workspace: benches only, to one the person can save to; out of a team, its owner and admins alone
+  const myRole = data.role || (wsInfo && wsInfo.role) || 'owner';
+  const moveOut = can && wsInfo && (wsInfo.kind === 'personal' || myRole === 'owner' || myRole === 'admin') ? copyPlaces(ws) : [];
+  const moveToWs = (bs, w) => homeSay(async () => {
+    try { for (const b of bs) await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ workspace_id: w.id }))); }
+    catch (err) { if (err.status === 400) throw new Error('Moving a bench to another workspace is not available yet.'); throw err; }
+    picked.clear(); pickedF.clear();
+  }, 'Moved ' + sayItems(bs, []) + ' to ' + placeName(w))();
+  const wsChoices = fs => (fs.length ? [] : moveOut.map(w => ['ws:' + w.id, placeName(w) + ' (workspace)']));
+  const moveChosen = (bs, fs) => v => { const w = v.startsWith('ws:') ? moveOut.find(x => 'ws:' + x.id === v) : null; if (w) moveToWs(bs, w); else moveItems({ benches: bs, folders: fs }, v || null); };
+  const takes = target => { if (!dragItems || !can) return false; if (target.ws) return moveOut.includes(target.ws) && dragItems.benches.length > 0 && !dragItems.folders.length; if (target.bin) return dragItems.benches.length > 0 && !dragItems.folders.length; const g = goesInto(dragItems, target.folder); return g.benches.length + g.folders.length > 0; };
   const dropOn = (el, target) => {
     el.addEventListener('dragover', e => { if (!takes(target)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); });
     el.addEventListener('dragleave', () => el.classList.remove('drop'));
-    el.addEventListener('drop', e => { el.classList.remove('drop'); if (!takes(target)) return; e.preventDefault(); const items = dragItems; dragItems = null; if (target.bin) binItems(items.benches); else moveItems(items, target.folder); });
+    el.addEventListener('drop', e => { el.classList.remove('drop'); if (!takes(target)) return; e.preventDefault(); const items = dragItems; dragItems = null; if (target.ws) moveToWs(items.benches, target.ws); else if (target.bin) binItems(items.benches); else moveItems(items, target.folder); });
     return el;
   };
   const dragFrom = (el, items) => {
@@ -293,6 +337,17 @@ export async function fillHome() {
       const k = shown.get(c.dataset.folder) || { n: 0, apps: {} }, cnt = c.querySelector('.rt-hcount'), dots = c.querySelector('.rt-hdots');
       if (cnt) cnt.textContent = countOf(k.n, thing);
       if (dots) dots.replaceChildren(...(appPage ? [] : APPS.filter(a => k.apps[a.id]).map(a => h('i', { class: a.id, title: countOf(k.apps[a.id], a.name + ' ' + thingOf(a.id)) }))));
+      // on an app's page, a folder with none of the app's benches in it (or in the folders inside it) is not shown
+      c.hidden = !!appPage && !k.n;
+    }
+    if (appPage) {
+      const shownF = box.querySelectorAll('.rt-hcard.folder:not([hidden])').length, grid = box.querySelector('.rt-hgrid.folders'), none = box.querySelector('.rt-hnone');
+      if (grid) { grid.hidden = !shownF; if (grid.previousElementSibling && grid.previousElementSibling.tagName === 'H3') grid.previousElementSibling.hidden = !shownF; }
+      const benchHead = [...box.querySelectorAll('.rt-hexplore > h3')].find(x => x.textContent === 'Benches');
+      if (benchHead) benchHead.hidden = !shownF;
+      const tblEl = box.querySelector('.rt-htable');
+      if (tblEl) tblEl.hidden = !shownF && !box.querySelector('.rt-hcard[data-bench]');
+      if (none) none.hidden = shownF > 0;
     }
   };
   // the rail: workspaces, then this one's places and folders
@@ -318,7 +373,7 @@ export async function fillHome() {
     h('h2', null, 'Benches'),
     ...places.flatMap(w => w.id === ws
       ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
-      : [railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', false, leave(() => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); }))]),
+      : [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', false, leave(() => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); })), { ws: w })]),
     h('h2', null, 'In ' + top),
     railBtn('Recent', 'recent', !P.app && here('recent'), leave(go('recent'))),
     railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', leave(go('parts'))),
@@ -336,7 +391,7 @@ export async function fillHome() {
     trueTools(all.benches, () => { if (seq === homeSeq) fillHome(); });
     allSeen = { ws, benches: all.benches || [] };
     decorate();
-  }, () => {});
+  }, () => { if (seq === homeSeq) for (const c of box.querySelectorAll('.rt-hcard.folder[hidden]')) c.hidden = false; });
   // where we are
   const link = (label, fn) => h('button', { type: 'button', class: 'rt-link', onclick: fn }, label);
   const sep = ' › ';
@@ -532,16 +587,20 @@ export async function fillHome() {
     const cards = list.map(p => {
       const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
       const add = () => toast('On a JEKray bench: + Add part › ★ My parts › “' + p.name + '”');
+      const pname = h('b', { class: 'rt-hname', title: p.name }, p.name);
       more.addEventListener('click', () => openHomeMenu(more, [
         ['How to add it', 'open', add],
         'sep',
-        can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the part', p.name) || '').trim(); if (name && name !== p.name) homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(); }] : null,
+        can ? ['Rename', 'rename', () => setTimeout(() => {
+          const old = [...pname.childNodes], inp = nameInput(p.name, 'Name of the part', name => homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(), () => pname.replaceChildren(...old));
+          pname.replaceChildren(inp); inp.focus(); inp.select();
+        })] : null,
         writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from ' + partsName + '? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
       return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
         h('button', { type: 'button', class: 'rt-hopen', title: '“' + p.name + '”: added on a JEKray bench, from + Add part › ★ My parts', onclick: add },
           p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
         h('div', { class: 'rt-hinfo' },
-          h('b', { title: p.name }, p.name),
+          pname,
           h('small', null, [p.summary, PALETTE_NAMES[p.palette], kb(p.size_bytes)].join(' · ')),
           h('small', null, 'Kept ' + whenAgo(p.created_at))),
         more);
@@ -556,10 +615,13 @@ export async function fillHome() {
   const bin = P.view === 'bin';
   const folderCards = P.view === 'folder' && !P.q ? (kids.get(P.folder) || []).map(f => {
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + f.name, title: 'More' }, '⋯');
-    const open = h('button', { type: 'button', class: 'rt-hopen', title: 'Open the folder “' + f.name + '”', onclick: go('folder', f.id) }, homeIcon('folder'), h('span', null, f.name),
+    const tick = can ? h('input', { type: 'checkbox', class: 'rt-hpick', 'aria-label': 'Pick the folder “' + f.name + '”', title: 'Pick it' }) : h('span');
+    const pickF = () => { if (pickedF.has(f.id)) pickedF.delete(f.id); else pickedF.add(f.id); paintPicked(); };
+    if (can) tick.addEventListener('click', e => { e.stopPropagation(); pickF(); });
+    const open = h('button', { type: 'button', class: 'rt-hopen', title: 'Open the folder “' + f.name + '”', onclick: e => { if (can && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pickF(); } else go('folder', f.id)(); } }, homeIcon('folder'), h('span', null, f.name),
       tbl ? null : h('small', { class: 'rt-hdots' }), tbl ? null : h('small', { class: 'rt-hcount' }));
-    const card = h('div', { class: 'rt-hcard folder' + (tbl ? ' rt-hrow' : ''), 'data-folder': f.id, draggable: can ? 'true' : null },
-      ...(tbl ? [h('span'), open, h('span', { class: 'rt-hc app rt-hdots' }), showWhere ? h('span', { class: 'rt-hc where' }) : null, h('span', { class: 'rt-hc when' }), h('span', { class: 'rt-hc size rt-hcount' })] : [open]),
+    const card = h('div', { class: 'rt-hcard folder' + (tbl ? ' rt-hrow' : ''), 'data-folder': f.id, draggable: can ? 'true' : null, hidden: !!appPage },
+      ...(tbl ? [tick, open, h('span', { class: 'rt-hc app rt-hdots' }), showWhere ? h('span', { class: 'rt-hc where' }) : null, h('span', { class: 'rt-hc when' }), h('span', { class: 'rt-hc size rt-hcount' })] : [can ? tick : null, open]),
       writer ? more : null);
     const rename = () => {
       if (!can) return false;
@@ -572,9 +634,10 @@ export async function fillHome() {
     more.addEventListener('click', () => openHomeMenu(more, [
       ['Open', 'open', go('folder', f.id)],
       can ? ['Rename', 'rename', () => setTimeout(rename)] : null,
+      can && placesFor([f]).length > 1 ? ['Move to…', 'move', () => setTimeout(() => choose(more, 'Move the folder “' + f.name + '” to', placesFor([f]).filter(([v]) => v !== (f.parent_id || '')), v => moveItems({ benches: [], folders: [f] }, v || null)))] : null,
       writer ? 'sep' : null,
-      writer ? ['Delete', 'trash', homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }), 'Folder deleted'), 'danger'] : null]));
-    if (can) dragFrom(card, () => ({ benches: [], folders: [f] }));
+      writer ? ['Delete', 'trash', () => binItems([], [f]), 'danger'] : null]));
+    if (can) dragFrom(card, () => (pickedF.has(f.id) ? pickedNow() : { benches: [], folders: [f] }));
     return dropOn(card, { folder: f.id });
   }) : [];
   let benches = data.benches.slice();
@@ -587,41 +650,40 @@ export async function fillHome() {
   const appsHere = {};
   for (const b of benches) appsHere[b.tool || 'jekray'] = (appsHere[b.tool || 'jekray'] || 0) + 1;
   const total = benches.length;
-  if (P.only && !APPS.some(a => a.id === P.only)) P.only = null;
-  const chip = (id, label, n) => h('button', { type: 'button', class: 'rt-hchip' + (id ? ' ' + id : ''), 'aria-pressed': String((P.only || null) === id), title: id ? 'Only the ' + label + ' ' + thingOf(id) + 's here' : 'Every app’s benches here',
-    onclick: () => { P.only = P.only === id ? null : id; fillHome(); } }, id ? h('i', { class: id }) : null, label, h('small', null, String(n)));
-  const chips = !appPage && (Object.keys(appsHere).length > 1 || P.only) ? h('div', { class: 'rt-hchips', id: 'homeChips', role: 'group', 'aria-label': 'The benches of one app' },
-    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || P.only === a.id).map(a => chip(a.id, a.name, appsHere[a.id] || 0))) : null;
-  if (!appPage && P.only) benches = benches.filter(b => (b.tool || 'jekray') === P.only);
+  if (homeView.only && !APPS.some(a => a.id === homeView.only)) homeView.only = null;
+  const chip = (id, label, n) => h('button', { type: 'button', class: 'rt-hchip' + (id ? ' ' + id : ''), 'aria-pressed': String((homeView.only || null) === id), title: id ? 'Only the ' + label + ' ' + thingOf(id) + 's here' : 'Every app’s benches here',
+    onclick: () => { homeView.only = homeView.only === id ? null : id; keepView(); fillHome(); } }, id ? h('i', { class: id }) : null, label, h('small', null, String(n)));
+  const chips = !appPage && (Object.keys(appsHere).length > 1 || homeView.only) ? h('div', { class: 'rt-hchips', id: 'homeChips', role: 'group', 'aria-label': 'The benches of one app' },
+    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || homeView.only === a.id).map(a => chip(a.id, a.name, appsHere[a.id] || 0))) : null;
+  if (!appPage && homeView.only) benches = benches.filter(b => (b.tool || 'jekray') === homeView.only);
   const team = wsInfo && wsInfo.kind !== 'personal';
   const menuOf = new Map();
   // the benches picked: a tick on each, Ctrl-click one more, Shift-click a run; what can be done with them in a bar
   const order = benches.map(b => b.id), benchOf = new Map(benches.map(b => [b.id, b]));
   for (const id of [...picked]) if (!benchOf.has(id)) picked.delete(id);
+  const foldersHere = P.view === 'folder' && !P.q ? (kids.get(P.folder) || []) : [];
+  for (const id of [...pickedF]) if (!foldersHere.some(f => f.id === id)) pickedF.delete(id);
+  const pickedNow = () => ({ benches: order.filter(id => picked.has(id)).map(id => benchOf.get(id)), folders: foldersHere.filter(f => pickedF.has(f.id)) });
   const bar = h('div', { class: 'rt-hpickbar', id: 'homePicked', role: 'toolbar', 'aria-label': 'The benches picked', hidden: true });
   const paintPicked = () => {
-    for (const c of box.querySelectorAll('.rt-hcard[data-bench]')) { const on = picked.has(c.dataset.bench); c.classList.toggle('picked', on); const k = c.querySelector('.rt-hpick'); if (k) k.checked = on; }
-    box.classList.toggle('picking', picked.size > 0);
+    for (const c of box.querySelectorAll('.rt-hcard[data-bench], .rt-hcard[data-folder]')) { const on = c.dataset.bench ? picked.has(c.dataset.bench) : pickedF.has(c.dataset.folder); c.classList.toggle('picked', on); const k = c.querySelector('input.rt-hpick'); if (k) k.checked = on; }
+    const n = picked.size + pickedF.size, of = order.length + (can ? foldersHere.length : 0);
+    box.classList.toggle('picking', n > 0);
     const all = box.querySelector('.rt-hpickall');
-    if (all) { all.checked = picked.size > 0 && picked.size === order.length; all.indeterminate = picked.size > 0 && picked.size < order.length; }
-    bar.hidden = !picked.size;
-    if (!picked.size) { bar.replaceChildren(); return; }
-    const bs = order.filter(id => picked.has(id)).map(id => benchOf.get(id));
+    if (all) { all.checked = n > 0 && n === of; all.indeterminate = n > 0 && n < of; }
+    bar.hidden = !n;
+    if (!n) { bar.replaceChildren(); return; }
+    const { benches: bs, folders: fs } = pickedNow();
     const act = (label, icon, fn, cls) => { const x = h('button', { type: 'button', class: 'rt-btn' + (cls ? ' ' + cls : '') }, homeIcon(icon), ' ' + label); x.addEventListener('click', () => fn(x)); return x; };
-    const choose = (x, note, options, done) => {
-      const sel = h('select', { 'aria-label': note }, h('option', { value: '?' }, 'Choose…'), ...options.map(([v, t]) => h('option', { value: v }, t)));
-      sel.addEventListener('change', () => { if (sel.value === '?') return; closeHomeMenu(); done(sel.value); });
-      openHomeMenu(x, [h('div', { class: 'rt-menunote' }, note), sel]);
-    };
-    bar.replaceChildren(...[h('b', null, countOf(bs.length, 'bench') + ' picked'),
-      !bin && can ? act('Move to…', 'move', x => choose(x, 'Move ' + sayItems(bs, []) + ' to', [['', top], ...folders.map(f => [f.id, pathText(f.id)])], v => moveItems({ benches: bs, folders: [] }, v || null))) : null,
-      !bin && copyPlaces(ws).length ? act('Copy to…', 'copy', x => choose(x, 'Copy ' + sayItems(bs, []) + ' to', copyPlaces(ws).map(w => [w.id, placeName(w)]), v => homeSay(async () => {
+    bar.replaceChildren(...[h('b', null, [bs.length ? countOf(bs.length, 'bench') : null, fs.length ? countOf(fs.length, 'folder') : null].filter(Boolean).join(' and ') + ' picked'),
+      !bin && can ? act('Move to…', 'move', x => choose(x, 'Move ' + sayItems(bs, fs) + ' to', [...placesFor(fs), ...wsChoices(fs)], moveChosen(bs, fs))) : null,
+      !bin && bs.length && !fs.length && copyPlaces(ws).length ? act('Copy to…', 'copy', x => choose(x, 'Copy ' + sayItems(bs, []) + ' to', copyPlaces(ws).map(w => [w.id, placeName(w)]), v => homeSay(async () => {
         for (const b of bs) await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ workspace_id: v })));
         picked.clear();
       }, 'Copied ' + sayItems(bs, []) + ' to ' + placeName(copyPlaces(ws).find(w => w.id === v)))())) : null,
-      !bin && writer ? act('Delete', 'trash', () => binItems(bs), 'danger') : null,
+      !bin && writer ? act('Delete', 'trash', () => binItems(bs, fs), 'danger') : null,
       bin && writer ? act('Restore', 'restore', () => homeSay(async () => { for (const b of bs) await api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }); picked.clear(); }, 'Restored ' + sayItems(bs, []))()) : null,
-      h('button', { type: 'button', class: 'rt-link', title: 'Escape', onclick: () => { picked.clear(); paintPicked(); } }, 'Clear')].filter(Boolean));
+      h('button', { type: 'button', class: 'rt-link', title: 'Escape', onclick: () => { picked.clear(); pickedF.clear(); paintPicked(); } }, 'Clear')].filter(Boolean));
   };
   const pick = (id, e) => {
     if (e && e.shiftKey && pickAnchor && pickAnchor !== id) for (const x of runOf(order, pickAnchor, id)) picked.add(x);
@@ -631,12 +693,7 @@ export async function fillHome() {
   const benchCards = benches.map(b => {
     const app = appOf(b.tool), drag = can && !bin;
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
-    const moveTo = () => {
-      const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
-        ...folders.map(f => { const o = h('option', { value: f.id }, pathText(f.id)); o.selected = f.id === b.folder_id; return o; }));
-      sel.addEventListener('change', () => { closeHomeMenu(); homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: sel.value || null }))), 'Moved')(); });
-      openHomeMenu(more, [h('div', { class: 'rt-menunote' }, 'Move “' + b.name + '” to'), sel]);
-    };
+    const moveTo = () => choose(more, 'Move “' + b.name + '” to', [...placesFor([]).filter(([v]) => v !== (b.folder_id || '')), ...wsChoices([])], moveChosen([b], []));
     const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name), b.name);
     const rename = () => {
       if (!can || bin) return false;
@@ -654,8 +711,8 @@ export async function fillHome() {
       copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
       'sep',
       can ? ['Rename', 'rename', () => setTimeout(rename)] : null,
-      can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
-      writer ? ['Delete', 'trash', homeSay(() => api('/v1/benches/' + b.id, { method: 'DELETE' }), '“' + b.name + '” moved to the bin for 30 days'), 'danger'] : null];
+      can && (folders.length || moveOut.length) ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
+      writer ? ['Delete', 'trash', () => binItems([b]), 'danger'] : null];
     more.addEventListener('click', () => openHomeMenu(more, items()));
     menuOf.set(b.id, items);
     // no picture yet: the app's own mark, on its colour
@@ -684,7 +741,7 @@ export async function fillHome() {
         showWhere && whereLink ? h('small', { class: 'rt-hwhere' }, 'in ', whereLink) : null, fork, who)]),
       more);
     card.renameHere = rename;
-    if (drag) dragFrom(card, () => ({ benches: picked.has(b.id) ? order.filter(id => picked.has(id)).map(id => benchOf.get(id)) : [b], folders: [] }));
+    if (drag) dragFrom(card, () => (picked.has(b.id) ? pickedNow() : { benches: [b], folders: [] }));
     return card;
   });
   P.flash = null;
@@ -696,23 +753,25 @@ export async function fillHome() {
         onclick: () => { if (on) homeView.flip = !homeView.flip; else { homeView.sort = key; homeView.flip = false; } keepView(); fillHome(); } }, label || SORTS[key], on ? h('span', { 'aria-hidden': 'true' }, down ? ' ▾' : ' ▴') : null);
     };
     const all = h('input', { type: 'checkbox', class: 'rt-hpickall', 'aria-label': 'Pick every bench here', title: 'Pick every bench here' });
-    all.addEventListener('click', () => { if (picked.size === order.length) picked.clear(); else for (const id of order) picked.add(id); paintPicked(); });
+    all.addEventListener('click', () => { if (picked.size + pickedF.size) { picked.clear(); pickedF.clear(); paintPicked(); } else homeKeys.all(); });
     out.push(h('div', { class: 'rt-htable' + (showWhere ? ' where' : ''), role: 'table' },
-      h('div', { class: 'rt-hrow rt-hth' }, order.length ? all : h('span'), h('span'), th('name'), th('app'), showWhere ? th('folder') : null, th('changed', bin ? 'Deleted' : 'Changed'), th('size'), h('span')),
+      h('div', { class: 'rt-hrow rt-hth' }, order.length || (can && foldersHere.length) ? all : h('span'), h('span'), th('name'), th('app'), showWhere ? th('folder') : null, th('changed', bin ? 'Deleted' : 'Changed'), th('size'), h('span')),
       ...folderCards, ...benchCards));
   } else {
     if (folderCards.length) out.push(benchCards.length ? h('h3', null, 'Folders') : null, h('div', { class: 'rt-hgrid folders' }, ...folderCards));
     if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
   }
+  // (an app's page with folders but no benches here: said once the folders with none of its benches are put away)
+  if (appPage && folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty rt-hnone', hidden: true }, P.folder ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's in this folder.' : 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.'));
   if (!folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
-    : !appPage && P.only ? 'No ' + appOf(P.only).name + ' ' + thingOf(P.only) + 's here.'
+    : !appPage && homeView.only ? 'No ' + appOf(homeView.only).name + ' ' + thingOf(homeView.only) + 's here.'
     : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
     : appPage ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app’s File menu.'));
   homeKeys = {
-    clear: () => { picked.clear(); paintPicked(); },
-    all: () => { if (!order.length) return false; for (const id of order) picked.add(id); paintPicked(); return true; },
-    del: () => { if (!bin && writer && picked.size) binItems(order.filter(id => picked.has(id)).map(id => benchOf.get(id))); },
-    rename: card => { const c = card || (picked.size === 1 ? box.querySelector('.rt-hcard.picked') : null); return !!(c && c.renameHere && c.renameHere()); },
+    clear: () => { picked.clear(); pickedF.clear(); paintPicked(); },
+    all: () => { if (!order.length && !foldersHere.length) return false; for (const id of order) picked.add(id); if (can) for (const f of foldersHere) pickedF.add(f.id); paintPicked(); return true; },
+    del: () => { const g = pickedNow(); if (!bin && writer && g.benches.length + g.folders.length) binItems(g.benches, g.folders); },
+    rename: card => { const c = card || (picked.size + pickedF.size === 1 ? box.querySelector('.rt-hcard.picked') : null); return !!(c && c.renameHere && c.renameHere()); },
   };
   let fillPreview = () => {};
   if (!appPage) { box.replaceChildren(...out.filter(Boolean)); paintPicked(); decorate(); return; }
@@ -839,7 +898,7 @@ export function signedOutView() {
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
   const P = cloudPlace, appPage = P.app ? appOf(P.app) : null;
   rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id, 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
-  homeKeys = null; picked.clear();
+  homeKeys = null; picked.clear(); pickedF.clear();
   box.classList.remove('rows', 'tbl', 'picking');
   if (appPage) {
     document.getElementById('homeCrumbs').replaceChildren(appPage.name);
@@ -858,6 +917,28 @@ export function signedOutView() {
     appLinks());
 }
 
+/* where an arrow key goes from one card: left and right to the one before and after, up and down to the nearest in
+   the row above or below, Home and End to the first and last; from nowhere, to the first */
+function arrowTo(list, from, key) {
+  if (!list.length) return null;
+  const i = list.indexOf(from);
+  if (i < 0) return list[0];
+  if (key === 'Home') return list[0];
+  if (key === 'End') return list[list.length - 1];
+  if (key === 'ArrowLeft') return list[i - 1] || null;
+  if (key === 'ArrowRight') return list[i + 1] || null;
+  const mid = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const [x, y] = mid(from), down = key === 'ArrowDown';
+  let best = null, score = Infinity;
+  for (const el of list) {
+    const [ex, ey] = mid(el), dy = down ? ey - y : y - ey;
+    if (dy < 4) continue;
+    const sc = dy * 4 + Math.abs(ex - x);
+    if (sc < score) { score = sc; best = el; }
+  }
+  return best;
+}
+
 /* ---------- the page's wiring for this module: done once, from boot.js ---------- */
 export function wireHome() {
   try { Object.assign(homeView, JSON.parse(localStorage.getItem(HOME_KEY)) || {}); } catch (err) { /* defaults */ }
@@ -871,6 +952,10 @@ export function wireHome() {
   document.addEventListener('pointerdown', e => { const m = document.querySelector('.rt-hmenu'); if (m && !m.contains(e.target) && !e.target.closest('[aria-expanded="true"]')) closeMenu(); }, true);
   document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
   document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());
+  // dark or light, from the bar (System is with them in the account menu)
+  const themeBtn = document.getElementById('homeTheme');
+  themeBtn.append(iconNode('theme'));
+  themeBtn.addEventListener('click', () => setSpaceTheme(document.documentElement.dataset.rtTheme === 'dark' ? 'light' : 'dark'));
   // New: an app to open, or a bench to start in one (in the workspace and folder shown)
   const newBtn = document.getElementById('homeNew');
   newBtn.addEventListener('click', () => openMenu(newBtn, newMenuItems()));
@@ -887,9 +972,16 @@ export function wireHome() {
     if (!homeKeys || document.querySelector('dialog[open]') || document.querySelector('.rt-hmenu')) return;
     const t = e.target, typing = t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') && t.type !== 'checkbox';
     if (typing) return;
-    if (e.key === 'Escape' && picked.size) homeKeys.clear();
+    if (e.key === 'Escape' && picked.size + pickedF.size) homeKeys.clear();
     else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') { if (homeKeys.all()) e.preventDefault(); }
-    else if (e.key === 'Delete' && picked.size) homeKeys.del();
+    else if (e.key === 'Delete' && picked.size + pickedF.size) homeKeys.del();
+    else if (/^(Arrow(Up|Down|Left|Right)|Home|End)$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // the arrows go from card to card (row to row in the table), from a card or from nowhere in particular
+      const at = document.activeElement, cur = at && at.closest ? at.closest('#homeList .rt-hcard') : null;
+      if (!cur && at && at !== document.body) return;
+      const to = arrowTo([...document.querySelectorAll('#homeList .rt-hcard > button.rt-hopen')].filter(x => x.offsetParent), cur ? cur.querySelector('button.rt-hopen') : null, e.key);
+      if (to) { e.preventDefault(); to.focus(); to.scrollIntoView({ block: 'nearest' }); }
+    }
     else if (e.key === 'F2') { const c = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.rt-hcard') : null; if (homeKeys.rename(c)) e.preventDefault(); }
   });
   document.getElementById('home').addEventListener('scroll', closeMenu, true);

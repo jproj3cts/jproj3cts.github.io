@@ -1,0 +1,108 @@
+---
+# processed by Jekyll for the shared nav (_includes/site-nav.html) and the jek.css stamp (css_v in _config.yml)
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEKfilm, the coating designer | JEK Systems</title>
+<meta name="description" content="Design a thin-film coating in your browser: a stack of layers on a substrate, judged over a band of wavelengths and a range of angles, its thicknesses optimised, and put on a JEKray bench's faces.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="JEKfilm, the coating designer">
+<meta property="og:description" content="Design a thin-film coating in your browser: a stack of layers on a substrate, judged over a band of wavelengths and a range of angles, its thicknesses optimised, and put on a JEKray bench's faces.">
+<meta property="og:url" content="https://jeksys.net/jek/products/design-software/jekfilm/">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
+<style>
+  .jek-hero .jek-wrap { align-items: start; }
+  /* the plans: a table, what each needs */
+  .film-plans { width: 100%; max-width: 46rem; border-collapse: collapse; font-size: 0.95rem; }
+  .film-plans th, .film-plans td { text-align: left; padding: 0.55rem 0.8rem 0.55rem 0; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
+  .film-plans thead th { font-size: 0.8rem; color: var(--jek-ink-soft); font-weight: 600; border-bottom-width: 2px; }
+  .film-plans td:last-child { white-space: nowrap; }
+  .film-checks { margin: 0.6rem 0 0; padding-left: 1.1rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
+  .film-checks li + li { margin-top: 0.35rem; }
+</style>
+</head>
+
+<body>
+
+{% include site-nav.html %}
+
+  <main class="main-content jek-flush">
+
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <h1>JEKfilm, the coating designer</h1>
+          <p class="jek-lede">A thin-film stack on a substrate, judged over a band of wavelengths and a range of angles, with its thicknesses optimised. It uses the thin-film model JEKray traces with, so a coating designed here behaves the same on a JEKray bench.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/tools/jekfilm.html">Open JEKfilm</a>
+            <a href="/jek/docs/jekray/jekfilm/">Documentation</a>
+          </div>
+          <div class="jek-facts"><span>Runs in your browser</span><span>Free to design in</span></div>
+        </div>
+        <figure class="jek-shot cover">
+          <img src="img/bbar.png" alt="JEKfilm with a three-layer broadband anti-reflection coating on N-BK7: the design table on the left, the reflectance against wavelength at 0° and 30° and against angle, the figures under each plot, and the layer table" width="2560" height="1520">
+          <figcaption>Three layers on N-BK7, optimised over 420 to 680 nm out to 30°: 0.121% mean reflectance square on and 0.193% at 30°, against 4.24% for the bare glass.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="jek-section" style="padding-top: 0">
+      <div class="jek-wrap">
+        <div class="jek-feature">
+          <div><h2>The design</h2><p>Choose what the coating is for: anti-reflection, a high reflector, a beam splitter with the reflectance you want, or a dichroic edge. Set the band, the angles (up to a largest, or a band such as 40° to 50°) and the polarisation. The substrate is one of 13 glasses and crystals with their dispersion, ZnSe, silicon and germanium among them for the infrared, or an index of your own.</p><p>The layers sit in a table from the incident medium down to the substrate, with each layer&rsquo;s index, physical thickness and optical thickness in quarter waves. The optimiser searches the thicknesses from where they stand.</p><p><a href="/jek/docs/jekray/jekfilm/">How it works &rarr;</a></p></div>
+          <figure class="jek-shot"><img src="img/splitter.png" alt="A three-layer beam splitter on fused silica judged for s light from 40° to 50° over 1030 to 1100 nm: the reflectance against wavelength at both angles near the 50% target, and against angle" loading="lazy" width="2560" height="1520"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>On a JEKray bench</h2><p>Coatings saved to the cloud sit in folders beside your benches on JEKspace. A JEKray face&rsquo;s Coating list offers the coatings in its bench&rsquo;s folder, and a .jekfilm file from your computer. The face keeps a copy of the stack, linked to the coating, and when the coating is saved again the bench offers to update its faces.</p><p>From a face, <b>Design a coating in JEKfilm</b> starts on that face&rsquo;s glass at the bench&rsquo;s wavelength. Once saved, the coating goes back onto the face.</p><p><a href="/jek/docs/jekray/jekfilm/#on-a-jekray-bench">Coatings on a bench &rarr;</a></p></div>
+          <figure class="jek-shot"><img src="img/face.png" alt="A JEKray window's face with its Coating set to the JEKfilm coating V-coat 1064, and a note giving its two layers at 1064 nm, its version and a link to open it in JEKfilm" loading="lazy" width="662" height="442"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>Checked against</h2><ul class="film-checks">
+            <li>A quarter-wave MgF<sub>2</sub> layer on N-BK7 at 550 nm reflects 1.26% square on, the textbook ((<i>n</i><sub>s</sub> &minus; <i>n</i><sub>c</sub>&sup2;)/(<i>n</i><sub>s</sub> + <i>n</i><sub>c</sub>&sup2;))&sup2;, to 10<sup>&minus;9</sup>.</li>
+            <li>A half-wave layer leaves the bare Fresnel reflectance, as an absentee layer should.</li>
+            <li>The substrates&rsquo; indices are JEKray&rsquo;s own Sellmeier data, the same at every wavelength to 10<sup>&minus;12</sup>.</li>
+            <li>A coating put on a face of the same glass traces on the bench with the reflectance JEKfilm shows, to 10<sup>&minus;12</sup>.</li>
+          </ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section jek-band" id="plans">
+      <div class="jek-wrap">
+        <h2>Plans</h2>
+        <p>JEKfilm shares JEKray&rsquo;s accounts: one sign-in for every JEK app, and a JEKrayPro subscription covers JEKfilm too.</p>
+        <table class="film-plans">
+          <thead><tr><th scope="col">What you do</th><th scope="col">What it needs</th></tr></thead>
+          <tbody>
+            <tr><td>Design a coating and read its curves and figures; open a .jekfilm file</td><td>Nothing</td></tr>
+            <tr><td>Export the curves as CSV</td><td>A free account</td></tr>
+            <tr><td>Optimise the thicknesses; save coatings as .jekfilm files or in the cloud, with their history</td><td><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro</a></td></tr>
+          </tbody>
+        </table>
+        <div class="jek-acts" style="margin-top: 1.2rem"><a class="jek-btn primary" href="/jek/tools/jekfilm.html">Open JEKfilm</a></div>
+      </div>
+    </section>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+</body>
+</html>

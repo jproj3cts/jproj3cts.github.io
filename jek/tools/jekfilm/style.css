@@ -127,3 +127,4 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-ws .film-fig figcaption { margin-bottom: 0.15rem; }
 .film-for { margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--rt-warm-bg); color: var(--rt-warm-ink); border-bottom: 1px solid var(--jek-line); }
 .film-for .rt-link { margin-left: 0.6rem; color: inherit; }
+.film-title a { color: inherit; text-decoration: none; }

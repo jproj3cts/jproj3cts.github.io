@@ -163,7 +163,7 @@ export async function check(pw, base, shots) {
       await p.waitForSelector('.rt-happhead.jekfilm', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
       const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent),
         starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), about: !!document.querySelector('.rt-happhead a') }));
-      ok('#app=jekfilm: JEKfilm’s launch page, its coatings counted in their folders, New coating, no About link yet', !d.benches.length && d.counts.join() === '1 coating,0 coatings' && d.starts.join('|') === 'Open JEKfilm|New coating' && !d.about, JSON.stringify(d));
+      ok('#app=jekfilm: JEKfilm’s launch page, its coatings counted in their folders, New coating, About JEKfilm', !d.benches.length && d.counts.join() === '1 coating,0 coatings' && d.starts.join('|') === 'Open JEKfilm|New coating' && d.about, JSON.stringify(d));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Absorption/.test(x.textContent)).click());
       await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
       const tag = await p.evaluate(() => { const t = document.querySelector('.rt-hcard[data-bench=b5] .rt-htool'); return t ? [t.textContent, t.className, t.title] : null; });

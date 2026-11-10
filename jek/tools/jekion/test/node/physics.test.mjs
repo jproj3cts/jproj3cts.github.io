@@ -115,6 +115,10 @@ test('the trap analysis takes its axes from the field: a quadrupole on the diago
   assert.ok(Math.abs(qB[1] - qA[1]) < 0.03 * qA[1], 'turned 45°, the same q: ' + qB + ' vs ' + qA);
   assert.ok(B.axes.every(x => /^\(/.test(x.axis)), 'the turned axes are named by direction: ' + B.axes.map(x => x.axis));
   assert.ok(A.axes.every(x => x.axis === 'x' || x.axis === 'y'), 'the aligned ones by name: ' + A.axes.map(x => x.axis));
+  // asked for x, y and z instead, the turned quadrupole reads the curvature on each coordinate axis: near zero, named x and y
+  const X = trapAnalysis(solved(P(true)), P(true), [0, 0, 0], { mass: 100, charge: 1 }, { axes: 'xyz' });
+  assert.deepEqual(X.axes.map(x => x.axis), ['x', 'y']);
+  assert.ok(X.axes.every(x => Math.abs(x.q) < 0.1), 'along x and y the turned quadrupole\u2019s q is small: ' + X.axes.map(x => x.q));
 });
 
 test('the field between the nodes is continuous and exact for a quadratic potential: a quadrupole\'s null is a null', () => {

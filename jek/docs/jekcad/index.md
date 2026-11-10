@@ -42,14 +42,15 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 
 | Do | To |
 |---|---|
-| Right-drag | Orbit about the part's upright axis, in a sketch too (N looks straight at the sketch again) |
+| Right-drag | Orbit about the screen's axes, through the middle of the part; in a sketch too (N looks straight at the sketch again) |
 | Double-click a sketch | Edit it |
 | Middle-drag, or Shift and right-drag | Pan |
 | Wheel | Zoom about the pointer |
 | F, or double-click on nothing | Zoom to fit |
 | N | Look straight at the flat face, plane or sketch chosen |
 | 1 to 7 | Front, back, left, right, top, bottom, isometric |
-| Click a face of the view cube | Look at that side |
+| Click a face of the view cube | Look at that side. A strip along one of its sides looks along that edge, and a corner looks from the corner |
+| The arrows round the view cube | Turn the view 15° |
 | The bird in the bar | Fly through the model, full screen |
 | Double-click a face | Edit the feature that made it |
 

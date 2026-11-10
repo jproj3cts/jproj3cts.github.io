@@ -1,5 +1,6 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
+import { acctWhy } from '../../../jekray/src/ui/pro.js';
 import { appliedCount, newDoc, normDoc } from '../core/doc.js';
 import { carryRegions } from '../core/sketch-tools.js';
 import { kernelAsk } from '../page/kernel.js';
@@ -17,6 +18,14 @@ export const app = {
   picked: null,           // the feature clicked in the list (its id): its sketch's dimensions show on the model
   unsaved: false, regenAt: 0, regenMs: 0, regenCount: 0, busy: false,
 };
+/* changing a Part Studio needs an account (a free one): looking at one, opening a file or a shared link, turning
+   and measuring it do not. Each way into a change asks here first; someone signed out for sure is shown the way in
+   (an account not yet known, or the API down, is let through, as an export is). Not in the tests, nor without accounts. */
+export function editGate() {
+  if (!acctWhy('change a Part Studio')) return true;
+  if (hooks.cadEditSignIn) hooks.cadEditSignIn();
+  return false;
+}
 const BUS = {};
 export function on(ev, fn) { (BUS[ev] || (BUS[ev] = [])).push(fn); }
 export function emit(ev, x) { for (const fn of BUS[ev] || []) { try { fn(x); } catch (err) { console.error(err); } } }

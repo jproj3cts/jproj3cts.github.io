@@ -658,6 +658,13 @@ export function makeKernel(oc) {
       t.SetMirror(T(new oc.gp_Ax2(pnt(F.o), gdir(F.n))));
       return patterned(S, f, [t]);
     },
+    delete(S, f) {
+      if (!f.targets.length) throw new Error('choose the parts to delete');
+      const gone = f.targets.filter(id => S.parts.some(p => p.id === id));
+      if (!gone.length) throw new Error('a chosen part is not there');
+      S.parts = S.parts.filter(p => !gone.includes(p.id));
+      return { deleted: gone.length };
+    },
     boolean(S, f) {
       const get = ids => ids.map(id => { const p = S.parts.find(x => x.id === id); if (!p) throw new Error('a chosen part is not there'); return p; });
       const tg = get(f.targets), tl = get(f.tools.filter(id => !f.targets.includes(id)));

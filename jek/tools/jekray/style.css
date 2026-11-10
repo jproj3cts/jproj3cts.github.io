@@ -692,6 +692,25 @@
   .rt-list .t { margin-left: auto; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-list li.has-eye { display: flex; gap: 0.25rem; align-items: stretch; }
   .rt-list li.has-eye > button:first-child { flex: 1; min-width: 0; }
+  /* the Bench panel's parts, as a CAD feature list: flat rows, one line each, headings by kind, the eye on hover */
+  .rt-plist { list-style: none; margin: 0 0 0.5rem; padding: 0; font-size: 0.82rem; }
+  .rt-plist .rt-plhead, .rt-plist .tabhead { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; color: var(--jek-ink-soft); margin: 0.45rem 0.4rem 0.15rem; list-style: none; }
+  .rt-plist .rt-plhead:first-child { margin-top: 0.1rem; }
+  .rt-plrow { display: flex; align-items: center; gap: 0.15rem; border-radius: 3px; }
+  .rt-plrow:hover { background: var(--jek-well); }
+  .rt-plrow.on { background: rgba(224, 137, 46, 0.18); }
+  .rt-plrow .rt-plname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.45rem; padding: 0.22rem 0.4rem; font: inherit; color: var(--jek-ink); text-align: left; background: none; border: 0; border-radius: 3px; cursor: pointer; }
+  .rt-plrow .rt-plname:focus-visible { outline: none; box-shadow: var(--jek-focus); }
+  .rt-plrow .swatch { width: 0.6rem; height: 0.6rem; border-radius: 2px; flex: none; }
+  .rt-plrow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-plrow .t { flex: none; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.7rem; color: var(--jek-ink-soft); }
+  .rt-plrow.hid .nm { opacity: 0.5; }
+  .rt-plrow .rt-eye { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.4rem; padding: 0; border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; opacity: 0; }
+  .rt-plrow:hover .rt-eye, .rt-plrow:focus-within .rt-eye, .rt-plrow .rt-eye.off, .rt-plrow .rt-eye:focus-visible { opacity: 1; }
+  .rt-plrow .rt-eye:hover { color: var(--jek-ink); }
+  .rt-plrow .rt-eye.off { color: var(--jek-orange); }
+  .rt-plrow .rt-eye svg { display: block; width: 15px; height: 15px; }
+  @media (hover: none) { .rt-plrow .rt-eye { opacity: 1; } }
   .rt-list .rt-eye { flex: none; width: 2rem; justify-content: center; padding: 0; color: var(--jek-ink); }
   .rt-list .rt-eye.off { color: var(--jek-ink-soft); opacity: 0.45; }
   .rt-list .rt-eye svg { display: block; }

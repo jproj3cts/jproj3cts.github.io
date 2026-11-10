@@ -7542,6 +7542,7 @@ click('btnNew', newDocument); click('btnOpen', openFile); click('btnSave', saveF
 click('btnExportStep', () => exportParts('step')); click('btnExportStl', () => exportParts('stl'));
 click('btnVariables', showVariables); click('btnFit', () => fit()); click('btnNormal', normalToSel);
 click('btnSection', () => sectionToggle());
+window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !e.shiftKey) { e.preventDefault(); saveFile(); } });
 for (const b of document.querySelectorAll('[data-view]:not(.cad-cubeface)')) b.addEventListener('click', () => viewFrom(b.dataset.view));
 for (const b of document.querySelectorAll('[data-mode]')) b.addEventListener('click', () => { setMode(b.dataset.mode); bootModes(); });
 function bootModes() { for (const b of document.querySelectorAll('[data-mode]')) b.setAttribute('aria-checked', String(b.dataset.mode === V.mode)); }

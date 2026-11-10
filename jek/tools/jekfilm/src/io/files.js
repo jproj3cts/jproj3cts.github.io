@@ -81,31 +81,6 @@ export function exportCurves() {
   downloadBlob(name, new Blob([filmCsv(film)], { type: 'text/csv' }));
   toast('Saved ' + name); track('export', 'film-csv');
 }
-/* the coatings JEKray's coating designer kept by name in this browser before JEKfilm ('JEK_COATINGS': [{ id, name,
-   coat: a stack, spec: core/coatdesign.js's }]), each as a JEKfilm coating to open (and then save to the cloud) */
-const KEPT_KEY = 'JEK_COATINGS';
-export function keptInJekray() {
-  try { const v = JSON.parse(localStorage.getItem(KEPT_KEY) || '[]'); return Array.isArray(v) ? v.filter(k => k && k.coat && Array.isArray(k.coat.layers)) : []; } catch (err) { return []; }
-}
-export function keptToFilm(k) {
-  const s = k.spec || {}, c = k.coat;
-  return normFilm({ name: k.name, spec: { target: s.target === 'rf' ? 'ar' : s.target, sub: { n: s.ns }, n0: s.n0, lo: s.lo, hi: s.hi, design: c.design || s.design, angles: 'upto', theta: s.theta, pol: s.pol, R: s.R, edge: s.edge, passBelow: s.passBelow }, layers: c.layers });
-}
-export function keptShown() {
-  const b = document.getElementById('btnKept'), n = keptInJekray().length;
-  if (b) { b.hidden = !n; b.querySelector('.lbl').textContent = 'Coatings kept in JEKray (' + n + ')\u2026'; }
-}
-function keptDialog() {
-  let dlg = document.getElementById('filmKept');
-  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmKept', 'aria-labelledby': 'filmKeptTitle' }); document.body.append(dlg); }
-  const list = keptInJekray();
-  dlg.replaceChildren(h('h2', { id: 'filmKeptTitle' }, 'Coatings kept in JEKray'),
-    h('p', null, 'These were kept by name in this browser with JEKray’s coating designer. Open one here, then save it to the cloud to keep it with your benches.'),
-    h('table', { class: 'film-results film-keptlist' }, h('tbody', null, ...list.map(k => h('tr', null, h('th', { scope: 'row' }, k.name), h('td', { class: 'n' }, k.coat.layers.length + (k.coat.layers.length === 1 ? ' layer' : ' layers')),
-      h('td', { class: 'n' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { dlg.close(); setFilm(keptToFilm(k)); hooks.filmUnlink(); filmAutosave(); toast('Opened “' + k.name + '”: save it to the cloud to keep it with your benches'); track('import', 'film-kept'); } }, 'Open')))))),
-    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close')));
-  dlg.showModal();
-}
 /* the examples, jek/tools/demos/<slug>.jekfilm: each opened as a new coating here, linked to nothing */
 export const FILM_EXAMPLES = [
   ['vcoat-1064', 'V-coat, 1064 nm', 'Two layers on fused silica: nothing reflected at one laser line (0.002% across 1054–1074 nm).'],
@@ -137,8 +112,6 @@ function examplesDialog() {
 }
 export function wireFiles() {
   document.getElementById('btnExamples').addEventListener('click', examplesDialog);
-  document.getElementById('btnKept').addEventListener('click', keptDialog);
-  keptShown();
   const fi = document.getElementById('fileFilm');
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });

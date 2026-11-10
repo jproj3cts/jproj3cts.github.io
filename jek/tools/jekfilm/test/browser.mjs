@@ -220,19 +220,6 @@ export async function check(pw, base, shots) {
       ok('A shared link: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
-    // the coatings JEKray's coating designer kept in this browser: offered in File, each opened as a coating
-    {
-      const p = await b.newPage({ viewport: { width: 1300, height: 900 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
-      await p.addInitScript(() => { try { localStorage.setItem('JEK_COATINGS', JSON.stringify([{ id: 'c1', name: 'BBAR 450–650', coat: { mode: 'stack', design: 550, layers: [{ n: 1.38, d: 99.6 }, { n: 2.1, d: 32.7 }, { n: 1.63, d: 84.4 }] }, spec: { target: 'ar', n0: 1, ns: 1.5168, lo: 450, hi: 650, theta: 20, pol: 'avg' } }])); } catch (e) { /* fine */ } });
-      await p.goto(base + '/jek/tools/jekfilm.html?test'); await p.waitForSelector('#filmLayers', { timeout: 10000 }).catch(() => {});
-      const shown = await p.evaluate(() => { const k = document.getElementById('btnKept'); return k && !k.hidden ? k.textContent : null; });
-      await p.click('#btnFile'); await p.click('#btnKept'); await p.waitForTimeout(150);
-      await p.evaluate(() => [...document.querySelectorAll('#filmKept button')].find(x => x.textContent === 'Open').click()); await p.waitForTimeout(150);
-      const f = await p.evaluate(() => window.JEKfilm.film());
-      ok('Coatings kept in JEKray (1)…: one opens as a coating, its layers, band, angles and substrate index kept', /Coatings kept in JEKray \(1\)/.test(shown || '') && f.name === 'BBAR 450–650' && f.layers.length === 3 && f.spec.lo === 450 && f.spec.theta === 20 && f.spec.sub.n === 1.5168, JSON.stringify([shown, f]));
-      ok('Kept coatings: no page errors', !errs.length, errs.join(' | '));
-      await p.close();
-    }
   } finally { await b.close(); }
   return out;
 }

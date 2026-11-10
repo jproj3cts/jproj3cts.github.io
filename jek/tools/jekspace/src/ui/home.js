@@ -565,18 +565,17 @@ export function appLinks() {
     ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
     ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
-/* New's menu: the apps to open, then what can be started */
+/* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 export function newMenuItems() {
-  return [h('div', { class: 'rt-hmenuhead' }, 'Open'), ...APPS.map(a => [a.name, 'apps', () => { track('cloud', 'app.' + a.id); openApp(a.id); }]),
-    'sep', h('div', { class: 'rt-hmenuhead' }, 'New'), ...NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)])];
+  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)]);
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 export const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
-  { app: 'jekray', into: 'lens', label: 'Optical design (JEKray)', icon: 'lens' },
-  { app: 'jekray', into: 'rf', label: 'RF design (JEKray)', icon: 'rf' },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
   { app: 'jekfilm', into: null, label: 'JEKfilm coating', icon: 'coat' },
+  { app: 'jekray', into: 'lens', label: 'Optical design (JEKray)', icon: 'lens' },
+  { app: 'jekray', into: 'rf', label: 'RF design (JEKray)', icon: 'rf' },
 ];
 /* what a new bench of each app holds: an empty one (JEKfilm's a single MgF2 layer on N-BK7, as the app starts one) */
 export function newContent(app, name) {

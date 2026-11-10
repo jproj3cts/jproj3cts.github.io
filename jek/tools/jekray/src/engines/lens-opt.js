@@ -400,10 +400,14 @@ export function optRun(prob, args) {
   const V = optVars(prob), x0 = args.x && args.x.length === V.length ? Float64Array.from(args.x) : Float64Array.from(V.map(v => xOf(prob, v)));
   const T0 = evalAt(prob, V, x0);
   let res;
-  if (args.mode === 'global') res = globalSearch(prob, V, { x: x0, ss: T0.ss, Wt: T0.Wt }, args.trials || 4, args.seed);
+  // a design outside the limits set on its values starts from them (as damped least squares does), so the global
+  // search never hands back the start where it broke them: outside, set when it did (the result is then taken even
+  // if its merit is higher, as it is the best within the limits)
+  const xc = clampX(Float64Array.from(x0), limitsX(prob, V)), outside = xc.some((v, j) => v !== x0[j]);
+  if (args.mode === 'global') { const Tc = outside ? evalAt(prob, V, xc) : T0; res = globalSearch(prob, V, { x: xc, ss: Tc.ss, Wt: Tc.Wt }, args.trials || 4, args.seed); }
   else res = dls(prob, V, x0, args.iters || 10, args.lambda);
   return { vars: V.map(v => ({ k: v.k, part: v.part || null, cfg: v.cfg === undefined ? null : v.cfg })), x: Array.from(res.x), start: T0.merit, merit: Math.sqrt(res.ss / res.Wt), lambda: res.lambda, done: !!res.done,
-    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(res.found ? { found: res.found } : {}) };
+    iters: res.iters || 0, tried: res.tried || 0, better: res.better || 0, ...(outside ? { outside: true } : {}), ...(res.found ? { found: res.found } : {}) };
 }
 /* the values reached, written into a prescription (P, the active configuration's) and, for a value
    each configuration has its own of, into the configurations of the design D */

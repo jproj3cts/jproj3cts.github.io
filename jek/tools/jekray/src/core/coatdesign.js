@@ -89,8 +89,8 @@ export function coatOptimise(layers, spec, opts) {
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
   const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
-  let best = clampD(layers.map(L => L.d)), fBest = f(best);
-  const before = fBest;
+  // a thickness not given (blank, or not a number) starts at a quarter wave
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
@@ -117,8 +117,10 @@ export function coatOptimise(layers, spec, opts) {
     const i0 = F.indexOf(Math.min(...F));
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
-  return { layers: out, before, after: coatMerit(out, spec), evals };
+  // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
    given ({ id, v }: the cloud coating and its version), links the face to it. The substrate and the angles judged are

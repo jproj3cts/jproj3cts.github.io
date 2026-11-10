@@ -540,6 +540,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     exerciseLeave() { exerciseLeave(true); },
     exerciseCheck() { exerciseTick(); const E = exerciseOn(); return E ? E.solved : null; },
     exerciseAnswer: id => { const x = exerciseById(id); return x ? JSON.parse(JSON.stringify(x.answer)) : null; },
+    exerciseOffersOptimiser: id => { const x = exerciseById(id); return !!(x && x.optimiser); },
     exerciseOptimise() { exerciseOptimise(); },
     lastTrace() { return lastTrace; },
     popCore: { popFieldSeries, setBabN: n => { setBAB_N(n); }, besselJ01, besselZerosJ0, qdht, popRadii, hankel, ihankel, popPower, popGaussian, popLeg, popStats, popSurface, popW,

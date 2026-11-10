@@ -28,13 +28,15 @@ export const popSources = () => lightOf().field ? allSources().filter(beamOn) : 
    worked out again: the tracer's description of the surface leaves out what only the field
    sees (a mask's formula, a coating), so the element's own settings go in with it */
 const evElement = ev => ev && ev.el ? getEl(ev.el) || null : null;
+/* (the field's intensity scale is not in the key: it is how the field is drawn, at drawing time, so a frame worked out
+   at one scale is drawn at another) */
 /* the element as the field sees it: how it is swept (or whether the 3D view draws it) is not part of it, so a sweep's rate or range can change and the field worked out for it still holds */
 const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d || e.mod)) return e; const { sweeps, hide3d, ...rest } = e; return e.mod ? Object.assign(rest, { modRev: MODS.rev }) : rest; };   // a mod's part: as its results stand
 // asked for several times a frame: the beams part once per trace
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 export function popKeyOf(beams, srcs) {
   const ids = new Set(srcs.map(e => e.id));
-  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, lightOf().scale, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
+  const cfg = JSON.stringify(srcs.map(e => [e.id, e.popN, e.coh, e.lineshape, m2Of(e), splitRoot(e).id, lagOf(e), isHigherMode(e) ? [e.tem, e.hm, e.hn, e.lp, e.ll] : 0, e.gauss ? 0 : fanEdge(e)]));
   if (popKeyMemo.beams === beams && popKeyMemo.cfg === cfg) return popKeyMemo.key;
   const key = '[' + cfg + ',' + JSON.stringify(beams.filter(b => ids.has(b.src)).map(b =>
     [b.parent, b.x0, b.y0, b.dx, b.dy, b.len, b.qr, b.qi, b.n, b.nm, b.w, b.colour, b.ev, b.J, b.coh, evElementKey(b.ev), b.z0, b.uz, b.len3, b.d3])) + ']';

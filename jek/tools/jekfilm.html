@@ -1089,9 +1089,6 @@
   .rt-app .rt-stage { height: auto; min-height: 0; border-radius: 0; box-shadow: none; }
   .rt-app .rt-stage:focus-within { box-shadow: inset 0 0 0 2px var(--jek-cyan); }
   .rt-app .rt-panel { max-height: none; min-height: 0; border-radius: 0; box-shadow: none; border-width: 0 0 0 1px; }
-  .rt-panel .rt-about { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--jek-line); max-width: none; }
-  .rt-panel .rt-about p { max-width: none; }
-  .rt-panel .rt-about summary { width: auto; }
   /* the page does not scroll: the tool is the whole window (on a wide screen) */
   @media (min-width: 961px) {
     html.rt-noscroll, html.rt-noscroll body { overflow: hidden; height: 100%; }
@@ -1129,6 +1126,11 @@
   .rt-file .rt-name { flex: 0 1 15rem; width: 15rem; }
   .rt-bar .rt-title { flex: 0 0 auto; margin: 0 0.35rem 0 0.1rem; font-size: 1.1rem; }
   .rt-bar .rt-title::after { width: 100%; margin-top: 0.2rem; }
+  /* an app's name in the bar, the same in every app: JEK, then the app's word in a dark box (no stripe under it) */
+  .jek-wm { display: inline-flex; align-items: center; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .jek-wm b { margin-left: 0.12em; padding: 0.12em 0.32em 0.14em; border-radius: 0.28em; background: var(--jek-ink); color: #fff; font-weight: 700; font-size: 0.92em; letter-spacing: 0; }
+  .rt-title:has(.jek-wm)::after { display: none; }
+  .rt-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
   .rt-title a { color: inherit; text-decoration: none; }
   .rt-title a:hover { color: var(--jek-cyan-dark); }
   .rt-title a:focus-visible { outline: 2px solid var(--jek-cyan); outline-offset: 3px; border-radius: 2px; }
@@ -1967,7 +1969,6 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-space:hover { background: var(--jek-well); text-decoration: none; }
 .film-spacemark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%); }
 .film-title { margin: 0; padding: 0 0.6rem 0 0.7rem; border-left: 1px solid var(--jek-line); font-size: 1rem; font-weight: 700; letter-spacing: 0.01em; }
-.film-title b { background: var(--rt-strong); color: var(--rt-on-strong); padding: 0 0.25rem; margin-left: 0.1rem; border-radius: 2px; }
 .film-name { font: inherit; font-size: 0.95rem; font-weight: 600; min-width: 8rem; width: 16rem; max-width: 40vw; padding: 0.3rem 0.45rem; color: var(--jek-ink); background: transparent; border: 1px solid transparent; border-radius: 2px; }
 .film-name:hover { border-color: var(--jek-line); }
 .film-name:focus { border-color: var(--jek-line-2); background: var(--rt-surface); outline: none; }
@@ -2089,6 +2090,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-for { margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--rt-warm-bg); color: var(--rt-warm-ink); border-bottom: 1px solid var(--jek-line); }
 .film-for .rt-link { margin-left: 0.6rem; color: inherit; }
 .film-title a { color: inherit; text-decoration: none; }
+.film-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
 </style>
 </head>
 <body class="film-app">
@@ -2097,7 +2099,7 @@ html, body { margin: 0; background: var(--jek-well); }
   <section class="rt-lens rt-coatws film-ws" id="filmWs" aria-label="JEKfilm, the coating designer">
     <header class="rt-lhead film-head">
       <a class="film-space" id="btnSpace" href="/jek/tools/jekspace.html#app=jekfilm" target="jekspace" title="JEKspace: every coating and bench you keep in the cloud (in its own tab)"><span class="film-spacemark" aria-hidden="true"></span>JEKspace</a>
-      <h1 class="film-title"><a href="/jek/products/design-software/jekfilm/" title="About JEKfilm: its product page">JEK<b>film</b></a></h1>
+      <h1 class="film-title"><a href="/jek/products/design-software/jekfilm/" title="About JEKfilm: its product page"><span class="jek-wm">JEK<b>film</b></span></a></h1>
       <input type="text" id="filmName" class="film-name" aria-label="The coating’s name" spellcheck="false" maxlength="120">
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu">File</button>
@@ -2506,8 +2508,8 @@ function coatOptimise(layers, spec, opts) {
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
   const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
-  let best = clampD(layers.map(L => L.d)), fBest = f(best);
-  const before = fBest;
+  // a thickness not given (blank, or not a number) starts at a quarter wave
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
@@ -2534,8 +2536,10 @@ function coatOptimise(layers, spec, opts) {
     const i0 = F.indexOf(Math.min(...F));
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) }));
-  return { layers: out, before, after: coatMerit(out, spec), evals };
+  // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
    given ({ id, v }: the cloud coating and its version), links the face to it. The substrate and the angles judged are

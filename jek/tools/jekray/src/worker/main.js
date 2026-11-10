@@ -8,18 +8,19 @@ import { cavSolved } from '../engines/cavity.js';
 import { popLeg2 } from '../engines/field2d.js';
 import { legAlong, popKeyOf, popRun, popSources } from '../engines/beam-tree.js';
 import { closeupImage } from '../engines/closeup.js';
-import { volData } from '../engines/volume.js';
+import { volData, volLightBox } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { detectorField } from '../engines/pd-cavity.js';
 import { antennaJob } from '../engines/antenna-field.js';
 import { optRun } from '../engines/lens-opt.js';
 import { tolRun } from '../engines/lens-tol.js';
 
-/* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it */
+/* the 3D view's field volume for a step, cut to its board, keyed as the view asks for it (by the board as the light
+   meets it: volLightBox) */
 function volOut(R, key, vol, transfer) {
   const V = volData(R.segs, vol.tab, vol.bb, null);
   for (const v of V.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
-  return { key, tab: vol.tab, bb: vol.bb, V };
+  return { key, tab: vol.tab, bb: volLightBox(vol.bb, lastTrace.beams, popSources()), V };
 }
 export function workerMain() {
   let bench = { key: null, R: null };
@@ -116,6 +117,7 @@ export function fwPackRun(R, transfer) {
       const bm = sg.draw.cv.transferToImageBitmap();
       transfer.push(bm);
       draw = Object.assign({}, sg.draw, { cv: bm });
+      if (sg.draw.lin) transfer.push(sg.draw.lin.buffer, sg.draw.gs.buffer);
     }
     return { i: sg.i, src: sg.src.id, eng: sg.eng, F0: sg.F0, root: sg.root, clipped: sg.clipped, repr: sg.repr, boost: sg.boost, mode: sg.mode, coh: sg.coh, draw };
   });

@@ -63,12 +63,12 @@ jobs:
       - name: Node tests and the browser suite
         run: node test/run.mjs
 
-  jekspace:
+  jeksuite:
     runs-on: ubuntu-24.04   # Playwright 1.56.1 has no Chromium for ubuntu-latest (26.04) yet
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: jek/tools/jekspace
+        working-directory: jek/tools/jeksuite
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

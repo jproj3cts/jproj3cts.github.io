@@ -369,11 +369,11 @@ function conflictMerge(link, base, who) {
   });
 }
 /* ---------- My benches: JEKsuite ----------
-   Every cloud bench, of every app, is on JEKsuite (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
+   Every cloud bench, of every app, is on JEKsuite (jek/tools/jeksuite.html), the JEK hub, opened in a tab of its own
    (named, so it is the same tab each time): the bar's cloud button, File › My benches, #benches and My parts' Manage
    link open it there. A bench opened from it comes back here as #cloud=<id>. */
-export const SPACE_URL = '/jek/tools/jekspace.html';
-export function openSpace(hash) { const w = window.open(SPACE_URL + (hash ? '#' + hash : ''), 'jekspace'); if (w) w.focus(); }
+export const SPACE_URL = '/jek/tools/jeksuite.html';
+export function openSpace(hash) { const w = window.open(SPACE_URL + (hash ? '#' + hash : ''), 'jeksuite'); if (w) w.focus(); }
 // where Save to cloud puts a bench first: the person's own workspace
 export const cloudPlace = { ws: null, folder: null };
 const whenAgo = t => {
@@ -488,7 +488,7 @@ export function wireCloud() {
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
     // JEKsuite's mark at the bar's far left, always there (JEKsuite signs people in itself): its own tab, the same one
     // each time, brought to the front
-    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
+    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jeksuite'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
     document.getElementById('btnCloudFork').addEventListener('click', async e => {
       if (gated(e.currentTarget) || !cloud) return;

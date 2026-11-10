@@ -27,7 +27,7 @@ if (!failed && !flag('--no-browser')) {
   if (!pw) { console.log('Playwright is not installed where Node can find it: the browser check was not run'); failed = true; }
   else {
     const { server, port } = await serve(+val('--port') || 8767);
-    console.log(`\n== browser: http://localhost:${port}/jek/tools/jekspace.html`);
+    console.log(`\n== browser: http://localhost:${port}/jek/tools/jeksuite.html`);
     const res = await check(pw, `http://localhost:${port}`, val('--shots'));
     const bad = res.filter(r => !r.ok);
     console.log(`browser: ${bad.length ? bad.length + ' failed, ' + (res.length - bad.length) + ' passed' : 'all ' + res.length + ' checks passed'}`);

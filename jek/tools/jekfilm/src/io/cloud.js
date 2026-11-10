@@ -19,7 +19,7 @@ import { filmAutosave, openFilmData } from './files.js';
    version than the cloud's is refused (409), and the person chooses which to keep.
    ========================================================================== */
 const FILM_LINK_KEY = 'jek-film-cloud-link', FILM_CLOUD_EVERY = 30000;
-export const SPACE_URL = '/jek/tools/jekspace.html';
+export const SPACE_URL = '/jek/tools/jeksuite.html';
 export let filmLink = null;
 /* the JEKray face this coating is designed for (#design=…): { face, label, ws, folder }, until it goes back */
 export let filmFor = null;
@@ -292,7 +292,7 @@ export async function openCloudFilm(id, version) {
 /* JEKsuite, in its own tab, at JEKfilm's page: every coating, in its folders */
 export function openSpace() {
   track('view', 'film-space');
-  const w = window.open(SPACE_URL + '#app=jekfilm', 'jekspace'); if (w) w.focus();
+  const w = window.open(SPACE_URL + '#app=jekfilm', 'jeksuite'); if (w) w.focus();
 }
 export function wireCloud() {
   linkRestore();

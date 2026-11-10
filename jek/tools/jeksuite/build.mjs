@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Builds jek/tools/jekspace.html, the page JEKsuite (the JEK hub: the apps, and every cloud bench of every app) is
+/* Builds jek/tools/jeksuite.html, the page JEKsuite (the JEK hub: the apps, and every cloud bench of every app) is
    served as, from the sources here: page.html (the markup, with {{STYLE}} and {{SCRIPT}} where they go), JEKray's
    style.css followed by style.css here, and the modules in the order of order.json. A module is listed by its path
    from src/: JEKsuite's own (ui/home.js) or one of JEKray's, shared as it is (../../jekray/src/core/hooks.js). The
@@ -14,7 +14,7 @@ import * as walk from '../jekray/vendor/acorn-walk.mjs';
 import { parse, moduleRefs, loadTimeReads, stripModule } from '../jekray/build.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), SRC = path.join(HERE, 'src');
-export const PAGE = path.resolve(HERE, '../jekspace.html'), DEV_PAGE = path.resolve(HERE, '../jekspace-dev.html');
+export const PAGE = path.resolve(HERE, '../jeksuite.html'), DEV_PAGE = path.resolve(HERE, '../jeksuite-dev.html');
 export const MAIN = path.join(SRC, 'main.js');
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const readHere = f => fs.readFileSync(path.join(HERE, f), 'utf8');
@@ -25,8 +25,8 @@ export function mainModule() {
 }
 export function devPage() {
   return readHere('page.html')
-    .replace('<style>\n{{STYLE}}\n</style>', () => '<link rel="stylesheet" href="jekray/style.css">\n<link rel="stylesheet" href="jekspace/style.css">')
-    .replace('<script>\n{{SCRIPT}}\n</script>', () => '<script type="module" src="jekspace/src/main.js"></script>')
+    .replace('<style>\n{{STYLE}}\n</style>', () => '<link rel="stylesheet" href="jekray/style.css">\n<link rel="stylesheet" href="jeksuite/style.css">')
+    .replace('<script>\n{{SCRIPT}}\n</script>', () => '<script type="module" src="jeksuite/src/main.js"></script>')
     .replace('<title>', '<title>Dev: ');
 }
 export function build() {
@@ -101,7 +101,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const html = build();
   if (process.argv.includes('--check')) {
     const same = fs.existsSync(PAGE) && fs.readFileSync(PAGE, 'utf8') === html && fs.readFileSync(MAIN, 'utf8') === mainModule() && fs.readFileSync(DEV_PAGE, 'utf8') === devPage();
-    console.log(same ? 'jekspace.html is current' : 'jekspace.html is out of date: run node build.mjs');
+    console.log(same ? 'jeksuite.html is current' : 'jeksuite.html is out of date: run node build.mjs');
     process.exit(same ? 0 : 1);
   }
   fs.writeFileSync(PAGE, html);

@@ -8,8 +8,8 @@ test('the lint passes: unique names, imports from where they are declared, nothi
   const { errors } = lint();
   assert.deepEqual(errors, []);
 });
-test('jekspace.html, its dev page and main.js are current (node build.mjs)', () => {
-  assert.equal(fs.readFileSync(PAGE, 'utf8') === build(), true, 'jekspace.html is out of date');
+test('jeksuite.html, its dev page and main.js are current (node build.mjs)', () => {
+  assert.equal(fs.readFileSync(PAGE, 'utf8') === build(), true, 'jeksuite.html is out of date');
   assert.equal(fs.readFileSync(DEV_PAGE, 'utf8'), devPage());
   assert.equal(fs.readFileSync(MAIN, 'utf8'), mainModule());
 });

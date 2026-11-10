@@ -11,7 +11,7 @@ export async function check(pw, base, shots) {
     {
       const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
       await route(p, { signedIn: false });
-      await p.goto(base + '/jek/tools/jekspace.html');
+      await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
       ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open JEKion,Open JEKfilm' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
@@ -31,7 +31,7 @@ export async function check(pw, base, shots) {
       await p.waitForSelector('.rt-happhead', { timeout: 5000 }).catch(() => {});
       const so = await p.evaluate(() => ({ hash: location.hash, head: !!document.querySelector('.rt-happhead.jekray'), open: !!document.getElementById('appOpen'), signIn: /Sign in to see your JEKray benches/.test(document.getElementById('homeList').textContent), opened: window.__opened.length }));
       ok('Signed out: the rail’s JEKray opens its launch page here, with a sign-in line for its benches', so.hash === '#app=jekray' && so.head && so.open && so.signIn, JSON.stringify(so));
-      if (shots) await p.screenshot({ path: shots + '/jekspace-launch-signed-out.png' });
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-signed-out.png' });
       ok('Signed out: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
@@ -40,12 +40,12 @@ export async function check(pw, base, shots) {
       const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
       const calls = await route(p, { signedIn: true });
       await p.addInitScript(() => { try { localStorage.removeItem('jek-home-view'); } catch (e) { /* fine */ } });
-      await p.goto(base + '/jek/tools/jekspace.html');
+      await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('.rt-hcard[data-bench]', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), tools: [...document.querySelectorAll('.rt-hcard[data-bench] .rt-htool')].map(t => t.textContent),
         folders: document.querySelectorAll('.rt-hcard.folder').length, cards: document.querySelectorAll('.rt-happ').length, acct: document.getElementById('btnAcct').classList.contains('in') }));
       ok('Signed in: the benches of both apps and the folders, no app cards', s.benches.join() === 'b1,b2' && s.tools.join() === 'JEKray,JEKion' && s.folders === 2 && !s.cards && s.acct, JSON.stringify(s));
-      if (shots) await p.screenshot({ path: shots + '/jekspace-dark.png' });
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-dark.png' });
       const rail = await p.evaluate(() => [...document.querySelectorAll('#homeRail button')].map(x => x.textContent));
       ok('My benches: no filter by app (the launch pages are), and no folders in the rail (they are in the page)', !(await p.$('#homeApp')) && !rail.includes('Levisense') && !rail.includes('Absorption') && rail.includes('Bin'), rail.join('|'));
       // the rail's JEKion: its launch page here (not a new tab), its benches alone, the last changed picked, Open in JEKion
@@ -55,7 +55,7 @@ export async function check(pw, base, shots) {
       const ion = await p.evaluate(() => ({ hash: location.hash, opened: window.__opened.length, benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench),
         prev: (document.querySelector('#appPreview h3') || {}).textContent, cur: [...document.querySelectorAll('#homeRail button[aria-current=true]')].map(x => x.textContent) }));
       ok('The rail’s JEKion opens its launch page here: its benches alone, the last changed shown beside them', ion.hash === '#app=jekion' && ion.opened === n0 && ion.benches.join() === 'b2' && /Quadrupole trap/.test(ion.prev) && ion.cur.join() === 'JEKion', JSON.stringify(ion));
-      if (shots) await p.screenshot({ path: shots + '/jekspace-launch-jekion.png' });
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekion.png' });
       await p.click('#appPreviewOpen'); await p.waitForTimeout(200);
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('Open in JEKion: the bench in JEKion’s tab, at #cloud=<id>', op && op[0] === '/jek/tools/jekion.html#cloud=b2' && op[1] === 'jekion', JSON.stringify(op));
@@ -68,7 +68,7 @@ export async function check(pw, base, shots) {
         counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent) }));
       ok('JEKray’s launch page: its benches alone, a click picks one, its folders count its benches, its designers to start', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '0 benches,1 bench'
         && ray.starts.join('|') === 'Open JEKray|New bench|Optical design|RF design', JSON.stringify(ray));
-      if (shots) await p.screenshot({ path: shots + '/jekspace-launch-dark.png' });
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-dark.png' });
       await p.dblclick('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const dbl = await p.evaluate(() => window.__opened.slice(-1)[0]);
       await p.focus('.rt-hcard[data-bench=b1] .rt-hopen'); await p.keyboard.press('Enter'); await p.waitForTimeout(150);
@@ -130,13 +130,13 @@ export async function check(pw, base, shots) {
         await p.evaluate(() => [...document.querySelectorAll('#homeRail button')].find(x => x.textContent === 'My benches').click());
         await p.evaluate(() => { localStorage.setItem('jekray-theme', 'light'); document.documentElement.dataset.rtTheme = 'light'; });
         await p.waitForTimeout(500);
-        await p.screenshot({ path: shots + '/jekspace-light.png' });
+        await p.screenshot({ path: shots + '/jeksuite-light.png' });
         await p.evaluate(() => { location.hash = 'app=jekray'; }); await p.waitForTimeout(600);
-        await p.screenshot({ path: shots + '/jekspace-launch-light.png' });
+        await p.screenshot({ path: shots + '/jeksuite-launch-light.png' });
         await p.setViewportSize({ width: 390, height: 800 }); await p.waitForTimeout(400);
-        await p.screenshot({ path: shots + '/jekspace-launch-phone.png', fullPage: true });
+        await p.screenshot({ path: shots + '/jeksuite-launch-phone.png', fullPage: true });
         await p.evaluate(() => { location.hash = ''; }); await p.waitForTimeout(500);
-        await p.screenshot({ path: shots + '/jekspace-phone.png' });
+        await p.screenshot({ path: shots + '/jeksuite-phone.png' });
       }
       ok('Signed in: no page errors', !errs.length, errs.join(' | '));
       await p.close();
@@ -145,7 +145,7 @@ export async function check(pw, base, shots) {
     {
       const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
       await route(p, { signedIn: true });
-      await p.goto(base + '/jek/tools/jekspace.html#app=jekion');
+      await p.goto(base + '/jek/tools/jeksuite.html#app=jekion');
       await p.waitForSelector('.rt-happhead.jekion', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(200);
       const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), where: document.getElementById('homeWhere').textContent }));
       ok('#app=jekion opens JEKion’s launch page', d.benches.join() === 'b2' && d.where === 'JEKion' && !errs.length, JSON.stringify(d) + errs.join(' | '));
@@ -155,7 +155,7 @@ export async function check(pw, base, shots) {
     {
       const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
       await route(p, { signedIn: true });
-      await p.goto(base + '/jek/tools/jekspace.html#app=jekfilm');
+      await p.goto(base + '/jek/tools/jeksuite.html#app=jekfilm');
       await p.waitForSelector('.rt-happhead.jekfilm', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
       const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent),
         starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), about: !!document.querySelector('.rt-happhead a') }));
@@ -166,7 +166,7 @@ export async function check(pw, base, shots) {
       await p.click('#appPreviewOpen'); await p.waitForTimeout(200);
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('A coating in its folder, marked JEKfilm, opens in JEKfilm’s tab', tag && tag[0] === 'JEKfilm' && /jekfilm/.test(tag[1]) && /JEKfilm coating/.test(tag[2]) && op && op[0] === '/jek/tools/jekfilm.html#cloud=b5' && op[1] === 'jekfilm', JSON.stringify([tag, op]));
-      if (shots) await p.screenshot({ path: shots + '/jekspace-launch-jekfilm.png' });
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekfilm.png' });
       ok('JEKfilm’s launch page: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }

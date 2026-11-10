@@ -160,3 +160,12 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-ws .film-mk th { width: 11rem; }
 .film-ws .film-mk td.unit { width: auto; }
 .film-note { margin: 0.5rem 0; padding: 0.6rem 0.75rem; font: 0.8rem/1.55 var(--jek-mono); white-space: pre-wrap; color: var(--jek-ink); background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 2px; }
+
+.film-yield { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.film-yield strong { font-size: 1.15rem; }
+.film-part + .film-part, .film-sec > .rt-lpair + .film-part { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--jek-line); }
+.film-part h3 { margin: 0 0 0.45rem; font-size: 0.82rem; font-weight: 700; color: var(--jek-ink); }
+.film-qsw { display: inline-flex; border: 1px solid var(--jek-line-2); border-radius: 3px; overflow: hidden; margin: 0 0 0.6rem; }
+.film-qsw button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.75rem; background: none; border: 0; color: var(--jek-ink-soft); cursor: pointer; }
+.film-qsw button + button { border-left: 1px solid var(--jek-line-2); }
+.film-qsw button.on { background: var(--jek-line); color: var(--jek-ink); font-weight: 600; }

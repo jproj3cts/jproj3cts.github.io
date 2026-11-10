@@ -6,7 +6,7 @@ import { coatCurve, coatMerit } from '../../../jekray/src/core/coatdesign.js';
    distribution, σ as a share of the layer (kind 'rel', σ in %) or in nanometres (kind 'abs'), the same seed giving the
    same runs; the curve square on (at the smallest angle judged) and the merit of each run are kept. Returned: the
    nominal curve, the 5th, 50th and 95th percentiles at each wavelength, and the merit and the band's mean and largest
-   reflectance as nominal, median and 90th percentile.
+   reflectance as nominal, median and 90th percentile; and each run's stack (stacks), for the yield (core/film-make.js).
    ========================================================================== */
 export const TOL_DEFAULT = { kind: 'rel', sigma: 1, runs: 200, seed: 1 };
 export function normTol(t) {
@@ -19,9 +19,10 @@ export function filmTolerance(layers, spec, tol) {
   const T = normTol(tol), rnd = seededRng(T.seed), N = 81, a0 = spec.theta0 || 0;
   const stat = R => { let m = 0, w = 0; for (const r of R) { m += r; w = Math.max(w, r); } return [m / R.length, w]; };
   const nom = coatCurve(layers, spec, a0, N), nomMerit = coatMerit(layers, spec), [nomMean, nomWorst] = stat(nom.R);
-  const cols = nom.nms.map(() => []), merits = [], means = [], worsts = [];
+  const cols = nom.nms.map(() => []), merits = [], means = [], worsts = [], stacks = [];
   for (let r = 0; r < T.runs; r++) {
     const L = layers.map(x => ({ ...x, d: Math.max(0, T.kind === 'rel' ? x.d * (1 + T.sigma / 100 * randn(rnd)) : x.d + T.sigma * randn(rnd)) }));
+    stacks.push(L);
     const c = coatCurve(L, spec, a0, N);
     c.R.forEach((v, i) => cols[i].push(v));
     const [m, w] = stat(c.R);
@@ -31,5 +32,5 @@ export function filmTolerance(layers, spec, tol) {
   for (const a of [merits, means, worsts]) a.sort((x, y) => x - y);
   const three = (nominal, s) => ({ nominal, median: pct(s, 0.5), p90: pct(s, 0.9) });
   return { tol: T, nms: nom.nms, nominal: nom.R, p5: cols.map(c => pct(c, 0.05)), p50: cols.map(c => pct(c, 0.5)), p95: cols.map(c => pct(c, 0.95)),
-    merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts) };
+    merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts), stacks };
 }

@@ -95,8 +95,11 @@ export function normDoc(d) {
     parts[k] = { ...(isStr(p.name, 80) && p.name ? { name: p.name } : {}), ...(/^#[0-9a-f]{6}$/i.test(p.colour || '') ? { colour: p.colour } : {}),
       ...(isStr(p.material, 80) ? { material: p.material } : {}), ...(Number.isFinite(p.density) && p.density > 0 ? { density: p.density } : {}), ...(p.hidden ? { hidden: true } : {}) };
   }
+  // what of the origin and the three planes is not drawn (hidePlanes: all three planes, from before each had its own)
+  const hide = {};
+  for (const k of ['origin', 'top', 'front', 'right']) if ((d.hide && typeof d.hide === 'object' && d.hide[k]) || (d.hidePlanes && k !== 'origin')) hide[k] = true;
   const rb = Number.isInteger(d.rollback) && d.rollback >= 0 && d.rollback < feats.length ? d.rollback : null;
-  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, ...(d.hidePlanes ? { hidePlanes: true } : {}) };
+  return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, hide };
 }
 export const newDoc = () => normDoc({});
 /* a new feature of a kind, with its defaults, named in sequence */

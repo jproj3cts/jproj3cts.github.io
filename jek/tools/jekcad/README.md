@@ -27,6 +27,12 @@ behind JEKray's shim (`page/kernel.js`), or on the dev page the modules as a mod
   (`view3d.js`); the sketcher and the overlay of planes and sketches (`sketcher.js`); the feature dialogs and the
   Variables table (`dialog.js`); the feature list, rollback bar, parts list and measure box (`panel.js`); the pointer
   and keys (`pointer.js`); `news.js`; `boot.js`, which also sets `window.JEKcad` for the tests.
+  The sketcher infers from the model too (`modelGeom`, `refEnt` in `sketcher.js`): a point snapped to an edge brings
+  the edge in as a fixed construction shape with `src`, the kernel's ref for the edge; `followRefs` in the kernel
+  finds each such edge again on every regeneration, moves the shape, solves the sketch and sends it back
+  (`info.ents`), and `regenNow` writes it into the document. Chosen regions follow their shapes (`carryPt`,
+  `carryRegions` in `core/sketch-tools.js`). Dimensions drawn on the model, and typed there, are `modelDims` and
+  `modelDimEdit`; fly mode is `flyStart` in `view3d.js` (a perspective camera of its own).
 - `src/io/`: files and autosave, STEP import, exports (`files.js`); the account's hooks (`cad-account.js`: the
   account itself is JEKray's `io/account.js`, shared); cloud part studios (`cloud.js`, as JEKion's).
 

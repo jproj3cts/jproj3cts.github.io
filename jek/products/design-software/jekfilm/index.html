@@ -18,26 +18,44 @@
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <style>
+  /* the words start at the top beside the picture, not centred on it */
   .jek-hero .jek-wrap { align-items: start; }
-  /* the plans: a table, what each needs */
-  .film-plans { width: 100%; max-width: 46rem; border-collapse: collapse; font-size: 0.95rem; }
-  .film-plans th, .film-plans td { text-align: left; padding: 0.55rem 0.8rem 0.55rem 0; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
-  .film-plans thead th { font-size: 0.8rem; color: var(--jek-ink-soft); font-weight: 600; border-bottom-width: 2px; }
-  .film-plans td:last-child { white-space: nowrap; }
-  .film-checks { margin: 0.6rem 0 0; padding-left: 1.1rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
-  .film-checks li + li { margin-top: 0.35rem; }
-  /* the examples: one grid, each card a plot from the example and what it shows */
-  .film-examples > p { margin: 0 0 0.9rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
-  .film-example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.9rem; }
-  @media (max-width: 760px) { .film-example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 480px) { .film-example-grid { grid-template-columns: 1fr; } }
-  .film-example { display: flex; flex-direction: column; overflow: hidden; color: inherit; text-decoration: none; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); }
-  .film-example:hover { border-color: var(--jek-orange); text-decoration: none; }
-  .film-example:focus-visible { outline: none; box-shadow: var(--jek-focus); }
-  .film-example img { display: block; width: 100%; aspect-ratio: 902 / 566; object-fit: cover; background: #fff; }
-  .film-example-body { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.75rem 0.75rem; flex: 1; }
-  .film-example h3 { margin: 0; font-size: 0.95rem; color: var(--jek-ink); }
-  .film-example p { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--jek-ink-soft); }
+  /* the picture is cut to the height of the words beside it, so neither leaves a gap below */
+  @media (min-width: 861px) {
+    .jek-hero { padding-bottom: 1.5rem; }
+    .jek-hero .jek-wrap { align-items: stretch; }
+    .jek-hero .jek-shot { height: 0; min-height: 100%; display: flex; flex-direction: column; }
+    .jek-hero .jek-shot img, .jek-hero .jek-shot video { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; object-fit: cover; object-position: center; }
+  }
+  /* the hero's key phrase, underlined in the JEK stripe */
+  .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
+  /* as on the JEKray page: the sections close, the features four to a row (a picture over its words), the examples
+     as a catalogue index by topic, the resources in four columns */
+  .jek-hero { padding-block: 2rem 1.6rem; }
+  .jek-section { padding-block: 1.8rem; }
+  .rt-feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
+  .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
+  .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
+  .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+  .rt-feats .jek-feature h2 { font-size: 1.08rem; }
+  .rt-feats .jek-feature p { margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.5; max-width: none; }
+  .rt-feats a, .rt-ex-lede a, .rt-topics a, .rt-res a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  #examples h2 { margin: 0 0 0.5rem; }
+  .rt-ex-lede { margin: 0 0 1.4rem; max-width: 72ch; color: var(--jek-ink-soft); }
+  .rt-topics { columns: 4 15rem; column-gap: 2.5rem; }
+  .rt-topic { break-inside: avoid; margin: 0 0 1.4rem; }
+  .rt-topic h3, .rt-res h3 { margin: 0 0 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--jek-line); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink); }
+  .rt-topic h3 span { float: right; font-weight: 600; color: var(--jek-ink-soft); letter-spacing: 0; }
+  .rt-topic ul, .rt-res ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+  .rt-topic li, .rt-res li { font-size: 0.98rem; line-height: 1.35; }
+  .rt-topic a, .rt-res a { text-decoration-color: transparent; }
+  .rt-topic a:hover, .rt-res a:hover { text-decoration-color: var(--jek-orange); }
+  .rt-res { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2.5rem; }
+  .rt-res p { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.5; color: var(--jek-ink-soft); }
+  @media (max-width: 1100px) { .rt-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .rt-res { grid-template-columns: 1fr 1fr; gap: 1.8rem; } }
+  @media (max-width: 640px) { .rt-feats { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .rt-res { grid-template-columns: 1fr; } }
 </style>
 </head>
 
@@ -50,71 +68,84 @@
     <section class="jek-hero">
       <div class="jek-wrap">
         <div>
-          <h1>JEKfilm, the coating designer</h1>
-          <p class="jek-lede">A thin-film stack on a substrate, judged over a band of wavelengths and a range of angles, with its thicknesses optimised. It uses the thin-film model JEKray traces with, so a coating designed here behaves the same on a JEKray bench.</p>
+          <h1>JEKfilm: a <span class="jek-twin">coating designer</span> for thin films.</h1>
+          <p class="jek-lede">Design a thin-film stack for your band of wavelengths and range of angles, and optimise its thicknesses. It uses the thin-film model JEKray traces with, so the coating behaves the same on a JEKray bench.</p>
           <div class="jek-acts">
-            <a class="jek-btn primary" href="/jek/tools/jekfilm.html">Open JEKfilm</a>
+            <a class="jek-btn primary" href="/jek/tools/jekfilm.html">Launch JEKfilm</a>
             <a class="jek-btn quiet" href="#examples">Open an example</a>
             <a href="/jek/docs/jekray/jekfilm/">Documentation</a>
           </div>
-          <div class="jek-facts"><span>Runs in your browser</span><span>Free to design in</span></div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>No account needed</span></div>
         </div>
         <figure class="jek-shot cover">
           <img src="img/bbar.png" alt="JEKfilm with a three-layer broadband anti-reflection coating on N-BK7: the design table on the left, the reflectance against wavelength at 0° and 30° and against angle, the figures under each plot, and the layer table" width="2560" height="1520">
-          <figcaption>Three layers on N-BK7, optimised over 420 to 680 nm out to 30°: 0.121% mean reflectance square on and 0.193% at 30°, against 4.24% for the bare glass.</figcaption>
+          <figcaption>Three layers on N-BK7, optimised over 420 to 680 nm out to 30°: 0.121% mean reflectance square on, against 4.24% for the bare glass.</figcaption>
         </figure>
       </div>
     </section>
 
     <section class="jek-section" style="padding-top: 0">
-      <div class="jek-wrap">
+      <div class="jek-wrap rt-feats">
         <div class="jek-feature">
-          <div><h2>The design</h2><p>Choose what the coating is for: anti-reflection, a high reflector, a beam splitter with the reflectance you want, or a dichroic edge. Set the band, the angles (up to a largest, or a band such as 40° to 50°) and the polarisation. The substrate is one of 13 glasses and crystals with their dispersion, ZnSe, silicon and germanium among them for the infrared, or an index of your own.</p><p>The layers sit in a table from the incident medium down to the substrate, with each layer&rsquo;s index, physical thickness and optical thickness in quarter waves. The optimiser searches the thicknesses from where they stand.</p><p><a href="/jek/docs/jekray/jekfilm/">How it works &rarr;</a></p></div>
-          <figure class="jek-shot"><img src="img/splitter.png" alt="A three-layer beam splitter on fused silica judged for s light from 40° to 50° over 1030 to 1100 nm: the reflectance against wavelength at both angles near the 50% target, and against angle" loading="lazy" width="2560" height="1520"></figure>
+          <div><h2>Your band, your angles</h2><p>Design anti-reflection, a high reflector, a beam splitter or a dichroic edge. Set the band, the angles and the polarisation, on any of 13 glasses and crystals.</p><p><a href="/jek/docs/jekray/jekfilm/#the-design">How a design is set</a></p></div>
+          <figure class="jek-shot"><img src="img/splitter.png" alt="A three-layer beam splitter on fused silica judged for s light from 40° to 50° over 1030 to 1100 nm: the reflectance against wavelength at both angles near the 50% target, and against angle" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>On a JEKray bench</h2><p>Coatings saved to the cloud sit in folders beside your benches on JEKsuite. A JEKray face&rsquo;s Coating list offers the coatings in its bench&rsquo;s folder, and a .jekfilm file from your computer. The face keeps a copy of the stack, linked to the coating, and when the coating is saved again the bench offers to update its faces.</p><p>From a face, <b>Design a coating in JEKfilm</b> starts on that face&rsquo;s glass at the bench&rsquo;s wavelength. Once saved, the coating goes back onto the face.</p><p><a href="/jek/docs/jekray/jekfilm/#on-a-jekray-bench">Coatings on a bench &rarr;</a></p></div>
-          <figure class="jek-shot"><img src="img/face.png" alt="A JEKray window's face with its Coating set to the JEKfilm coating V-coat 1064, and a note giving its two layers at 1064 nm, its version and a link to open it in JEKfilm" loading="lazy" width="662" height="442"></figure>
+          <div><h2>Optimised, then toleranced</h2><p>The optimiser tunes every thickness and a needle search adds layers where they help. Thickness errors run at random show how the coating fares as made.</p><p><a href="/jek/docs/jekray/jekfilm/#layers">Optimising a stack</a></p></div>
+          <figure class="jek-shot"><img src="img/ex-bbar-visible.png" alt="The reflectance of a five-layer broadband anti-reflection coating on N-BK7 across 420 to 680 nm" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Checked against</h2><ul class="film-checks">
-            <li>A quarter-wave MgF<sub>2</sub> layer on N-BK7 at 550 nm reflects 1.26% square on, the textbook ((<i>n</i><sub>s</sub> &minus; <i>n</i><sub>c</sub>&sup2;)/(<i>n</i><sub>s</sub> + <i>n</i><sub>c</sub>&sup2;))&sup2;, to 10<sup>&minus;9</sup>.</li>
-            <li>A half-wave layer leaves the bare Fresnel reflectance, as an absentee layer should.</li>
-            <li>The substrates&rsquo; indices are JEKray&rsquo;s own Sellmeier data, the same at every wavelength to 10<sup>&minus;12</sup>.</li>
-            <li>A coating put on a face of the same glass traces on the bench with the reflectance JEKfilm shows, to 10<sup>&minus;12</sup>.</li>
-          </ul></div>
+          <div><h2>On a JEKray bench</h2><p>Put a saved coating on any JEKray face and the bench traces with that stack. Save the coating again and the bench offers to update its faces.</p><p><a href="/jek/docs/jekray/jekfilm/#on-a-jekray-bench">Coatings on the bench</a></p></div>
+          <figure class="jek-shot"><img src="img/face.png" alt="A JEKray window's face with its Coating set to the JEKfilm coating V-coat 1064, and a note giving its two layers at 1064 nm, its version and a link to open it in JEKfilm" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2>Checked against the textbook</h2><p>A quarter wave of MgF<sub>2</sub> on N-BK7 reflects 1.26% at 550&nbsp;nm, the closed form to 10<sup>&minus;9</sup>. A coating on a face traces on the bench as JEKfilm shows it, to 10<sup>&minus;12</sup>.</p></div>
+          <figure class="jek-shot"><img src="img/ex-vcoat-1064.png" alt="The reflectance of a two-layer V-coat on fused silica around 1064 nm" loading="lazy"></figure>
         </div>
       </div>
     </section>
 
-    <section class="jek-section jek-band" id="examples" style="padding-block: 1.8rem 2rem">
-      <div class="jek-wrap film-examples">
-        <h2 style="margin: 0 0 0.4rem; font-size: 1.6rem; letter-spacing: -0.01em">Examples</h2>
-        <p>Each opens in JEKfilm. The plots show each one&rsquo;s reflectance across its band.</p>
-        <div class="film-example-grid">
-          <a class="film-example" href="/jek/tools/jekfilm.html?demo=vcoat-1064"><img src="img/ex-vcoat-1064.png" alt="" loading="lazy"><div class="film-example-body"><h3>V-coat, 1064 nm</h3><p>Two layers on fused silica: 0.002% reflected across 1054–1074 nm.</p></div></a>
-          <a class="film-example" href="/jek/tools/jekfilm.html?demo=bbar-visible"><img src="img/ex-bbar-visible.png" alt="" loading="lazy"><div class="film-example-body"><h3>Broadband AR, 420–680 nm</h3><p>Five layers on N-BK7 from a needle search: 0.13% mean square on, 0.20% at 30°.</p></div></a>
-          <a class="film-example" href="/jek/tools/jekfilm.html?demo=hr-1064"><img src="img/ex-hr-1064.png" alt="" loading="lazy"><div class="film-example-body"><h3>HR mirror, 1064 nm</h3><p>Twenty-one quarter waves of Ta<sub>2</sub>O<sub>5</sub> and SiO<sub>2</sub>: 99.9% reflected over 1030–1100 nm.</p></div></a>
-          <a class="film-example" href="/jek/tools/jekfilm.html?demo=longpass-600"><img src="img/ex-longpass-600.png" alt="" loading="lazy"><div class="film-example-body"><h3>Long-pass edge, 600 nm</h3><p>Seventeen layers on N-BK7: blue and green reflected, red passed.</p></div></a>
-          <a class="film-example" href="/jek/tools/jekfilm.html?demo=splitter-45"><img src="img/ex-splitter-45.png" alt="" loading="lazy"><div class="film-example-body"><h3>Plate beam splitter, 45°</h3><p>Three layers on fused silica for s light: 45–55% reflected from 40° to 50°.</p></div></a>
-          <a class="film-example" href="/jek/tools/jekfilm.html?demo=protected-silver"><img src="img/ex-protected-silver.png" alt="" loading="lazy"><div class="film-example-body"><h3>Protected silver</h3><p>Silver under a half-wave of SiO<sub>2</sub>: 98.9% mean reflected from 450 to 1100 nm, out to 45°.</p></div></a>
+    <section class="jek-section jek-band" id="examples">
+      <div class="jek-wrap">
+        <h2>Examples</h2>
+        <p class="rt-ex-lede">Each opens in JEKfilm with its reflectance across its band. Hover a name for what it shows.</p>
+        <div class="rt-topics">
+        <div class="rt-topic"><h3>Anti-reflection <span>2</span></h3><ul><li><a href="/jek/tools/jekfilm.html?demo=vcoat-1064" title="Two layers on fused silica: 0.002% reflected across 1054–1074 nm.">V-coat, 1064 nm</a></li><li><a href="/jek/tools/jekfilm.html?demo=bbar-visible" title="Five layers on N-BK7 from a needle search: 0.13% mean square on, 0.20% at 30°.">Broadband AR, 420–680 nm</a></li></ul></div>
+        <div class="rt-topic"><h3>Mirrors <span>2</span></h3><ul><li><a href="/jek/tools/jekfilm.html?demo=hr-1064" title="Twenty-one quarter waves of Ta2O5 and SiO2: 99.9% reflected over 1030–1100 nm.">HR mirror, 1064 nm</a></li><li><a href="/jek/tools/jekfilm.html?demo=protected-silver" title="Silver under a half-wave of SiO2: 98.9% mean reflected from 450 to 1100 nm, out to 45°.">Protected silver</a></li></ul></div>
+        <div class="rt-topic"><h3>Edges and splitters <span>2</span></h3><ul><li><a href="/jek/tools/jekfilm.html?demo=longpass-600" title="Seventeen layers on N-BK7: blue and green reflected, red passed.">Long-pass edge, 600 nm</a></li><li><a href="/jek/tools/jekfilm.html?demo=splitter-45" title="Three layers on fused silica for s light: 45–55% reflected from 40° to 50°.">Plate beam splitter, 45°</a></li></ul></div>
         </div>
       </div>
     </section>
 
     <section class="jek-section" id="plans">
       <div class="jek-wrap">
-        <h2>Plans</h2>
-        <p>JEKfilm shares JEKray&rsquo;s accounts: one sign-in for every JEK app, and a JEKrayPro subscription covers JEKfilm too.</p>
-        <table class="film-plans">
-          <thead><tr><th scope="col">What you do</th><th scope="col">What it needs</th></tr></thead>
-          <tbody>
-            <tr><td>Design a coating and read its curves and figures; open a .jekfilm file</td><td>Nothing</td></tr>
-            <tr><td>Export the curves as CSV</td><td>A free account</td></tr>
-            <tr><td>Optimise the thicknesses; save coatings as .jekfilm files or in the cloud, with their history</td><td><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro</a></td></tr>
-          </tbody>
-        </table>
-        <div class="jek-acts" style="margin-top: 1.2rem"><a class="jek-btn primary" href="/jek/tools/jekfilm.html">Open JEKfilm</a></div>
+        <h2>Resources</h2>
+        <div class="rt-res">
+          <div><h3>Getting started</h3><p>JEKfilm runs in your browser, with nothing to install and no account needed to design.</p><ul>
+            <li><a href="/jek/tools/jekfilm.html">Open JEKfilm</a></li>
+            <li><a href="#examples">Browse the examples</a></li>
+            <li><a href="/jek/docs/jekray/jekfilm/">Documentation</a></li>
+            <li><a href="/jek/tools/jeksuite.html">JEKsuite</a></li>
+          </ul></div>
+          <div><h3>Your account</h3><p>Exporting the curves needs a free account. Optimising and saving coatings need JEKrayPro, which covers every JEK app.</p><ul>
+            <li><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro plans</a></li>
+            <li><a href="/jek/tools/jeksuite.html">My benches</a></li>
+            <li><a href="/jek/terms.html">JEKrayPro Terms</a></li>
+            <li><a href="/jek/privacy.html">Privacy Policy</a></li>
+          </ul></div>
+          <div><h3>Designing</h3><p>Each step of a design and the method behind it.</p><ul>
+            <li><a href="/jek/docs/jekray/jekfilm/#reflectance">Reading the reflectance</a></li>
+            <li><a href="/jek/docs/jekray/jekfilm/#layers">Layers and materials</a></li>
+            <li><a href="/jek/docs/jekray/jekfilm/#tolerance">Tolerance</a></li>
+            <li><a href="/jek/docs/jekray/jekfilm/#make-it">A coating specification</a></li>
+          </ul></div>
+          <div><h3>With JEKray</h3><p>A JEKfilm coating goes on a JEKray face and traces with the bench.</p><ul>
+            <li><a href="/jek/products/design-software/jekray/">JEKray</a></li>
+            <li><a href="/jek/docs/jekray/jekfilm/#files-and-the-cloud">Files and the cloud</a></li>
+            <li><a href="/jek/docs/jekray/coating-design/">Coatings in JEKray</a></li>
+            <li><a href="/jek/tools/jekray-validation.html">Validation against published results</a></li>
+          </ul></div>
+        </div>
       </div>
     </section>
 

@@ -24,11 +24,11 @@ export function normMake(m) {
   for (const [k, v] of Object.entries(lim)) if (/^[a-z]{2,8}$/.test(k) && isFinite(+v)) limits[k] = Math.min(100, Math.max(0, +v));
   return { durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits };
 }
-/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged */
-export function surfaceT(layers, spec, ci, nm) {
+/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged (or pol) */
+export function surfaceT(layers, spec, ci, nm, pol = spec.pol) {
   const F = faceAmps({ coat: { mode: 'stack', layers } }, spec.n0, spec.ns, ci, nm);
   const ts = cabs2(F.ts), tp = cabs2(F.tp);
-  return spec.pol === 's' ? ts : spec.pol === 'p' ? tp : (ts + tp) / 2;
+  return pol === 's' ? ts : pol === 'p' ? tp : (ts + tp) / 2;
 }
 /* the reflectance (or, kind 'T', the transmittance) over the band and the angles judged, five angles across them */
 function sampleR(layers, spec, keep, kind) {
@@ -80,6 +80,27 @@ export function makeLimits(f, spec, make) {
     }
   }
   return rows;
+}
+/* the yield: how many of the tolerance runs' stacks meet every limit of Make it, and each limit alone. The limits are
+   the coating's own (the values set, or the defaults from the nominal design), held fixed while each run is judged:
+   { runs, pass (all limits), rows: [{ key, label, op, value, nominal, pass, p10 (the value nine runs in ten do better than) }] } */
+export function filmYield(stacks, f, spec, make) {
+  const lims = makeLimits(f, spec, make), fixed = { ...(make || {}), limits: Object.fromEntries(lims.map(r => [r.key, r.value])) };
+  const rows = lims.map(r => ({ key: r.key, label: r.label, op: r.op, value: r.value, where: r.where, nominal: r.design, pass: 0, vals: [] }));
+  let pass = 0;
+  for (const L of stacks || []) {
+    const got = makeLimits({ ...f, layers: L }, spec, fixed);
+    let all = true;
+    got.forEach((g, i) => { if (g.ok) rows[i].pass++; else all = false; rows[i].vals.push(g.design); });
+    if (all) pass++;
+  }
+  const n = (stacks || []).length;
+  for (const r of rows) {
+    r.vals.sort((a, b) => (r.op === 'le' ? a - b : b - a));
+    r.p10 = r.vals.length ? r.vals[Math.min(r.vals.length - 1, Math.floor(0.9 * (r.vals.length - 1) + 0.5))] : NaN;
+    delete r.vals;
+  }
+  return { runs: n, pass, rows };
 }
 /* the coating as a note for the part's optical drawing, in the manner of ISO 10110-9 (the coating marked on its
    surface by λ in a circle, its requirements by ρ(λ) for reflectance and τ(λ) for transmittance, to ISO 9211): one

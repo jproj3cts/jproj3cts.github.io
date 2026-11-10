@@ -2,8 +2,8 @@
 // the document model (core/doc.js): pure, no kernel.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { definedEnts, solveSketch, dimMeasure, sketchId } from '../../src/core/sketch.js';
-import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross } from '../../src/core/sketch-tools.js';
+import { definedEnts, solveSketch, dimMeasure, sketchId, normDims } from '../../src/core/sketch.js';
+import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions } from '../../src/core/sketch-tools.js';
 import { evalExpr, evalVars } from '../../src/core/units.js';
 import { normDoc, newDoc, newFeature, prepareDoc, canMove, CAD_FORMAT } from '../../src/core/doc.js';
 
@@ -137,4 +137,34 @@ test('the document: defaults for what an old file lacks, prepared dimensions, re
   doc.features.push(newFeature(doc, 'extrude', { sketch: sk.id }));
   assert.equal(canMove(doc, 1, 0), false);
   assert.equal(canMove(doc, 0, 1), false);
+});
+
+test('a region’s point is carried with its shapes: beside the line or circle it was nearest to', () => {
+  const was = [{ id: 'c1', t: 'circle', c: [30, 15], r: 3 }, { id: 'l1', t: 'line', a: [0, 0], b: [40, 0] }, { id: 'l2', t: 'line', a: [40, 0], b: [40, 20] }, { id: 'l3', t: 'line', a: [40, 20], b: [0, 20] }, { id: 'l4', t: 'line', a: [0, 20], b: [0, 0] }];
+  const now = JSON.parse(JSON.stringify(was));
+  now[0].c = [50, 15]; now[1].b = [60, 0]; now[2].a = [60, 0]; now[2].b = [60, 20]; now[3].a = [60, 20];
+  // the hole's own point goes with the hole; a point in the plate keeps its place along and off its nearest line
+  const h = carryPt(was, now, [30, 15]);
+  near(h[0], 50, 1e-9); near(h[1], 15, 1e-9);
+  const q = carryPt(was, now, [20, 2]);
+  near(q[0], 30, 1e-9); near(q[1], 2, 1e-9);
+  // and a feature's chosen regions with them
+  const doc = { features: [{ id: 'sk', type: 'sketch', ents: was }, { id: 'ex', type: 'extrude', sketch: 'sk', regions: [[30, 15]] }] };
+  carryRegions(doc, 'sk', was, now);
+  near(doc.features[1].regions[0][0], 50, 1e-6);
+});
+
+test('an angle dimension with rev measures inside the corner two chained lines make', () => {
+  // a base to the right, then a side back up to the left: the lines' directions are 148° apart, the corner 32°
+  const ents = [{ id: 'l1', t: 'line', a: [0, 0], b: [40, 0] }, { id: 'l2', t: 'line', a: [40, 0], b: [0, 25] }];
+  near(Math.abs(dimMeasure(ents, { t: 'ang', r: [{ e: 'l1' }, { e: 'l2' }] })), 147.9946, 1e-3);
+  const d = { id: 'd', t: 'ang', r: [{ e: 'l1' }, { e: 'l2' }], rev: true };
+  const m = dimMeasure(ents, d);
+  near(Math.abs(m), 32.0054, 1e-3);
+  d.s = m < 0 ? -1 : 1; d.v = 30;
+  const cons = [{ id: 'c1', t: 'coincident', r: [{ e: 'l1', k: 'a' }, { e: 'origin' }] }, { id: 'c2', t: 'horizontal', r: [{ e: 'l1' }] }, { id: 'c3', t: 'coincident', r: [{ e: 'l1', k: 'b' }, { e: 'l2', k: 'a' }] }];
+  const r = solveSketch(ents, cons, [d, { id: 'd2', t: 'len', r: [{ e: 'l1' }], v: 40 }], null, { iters: 100 });
+  assert.ok(r.ok);
+  near(Math.atan2(ents[1].b[1] - ents[1].a[1], ents[1].a[0] - ents[1].b[0]) * 180 / Math.PI, 30, 1e-4);
+  assert.equal(normDims([d], ents)[0].rev, true);
 });

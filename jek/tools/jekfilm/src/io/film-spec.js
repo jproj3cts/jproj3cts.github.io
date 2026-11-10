@@ -5,7 +5,7 @@ import { COAT_MATERIALS, qwot } from '../../../jekray/src/core/coatings.js';
 import { METAL_NAMES, metalNK } from '../../../jekray/src/core/metals.js';
 import { FILM_TARGETS, filmSpec, subLabelOf } from '../core/film.js';
 import { MAKE_DURABILITY, drawingNote, makeLimits } from '../core/film-make.js';
-import { film, filmCurves, filmTolResult } from '../ui/designer.js';
+import { film, filmCurves, filmTolResult, filmYieldResult } from '../ui/designer.js';
 import { toast } from '../ui/bar.js';
 import { downloadBlob, filmFileName } from './files.js';
 
@@ -114,6 +114,9 @@ export function filmSpecRecs(f, o) {
     p2.y += 4;
     stable(p2, [{ label: '', w: 120 }, { label: 'Nominal', w: 110, align: 'right', mono: true }, { label: 'Median', w: 110, align: 'right', mono: true }, { label: '90th percentile', w: 110, align: 'right', mono: true }],
       [['R mean (%)', T.mean], ['R max (%)', T.worst]].map(([k, v]) => [k, spct(100 * v.nominal), spct(100 * v.median), spct(100 * v.p90)]));
+    // the yield against page 1's limits: of the same runs (only when the run is this coating's own, as in the page)
+    const Y = o.tol === undefined ? filmYieldResult() : null;
+    if (Y && Y.runs) { p2.y += 6; spara(p2, 'Yield: ' + (100 * Y.pass / Y.runs).toFixed(1) + '% of the runs (' + Y.pass + ' of ' + Y.runs + ') meet every limit on page 1.'); }
   }
   return [p1.g, p2.g];
 }

@@ -3889,6 +3889,7 @@ function normProject(d) {
     show: { pot: POT_SHOWS[d.show && d.show.pot] ? d.show.pot : 'map', contours: Math.max(2, Math.min(200, Math.round(num(d.show && d.show.contours, 24)))), traj: !(d.show && d.show.traj === false), colourBy: COLOUR_BYS[d.show && d.show.colourBy] ? d.show.colourBy : 'group', grid: !(d.show && d.show.grid === false), efield: !!(d.show && d.show.efield) },
     point: Array.isArray(d.point) && d.point.length === 3 && d.point.every(v => typeof v === 'number' && isFinite(v)) ? d.point.slice() : null,
     species: { mass: Math.max(1e-6, num(d.species && d.species.mass, 40)), charge: num(d.species && d.species.charge, 1) || 1, name: str(d.species && d.species.name, 'Ca+', 12) },
+    trapAxes: d.trapAxes === 'xyz' ? 'xyz' : 'principal',    // the trap analysis along the trap's own axes, or along x, y and z
     notes: str(d.notes, '', 4000),
   };
   // ids unique
@@ -3902,7 +3903,7 @@ function serialize() {
   const P = project, strip = e => { const o = Object.assign({}, e); delete o.meshT; return o; };
   return { format: ION_FORMAT, version: ION_VERSION, name: P.name, view: Object.assign({}, P.view), grid: JSON.parse(JSON.stringify(P.grid)),
     electrodes: P.electrodes.map(strip), ions: P.ions.map(e => Object.assign({}, e)), detectors: P.detectors.map(e => Object.assign({}, e)),
-    gas: Object.assign({}, P.gas), bfield: Object.assign({}, P.bfield), fly: Object.assign({}, P.fly), show: Object.assign({}, P.show), point: P.point ? P.point.slice() : null, species: Object.assign({}, P.species), notes: P.notes };
+    gas: Object.assign({}, P.gas), bfield: Object.assign({}, P.bfield), fly: Object.assign({}, P.fly), show: Object.assign({}, P.show), point: P.point ? P.point.slice() : null, species: Object.assign({}, P.species), trapAxes: P.trapAxes, notes: P.notes };
 }
 function loadProject(d) {
   setProject(normProject(d));
@@ -4511,7 +4512,7 @@ function axisName(v, cyl) {
   for (let i = 0; i < 3; i++) if (Math.abs(v[i]) > 0.98) return n[i];
   return '(' + v.map(c => (Math.abs(c) < 0.005 ? '0' : (+c.toFixed(2)).toString())).join(', ') + ')';
 }
-function trapAnalysis(F, S, p, species) {
+function trapAnalysis(F, S, p, species, opts = {}) {
   const g = F.g, q = species.charge, m = species.mass, qm = qmOf(q, m);   // C/kg
   const C = curvatures(F.G, g, p[0], p[1], p[2]), E = [0, 0, 0];
   if (!C) return null;
@@ -4528,7 +4529,10 @@ function trapAnalysis(F, S, p, species) {
     const norm = H => Math.hypot(...H), best = [...byF.values()].reduce((a, b) => (Math.max(norm(b.A), norm(b.B)) > Math.max(norm(a.A), norm(a.B)) ? b : a));
     rfH = norm(best.A) >= norm(best.B) ? best.A : best.B.map((v, i) => (best.A[i] < 0 ? -v : v)); rfW = best.w * 1e6; rfMHz = best.mhz;
   }
-  const basis = eigSym3(rfH || C.dc), axes = [];
+  // along the trap's principal axes (the Hessian's eigenvectors), or along x, y and z as asked (a trap turned
+  // against them then reads the curvature on each coordinate axis, which is what a drive set up along them sees)
+  const xyz = (opts.axes || S.trapAxes) === 'xyz';
+  const basis = xyz ? { vecs: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] } : eigSym3(rfH || C.dc), axes = [];
   for (let i = 0; i < 3; i++) {
     const v = basis.vecs[i];
     if (dims === 2 && Math.abs(v[2]) > 0.5) continue;            // the axis out of a planar or cylindrical array
@@ -4722,7 +4726,7 @@ async function runJob(St, kind, data, args, ctx) {
   const info = St.solveInfo;
   if (kind === 'solve') return { out: { nodes: info.nodes, cycles: info.cycles, painted: info.painted, g: Object.assign({}, St.A.g) }, transfer: [] };
   if (kind === 'slice') { const S = sliceOf(St, P, args || {}); return { out: S, transfer: [S.pot.buffer, S.mask.buffer].concat(S.emag ? [S.emag.buffer] : []) }; }
-  if (kind === 'trap') { const p = args && args.point ? args.point : [0, 0, 0]; return { out: trapAnalysis(St.F, P, p, args && args.species ? args.species : P.species), transfer: [] }; }
+  if (kind === 'trap') { const p = args && args.point ? args.point : [0, 0, 0]; return { out: trapAnalysis(St.F, P, p, args && args.species ? args.species : P.species, { axes: args && args.axes }), transfer: [] }; }
   if (kind === 'line') return { out: potentialAlong(St.F.G, St.F.g, args.a, args.b, args.n || 200, args.t || 0), transfer: [] };
   if (kind === 'probes') { const t = args.t || 0, ts = args.ts || null, v = []; args.pts.forEach((p, i) => v.push(potentialAt(St.F.G, St.F.g, p[0], p[1], p[2], ts ? ts[i] : t))); return { out: { v }, transfer: [] }; }
   if (kind === 'probe') { const E = [0, 0, 0], ok = eFieldAt(St.F.G, St.F.g, args.p[0], args.p[1], args.p[2], args.t || 0, E); return { out: { V: potentialAt(St.F.G, St.F.g, args.p[0], args.p[1], args.p[2], args.t || 0), E: ok ? E : null, el: St.F.mask[gNode(St.F.g, args.p[0], args.p[1], args.p[2])] }, transfer: [] }; }
@@ -5443,7 +5447,7 @@ async function trapNow() {
   if (!project) return null;
   const G = project.grid, p = project.point || [(G.x0 + G.x1) / 2, G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0];
   try {
-    const T = await iwRequest('trap', projData(), { point: p, species: project.species }, 'trap');
+    const T = await iwRequest('trap', projData(), { point: p, species: project.species, axes: project.trapAxes }, 'trap');
     if (T) { SIM.trap = T; hooks.ionResults(); }
     return T;
   } catch (err) { console.warn('JEKion trap:', err); return null; }
@@ -6560,7 +6564,11 @@ function trapBlock() {
     tbl.append(h('tr', null, h('th', null, 'Axis'), h('th', null, '∂²φ/∂x² (V/mm²)'), h('th', null, 'Harmonic'), h('th', null, '')));
     for (const a of T.axes) tbl.append(h('tr', null, h('td', null, a.axis), h('td', { class: 'n' }, nf(a.dc, 4)), h('td', { class: 'n' }, a.harmMHz === null ? 'anti-trapping' : fmtMHz(a.harmMHz)), h('td', null, stab(a.stable))));
   }
-  const out = h('div', { class: 'ion-res' }, h('p', { class: 'note' }, 'At ' + T.point.map(v => nf(v, 4)).join(', ') + ' mm for ' + (project.species.name || 'm = ' + nf(T.species.mass) + ' u') + ': |E| = ' + nf(T.Emag, 3) + ' V/mm' + (T.rf.length ? ', RF at ' + T.rf.map(fmtMHz).join(', ') : '') + '.'), tbl);
+  const axesSel = h('select', { 'aria-label': 'The axes the analysis is along' }, h('option', { value: 'principal' }, 'the trap\u2019s principal axes'), h('option', { value: 'xyz' }, 'x, y and z'));
+  axesSel.value = project.trapAxes || 'principal';
+  axesSel.addEventListener('change', async () => { checkpoint(); project.trapAxes = axesSel.value; hooks.ionChanged(false); await trapNow(); const b = document.getElementById('trapBody'), dlg = document.getElementById('trapDialog'); if (dlg && dlg.open && b) b.replaceChildren(trapBlock()); });
+  const axesRow = h('div', { class: 'ion-plotrow', style: 'margin:0 0 0.4rem' }, h('span', { class: 'ion-plotlbl' }, 'Along'), axesSel);
+  const out = h('div', { class: 'ion-res' }, axesRow, h('p', { class: 'note' }, 'At ' + T.point.map(v => nf(v, 4)).join(', ') + ' mm for ' + (project.species.name || 'm = ' + nf(T.species.mass) + ' u') + ': |E| = ' + nf(T.Emag, 3) + ' V/mm' + (T.rf.length ? ', RF at ' + T.rf.map(fmtMHz).join(', ') : '') + '.'), tbl);
   if (T.penning) out.append(readout([['Cyclotron', fmtMHz(T.penning.cyclMHz)], ['Axial', T.penning.axialMHz === null ? 'not confining' : fmtMHz(T.penning.axialMHz)], ['Modified cyclotron', T.penning.plusMHz === null ? '—' : fmtMHz(T.penning.plusMHz)], ['Magnetron', T.penning.minusMHz === null ? '—' : fmtMHz(T.penning.minusMHz)], ['Penning trap', T.penning.stable ? 'stable (ωc² > 2ωz²)' : 'unstable']]));
   out.append(helpLine(T.rf.length ? 'Mathieu parameters from the field’s curvature: a from the static potential, q from the RF amplitude.' : 'The static potential’s curvature along each axis; a magnetic field adds the Penning frequencies.',
     'a_i = 4(q/m)∂²φ_dc/∂x_i² / Ω² and q_i = −2(q/m)∂²φ_rf/∂x_i² / Ω², the second derivatives by a five-point difference at the node nearest the point. β ≈ √(a + q²/2) and the secular frequency βΩ/2, good while a and q are small; stable in the first region while 0 < β < 1 and |q| < 0.908. In an ideal Paul trap the two transverse q are equal and the axial one twice as large with the opposite sign.'));
@@ -6753,6 +6761,7 @@ const NEWS = [
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
     'Export data as CSV, JSON, Excel, NumPy or MATLAB (JEKray’s writers); scripts in JavaScript against the bench (JEKrayPro).',
     '<b>Share links</b>: Share copies a short link that opens the bench as it is now, for anyone (JEKrayPro; a free account keeps three), as JEKray\u2019s do. The potential plotted along the axis, across it, along a picked line or along a particle\u2019s path; a CAD body\u2019s voxels found by winding along three axes; the field strength drawn logarithmically; RF down to single hertz.',
+    'The trap analysis can be read along x, y and z instead of the trap\u2019s principal axes (Along, above its table; kept with the bench). JEKspace at the bar\u2019s left opens the hub, the hub of every cloud bench, in its own tab. The cut\u2019s position is a control in the bench\u2019s corner: a slider over the array, a number, a step either way; it works in the 3D view too. Typing a number into the panel no longer loses what was typed: the field being typed in is left alone while the bench follows, and a flight\u2019s results wait for it to be left before the panel is redrawn.',
     'JEKsuite at the bar\u2019s left opens the hub, the hub of every cloud bench, in its own tab. The cut\u2019s position is a control in the bench\u2019s corner: a slider over the array, a number, a step either way; it works in the 3D view too. Typing a number into the panel no longer loses what was typed: the field being typed in is left alone while the bench follows, and a flight\u2019s results wait for it to be left before the panel is redrawn.',
     '<b>Cloud benches</b>, as JEKray\u2019s: File \u203a Save to cloud puts the bench in your cloud benches or a team\u2019s, where it saves as you work with its history; My benches opens the home of every bench, JEKray\u2019s page, where a JEKion bench is marked and opens back here; Fork this bench carries on in a new one. A link #cloud=<id> opens a bench here. Saving there is JEKrayPro\u2019s.',
     'The field between the nodes is now the node-centred gradient interpolated within the cell, continuous and exact for a quadratic potential, so a quadrupole’s null is a true null (before, a heavy particle at a null felt a cell’s worth of field stepping in sign). The trap analysis works along the trap’s principal axes, from the Hessian: a quadrupole on the diagonals, or a CAD trap at any angle, reads its true a and q.',

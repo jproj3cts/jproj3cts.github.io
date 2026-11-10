@@ -58,7 +58,7 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 
 ## Choosing things
 
-A click picks a vertex, edge or face of a part, or a sketch region or plane. The item under the pointer is lit before you click. Ctrl or Shift and a click adds to the selection, and a drag from empty space selects by a box. The **Select** list limits picks to faces, edges, vertices, parts, sketch regions or planes.
+A click picks a vertex, edge or face of a part, or a sketch region or plane. The item under the pointer is lit before you click. Each click adds what it picks to the selection, a click on something already chosen takes it out, and a click on nothing empties the selection. A drag from empty space selects by a box. The **Select** list limits picks to faces, edges, vertices, parts, sketch regions or planes.
 
 Whatever is selected when you start a feature goes into it. Select a sketch region and click Extrude, or select edges and click Fillet.
 

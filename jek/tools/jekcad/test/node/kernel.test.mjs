@@ -221,7 +221,7 @@ test('revolve, sweep and loft; boolean of parts', async () => {
   near(vol(out), Math.PI * 4 * 30, 1e-4, 'swept rod');
   // two blocks, one subtracted from the other
   const d4 = block(20, 20, 10), sb = rectSketch(d4, 10, 10, { std: 'top' }, [15, 5]);
-  d4.features.push(sb, newFeature(d4, 'extrude', { sketch: sb.id, regions: [[20, 10]], depth: '10' }));
+  d4.features.push(sb, newFeature(d4, 'extrude', { sketch: sb.id, regions: [[20, 10]], depth: '10', op: 'new' }));
   out = K.regen(d4);
   assert.equal(out.parts.length, 2);
   d4.features.push(newFeature(d4, 'boolean', { op: 'subtract', targets: [out.parts[0].id], tools: [out.parts[1].id] }));
@@ -310,4 +310,28 @@ test('a sketch point held to a corner of the model follows the corner; a revolve
   const o2 = K.regen(d2), p2 = o2.parts[0];
   let drawn = 0; for (let j = 0; j < p2.edgeGroups.length / 2; j++) if (p2.edgeGroups[2 * j + 1] > 0) drawn++;
   assert.equal(drawn, 2, 'only the two circles are edges to see');
+});
+
+test('extrude: a new one adds to the part it meets (a new part where it meets none); a depth below 0 goes the other way', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  assert.equal(newFeature(doc, 'extrude').op, 'add');
+  // a boss on the top face, 5 up: one part, the block and the boss
+  const top = K.refs([faceNear(K.regen(doc), [20, 10, 10], K)])[0], sk = circleSketch(doc, [20, 10], 4, top);
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: [[20, 10]], depth: '5' }));
+  let out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  assert.equal(out.parts.length, 1);
+  near(vol(out), 8000 + Math.PI * 16 * 5, 0.5, 'the block with its boss');
+  near(out.parts[0].bbox[1][2], 15, 1e-6, 'the boss stands 5 above the block');
+  // −5: the other way, into the block, where adding changes nothing
+  doc.features[3].depth = '-5';
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  near(vol(out), 8000, 0.5, 'the boss turned into the block');
+  // a first extrude of −10 hangs below its plane
+  const d2 = newDoc(), s2 = rectSketch(d2, 10, 10);
+  d2.features.push(s2, newFeature(d2, 'extrude', { sketch: s2.id, regions: [[1, 1]], depth: '-10' }));
+  const o2 = K.regen(d2);
+  assert.ok(okAll(o2), errorsOf(o2).join('; '));
+  near(o2.parts[0].bbox[0][2], -10, 1e-6); near(o2.parts[0].bbox[1][2], 0, 1e-6); near(vol(o2), 1000, 1e-3);
 });

@@ -7,7 +7,7 @@ import { kernelAsk } from '../page/kernel.js';
 /* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
    wheel zooms about the pointer. A left click picks: into the feature dialog's active field when one is open,
-   else into the selection (Ctrl or Shift adds to it); a left drag from nothing selects by a box. In a sketch the
+   else into the selection: each click adds what it picks or, if it is chosen already, takes it out, and a click on nothing empties it; a left drag from nothing selects by a box. In a sketch the
    left button belongs to the sketcher, and a right-click (no drag) ends what is being drawn. What a click would
    pick is lit as the pointer moves over it. A double-click on a plane starts a sketch on it; on a sketch's dimension shown on the model types it
    again; on a face, it opens the feature that made the face.
@@ -37,8 +37,9 @@ const sameSel = (a, b) => a && b && a.kind === b.kind && a.part === b.part && a.
 export function selectPick(p, add) {
   if (!p) { if (!add) app.sel = []; emit('sel'); return; }
   const i = app.sel.findIndex(s => sameSel(s, p));
-  if (add) { if (i >= 0) app.sel.splice(i, 1); else app.sel.push(p); }
-  else app.sel = i >= 0 && app.sel.length === 1 ? [] : [p];
+  // a click adds what it picks to the selection, or takes it out if it is in it; a click on nothing empties it
+  void add;
+  if (i >= 0) app.sel.splice(i, 1); else app.sel.push(p);
   emit('sel');
 }
 export function wirePointer() {
@@ -85,8 +86,11 @@ export function wirePointer() {
       for (const p of got) if (!app.sel.some(s => sameSel(s, p))) app.sel.push(p);
       emit('sel'); return;
     }
-    const p = pickHere(sx, sy);
+    let p = pickHere(sx, sy);
     if (fieldWants()) { if (p) await fieldPick(p); return; }
+    // a plane lies behind most of the view: with other things chosen, a click that lands only on a plane is a click on
+    // nothing, and empties the selection (a plane joins a selection from its row in the list)
+    if (p && p.kind === 'plane' && app.sel.some(x => x.kind !== 'plane')) p = null;
     selectPick(p, d.add);
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });

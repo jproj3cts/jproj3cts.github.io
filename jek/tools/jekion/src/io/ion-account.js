@@ -27,8 +27,8 @@ export function showSignIn(kind, what) {
   track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
   const dlg = ionPrompt('ionSignIn'), close = () => dlg.close();
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the bench as a .jekion file needs no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches; saving there needs JEKrayPro. The .jekion file on your computer needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
+  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? (/^fly/.test(what) ? 'Flying the ions needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account') : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Drawing electrodes and seeing their fields need no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches and saves the .jekion file on your computer; saving to the cloud needs JEKrayPro.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your bench stays here while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
     h('div', { class: 'rt-actions' }, pro ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', kind + '.pro'); close(); showSubscribe(); } }, 'See the plans') : null,
@@ -54,6 +54,8 @@ export function wireIonAccount() {
     accountChanged: () => {
       const mi = document.getElementById('moreAcct'); if (mi) mi.querySelector('.lbl').textContent = account ? 'Your account…' : 'Sign in…';
       hooks.needsShown(); if (hooks.ionAccountChanged) hooks.ionAccountChanged();
+      // signed in: the ions fly (flying needs an account)
+      if (account && hooks.ionFlyAllowed) hooks.ionFlyAllowed();
     },
   });
   wireAccount();

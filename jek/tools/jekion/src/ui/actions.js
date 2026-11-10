@@ -212,7 +212,7 @@ export function wireActions() {
     if (mod) return;
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId) { e.preventDefault(); removeSel(); } return; }
     if (e.key === 'Escape') { if (hooks.ionBusy()) hooks.ionStop(); else { setSelectedId(null); renderPanel(); requestRender(); } return; }
-    if (e.key === ' ') { e.preventDefault(); flyNow(); return; }
+    if (e.key === ' ') { e.preventDefault(); flyNow(true); return; }
     if (e.key === 'f' || e.key === 'F') { fitAny(); return; }
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }

@@ -13,14 +13,15 @@ import { cabs2 } from './numeric.js';
    ========================================================================== */
 export const COAT_TARGETS = { ar: 'Anti-reflection', hr: 'High reflector', split: 'Beam splitter', edge: 'Dichroic edge', rf: 'Matching layer (RF)' };
 const clampN = (v, lo, hi, d) => (isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
-/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles 0 to
-   theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
+/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles theta0
+   (0 unless given: JEKfilm's band of angles) to theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
    when left out), and for a splitter its reflectance (%), for an edge the wavelength it turns at and which side passes */
 export function coatSpec(o) {
   o = o || {};
   const target = COAT_TARGETS[o.target] ? o.target : 'ar';
   const lo = clampN(o.lo, 100, 1e9, target === 'rf' ? 11.5e6 : 450), hi = Math.max(lo, clampN(o.hi, 100, 1e9, target === 'rf' ? 13.5e6 : 650));
-  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta: clampN(o.theta, 0, 89, 0), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
+  const theta = clampN(o.theta, 0, 89, 0);
+  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta, theta0: Math.min(theta, clampN(o.theta0, 0, 89, 0)), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
     design: clampN(o.design, 100, 1e9, (lo + hi) / 2), R: clampN(o.R, 0, 100, 50), edge: clampN(o.edge, 100, 1e9, (lo + hi) / 2), passBelow: o.passBelow !== false };
 }
 /* the stack's power reflectance from n0 into ns at cosine ci and wavelength nm, for the polarisation asked */
@@ -37,17 +38,18 @@ export function coatWant(spec, nm) {
     default: return 0;
   }
 }
-/* the sample points the stack is judged at: wavelengths across the band and angles from 0 to theta */
+/* the sample points the stack is judged at: wavelengths across the band and angles from theta0 to theta */
 function samples(spec, nW, nA) {
   const nms = [], cis = [];
   for (let i = 0; i < nW; i++) nms.push(spec.lo + (spec.hi - spec.lo) * (nW > 1 ? i / (nW - 1) : 0.5));
-  for (let j = 0; j < nA; j++) cis.push(Math.cos((spec.theta * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
+  const a0 = spec.theta0 || 0;
+  for (let j = 0; j < nA; j++) cis.push(Math.cos((a0 + (spec.theta - a0) * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
   return { nms, cis };
 }
 /* the merit: the mean square of R − target over the band and the angles (an edge's own wavelength ± 2% left out, as no
    stack turns in no width) */
 export function coatMerit(layers, spec, nW = 41, nA = 5) {
-  const { nms, cis } = samples(spec, nW, spec.theta > 0 ? nA : 1);
+  const { nms, cis } = samples(spec, nW, spec.theta > (spec.theta0 || 0) ? nA : 1);
   let sum = 0, cnt = 0;
   for (const nm of nms) {
     if (spec.target === 'edge' && Math.abs(nm - spec.edge) < 0.02 * spec.edge) continue;
@@ -68,12 +70,12 @@ export function coatAngles(layers, spec, N = 91) {
   for (let i = 0; i < N; i++) { const d = 89 * i / (N - 1), ci = Math.cos(d * Math.PI / 180); degs.push(d); s.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 's')); p.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 'p')); }
   return { degs, s, p };
 }
-/* the figures a designer reads: the mean and worst reflectance over the band square on and at the largest angle, the
-   reflectance at the design wavelength, and the merit */
+/* the figures a designer reads: the mean and worst reflectance over the band at the smallest angle (square on unless
+   theta0 is given) and at the largest, the reflectance at the design wavelength at the smallest angle, and the merit */
 export function coatSummary(layers, spec) {
   const at = deg => { const c = coatCurve(layers, spec, deg, 61); let m = 0, w = 0; for (const r of c.R) { m += r; w = Math.max(w, r); } return { mean: m / c.R.length, worst: w }; };
-  const c0 = at(0), ct = spec.theta > 0 ? at(spec.theta) : c0;
-  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, 1, spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
+  const a0 = spec.theta0 || 0, c0 = at(a0), ct = spec.theta > a0 ? at(spec.theta) : c0;
+  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, Math.cos(a0 * Math.PI / 180), spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
 }
 /* ---------- Optimising the thicknesses ----------
    Nelder–Mead on the layers' thicknesses (each held between a hundredth of a quarter wave and four waves of optical
@@ -120,9 +122,18 @@ export function coatOptimise(layers, spec, opts) {
   const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
   return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
+/* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
+   given ({ id, v }: the cloud coating and its version), links the face to it. The substrate and the angles judged are
+   the design's; the face keeps its own glass. */
+export function coatFromFilm(d, src) {
+  d = d && typeof d === 'object' ? d : {};
+  const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
+}
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 export function coatToStack(layers, spec, label) {
   const one = layers.length === 1 && spec.target === 'rf';
-  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 40) } : {}) };
+  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
 }

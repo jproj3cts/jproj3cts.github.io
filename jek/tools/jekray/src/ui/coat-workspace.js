@@ -16,23 +16,19 @@ import { hooks } from '../core/hooks.js';
 import { track } from '../io/usage.js';
 
 /* ==========================================================================
-   The coating design workspace
-   A thin-film stack designed against what it is for (core/coatdesign.js), on its own page over the bench as the lens
-   and RF designers are. Opened from a face's Coating setting (Design a coating…), from the lens designer's face table,
-   from the RF designer's matching layers, or from Tools › Coating design with no face at all. Use this coating writes
-   the stack to the face it came from; Keep as a coating keeps it by name in this browser, for any face's Coating list.
+   The matching-layer workspace
+   An RF lens's matching layer designed against its band (core/coatdesign.js), on its own page over the bench as the
+   lens and RF designers are: opened from the RF designer's matching layers and from an RF face's Coating setting
+   (Design a matching layer…). Use this coating writes the layer to the face it came from. Optical coatings are
+   JEKfilm's (jek/tools/jekfilm): an optical face sent here goes there instead (io/film-coats.js designInFilm). The
+   coatings kept by name in this browser before JEKfilm (keptCoatings) are still offered in every face's Coating list,
+   and JEKfilm offers to open them.
    ========================================================================== */
 let CW = null;                       // { spec, layers, from: { el, holder, label, onUse } | null, names }
 export const coatDesignOpen = () => !!CW;
 const CW_KEPT = 'JEK_COATINGS';
-/* the coatings kept by name in this browser: [{ id, name, coat, spec }] */
+/* the coatings kept by name in this browser before JEKfilm: [{ id, name, coat, spec }] (no more are added) */
 export function keptCoatings() { try { const v = JSON.parse(localStorage.getItem(CW_KEPT) || '[]'); return Array.isArray(v) ? v : []; } catch (err) { return []; } }
-function cwKeep(name, coat, spec) {
-  const list = keptCoatings().filter(k => k.name !== name);
-  list.push({ id: 'c' + Date.now().toString(36), name, coat, spec });
-  try { localStorage.setItem(CW_KEPT, JSON.stringify(list.slice(-60))); } catch (err) { toast('Could not keep it in this browser', true); }
-}
-export function forgetCoating(id) { try { localStorage.setItem(CW_KEPT, JSON.stringify(keptCoatings().filter(k => k.id !== id))); } catch (err) { /* none */ } }
 
 /* the common substrates offered, and an RF material's index */
 const CW_GLASSES = ['N-BK7', 'Fused silica', 'N-SF11', 'N-LAK22', 'CaF2', 'Sapphire', 'N-SK16', 'F2'].filter(g => GLASS[g] || glassKey(g));
@@ -53,7 +49,9 @@ const cwPrintedN = (M, fill) => Math.sqrt(mixEps(M, fill / 100).eps);
 
 /* open the workspace: from a face ({ el, holder (the surface or part whose .coat it is), label, onUse(coat) }) or alone */
 export function openCoatDesign(from) {
-  from = from || null; track('designer', 'coating');
+  from = from || null;
+  if (!(from && from.el && from.el.mmw)) { if (hooks.designInFilm) hooks.designInFilm(from); return false; }
+  track('designer', 'coating');
   const el = from && from.el, holder = from && from.holder, coat = holder && holder.coat;
   const rf = !!(el && el.mmw), nm0 = benchNms()[0] || 550;
   // the substrate: the face's own glass (a lens face's, on the glass side; a window's or cube's material), the RF plastic, or BK7
@@ -118,14 +116,8 @@ function cwRender() {
   const where = from ? (from.label || (from.el ? from.el.name : 'a face')) : 'A coating on its own';
   sec.append(h('header', { class: 'rt-lhead' },
     h('span', { class: 'rt-hmark' }, 'JEKray'),
-    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, 'Bench'), h('span', { 'aria-hidden': 'true' }, '›'), h('span', null, where), h('span', { class: 'rt-lpill' }, 'Coating design')),
+    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, 'Bench'), h('span', { 'aria-hidden': 'true' }, '›'), h('span', null, where), h('span', { class: 'rt-lpill' }, 'Matching layer')),
     h('span', { class: 'rt-lgap' }),
-    h('button', { class: 'rt-btn quiet', type: 'button', title: 'Keep this stack by name in this browser: every face’s Coating list offers it', onclick: () => {
-      const name = (prompt('Name the coating, to find it in every face’s Coating list', COAT_TARGETS[S.target] + ', ' + layers.length + ' layer' + (layers.length === 1 ? '' : 's')) || '').trim();
-      if (!name) return;
-      cwKeep(name, coatToStack(layers, spec, name), spec);
-      toast('Kept “' + name + '”: choose it from any face’s Coating list');
-    } }, 'Keep as a coating…'),
     from ? h('button', { class: 'rt-btn primary', type: 'button', id: 'coatUse', title: 'Write this stack to the face it came from, and go back', onclick: () => {
       const c = normCoat(coatToStack(layers, spec));
       checkpoint();
@@ -143,7 +135,7 @@ function cwSettings(S, spec) {
   const rf = S.target === 'rf';
   const card = h('section', { class: 'rt-lcard rt-lcond rt-rfcond', 'aria-label': 'The coating' }, h('h2', null, 'The coating'));
   card.append(h('p', { class: 'rt-lsub' }, 'What the stack is for, what it sits on and the light it is judged in. The thicknesses are then found from where they stand.'));
-  const rows = [cwRow('For', cwSelect(Object.entries(COAT_TARGETS), S.target, v => cwEdit(() => {
+  const rows = [cwRow('For', cwSelect(rf ? [['rf', COAT_TARGETS.rf]] : Object.entries(COAT_TARGETS), S.target, v => cwEdit(() => {
     S.target = v;
     if (v === 'rf' && S.subKind !== 'rf') { S.subKind = 'rf'; }
     if (v !== 'rf' && S.subKind === 'rf') { S.subKind = 'glass'; }

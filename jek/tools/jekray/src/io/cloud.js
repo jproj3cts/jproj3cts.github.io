@@ -20,7 +20,6 @@ import { loadTasters } from './tasters.js';
 import { newProject } from '../ui/tours.js';
 import { newLensDesign } from '../ui/assembly.js';
 import { newRfDesign } from '../ui/rf-workspace.js';
-import { openCoatDesign } from '../ui/coat-workspace.js';
 import { noteRecent } from './recent.js';
 
 /* ---------- Cloud benches ----------
@@ -43,6 +42,7 @@ export function cloudLink(link) {
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   cloudGates();
   leaseStart();
+  hooks.cloudLinked(link);
 }
 /* ---------- the editing lease ----------
    Whoever has a cloud bench open to edit holds its lease, renewed every minute while this page
@@ -258,7 +258,7 @@ export function newCloudBench(ws, folder, saveThis, then) {
       cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
       toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
       // straight into a workspace: a starting design on the new bench, or the coating workspace on its own
-      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') openCoatDesign(null);
+      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') hooks.designInFilm(null);
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not make the bench: ' + err.message, true);
@@ -315,6 +315,9 @@ async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
   if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
+  // a coating, by its mark or by its content (one saved by an API from before JEKfilm is marked JEKray's)
+  const fmt = (() => { try { return JSON.parse(b.content).format; } catch (err) { return null; } })();
+  if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }
@@ -365,12 +368,12 @@ function conflictMerge(link, base, who) {
     toastWord: 'Merged: look it over. It saves to the cloud as a version of its own; undo takes it back.',
   });
 }
-/* ---------- My benches: JEKspace ----------
-   Every cloud bench, of every app, is on JEKspace (jek/tools/jekspace.html), the JEK hub, opened in a tab of its own
+/* ---------- My benches: JEKsuite ----------
+   Every cloud bench, of every app, is on JEKsuite (jek/tools/jeksuite.html), the JEK hub, opened in a tab of its own
    (named, so it is the same tab each time): the bar's cloud button, File › My benches, #benches and My parts' Manage
    link open it there. A bench opened from it comes back here as #cloud=<id>. */
-export const SPACE_URL = '/jek/tools/jekspace.html';
-export function openSpace(hash) { const w = window.open(SPACE_URL + (hash ? '#' + hash : ''), 'jekspace'); if (w) w.focus(); }
+export const SPACE_URL = '/jek/tools/jeksuite.html';
+export function openSpace(hash) { const w = window.open(SPACE_URL + (hash ? '#' + hash : ''), 'jeksuite'); if (w) w.focus(); }
 // where Save to cloud puts a bench first: the person's own workspace
 export const cloudPlace = { ws: null, folder: null };
 const whenAgo = t => {
@@ -383,13 +386,15 @@ const whenAgo = t => {
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
 const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
+const JEKFILM_URL = '/jek/tools/jekfilm.html';
+const openInJekfilm = (b, version) => { const w = window.open(JEKFILM_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekfilm'); if (w) w.focus(); };    // the one JEKfilm tab
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
 /* ---------- merging a save conflict ----------
    This copy's changes and the cloud's newer version, item by item (src/io/merge.js), over the version this copy
    came from. The cloud's is kept as a version first ("Before merging"), the merged bench is opened on the bench
-   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKspace's. */
+   to look at, and its next save is a labelled version. Comparing versions and merging forks are JEKsuite's. */
 function diffNodes(d, fromName, toName) {
   if (!d.count) return [h('p', null, 'No difference between ' + fromName + ' and ' + toName + '.')];
   const word = i => KIND_WORD[i.kind] + ' ' + i.label;
@@ -449,7 +454,7 @@ async function mergeDialog(o) {
     }
   };
 }
-/* the File menu's cloud items: there with accounts, greyed when not possible (JEKspace's mark at the bar's left is always there) */
+/* the File menu's cloud items: there with accounts, greyed when not possible (JEKsuite's mark at the bar's left is always there) */
 function cloudGates() {
   const show = accountsOn(), why = proWhy();
   loadTasters(!!account && !!why);                     // signed in without a plan: this month's free uses
@@ -481,9 +486,9 @@ export function wireCloud() {
     try { const v = !TEST_MODE && !EMBED && JSON.parse(localStorage.getItem(CLOUD_KEY)); if (v && v.id) setCloud(v); } catch (err) { /* none */ }
     document.getElementById('btnCloudSave').addEventListener('click', e => { if (!gated(e.currentTarget)) cloudSave(); });
     document.getElementById('btnCloudList').addEventListener('click', e => { if (!gated(e.currentTarget)) openSpace(); });
-    // JEKspace's mark at the bar's far left, always there (JEKspace signs people in itself): its own tab, the same one
+    // JEKsuite's mark at the bar's far left, always there (JEKsuite signs people in itself): its own tab, the same one
     // each time, brought to the front
-    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jekspace'); if (w) w.focus(); });
+    document.getElementById('btnSpace').addEventListener('click', e => { e.preventDefault(); const w = window.open(e.currentTarget.href, 'jeksuite'); if (w) w.focus(); });
     // Fork this bench: what is on the bench now becomes a new cloud bench, remembering this one
     document.getElementById('btnCloudFork').addEventListener('click', async e => {
       if (gated(e.currentTarget) || !cloud) return;

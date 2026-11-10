@@ -2,7 +2,7 @@ import { BEAM_Z, EMBED, IN_WORKER, LOCKED, TEST_MODE, clamp, cloud } from '../co
 import { makeAssembly, newLensDesign } from './assembly.js';
 import { newRfDesign } from './rf-workspace.js';
 import { openLensDesign } from './lens-workspace.js';
-import { openCoatDesign } from './coat-workspace.js';
+import { designInFilm } from '../io/film-coats.js';
 import { asmOfSelection } from '../core/assembly.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
@@ -237,7 +237,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
   for (const m of all) if (m.fam === famBox.dataset.fam) metricSel.append(h('option', { value: m.key }, m.label));
 }
 
-/* a new bench, from JEKspace's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
+/* a new bench, from JEKsuite's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
 export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); }
 export function newProject() {
   pauseAll();
@@ -278,7 +278,7 @@ export function wireTours() {
   };
   document.getElementById('btnLensOfSel').addEventListener('click', () => ofSelection(false));
   document.getElementById('btnRfOfSel').addEventListener('click', () => ofSelection(true));
-  document.getElementById('btnCoatDesign').addEventListener('click', () => openCoatDesign(null));
+  document.getElementById('btnCoatDesign').addEventListener('click', () => designInFilm(null));
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 

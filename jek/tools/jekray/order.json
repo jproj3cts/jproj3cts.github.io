@@ -207,6 +207,7 @@
   "io/account.js",
   "io/usage.js",
   "io/cloud.js",
+  "io/film-coats.js",
   "io/nudges.js",
   "io/autosave.js",
   "ui/news.js",

@@ -5,6 +5,7 @@
 // Works with or without a plan.
 
 import { me } from './users.js';
+import { TOOLS } from './benches.js';
 import { zip } from './zip.js';
 
 // A file or folder name that every unzip tool keeps inside the folder it
@@ -13,12 +14,14 @@ import { zip } from './zip.js';
 const safe = (s) =>
   String(s || 'Untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').trim().slice(0, 80) || 'Untitled';
 
-// a share link's bench as JSON text: its text is "z" then base64url of deflated JSON, or "j" then base64url of JSON
+// a share link's bench as JSON text: its text is a letter (z, i, f: deflated JSON of JEKray, JEKion, JEKfilm; j, k, g:
+// plain) then base64url; and the file it is kept as
+export const LINK_EXT = { z: 'jekray', j: 'jekray', i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm' };
 async function linkBench(t) {
   try {
     const b = atob(t.slice(1).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length - 1 + 3) % 4));
     let bytes = Uint8Array.from(b, (c) => c.charCodeAt(0));
-    if (t[0] === 'z') bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    if ('zif'.includes(t[0])) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
     const json = new TextDecoder().decode(bytes);
     JSON.parse(json);
     return json;
@@ -42,7 +45,7 @@ export async function exportAll(env, user) {
       return parts.join('/');
     };
     const { results: benches } = await env.DB.prepare(
-      'SELECT folder_id, name, head_json FROM benches WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY name',
+      'SELECT folder_id, name, head_json, tool FROM benches WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY name',
     )
       .bind(w.id)
       .all();
@@ -59,21 +62,22 @@ export async function exportAll(env, user) {
     }
     for (const b of benches) {
       const dir = [top, path(b.folder_id)].filter(Boolean).join('/');
-      let name = `${dir}/${safe(b.name)}.jekray`;
-      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${dir}/${safe(b.name)} (${i}).jekray`;
+      const ext = (TOOLS[b.tool] || TOOLS.jekray).ext;
+      let name = `${dir}/${safe(b.name)}.${ext}`;
+      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${dir}/${safe(b.name)} (${i}).${ext}`;
       taken.add(name.toLowerCase());
       files.push({ name, data: b.head_json });
     }
   }
-  // share links: each link's bench as a .jekray file, and the links themselves listed
+  // share links: each link's bench as its app's file, and the links themselves listed
   const { results: links } = await env.DB.prepare('SELECT id, name, r2_key, created_at, opens, opened_at FROM share_links WHERE user_id = ? ORDER BY created_at')
     .bind(user.id)
     .all();
   const site = String(env.APP_ORIGINS || 'https://jeksys.net').split(',')[0].trim();
   for (const l of links) {
     const obj = await env.BENCHES.get(l.r2_key);
-    const text = obj && (await linkBench(await obj.text()));
-    if (text) files.push({ name: `Share links/${safe(l.name)} (${l.id}).jekray`, data: text });
+    const raw = obj && (await obj.text()), text = raw && (await linkBench(raw));
+    if (text) files.push({ name: `Share links/${safe(l.name)} (${l.id}).${LINK_EXT[raw[0]] || 'jekray'}`, data: text });
   }
   if (links.length) {
     files.push({ name: 'Share links/links.json', data: JSON.stringify(links.map((l) => ({ url: `${site}/s/${l.id}`, name: l.name, created_at: l.created_at, opens: l.opens, opened_at: l.opened_at })), null, 2) });

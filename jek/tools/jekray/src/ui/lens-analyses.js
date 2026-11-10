@@ -439,7 +439,7 @@ function thermView(body, A, asm, P, key, st, redraw) {
 /* ---------- Polarisation ---------- */
 const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
 // the coatings that can be chosen here for a lens face; any other the face has is kept as it is
-const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating…']];
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating in JEKfilm…']];
 const coatChoice = c => {
   if (!c || c.mode === 'bare') return 'bare';
   if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';
@@ -452,7 +452,7 @@ function setCoat(P, i, kind, nm, redraw) {
   const s = P.surfaces[i], e = s.from && getEl(s.from.id);
   if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;
   // the coating design workspace on this face, over the designer; its Use this coating writes the stack and redraws here
-  if (kind === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el: e, holder: e.surfaces[s.from.i], label: e.name + ', surface ' + (s.from.i + 1), onUse: c => { e.surfaces[s.from.i].coat = c; changed(false); redraw(); } }); return; }
+  if (kind === 'design') { const from = { el: e, holder: e.surfaces[s.from.i], label: e.name + ', surface ' + (s.from.i + 1), onUse: c => { e.surfaces[s.from.i].coat = c; changed(false); redraw(); } }; if (e.mmw) { if (hooks.openCoatDesign) hooks.openCoatDesign(from); } else if (hooks.designInFilm) hooks.designInFilm(from); return; }
   checkpoint();
   const design = Math.round(nm);
   e.surfaces[s.from.i].coat = kind === 'bare' ? normCoat({ mode: 'bare' }) : kind === 'ar' ? normCoat({ mode: 'ar', R: 0.5 }) : normCoat({ mode: 'stack', design, layers: coatPreset(kind, design) });

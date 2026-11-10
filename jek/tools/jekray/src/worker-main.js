@@ -207,6 +207,7 @@ import './io/merge.js';
 import './io/account.js';
 import './io/usage.js';
 import './io/cloud.js';
+import './io/film-coats.js';
 import './io/nudges.js';
 import './io/autosave.js';
 import './ui/news.js';

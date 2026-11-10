@@ -149,9 +149,9 @@ export function cutTo(v) {
   V().slice = +Math.max(lo, Math.min(hi, v)).toPrecision(8); changed(false);
 }
 export function wireActions() {
-  // the arrow at the bar's left: JEKspace, in its own tab (named, so the same one each time), brought to the front
+  // the arrow at the bar's left: JEKsuite, in its own tab (named, so the same one each time), brought to the front
   const space = document.getElementById('btnSpace');
-  if (space) space.addEventListener('click', e => { e.preventDefault(); const w = window.open(space.href, 'jekspace'); if (w) w.focus(); });
+  if (space) space.addEventListener('click', e => { e.preventDefault(); const w = window.open(space.href, 'jeksuite'); if (w) w.focus(); });
   document.getElementById('cutRange').addEventListener('input', e => cutTo(+e.target.value));
   document.getElementById('cutAt').addEventListener('change', e => { cutTo(Number(e.target.value)); e.target.blur(); });
   document.getElementById('cutDown').addEventListener('click', () => cutTo(V().slice - project.grid.h));

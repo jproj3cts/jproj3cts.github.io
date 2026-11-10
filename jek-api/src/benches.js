@@ -117,10 +117,13 @@ export async function readJson(req) {
   }
 }
 
-// Which tool a bench's content is for: a .jekion says format 'jekion'; anything else is JEKray's.
+// Which tool a bench's content is for: a .jekion says format 'jekion', a .jekfilm (a JEKfilm coating) format
+// 'jekfilm'; anything else is JEKray's.
+export const TOOLS = { jekray: { name: 'JEKray', ext: 'jekray' }, jekion: { name: 'JEKion', ext: 'jekion' }, jekfilm: { name: 'JEKfilm', ext: 'jekfilm' } };
 export function toolOf(content) {
   try {
-    return JSON.parse(content).format === 'jekion' ? 'jekion' : 'jekray';
+    const f = JSON.parse(content).format;
+    return f === 'jekion' || f === 'jekfilm' ? f : 'jekray';
   } catch {
     return 'jekray';
   }
@@ -245,7 +248,7 @@ export async function list(req, env, user, wsId) {
                LEFT JOIN users lu ON lu.id = l.user_id
               WHERE b.workspace_id = ? AND b.deleted_at IS ${bin ? 'NOT NULL' : 'NULL'}`;
   const args = [now(), a.ws];
-  if (tool === 'jekray' || tool === 'jekion') {
+  if (TOOLS[tool]) {
     sql += ' AND b.tool = ?';
     args.push(tool);
   }
@@ -313,8 +316,9 @@ export async function save(req, env, user, benchId) {
   const body = await readJson(req);
   const content = benchContent(body);
   const b = a.bench;
-  if (toolOf(content) !== (b.tool || 'jekray')) {
-    throw new ApiError(400, 'bad_bench', b.tool === 'jekion' ? 'This is a JEKion bench: a .jekray cannot be saved over it.' : 'This is a JEKray bench: a .jekion cannot be saved over it.');
+  const was = TOOLS[b.tool] ? b.tool : 'jekray', given = toolOf(content);
+  if (given !== was) {
+    throw new ApiError(400, 'bad_bench', `This is a ${TOOLS[was].name} ${was === 'jekfilm' ? 'coating' : 'bench'}: a .${TOOLS[given].ext} cannot be saved over it.`);
   }
   // someone else is editing it: they hold its lease (take it over first, or open theirs)
   if (b.lease_user && b.lease_user !== user.id) {

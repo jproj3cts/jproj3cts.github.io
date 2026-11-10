@@ -60,6 +60,8 @@ export function normMat(m) {
   const G = normGrad(m.grad); if (G) out.grad = G;
   return out;
 }
+/* the most layers a face's stack keeps: JEKfilm's own limit (jekfilm/src/core/film.js normFilm), so a coating from it is never cut */
+export const FACE_LAYERS_MAX = 200;
 export function normCoat(c) {
   c = c || {};
   const mode = ['bare', 'ar', 'custom', 'stack', 'band', 'mirror'].includes(c.mode) ? c.mode : 'bare';
@@ -74,8 +76,11 @@ export function normCoat(c) {
   if (mode === 'stack') {
     // up to a metre: an RF lens's matching layer is designed at millimetres (panels.js matchLayer)
     out.design = clamp(num(c.design, 550), 100, 1e9);
-    if (c.label) out.label = String(c.label).slice(0, 40);
-    out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, 40).map(L => ({
+    if (c.label) out.label = String(c.label).slice(0, 120);       // a JEKfilm coating's whole name (JEKfilm allows 120)
+    // a JEKfilm coating in the cloud this stack came from, and its version (io/film-coats.js): the stack is a copy, kept here
+    if (c.src && typeof c.src === 'object' && /^[A-Za-z0-9_-]{1,40}$/.test(String(c.src.id))) out.src = { id: String(c.src.id), v: Math.max(1, Math.round(num(c.src.v, 1))) };
+    // up to 200 layers, as JEKfilm allows (an edge filter or a broadband HR can need over a hundred)
+    out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),
     }));

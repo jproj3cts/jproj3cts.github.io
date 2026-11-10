@@ -266,6 +266,9 @@ export async function check(pw, base, shots) {
     // ---- a double-click on a plane starts a sketch on it; what a point is inferred from ----
     await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
     await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    // a plane is picked anywhere in it, and where two overlap on screen, the one in front there
+    const inPl = await p.evaluate(() => { const J = window.JEKcad, at = w => J.project(w).slice(0, 2), k = w => { const h = J.pickHere(...at(w)); return h && h.kind === 'plane' ? h.std : null; }; return [k([12, -12, 0]), k([12, 0, 12]), k([0, -12, 12]), k([-12, 12, 0])]; });
+    ok('A plane is picked anywhere inside it; where planes overlap on screen, the one nearest the eye', inPl[0] === 'top' && inPl[1] === 'front' && inPl[2] === 'right' && !!inPl[3], JSON.stringify(inPl));
     // the Front plane's border, in the view: found as a person's eye finds it
     const edgePt = await p.evaluate(() => { const J = window.JEKcad; for (let x = 20; x < J.view.w - 20; x += 3) for (let y = 20; y < J.view.h - 20; y += 3) { const k = J.overlayPick(x, y, 'any'); if (k && k.kind === 'plane' && k.std === 'front') return [x, y]; } return null; });
     const ob2 = await p.locator('#over').boundingBox();

@@ -7382,7 +7382,7 @@ function newCloudBench(ws) {
   const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
   where.value = places.some(w => w.id === ws) ? ws : places[0].id;
   const note = h('p', { class: 'rt-subsmall' });
-  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches on JEKsuite' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKspace lists it too, marked JEKcad.'; };
+  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches on JEKsuite' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKsuite lists it too, marked JEKcad.'; };
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, 'Save');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },

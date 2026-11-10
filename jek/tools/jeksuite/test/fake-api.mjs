@@ -8,7 +8,7 @@ export function fakeData() {
     me: { user: { id: 'u1', name: 'Jo Kelly', email: 'jo@example.ac.uk', created_at: T0 - 9e9 }, identities: [{ provider: 'google', subject: 'x' }],
       workspaces: [{ id: WS, kind: 'personal', name: 'Jo', role: 'owner', active: true, plan: { plan: 'individual', billing: true, status: 'active', interval: 'month', period_end: T0 + 2e9 } },
         { id: TEAM, kind: 'team', name: 'Levitation lab', role: 'owner', active: true, plan: { plan: 'team', billing: true, status: 'active', interval: 'year', seats: 3 } }] },
-    folders: { [WS]: [{ id: 'f1', name: 'Levisense', parent_id: null }, { id: 'f2', name: 'Absorption', parent_id: null }], [TEAM]: [] },
+    folders: { [WS]: [{ id: 'f1', name: 'Levisense', parent_id: null }, { id: 'f2', name: 'Absorption', parent_id: null }, { id: 'f3', name: 'Old runs', parent_id: 'f2' }], [TEAM]: [] },
     benches: {
       [WS]: [
         { id: 'b1', name: 'Spectrophotometer', tool: 'jekray', folder_id: null, workspace_id: WS, updated_at: T0 - 3600e3, size_bytes: 18400, version: 7 },
@@ -16,6 +16,7 @@ export function fakeData() {
         { id: 'b3', name: 'Michelson, 1064 nm', tool: 'jekray', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 86400e3, size_bytes: 12000, version: 2 },
         { id: 'b5', name: 'BBAR 450–650', tool: 'jekfilm', folder_id: 'f2', workspace_id: WS, updated_at: T0 - 5400e3, size_bytes: 600, version: 4 },
         { id: 'b6', name: 'Lens mount', tool: 'jekcad', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 6400e3, size_bytes: 5200, version: 2 },
+        { id: 'b7', name: 'First absorption run', tool: 'jekray', folder_id: 'f3', workspace_id: WS, updated_at: T0 - 9e6, size_bytes: 8000, version: 1 },
       ],
       [TEAM]: [{ id: 'b4', name: 'Shared trap', tool: 'jekion', folder_id: null, workspace_id: TEAM, updated_at: T0 - 4000e3, size_bytes: 4000, version: 1, updated_by: { name: 'Sam' } }],
     },

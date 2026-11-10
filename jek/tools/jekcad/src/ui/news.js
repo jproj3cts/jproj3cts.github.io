@@ -3,8 +3,17 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.5.0';
 export const NEWS = [
+  { v: '0.5.0', date: '11 Nov 2026', items: [
+    '<b>More to draw</b>, from the arrows by each group: an aligned (3-point) rectangle, an ellipse, a centre-point arc, a polygon by the middle of a side, a spline through points and a Bézier curve.',
+    '<b>More ways to change a sketch</b>: sketch chamfer, extend a line to the next shape, split a line or an arc in two, linear and circular patterns, and Transform (move, turn and scale what is selected).',
+    '<b>Bring shapes in</b>: where a part cuts the sketch’s plane (Intersection), and a DXF drawing’s lines, circles, arcs and polylines.',
+    'A new constraint, <b>Normal</b>: a line square to a circle or an arc.',
+    'The view cube has two curved arrows above it that roll the view 15° either way.',
+    'Fixed: a feature’s dialog brought every hidden sketch back into the view. Only the sketch the feature uses shows now.',
+    'A new Extrude no longer starts with the sketch and regions of the extrude before it: it takes a sketch nothing has used yet, or waits for you to pick.',
+  ] },
   { v: '0.4.0', date: '10 Nov 2026', items: [
     '<b>Delete part</b>, in a part’s ⋯ menu (or Delete with parts selected): a feature in the list, so it can be undone, suppressed or edited.',
     '<b>Share a link</b> (File): the Part Studio as it is now, written into the link itself. Anyone opens it to look, turn and measure.',
@@ -12,7 +21,7 @@ export const NEWS = [
     'The <b>view cube</b> has nine parts to a face: its middle looks at the face, a strip along a side looks along that edge, a corner looks from the corner. The arrows round it turn the view 15° at a time.',
     '<b>Right-drag</b> turns the part about the screen’s own axes, through the middle of the part.',
     '<b>Double-click a row</b> of the feature list to edit it (the first click no longer got in the way). A feature opened to edit has its regions ready to click, so a hole can be clicked in to be filled.',
-    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open.',
+    'A <b>cut</b> takes in the model’s holes that lie in what it cuts, so no thin tube is left standing round a hole. An added boss still leaves them open. A cut made before does so too, wherever the hole is empty: the slivers and odd curved faces that were left at such holes are gone.',
   ] },
   { v: '0.3.0', date: '10 Nov 2026', items: [
     'The line, rectangle, circle and arc tools each have an arrow beside them listing their kinds. New among them: a <b>centre line</b> (a construction line), a <b>midpoint line</b> (its middle, then an end) and a <b>3-point circle</b>.',

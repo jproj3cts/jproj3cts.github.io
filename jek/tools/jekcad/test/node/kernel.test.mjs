@@ -366,6 +366,38 @@ test('three slots laid end on end by eye (their ends a hair apart), round holes 
   }
 });
 
+test('a cut over holes of the model brought into its sketch takes them in where they are empty, and goes round them where they are not', async () => {
+  const K = await kernel(), O = [50, 40], at = q => [q[0] + O[0], q[1] + O[1]], centres = [[-32, 27.5], [32, 27.5], [-32, -27.5], [32, -27.5]];
+  // the edges of the model as the sketcher brings them in: fixed shapes marked ref, a hair off the true hole
+  const slots = [...slotEnts(at([-32, 27.5]), at([32, 27.5]), 5).ents, ...slotEnts(at([-32.0000005, 27.5016]), at([-32.0000003, -27.496]), 5).ents, ...slotEnts(at([32.0000002, 27.4985]), at([32, -27.4972]), 5).ents];
+  const refs = centres.map((c, i) => ({ id: 'rim' + i, t: 'circle', c: at([c[0] + 1e-13, c[1] - 1e-13]), r: 1.6499999999999926, ref: true }));
+  const big = regionsOf([...slots, ...refs]).filter(r => r.area > 50), want = big.reduce((t, r) => t + r.area, 0) * 3;
+  assert.equal(big.length, 5);
+  for (const drilled of [true, false]) {
+    const doc = block(100, 80, 10);
+    let out = K.regen(doc);
+    const top = K.refs([faceNear(out, [50, 40, 10], K)])[0];
+    if (drilled) {
+      const hs = newFeature(doc, 'sketch', { plane: top, ents: centres.map((c, i) => ({ id: 'h' + i, t: 'circle', c: at(c), r: 1.65 })) });
+      doc.features.push(hs, newFeature(doc, 'extrude', { sketch: hs.id, regions: centres.map(at), op: 'remove', depth: '10' }));
+    }
+    out = K.regen(doc);
+    assert.ok(okAll(out), errorsOf(out).join('; '));
+    const v0 = vol(out), n0 = out.parts[0].faceNames.length;
+    const sk = newFeature(doc, 'sketch', { plane: top, ents: [...slots, ...refs] }), cut = newFeature(doc, 'extrude', { sketch: sk.id, regions: big.map(r => r.pt), op: 'remove', depth: '3' });
+    doc.features.push(sk, cut);
+    out = K.regen(doc);
+    assert.ok(okAll(out), errorsOf(out).join('; '));
+    const names = out.parts[0].faceNames.map(nm => (Array.isArray(nm) ? nm[0] : nm)), rims = names.filter(nm => /\.rim\d$/.test(nm)).length;
+    near(v0 - vol(out), want, 0.01 * want, drilled ? 'over the holes:' : 'round the bosses:');
+    if (drilled) {
+      // the floor, and a wall for each of the U's ten sides: nothing where the holes were
+      assert.equal(rims, 0, 'no wall of the cut on a hole’s own wall: ' + names.filter(nm => nm.startsWith(cut.id)).join());
+      assert.equal(names.length, n0 + 11, 'faces: ' + names.join());
+    } else assert.equal(rims, 4, 'a boss left standing in each: ' + names.join());
+  }
+});
+
 test('a fillet’s faces are named after the edges they round, the same whatever order the edges come in', async () => {
   const K = await kernel(), doc = block(40, 20, 10);
   let out = K.regen(doc);

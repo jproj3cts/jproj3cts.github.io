@@ -1,5 +1,5 @@
 // A sketch's regions, as the page finds them (core/sketch.js, core/sketch-tools.js) and as the kernel makes faces of
-// them: thirty sketches of shapes laid over, against and inside each other, each as drawn, turned 17°, and with
+// them: thirty-six sketches of shapes laid over, against and inside each other, each as drawn, turned 17°, and with
 // every shape a few ten-thousandths of a millimetre out of place. Each region pushed 1 mm must be a solid of its
 // own area; all of them together, and the ones an extrude takes by default, a solid of theirs.
 import { test } from 'node:test';
@@ -41,9 +41,15 @@ const CASES = {
   'a circle across a slot': [...slot([-20, 0], [20, 0], 5), C([0, 0], 8)],
   'a circle over a line’s end': [...rect([0, 0], [30, 20]), L([15, 0], [15, 10]), C([15, 10], 3)],
   'a keyhole': [C([0, 0], 8), ...rect([-3, -20], [3, -5])],
+  'an ellipse': [{ id: 'el1', t: 'ellipse', c: [0, 0], rx: 10, ry: 5, rot: 20 }],
+  'an ellipse in a rectangle': [...rect([-15, -10], [15, 10]), { id: 'el2', t: 'ellipse', c: [0, 0], rx: 10, ry: 5, rot: 0 }],
+  'an ellipse cut by a line': [{ id: 'el3', t: 'ellipse', c: [0, 0], rx: 10, ry: 5, rot: 0 }, L([-12, 1], [12, 1])],
+  'a closed spline': [{ id: 'sp1', t: 'spline', pts: [[0, 0], [10, 5], [20, 0], [10, -8]], closed: true }],
+  'a spline closed by a line': [{ id: 'sp2', t: 'spline', pts: [[0, 0], [5, 6], [12, 7], [20, 0]] }, L([20, 0], [0, 0])],
+  'a Bézier curve closed by a line': [{ id: 'sp3', t: 'spline', cv: true, pts: [[0, 0], [5, 12], [15, 12], [20, 0]] }, L([20, 0], [0, 0])],
   'a ring of holes': [C([0, 0], 30), C([0, 0], 10), ...[0, 60, 120, 180, 240, 300].map(a => C([20 * Math.cos(a * Math.PI / 180), 20 * Math.sin(a * Math.PI / 180)], 3))],
 };
-const rot = (ents, deg, off) => { const c = Math.cos(deg * Math.PI / 180), s = Math.sin(deg * Math.PI / 180), R = p => [p[0] * c - p[1] * s + off[0], p[0] * s + p[1] * c + off[1]]; return ents.map(e => Object.assign({}, e, e.a && e.t === 'line' ? { a: R(e.a), b: R(e.b) } : {}, e.c ? { c: R(e.c) } : {}, e.t === 'arc' ? { a0: e.a0 + deg, a1: e.a1 + deg } : {})); };
+const rot = (ents, deg, off) => { const c = Math.cos(deg * Math.PI / 180), s = Math.sin(deg * Math.PI / 180), R = p => [p[0] * c - p[1] * s + off[0], p[0] * s + p[1] * c + off[1]]; return ents.map(e => Object.assign({}, e, e.a && e.t === 'line' ? { a: R(e.a), b: R(e.b) } : {}, e.c ? { c: R(e.c) } : {}, e.t === 'arc' ? { a0: e.a0 + deg, a1: e.a1 + deg } : {}, e.t === 'ellipse' ? { rot: e.rot + deg } : {}, e.pts ? { pts: e.pts.map(R) } : {})); };
 const jitter = ents => ents.map((e, i) => Object.assign({}, e, e.c ? { c: [e.c[0] + ((i * 7) % 5 - 2) * 3e-4, e.c[1] + ((i * 3) % 5 - 2) * 3e-4] } : {}, e.t === 'line' ? { a: [e.a[0] + ((i * 5) % 3 - 1) * 4e-4, e.a[1]], b: [e.b[0], e.b[1] + ((i * 2) % 3 - 1) * 4e-4] } : {}));
 const vol = o => o.parts.reduce((s, p) => s + p.volume, 0);
 

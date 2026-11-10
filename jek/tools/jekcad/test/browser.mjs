@@ -220,6 +220,12 @@ export async function check(pw, base, shots) {
     if (m60) { await p.mouse.dblclick(ob.x + m60.x, ob.y + m60.y); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '80'); await p.keyboard.press('Enter'); await regen(); } }
     v = await vol();
     ok('The feature picked in the list shows its sketch’s dimensions on the model; the 60 double-clicked and typed as 80, the part follows', ml.length === 2 && near(v, 80 * 40 * 10, 1e-3), JSON.stringify(ml) + ' volume ' + v);
+    // a part made far bigger from the model: the view fits it again, every dimension still inside the view
+    const big = await p.evaluate(() => { const J = window.JEKcad, f = J.app.doc.features[0], b = J.sk.mlabels.find(x => f.dims.find(d => d.id === x.dim).x === '80'); return b && [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]; });
+    if (big) { await p.mouse.dblclick(ob.x + big[0], ob.y + big[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '400'); await p.keyboard.press('Enter'); await regen(); await p.waitForTimeout(300); } }
+    const inView = await p.evaluate(() => { const J = window.JEKcad; return { n: J.sk.mlabels.length, in: J.sk.mlabels.every(b => b.x0 > 0 && b.x1 < J.view.w && b.y0 > 0 && b.y1 < J.view.h) }; });
+    ok('A dimension typed on the model that grows the part past the view’s edge: the view fits it again', inView.n === 2 && inView.in && near(await vol(), 400 * 40 * 10, 1e-3), JSON.stringify(inView));
+    await p.keyboard.press('Control+z'); await regen();
     // the eyes: a plane, the origin, and the parts a feature made
     await p.hover('.cad-frow-p[data-plane="top"]'); await p.click('.cad-frow-p[data-plane="top"] .cad-eye');
     await p.hover('.cad-frow-p[data-plane="origin"]'); await p.click('.cad-frow-p[data-plane="origin"] .cad-eye');

@@ -3,8 +3,8 @@ import { definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveSketch }
 import { arc3, arcSweep, carryRegions, distToEnt, entOutline, filletCorner, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, tangentArc, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
-import { app, changed, checkpoint, emit, isDark, on, regenNow, toast } from './app.js';
-import { V, normalTo, pickAt, project, pxToMm, rayAt, rayPlane, redraw } from './view3d.js';
+import { app, changed, checkpoint, emit, isDark, on, regenDone, regenNow, toast } from './app.js';
+import { V, fit, normalTo, pickAt, project, pxToMm, rayAt, rayPlane, redraw } from './view3d.js';
 import { kernelAsk } from '../page/kernel.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 
@@ -780,6 +780,11 @@ export function modelDimEdit(L) {
     carryRegions(app.doc, f.id, f.ents, g.ents);
     f.ents = g.ents; f.dims = g.dims;
     changed();
+    // the part grown past the edge of the view: fitted again, so its other dimensions can still be reached
+    regenDone().then(() => {
+      if (app.sketch || V.fly) return;
+      for (const o of V.parts.values()) { const b = o.userData.p.bbox; for (const x of [0, 1]) for (const y of [0, 1]) for (const z of [0, 1]) { const q = project([b[x][0], b[y][1], b[z][2]]); if (q[0] < 0 || q[0] > V.w || q[1] < 0 || q[1] > V.h) { fit(); return; } } }
+    });
   };
   inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') commit(); else if (e.key === 'Escape') close(); });
   inp.addEventListener('blur', () => setTimeout(commit, 0));

@@ -17,10 +17,10 @@ import { arcSweep, distToEnt } from '../core/sketch-tools.js';
    small distance stands in.
    ========================================================================== */
 const HMAX = 2147483647, DEGR = Math.PI / 180;
-const v3 = { add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+export const v3 = { add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
   dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
   len: a => Math.hypot(a[0], a[1], a[2]), unit: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; } };
-export { v3 };
+
 /* a plane's frame from its normal: y as near world z as it can be (x across), or x along world x for a level plane */
 export function frameOfNormal(o, n) {
   n = v3.unit(n);
@@ -788,7 +788,7 @@ export function makeKernel(oc) {
   }
   function refs(picks) { try { return picks.map(p => refOf(last.S, p)); } finally { flush(); } }
   /* model edges flattened onto a sketch's plane, as sketch shapes (Use): lines and circles where they are, else steps */
-  function project(picks, F) {
+  function projectEdges(picks, F) {
     const out = [];
     try {
       for (const p of picks) {
@@ -817,5 +817,5 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project, state: () => last.S };
+  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, state: () => last.S };
 }

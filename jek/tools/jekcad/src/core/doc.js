@@ -56,6 +56,7 @@ export function normFeature(f, i) {
   if (!f || !FEATURE_KINDS[f.type]) return null;
   const D = FEATURE_KINDS[f.type].defaults, o = { id: isStr(f.id, 40) && f.id ? f.id : sketchId('f'), type: f.type, name: isStr(f.name, 80) && f.name.trim() ? f.name : featureLabel(f.type) + ' ' + (i + 1) };
   if (f.suppressed) o.suppressed = true;
+  if (f.hide) o.hide = true;              // a sketch or plane not drawn
   for (const [k, dv] of Object.entries(D)) {
     const v = f[k];
     if (typeof dv === 'boolean') o[k] = typeof v === 'boolean' ? v : dv;

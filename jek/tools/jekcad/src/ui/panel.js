@@ -1,0 +1,166 @@
+import { MATERIALS, appliedCount, canMove, featureLabel, partLook } from '../core/doc.js';
+import { fmtNum } from '../core/units.js';
+import { h } from '../../../jekray/src/ui/dom.js';
+import { app, changed, checkpoint, emit, on, toast } from './app.js';
+import { editFeature, fieldPick, fieldWants, setPartLook } from './dialog.js';
+import { kernelAsk } from '../page/kernel.js';
+
+/* ==========================================================================
+   The left panel: the feature list (the origin and the three planes, then each feature in order, the rollback bar
+   after the last one applied, which drags), and under it the parts list (each part's name, colour and material).
+   A feature: double-click to edit; its menu (right-click, or ⋯) to rename, suppress, roll to, move, delete; drag
+   it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
+   in the view's corner: what the selection measures.
+   ========================================================================== */
+const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import' };
+let menuEl = null;
+function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
+function rowMenu(x, y, items) {
+  closeRowMenu();
+  menuEl = h('div', { class: 'rt-menu rt-imenu cad-rowmenu', role: 'menu' }, ...items.filter(Boolean).map(it => (it === 'sep' ? h('div', { class: 'sep' }) : h('button', { type: 'button', role: 'menuitem', disabled: it[2] === false ? true : null, onclick: () => { closeRowMenu(); it[1](); } }, it[0]))));
+  document.body.append(menuEl);
+  menuEl.style.left = Math.min(x, innerWidth - menuEl.offsetWidth - 8) + 'px'; menuEl.style.top = Math.min(y, innerHeight - menuEl.offsetHeight - 8) + 'px';
+  const b = menuEl.querySelector('button'); if (b) b.focus();
+}
+const statusOf = id => (app.result ? app.result.features.find(r => r.id === id) : null);
+export function moveFeature(i, j) {
+  if (!canMove(app.doc, i, j)) { toast('It cannot move there: a feature cannot come before what it uses', true); return false; }
+  checkpoint();
+  const [f] = app.doc.features.splice(i, 1);
+  app.doc.features.splice(j, 0, f);
+  changed();
+  return true;
+}
+export function deleteFeature(i) {
+  const f = app.doc.features[i];
+  if (!f) return;
+  checkpoint();
+  app.doc.features.splice(i, 1);
+  if (app.doc.rollback !== null && i < app.doc.rollback) app.doc.rollback--;
+  if (app.doc.rollback !== null && app.doc.rollback >= app.doc.features.length) app.doc.rollback = null;
+  changed();
+  toast('Deleted “' + f.name + '”. Undo brings it back; features that used it now show why they fail.');
+}
+export function setRollback(n) {
+  checkpoint();
+  app.doc.rollback = n >= app.doc.features.length ? null : Math.max(0, n);
+  changed();
+}
+function renameFeature(i) {
+  const f = app.doc.features[i], row = document.querySelector('.cad-frow-f[data-i="' + i + '"] .nm');
+  if (!row) return;
+  const inp = h('input', { type: 'text', value: f.name, class: 'cad-rename', 'aria-label': 'New name' });
+  row.replaceWith(inp); inp.focus(); inp.select();
+  const done = ok => { if (ok && inp.value.trim() && inp.value.trim() !== f.name) { checkpoint(); f.name = inp.value.trim(); changed(); } else renderPanel(); };
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); });
+  inp.addEventListener('blur', () => done(true));
+}
+function featureMenu(i, x, y) {
+  const f = app.doc.features[i], n = appliedCount(app.doc);
+  rowMenu(x, y, [['Edit…', () => editFeature(i)], ['Rename', () => renameFeature(i)],
+    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
+    f.type === 'sketch' || f.type === 'plane' ? [f.hide ? 'Show' : 'Hide', () => { checkpoint(); if (f.hide) delete f.hide; else f.hide = true; changed(); }] : null,
+    'sep', ['Roll to here', () => setRollback(i + 1), i + 1 !== n], ['Move up', () => moveFeature(i, i - 1), canMove(app.doc, i, i - 1)], ['Move down', () => moveFeature(i, i + 1), canMove(app.doc, i, i + 1)],
+    'sep', ['Delete', () => deleteFeature(i)]]);
+}
+/* ---------- the feature list ---------- */
+export function renderPanel() {
+  const list = document.getElementById('featureList');
+  if (!list) return;
+  const doc = app.doc, n = app.sketch ? app.sketch.at : appliedCount(doc), rows = [];
+  const wantsFeatures = fieldWants() === 'features';
+  const planeRow = (k, name) => h('li', { class: 'cad-frow-p', 'data-plane': k, onclick: () => { const p = { kind: 'plane', std: k, name }; if (fieldWants() === 'plane') fieldPick(p); else { app.sel = [p]; emit('sel'); } } }, h('span', { class: 'ic2', 'data-icon': 'plane' }), h('span', { class: 'nm' }, name));
+  rows.push(h('li', { class: 'cad-frow-p origin' }, h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, 'Origin')),
+    planeRow('top', 'Top'), planeRow('front', 'Front'), planeRow('right', 'Right'));
+  const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });
+  doc.features.forEach((f, i) => {
+    if (i === n) rows.push(bar());
+    const st = statusOf(f.id), err = st && st.ok === false, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
+    const chosen = wantsFeatures && app.editing.f.items.includes(f.id);
+    const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
+      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : '') },
+    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name),
+    f.hide ? h('span', { class: 'cad-hid', title: 'Hidden' }, '◌') : null,
+    err ? h('span', { class: 'cad-ferr' }, st.error) : null,
+    h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'));
+    li.addEventListener('dblclick', () => editFeature(i));
+    li.addEventListener('click', () => { if (wantsFeatures) fieldPick({ kind: 'feature', feature: f.id }); });
+    li.addEventListener('keydown', e => { if (e.key === 'Enter') editFeature(i); if (e.key === 'Delete') deleteFeature(i); });
+    li.addEventListener('contextmenu', e => { e.preventDefault(); featureMenu(i, e.clientX, e.clientY); });
+    li.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-jekcad-feature', String(i)); e.dataTransfer.effectAllowed = 'move'; });
+    li.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('text/x-jekcad-feature')) { e.preventDefault(); li.classList.add('dropat'); } });
+    li.addEventListener('dragleave', () => li.classList.remove('dropat'));
+    li.addEventListener('drop', e => { e.preventDefault(); li.classList.remove('dropat'); const from = +e.dataTransfer.getData('text/x-jekcad-feature'); if (Number.isInteger(from) && from !== i) moveFeature(from, i); });
+    rows.push(li);
+  });
+  if (n >= doc.features.length) rows.push(bar());
+  if (!doc.features.length) rows.push(h('li', { class: 'cad-empty' }, 'No features yet. Start with Sketch: click a plane, draw, dimension, finish; then Extrude.'));
+  list.replaceChildren(...rows);
+  wireRollbar(list);
+  renderParts();
+  emit('icons', list);
+}
+/* the bar dragged: it settles between the rows it is dropped between */
+function wireRollbar(list) {
+  const bar = document.getElementById('rollbar');
+  if (!bar) return;
+  bar.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    bar.setPointerCapture(e.pointerId); bar.classList.add('drag');
+    const rows = [...list.querySelectorAll('.cad-frow-f')];
+    const at = y => { let k = 0; for (const r of rows) { const b = r.getBoundingClientRect(); if (y > b.top + b.height / 2) k = +r.dataset.i + 1; } return k; };
+    const move = ev => { const k = at(ev.clientY); for (const r of rows) r.classList.toggle('rolled', +r.dataset.i >= k); };
+    const up = ev => { bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.classList.remove('drag'); const k = at(ev.clientY); if (k !== appliedCount(app.doc)) setRollback(k); else renderPanel(); };
+    bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
+  });
+}
+/* ---------- the parts list ---------- */
+function renderParts() {
+  const box = document.getElementById('partsList');
+  if (!box) return;
+  const parts = app.result ? app.result.parts : [];
+  document.getElementById('partsCount').textContent = '(' + parts.length + ')';
+  box.replaceChildren(...parts.map((p, i) => {
+    const look = partLook(app.doc, p.id, i), sel = app.sel.some(s => s.kind === 'part' && s.part === p.id);
+    const colour = h('input', { type: 'color', value: look.colour, 'aria-label': 'Colour of ' + look.name, title: 'Appearance', onchange: e => setPartLook(p.id, 'colour', e.target.value) });
+    const mat = h('select', { 'aria-label': 'Material of ' + look.name, title: 'Material (its density gives the mass)', onchange: e => setPartLook(p.id, 'material', e.target.value) }, h('option', { value: '' }, 'No material'), ...MATERIALS.map(([m, d]) => h('option', { value: m, selected: look.material === m ? true : null }, m + ' (' + d + ' g/cm³)')));
+    const name = h('span', { class: 'nm', title: 'Double-click to rename' }, look.name);
+    name.addEventListener('dblclick', e => { e.stopPropagation(); const inp = h('input', { type: 'text', value: look.name, class: 'cad-rename', 'aria-label': 'Part name' }); name.replaceWith(inp); inp.focus(); inp.select(); const done = ok => { if (ok && inp.value.trim()) setPartLook(p.id, 'name', inp.value.trim()); else renderParts(); }; inp.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); }); inp.addEventListener('blur', () => done(true)); });
+    const li = h('li', { class: 'cad-part' + (sel ? ' sel' : '') + (look.hidden ? ' hid' : ''), 'data-part': p.id },
+      colour, name,
+      h('button', { type: 'button', class: 'cad-more', title: look.hidden ? 'Show' : 'Hide', 'aria-label': (look.hidden ? 'Show ' : 'Hide ') + look.name, onclick: e => { e.stopPropagation(); setPartLook(p.id, 'hidden', look.hidden ? null : true); } }, look.hidden ? '◌' : '●'),
+      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })]]); } }, '⋯'),
+      h('div', { class: 'cad-partmat' }, mat));
+    li.addEventListener('click', e => { const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
+    return li;
+  }));
+}
+/* ---------- measure: what the selection measures, in the view's corner ---------- */
+let measureSeq = 0;
+async function measureShown() {
+  const box = document.getElementById('measure');
+  if (!box) return;
+  const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 2);
+  if (!picks.length || app.sketch) { box.hidden = true; return; }
+  const seq = ++measureSeq;
+  let m;
+  try { m = await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
+  if (seq !== measureSeq) return;
+  const L = [], mm = v => fmtNum(v, 3) + ' mm', mm2 = v => fmtNum(v, 3) + ' mm²';
+  for (const it of m.items) {
+    if (it.kind === 'part') L.push([it.name, ''], ['Volume', fmtNum(it.volume, 3) + ' mm³'], ['Surface area', mm2(it.area)], ['Mass', it.mass !== null ? fmtNum(it.mass, 3) + ' g (' + it.density + ' g/cm³)' : 'choose a material'], ['Centre of mass', it.centroid.map(v => fmtNum(v, 3)).join(', ')]);
+    else if (it.kind === 'face') L.push(['Face (' + it.type + ')', mm2(it.area)], it.radius ? ['Radius', mm(it.radius)] : null);
+    else if (it.kind === 'edge') L.push(['Edge (' + it.type + ')', mm(it.length)], it.radius ? ['Radius', mm(it.radius)] : null);
+    else L.push(['Vertex', it.pt.map(v => fmtNum(v, 3)).join(', ')]);
+  }
+  if (m.distance !== undefined) L.push(['Distance', mm(m.distance)]);
+  if (m.angle !== undefined) L.push(['Angle', fmtNum(m.angle, 3) + '°']);
+  box.replaceChildren(h('dl', null, ...L.filter(Boolean).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
+  box.hidden = false;
+}
+export function wirePanel() {
+  on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
+  on('sel', () => { renderParts(); measureShown(); }); on('model', measureShown);
+  document.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target)) closeRowMenu(); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
+}

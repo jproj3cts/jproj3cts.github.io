@@ -10423,6 +10423,9 @@ function normCoat(c) {
     if (c.label) out.label = String(c.label).slice(0, 120);       // a JEKfilm coating's whole name (JEKfilm allows 120)
     // a JEKfilm coating in the cloud this stack came from, and its version (io/film-coats.js): the stack is a copy, kept here
     if (c.src && typeof c.src === 'object' && /^[A-Za-z0-9_-]{1,40}$/.test(String(c.src.id))) out.src = { id: String(c.src.id), v: Math.max(1, Math.round(num(c.src.v, 1))) };
+    // the substrate the JEKfilm coating was designed on (its name and index at the design wavelength): the face's note
+    // says so when this face's glass differs (ui/panels.js filmNote)
+    if (c.sub && typeof c.sub === 'object' && isFinite(+c.sub.n) && +c.sub.n >= 1) out.sub = { name: String(c.sub.name || '').slice(0, 40), n: clamp(+c.sub.n, 1, 10) };
     // up to 200 layers, as JEKfilm allows (an edge filter or a broadband HR can need over a hundred)
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
@@ -10766,6 +10769,13 @@ function coatFromFilm(d, src) {
   const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
   const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
+}
+/* a JEKfilm coating designed on another glass than this face's: both indices at its design wavelength and what that
+   costs, R square on from air as designed and on this glass (shown when they differ by more than 0.005) */
+function filmSubCost(coat, nFace) {
+  if (!coat || !coat.sub || !isFinite(nFace) || Math.abs(nFace - coat.sub.n) <= 0.005) return null;
+  const R = ns => cabs2(stackAmp(coat.layers, 1, ns, 1, coat.design, 's'));
+  return { design: R(coat.sub.n), here: R(nFace) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
@@ -15427,7 +15437,7 @@ const WINANSI = { 0x20ac: 128, 0x201a: 130, 0x192: 131, 0x201e: 132, 0x2026: 133
   0x161: 154, 0x203a: 155, 0x153: 156, 0x17e: 158, 0x178: 159 };
 const PDF_SUBS = { '−': '-', '→': '->', '←': '<-', '⇄': '<->', '↔': '<->', '≈': '~', '≤': '<=', '≥': '>=', '∞': 'inf',
   'λ': 'lambda', 'Δ': 'Delta', 'δ': 'delta', 'ω': 'omega', 'π': 'pi', 'θ': 'theta', 'φ': 'phi', 'α': 'alpha',
-  'β': 'beta', 'γ': 'gamma', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
+  'β': 'beta', 'γ': 'gamma', 'ρ': 'rho', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
 function pdfText(t) {
   let s = '';
   for (const ch of String(t)) {
@@ -31157,7 +31167,26 @@ function coatingRows(el, holder, label, opts = {}) {
   }
   if (holder.coat.src) box.append(filmNote(holder));
   else if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
+  const sn = holder.coat.mode === 'stack' ? filmSubNote(el, holder) : null; if (sn) box.append(sn);
   return box;
+}
+
+/* the glass behind a face: a lens's first or last surface its outer glass, any other part its material; a cemented
+   surface inside a lens has glass on both sides, so none */
+function faceGlass(el, holder) {
+  if (el.type !== 'lens') return el.material || null;
+  const i = el.surfaces.indexOf(holder), m = el.materials || [];
+  return i === 0 ? m[0] || null : i === el.surfaces.length - 1 ? m[m.length - 1] || null : null;
+}
+function filmSubNote(el, holder) {
+  const c = holder.coat, g = faceGlass(el, holder);
+  if (!c.sub || !g) return null;
+  const nFace = refIndex(g, c.design), cost = filmSubCost(c, nFace);
+  if (!cost) return null;
+  const pc = v => (100 * v < 0.01 ? (100 * v).toExponential(1) : (+(100 * v).toPrecision(3)).toString()) + ' %';
+  return h('p', { class: 'note rt-filmsub', style: 'margin-top:0.4rem' },
+    'Designed on ' + (c.sub.name || 'a substrate') + ' (n ' + c.sub.n.toFixed(4) + '); this face is ' + matLabel(g) + ' (n ' + nFace.toFixed(4) + '). ' +
+    'R at ' + c.design + ' nm, square on: ' + pc(cost.design) + ' as designed, ' + pc(cost.here) + ' on this glass.');
 }
 
 /* a face linked to a JEKfilm coating: where it came from, its version, and the ways on (its layers are edited in
@@ -55905,12 +55934,24 @@ async function loadFilmFolder(link) {
   filmUpdates();
   return filmFolder.list;
 }
+/* the substrate a JEKfilm coating was designed on, by name and index at its design wavelength ({ glass } or { n }) */
+function filmSubOf(d, design) {
+  const sub = d && d.spec && d.spec.sub;
+  if (!sub || typeof sub !== 'object') return null;
+  if (sub.glass) { const n = refIndex({ glass: String(sub.glass) }, design); return glassKey(String(sub.glass)) && isFinite(n) ? { name: String(sub.glass), n } : null; }
+  return isFinite(+sub.n) && +sub.n >= 1 ? { name: '', n: +sub.n } : null;
+}
+/* a .jekfilm's content as a face's coating, its design substrate kept */
+function filmFaceCoat(d, src) {
+  const c = coatFromFilm(d, src), sub = filmSubOf(d, c.design);
+  return normCoat(sub ? { ...c, sub } : c);
+}
 /* a cloud coating as a face's coating: its stack fetched, linked to it */
 async function filmCoat(id) {
   const b = await api('/v1/benches/' + id);
   if (b.tool !== 'jekfilm') throw new Error('“' + b.name + '” is not a JEKfilm coating');
   const d = JSON.parse(b.content);
-  return normCoat(coatFromFilm(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version }));
+  return filmFaceCoat(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version });
 }
 /* a face takes a coating from the cloud (the list's ◆ entries): fetched, then put on, as one step of Undo */
 async function useFilmOn(holder, id) {
@@ -55933,7 +55974,7 @@ function filmFileOn(holder) {
       let d = null;
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
       if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
-      checkpoint(); holder.coat = normCoat(coatFromFilm(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d))); changed(true);
+      checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d)); changed(true);
       track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
     };

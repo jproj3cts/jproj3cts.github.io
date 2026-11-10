@@ -4,16 +4,16 @@ import { track } from '../../../jekray/src/io/usage.js';
 import { COAT_MATERIALS, qwot } from '../../../jekray/src/core/coatings.js';
 import { METAL_NAMES, metalNK } from '../../../jekray/src/core/metals.js';
 import { FILM_TARGETS, filmSpec, subLabelOf } from '../core/film.js';
-import { MAKE_DURABILITY, MAKE_SURFACES, makeLimits } from '../core/film-make.js';
+import { MAKE_DURABILITY, drawingNote, makeLimits } from '../core/film-make.js';
 import { film, filmCurves, filmTolResult } from '../ui/designer.js';
 import { toast } from '../ui/bar.js';
 import { downloadBlob, filmFileName } from './files.js';
 
 /* ==========================================================================
-   The coating specification: what an optics maker needs to coat the part, as a PDF of two A4 pages, written by
-   JEKray's io/pdf.js. Page 1 is the order: the part and the substrate, the surfaces and the clear aperture, the
-   performance it is accepted against (with the design's own value beside each limit), durability, surface quality
-   and how it is checked. Page 2 is the design behind it: the layers (material, index, physical and optical thickness),
+   The coating specification: what a coater needs, the coating and the substrate it is on and no more, as a PDF of two
+   A4 pages, written by JEKray's io/pdf.js. Page 1 is the order: the coating and its substrate, the performance it is
+   accepted against, reflectance and transmittance (with the design's own value beside each limit), durability, how it
+   is checked, and the note for the part's drawing. Page 2 is the design behind it: the layers (material, index, physical and optical thickness),
    the reflectance across the band and against the angle, and the tolerance run when there is one for this design.
    JEKrayPro's, as JEKray's design reports are.
    ========================================================================== */
@@ -75,22 +75,22 @@ export function filmSpecRecs(f, o) {
   const angles = s.theta > s.theta0 ? s.theta0 + '–' + s.theta + '°' : s.theta0 + '°', pol = { avg: 'mean of s and p', s: 's', p: 'p' }[s.pol];
   // page 1: the order
   const p1 = spage(meta, 'Coating specification', 1);
-  shead(p1, 'Part and substrate');
+  shead(p1, 'Coating and substrate');
   stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [
-    ['Part', M.part || f.name], ['Quantity', String(M.qty)],
-    ['Substrate', subLabelOf(f.spec.sub) + (s.ns ? ', n = ' + s.ns.toFixed(4) + ' at ' + s.design + ' nm' : '')],
-    ['Size', M.size + ' mm diameter'], ['Clear aperture', M.ca + '% of the diameter (' + (M.size * M.ca / 100).toFixed(1) + ' mm)'],
-    ['Surfaces coated', MAKE_SURFACES[M.surfaces]], ['Coating', FILM_TARGETS[s.target] + ' (design attached, page 2)']]);
+    ['Coating', FILM_TARGETS[s.target] + ', ' + f.layers.length + (f.layers.length === 1 ? ' layer' : ' layers') + ' (design on page 2)'],
+    ['Substrate', subLabelOf(f.spec.sub) + ', n = ' + s.ns.toFixed(4) + ' at ' + s.design + ' nm'], ['Incident medium', 'n = ' + s.n0]]);
   shead(p1, 'Performance');
-  spara(p1, 'Reflectance of one coated surface, incident medium n = ' + s.n0 + ', at ' + angles + ' angle of incidence, ' + pol + ' polarisation. The coating is accepted when each limit below is met over its band.');
+  spara(p1, 'One coated surface at ' + angles + ' angle of incidence, ' + pol + ' polarisation: its reflectance R, and its transmittance T into the substrate. The coating is accepted when each limit below is met over its band.');
   p1.y += 4;
   const rows = makeLimits(f, s, M);
   stable(p1, [{ label: 'Quantity', w: 150 }, { label: 'Band', w: 120 }, { label: 'Limit', w: 90, align: 'right', mono: true }, { label: 'Design gives', w: 90, align: 'right', mono: true }, { label: '', w: 49 }],
     rows.map(r => [r.label + ' (%)', r.where, (r.op === 'le' ? '<= ' : '>= ') + r.value, spct(r.design), r.ok ? 'met' : 'NOT MET']));
-  shead(p1, 'Durability and quality');
-  stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [['Durability', MAKE_DURABILITY[M.durability]], ['Surface quality', M.quality]]);
+  shead(p1, 'Durability');
+  spara(p1, MAKE_DURABILITY[M.durability] + '.');
   shead(p1, 'Verification');
   spara(p1, M.witness ? 'Measure the reflectance of a witness sample from the same run over ' + s.lo + '–' + s.hi + ' nm at ' + (s.theta > s.theta0 ? s.theta0 + '° and ' + s.theta + '°' : s.theta0 + '°') + ', and send the measured curve with the parts. The design curves to compare it with are on page 2.' : 'The maker’s standard checks of the run.');
+  shead(p1, 'Drawing note');
+  for (const ln of drawingNote(f, s, M)) { stext(p1.g, ln, SM, p1.y, { size: 8.5, mono: true }); p1.y += 12; }
   // page 2: the design
   const p2 = spage(meta, 'Coating design', 2);
   shead(p2, 'Layers, from the incident medium to the substrate');

@@ -10,6 +10,7 @@ import { linePlotSvg } from './plot.js';
 import { filmMaterials, filmNeedle } from '../core/film-opt.js';
 import { filmTolerance } from '../core/film-tol.js';
 import { toast } from './bar.js';
+import { stackField } from '../core/film-field.js';
 
 /* ==========================================================================
    The designer: the coating being worked on (film), its undo history, and the page drawn from it. What the stack is
@@ -71,7 +72,7 @@ export function render() {
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
   // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
-  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
+  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec), fieldCard(spec)];
   body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
   for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;
@@ -113,10 +114,10 @@ function settingsCard(spec) {
 /* a reflectance as a percentage to three decimals, so a column's figures line up (very small ones as above) */
 const dsR = v => dsFix(100 * v, 3);
 /* a small table under a plot: a heading row, figure rows, and a line of notes under it */
-function miniTable(id, label, heads, rows, foot) {
+function miniTable(id, label, heads, rows, foot, lbl) {
   return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id, 'aria-label': label },
     h('thead', null, h('tr', null, ...heads.map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
-    h('tbody', null, ...rows.map(r => h('tr', null, h('th', { scope: 'row' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))),
+    h('tbody', null, ...rows.map(r => h('tr', null, h('th', { scope: 'row', class: lbl ? 'lbl' : null }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))),
     foot ? h('tfoot', null, h('tr', null, h('td', { colspan: String(heads.length) }, foot))) : null));
 }
 /* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
@@ -190,6 +191,50 @@ function layersCard(spec) {
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
+}
+/* ---------- the field in the stack: an optional view, shut until asked for; how it is looked at is this browser's, not
+   the coating's (nothing of it is saved in the file) ---------- */
+const FIELD_KEY = 'jek-film-field';
+const fieldView = (() => { try { return { pol: 's', ...JSON.parse(localStorage.getItem(FIELD_KEY) || '{}'), nm: null, deg: null }; } catch (err) { return { open: false, pol: 's', nm: null, deg: null }; } })();
+const keepField = () => { try { localStorage.setItem(FIELD_KEY, JSON.stringify({ open: !!fieldView.open, pol: fieldView.pol })); } catch (err) { /* this visit only */ } };
+/* the field for the coating here, at the wavelength and angle chosen (λ₀ and the smallest angle judged unless set) */
+export function filmField(f, o = {}) {
+  const spec = filmSpec(f), nm = o.nm || spec.design, deg = o.deg !== undefined && o.deg !== null ? o.deg : spec.theta0 || 0, pol = o.pol || 's';
+  const F = stackField(f.layers, spec.n0, spec.ns, Math.cos(deg * Math.PI / 180), nm, pol);
+  // each layer's peak, and where it sits; the field at the outer surface and at each interface
+  const peaks = f.layers.map((L, j) => { let best = -1, at = 0; F.z.forEach((z, i) => { if (z >= F.bounds[j] - 1e-9 && z <= F.bounds[j + 1] + 1e-9 && F.E2[i] > best) { best = F.E2[i]; at = z; } }); return { layer: j + 1, E2: best, z: at }; });
+  const edgeAt = z => { let best = 0; F.z.forEach((v, i) => { if (Math.abs(v - z) < Math.abs(F.z[best] - z)) best = i; }); return F.E2[best]; };
+  return { ...F, nm, deg, pol, peaks, surface: F.E2[0], edges: F.bounds.map(edgeAt) };
+}
+function fieldCard(spec) {
+  const toggle = h('button', { class: 'rt-btn', type: 'button', id: 'filmFieldShow', 'aria-expanded': String(!!fieldView.open),
+    onclick: () => { fieldView.open = !fieldView.open; keepField(); render(); } }, fieldView.open ? 'Hide' : 'Show');
+  const out = section('Field in the stack', h('div', { class: 'film-tools film-tolset' },
+    h('span', { class: 'film-tolline' }, '|E|² through the layers, where laser damage starts'), toggle));
+  out.id = 'filmField';
+  if (!fieldView.open) return out;
+  if (!film.layers.length) { out.append(h('p', { class: 'rt-lsub' }, 'No layers: add one to see the field in it.')); return out; }
+  const F = filmField(film, fieldView), num = (v, set, label) => {
+    const i = h('input', { type: 'text', inputmode: 'decimal', value: dsFmt(v, 5), class: 'rt-lnum', 'aria-label': label, spellcheck: 'false' });
+    const go = () => { const x = +i.value; if (i.value.trim() !== '' && isFinite(x)) set(x); render(); };
+    i.addEventListener('change', go); i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    return i;
+  };
+  out.querySelector('.film-tolline').replaceChildren('At', num(F.nm, v => { fieldView.nm = v > 0 ? v : null; }, 'Wavelength for the field (nm)'), 'nm,',
+    num(F.deg, v => { fieldView.deg = Math.max(0, Math.min(89, v)); }, 'Angle of incidence for the field (degrees)'), '°,',
+    dsSelect([['s', 's'], ['p', 'p']], F.pol, v => { fieldView.pol = v; keepField(); render(); }, 'Polarisation for the field'));
+  const pl = h('div'), top = Math.max(...F.E2);
+  linePlotSvg(pl, { id: 'field', H: 190, label: '|E|² against depth at ' + dsFmt(F.nm, 5) + ' nm, ' + dsFmt(F.deg, 3) + '°, ' + F.pol + ' (1 = the incident wave)',
+    xTitle: 'Depth from the outer surface (nm)', yTitle: '|E|²', xName: 'nm', yUnit: '', yr: [0, Math.max(0.5, 1.1 * top)], marks: F.bounds,
+    series: [{ label: '|E|²', cls: 's0', xs: F.z, ys: F.E2 }] });
+  const hi = F.peaks.reduce((a, b) => (b.E2 > a.E2 ? b : a)), edge = F.edges.slice(0, -1).reduce((a, v, k) => (v > a.v ? { v, k } : a), { v: -1, k: 0 });
+  const mat = L => (L.metal ? METAL_NAMES[L.metal] || L.metal : (COAT_MATERIALS.find(([v]) => Math.abs(+v - L.n) < 1e-9) || [0, 'n = ' + dsFmt(L.n, 4)])[1].replace(/ \([\d.]+\)$/, ''));
+  const rows = [['Outer surface', dsFix(F.surface, 3), '0'],
+    ['Highest, layer ' + hi.layer + ' (' + mat(film.layers[hi.layer - 1]) + ')', dsFix(hi.E2, 3), dsFix(hi.z, 1)],
+    ['Highest at an interface', dsFix(edge.v, 3), dsFix(F.bounds[edge.k], 1)],
+    ['Into the substrate', dsFix(F.E2[F.E2.length - 1], 3), dsFix(F.bounds[F.bounds.length - 1], 1)]];
+  out.append(h('div', { class: 'rt-lpair' }, miniTable('filmFieldTable', 'Field in the stack', ['Where', '|E|²', 'Depth (nm)'], rows, 'Dashed lines on the plot: the interfaces.', true), pl));
+  return out;
 }
 /* ---------- the tabs: Design, Tolerance, Make it (kept in this browser, per viewer) ---------- */
 const FILM_TAB_KEY = 'jek-film-tab';

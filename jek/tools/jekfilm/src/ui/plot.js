@@ -3,7 +3,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    A line plot, drawn as SVG in the page's own colours (so it follows the theme with no redraw): axes with round
    ticks, the series with a key, and a readout of each series at the pointer. o = { label, xTitle, yTitle, xr, yr,
-   series: [{ label, cls, xs, ys, dash }], H }. The series' colours are classes (.s0…, .tgt) in style.css.
+   series: [{ label, cls, xs, ys, dash }], H, marks: [x…] }. The series' colours are classes (.s0…, .tgt) in style.css.
    ========================================================================== */
 const SVGNS = 'http://www.w3.org/2000/svg';
 const sv = (tag, attrs, ...kids) => { const n = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs || {})) if (v !== null && v !== undefined) n.setAttribute(k, v); for (const k of kids) n.append(k); return n; };
@@ -21,13 +21,15 @@ export function linePlotSvg(parent, o) {
   const xs = o.series.flatMap(s => s.xs), ys = o.series.flatMap(s => s.ys).filter(isFinite);
   const xr = o.xr || [Math.min(...xs), Math.max(...xs)], yr = o.yr || [Math.min(0, ...ys), Math.max(...ys) || 1];
   const X = v => L + (W - L - R) * (v - xr[0]) / ((xr[1] - xr[0]) || 1), Y = v => H - B - (H - B - T) * (v - yr[0]) / ((yr[1] - yr[0]) || 1);
-  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, class: 'film-plot', role: 'img', 'aria-label': o.label, preserveAspectRatio: 'none' });
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, class: 'film-plot', role: 'img', 'aria-label': o.label, preserveAspectRatio: 'none', style: H !== 250 ? `aspect-ratio: ${W} / ${H}` : null });
   const grid = sv('g', { class: 'grid' }), axes = sv('g', { class: 'axes' });
   for (const t of niceTicks(xr[0], xr[1], 6)) { grid.append(sv('line', { x1: X(t), x2: X(t), y1: T, y2: H - B })); axes.append(sv('text', { x: X(t), y: H - B + 14, 'text-anchor': 'middle' }, tickText(t))); }
   for (const t of niceTicks(yr[0], yr[1], 4)) { grid.append(sv('line', { x1: L, x2: W - R, y1: Y(t), y2: Y(t) })); axes.append(sv('text', { x: L - 5, y: Y(t) + 3.5, 'text-anchor': 'end' }, tickText(t))); }
   axes.append(sv('rect', { x: L, y: T, width: W - L - R, height: H - B - T, class: 'frame' }),
     sv('text', { x: (L + W - R) / 2, y: H - 4, 'text-anchor': 'middle', class: 'title' }, o.xTitle || ''),
     sv('text', { x: 11, y: (T + H - B) / 2, 'text-anchor': 'middle', class: 'title', transform: `rotate(-90 11 ${(T + H - B) / 2})` }, o.yTitle || ''));
+  // marks: upright lines at given x (the interfaces of a stack), drawn with the grid
+  for (const m of o.marks || []) if (m >= xr[0] && m <= xr[1]) grid.append(sv('line', { x1: X(m), x2: X(m), y1: T, y2: H - B, class: 'mark' }));
   svg.append(grid, axes, sv('defs', null, sv('clipPath', { id: 'clip' + o.id }, sv('rect', { x: L, y: T, width: W - L - R, height: H - B - T }))));
   const lines = sv('g', { 'clip-path': `url(#clip${o.id})` });
   for (const s of o.series) {

@@ -1985,6 +1985,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-plot .grid line { stroke: var(--jek-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .film-plot .axes text { font: 10px var(--jek-mono); fill: var(--jek-ink-soft); }
 .film-plot .axes text.title { font-family: var(--jek-sans); font-size: 11px; }
+.film-plot .grid line.mark { stroke: var(--jek-line-2); stroke-dasharray: 3 3; }
 .film-plot .frame { fill: none; stroke: var(--jek-line-2); vector-effect: non-scaling-stroke; }
 .film-plot .line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .film-plot .line.s0, .film-key .s0 i { stroke: var(--jek-cyan); background: var(--jek-cyan); }
@@ -2119,6 +2120,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-chk { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
 .film-ws .film-mk th { width: 11rem; }
 .film-ws .film-mk td.unit { width: auto; }
+.film-note { margin: 0.5rem 0; padding: 0.6rem 0.75rem; font: 0.8rem/1.55 var(--jek-mono); white-space: pre-wrap; color: var(--jek-ink); background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 2px; }
 </style>
 </head>
 <body class="film-app">
@@ -2649,12 +2651,94 @@ function coatFromFilm(d, src) {
   const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
+/* a JEKfilm coating designed on another glass than this face's: both indices at its design wavelength and what that
+   costs, R square on from air as designed and on this glass (shown when they differ by more than 0.005) */
+function filmSubCost(coat, nFace) {
+  if (!coat || !coat.sub || !isFinite(nFace) || Math.abs(nFace - coat.sub.n) <= 0.005) return null;
+  const R = ns => cabs2(stackAmp(coat.layers, 1, ns, 1, coat.design, 's'));
+  return { design: R(coat.sub.n), here: R(nFace) };
+}
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 function coatToStack(layers, spec, label) {
   const one = layers.length === 1 && spec.target === 'rf';
   return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d, ...(L.metal ? { metal: L.metal } : {}) })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
 }
+/* ==========================================================================
+   One face: what it does to light's two polarisations
+   The bench's rays, its diffracted field and focus, the optical lens designer's polarisation trace and the RF
+   designer's losses all take a face's amplitudes from here, so none of them can disagree with another.
+   The tracer's convention throughout: fields as e^{+ikL}; s across the plane of incidence; p the in-plane
+   normal to the ray with the parity sign, turned over at each reflection, so that r_p = r_s at normal incidence
+   and a mirror is -√R for both. Transmitted amplitudes are normalised to power: |t|² is the share of the
+   power the face passes (the field's t times √(n' cos θ' / n cos θ)), so |r|² + |t|² = 1 where nothing is
+   absorbed. Each amplitude is [re, im].
+   ========================================================================== */
+
+
+/* a thin-film stack's amplitude transmission (the field's, not yet normalised to power), for s or p, light from
+   n0 into ns at cosine c0; the layers as stackAmp takes them (index n, thickness d in nm, outside in) */
+function stackT(layers, n0, ns, c0, nm, pol) {
+  const { Br, Bi, Cr, Ci, e0, es } = filmBC(layers, n0, ns, c0, nm, pol);
+  const dr = e0 * Br + Cr, di = e0 * Bi + Ci, dd = dr * dr + di * di;
+  if (!dd) return [0, 0];
+  const t = [2 * e0 * dr / dd, -2 * e0 * di / dd];
+  // p: the field's ratio, not the tangential component's (c0 over the cosine beyond, imaginary where the wave there is evanescent)
+  if (pol === 's') return t;
+  if (!es[3]) { const k = c0 / es[2]; return [t[0] * k, t[1] * k]; }
+  const k = -c0 / es[3];
+  return [-t[1] * k, t[0] * k];
+}
+
+/* A refracting face (bare, coated, a film splitter): light from index n1 into n2 meeting it at cosine ci (> 0) at
+   nm. face: { coat } and, for a film splitter, { kind: 'split', Rs, Rp } (as the tracer's surfaces have them).
+   Returns { rs, rp, ts, tp, tir }: tir when everything comes back (total internal reflection, or a splitter that
+   passes nothing). Each case as the tracer has always traced it, and a coating's stack now passes its own phase. */
+function faceAmps(face, n1, n2, ci, nm) {
+  const coat = face && face.coat, k = 1 - (n1 / n2) * (n1 / n2) * (1 - ci * ci);
+  // a mirror coating: reflected with its reflectance, nothing passed (the rest absorbed), -√R as a mirror is,
+  // beyond the critical angle too (the metal reflects, not the glass)
+  if (coat && coat.mode === 'mirror') { const R = mirrorR(coat, nm), a = -Math.sqrt(R); return { rs: [a, 0], rp: [a, 0], ts: [0, 0], tp: [0, 0], tir: true }; }
+  // a stack: its own amplitudes, met in reverse from the glass (its layers listed from the outside in), conjugated
+  // from the matrix's e^{-ikz} to the tracer's e^{+ikL}; beyond the critical angle all of it comes back, a stack of
+  // nothing as bare TIR does
+  const stack = coat && coat.mode === 'stack' && coat.layers && coat.layers.length ? (n1 > n2 ? coat.layers.slice().reverse() : coat.layers) : null;
+  const cj = a => [a[0], -a[1]], sr = L => [cj(stackAmp(L, n1, n2, ci, nm, 's')), cj(stackAmp(L, n1, n2, ci, nm, 'p'))];
+  if (k < 0 && stack) { const [rs, rp] = sr(stack); return { rs, rp, ts: [0, 0], tp: [0, 0], tir: true }; }
+  if (k < 0) {
+    // total internal reflection: everything comes back, each component with its own phase
+    const b = Math.sqrt(-k), phs = -2 * Math.atan2(n2 * b, n1 * ci), php = -2 * Math.atan2(n1 * b, n2 * ci) + Math.PI;
+    return { rs: [Math.cos(phs), Math.sin(phs)], rp: [Math.cos(php), Math.sin(php)], ts: [0, 0], tp: [0, 0], tir: true };
+  }
+  const ct = Math.sqrt(k), norm = Math.sqrt(n2 * ct / (n1 * ci));
+  // known by its reflectance alone: the reflected field leads the transmitted by a quarter wave, nothing absorbed
+  const byR = (Rs, Rp) => ({ rs: [0, Math.sqrt(Rs)], rp: [0, Math.sqrt(Rp)], ts: [Math.sqrt(Math.max(0, 1 - Rs)), 0], tp: [Math.sqrt(Math.max(0, 1 - Rp)), 0], tir: Rs >= 1 && Rp >= 1 });
+  if (face && face.kind === 'split') return byR(face.Rs, face.Rp);
+  // bare: Fresnel's, real, so a sign change is half a wave (p in the parity convention, so r_p = r_s square on)
+  const bare = () => ({
+    rs: [(n1 * ci - n2 * ct) / (n1 * ci + n2 * ct), 0], rp: [(n1 * ct - n2 * ci) / (n2 * ci + n1 * ct), 0],
+    ts: [2 * n1 * ci / (n1 * ci + n2 * ct) * norm, 0], tp: [2 * n1 * ci / (n2 * ci + n1 * ct) * norm, 0], tir: false });
+  if (!coat || coat.mode === 'bare') return bare();
+  if (coat.mode === 'band') { if (!(nm >= coat.lo && nm <= coat.hi)) return bare(); const R = coat.R / 100; return byR(R, R); }
+  if (coat.mode === 'stack') {
+    if (!stack) return bare();
+    const [rs, rp] = sr(stack), ts = cj(stackT(stack, n1, n2, ci, nm, 's')), tp = cj(stackT(stack, n1, n2, ci, nm, 'p'));
+    // stackAmp's p is already the parity convention's: r_p = r_s square on, and a layer of nothing is a bare face
+    return { rs, rp, ts: [ts[0] * norm, ts[1] * norm], tp: [tp[0] * norm, tp[1] * norm], tir: false };
+  }
+  const R = Math.max(0, Math.min(1, (coat.R || 0) / 100));
+  return byR(R, R);
+}
+
+/* A mirror of reflectance R (0 to 1): -√R for s and p alike (the parity convention), √R met from behind (the
+   other way up); what it does not reflect passes, as the tracer has it */
+function mirrorAmps(R, back) {
+  const r = back ? Math.sqrt(R) : -Math.sqrt(R), t = Math.sqrt(Math.max(0, 1 - R));
+  return { rs: [r, 0], rp: [r, 0], ts: [t, 0], tp: [t, 0], tir: false };
+}
+
+/* a face's power reflection square on (s and p alike there), as the RF designer and a graded disc count it */
+const faceRNormal = (n1, n2, nm, coat) => cabs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
 /* Where a visit came from, as a short plain token for the usage counts (io/usage.js): the tag on the link
    that brought it (?src=ig-spectrometer, from a post), or else the social site it came through by its
    referrer; '' for neither. A tag names a post, never a person. */
@@ -3425,7 +3509,7 @@ const WINANSI = { 0x20ac: 128, 0x201a: 130, 0x192: 131, 0x201e: 132, 0x2026: 133
   0x161: 154, 0x203a: 155, 0x153: 156, 0x17e: 158, 0x178: 159 };
 const PDF_SUBS = { '−': '-', '→': '->', '←': '<-', '⇄': '<->', '↔': '<->', '≈': '~', '≤': '<=', '≥': '>=', '∞': 'inf',
   'λ': 'lambda', 'Δ': 'Delta', 'δ': 'delta', 'ω': 'omega', 'π': 'pi', 'θ': 'theta', 'φ': 'phi', 'α': 'alpha',
-  'β': 'beta', 'γ': 'gamma', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
+  'β': 'beta', 'γ': 'gamma', 'ρ': 'rho', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
 function pdfText(t) {
   let s = '';
   for (const ch of String(t)) {
@@ -3560,11 +3644,12 @@ function filmTolerance(layers, spec, tol) {
     merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts) };
 }
 /* ==========================================================================
-   What a maker needs to coat the part: the specification kept with the coating (make) and the performance it is
-   accepted against. The limits follow the coating's target, each with the value the design gives over the band and
+   What a coater needs: the specification of the coating and the substrate it is on, kept with the coating (make), and
+   the performance it is accepted against (nothing of the part beyond its substrate: that is the part's drawing's). The limits follow the coating's target, each with the value the design gives over the band and
    the angles judged, for the polarisation chosen, so a requirement the design itself misses shows before it is sent:
-     ar      R mean ≤, R max ≤          hr     R min ≥, R mean ≥
-     split   R ≥ R − tol, R ≤ R + tol    edge   R ≥ on the reflected side, R ≤ on the passed side (the edge ± 2% left out)
+     ar      R mean ≤, R max ≤, T mean ≥            hr     R min ≥, R mean ≥
+     split   R ≥ R − tol, R ≤ R + tol, T min ≥     edge   R ≥ on the reflected side; R ≤ and T ≥ on the passed side
+   (the edge ± 2% left out). T is what one coated surface passes into the substrate (faceAmps, absorption counted).
    A limit not set by hand takes a default from the design with a margin (makeDefaults); one set by hand is kept.
    ========================================================================== */
 const MAKE_DURABILITY = {
@@ -3573,48 +3658,55 @@ const MAKE_DURABILITY = {
   'iso-9211': 'ISO 9211-4: the tests named with the order',
   maker: 'The maker’s own standard coating durability',
 };
-const MAKE_SURFACES = { s1: 'Surface 1 (the light’s side)', s2: 'Surface 2', both: 'Both surfaces' };
 const mnum = (v, lo, hi, d) => (v === null || v === undefined || v === '' || !isFinite(+v) ? d : Math.min(hi, Math.max(lo, +v)));
 function normMake(m) {
   m = m && typeof m === 'object' ? m : {};
   const lim = m.limits && typeof m.limits === 'object' ? m.limits : {}, limits = {};
   for (const [k, v] of Object.entries(lim)) if (/^[a-z]{2,8}$/.test(k) && isFinite(+v)) limits[k] = Math.min(100, Math.max(0, +v));
-  return {
-    part: String(m.part || '').slice(0, 80), qty: Math.round(mnum(m.qty, 1, 1e6, 1)),
-    size: mnum(m.size, 0.1, 2000, 25.4), ca: mnum(m.ca, 1, 100, 90), surfaces: MAKE_SURFACES[m.surfaces] ? m.surfaces : 's1',
-    durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', quality: String(m.quality || '60-40 scratch-dig (MIL-PRF-13830B)').slice(0, 60),
-    witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits,
-  };
+  return { durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits };
 }
-/* the reflectance over the band and the angles judged (five angles across them), each wavelength's value at each angle */
-function sampleR(layers, spec, keep) {
+/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged */
+function surfaceT(layers, spec, ci, nm) {
+  const F = faceAmps({ coat: { mode: 'stack', layers } }, spec.n0, spec.ns, ci, nm);
+  const ts = cabs2(F.ts), tp = cabs2(F.tp);
+  return spec.pol === 's' ? ts : spec.pol === 'p' ? tp : (ts + tp) / 2;
+}
+/* the reflectance (or, kind 'T', the transmittance) over the band and the angles judged, five angles across them */
+function sampleR(layers, spec, keep, kind) {
   const out = [], nA = spec.theta > spec.theta0 ? 5 : 1;
   for (let i = 0; i < 61; i++) {
     const nm = spec.lo + (spec.hi - spec.lo) * i / 60;
     if (keep && !keep(nm)) continue;
-    for (let j = 0; j < nA; j++) { const a = spec.theta0 + (spec.theta - spec.theta0) * (nA > 1 ? j / (nA - 1) : 0); out.push(stackR(layers, spec.n0, spec.ns, Math.cos(a * Math.PI / 180), nm, spec.pol)); }
+    for (let j = 0; j < nA; j++) {
+      const a = spec.theta0 + (spec.theta - spec.theta0) * (nA > 1 ? j / (nA - 1) : 0), ci = Math.cos(a * Math.PI / 180);
+      out.push(kind === 'T' ? surfaceT(layers, spec, ci, nm) : stackR(layers, spec.n0, spec.ns, ci, nm, spec.pol));
+    }
   }
   return out;
 }
 const up = v => { if (!(v > 0)) return 0.01; const p = Math.pow(10, Math.floor(Math.log10(v)) - 1); return Math.ceil(v / p) * p; };
 const down = v => Math.floor(v * 10 + 1e-6) / 10;
 const mean = a => a.reduce((x, y) => x + y, 0) / (a.length || 1);
-/* the requirement rows for the coating: [{ key, label, op ('le' | 'ge'), value, auto, design, ok, where }] */
+/* the requirement rows for the coating: [{ key, q ('R' | 'T'), label, op ('le' | 'ge'), value, auto, design, ok, where }] */
 function makeLimits(f, spec, make) {
   const L = f.layers, pc = v => 100 * v, set = (make && make.limits) || {};
   const rows = [];
   const row = (key, label, op, design, dflt, where) => {
     const value = set[key] !== undefined ? set[key] : dflt;
-    rows.push({ key, label, op, value, auto: set[key] === undefined, design, ok: op === 'le' ? design <= value + 1e-9 : design >= value - 1e-9, where });
+    rows.push({ key, q: label[0], label, op, value, auto: set[key] === undefined, design, ok: op === 'le' ? design <= value + 1e-9 : design >= value - 1e-9, where });
   };
   const band = spec.lo + '–' + spec.hi + ' nm';
   if (spec.target === 'ar' || spec.target === 'hr') {
     const R = sampleR(L, spec).map(pc), m = mean(R), mx = Math.max(...R), mn = Math.min(...R);
-    if (spec.target === 'ar') { row('mean', 'R mean', 'le', m, up(m * 1.5), band); row('max', 'R max', 'le', mx, up(mx * 1.3), band); }
+    if (spec.target === 'ar') {
+      row('mean', 'R mean', 'le', m, up(m * 1.5), band); row('max', 'R max', 'le', mx, up(mx * 1.3), band);
+      const T = mean(sampleR(L, spec, null, 'T').map(pc)); row('tmean', 'T mean', 'ge', T, down(T - 0.5), band);
+    }
     else { row('min', 'R min', 'ge', mn, Math.min(99.9, down(mn - 0.2)), band); row('mean', 'R mean', 'ge', m, Math.min(99.9, down(m - 0.1)), band); }
   } else if (spec.target === 'split') {
     const R = sampleR(L, spec).map(pc), tol = (make && make.splitTol) || 3;
     row('min', 'R min', 'ge', Math.min(...R), Math.max(0, spec.R - tol), band); row('max', 'R max', 'le', Math.max(...R), Math.min(100, spec.R + tol), band);
+    const T = sampleR(L, spec, null, 'T').map(pc); row('tmin', 'T min', 'ge', Math.min(...T), Math.max(0, down(Math.min(...T) - 1)), band);
   } else if (spec.target === 'edge') {
     const off = 0.02 * spec.edge, reflBelow = !spec.passBelow;
     const refl = sampleR(L, spec, nm => (reflBelow ? nm < spec.edge - off : nm > spec.edge + off)).map(pc);
@@ -3622,9 +3714,25 @@ function makeLimits(f, spec, make) {
     const rw = reflBelow ? spec.lo + '–' + Math.round(spec.edge - off) + ' nm' : Math.round(spec.edge + off) + '–' + spec.hi + ' nm';
     const pw = reflBelow ? Math.round(spec.edge + off) + '–' + spec.hi + ' nm' : spec.lo + '–' + Math.round(spec.edge - off) + ' nm';
     if (refl.length) row('refl', 'R min, reflected side', 'ge', Math.min(...refl), Math.min(90, down(Math.min(...refl) - 1)), rw);
-    if (pass.length) row('pass', 'R max, passed side', 'le', Math.max(...pass), Math.max(5, up(Math.max(...pass) * 1.2)), pw);
+    if (pass.length) {
+      row('pass', 'R max, passed side', 'le', Math.max(...pass), Math.max(5, up(Math.max(...pass) * 1.2)), pw);
+      const T = sampleR(L, spec, nm => (reflBelow ? nm > spec.edge + off : nm < spec.edge - off), 'T').map(pc);
+      row('tpass', 'T min, passed side', 'ge', Math.min(...T), Math.min(90, down(Math.min(...T) - 1)), pw);
+    }
   }
   return rows;
+}
+/* the coating as a note for the part's optical drawing, in the manner of ISO 10110-9 (the coating marked on its
+   surface by λ in a circle, its requirements by ρ(λ) for reflectance and τ(λ) for transmittance, to ISO 9211): one
+   line a requirement, then the durability. The standard's own text was not to hand: check the layout against it. */
+function drawingNote(f, spec, make) {
+  const rows = makeLimits(f, spec, make), pol = { avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol];
+  const aoi = spec.theta > spec.theta0 ? spec.theta0 + '°–' + spec.theta + '°' : spec.theta0 + '°';
+  const lines = rows.map(r => {
+    const [q, kind] = r.label.split(' '), sym = q === 'T' ? 'τ(λ)' : 'ρ(λ)', range = r.where.replace(/^(\d+)–(\d+) nm$/, '$1 nm ≤ λ ≤ $2 nm');
+    return (kind === 'mean' ? 'mean ' : '') + sym + ' ' + (r.op === 'le' ? '≤' : '≥') + ' ' + r.value + ' %, ' + range + ', AOI ' + aoi + ', ' + pol;
+  });
+  return ['Coating (λ in a circle on the surface), to ISO 9211:', ...lines, 'Durability: ' + MAKE_DURABILITY[(make && make.durability) || 'mil-48497'].split(':')[0]];
 }
 /* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
@@ -3812,6 +3920,46 @@ async function filmMaterials(layers, spec, opts = {}) {
   const o = coatOptimise(cur, spec);
   if (o.after < fCur) { cur = o.layers; fCur = o.after; }
   return { layers: cur, before, after: fCur, changed };
+}
+/* ==========================================================================
+   The field inside the stack: |E|² against depth, from the outer surface through each layer to the substrate,
+   relative to the incoming wave's (1 is the incident field's strength). The tangential field, as the characteristic
+   matrices carry it: E itself for s; for p its component along the surface. Each layer's matrix over a part of its
+   thickness carries [E, H] from the layer's inner side outwards; the substrate side starts at [1, η_s], and the
+   incident wave is (η₀ B + C) / 2η₀. Laser damage starts where it peaks, so this is for reading where the peaks sit.
+   ========================================================================== */
+const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+const ca = (a, b) => [a[0] + b[0], a[1] + b[1]];
+/* a layer's matrix over thickness d, as four complex numbers, at nm: a dielectric's real form, or a metal's */
+function layerM(L, d, sin0, nm, pol) {
+  if (L.metal) { const nk = metalNK(L.metal, nm); return filmLayerC([nk[0], -nk[1]], d, sin0, nm, pol); }
+  const [c, x, y] = filmLayer(L.n, d, sin0, nm, pol);
+  return [[c, 0], [0, x], [0, y], [c, 0]];
+}
+const apply = (M, v) => [ca(cm(M[0], v[0]), cm(M[1], v[1])), ca(cm(M[2], v[0]), cm(M[3], v[1]))];
+/* the field through the stack: { z (nm from the outer surface), E2, bounds (each interface's depth) }; steps a layer */
+function stackField(layers, n0, ns, ci, nm, pol, steps = 40) {
+  const sin0 = Math.sqrt(Math.max(0, 1 - ci * ci)) * n0, es = filmAdmit(ns, sin0, pol), e0 = filmAdmit(n0, sin0, pol)[0];
+  // from the substrate outwards: the field at each layer's inner side, then across it
+  const per = [];
+  let v = [[1, 0], [es[0], es[1]]];
+  for (let j = layers.length - 1; j >= 0; j--) {
+    const L = layers[j], pts = [];
+    for (let k = steps; k >= 0; k--) { const u = L.d * k / steps; pts.push(apply(layerM(L, u, sin0, nm, pol), v)[0]); }   // u from the inner side
+    per[j] = pts; v = apply(layerM(L, L.d, sin0, nm, pol), v);
+  }
+  // the incident wave, from the field and its H at the outer surface
+  const Ep = [(e0 * v[0][0] + v[1][0]) / (2 * e0), (e0 * v[0][1] + v[1][1]) / (2 * e0)], inc = Ep[0] * Ep[0] + Ep[1] * Ep[1] || 1e-300;
+  const z = [], E2 = [], bounds = [0];
+  let top = 0;
+  layers.forEach((L, j) => {
+    per[j].forEach((E, k) => { z.push(top + L.d * k / steps); E2.push((E[0] * E[0] + E[1] * E[1]) / inc); });
+    top += L.d; bounds.push(top);
+  });
+  if (!layers.length) { z.push(0); E2.push(1 / inc); }
+  // into the substrate a little: the field there runs on at the inner side's strength (a transmitted wave)
+  const last = 1 / inc; z.push(top, top + Math.max(20, top * 0.08)); E2.push(last, last);
+  return { z, E2, bounds };
 }
 /* ---------- Usage counts ----------
    How the tool is used, so it can be made better: which parts are added, which designers and analyses are
@@ -4996,7 +5144,7 @@ function themeMenuShown() {
 /* ==========================================================================
    A line plot, drawn as SVG in the page's own colours (so it follows the theme with no redraw): axes with round
    ticks, the series with a key, and a readout of each series at the pointer. o = { label, xTitle, yTitle, xr, yr,
-   series: [{ label, cls, xs, ys, dash }], H }. The series' colours are classes (.s0…, .tgt) in style.css.
+   series: [{ label, cls, xs, ys, dash }], H, marks: [x…] }. The series' colours are classes (.s0…, .tgt) in style.css.
    ========================================================================== */
 const SVGNS = 'http://www.w3.org/2000/svg';
 const sv = (tag, attrs, ...kids) => { const n = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs || {})) if (v !== null && v !== undefined) n.setAttribute(k, v); for (const k of kids) n.append(k); return n; };
@@ -5014,13 +5162,15 @@ function linePlotSvg(parent, o) {
   const xs = o.series.flatMap(s => s.xs), ys = o.series.flatMap(s => s.ys).filter(isFinite);
   const xr = o.xr || [Math.min(...xs), Math.max(...xs)], yr = o.yr || [Math.min(0, ...ys), Math.max(...ys) || 1];
   const X = v => L + (W - L - R) * (v - xr[0]) / ((xr[1] - xr[0]) || 1), Y = v => H - B - (H - B - T) * (v - yr[0]) / ((yr[1] - yr[0]) || 1);
-  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, class: 'film-plot', role: 'img', 'aria-label': o.label, preserveAspectRatio: 'none' });
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, class: 'film-plot', role: 'img', 'aria-label': o.label, preserveAspectRatio: 'none', style: H !== 250 ? `aspect-ratio: ${W} / ${H}` : null });
   const grid = sv('g', { class: 'grid' }), axes = sv('g', { class: 'axes' });
   for (const t of niceTicks(xr[0], xr[1], 6)) { grid.append(sv('line', { x1: X(t), x2: X(t), y1: T, y2: H - B })); axes.append(sv('text', { x: X(t), y: H - B + 14, 'text-anchor': 'middle' }, tickText(t))); }
   for (const t of niceTicks(yr[0], yr[1], 4)) { grid.append(sv('line', { x1: L, x2: W - R, y1: Y(t), y2: Y(t) })); axes.append(sv('text', { x: L - 5, y: Y(t) + 3.5, 'text-anchor': 'end' }, tickText(t))); }
   axes.append(sv('rect', { x: L, y: T, width: W - L - R, height: H - B - T, class: 'frame' }),
     sv('text', { x: (L + W - R) / 2, y: H - 4, 'text-anchor': 'middle', class: 'title' }, o.xTitle || ''),
     sv('text', { x: 11, y: (T + H - B) / 2, 'text-anchor': 'middle', class: 'title', transform: `rotate(-90 11 ${(T + H - B) / 2})` }, o.yTitle || ''));
+  // marks: upright lines at given x (the interfaces of a stack), drawn with the grid
+  for (const m of o.marks || []) if (m >= xr[0] && m <= xr[1]) grid.append(sv('line', { x1: X(m), x2: X(m), y1: T, y2: H - B, class: 'mark' }));
   svg.append(grid, axes, sv('defs', null, sv('clipPath', { id: 'clip' + o.id }, sv('rect', { x: L, y: T, width: W - L - R, height: H - B - T }))));
   const lines = sv('g', { 'clip-path': `url(#clip${o.id})` });
   for (const s of o.series) {
@@ -5103,7 +5253,7 @@ function render() {
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
   // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
-  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
+  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec), fieldCard(spec)];
   body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
   for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;
@@ -5145,10 +5295,10 @@ function settingsCard(spec) {
 /* a reflectance as a percentage to three decimals, so a column's figures line up (very small ones as above) */
 const dsR = v => dsFix(100 * v, 3);
 /* a small table under a plot: a heading row, figure rows, and a line of notes under it */
-function miniTable(id, label, heads, rows, foot) {
+function miniTable(id, label, heads, rows, foot, lbl) {
   return h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id, 'aria-label': label },
     h('thead', null, h('tr', null, ...heads.map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
-    h('tbody', null, ...rows.map(r => h('tr', null, h('th', { scope: 'row' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))),
+    h('tbody', null, ...rows.map(r => h('tr', null, h('th', { scope: 'row', class: lbl ? 'lbl' : null }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))),
     foot ? h('tfoot', null, h('tr', null, h('td', { colspan: String(heads.length) }, foot))) : null));
 }
 /* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
@@ -5222,6 +5372,50 @@ function layersCard(spec) {
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
+}
+/* ---------- the field in the stack: an optional view, shut until asked for; how it is looked at is this browser's, not
+   the coating's (nothing of it is saved in the file) ---------- */
+const FIELD_KEY = 'jek-film-field';
+const fieldView = (() => { try { return { pol: 's', ...JSON.parse(localStorage.getItem(FIELD_KEY) || '{}'), nm: null, deg: null }; } catch (err) { return { open: false, pol: 's', nm: null, deg: null }; } })();
+const keepField = () => { try { localStorage.setItem(FIELD_KEY, JSON.stringify({ open: !!fieldView.open, pol: fieldView.pol })); } catch (err) { /* this visit only */ } };
+/* the field for the coating here, at the wavelength and angle chosen (λ₀ and the smallest angle judged unless set) */
+function filmField(f, o = {}) {
+  const spec = filmSpec(f), nm = o.nm || spec.design, deg = o.deg !== undefined && o.deg !== null ? o.deg : spec.theta0 || 0, pol = o.pol || 's';
+  const F = stackField(f.layers, spec.n0, spec.ns, Math.cos(deg * Math.PI / 180), nm, pol);
+  // each layer's peak, and where it sits; the field at the outer surface and at each interface
+  const peaks = f.layers.map((L, j) => { let best = -1, at = 0; F.z.forEach((z, i) => { if (z >= F.bounds[j] - 1e-9 && z <= F.bounds[j + 1] + 1e-9 && F.E2[i] > best) { best = F.E2[i]; at = z; } }); return { layer: j + 1, E2: best, z: at }; });
+  const edgeAt = z => { let best = 0; F.z.forEach((v, i) => { if (Math.abs(v - z) < Math.abs(F.z[best] - z)) best = i; }); return F.E2[best]; };
+  return { ...F, nm, deg, pol, peaks, surface: F.E2[0], edges: F.bounds.map(edgeAt) };
+}
+function fieldCard(spec) {
+  const toggle = h('button', { class: 'rt-btn', type: 'button', id: 'filmFieldShow', 'aria-expanded': String(!!fieldView.open),
+    onclick: () => { fieldView.open = !fieldView.open; keepField(); render(); } }, fieldView.open ? 'Hide' : 'Show');
+  const out = section('Field in the stack', h('div', { class: 'film-tools film-tolset' },
+    h('span', { class: 'film-tolline' }, '|E|² through the layers, where laser damage starts'), toggle));
+  out.id = 'filmField';
+  if (!fieldView.open) return out;
+  if (!film.layers.length) { out.append(h('p', { class: 'rt-lsub' }, 'No layers: add one to see the field in it.')); return out; }
+  const F = filmField(film, fieldView), num = (v, set, label) => {
+    const i = h('input', { type: 'text', inputmode: 'decimal', value: dsFmt(v, 5), class: 'rt-lnum', 'aria-label': label, spellcheck: 'false' });
+    const go = () => { const x = +i.value; if (i.value.trim() !== '' && isFinite(x)) set(x); render(); };
+    i.addEventListener('change', go); i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+    return i;
+  };
+  out.querySelector('.film-tolline').replaceChildren('At', num(F.nm, v => { fieldView.nm = v > 0 ? v : null; }, 'Wavelength for the field (nm)'), 'nm,',
+    num(F.deg, v => { fieldView.deg = Math.max(0, Math.min(89, v)); }, 'Angle of incidence for the field (degrees)'), '°,',
+    dsSelect([['s', 's'], ['p', 'p']], F.pol, v => { fieldView.pol = v; keepField(); render(); }, 'Polarisation for the field'));
+  const pl = h('div'), top = Math.max(...F.E2);
+  linePlotSvg(pl, { id: 'field', H: 190, label: '|E|² against depth at ' + dsFmt(F.nm, 5) + ' nm, ' + dsFmt(F.deg, 3) + '°, ' + F.pol + ' (1 = the incident wave)',
+    xTitle: 'Depth from the outer surface (nm)', yTitle: '|E|²', xName: 'nm', yUnit: '', yr: [0, Math.max(0.5, 1.1 * top)], marks: F.bounds,
+    series: [{ label: '|E|²', cls: 's0', xs: F.z, ys: F.E2 }] });
+  const hi = F.peaks.reduce((a, b) => (b.E2 > a.E2 ? b : a)), edge = F.edges.slice(0, -1).reduce((a, v, k) => (v > a.v ? { v, k } : a), { v: -1, k: 0 });
+  const mat = L => (L.metal ? METAL_NAMES[L.metal] || L.metal : (COAT_MATERIALS.find(([v]) => Math.abs(+v - L.n) < 1e-9) || [0, 'n = ' + dsFmt(L.n, 4)])[1].replace(/ \([\d.]+\)$/, ''));
+  const rows = [['Outer surface', dsFix(F.surface, 3), '0'],
+    ['Highest, layer ' + hi.layer + ' (' + mat(film.layers[hi.layer - 1]) + ')', dsFix(hi.E2, 3), dsFix(hi.z, 1)],
+    ['Highest at an interface', dsFix(edge.v, 3), dsFix(F.bounds[edge.k], 1)],
+    ['Into the substrate', dsFix(F.E2[F.E2.length - 1], 3), dsFix(F.bounds[F.bounds.length - 1], 1)]];
+  out.append(h('div', { class: 'rt-lpair' }, miniTable('filmFieldTable', 'Field in the stack', ['Where', '|E|²', 'Depth (nm)'], rows, 'Dashed lines on the plot: the interfaces.', true), pl));
+  return out;
 }
 /* ---------- the tabs: Design, Tolerance, Make it (kept in this browser, per viewer) ---------- */
 const FILM_TAB_KEY = 'jek-film-tab';
@@ -5922,10 +6116,10 @@ function dataDialog() {
 }
 function wireFilmData() { document.getElementById('btnExportData').addEventListener('click', dataDialog); }
 /* ==========================================================================
-   The coating specification: what an optics maker needs to coat the part, as a PDF of two A4 pages, written by
-   JEKray's io/pdf.js. Page 1 is the order: the part and the substrate, the surfaces and the clear aperture, the
-   performance it is accepted against (with the design's own value beside each limit), durability, surface quality
-   and how it is checked. Page 2 is the design behind it: the layers (material, index, physical and optical thickness),
+   The coating specification: what a coater needs, the coating and the substrate it is on and no more, as a PDF of two
+   A4 pages, written by JEKray's io/pdf.js. Page 1 is the order: the coating and its substrate, the performance it is
+   accepted against, reflectance and transmittance (with the design's own value beside each limit), durability, how it
+   is checked, and the note for the part's drawing. Page 2 is the design behind it: the layers (material, index, physical and optical thickness),
    the reflectance across the band and against the angle, and the tolerance run when there is one for this design.
    JEKrayPro's, as JEKray's design reports are.
    ========================================================================== */
@@ -5987,22 +6181,22 @@ function filmSpecRecs(f, o) {
   const angles = s.theta > s.theta0 ? s.theta0 + '–' + s.theta + '°' : s.theta0 + '°', pol = { avg: 'mean of s and p', s: 's', p: 'p' }[s.pol];
   // page 1: the order
   const p1 = spage(meta, 'Coating specification', 1);
-  shead(p1, 'Part and substrate');
+  shead(p1, 'Coating and substrate');
   stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [
-    ['Part', M.part || f.name], ['Quantity', String(M.qty)],
-    ['Substrate', subLabelOf(f.spec.sub) + (s.ns ? ', n = ' + s.ns.toFixed(4) + ' at ' + s.design + ' nm' : '')],
-    ['Size', M.size + ' mm diameter'], ['Clear aperture', M.ca + '% of the diameter (' + (M.size * M.ca / 100).toFixed(1) + ' mm)'],
-    ['Surfaces coated', MAKE_SURFACES[M.surfaces]], ['Coating', FILM_TARGETS[s.target] + ' (design attached, page 2)']]);
+    ['Coating', FILM_TARGETS[s.target] + ', ' + f.layers.length + (f.layers.length === 1 ? ' layer' : ' layers') + ' (design on page 2)'],
+    ['Substrate', subLabelOf(f.spec.sub) + ', n = ' + s.ns.toFixed(4) + ' at ' + s.design + ' nm'], ['Incident medium', 'n = ' + s.n0]]);
   shead(p1, 'Performance');
-  spara(p1, 'Reflectance of one coated surface, incident medium n = ' + s.n0 + ', at ' + angles + ' angle of incidence, ' + pol + ' polarisation. The coating is accepted when each limit below is met over its band.');
+  spara(p1, 'One coated surface at ' + angles + ' angle of incidence, ' + pol + ' polarisation: its reflectance R, and its transmittance T into the substrate. The coating is accepted when each limit below is met over its band.');
   p1.y += 4;
   const rows = makeLimits(f, s, M);
   stable(p1, [{ label: 'Quantity', w: 150 }, { label: 'Band', w: 120 }, { label: 'Limit', w: 90, align: 'right', mono: true }, { label: 'Design gives', w: 90, align: 'right', mono: true }, { label: '', w: 49 }],
     rows.map(r => [r.label + ' (%)', r.where, (r.op === 'le' ? '<= ' : '>= ') + r.value, spct(r.design), r.ok ? 'met' : 'NOT MET']));
-  shead(p1, 'Durability and quality');
-  stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [['Durability', MAKE_DURABILITY[M.durability]], ['Surface quality', M.quality]]);
+  shead(p1, 'Durability');
+  spara(p1, MAKE_DURABILITY[M.durability] + '.');
   shead(p1, 'Verification');
   spara(p1, M.witness ? 'Measure the reflectance of a witness sample from the same run over ' + s.lo + '–' + s.hi + ' nm at ' + (s.theta > s.theta0 ? s.theta0 + '° and ' + s.theta + '°' : s.theta0 + '°') + ', and send the measured curve with the parts. The design curves to compare it with are on page 2.' : 'The maker’s standard checks of the run.');
+  shead(p1, 'Drawing note');
+  for (const ln of drawingNote(f, s, M)) { stext(p1.g, ln, SM, p1.y, { size: 8.5, mono: true }); p1.y += 12; }
   // page 2: the design
   const p2 = spage(meta, 'Coating design', 2);
   shead(p2, 'Layers, from the incident medium to the substrate');
@@ -6041,10 +6235,10 @@ async function saveFilmSpec() {
   } catch (err) { toast('Could not write the PDF: ' + err.message, true); return false; }
 }
 /* ==========================================================================
-   Make it: what an optics maker needs to coat the part, kept with the coating (make), and the files that carry it.
-   The part and the substrate, the surfaces and the clear aperture; the performance it is accepted against, each limit
-   beside what the design gives (a limit the design misses shows); durability, surface quality and how it is checked;
-   then the coating specification (PDF, JEKrayPro's) and the design data.
+   Make it: what a coater needs, kept with the coating (make): the coating and the substrate it is on (nothing else of
+   the part: that is the part's drawing's); the performance it is accepted against, reflectance and transmittance, each
+   limit beside what the design gives (a limit the design misses shows); durability and how it is checked; the note for
+   the part's drawing; then the coating specification (PDF, JEKrayPro's) and the design data.
    ========================================================================== */
 const mkSec = (title, ...kids) => h('section', { class: 'film-sec rt-lcard', 'aria-label': title }, h('h2', null, title), ...kids);
 const mkRow = (label, value, unit) => h('tr', null, h('th', { scope: 'row' }, label), h('td', null, value), h('td', { class: 'unit' }, unit || ''));
@@ -6061,13 +6255,9 @@ function mkSelect(options, value, set, label) {
 const mpct = v => (v >= 10 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toExponential(2));
 function makeCards(spec) {
   const M = film.make;
-  const part = h('table', { class: 'film-props film-mk' }, h('tbody', null,
-    mkRow('Part', mkText(M.part, (m, v) => { m.part = v; }, 'Part name or number', { placeholder: film.name })),
-    mkRow('Quantity', mkText(M.qty, (m, v) => { m.qty = v; }, 'Quantity', { num: true })),
-    mkRow('Substrate', h('span', null, subLabelOf(film.spec.sub) + ' (from the design)')),
-    mkRow('Diameter', mkText(M.size, (m, v) => { m.size = v; }, 'Diameter (mm)', { num: true }), 'mm'),
-    mkRow('Clear aperture', mkText(M.ca, (m, v) => { m.ca = v; }, 'Clear aperture (% of the diameter)', { num: true }), '%'),
-    mkRow('Surfaces coated', mkSelect(MAKE_SURFACES, M.surfaces, (m, v) => { m.surfaces = v; }, 'Surfaces coated'))));
+  const sub = h('table', { class: 'film-props film-mk' }, h('tbody', null,
+    mkRow('Coating', h('span', null, FILM_TARGETS[spec.target] + ', ' + film.layers.length + (film.layers.length === 1 ? ' layer' : ' layers'))),
+    mkRow('Substrate', h('span', null, subLabelOf(film.spec.sub) + ', n = ' + spec.ns.toFixed(4) + ' at ' + spec.design + ' nm'))));
   const rows = makeLimits(film, spec, M);
   const lim = h('table', { class: 'film-results film-limits', id: 'filmLimits' },
     h('thead', null, h('tr', null, ...['Quantity', 'Band', 'Limit (%)', 'Design gives (%)', ''].map((t, k) => h('th', { scope: 'col', class: k >= 2 ? 'n' : null }, t)))),
@@ -6075,21 +6265,24 @@ function makeCards(spec) {
       h('td', { class: 'n' }, h('span', { class: 'film-op' }, r.op === 'le' ? '≤' : '≥'), mkText(r.value, (m, v) => { m.limits[r.key] = Math.min(100, Math.max(0, v)); }, r.label + ' limit (%)', { num: true })),
       h('td', { class: 'n mono' }, mpct(r.design)), h('td', { class: 'film-met' }, r.ok ? 'met' : 'not met')))));
   const angles = spec.theta > spec.theta0 ? spec.theta0 + '–' + spec.theta + '°' : spec.theta0 + '°';
-  const perf = mkSec('Performance', h('p', { class: 'rt-lsub' }, FILM_TARGETS[spec.target] + ': the reflectance of one coated surface at ' + angles + ', ' + ({ avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol]) + ', as the Design tab judges it. Each limit is the design’s value with a margin until you set it.'), h('div', { class: 'film-twrap' }, lim),
+  const perf = mkSec('Performance', h('p', { class: 'rt-lsub' }, 'One coated surface at ' + angles + ', ' + ({ avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol]) + ': its reflectance R, and its transmittance T into the substrate. Each limit is the design’s value with a margin until you set it.'), h('div', { class: 'film-twrap' }, lim),
     spec.target === 'split' ? h('p', { class: 'rt-lsub' }, 'Splitter tolerance ± ', mkText(M.splitTol, (m, v) => { m.splitTol = v; delete m.limits.min; delete m.limits.max; }, 'Splitter tolerance (%)', { num: true }), ' %') : null,
     h('button', { class: 'film-tbtn', type: 'button', onclick: () => edit(f => { f.make.limits = {}; }) }, 'Limits from the design again'));
   const dur = h('table', { class: 'film-props film-mk' }, h('tbody', null,
     mkRow('Durability', mkSelect(MAKE_DURABILITY, M.durability, (m, v) => { m.durability = v; }, 'Durability')),
-    mkRow('Surface quality', mkText(M.quality, (m, v) => { m.quality = v; }, 'Surface quality')),
     mkRow('Witness sample', h('label', { class: 'film-chk' }, h('input', { type: 'checkbox', checked: M.witness ? '' : null, onchange: e => edit(f => { f.make.witness = e.target.checked; }) }), ' measure it and send the curve'))));
   const pdf = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmSpecPdf', title: 'The order and the design behind it, as a two-page PDF to send to the maker' }, 'Coating specification (PDF)'), 'make a coating specification');
   pdf.addEventListener('click', () => saveFilmSpec());
   const misses = rows.filter(r => !r.ok).length;
   const out = mkSec('Files for the maker',
-    h('p', { class: 'rt-lsub' }, 'The specification is the order: the part, the performance it is accepted against, durability and how it is checked, with the design (layers, curves, tolerance) on its second page. The data gives the design curves to compare their measurements with.'),
+    h('p', { class: 'rt-lsub' }, 'The specification is the coating and its substrate, the performance it is accepted against, durability and how it is checked, with the design (layers, curves, tolerance) on its second page. The data gives the design curves to compare the coater’s measurements with.'),
     misses ? h('p', { class: 'film-warn' }, misses === 1 ? 'The design misses one of the limits: change the design, or the limit, before sending it.' : 'The design misses ' + misses + ' of the limits: change the design, or the limits, before sending it.') : null,
     h('div', { class: 'film-tools' }, pdf, h('button', { class: 'rt-btn', type: 'button', onclick: () => document.getElementById('btnExportData').click() }, 'Design data…')));
-  return [mkSec('Part and substrate', part), perf, mkSec('Durability and checks', dur), out];
+  // the note for the part's optical drawing (ISO 10110-9's way of marking a coating), to copy
+  const note = drawingNote(film, spec, M), pre = h('pre', { class: 'film-note', id: 'filmDrawingNote' }, note.join('\n'));
+  const copy = h('button', { class: 'film-tbtn', type: 'button', onclick: () => { navigator.clipboard.writeText(note.join('\n')).then(() => { copy.textContent = 'Copied'; }, () => {}); } }, 'Copy');
+  const draw = mkSec('Drawing note', h('p', { class: 'rt-lsub' }, 'The coating as the part’s optical drawing carries it, in the manner of ISO 10110-9: marked on its surface by λ in a circle, its requirements as ρ(λ) for reflectance and τ(λ) for transmittance. Check the layout against the standard itself before relying on it.'), pre, copy);
+  return [mkSec('Coating and substrate', sub), perf, mkSec('Durability and checks', dur), draw, out];
 }
 function wireMake() { hooks.filmMakeCards = makeCards; }
 /* ==========================================================================
@@ -6151,7 +6344,7 @@ if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', fi
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, tab: setFilmTab, specPdf: o => filmSpecPdf(film, o), shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, tab: setFilmTab, field: o => filmField(film, o), specPdf: o => filmSpecPdf(film, o), shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
 };
 })();
 </script>

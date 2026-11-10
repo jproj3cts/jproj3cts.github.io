@@ -135,6 +135,13 @@ export function coatFromFilm(d, src) {
   const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
+/* a JEKfilm coating designed on another glass than this face's: both indices at its design wavelength and what that
+   costs, R square on from air as designed and on this glass (shown when they differ by more than 0.005) */
+export function filmSubCost(coat, nFace) {
+  if (!coat || !coat.sub || !isFinite(nFace) || Math.abs(nFace - coat.sub.n) <= 0.005) return null;
+  const R = ns => cabs2(stackAmp(coat.layers, 1, ns, 1, coat.design, 's'));
+  return { design: R(coat.sub.n), here: R(nFace) };
+}
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 export function coatToStack(layers, spec, label) {

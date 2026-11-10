@@ -24,6 +24,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-plot .grid line { stroke: var(--jek-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .film-plot .axes text { font: 10px var(--jek-mono); fill: var(--jek-ink-soft); }
 .film-plot .axes text.title { font-family: var(--jek-sans); font-size: 11px; }
+.film-plot .grid line.mark { stroke: var(--jek-line-2); stroke-dasharray: 3 3; }
 .film-plot .frame { fill: none; stroke: var(--jek-line-2); vector-effect: non-scaling-stroke; }
 .film-plot .line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .film-plot .line.s0, .film-key .s0 i { stroke: var(--jek-cyan); background: var(--jek-cyan); }
@@ -158,3 +159,4 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-chk { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
 .film-ws .film-mk th { width: 11rem; }
 .film-ws .film-mk td.unit { width: auto; }
+.film-note { margin: 0.5rem 0; padding: 0.6rem 0.75rem; font: 0.8rem/1.55 var(--jek-mono); white-space: pre-wrap; color: var(--jek-ink); background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 2px; }

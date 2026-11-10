@@ -14,6 +14,7 @@ import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
 import { COAT_MATERIALS, MIRROR_METALS, coatPreset, mirrorR, qwot, stackAmp } from '../core/coatings.js';
+import { filmSubCost } from '../core/coatdesign.js';
 import { METAL_NAMES } from '../core/metals.js';
 import { hooks } from '../core/hooks.js';
 import { benchNms, getEl, normElement } from '../state/elements.js';
@@ -601,7 +602,26 @@ export function coatingRows(el, holder, label, opts = {}) {
   }
   if (holder.coat.src) box.append(filmNote(holder));
   else if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
+  const sn = holder.coat.mode === 'stack' ? filmSubNote(el, holder) : null; if (sn) box.append(sn);
   return box;
+}
+
+/* the glass behind a face: a lens's first or last surface its outer glass, any other part its material; a cemented
+   surface inside a lens has glass on both sides, so none */
+function faceGlass(el, holder) {
+  if (el.type !== 'lens') return el.material || null;
+  const i = el.surfaces.indexOf(holder), m = el.materials || [];
+  return i === 0 ? m[0] || null : i === el.surfaces.length - 1 ? m[m.length - 1] || null : null;
+}
+function filmSubNote(el, holder) {
+  const c = holder.coat, g = faceGlass(el, holder);
+  if (!c.sub || !g) return null;
+  const nFace = refIndex(g, c.design), cost = filmSubCost(c, nFace);
+  if (!cost) return null;
+  const pc = v => (100 * v < 0.01 ? (100 * v).toExponential(1) : (+(100 * v).toPrecision(3)).toString()) + ' %';
+  return h('p', { class: 'note rt-filmsub', style: 'margin-top:0.4rem' },
+    'Designed on ' + (c.sub.name || 'a substrate') + ' (n ' + c.sub.n.toFixed(4) + '); this face is ' + matLabel(g) + ' (n ' + nFace.toFixed(4) + '). ' +
+    'R at ' + c.design + ' nm, square on: ' + pc(cost.design) + ' as designed, ' + pc(cost.here) + ' on this glass.');
 }
 
 /* a face linked to a JEKfilm coating: where it came from, its version, and the ways on (its layers are edited in

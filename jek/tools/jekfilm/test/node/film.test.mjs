@@ -161,3 +161,52 @@ test('the data export: the band, the angle and the layers as tables with units, 
     { kind: 'table', name: 'layers', cols: [{ name: 'material', unit: '', values: ['n 1.46', 'Ag'], type: 'str' }, { name: 'QWOT', unit: '', values: [2, NaN] }] }] };
   for (const fmt of ['csv', 'json', 'xlsx', 'npz', 'mat']) { const W = await dfWrite(set, fmt); assert.ok(W.bytes.length > 100, fmt); }
 });
+test('what a coater is sent: the coating and its substrate only; R and T limits with what the design gives; the drawing note', async () => {
+  const fs = await import('node:fs');
+  const M = await import('../../src/core/film-make.js');
+  const load = slug => F.normFilm(JSON.parse(fs.readFileSync(new URL('../../../demos/' + slug + '.jekfilm', import.meta.url), 'utf8')));
+  assert.deepEqual(Object.keys(M.normMake({ part: 'x', qty: 9, size: 25, surfaces: 2, durability: 'mil-675' })).sort(), ['durability', 'limits', 'splitTol', 'witness'], 'nothing of the part beyond its substrate');
+  // an AR: R mean, R max and T mean; a dielectric stack passes all it does not reflect
+  const ar = load('bbar-visible'), as = F.filmSpec(ar), rows = M.makeLimits(ar, as, ar.make);
+  assert.deepEqual(rows.map(r => r.key), ['mean', 'max', 'tmean']);
+  const Rm = rows[0].design, Tm = rows[2].design;
+  assert.ok(Math.abs(Rm + Tm - 100) < 1e-6, 'R + T = 100 % with no absorption: ' + Rm + ' + ' + Tm);
+  assert.ok(rows.every(r => r.ok && r.auto), 'the defaults are met by the design');
+  assert.equal(rows[2].op, 'ge'); assert.ok(rows[2].value <= Tm);
+  // a limit set by hand is kept, and one the design misses says so
+  const hand = M.makeLimits(ar, as, M.normMake({ limits: { mean: 0.01 } }));
+  assert.ok(hand[0].value === 0.01 && !hand[0].auto && !hand[0].ok);
+  // a metal absorbs: R + T is under 100 %
+  const ag = load('protected-silver'), gs = F.filmSpec(ag);
+  assert.ok(M.surfaceT(ag.layers, gs, 1, gs.design) + stackR(ag.layers, gs.n0, gs.ns, 1, gs.design, gs.pol) < 0.999, 'silver absorbs');
+  // an edge: R on the reflected side, R and T on the passed one
+  const lp = load('longpass-600');
+  assert.deepEqual(M.makeLimits(lp, F.filmSpec(lp), lp.make).map(r => r.key), ['refl', 'pass', 'tpass']);
+  // the drawing note: a line a requirement, ρ(λ) or τ(λ), the band, the angles and the polarisation; then the durability
+  const note = M.drawingNote(ar, as, ar.make);
+  assert.equal(note.length, 1 + rows.length + 1);
+  assert.match(note[0], /ISO 9211/);
+  assert.match(note[1], new RegExp('^mean ρ\\(λ\\) ≤ ' + rows[0].value + ' %, ' + as.lo + ' nm ≤ λ ≤ ' + as.hi + ' nm, AOI '));
+  assert.match(note[3], /^mean τ\(λ\) ≥ /);
+  assert.match(note[note.length - 1], /^Durability: MIL-C-48497A$/);
+});
+test('the field in the stack: |E|² at the outer surface is |1 + r|², in the substrate |t|² times its admittance ratio, the interfaces where the layers meet', async () => {
+  const { stackField } = await import('../../src/core/film-field.js');
+  const { stackAmp } = await import('../../../jekray/src/core/coatings.js');
+  const L = [{ n: 2.1, d: 120 }, { n: 1.46, d: 180 }, { n: 2.1, d: 60 }], ns = 1.52;
+  for (const [ci, pol] of [[1, 's'], [Math.cos(0.6), 's'], [Math.cos(0.6), 'p']]) {
+    const F = stackField(L, 1, ns, ci, 633, pol), r = stackAmp(L, 1, ns, ci, 633, pol);
+    const front = (1 + r[0]) ** 2 + r[1] ** 2;
+    assert.ok(Math.abs(F.E2[0] - front) < 1e-9, pol + ' front ' + F.E2[0] + ' vs ' + front);
+    assert.deepEqual(F.bounds, [0, 120, 300, 360]);
+    assert.ok(F.z.every((z, i) => !i || z >= F.z[i - 1]), 'depth runs inwards');
+  }
+  // square on, no absorption: the power into the substrate, ns |E|², is what is not reflected
+  const F0 = stackField(L, 1, ns, 1, 633, 's'), r0 = stackAmp(L, 1, ns, 1, 633, 's');
+  assert.ok(Math.abs(ns * F0.E2[F0.E2.length - 1] - (1 - (r0[0] ** 2 + r0[1] ** 2))) < 1e-9);
+  // a quarter-wave HR: the field falls off into the stack, its peak at the outer surface's side
+  const hr = [];
+  for (let k = 0; k < 8; k++) hr.push({ n: 2.1, d: qwot(2.1, 1064) }, { n: 1.46, d: qwot(1.46, 1064) });
+  const H = stackField(hr, 1, 1.45, 1, 1064, 's');
+  assert.ok(H.E2[H.E2.length - 1] < 0.01, 'next to nothing reaches the substrate');
+});

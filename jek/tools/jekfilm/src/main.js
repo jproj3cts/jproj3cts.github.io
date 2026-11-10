@@ -16,4 +16,5 @@ import './ui/designer.js';
 import './io/files.js';
 import './io/film-account.js';
 import './io/cloud.js';
+import './io/share.js';
 import './ui/boot.js';

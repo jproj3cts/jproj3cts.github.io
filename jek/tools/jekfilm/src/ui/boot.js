@@ -8,6 +8,7 @@ import { film, optimiseNow, redo, render, setFilm, undo } from './designer.js';
 import { filmThemeApply, toast, wireBar } from './bar.js';
 import { filmAutosave, filmCsv, filmRestore, newFilmHere, openFilmData, saveFilmFile, wireFiles } from '../io/files.js';
 import { wireFilmAccount } from '../io/film-account.js';
+import { openFilmHash, openFilmShort, shareFilm, wireShare, filmShareHash, readFilmHash } from '../io/share.js';
 import { filmCloudChanged, filmFor, filmLink, filmPush, openCloudFilm, saveToCloud, setFilmFor, setFilmLink, wireCloud } from '../io/cloud.js';
 
 /* ==========================================================================
@@ -27,7 +28,7 @@ installHooks({
 });
 const kept = filmRestore();
 setFilm(kept || newFilm(), true);
-wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireUsage();
+wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireShare(); wireUsage();
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 {
@@ -48,6 +49,8 @@ usageStart(kept ? 'film-restored' : 'film-fresh');
 const filmHash = async () => {
   const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::\w+)?$/);
   if (cl) { window.history.replaceState(null, '', location.pathname); await accountLoaded; openCloudFilm(cl[1], cl[2] ? Number(cl[2]) : undefined); }
+  else if (/^#s=[A-Za-z2-7]{10}$/.test(location.hash)) { const id = location.hash.slice(3); window.history.replaceState(null, '', location.pathname); openFilmShort(id); }
+  else if (/^#p=[fg][A-Za-z0-9_-]+$/.test(location.hash)) { const hash = location.hash.slice(3); window.history.replaceState(null, '', location.pathname); openFilmHash(hash); }
   else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newFilmHere(); }
   else if (/^#design=/.test(location.hash)) {
     // from a JEKray face: its glass, wavelength and stack to start from, and where to send the coating back
@@ -64,5 +67,5 @@ if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', fi
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
 };

@@ -53,6 +53,9 @@ export async function check(pw, base, shots) {
       const wide = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.getElementById('filmBody').scrollWidth <= document.getElementById('filmBody').clientWidth + 1);
       ok('At phone width: nothing wider than the screen', wide, 'scrolls sideways');
       if (shots) await p.screenshot({ path: shots + '/jekfilm-phone.png', fullPage: true });
+      // a coating through a link (no accounts here: the coating in the link itself) and back
+      const link = await p.evaluate(async () => { const before = JSON.stringify(window.JEKfilm.film()); const h = await window.JEKfilm.shareHash(); window.JEKfilm.load({ format: 'jekfilm', version: 1, name: 'Other', layers: [] }); await window.JEKfilm.openHash(h); return { kind: h[0], same: JSON.stringify(window.JEKfilm.film()) === before, len: h.length }; });
+      ok('A coating through a share link and back is the same coating (deflated, “f”)', link.kind === 'f' && link.same, JSON.stringify(link));
       ok('The designer alone: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
@@ -114,6 +117,11 @@ export async function check(pw, base, shots) {
       await p.evaluate(() => { location.hash = 'cloud=b1'; }); await p.waitForTimeout(500);
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('A JEKray bench’s link opens it in JEKray’s tab', op && op[0] === '/jek/tools/jekray.html#cloud=b1' && op[1] === 'jekray', JSON.stringify(op));
+      // a short link: made with JEKrayPro (/f/<id>), and opened by anyone (#s=<id>) as a copy linked to nothing
+      await p.click('#btnFile'); await p.click('#btnShare');
+      await p.waitForSelector('#filmShare[open]', { timeout: 3000 }).catch(() => {});
+      const url = await p.evaluate(() => (document.getElementById('filmShareUrl') || {}).value), posted = api.bodies.slice(-1)[0];
+      ok('Copy a share link…: a short link on /f/, holding the coating', /\/f\/ABCDEFGHJK$/.test(url || '') && posted && posted.data[0] === 'f' && posted.name === 'AR 1064', JSON.stringify([url, posted && posted.name]));
       ok('JEKrayPro: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
@@ -153,6 +161,16 @@ export async function check(pw, base, shots) {
       ok('Saved to the cloud: the bench’s own folder chosen, and the coating sent back to that face (its token on jek-film); the line goes', place.join() === 'w_me,f2' && post.folder_id === 'f2'
         && said.length === 1 && said[0].face === 'fabc123' && said[0].id === 'cnew' && gone, JSON.stringify([place, said]));
       ok('From a JEKray face: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
+    // a short link opened signed out: the coating, a copy linked to nothing
+    {
+      const hash = await (async () => { const p0 = await b.newPage(); await p0.goto(base + '/jek/tools/jekfilm.html?test'); await p0.waitForSelector('#filmLayers'); const hh = await p0.evaluate(async c => { window.JEKfilm.load(c); return window.JEKfilm.shareHash(); }, COATING); await p0.close(); return hh; })();
+      const { p, errs } = await page('#s=ABCDEFGHJK', { signedIn: false, links: { ABCDEFGHJK: hash } });
+      await p.waitForFunction(() => window.JEKfilm.film().name === 'V-coat 1064', null, { timeout: 8000 }).catch(() => {});
+      const o = await p.evaluate(() => ({ name: window.JEKfilm.film().name, layers: window.JEKfilm.film().layers.length, link: window.JEKfilm.link(), hash: location.hash }));
+      ok('#s=<id>, signed out: the shared coating opens here, linked to nothing', o.name === 'V-coat 1064' && o.layers === 2 && !o.link && !o.hash, JSON.stringify(o));
+      ok('A shared link: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
     // the coatings JEKray's coating designer kept in this browser: offered in File, each opened as a coating

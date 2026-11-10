@@ -19,6 +19,24 @@ const make = async (s, body) => json(await send('/v1/links', 'POST', s.token, bo
 afterEach(() => vi.restoreAllMocks());
 
 describe('share links', () => {
+  it('a JEKfilm coating is kept with its own letter (f, g), and an account export names each link by its app', async () => {
+    const s = await pro('Fen');
+    const film = { format: 'jekfilm', version: 1, name: 'V-coat', spec: { design: 1064 }, layers: [{ n: 1.38, d: 192.75 }] };
+    const z = await linkData(film), data = 'f' + z.slice(1);
+    const r = await make(s, { name: 'V-coat', data });
+    expect(r.status).toBe(201);
+    expect((await json(await call(`/v1/links/${r.body.id}`))).body.data).toBe(data);
+    expect((await make(s, { name: 'plain', data: 'g' + b64u(new TextEncoder().encode(JSON.stringify(film))) })).status).toBe(201);
+    expect((await make(s, { name: 'bad', data: 'x' + z.slice(1) })).status).toBe(400);
+    const ion = { format: 'jekion', version: 1, name: 'Trap' };
+    expect((await make(s, { name: 'Trap', data: 'i' + (await linkData(ion)).slice(1) })).status).toBe(201);
+    const zip = new Uint8Array(await (await call('/v1/me/export', { token: s.token })).arrayBuffer());
+    const names = new TextDecoder('latin1').decode(zip);
+    expect(names).toMatch(/Share links\/V-coat \([A-Z2-7]{10}\)\.jekfilm/);
+    expect(names).toMatch(/Share links\/plain \([A-Z2-7]{10}\)\.jekfilm/);
+    expect(names).toMatch(/Share links\/Trap \([A-Z2-7]{10}\)\.jekion/);
+  });
+
   it('a plan makes a short link; anyone opens it without signing in, and it counts its opens', async () => {
     const s = await pro('Ada');
     const data = await linkData();

@@ -240,6 +240,9 @@ export async function openShortLink(id) {
   let r;
   try { r = await api('/v1/links/' + encodeURIComponent(id)); }
   catch (err) { toast('Could not open that link: ' + err.message, true); return; }
+  // another app's link (JEKspace's My links gives every link on /s/): opened in that app
+  const other = { i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm' }[String(r.data || '')[0]];
+  if (other) { location.replace('/jek/tools/' + other + '.html#s=' + encodeURIComponent(id)); return; }
   return openShareHash(r.data);
 }
 /* a link opened: its bench replaces this one (Ctrl+Z brings this one back) */

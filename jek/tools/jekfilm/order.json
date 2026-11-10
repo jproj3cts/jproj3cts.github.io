@@ -16,5 +16,6 @@
   "io/files.js",
   "io/film-account.js",
   "io/cloud.js",
+  "io/share.js",
   "ui/boot.js"
 ]

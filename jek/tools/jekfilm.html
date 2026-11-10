@@ -2091,6 +2091,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-for .rt-link { margin-left: 0.6rem; color: inherit; }
 .film-title a { color: inherit; text-decoration: none; }
 .film-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
+.film-shareurl { width: 100%; box-sizing: border-box; font: 0.85rem var(--jek-mono); padding: 0.45rem; margin: 0.3rem 0 0.4rem; }
 </style>
 </head>
 <body class="film-app">
@@ -2111,6 +2112,7 @@ html, body { margin: 0; background: var(--jek-well); }
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
           <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to the cloud…</span></button>
+          <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnExportCsv" data-icon="export" data-need="account" data-what="export the curves" title="The reflectance across the band and against the angle, as a CSV file">Export the curves (CSV)</button>
         </div>
@@ -4567,6 +4569,88 @@ function wireCloud() {
   cloudShown();
 }
 /* ==========================================================================
+   A coating shared as a link, as JEKray and JEKion share benches: the coating deflated and written after #p= ('f', or
+   'g' plain where the browser cannot compress), or, with an account, kept by the API as a short link, /f/ and ten
+   capitals on the site (jek-api src/links.js, the same store as the other apps' links with JEKfilm's own letters; the
+   site's 404 page forwards /f/<id> here as #s=<id>, and the other apps send JEKfilm's links here). Making a short link
+   is JEKrayPro's; anyone opens one, and the coating opened is a copy, linked to nothing.
+   ========================================================================== */
+const fb64u = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const funb64u = t => { const s2 = atob(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); const u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return u; };
+async function fstream(bytes, T) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(T)).arrayBuffer()); }
+/* the part after #p=: "f" then deflated JSON, or "g" then plain JSON */
+async function filmShareHash(f) {
+  const json = new TextEncoder().encode(filmText(f || film));
+  if (typeof CompressionStream !== 'undefined') { try { return 'f' + fb64u(await fstream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
+  return 'g' + fb64u(json);
+}
+const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion' };
+async function readFilmHash(hash) {
+  const kind = hash[0], body = hash.slice(1);
+  if (OTHER_LINKS[kind]) throw new Error('that is a ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray') + ' bench: open the link in ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray'));
+  if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of JEKfilm’s');
+  let bytes;
+  try { bytes = funb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  if (kind === 'f') {
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekfilm file instead');
+    try { bytes = await fstream(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
+  }
+  let d;
+  try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a coating'); }
+  if (!d || d.format !== FILM_FORMAT) throw new Error('the link does not hold a JEKfilm coating');
+  return normFilm(d);
+}
+const filmShortUrl = id => location.origin + '/f/' + id;
+const FILM_MADE = new Map();
+async function filmShortLink() {
+  const text = await filmShareHash();
+  if (FILM_MADE.has(text)) return FILM_MADE.get(text);
+  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: film.name || 'Untitled coating', data: text }) });
+  FILM_MADE.set(text, r.id);
+  return r.id;
+}
+/* File › Copy a share link: a short link with an account (JEKrayPro's), the coating in the link itself without accounts */
+async function shareFilm() {
+  const short = accountsOn();
+  if (short && !account) { filmSignIn('pro', 'share a link'); return null; }
+  if (short && !designPro('share a link')) return null;
+  const url = short ? filmShortUrl(await filmShortLink()) : location.origin + location.pathname + '#p=' + await filmShareHash();
+  let dlg = document.getElementById('filmShare');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmShare', 'aria-labelledby': 'filmShareTitle' }); document.body.append(dlg); }
+  const box = h('input', { type: 'text', id: 'filmShareUrl', readonly: '', value: url, 'aria-label': 'The link', class: 'film-shareurl' });
+  const copyBtn = h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { box.select(); navigator.clipboard.writeText(url).then(() => { copyBtn.textContent = 'Copied'; }, () => {}); } }, 'Copy link');
+  dlg.replaceChildren(h('h2', { id: 'filmShareTitle' }, 'Share this coating'), box,
+    h('p', { class: 'rt-subsmall' }, short ? 'Anyone with the link opens this coating as it is now, as a copy of their own. The link is kept with your account: JEKspace’s My links lists it, to delete.'
+      : url.length.toLocaleString() + ' characters. Anyone with the link opens this coating as it is now; it travels in the link itself.'),
+    h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Close'), copyBtn));
+  dlg.showModal(); box.select();
+  goal('share'); track('share', 'film-link');
+  try { await navigator.clipboard.writeText(url); copyBtn.textContent = 'Copied'; } catch (err) { /* the button copies */ }
+  return url;
+}
+/* a link opened (#p=… or a short one): its coating here, a copy linked to nothing (Undo brings the last one back) */
+async function openFilmHash(hash) {
+  try {
+    const d = await readFilmHash(hash);
+    if (!openFilmData(d)) return false;
+    setFilmLink(null); filmAutosave();
+    if (!EMBED) toast('Opened the shared coating. Undo brings yours back.');
+    track('import', 'film-link');
+    return true;
+  } catch (err) { toast('Could not open that link: ' + err.message + '.', true); return false; }
+}
+async function openFilmShort(id) {
+  let r;
+  try { r = await api('/v1/links/' + encodeURIComponent(id)); } catch (err) { toast('Could not open that link: ' + err.message, true); return false; }
+  const other = OTHER_LINKS[String(r.data || '')[0]];
+  if (other) { location.replace('/jek/tools/' + other + '.html#s=' + encodeURIComponent(id)); return false; }
+  return openFilmHash(r.data);
+}
+function wireShare() {
+  document.getElementById('btnShare').addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
+  if (TEST_MODE) document.getElementById('btnShare').dataset.test = '1';
+}
+/* ==========================================================================
    JEKfilm put together: the theme, the hooks the shared modules reach the page through, each module's wiring, the
    coating restored from this browser (or a new one), a cloud coating from the address (#cloud=<id>, #new), and
    window.JEKfilm for the tests and the console.
@@ -4583,7 +4667,7 @@ installHooks({
 });
 const kept = filmRestore();
 setFilm(kept || newFilm(), true);
-wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireUsage();
+wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireShare(); wireUsage();
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 {
@@ -4604,6 +4688,8 @@ usageStart(kept ? 'film-restored' : 'film-fresh');
 const filmHash = async () => {
   const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::\w+)?$/);
   if (cl) { window.history.replaceState(null, '', location.pathname); await accountLoaded; openCloudFilm(cl[1], cl[2] ? Number(cl[2]) : undefined); }
+  else if (/^#s=[A-Za-z2-7]{10}$/.test(location.hash)) { const id = location.hash.slice(3); window.history.replaceState(null, '', location.pathname); openFilmShort(id); }
+  else if (/^#p=[fg][A-Za-z0-9_-]+$/.test(location.hash)) { const hash = location.hash.slice(3); window.history.replaceState(null, '', location.pathname); openFilmHash(hash); }
   else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); newFilmHere(); }
   else if (/^#design=/.test(location.hash)) {
     // from a JEKray face: its glass, wavelength and stack to start from, and where to send the coating back
@@ -4620,7 +4706,7 @@ if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', fi
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
 };
 })();
 </script>

@@ -1,0 +1,148 @@
+---
+# processed by Jekyll for the shared nav (_includes/site-nav.html) and the jek.css stamp (css_v in _config.yml)
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JEKsuite | JEK Systems</title>
+<meta name="description" content="JEKsuite: JEKray, JEKion, JEKfilm and JEKcad in your browser, with one account, one cloud for your benches and one plan for every app.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JEK Systems">
+<meta property="og:title" content="JEKsuite">
+<meta property="og:description" content="JEKsuite: JEKray, JEKion, JEKfilm and JEKcad in your browser, with one account, one cloud for your benches and one plan for every app.">
+<meta property="og:url" content="https://jeksys.net/jek/products/design-software/">
+<meta property="og:image" content="https://jeksys.net/jek/assets/img/share-card.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
+<style>
+  /* the words start at the top beside the picture, not centred on it */
+  .jek-hero .jek-wrap { align-items: start; }
+  /* the picture is cut to the height of the words beside it, so neither leaves a gap below */
+  @media (min-width: 861px) {
+    .jek-hero { padding-bottom: 1.5rem; }
+    .jek-hero .jek-wrap { align-items: stretch; }
+    .jek-hero .jek-shot { height: 0; min-height: 100%; display: flex; flex-direction: column; }
+    .jek-hero .jek-shot img, .jek-hero .jek-shot video { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; object-fit: cover; object-position: center; }
+  }
+  /* the hero's key phrase, underlined in the JEK stripe */
+  .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
+  /* as on the JEKray page: the sections close, the features four to a row (a picture over its words), the examples
+     as a catalogue index by topic, the resources in four columns */
+  .jek-hero { padding-block: 2rem 1.6rem; }
+  .jek-section { padding-block: 1.8rem; }
+  .rt-feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
+  .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
+  .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
+  .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+  .rt-feats .jek-feature h2 { font-size: 1.08rem; }
+  .rt-feats .jek-feature p { margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.5; max-width: none; }
+  .rt-feats a, .rt-ex-lede a, .rt-topics a, .rt-res a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  #examples h2 { margin: 0 0 0.5rem; }
+  .rt-ex-lede { margin: 0 0 1.4rem; max-width: 72ch; color: var(--jek-ink-soft); }
+  .rt-topics { columns: 4 15rem; column-gap: 2.5rem; }
+  .rt-topic { break-inside: avoid; margin: 0 0 1.4rem; }
+  .rt-topic h3, .rt-res h3 { margin: 0 0 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--jek-line); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink); }
+  .rt-topic h3 span { float: right; font-weight: 600; color: var(--jek-ink-soft); letter-spacing: 0; }
+  .rt-topic ul, .rt-res ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+  .rt-topic li, .rt-res li { font-size: 0.98rem; line-height: 1.35; }
+  .rt-topic a, .rt-res a { text-decoration-color: transparent; }
+  .rt-topic a:hover, .rt-res a:hover { text-decoration-color: var(--jek-orange); }
+  .rt-res { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2.5rem; }
+  .rt-res p { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.5; color: var(--jek-ink-soft); }
+  @media (max-width: 1100px) { .rt-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .rt-res { grid-template-columns: 1fr 1fr; gap: 1.8rem; } }
+  @media (max-width: 640px) { .rt-feats { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .rt-res { grid-template-columns: 1fr; } }
+  .rt-feats .jek-feature h2 .jek-wm { font-size: 1.15rem; }
+  .rt-feats .jek-feature .rt-applinks { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; }
+</style>
+</head>
+
+<body>
+
+{% include site-nav.html %}
+
+  <main class="main-content jek-flush">
+
+    <section class="jek-hero">
+      <div class="jek-wrap">
+        <div>
+          <h1>JEKsuite: <span class="jek-twin">every JEK app</span> in one place.</h1>
+          <p class="jek-lede">JEKray, JEKion, JEKfilm and JEKcad run in your browser and share one account. Every bench you keep in the cloud, from every app, sits in JEKsuite with its history, and one plan covers them all.</p>
+          <div class="jek-acts">
+            <a class="jek-btn primary" href="/jek/tools/jeksuite.html">Open JEKsuite</a>
+            <a class="jek-btn quiet" href="#apps">See the apps</a>
+            <a href="/jek/products/design-software/jekray/#pricing">Plans and prices</a>
+          </div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>One account for every app</span></div>
+        </div>
+        <figure class="jek-shot cover">
+          <img src="img/jeksuite.png" alt="JEKsuite signed in: the apps in the left rail, the workspace's folders, and a JEKray bench and a JEKion bench side by side" width="1600" height="844">
+          <figcaption>My benches in JEKsuite: folders, and benches from JEKray and JEKion side by side.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="jek-section" id="apps" style="padding-top: 0">
+      <div class="jek-wrap rt-feats">
+        <div class="jek-feature">
+          <div><h2><span class="jek-wm">JEK<b>ray</b></span></h2><p>Optics, fibre, electronics and RF on one bench, traced as you move parts. Design lenses and send drawings to the workshop.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekray/">About JEKray</a><a href="/jek/tools/jekray.html">Launch JEKray</a></p></div>
+          <figure class="jek-shot"><img src="jekray/img/whole-bench.png" alt="A JEKray bench in 3D: a modulated fibre laser, free-space optics and photodiodes wired to an oscilloscope" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2><span class="jek-wm">JEK<b>ion</b></span></h2><p>Charged-particle traps and beam optics: bring the electrodes in from CAD, solve the field and fly the ions.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekion/">About JEKion</a><a href="/jek/tools/jekion.html">Launch JEKion</a></p></div>
+          <figure class="jek-shot"><img src="jekion/img/blade-3d.png" alt="A four-blade ion trap imported from CAD, in the 3D view" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2><span class="jek-wm">JEK<b>film</b></span></h2><p>Thin-film coatings for your band and angles, optimised and toleranced, then put on a JEKray face.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekfilm/">About JEKfilm</a><a href="/jek/tools/jekfilm.html">Launch JEKfilm</a></p></div>
+          <figure class="jek-shot"><img src="jekfilm/img/splitter.png" alt="A beam-splitter coating in JEKfilm: its reflectance against wavelength and angle" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature">
+          <div><h2><span class="jek-wm">JEK<b>cad</b></span></h2><p>Parametric CAD: sketch, dimension and build parts from a feature list. In development.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekcad/">About JEKcad</a><a href="/jek/tools/jekcad.html">Launch JEKcad</a></p></div>
+          <figure class="jek-shot"><img src="jekcad/img/plate.png" alt="A lens mount plate in JEKcad, with its feature list" loading="lazy"></figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section jek-band">
+      <div class="jek-wrap">
+        <h2>How the apps work together</h2>
+        <div class="rt-res">
+          <div><h3>One account</h3><p>One sign-in, with Google, Microsoft or email, works in every app. JEKray, JEKion and JEKfilm need no account to use, and JEKcad needs a free one to change a part.</p><ul>
+            <li><a href="/jek/tools/jeksuite.html">Sign in on JEKsuite</a></li>
+            <li><a href="/jek/privacy.html">Privacy Policy</a></li>
+          </ul></div>
+          <div><h3>One cloud</h3><p>Benches from every app sit in your workspace and your teams&rsquo;, in folders. Open any in its app, see its history, fork it, compare and merge versions.</p><ul>
+            <li><a href="/jek/docs/jekray/jeksuite/">How JEKsuite works</a></li>
+          </ul></div>
+          <div><h3>Between the apps</h3><p>A JEKfilm coating goes on a JEKray face and traces with the bench. Save the coating again and the bench offers to update.</p><ul>
+            <li><a href="/jek/docs/jekray/jekfilm/#on-a-jekray-bench">Coatings on the bench</a></li>
+          </ul></div>
+          <div><h3>One plan</h3><p>A JEKrayPro subscription covers every app, with the cloud and the optimisers.</p><ul>
+            <li><a href="/jek/products/design-software/jekray/#pricing">Plans and prices</a></li>
+            <li><a href="/jek/universities.html">For universities</a></li>
+            <li><a href="/jek/terms.html">JEKrayPro Terms</a></li>
+          </ul></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+<footer>
+  <a href="/jek/">
+    <img src="/jek/assets/img/jek-logo.png" class="bottom-image" alt="JEK Systems">
+  </a>
+  <span class="copyright">&copy; 2025&ndash;2026 JEK Systems</span>
+  <div class="bar6">
+    <a href="mailto:sales@jeksys.net">sales@jeksys.net</a> |
+    <a href="mailto:support@jeksys.net">support@jeksys.net</a> |
+    <a href="mailto:vendors@jeksys.net">vendors@jeksys.net</a>
+  </div>
+</footer>
+
+</body>
+</html>

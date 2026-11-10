@@ -2,6 +2,7 @@
   "../../jekray/src/core/constants.js",
   "../../jekray/src/core/hooks.js",
   "../../jekray/src/core/numeric.js",
+  "../../jekray/src/core/metals.js",
   "../../jekray/src/core/coatings.js",
   "../../jekray/src/core/coatdesign.js",
   "../../jekray/src/core/src-tag.js",

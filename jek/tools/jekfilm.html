@@ -2317,6 +2317,38 @@ function seededRng(seed) {
 }
 /* a standard normal from a uniform source (Box-Muller) */
 const randn = rnd => Math.sqrt(-2 * Math.log(rnd() || 1e-300)) * Math.cos(2 * Math.PI * rnd());
+/* ==========================================================================
+   Metals for thin-film stacks: their complex index n − ik by wavelength
+   Measured tables from the refractiveindex.info database (public domain, CC0), each from its paper, kept from 200 nm
+   to 20 µm: silver and gold from Johnson and Christy's films (to 1937 nm), aluminium from Rakić's. Linear in
+   wavelength between the points; beyond the table, its end value (metalCovers says whether nm is inside).
+   A layer of a stack names its metal (layer.metal) and core/coatings.js takes its index here at each wavelength.
+   ========================================================================== */
+const METAL_NK = {
+  Ag: { ref: 'P. B. Johnson and R. W. Christy, Phys. Rev. B 6, 4370 (1972)', nm: [203.3, 207.3, 211.9, 216.4, 221.4, 226.2, 231.3, 237.1, 242.6, 249, 255.1, 261.6, 268.9, 276.1, 284.4, 292.4, 300.9, 310.7, 320.4, 331.5, 342.5, 354.2, 367.9, 381.5, 397.4, 413.3, 430.5, 450.9, 471.4, 495.9, 520.9, 548.6, 582.1, 616.8, 659.5, 704.5, 756, 821.1, 892, 984, 1088, 1216, 1393, 1610, 1937],
+    n: [1.15, 1.18, 1.2, 1.22, 1.25, 1.26, 1.28, 1.28, 1.3, 1.31, 1.33, 1.35, 1.38, 1.41, 1.41, 1.39, 1.34, 1.13, 0.81, 0.17, 0.14, 0.1, 0.07, 0.05, 0.05, 0.05, 0.04, 0.04, 0.05, 0.05, 0.05, 0.06, 0.05, 0.06, 0.05, 0.04, 0.03, 0.04, 0.04, 0.04, 0.04, 0.09, 0.13, 0.15, 0.24],
+    k: [1.296, 1.312, 1.325, 1.336, 1.342, 1.344, 1.357, 1.367, 1.378, 1.389, 1.393, 1.387, 1.372, 1.331, 1.264, 1.161, 0.964, 0.616, 0.392, 0.829, 1.142, 1.419, 1.657, 1.864, 2.07, 2.275, 2.462, 2.657, 2.869, 3.093, 3.324, 3.586, 3.858, 4.152, 4.483, 4.838, 5.242, 5.727, 6.312, 6.992, 7.795, 8.828, 10.1, 11.85, 14.08] },
+  Au: { ref: 'P. B. Johnson and R. W. Christy, Phys. Rev. B 6, 4370 (1972)', nm: [203.3, 207.3, 211.9, 216.4, 221.4, 226.2, 231.3, 237.1, 242.6, 249, 255.1, 261.6, 268.9, 276.1, 284.4, 292.4, 300.9, 310.7, 320.4, 331.5, 342.5, 354.2, 367.9, 381.5, 397.4, 413.3, 430.5, 450.9, 471.4, 495.9, 520.9, 548.6, 582.1, 616.8, 659.5, 704.5, 756, 821.1, 892, 984, 1088, 1216, 1393, 1610, 1937],
+    n: [1.33, 1.3, 1.3, 1.3, 1.3, 1.31, 1.3, 1.32, 1.32, 1.33, 1.33, 1.35, 1.38, 1.43, 1.47, 1.49, 1.53, 1.53, 1.54, 1.48, 1.48, 1.5, 1.48, 1.46, 1.47, 1.46, 1.45, 1.38, 1.31, 1.04, 0.62, 0.43, 0.29, 0.21, 0.14, 0.13, 0.14, 0.16, 0.17, 0.22, 0.27, 0.35, 0.43, 0.56, 0.92],
+    k: [1.277, 1.304, 1.35, 1.387, 1.427, 1.46, 1.497, 1.536, 1.577, 1.631, 1.688, 1.749, 1.803, 1.847, 1.869, 1.878, 1.889, 1.893, 1.898, 1.883, 1.871, 1.866, 1.895, 1.933, 1.952, 1.958, 1.948, 1.914, 1.849, 1.833, 2.081, 2.455, 2.863, 3.272, 3.697, 4.103, 4.542, 5.083, 5.663, 6.35, 7.15, 8.145, 9.519, 11.21, 13.78] },
+  Al: { ref: 'A. D. Rakić, Appl. Opt. 34, 4755 (1995)', nm: [206.64, 247.97, 309.96, 326.28, 364.66, 413.28, 442.8, 476.87, 516.6, 563.57, 619.93, 652.25, 688.81, 729.32, 774.91, 794.78, 815.69, 837.74, 885.61, 911.66, 939.28, 968.63, 999.88, 1033.2, 1127.1, 1239.9, 1377.6, 1549.8, 1771.2, 2066.4, 2479.7, 2755.2, 3099.6, 3262.8, 3444, 3646.6, 3874.5, 4132.8, 4428, 4768.7, 5166, 5635.7, 6199.3, 6888.1, 7749.1, 8856.1, 10332, 12399, 13776, 15498, 17712, 19075],
+    n: [0.12677, 0.18137, 0.28003, 0.31474, 0.39877, 0.52135, 0.6079, 0.7278, 0.8734, 1.0728, 1.366, 1.5724, 1.8301, 2.1606, 2.6154, 2.7675, 2.7668, 2.6945, 2.2802, 1.9739, 1.6784, 1.4867, 1.4359, 1.3998, 1.3281, 1.3157, 1.3899, 1.5782, 1.9205, 2.4738, 3.3372, 3.938, 4.7097, 5.0735, 5.4903, 5.9564, 6.4808, 7.0796, 7.7757, 8.5881, 9.558, 10.742, 12.195, 14.088, 16.755, 20.837, 26.216, 33.519, 38.461, 43.775, 50.951, 54.413],
+    k: [2.3563, 2.9029, 3.7081, 3.9165, 4.3957, 5.0008, 5.3676, 5.7781, 6.2418, 6.7839, 7.4052, 7.7354, 8.0601, 8.3565, 8.4914, 8.3866, 8.2573, 8.1878, 8.1134, 8.3058, 8.597, 9.0655, 9.4939, 9.8914, 10.969, 12.245, 13.784, 15.656, 17.991, 20.982, 25.004, 27.58, 30.737, 32.183, 33.814, 35.608, 37.595, 39.826, 42.367, 45.257, 48.593, 52.518, 57.156, 62.841, 69.857, 78.274, 88.197, 101.28, 108.96, 118.39, 129.49, 136.09] },
+};
+const METAL_NAMES = { Ag: 'Silver', Al: 'Aluminium', Au: 'Gold' };
+/* the metal's [n, k] at nm (its index n − ik in the stack's convention) */
+function metalNK(metal, nm) {
+  const T = METAL_NK[metal];
+  if (!T) return [1, 0];
+  const w = T.nm, last = w.length - 1;
+  if (nm <= w[0]) return [T.n[0], T.k[0]];
+  if (nm >= w[last]) return [T.n[last], T.k[last]];
+  let i = 1; while (w[i] < nm) i++;
+  const t = (nm - w[i - 1]) / (w[i] - w[i - 1]);
+  return [T.n[i - 1] + t * (T.n[i] - T.n[i - 1]), T.k[i - 1] + t * (T.k[i] - T.k[i - 1])];
+}
+/* whether the table reaches nm (outside it, metalNK gives the nearest end) */
+const metalCovers = (metal, nm) => !!METAL_NK[metal] && nm >= METAL_NK[metal].nm[0] && nm <= METAL_NK[metal].nm[METAL_NK[metal].nm.length - 1];
 /* ---------- Thin-film stacks ----------
    Characteristic matrix method: each layer contributes a 2x2 matrix in its tilted
    admittance, and the stack gives the complex amplitude reflection for s and p. */
@@ -2360,11 +2392,37 @@ function filmAdmit(n, sin0, pol) {
   const b = Math.sqrt(-q);
   return pol === 's' ? [0, -n * b, 0, -b] : [0, n / b, 0, -b];
 }
-/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances */
+/* An absorbing layer's matrix (a metal: index N = n − ik, the matrix's e^{-ikz} convention), complex throughout:
+   cos θ = √(1 − (sin0/N)²) on the branch whose wave decays into the layer, η = N cos θ (s) or N / cos θ (p), δ = 2π N d
+   cos θ / λ, and the matrix [[cos δ, i sin δ / η], [i η sin δ, cos δ]]: four [re, im] */
+const fcx = { mul: (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]], div: (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; },
+  sqrt: a => { const r = Math.hypot(a[0], a[1]), re = Math.sqrt(Math.max(0, (r + a[0]) / 2)), im = Math.sqrt(Math.max(0, (r - a[0]) / 2)); return [re, a[1] < 0 ? -im : im]; },
+  cos: a => [Math.cos(a[0]) * Math.cosh(a[1]), -Math.sin(a[0]) * Math.sinh(a[1])], sin: a => [Math.sin(a[0]) * Math.cosh(a[1]), Math.cos(a[0]) * Math.sinh(a[1])] };
+function filmLayerC(N, d, sin0, nm, pol) {
+  const s = fcx.div([sin0, 0], N), s2 = fcx.mul(s, s);
+  let c = fcx.sqrt([1 - s2[0], -s2[1]]);
+  if (c[1] > 0) c = [-c[0], -c[1]];                                   // the decaying branch: Im(N cos θ) ≤ 0
+  const eta = pol === 's' ? fcx.mul(N, c) : fcx.div(N, c);
+  const k2 = 2 * Math.PI * d / nm, dl = fcx.mul(fcx.mul(N, c), [k2, 0]);
+  const C = fcx.cos(dl), S = fcx.sin(dl), iS = [-S[1], S[0]];
+  return [C, fcx.div(iS, eta), fcx.mul(iS, eta), C];
+}
+/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances. A layer of a metal
+   (L.metal, its index from core/metals.js at this wavelength) absorbs; any other is lossless, index L.n */
 function filmBC(layers, n0, ns, ci, nmWave, pol) {
   const sin0 = Math.sqrt(Math.max(0, 1 - ci * ci)) * n0;   // n0 sin(theta0), invariant
   let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
   for (const L of layers) {
+    if (L.metal) {
+      // times the absorbing layer's complex matrix
+      const nk = metalNK(L.metal, nmWave), [a, b, c2, e] = filmLayerC([nk[0], -nk[1]], L.d, sin0, nmWave, pol);
+      const M11 = [m11r, m11i], M12 = [m12r, m12i], M21 = [m21r, m21i], M22 = [m22r, m22i];
+      const n11 = fcx.mul(M11, a), n11b = fcx.mul(M12, c2), n12 = fcx.mul(M11, b), n12b = fcx.mul(M12, e);
+      const n21 = fcx.mul(M21, a), n21b = fcx.mul(M22, c2), n22 = fcx.mul(M21, b), n22b = fcx.mul(M22, e);
+      m11r = n11[0] + n11b[0]; m11i = n11[1] + n11b[1]; m12r = n12[0] + n12b[0]; m12i = n12[1] + n12b[1];
+      m21r = n21[0] + n21b[0]; m21i = n21[1] + n21b[1]; m22r = n22[0] + n22b[0]; m22i = n22[1] + n22b[1];
+      continue;
+    }
     // times the layer's [[c, i x], [i y, c]]
     const [c, x, y] = filmLayer(L.n, L.d, sin0, nmWave, pol);
     const n11r = m11r * c - m12i * y, n11i = m11i * c + m12r * y;
@@ -2504,17 +2562,20 @@ function coatOptimise(layers, spec, opts) {
   opts = opts || {};
   const n = layers.length;
   if (!n) return { layers: [], before: coatMerit(layers, spec), after: coatMerit(layers, spec), evals: 0 };
-  const lo = layers.map(L => 0.01 * qwot(L.n, spec.design)), hi = layers.map(L => 16 * qwot(L.n, spec.design));
+  // each thickness's scale: a quarter wave at the design wavelength, or for a metal 20 nm (its quarter wave would be
+  // microns of an opaque film): held between a hundredth and sixteen times it
+  const scale = L => (L.metal ? 20 : qwot(L.n, spec.design));
+  const lo = layers.map(L => 0.01 * scale(L)), hi = layers.map(L => 16 * scale(L));
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
-  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
+  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i], ...(L.metal ? { metal: L.metal } : {}) })), spec, opts.nW || 25, opts.nA || 3); };
   // a thickness not given (blank, or not a number) starts at a quarter wave
-  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : scale(L)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
     const step = (0.3 + 0.3 * round);
-    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * qwot(layers[i].n, spec.design)); return clampD(x); }));
+    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * scale(layers[i])); return clampD(x); }));
     let F = S.map(f);
     for (let it = 0; it < maxIt; it++) {
       const ord = F.map((v, i) => i).sort((a, b) => F[a] - F[b]);
@@ -2537,8 +2598,8 @@ function coatOptimise(layers, spec, opts) {
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
   // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
-  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +scale(L).toFixed(3), ...(L.metal ? { metal: L.metal } : {}) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3), ...(L.metal ? { metal: L.metal } : {}) })), after = coatMerit(out, spec);
   return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
@@ -2547,14 +2608,14 @@ function coatOptimise(layers, spec, opts) {
 function coatFromFilm(d, src) {
   d = d && typeof d === 'object' ? d : {};
   const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
-  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 function coatToStack(layers, spec, label) {
   const one = layers.length === 1 && spec.target === 'rf';
-  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
+  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d, ...(L.metal ? { metal: L.metal } : {}) })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
 }
 /* Where a visit came from, as a short plain token for the usage counts (io/usage.js): the tag on the link
    that brought it (?src=ig-spectrometer, from a post), or else the social site it came through by its
@@ -2675,7 +2736,7 @@ function normFilm(d) {
   const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, angles, theta0: angles === 'band' ? Math.min(theta, fnum(s.theta0, 0, 89, 0)) : 0, theta, pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
-    .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100) }));
+    .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers };
 }
 /* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
@@ -2688,8 +2749,16 @@ function filmSpec(f) {
   return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta0: s.theta0, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
 }
 /* the presets: a starting stack for the design wavelength */
-const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs']];
+const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs'],
+  ['agp', 'Protected silver'], ['alp', 'Protected aluminium'], ['ale', 'Enhanced aluminium'], ['au', 'Gold']];
 function filmPreset(kind, design) {
+  const q = n => ({ n, d: qwot(n, design) });
+  // metal mirrors, outside in: a half-wave overcoat (absent at the design wavelength) on 150 nm of silver or 100 nm of
+  // aluminium; an aluminium mirror enhanced by a quarter-wave pair of high index on low; bare gold
+  if (kind === 'agp') return [{ n: 1.46, d: 2 * qwot(1.46, design) }, { n: 1, d: 150, metal: 'Ag' }];
+  if (kind === 'alp') return [{ n: 1.46, d: 2 * qwot(1.46, design) }, { n: 1, d: 100, metal: 'Al' }];
+  if (kind === 'ale') return [q(2.10), q(1.46), { n: 1, d: 100, metal: 'Al' }];
+  if (kind === 'au') return [{ n: 1, d: 150, metal: 'Au' }];
   if (kind === 'bb3') return [{ n: 1.38, d: qwot(1.38, design) }, { n: 2.10, d: qwot(2.10, design) / 2 }, { n: 1.63, d: qwot(1.63, design) }];
   return coatPreset(kind, design);
 }
@@ -4073,17 +4142,22 @@ function layersCard(spec) {
   let total = 0;
   layers.forEach((L, k) => {
     const qw = qwot(L.n, spec.design); total += L.d;
+    // the material: a dielectric by its index, or a metal (absorbing, its index from its measured table)
     const opts = COAT_MATERIALS.map(([v, t]) => [String(+v), t]);
-    if (!opts.some(o => Math.abs(+o[0] - L.n) < 1e-9)) opts.push([String(+L.n), 'n = ' + dsFmt(L.n, 4)]);
+    if (!L.metal && !opts.some(o => Math.abs(+o[0] - L.n) < 1e-9)) opts.push([String(+L.n), 'n = ' + dsFmt(L.n, 4)]);
+    for (const [m, nm] of Object.entries(METAL_NAMES)) opts.push(['metal:' + m, nm + ' (' + m + ', metal)']);
     opts.push(['custom', 'Index of my own…']);
-    const mat = dsSelect(opts, String(+L.n), v => {
-      if (v === 'custom') { const n = +prompt('The layer’s index', String(L.n)); if (isFinite(n) && n >= 1) edit(f => { f.layers[k].n = n; }); else render(); }
-      else edit(f => { f.layers[k].n = +v; });
+    const mat = dsSelect(opts, L.metal ? 'metal:' + L.metal : String(+L.n), v => {
+      if (v === 'custom') { const n = +prompt('The layer’s index', String(L.n)); if (isFinite(n) && n >= 1) edit(f => { f.layers[k].n = n; delete f.layers[k].metal; }); else render(); }
+      else if (v.startsWith('metal:')) edit(f => { const was = f.layers[k].metal; f.layers[k].metal = v.slice(6); if (!was) f.layers[k].d = 100; });
+      else edit(f => { const was = f.layers[k].metal; f.layers[k].n = +v; delete f.layers[k].metal; if (was) f.layers[k].d = qwot(+v, f.spec.design); });
     }, 'Layer ' + (k + 1) + ' material');
-    tb.append(h('tr', null, h('td', { class: 'n mono' }, String(k + 1)), h('td', null, mat), h('td', { class: 'n mono' }, (+L.n).toFixed(3)),
+    const nk = L.metal ? metalNK(L.metal, spec.design) : null;
+    const nCell = L.metal ? h('span', { title: 'n − ik at λ₀' + (metalCovers(L.metal, spec.design) ? '' : ': beyond its table, its nearest value') }, nk[0].toFixed(3) + ' − ' + nk[1].toFixed(3) + 'i') : (+L.n).toFixed(3);
+    tb.append(h('tr', { class: L.metal ? 'film-metal' : null }, h('td', { class: 'n mono' }, String(k + 1)), h('td', null, mat), h('td', { class: 'n mono' }, nCell),
       h('td', { class: 'n' }, dsNum(L.d, v => { film.layers[k].d = Math.max(0.01, v); }, 'Layer ' + (k + 1) + ' thickness (nm)', { dp: 2 })),
-      h('td', { class: 'n mono' }, (L.d / qw).toFixed(3)),
-      h('td', { class: 'acts' }, h('button', { class: 'film-tbtn', type: 'button', title: 'Make this layer a quarter wave at λ₀', onclick: () => edit(f => { f.layers[k].d = qw; }) }, 'λ/4'),
+      h('td', { class: 'n mono' }, L.metal ? '—' : (L.d / qw).toFixed(3)),
+      h('td', { class: 'acts' }, L.metal ? null : h('button', { class: 'film-tbtn', type: 'button', title: 'Make this layer a quarter wave at λ₀', onclick: () => edit(f => { f.layers[k].d = qw; }) }, 'λ/4'),
         h('button', { class: 'film-tbtn', type: 'button', title: 'Remove layer ' + (k + 1), 'aria-label': 'Remove layer ' + (k + 1), onclick: () => edit(f => { f.layers.splice(k, 1); }) }, '✕'))));
   });
   if (!layers.length) tb.append(h('tr', null, h('td', { colspan: '6', class: 'film-empty' }, 'No layers: the bare substrate. Add one, or start from a preset.')));
@@ -4097,7 +4171,7 @@ function layersCard(spec) {
     h('div', { class: 'film-twrap' }, tbl),
     h('div', { class: 'film-tools' }, opt,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
 }
 /* the optimiser, JEKrayPro's: the thicknesses searched from where they stand */

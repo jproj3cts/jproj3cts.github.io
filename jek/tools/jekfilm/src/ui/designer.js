@@ -3,6 +3,7 @@ import { hooks } from '../../../jekray/src/core/hooks.js';
 import { designPro, proMark } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { COAT_MATERIALS, qwot } from '../../../jekray/src/core/coatings.js';
+import { METAL_NAMES, metalCovers, metalNK } from '../../../jekray/src/core/metals.js';
 import { coatAngles, coatCurve, coatMerit, coatOptimise, coatWant, stackR } from '../../../jekray/src/core/coatdesign.js';
 import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
 import { linePlotSvg } from './plot.js';
@@ -149,17 +150,22 @@ function layersCard(spec) {
   let total = 0;
   layers.forEach((L, k) => {
     const qw = qwot(L.n, spec.design); total += L.d;
+    // the material: a dielectric by its index, or a metal (absorbing, its index from its measured table)
     const opts = COAT_MATERIALS.map(([v, t]) => [String(+v), t]);
-    if (!opts.some(o => Math.abs(+o[0] - L.n) < 1e-9)) opts.push([String(+L.n), 'n = ' + dsFmt(L.n, 4)]);
+    if (!L.metal && !opts.some(o => Math.abs(+o[0] - L.n) < 1e-9)) opts.push([String(+L.n), 'n = ' + dsFmt(L.n, 4)]);
+    for (const [m, nm] of Object.entries(METAL_NAMES)) opts.push(['metal:' + m, nm + ' (' + m + ', metal)']);
     opts.push(['custom', 'Index of my own…']);
-    const mat = dsSelect(opts, String(+L.n), v => {
-      if (v === 'custom') { const n = +prompt('The layer’s index', String(L.n)); if (isFinite(n) && n >= 1) edit(f => { f.layers[k].n = n; }); else render(); }
-      else edit(f => { f.layers[k].n = +v; });
+    const mat = dsSelect(opts, L.metal ? 'metal:' + L.metal : String(+L.n), v => {
+      if (v === 'custom') { const n = +prompt('The layer’s index', String(L.n)); if (isFinite(n) && n >= 1) edit(f => { f.layers[k].n = n; delete f.layers[k].metal; }); else render(); }
+      else if (v.startsWith('metal:')) edit(f => { const was = f.layers[k].metal; f.layers[k].metal = v.slice(6); if (!was) f.layers[k].d = 100; });
+      else edit(f => { const was = f.layers[k].metal; f.layers[k].n = +v; delete f.layers[k].metal; if (was) f.layers[k].d = qwot(+v, f.spec.design); });
     }, 'Layer ' + (k + 1) + ' material');
-    tb.append(h('tr', null, h('td', { class: 'n mono' }, String(k + 1)), h('td', null, mat), h('td', { class: 'n mono' }, (+L.n).toFixed(3)),
+    const nk = L.metal ? metalNK(L.metal, spec.design) : null;
+    const nCell = L.metal ? h('span', { title: 'n − ik at λ₀' + (metalCovers(L.metal, spec.design) ? '' : ': beyond its table, its nearest value') }, nk[0].toFixed(3) + ' − ' + nk[1].toFixed(3) + 'i') : (+L.n).toFixed(3);
+    tb.append(h('tr', { class: L.metal ? 'film-metal' : null }, h('td', { class: 'n mono' }, String(k + 1)), h('td', null, mat), h('td', { class: 'n mono' }, nCell),
       h('td', { class: 'n' }, dsNum(L.d, v => { film.layers[k].d = Math.max(0.01, v); }, 'Layer ' + (k + 1) + ' thickness (nm)', { dp: 2 })),
-      h('td', { class: 'n mono' }, (L.d / qw).toFixed(3)),
-      h('td', { class: 'acts' }, h('button', { class: 'film-tbtn', type: 'button', title: 'Make this layer a quarter wave at λ₀', onclick: () => edit(f => { f.layers[k].d = qw; }) }, 'λ/4'),
+      h('td', { class: 'n mono' }, L.metal ? '—' : (L.d / qw).toFixed(3)),
+      h('td', { class: 'acts' }, L.metal ? null : h('button', { class: 'film-tbtn', type: 'button', title: 'Make this layer a quarter wave at λ₀', onclick: () => edit(f => { f.layers[k].d = qw; }) }, 'λ/4'),
         h('button', { class: 'film-tbtn', type: 'button', title: 'Remove layer ' + (k + 1), 'aria-label': 'Remove layer ' + (k + 1), onclick: () => edit(f => { f.layers.splice(k, 1); }) }, '✕'))));
   });
   if (!layers.length) tb.append(h('tr', null, h('td', { colspan: '6', class: 'film-empty' }, 'No layers: the bare substrate. Add one, or start from a preset.')));
@@ -173,7 +179,7 @@ function layersCard(spec) {
     h('div', { class: 'film-twrap' }, tbl),
     h('div', { class: 'film-tools' }, opt,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
 }
 /* the optimiser, JEKrayPro's: the thicknesses searched from where they stand */

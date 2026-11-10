@@ -16,7 +16,7 @@ test('jekfilm.html, its dev page and main.js are current (node build.mjs)', () =
 });
 test('it shares only JEKray modules that reach no bench: the thin-film physics, constants, hooks, usage counts, the account and its gates', () => {
   const shared = order().filter(f => f.startsWith('../')).map(f => f.replace(/^(\.\.\/)+jekray\/src\//, ''));
-  assert.deepEqual(shared.sort(), ['core/coatdesign.js', 'core/coatings.js', 'core/constants.js', 'core/hooks.js', 'core/numeric.js', 'core/src-tag.js', 'io/account.js', 'io/usage.js', 'ui/dom.js', 'ui/pro.js']);
+  assert.deepEqual(shared.sort(), ['core/coatdesign.js', 'core/coatings.js', 'core/constants.js', 'core/hooks.js', 'core/metals.js', 'core/numeric.js', 'core/src-tag.js', 'io/account.js', 'io/usage.js', 'ui/dom.js', 'ui/pro.js']);
 });
 test('saving a file, saving to the cloud and optimising are JEKrayPro’s, each gated first; exporting the curves a free account’s', () => {
   assert.match(src('io/files.js'), /export function saveFilmFile\(\) \{\n {2}if \(!designPro\('save a coating file'\)\) return false;/);

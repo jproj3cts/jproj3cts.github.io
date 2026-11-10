@@ -36,6 +36,9 @@ export async function check(pw, base, shots) {
         rows: [...document.querySelectorAll('#filmFigures tbody th')].map(t => t.textContent), angs: [...document.querySelectorAll('#filmAngleFigures tbody th')].map(t => t.textContent), spec: window.JEKfilm.spec() }));
       ok('Angles as a band: from and to (40° to 50° to start), judged and shown there', band.from === '40' && band.to === '50' && band.spec.theta0 === 40 && band.spec.theta === 50 && band.rows.join() === '40°,50°' && band.angs.join() === '0°,40°,50°', JSON.stringify(band));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'upto');
+      await p.selectOption('select[aria-label="A preset stack"]', 'agp'); await p.waitForTimeout(100);
+      const ag = await p.evaluate(() => ({ cells: [...document.querySelectorAll('#filmLayers tbody tr.film-metal td')].map(t => t.textContent), sel: [...document.querySelectorAll('#filmLayers tbody tr.film-metal select')].map(s => s.value), R: document.getElementById('filmFigures').innerText }));
+      ok('Protected silver: the silver layer marked a metal, its n − ik at λ₀ shown, no quarter waves for it', ag.sel.join() === 'metal:Ag' && /^0\.\d{3} − \d\.\d{3}i$/.test(ag.cells[2]) && ag.cells[4] === '—', JSON.stringify(ag));
       await p.selectOption('select[aria-label="The substrate"]', 'g:Germanium');
       ok('Germanium in the visible: said to be opaque there', /Germanium is not transparent at 550 nm/.test(await p.evaluate(() => document.querySelector('.film-warn') ? document.querySelector('.film-warn').textContent : '')), 'no warning');
       await p.evaluate(c => window.JEKfilm.load(c), COATING);

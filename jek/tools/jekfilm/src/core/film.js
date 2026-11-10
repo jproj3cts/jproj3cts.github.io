@@ -1,5 +1,6 @@
 import { coatPreset, qwot } from '../../../jekray/src/core/coatings.js';
 import { coatSpec, coatToStack } from '../../../jekray/src/core/coatdesign.js';
+import { METAL_NK } from '../../../jekray/src/core/metals.js';
 
 /* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
@@ -66,7 +67,7 @@ export function normFilm(d) {
   const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, angles, theta0: angles === 'band' ? Math.min(theta, fnum(s.theta0, 0, 89, 0)) : 0, theta, pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
-    .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100) }));
+    .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers };
 }
 /* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
@@ -79,8 +80,16 @@ export function filmSpec(f) {
   return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta0: s.theta0, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
 }
 /* the presets: a starting stack for the design wavelength */
-export const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs']];
+export const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs'],
+  ['agp', 'Protected silver'], ['alp', 'Protected aluminium'], ['ale', 'Enhanced aluminium'], ['au', 'Gold']];
 export function filmPreset(kind, design) {
+  const q = n => ({ n, d: qwot(n, design) });
+  // metal mirrors, outside in: a half-wave overcoat (absent at the design wavelength) on 150 nm of silver or 100 nm of
+  // aluminium; an aluminium mirror enhanced by a quarter-wave pair of high index on low; bare gold
+  if (kind === 'agp') return [{ n: 1.46, d: 2 * qwot(1.46, design) }, { n: 1, d: 150, metal: 'Ag' }];
+  if (kind === 'alp') return [{ n: 1.46, d: 2 * qwot(1.46, design) }, { n: 1, d: 100, metal: 'Al' }];
+  if (kind === 'ale') return [q(2.10), q(1.46), { n: 1, d: 100, metal: 'Al' }];
+  if (kind === 'au') return [{ n: 1, d: 150, metal: 'Au' }];
   if (kind === 'bb3') return [{ n: 1.38, d: qwot(1.38, design) }, { n: 2.10, d: qwot(2.10, design) / 2 }, { n: 1.63, d: qwot(1.63, design) }];
   return coatPreset(kind, design);
 }

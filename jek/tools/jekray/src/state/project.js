@@ -8,6 +8,7 @@ import { FC } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { modName } from '../engines/mods.js';
+import { METAL_NK } from '../core/metals.js';
 
 /* ==========================================================================
    Project state
@@ -83,6 +84,8 @@ export function normCoat(c) {
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),
+      // a metal layer (core/metals.js): absorbing, its index from the metal's table at each wavelength
+      ...(L && METAL_NK[L.metal] ? { metal: L.metal } : {}),
     }));
   }
   return out;

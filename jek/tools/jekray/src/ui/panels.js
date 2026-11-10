@@ -14,6 +14,7 @@ import { FIBRE_NG } from '../core/coherence.js';
 import { PULSE_SAMPLES, applyPulse, fibreDisp, fibreGDD, fibreGamma, pulseDnu } from '../core/pulses.js';
 import { deg, nextName, normCoat, project, typeLabel } from '../state/project.js';
 import { COAT_MATERIALS, MIRROR_METALS, coatPreset, mirrorR, qwot, stackAmp } from '../core/coatings.js';
+import { METAL_NAMES } from '../core/metals.js';
 import { hooks } from '../core/hooks.js';
 import { benchNms, getEl, normElement } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
@@ -635,16 +636,23 @@ function stackRows(el, holder) {
   coat.layers.forEach((L, k) => {
     const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) });
     for (const [v, t] of COAT_MATERIALS) sel.append(h('option', { value: String(+v) }, t));
-    if (!COAT_MATERIALS.some(m => Math.abs(+m[0] - L.n) < 1e-9)) {
+    if (!L.metal && !COAT_MATERIALS.some(m => Math.abs(+m[0] - L.n) < 1e-9)) {
       sel.append(h('option', { value: String(+L.n) }, 'n = ' + (+L.n.toPrecision(4))));
     }
-    sel.value = String(+L.n);
-    sel.addEventListener('change', () => { checkpoint(); L.n = +sel.value; changed(false); });
+    // a metal (core/metals.js: absorbing, its measured index at each wavelength)
+    for (const [m, name] of Object.entries(METAL_NAMES)) sel.append(h('option', { value: 'metal:' + m }, name + ' (metal)'));
+    sel.value = L.metal ? 'metal:' + L.metal : String(+L.n);
+    sel.addEventListener('change', () => {
+      checkpoint();
+      if (sel.value.startsWith('metal:')) { if (!L.metal) L.d = 100; L.metal = sel.value.slice(6); }
+      else { if (L.metal) L.d = qwot(+sel.value, coat.design); L.n = +sel.value; delete L.metal; }
+      changed(true);
+    });
     const row = h('div', { class: 'rt-rows rt-layer' },
       h('div', { class: 'rt-f' }, h('label', { for: sel.id }, 'Layer ' + (k + 1) + ' material'), sel),
       param('Thickness (nm)', el, base + '.layers.' + k + '.d'),
       h('div', { class: 'rt-inline wide' },
-        h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); L.d = qwot(L.n, coat.design); changed(true); } }, 'Quarter wave'),
+        L.metal ? null : h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); L.d = qwot(L.n, coat.design); changed(true); } }, 'Quarter wave'),
         h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); coat.layers.splice(k, 1); changed(true); } }, 'Remove')));
     box.append(row);
   });

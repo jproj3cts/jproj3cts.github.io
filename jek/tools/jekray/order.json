@@ -71,6 +71,7 @@
   "parts/registry.js",
   "state/project.js",
   "state/packs.js",
+  "core/metals.js",
   "core/coatings.js",
   "core/coatdesign.js",
   "core/face-pol.js",

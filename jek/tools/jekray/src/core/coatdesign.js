@@ -1,4 +1,5 @@
 import { stackAmp, qwot } from './coatings.js';
+import { METAL_NK } from './metals.js';
 import { cabs2 } from './numeric.js';
 
 /* ==========================================================================
@@ -85,17 +86,20 @@ export function coatOptimise(layers, spec, opts) {
   opts = opts || {};
   const n = layers.length;
   if (!n) return { layers: [], before: coatMerit(layers, spec), after: coatMerit(layers, spec), evals: 0 };
-  const lo = layers.map(L => 0.01 * qwot(L.n, spec.design)), hi = layers.map(L => 16 * qwot(L.n, spec.design));
+  // each thickness's scale: a quarter wave at the design wavelength, or for a metal 20 nm (its quarter wave would be
+  // microns of an opaque film): held between a hundredth and sixteen times it
+  const scale = L => (L.metal ? 20 : qwot(L.n, spec.design));
+  const lo = layers.map(L => 0.01 * scale(L)), hi = layers.map(L => 16 * scale(L));
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
-  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
+  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i], ...(L.metal ? { metal: L.metal } : {}) })), spec, opts.nW || 25, opts.nA || 3); };
   // a thickness not given (blank, or not a number) starts at a quarter wave
-  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : scale(L)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
     const step = (0.3 + 0.3 * round);
-    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * qwot(layers[i].n, spec.design)); return clampD(x); }));
+    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * scale(layers[i])); return clampD(x); }));
     let F = S.map(f);
     for (let it = 0; it < maxIt; it++) {
       const ord = F.map((v, i) => i).sort((a, b) => F[a] - F[b]);
@@ -118,8 +122,8 @@ export function coatOptimise(layers, spec, opts) {
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
   // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
-  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +scale(L).toFixed(3), ...(L.metal ? { metal: L.metal } : {}) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3), ...(L.metal ? { metal: L.metal } : {}) })), after = coatMerit(out, spec);
   return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
@@ -128,12 +132,12 @@ export function coatOptimise(layers, spec, opts) {
 export function coatFromFilm(d, src) {
   d = d && typeof d === 'object' ? d : {};
   const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
-  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 export function coatToStack(layers, spec, label) {
   const one = layers.length === 1 && spec.target === 'rf';
-  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
+  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d, ...(L.metal ? { metal: L.metal } : {}) })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
 }

@@ -71,6 +71,7 @@ import './parts/rf.js';
 import './parts/registry.js';
 import './state/project.js';
 import './state/packs.js';
+import './core/metals.js';
 import './core/coatings.js';
 import './core/coatdesign.js';
 import './core/face-pol.js';

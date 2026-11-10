@@ -90,3 +90,13 @@ test('figures: to their decimals, and a very small one as three significant figu
   assert.equal(F.dsFix(NaN, 3), '—');
   assert.equal(F.dsSci(12300), '1.23×10⁴');
 });
+test('a metal layer: kept by the file and by a JEKray face; the protected-silver preset reflects as silver does at 633 nm', async () => {
+  const { coatFromFilm } = await import('../../../jekray/src/core/coatdesign.js');
+  const f = F.normFilm({ name: 'Protected silver', spec: { target: 'hr', design: 633, lo: 600, hi: 660 }, layers: F.filmPreset('agp', 633) });
+  assert.equal(f.layers[1].metal, 'Ag'); assert.equal(f.layers[1].d, 150);
+  assert.equal(F.normFilm({ layers: [{ n: 1, d: 50, metal: 'Unobtainium' }] }).layers[0].metal, undefined, 'only a metal of the tables');
+  const face = normCoat(coatFromFilm(f));
+  assert.equal(face.layers[1].metal, 'Ag');
+  const R = stackR(f.layers, 1, F.filmSpec(f).ns, 1, 633, 'avg');
+  assert.ok(R > 0.95 && R < 0.99, 'protected silver at 633 nm: ' + R.toFixed(4));
+});

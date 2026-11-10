@@ -2,6 +2,7 @@
 import './../../jekray/src/core/constants.js';
 import './../../jekray/src/core/hooks.js';
 import './../../jekray/src/core/numeric.js';
+import './../../jekray/src/core/metals.js';
 import './../../jekray/src/core/coatings.js';
 import './../../jekray/src/core/coatdesign.js';
 import './../../jekray/src/core/src-tag.js';

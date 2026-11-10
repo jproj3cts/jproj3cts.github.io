@@ -1996,7 +1996,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-part.hid .nm { opacity: 0.5; }
   .cad-part input[type="color"] { width: 18px; height: 18px; padding: 0; border: 1px solid var(--jek-line); border-radius: 3px; background: none; cursor: pointer; }
   .cad-partmat { flex-basis: 100%; padding-left: 1.5rem; }
-  .cad-partmat select { font-size: 0.72rem; max-width: 100%; }
+  /* (the list of materials opens upwards from the foot of the panel, so its arrow points up) */
+  .cad-partmat select { font-size: 0.72rem; max-width: 100%; appearance: none; -webkit-appearance: none; padding-right: 1.3rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 7.5L6 4L9.5 7.5' fill='none' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.35rem center; background-size: 0.7rem; }
   .cad-rowmenu { position: fixed; z-index: 90; min-width: 11rem; }
   /* the view */
   .cad-app .cad-stage { flex: 1; min-width: 0; height: auto; min-height: 0; border: 0; }
@@ -2221,7 +2222,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
     <h2 id="helpTitle">Mouse and keys</h2>
     <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd><dt>Fly (the bird in the bar)</dt><dd>W A S D and the mouse, full screen; Esc lands</dd></dl>
     <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Click again</dt><dd>each click adds to the selection; a click on what is chosen takes it out, a click on nothing empties it</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
-    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a sketch</dt><dd>edit it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
+    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a sketch</dt><dd>edit it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>A part’s ⋯ menu, or Delete with parts selected</dt><dd>delete the part (a feature in the list)</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
     <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>A number typed while drawing a line, circle or rectangle</dt><dd>its length, diameter, or width then height (Enter)</dd><dt>A number typed after a line, circle or arc</dt><dd>its length, diameter or radius</dd><dt>Shift held while drawing</dt><dd>nothing is inferred</dd><dt>Double-click a line, circle or arc</dt><dd>dimension it; double-click a dimension to change it</dd><dt>Right-click, or Esc</dt><dd>end a chain of lines</dd><dt>S</dt><dd>select</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
   </dialog>
@@ -3372,6 +3373,8 @@ const FEATURE_KINDS = {
   cpattern: { label: 'Circular pattern', defaults: { of: 'features', items: [], axis: 'z', axisRef: null, count: '6', angle: '360 deg' } },
   mirror: { label: 'Mirror', defaults: { of: 'features', items: [], plane: { std: 'right' } } },
   boolean: { label: 'Boolean', defaults: { op: 'union', targets: [], tools: [], keep: false } },
+  // whole parts taken away (a feature like any other: undone, suppressed, rolled before, edited)
+  delete: { label: 'Delete part', defaults: { targets: [] } },
   import: { label: 'Import', defaults: { file: '', format: 'step', data: '' } },
 };
 const featureLabel = t => (FEATURE_KINDS[t] ? FEATURE_KINDS[t].label : t);
@@ -4153,6 +4156,13 @@ function makeKernel(oc) {
       const F = planeFrame(S, f.plane), t = T(new oc.gp_Trsf());
       t.SetMirror(T(new oc.gp_Ax2(pnt(F.o), gdir(F.n))));
       return patterned(S, f, [t]);
+    },
+    delete(S, f) {
+      if (!f.targets.length) throw new Error('choose the parts to delete');
+      const gone = f.targets.filter(id => S.parts.some(p => p.id === id));
+      if (!gone.length) throw new Error('a chosen part is not there');
+      S.parts = S.parts.filter(p => !gone.includes(p.id));
+      return { deleted: gone.length };
     },
     boolean(S, f) {
       const get = ids => ids.map(id => { const p = S.parts.find(x => x.id === id); if (!p) throw new Error('a chosen part is not there'); return p; });
@@ -6770,6 +6780,7 @@ const FEATURE_FORMS = {
   cpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
     ['axis', 'Axis', 'select', { options: [['x', 'x'], ['y', 'y'], ['z', 'z']], show: f => !f.axisRef }], ['axisRef', 'Or about an edge (straight or round)', 'sel', { pick: 'edge' }], ['count', 'Instances', 'expr', { unit: 'num' }], ['angle', 'Angle (360°: equally round)', 'expr', { unit: 'ang' }]],
   mirror: [['of', 'Mirror', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to mirror', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }], ['plane', 'Mirror plane', 'sel', { pick: 'plane' }]],
+  delete: [['targets', 'Parts to delete', 'sel', { pick: 'parts' }]],
   boolean: [['op', '', 'seg', { options: [['union', 'Union'], ['subtract', 'Subtract'], ['intersect', 'Intersect']] }], ['targets', 'Parts', 'sel', { pick: 'parts' }], ['tools', 'Tools', 'sel', { pick: 'parts', show: f => f.op !== 'union' }], ['keep', 'Keep the tools', 'check', { show: f => f.op !== 'union' }]],
   import: [['file', 'STEP file', 'file']],
 };
@@ -6838,6 +6849,7 @@ function prefill(f, at) {
   if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
   const parts = sel.filter(s => s.kind === 'part').map(s => s.part);
+  if (f.type === 'delete' && parts.length) f.targets = parts.slice();
   if (f.type === 'boolean' && parts.length) { f.targets = parts.slice(0, 1); f.tools = parts.slice(1); }
   if ((f.type === 'lpattern' || f.type === 'cpattern' || f.type === 'mirror') && parts.length) { f.of = 'parts'; f.items = parts; }
   const plane = sel.find(s => s.kind === 'plane');
@@ -7048,7 +7060,7 @@ function wireDialog() {
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
    ========================================================================== */
-const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import' };
+const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
 let menuEl = null;
 function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(x, y, items) {
@@ -7175,6 +7187,20 @@ function wireRollbar(list) {
     bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
   });
 }
+/* a whole part taken away: a Delete part feature added where the list ends (the bar), so it can be undone,
+   suppressed or rolled before like any other; the part's colour and name are kept in case it comes back */
+function deletePart(id, name) {
+  if (!editGate() || app.sketch || app.editing) return false;
+  checkpoint();
+  const at = appliedCount(app.doc), f = newFeature(app.doc, 'delete', { targets: [id] });
+  if (name) f.name = 'Delete ' + name;
+  app.doc.features.splice(at, 0, f);
+  if (app.doc.rollback !== null) app.doc.rollback = Math.min(app.doc.features.length, app.doc.rollback + 1);
+  app.sel = app.sel.filter(s => s.part !== id); emit('sel');
+  changed();
+  toast('Deleted ' + (name || 'the part') + ': a “' + f.name + '” feature in the list. Undo, or delete that feature, brings it back.');
+  return true;
+}
 /* ---------- the parts list ---------- */
 function renderParts() {
   const box = document.getElementById('partsList');
@@ -7190,7 +7216,7 @@ function renderParts() {
     const li = h('li', { class: 'cad-part' + (sel ? ' sel' : '') + (look.hidden ? ' hid' : ''), 'data-part': p.id },
       colour, name,
       h('button', { type: 'button', class: 'cad-more', title: look.hidden ? 'Show' : 'Hide', 'aria-label': (look.hidden ? 'Show ' : 'Hide ') + look.name, onclick: e => { e.stopPropagation(); setPartLook(p.id, 'hidden', look.hidden ? null : true); } }, look.hidden ? '◌' : '●'),
-      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })]]); } }, '⋯'),
+      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })], 'sep', ['Delete part', () => deletePart(p.id, look.name)]]); } }, '⋯'),
       h('div', { class: 'cad-partmat' }, mat));
     // (not from its colour, its material list or its buttons: choosing the part redraws the row, which would shut the list)
     li.addEventListener('click', e => { if (e.target.closest('select, input, button')) return; const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
@@ -7353,6 +7379,8 @@ function wirePointer() {
     if (ctrl) return;
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
+    // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
+    if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }
     const views = { 1: 'front', 2: 'back', 3: 'left', 4: 'right', 5: 'top', 6: 'bottom', 7: 'iso' };
@@ -7377,6 +7405,7 @@ async function normalToSel() {
 const APP_VERSION = '0.4.0';
 const NEWS = [
   { v: '0.4.0', date: '10 Nov 2026', items: [
+    '<b>Delete part</b>, in a part’s ⋯ menu (or Delete with parts selected): a feature in the list, so it can be undone, suppressed or edited.',
     '<b>Share a link</b> (File): the Part Studio as it is now, written into the link itself. Anyone opens it to look, turn and measure.',
     '<b>Changing a Part Studio needs a free account</b>: sketching, features, dimensions. Looking at one, opening a file or a shared link and measuring need none.',
     'The <b>view cube</b> has nine parts to a face: its middle looks at the face, a strip along a side looks along that edge, a corner looks from the corner. The arrows round it turn the view 15° at a time.',
@@ -8874,7 +8903,7 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
-  flyStart, flyStop, flyTurn, cubePart, turnStep, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
+  flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };
 })();
 </script>

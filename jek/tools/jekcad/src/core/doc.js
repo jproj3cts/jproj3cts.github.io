@@ -41,6 +41,8 @@ export const FEATURE_KINDS = {
   cpattern: { label: 'Circular pattern', defaults: { of: 'features', items: [], axis: 'z', axisRef: null, count: '6', angle: '360 deg' } },
   mirror: { label: 'Mirror', defaults: { of: 'features', items: [], plane: { std: 'right' } } },
   boolean: { label: 'Boolean', defaults: { op: 'union', targets: [], tools: [], keep: false } },
+  // whole parts taken away (a feature like any other: undone, suppressed, rolled before, edited)
+  delete: { label: 'Delete part', defaults: { targets: [] } },
   import: { label: 'Import', defaults: { file: '', format: 'step', data: '' } },
 };
 export const featureLabel = t => (FEATURE_KINDS[t] ? FEATURE_KINDS[t].label : t);

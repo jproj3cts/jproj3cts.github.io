@@ -8,7 +8,7 @@ import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, on, red
 import { V, cubePart, fit, flyStart, flyStop, flyTurn, turnStep, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
 import { SK, addConstraint, cancelSketch, dimsShown, drawOverlay, finishSketch, modelDimEdit, modelGeom, overlayPick, setDimsShown, setTool, sketchBar, sketchRight, sketchUndo, startSketch, toScreen, wireSketcher } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, okDialog, openFeature, showVariables, wireDialog } from './dialog.js';
-import { deleteFeature, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
+import { deleteFeature, deletePart, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
 import { normalToSel, pickHere, selectPick, wirePointer } from './pointer.js';
 import { exportParts, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
 import { wireCadAccount } from '../io/cad-account.js';
@@ -118,5 +118,5 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
-  flyStart, flyStop, flyTurn, cubePart, turnStep, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
+  flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

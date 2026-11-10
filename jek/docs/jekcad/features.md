@@ -57,4 +57,6 @@ Faces carry names from the feature that made them: an extrude's sides are named 
 
 ## Parts
 
+To delete a whole part, use **Delete part** in its **⋯** menu in the parts list, or select parts (the Select list set to Parts, or their rows) and press Delete. A Delete part feature goes into the feature list, so the part comes back if you undo, suppress or delete that feature, or roll the bar above it.
+
 Each solid is a part, listed under the features. Double-click a part's name to rename it. Its swatch sets its colour, and its material sets its density, from which the measure box gives its mass. A part's **⋯** exports it alone as STEP or STL.

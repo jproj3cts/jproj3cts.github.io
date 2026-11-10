@@ -437,6 +437,13 @@ export async function check(pw, base, shots) {
     if (await p.$('#featureCancel')) await p.click('#featureCancel');
     await regen();
     ok('A double-click on a row of the feature list edits it (the first click marks the row without remaking it): a sketch, an extrude, its regions ready to click', sameRow && rowSk === 'Sketch 2' && rowEx === 'Extrude 2' && rowField === 'regions', JSON.stringify([sameRow, rowSk, rowEx, rowField]));
+    // a part deleted from its row's menu: a Delete part feature, and Undo brings the part back
+    { const n0 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length]);
+      await p.click('.cad-part .cad-more[aria-label^="More for"]'); await p.click('.cad-rowmenu button:has-text("Delete part")'); await regen();
+      const n1 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length, window.JEKcad.app.doc.features.slice(-1)[0].type]);
+      await p.keyboard.press('Escape'); await p.keyboard.press('Control+z'); await regen();
+      const n2 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length]);
+      ok('Delete part, in a part’s menu: the part goes, a Delete part feature is in the list, and Undo brings it back', n1[0] === n0[0] - 1 && n1[1] === n0[1] + 1 && n1[2] === 'delete' && n2[0] === n0[0] && n2[1] === n0[1], JSON.stringify([n0, n1, n2])); }
     // a share link: the Part Studio written into the link, and read back from it by a fresh page
     const shBefore = await p.evaluate(async () => JSON.stringify(await window.JEKcad.readShare(await window.JEKcad.shareHash())));
     await p.click('#btnFile'); await p.click('#btnShare');

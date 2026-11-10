@@ -63,7 +63,8 @@
   .cad-part.hid .nm { opacity: 0.5; }
   .cad-part input[type="color"] { width: 18px; height: 18px; padding: 0; border: 1px solid var(--jek-line); border-radius: 3px; background: none; cursor: pointer; }
   .cad-partmat { flex-basis: 100%; padding-left: 1.5rem; }
-  .cad-partmat select { font-size: 0.72rem; max-width: 100%; }
+  /* (the list of materials opens upwards from the foot of the panel, so its arrow points up) */
+  .cad-partmat select { font-size: 0.72rem; max-width: 100%; appearance: none; -webkit-appearance: none; padding-right: 1.3rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 7.5L6 4L9.5 7.5' fill='none' stroke='%238a8f98' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.35rem center; background-size: 0.7rem; }
   .cad-rowmenu { position: fixed; z-index: 90; min-width: 11rem; }
   /* the view */
   .cad-app .cad-stage { flex: 1; min-width: 0; height: auto; min-height: 0; border: 0; }

@@ -41,6 +41,7 @@ export const FEATURE_FORMS = {
   cpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
     ['axis', 'Axis', 'select', { options: [['x', 'x'], ['y', 'y'], ['z', 'z']], show: f => !f.axisRef }], ['axisRef', 'Or about an edge (straight or round)', 'sel', { pick: 'edge' }], ['count', 'Instances', 'expr', { unit: 'num' }], ['angle', 'Angle (360°: equally round)', 'expr', { unit: 'ang' }]],
   mirror: [['of', 'Mirror', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to mirror', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }], ['plane', 'Mirror plane', 'sel', { pick: 'plane' }]],
+  delete: [['targets', 'Parts to delete', 'sel', { pick: 'parts' }]],
   boolean: [['op', '', 'seg', { options: [['union', 'Union'], ['subtract', 'Subtract'], ['intersect', 'Intersect']] }], ['targets', 'Parts', 'sel', { pick: 'parts' }], ['tools', 'Tools', 'sel', { pick: 'parts', show: f => f.op !== 'union' }], ['keep', 'Keep the tools', 'check', { show: f => f.op !== 'union' }]],
   import: [['file', 'STEP file', 'file']],
 };
@@ -109,6 +110,7 @@ function prefill(f, at) {
   if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
   const parts = sel.filter(s => s.kind === 'part').map(s => s.part);
+  if (f.type === 'delete' && parts.length) f.targets = parts.slice();
   if (f.type === 'boolean' && parts.length) { f.targets = parts.slice(0, 1); f.tools = parts.slice(1); }
   if ((f.type === 'lpattern' || f.type === 'cpattern' || f.type === 'mirror') && parts.length) { f.of = 'parts'; f.items = parts; }
   const plane = sel.find(s => s.kind === 'plane');

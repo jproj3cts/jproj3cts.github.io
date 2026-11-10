@@ -6,6 +6,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 export const APP_VERSION = '0.4.0';
 export const NEWS = [
   { v: '0.4.0', date: '10 Nov 2026', items: [
+    '<b>Delete part</b>, in a part’s ⋯ menu (or Delete with parts selected): a feature in the list, so it can be undone, suppressed or edited.',
     '<b>Share a link</b> (File): the Part Studio as it is now, written into the link itself. Anyone opens it to look, turn and measure.',
     '<b>Changing a Part Studio needs a free account</b>: sketching, features, dimensions. Looking at one, opening a file or a shared link and measuring need none.',
     'The <b>view cube</b> has nine parts to a face: its middle looks at the face, a strip along a side looks along that edge, a corner looks from the corner. The arrows round it turn the view 15° at a time.',

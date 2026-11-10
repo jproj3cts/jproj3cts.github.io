@@ -378,3 +378,19 @@ test('a fillet’s faces are named after the edges they round, the same whatever
   assert.equal(new Set(names).size, 4, 'four fillet faces, four names');
   assert.ok(names.every(n => !/\.r\d$/.test(n)), 'none named by its place in a list: ' + names.join());
 });
+
+test('Delete part: a feature that takes whole parts away; suppressed, they are back', async () => {
+  const K = await kernel(), doc = block(40, 20, 10), s2 = circleSketch(doc, [100, 0], 5);
+  doc.features.push(s2, newFeature(doc, 'extrude', { sketch: s2.id, regions: [[100, 0]], depth: '10', op: 'new' }));
+  let out = K.regen(doc);
+  assert.equal(out.parts.length, 2);
+  const del = newFeature(doc, 'delete', { targets: [out.parts[1].id] });
+  doc.features.push(del);
+  out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  assert.equal(out.parts.length, 1); near(vol(out), 8000, 1e-3);
+  del.suppressed = true;
+  assert.equal(K.regen(doc).parts.length, 2);
+  delete del.suppressed; del.targets = ['nothing'];
+  assert.match(K.regen(doc).features[4].error, /not there/);
+});

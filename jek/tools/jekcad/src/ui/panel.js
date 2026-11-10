@@ -1,4 +1,4 @@
-import { MATERIALS, appliedCount, canMove, featureLabel, partLook } from '../core/doc.js';
+import { MATERIALS, appliedCount, canMove, featureLabel, newFeature, partLook } from '../core/doc.js';
 import { fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { app, changed, checkpoint, editGate, emit, on, toast } from './app.js';
@@ -15,7 +15,7 @@ import { kernelAsk } from '../page/kernel.js';
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
    ========================================================================== */
-const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import' };
+const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
 let menuEl = null;
 function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(x, y, items) {
@@ -142,6 +142,20 @@ function wireRollbar(list) {
     bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
   });
 }
+/* a whole part taken away: a Delete part feature added where the list ends (the bar), so it can be undone,
+   suppressed or rolled before like any other; the part's colour and name are kept in case it comes back */
+export function deletePart(id, name) {
+  if (!editGate() || app.sketch || app.editing) return false;
+  checkpoint();
+  const at = appliedCount(app.doc), f = newFeature(app.doc, 'delete', { targets: [id] });
+  if (name) f.name = 'Delete ' + name;
+  app.doc.features.splice(at, 0, f);
+  if (app.doc.rollback !== null) app.doc.rollback = Math.min(app.doc.features.length, app.doc.rollback + 1);
+  app.sel = app.sel.filter(s => s.part !== id); emit('sel');
+  changed();
+  toast('Deleted ' + (name || 'the part') + ': a “' + f.name + '” feature in the list. Undo, or delete that feature, brings it back.');
+  return true;
+}
 /* ---------- the parts list ---------- */
 function renderParts() {
   const box = document.getElementById('partsList');
@@ -157,7 +171,7 @@ function renderParts() {
     const li = h('li', { class: 'cad-part' + (sel ? ' sel' : '') + (look.hidden ? ' hid' : ''), 'data-part': p.id },
       colour, name,
       h('button', { type: 'button', class: 'cad-more', title: look.hidden ? 'Show' : 'Hide', 'aria-label': (look.hidden ? 'Show ' : 'Hide ') + look.name, onclick: e => { e.stopPropagation(); setPartLook(p.id, 'hidden', look.hidden ? null : true); } }, look.hidden ? '◌' : '●'),
-      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })]]); } }, '⋯'),
+      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })], 'sep', ['Delete part', () => deletePart(p.id, look.name)]]); } }, '⋯'),
       h('div', { class: 'cad-partmat' }, mat));
     // (not from its colour, its material list or its buttons: choosing the part redraws the row, which would shut the list)
     li.addEventListener('click', e => { if (e.target.closest('select, input, button')) return; const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });

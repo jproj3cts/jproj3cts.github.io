@@ -4,7 +4,7 @@ import { benchName } from '../state/tabs.js';
 import { designPrescription, surfaceParts } from '../engines/lens-design.js';
 import { RF_HORNS, RF_MAT } from '../core/rf.js';
 import { RF_MERIT_OPS, RF_MERIT_SENSES, RF_TOL_KINDS, RF_T0, normRfMeritOps, normRfTol, rfBand, rfBandSweep, rfCrossPol, rfMcOf, rfMcValue, rfMeritReport, rfOptVars, rfPattern, rfPhaseMap, rfScan, rfSensitivity, rfThermal, rfWaistView, rfYield } from '../engines/rf-design.js';
-import { VecCtx, pdfDoc } from '../io/layout.js';
+import { VecCtx, pdfDoc } from '../io/pdf.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { RP_H, RP_INK, RP_M, RP_RULE, RP_SOFT, RP_W, rpHead, rpKey, rpNum, rpPage, rpPara, rpPlot, rpRange, rpTable, rpText } from './lens-report.js';
 import { diverge } from './lens-analyses.js';

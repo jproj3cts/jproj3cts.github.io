@@ -112,7 +112,7 @@ export const FILM_EXAMPLES = [
   ['bbar-visible', 'Broadband AR, 420–680 nm', 'Five layers on N-BK7 from a needle search: 0.13% mean square on and 0.20% at 30°, against 4.2% bare.'],
   ['hr-1064', 'HR mirror, 1064 nm', 'Twenty-one quarter waves of Ta2O5 and SiO2: 99.9% reflected over 1030–1100 nm.'],
   ['longpass-600', 'Long-pass edge, 600 nm', 'Seventeen layers on N-BK7: blue and green reflected, red passed.'],
-  ['splitter-45', 'Plate beam splitter, 45°', 'Three layers on fused silica for s light: 47–53% reflected from 40° to 50° over 1030–1100 nm.'],
+  ['splitter-45', 'Plate beam splitter, 45°', 'Three layers on fused silica for s light: 45–55% reflected from 40° to 50° over 1030–1100 nm.'],
   ['protected-silver', 'Protected silver', 'Silver under a half-wave of SiO2: 98.9% mean reflected from 450 to 1100 nm, out to 45°.'],
 ];
 export async function openFilmExample(slug) {

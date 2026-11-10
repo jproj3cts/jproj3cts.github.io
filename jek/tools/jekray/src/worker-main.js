@@ -86,6 +86,7 @@ import './core/mask.js';
 import './engines/trace.js';
 import './engines/phosphor.js';
 import './ui/phosphor.js';
+import './io/pdf.js';
 import './ui/render.js';
 import './ui/drawings.js';
 import './ui/pointer.js';

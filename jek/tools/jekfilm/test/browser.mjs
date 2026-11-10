@@ -34,9 +34,17 @@ export async function check(pw, base, shots) {
       ok('A preset, then Optimise thicknesses: the merit falls; Undo puts the thicknesses back', before === 3 && /^Merit .* to .* in \d+ tries$/.test(opt.toast) && JSON.stringify(opt.d) !== JSON.stringify(undone) && undone.length === 3, JSON.stringify([opt, undone]));
       await p.selectOption('select[aria-label="What the coating is for"]', 'edge');
       const edge = await p.evaluate(() => ({ turns: !!document.querySelector('input[aria-label="Edge wavelength (nm)"]'), passes: !!document.querySelector('select[aria-label="Which side passes"]') }));
+      await p.click('#tabTolerance'); await p.waitForTimeout(100);
+      const tabbed = await p.evaluate(() => ({ layers: !!document.getElementById('filmLayers'), tol: !!document.getElementById('filmTolRun'), sel: document.getElementById('tabTolerance').getAttribute('aria-selected') }));
       await p.click('#filmTolRun'); await p.waitForTimeout(200);
       const tl = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmTolTable tbody tr')].map(r => r.firstChild.textContent), plot: !!document.querySelector('svg.film-plot[aria-label^="Reflectance at 0° over 200 runs"]') }));
-      ok('Tolerance › Run: merit, R mean and R max as nominal, median and 90th percentile, and the spread drawn', tl.rows.join() === 'Merit,R mean (%),R max (%)' && tl.plot, JSON.stringify(tl));
+      ok('The Tolerance tab: its own page (no layers table); Run gives merit, R mean and R max as nominal, median and 90th percentile, and the spread drawn', !tabbed.layers && tabbed.tol && tabbed.sel === 'true' && tl.rows.join() === 'Merit,R mean (%),R max (%)' && tl.plot, JSON.stringify([tabbed, tl]));
+      await p.click('#tabMake'); await p.waitForTimeout(100);
+      const mk = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmLimits tbody tr')].map(r => r.querySelector('th').textContent + '|' + r.querySelector('.film-met').textContent), pdf: !!document.getElementById('filmSpecPdf') }));
+      ok('The Make it tab: the performance limits with what the design gives, and the specification button', mk.rows.length >= 2 && mk.pdf, JSON.stringify(mk));
+      const pdf = await p.evaluate(async () => await (await window.JEKfilm.specPdf({ raw: true })).text());
+      ok('The coating specification: a two-page PDF with the order and the design', /^%PDF-1\.4/.test(pdf) && (pdf.match(/\/Type\s*\/Page\b/g) || []).length === 2 && pdf.includes('(Coating specification)') && pdf.includes('(Performance)') && pdf.includes('(Layers, from the incident medium to the substrate)') && pdf.includes('(Durability and quality)'), pdf.slice(0, 80));
+      await p.click('#tabDesign'); await p.waitForTimeout(100);
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
       const band = await p.evaluate(() => ({ from: (document.querySelector('input[aria-label="Smallest angle of incidence (degrees)"]') || {}).value, to: (document.querySelector('input[aria-label="Largest angle of incidence (degrees)"]') || {}).value,

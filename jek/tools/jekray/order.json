@@ -86,6 +86,7 @@
   "engines/trace.js",
   "engines/phosphor.js",
   "ui/phosphor.js",
+  "io/pdf.js",
   "ui/render.js",
   "ui/drawings.js",
   "ui/pointer.js",

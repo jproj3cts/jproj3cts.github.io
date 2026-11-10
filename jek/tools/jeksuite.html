@@ -2191,6 +2191,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // vector pages (io/pdf.js): whether the field's glow layer is drawn light, without the screen blend (ui/render.js lightLayer)
+  vecLightLayer: () => false,
   // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
   cloudLinked() {},
   // mods run in their sandbox on the page

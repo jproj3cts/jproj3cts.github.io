@@ -2090,8 +2090,6 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-title a { color: inherit; text-decoration: none; }
 .film-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
 .film-shareurl { width: 100%; box-sizing: border-box; font: 0.85rem var(--jek-mono); padding: 0.45rem; margin: 0.3rem 0 0.4rem; }
-.film-tolset label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
-.film-tolset .rt-lnum { width: 4.5rem; }
 .film-exgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.6rem 0; }
 .film-ex { display: flex; flex-direction: column; gap: 0.2rem; text-align: left; padding: 0.6rem 0.75rem; font: inherit; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; }
 .film-ex:hover, .film-ex:focus-visible { border-color: var(--jek-orange); outline: none; }
@@ -2099,6 +2097,28 @@ html, body { margin: 0; background: var(--jek-well); }
 @media (max-width: 560px) { .film-exgrid { grid-template-columns: 1fr; } }
 .film-fmts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0; }
 .film-fmts .rt-btn[aria-checked="true"] { border-color: var(--jek-ink); box-shadow: inset 0 0 0 1px var(--jek-ink); }
+
+/* the tabs */
+.film-tabs { display: flex; gap: 0.2rem; padding: 0 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
+.film-tabs [role=tab] { font: inherit; font-size: 0.88rem; font-weight: 600; padding: 0.55rem 0.9rem 0.5rem; color: var(--jek-ink-soft); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.film-tabs [role=tab]:hover { color: var(--jek-ink); }
+.film-tabs [role=tab][aria-selected="true"] { color: var(--jek-ink); border-bottom-color: var(--jek-orange); }
+/* the tolerance card's line, tight; its row labels in the plain face */
+.film-tolline { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
+.film-ws .film-tolline .rt-lnum { width: 3.6rem; text-align: center; border-color: var(--jek-line-2); }
+.film-ws .film-results tbody th.lbl { font-family: var(--jek-sans); font-weight: 600; }
+/* Make it */
+.film-mk td { text-align: left; }
+.film-mkin { font: inherit; font-size: 0.84rem; padding: 0.22rem 0.35rem; width: 100%; max-width: 13rem; box-sizing: border-box; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
+.film-mkin.num { width: 5.5rem; font-family: var(--jek-mono); text-align: right; }
+.film-limits td .film-mkin.num { width: 4.8rem; }
+.film-op { margin-right: 0.35rem; color: var(--jek-ink-soft); }
+.film-band { font-size: 0.8rem; color: var(--jek-ink-soft); text-align: left !important; }
+.film-met { font-size: 0.78rem; color: var(--rt-good-ink); text-align: left !important; }
+.film-miss .film-met { color: var(--jek-red); font-weight: 600; }
+.film-chk { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
+.film-ws .film-mk th { width: 11rem; }
+.film-ws .film-mk td.unit { width: auto; }
 </style>
 </head>
 <body class="film-app">
@@ -2141,6 +2161,11 @@ html, body { margin: 0; background: var(--jek-well); }
       </div>
     </header>
     <p class="film-for" id="filmFor" hidden></p>
+    <nav class="film-tabs" role="tablist" aria-label="JEKfilm">
+      <button type="button" role="tab" id="tabDesign" data-tab="design" aria-selected="true">Design</button>
+      <button type="button" role="tab" id="tabTolerance" data-tab="tolerance" aria-selected="false">Tolerance</button>
+      <button type="button" role="tab" id="tabMake" data-tab="make" aria-selected="false">Make it</button>
+    </nav>
     <div class="rt-lbody" id="filmBody"></div>
     <div class="rt-toast" id="filmToast" role="status"></div>
   </section>
@@ -2268,6 +2293,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // vector pages (io/pdf.js): whether the field's glow layer is drawn light, without the screen blend (ui/render.js lightLayer)
+  vecLightLayer: () => false,
   // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
   cloudLinked() {},
   // mods run in their sandbox on the page
@@ -3261,6 +3288,246 @@ async function dfWrite(set, fmt, o = {}) {
   return { bytes, ext: F.ext, mime: F.mime };
 }
 /* ==========================================================================
+   Vector pages, and PDF written here with no library
+   VecCtx is a 2D canvas context that keeps what it is told (paths, text, and a raster layer for the diffracted field's
+   glow) rather than pixels; pdfDoc writes pages of them as one PDF, in the standard fonts (nothing to embed). Shared
+   by JEKray's layout, figures, reports and drawings, and by JEKfilm's coating specification; whether the glow layer
+   is drawn light (no screen blend) comes through hooks.vecLightLayer.
+   ========================================================================== */
+const cssColour = (() => {
+  const g = document.createElement('canvas').getContext('2d'), memo = new Map();
+  return s => {
+    if (typeof s !== 'string') return { r: 0, g: 0, b: 0, a: 1 };
+    if (memo.has(s)) return memo.get(s);
+    g.fillStyle = '#000'; g.fillStyle = s;
+    const v = g.fillStyle; let out;
+    if (v[0] === '#') out = { r: parseInt(v.slice(1, 3), 16), g: parseInt(v.slice(3, 5), 16), b: parseInt(v.slice(5, 7), 16), a: 1 };
+    else { const m = v.match(/[\d.]+/g) || [0, 0, 0, 1]; out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] }; }
+    memo.set(s, out); return out;
+  };
+})();
+class VecCtx {
+  constructor(w, h, opts) {
+    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.res = opts && opts.res || 2; this.ops = []; this.path = []; this.stack = [];
+    this.M = [1, 0, 0, 1, 0, 0];
+    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
+    this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
+    this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.dash = [];
+    this.shadowColor = 'transparent'; this.shadowBlur = 0; this.imageSmoothingEnabled = true; this.miterLimit = 10;
+    this.meas = document.createElement('canvas').getContext('2d');
+    this.layer = null;                     // what drawImage paints, at res times the size (twice unless asked)
+  }
+  static KEYS = ['M', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha', 'globalCompositeOperation',
+    'font', 'textAlign', 'textBaseline', 'dash', 'shadowColor', 'shadowBlur', 'imageSmoothingEnabled', 'miterLimit'];
+  save() { const s = {}; for (const k of VecCtx.KEYS) s[k] = this[k]; this.stack.push(s); }
+  restore() { const s = this.stack.pop(); if (s) Object.assign(this, s); }
+  setTransform(a, b, c, d, e, f) { this.M = [a, b, c, d, e, f]; }
+  resetTransform() { this.M = [1, 0, 0, 1, 0, 0]; }
+  setLineDash(d) { this.dash = (d || []).slice(); }
+  getLineDash() { return this.dash.slice(); }
+  pt(x, y) { const M = this.M; return [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]]; }
+  // how much the current transform scales lengths (for line widths and text)
+  unit() { const M = this.M; return Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])); }
+  // the canvas's own transforms, which the fibre, electronics and chip parts' symbols use
+  transform(a, b, c, d, e, f) {
+    const M = this.M;
+    this.M = [M[0] * a + M[2] * b, M[1] * a + M[3] * b, M[0] * c + M[2] * d, M[1] * c + M[3] * d, M[0] * e + M[2] * f + M[4], M[1] * e + M[3] * f + M[5]];
+  }
+  translate(x, y) { this.transform(1, 0, 0, 1, x, y); }
+  rotate(t) { const c = Math.cos(t), s = Math.sin(t); this.transform(c, s, -s, c, 0, 0); }
+  scale(x, y) { this.transform(x, 0, 0, y === undefined ? x : y, 0, 0); }
+  getTransform() { const M = this.M; return { a: M[0], b: M[1], c: M[2], d: M[3], e: M[4], f: M[5] }; }
+  beginPath() { this.path = []; }
+  moveTo(x, y) { this.path.push(['M', ...this.pt(x, y)]); this.start = this.path[this.path.length - 1].slice(1); }
+  lineTo(x, y) { if (!this.path.length) return this.moveTo(x, y); this.path.push(['L', ...this.pt(x, y)]); }
+  bezierCurveTo(a, b, c, d, x, y) { if (!this.path.length) this.moveTo(a, b); this.path.push(['C', ...this.pt(a, b), ...this.pt(c, d), ...this.pt(x, y)]); }
+  quadraticCurveTo(a, b, x, y) {
+    const last = this.path.length ? this.path[this.path.length - 1] : null;
+    if (!last) return this.moveTo(x, y);
+    // back to the user's space for the one control point: exact for an affine map
+    const p0 = last.slice(-2), q = this.pt(a, b), p1 = this.pt(x, y);
+    this.path.push(['C', p0[0] + 2 / 3 * (q[0] - p0[0]), p0[1] + 2 / 3 * (q[1] - p0[1]), p1[0] + 2 / 3 * (q[0] - p1[0]), p1[1] + 2 / 3 * (q[1] - p1[1]), p1[0], p1[1]]);
+  }
+  closePath() { if (this.path.length) { this.path.push(['Z']); if (this.start) this.path.push(['M', ...this.start]); } }
+  rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
+  arc(cx, cy, r, a0, a1, ccw) {
+    let da = a1 - a0;
+    if (!ccw) { if (da >= 2 * Math.PI) da = 2 * Math.PI; else { da %= 2 * Math.PI; if (da < 0) da += 2 * Math.PI; } }
+    else { if (-da >= 2 * Math.PI) da = -2 * Math.PI; else { da %= 2 * Math.PI; if (da > 0) da -= 2 * Math.PI; } }
+    const P = a => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    const p0 = P(a0);
+    if (this.path.length) this.lineTo(...p0); else this.moveTo(...p0);
+    const n = Math.max(1, Math.ceil(Math.abs(da) / (Math.PI / 2) - 1e-9)), s = da / n, k = 4 / 3 * Math.tan(s / 4);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * s, b = a + s, [x0, y0] = P(a), [x1, y1] = P(b);
+      this.bezierCurveTo(x0 - k * r * Math.sin(a), y0 + k * r * Math.cos(a), x1 + k * r * Math.sin(b), y1 - k * r * Math.cos(b), x1, y1);
+    }
+  }
+  ellipse(cx, cy, rx, ry, rot, a0, a1, ccw) {
+    const M0 = this.M.slice(), c = Math.cos(rot), s = Math.sin(rot), M = M0;
+    this.M = [M[0] * c * rx + M[2] * s * rx, M[1] * c * rx + M[3] * s * rx, -M[0] * s * ry + M[2] * c * ry, -M[1] * s * ry + M[3] * c * ry, M[0] * cx + M[2] * cy + M[4], M[1] * cx + M[3] * cy + M[5]];
+    this.arc(0, 0, 1, a0, a1, ccw); this.M = M0;
+  }
+  clip() { /* nothing on the bench clips */ }
+  style() {
+    const op = this.globalCompositeOperation;
+    return { alpha: this.globalAlpha, blend: op === 'lighter' || op === 'screen' ? 'screen' : op === 'multiply' ? 'multiply' : null };
+  }
+  fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
+  stroke() {
+    if (!this.path.length) return;
+    const s = this.unit();
+    this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), stroke: cssColour(this.strokeStyle), lw: this.lineWidth * s,
+      dash: this.dash.map(v => v * s), cap: this.lineCap, join: this.lineJoin }, this.style()));
+  }
+  fillRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.fill(); this.path = P; }
+  strokeRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.stroke(); this.path = P; }
+  clearRect() { }
+  measureText(t) { this.meas.font = this.font; return this.meas.measureText(t); }
+  fillText(t, x, y) {
+    t = String(t); if (!t) return;
+    this.meas.font = this.font;
+    const f = this.meas.font, size = +(f.match(/([\d.]+)px/) || [0, 10])[1], w = this.meas.measureText(t).width;
+    const al = this.textAlign, dx = al === 'center' ? -w / 2 : al === 'right' || al === 'end' ? -w : 0;
+    const bl = this.textBaseline, dy = bl === 'middle' ? 0.35 * size : bl === 'top' || bl === 'hanging' ? 0.8 * size : bl === 'bottom' || bl === 'ideographic' ? -0.22 * size : 0;
+    const [ox, oy] = this.pt(x + dx, y + dy), M = this.M, sc = this.unit();
+    this.ops.push(Object.assign({ k: 'text', t, x: ox, y: oy, w: w * sc, size: size * sc, rot: Math.atan2(M[1], M[0]),
+      mono: /mono|courier|consol/i.test(f), bold: /\b(bold|[6-9]00)\b/.test(f), italic: /\bitalic\b/.test(f), family: (f.match(/[\d.]+px\s+(.*)$/) || [0, 'sans-serif'])[1],
+      fill: cssColour(this.fillStyle) }, this.style()));
+  }
+  strokeText() { }
+  drawImage(img, ...a) {
+    if (!this.layer) {
+      const c = document.createElement('canvas'); c.width = Math.round(this.w * this.res); c.height = Math.round(this.h * this.res);
+      this.layer = c; this.ops.push({ k: 'layer', blend: hooks.vecLightLayer() || this.plain ? null : 'screen', alpha: 1 });
+    }
+    const g = this.layer.getContext('2d'), M = this.M, r = this.res;
+    g.setTransform(r * M[0], r * M[1], r * M[2], r * M[3], r * M[4], r * M[5]);
+    g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : this.globalCompositeOperation === 'multiply' ? 'multiply' : 'lighter';
+    g.imageSmoothingEnabled = this.imageSmoothingEnabled;
+    g.drawImage(img, ...a);
+  }
+  createImageData(w, h) { return new ImageData(w, h); }
+}
+
+
+/* A PDF of one page, written here: the standard fonts (so nothing to embed), the field's
+   glow as one image with its transparency, deflated where the browser can */
+async function deflateBytes(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  } catch (e) { return null; }
+}
+const WINANSI = { 0x20ac: 128, 0x201a: 130, 0x192: 131, 0x201e: 132, 0x2026: 133, 0x2020: 134, 0x2021: 135, 0x2c6: 136, 0x2030: 137, 0x160: 138, 0x2039: 139,
+  0x152: 140, 0x17d: 142, 0x2018: 145, 0x2019: 146, 0x201c: 147, 0x201d: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x2dc: 152, 0x2122: 153,
+  0x161: 154, 0x203a: 155, 0x153: 156, 0x17e: 158, 0x178: 159 };
+const PDF_SUBS = { '−': '-', '→': '->', '←': '<-', '⇄': '<->', '↔': '<->', '≈': '~', '≤': '<=', '≥': '>=', '∞': 'inf',
+  'λ': 'lambda', 'Δ': 'Delta', 'δ': 'delta', 'ω': 'omega', 'π': 'pi', 'θ': 'theta', 'φ': 'phi', 'α': 'alpha',
+  'β': 'beta', 'γ': 'gamma', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
+function pdfText(t) {
+  let s = '';
+  for (const ch of String(t)) {
+    const c = ch.codePointAt(0);
+    let b = c < 128 || (c >= 160 && c < 256) ? c : WINANSI[c];
+    if (b === undefined) { const r = PDF_SUBS[ch]; if (r !== undefined) { s += pdfText(r); continue; } b = 63; }
+    s += b === 40 || b === 41 || b === 92 ? '\\' + String.fromCharCode(b) : b < 32 || b > 126 ? '\\' + b.toString(8).padStart(3, '0') : String.fromCharCode(b);
+  }
+  return s;
+}
+/* pages, each a VecCtx's record, as one PDF (the title in its information); opts.raw: its page contents
+   left uncompressed, so their text can be read */
+async function pdfDoc(recs, title, opts) {
+  const n = v => +v.toFixed(3);
+  const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
+  const gsList = [], gsKey = new Map();
+  const gs = (ca, CA, bm) => {
+    const k = n(ca) + ',' + n(CA) + ',' + (bm || '');
+    if (!gsKey.has(k)) { gsKey.set(k, 'G' + gsList.length); gsList.push({ ca: n(ca), CA: n(CA), bm }); }
+    return gsKey.get(k);
+  };
+  const fonts = { F1: 'Helvetica', F2: 'Helvetica-Bold', F3: 'Courier', F4: 'Courier-Bold' };
+  const streams = recs.map(rec => {
+    const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
+    for (const o of rec.ops) {
+      if (o.k === 'path') {
+        const P = [];
+        for (const s of o.segs) {
+          if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
+          else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
+          else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
+          else P.push('h');
+        }
+        if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
+        else {
+          C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
+            ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
+            o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
+        }
+      } else if (o.k === 'text') {
+        const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
+        // the standard font's own width differs from the browser's: squeeze it to fit
+        // (a page drawn for print, in the standard fonts themselves, keeps their own widths)
+        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = rec.plain ? 100 : clamp(100 * o.w / (est || 1), 70, 130);
+        C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
+          [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
+      } else if (o.k === 'layer') {
+        C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
+      }
+    }
+    return Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
+  });
+  // the pieces, each an object; byte offsets for the cross-reference table
+  const parts = [], offs = [];
+  let len = 0;
+  const put = x => { const b = typeof x === 'string' ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 255) : x; parts.push(b); len += b.length; };
+  const obj = (i, body, stream) => {
+    offs[i] = len;
+    if (stream) { put(i + ' 0 obj\n' + body.replace(/>>$/, '/Length ' + stream.length + '>>') + '\nstream\n'); put(stream); put('\nendstream\nendobj\n'); }
+    else put(i + ' 0 obj\n' + body + '\nendobj\n');
+  };
+  put('%PDF-1.4\n%âãÏÓ\n');
+  // 1 catalog, 2 pages, 3 information; then fonts and states, then each page: page, contents, resources, image, mask
+  let next = 4;
+  const fontIds = {}; for (const k in fonts) fontIds[k] = next++;
+  const gsIds = gsList.map(() => next++);
+  const pages = [];
+  for (let i = 0; i < recs.length; i++) {
+    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: opts && opts.raw ? null : await deflateBytes(streams[i]) };
+    if (rec.layer) {
+      const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
+      const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
+      for (let q = 0; q < N; q++) { rgb[3 * q] = d[4 * q]; rgb[3 * q + 1] = d[4 * q + 1]; rgb[3 * q + 2] = d[4 * q + 2]; al[q] = d[4 * q + 3]; }
+      pg.img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
+      pg.imId = next++; pg.smId = next++;
+    }
+    pages.push(pg);
+  }
+  obj(1, '<</Type/Catalog/Pages 2 0 R>>');
+  obj(2, '<</Type/Pages/Kids[' + pages.map(p => p.id + ' 0 R').join(' ') + ']/Count ' + pages.length + '>>');
+  obj(3, '<</Title(' + pdfText(title || 'Untitled') + ')/Producer(' + pdfText(hooks.appName || 'JEKray') + ')>>');
+  for (const k in fonts) obj(fontIds[k], '<</Type/Font/Subtype/Type1/BaseFont/' + fonts[k] + '/Encoding/WinAnsiEncoding>>');
+  gsList.forEach((g, i) => obj(gsIds[i], '<</Type/ExtGState/ca ' + g.ca + '/CA ' + g.CA + (g.bm ? (g.bm === 'multiply' ? '/BM/Multiply' : '/BM/Screen') : '') + '>>'));
+  pages.forEach((pg, i) => {
+    const rec = recs[i];
+    obj(pg.id, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents ' + pg.cid + ' 0 R/Resources ' + pg.rid + ' 0 R>>');
+    obj(pg.cid, '<<' + (pg.zc ? '/Filter/FlateDecode' : '') + '>>', pg.zc || streams[i]);
+    obj(pg.rid, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
+      (gsList.length ? '/ExtGState<<' + gsList.map((g, q) => '/G' + q + ' ' + gsIds[q] + ' 0 R').join('') + '>>' : '') +
+      (pg.img ? '/XObject<</Im1 ' + pg.imId + ' 0 R>>' : '') + '>>');
+    if (pg.img) {
+      const F = pg.img.z ? '/Filter/FlateDecode' : '';
+      obj(pg.imId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + pg.smId + ' 0 R' + F + '>>', pg.img.rgb);
+      obj(pg.smId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', pg.img.al);
+    }
+  });
+  const xref = len, count = offs.length;
+  put('xref\n0 ' + count + '\n0000000000 65535 f \n' + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
+  put('trailer\n<</Size ' + count + '/Root 1 0 R/Info 3 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
+  return new Blob(parts, { type: 'application/pdf' });
+}
+/* ==========================================================================
    Tolerancing: how a coating fares as made. Each run gives every layer a thickness error drawn from a normal
    distribution, σ as a share of the layer (kind 'rel', σ in %) or in nanometres (kind 'abs'), the same seed giving the
    same runs; the curve square on (at the smallest angle judged) and the merit of each run are kept. Returned: the
@@ -3291,6 +3558,73 @@ function filmTolerance(layers, spec, tol) {
   const three = (nominal, s) => ({ nominal, median: pct(s, 0.5), p90: pct(s, 0.9) });
   return { tol: T, nms: nom.nms, nominal: nom.R, p5: cols.map(c => pct(c, 0.05)), p50: cols.map(c => pct(c, 0.5)), p95: cols.map(c => pct(c, 0.95)),
     merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts) };
+}
+/* ==========================================================================
+   What a maker needs to coat the part: the specification kept with the coating (make) and the performance it is
+   accepted against. The limits follow the coating's target, each with the value the design gives over the band and
+   the angles judged, for the polarisation chosen, so a requirement the design itself misses shows before it is sent:
+     ar      R mean ≤, R max ≤          hr     R min ≥, R mean ≥
+     split   R ≥ R − tol, R ≤ R + tol    edge   R ≥ on the reflected side, R ≤ on the passed side (the edge ± 2% left out)
+   A limit not set by hand takes a default from the design with a margin (makeDefaults); one set by hand is kept.
+   ========================================================================== */
+const MAKE_DURABILITY = {
+  'mil-48497': 'MIL-C-48497A: moderate abrasion, adhesion, humidity',
+  'mil-675': 'MIL-C-675C: severe abrasion, adhesion, humidity, salt',
+  'iso-9211': 'ISO 9211-4: the tests named with the order',
+  maker: 'The maker’s own standard coating durability',
+};
+const MAKE_SURFACES = { s1: 'Surface 1 (the light’s side)', s2: 'Surface 2', both: 'Both surfaces' };
+const mnum = (v, lo, hi, d) => (v === null || v === undefined || v === '' || !isFinite(+v) ? d : Math.min(hi, Math.max(lo, +v)));
+function normMake(m) {
+  m = m && typeof m === 'object' ? m : {};
+  const lim = m.limits && typeof m.limits === 'object' ? m.limits : {}, limits = {};
+  for (const [k, v] of Object.entries(lim)) if (/^[a-z]{2,8}$/.test(k) && isFinite(+v)) limits[k] = Math.min(100, Math.max(0, +v));
+  return {
+    part: String(m.part || '').slice(0, 80), qty: Math.round(mnum(m.qty, 1, 1e6, 1)),
+    size: mnum(m.size, 0.1, 2000, 25.4), ca: mnum(m.ca, 1, 100, 90), surfaces: MAKE_SURFACES[m.surfaces] ? m.surfaces : 's1',
+    durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', quality: String(m.quality || '60-40 scratch-dig (MIL-PRF-13830B)').slice(0, 60),
+    witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits,
+  };
+}
+/* the reflectance over the band and the angles judged (five angles across them), each wavelength's value at each angle */
+function sampleR(layers, spec, keep) {
+  const out = [], nA = spec.theta > spec.theta0 ? 5 : 1;
+  for (let i = 0; i < 61; i++) {
+    const nm = spec.lo + (spec.hi - spec.lo) * i / 60;
+    if (keep && !keep(nm)) continue;
+    for (let j = 0; j < nA; j++) { const a = spec.theta0 + (spec.theta - spec.theta0) * (nA > 1 ? j / (nA - 1) : 0); out.push(stackR(layers, spec.n0, spec.ns, Math.cos(a * Math.PI / 180), nm, spec.pol)); }
+  }
+  return out;
+}
+const up = v => { if (!(v > 0)) return 0.01; const p = Math.pow(10, Math.floor(Math.log10(v)) - 1); return Math.ceil(v / p) * p; };
+const down = v => Math.floor(v * 10 + 1e-6) / 10;
+const mean = a => a.reduce((x, y) => x + y, 0) / (a.length || 1);
+/* the requirement rows for the coating: [{ key, label, op ('le' | 'ge'), value, auto, design, ok, where }] */
+function makeLimits(f, spec, make) {
+  const L = f.layers, pc = v => 100 * v, set = (make && make.limits) || {};
+  const rows = [];
+  const row = (key, label, op, design, dflt, where) => {
+    const value = set[key] !== undefined ? set[key] : dflt;
+    rows.push({ key, label, op, value, auto: set[key] === undefined, design, ok: op === 'le' ? design <= value + 1e-9 : design >= value - 1e-9, where });
+  };
+  const band = spec.lo + '–' + spec.hi + ' nm';
+  if (spec.target === 'ar' || spec.target === 'hr') {
+    const R = sampleR(L, spec).map(pc), m = mean(R), mx = Math.max(...R), mn = Math.min(...R);
+    if (spec.target === 'ar') { row('mean', 'R mean', 'le', m, up(m * 1.5), band); row('max', 'R max', 'le', mx, up(mx * 1.3), band); }
+    else { row('min', 'R min', 'ge', mn, Math.min(99.9, down(mn - 0.2)), band); row('mean', 'R mean', 'ge', m, Math.min(99.9, down(m - 0.1)), band); }
+  } else if (spec.target === 'split') {
+    const R = sampleR(L, spec).map(pc), tol = (make && make.splitTol) || 3;
+    row('min', 'R min', 'ge', Math.min(...R), Math.max(0, spec.R - tol), band); row('max', 'R max', 'le', Math.max(...R), Math.min(100, spec.R + tol), band);
+  } else if (spec.target === 'edge') {
+    const off = 0.02 * spec.edge, reflBelow = !spec.passBelow;
+    const refl = sampleR(L, spec, nm => (reflBelow ? nm < spec.edge - off : nm > spec.edge + off)).map(pc);
+    const pass = sampleR(L, spec, nm => (reflBelow ? nm > spec.edge + off : nm < spec.edge - off)).map(pc);
+    const rw = reflBelow ? spec.lo + '–' + Math.round(spec.edge - off) + ' nm' : Math.round(spec.edge + off) + '–' + spec.hi + ' nm';
+    const pw = reflBelow ? Math.round(spec.edge + off) + '–' + spec.hi + ' nm' : spec.lo + '–' + Math.round(spec.edge - off) + ' nm';
+    if (refl.length) row('refl', 'R min, reflected side', 'ge', Math.min(...refl), Math.min(90, down(Math.min(...refl) - 1)), rw);
+    if (pass.length) row('pass', 'R max, passed side', 'le', Math.max(...pass), Math.max(5, up(Math.max(...pass) * 1.2)), pw);
+  }
+  return rows;
 }
 /* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
@@ -3358,7 +3692,7 @@ function normFilm(d) {
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
     .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
-  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normTol(d.tol) };
+  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normTol(d.tol), make: normMake(d.make) };
 }
 /* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
 function newFilm(name) {
@@ -4768,7 +5102,10 @@ function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(), layersCard(spec), tolCard()));
+  // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
+  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
+  for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -4886,27 +5223,38 @@ function layersCard(spec) {
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
 }
+/* ---------- the tabs: Design, Tolerance, Make it (kept in this browser, per viewer) ---------- */
+const FILM_TAB_KEY = 'jek-film-tab';
+let filmTab = (() => { try { const t = localStorage.getItem(FILM_TAB_KEY); return ['design', 'tolerance', 'make'].includes(t) ? t : 'design'; } catch (err) { return 'design'; } })();
+function setFilmTab(t) {
+  filmTab = ['design', 'tolerance', 'make'].includes(t) ? t : 'design';
+  try { localStorage.setItem(FILM_TAB_KEY, filmTab); } catch (err) { /* this visit only */ }
+  const body = document.getElementById('filmBody'); if (body) body.scrollTop = 0;
+  render();
+}
 /* ---------- tolerancing: the coating as made, with each layer's thickness off by a normal error ---------- */
 let filmTol = null;                                   // { key: the coating it was run on, result }
 const tolKey = () => JSON.stringify([film.spec, film.layers, film.tol]);
+/* the tolerance run for the coating as it is now, if there is one */
+const filmTolResult = () => (filmTol && filmTol.key === tolKey() ? filmTol.result : null);
 function tolCard() {
   const T = film.tol, res = filmTol && filmTol.key === tolKey() ? filmTol.result : null;
   const run = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmTolRun', title: 'Monte Carlo: every layer’s thickness off by a normal error of this σ, run after run' }, 'Run'), 'tolerance a coating');
   run.addEventListener('click', () => tolNow());
   const out = section('Tolerance',
     h('div', { class: 'film-tools film-tolset' },
-      h('label', null, 'Each layer off by σ ', dsNum(T.sigma, v => { film.tol.sigma = v; }, 'Thickness error σ', 4)),
-      dsSelect([['rel', '% of its thickness'], ['abs', 'nm']], T.kind, v => edit(f => { f.tol.kind = v; }), 'σ as a share or in nm'),
-      h('label', null, ' over ', dsNum(T.runs, v => { film.tol.runs = Math.round(v); }, 'Runs', 4), ' runs'), run));
+      h('span', { class: 'film-tolline' }, 'Each layer off by σ', dsNum(T.sigma, v => { film.tol.sigma = v; }, 'Thickness error σ', 4),
+        dsSelect([['rel', '% of its thickness'], ['abs', 'nm']], T.kind, v => edit(f => { f.tol.kind = v; }), 'σ as a share or in nm'),
+        'over', dsNum(T.runs, v => { film.tol.runs = Math.round(v); }, 'Runs', 4), 'runs'), run));
   if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs.')); return out; }
   const r3 = (label, o, f) => [label, f(o.nominal), f(o.median), f(o.p90)];
   const tbl = (h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmTolTable', 'aria-label': 'Tolerance' },
     h('thead', null, h('tr', null, ...['', 'Nominal', 'Median', '90th percentile'].map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
-    h('tbody', null, ...[r3('Merit', res.merit, v => dsFix(v, 3)), r3('R mean (%)', res.mean, dsR), r3('R max (%)', res.worst, dsR)].map(r => h('tr', null, h('th', { scope: 'row' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))))));
+    h('tbody', null, ...[r3('Merit', res.merit, v => dsFix(v, 3)), r3('R mean (%)', res.mean, dsR), r3('R max (%)', res.worst, dsR)].map(r => h('tr', null, h('th', { scope: 'row', class: 'lbl' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))))));
   const pl = h('div');
   out.append(h('div', { class: 'rt-lpair' }, tbl, pl));
   const a0 = filmSpec(film).theta0 || 0;
-  linePlotSvg(pl, { id: 'tol', label: 'Reflectance at ' + dsFmt(a0, 3) + '° over ' + res.tol.runs + ' runs, σ ' + res.tol.sigma + (res.tol.kind === 'rel' ? ' %' : ' nm'), xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%',
+  linePlotSvg(pl, { id: 'tol', H: 190, label: 'Reflectance at ' + dsFmt(a0, 3) + '° over ' + res.tol.runs + ' runs, σ ' + res.tol.sigma + (res.tol.kind === 'rel' ? ' %' : ' nm'), xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%',
     yr: [0, Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...res.p95)))],
     series: [{ label: 'nominal', cls: 's0', xs: res.nms, ys: res.nominal.map(v => 100 * v) }, { label: 'median', cls: 's1', xs: res.nms, ys: res.p50.map(v => 100 * v) },
       { label: '5th and 95th percentiles', cls: 'tgt', dash: true, xs: res.nms, ys: res.p95.map(v => 100 * v) }, { label: '', cls: 'tgt', dash: true, xs: res.nms, ys: res.p5.map(v => 100 * v) }] });
@@ -5058,7 +5406,7 @@ const FILM_EXAMPLES = [
   ['bbar-visible', 'Broadband AR, 420–680 nm', 'Five layers on N-BK7 from a needle search: 0.13% mean square on and 0.20% at 30°, against 4.2% bare.'],
   ['hr-1064', 'HR mirror, 1064 nm', 'Twenty-one quarter waves of Ta2O5 and SiO2: 99.9% reflected over 1030–1100 nm.'],
   ['longpass-600', 'Long-pass edge, 600 nm', 'Seventeen layers on N-BK7: blue and green reflected, red passed.'],
-  ['splitter-45', 'Plate beam splitter, 45°', 'Three layers on fused silica for s light: 47–53% reflected from 40° to 50° over 1030–1100 nm.'],
+  ['splitter-45', 'Plate beam splitter, 45°', 'Three layers on fused silica for s light: 45–55% reflected from 40° to 50° over 1030–1100 nm.'],
   ['protected-silver', 'Protected silver', 'Silver under a half-wave of SiO2: 98.9% mean reflected from 450 to 1100 nm, out to 45°.'],
 ];
 async function openFilmExample(slug) {
@@ -5574,6 +5922,177 @@ function dataDialog() {
 }
 function wireFilmData() { document.getElementById('btnExportData').addEventListener('click', dataDialog); }
 /* ==========================================================================
+   The coating specification: what an optics maker needs to coat the part, as a PDF of two A4 pages, written by
+   JEKray's io/pdf.js. Page 1 is the order: the part and the substrate, the surfaces and the clear aperture, the
+   performance it is accepted against (with the design's own value beside each limit), durability, surface quality
+   and how it is checked. Page 2 is the design behind it: the layers (material, index, physical and optical thickness),
+   the reflectance across the band and against the angle, and the tolerance run when there is one for this design.
+   JEKrayPro's, as JEKray's design reports are.
+   ========================================================================== */
+const SW = 595, SH = 842, SM = 48, INK = '#1a1a1a', SOFT = '#666', RULE = '#cfcfcf';
+function stext(g, t, x, y, o) {
+  o = o || {};
+  g.font = (o.bold ? '600 ' : '') + (o.size || 9) + 'px ' + (o.mono ? 'Courier, monospace' : 'Helvetica, Arial, sans-serif');
+  g.fillStyle = o.ink || INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
+  g.fillText(String(t), x, y);
+}
+const swrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
+function spage(meta, title, n) {
+  const g = new VecCtx(SW, SH, { plain: true });
+  g.fillStyle = '#fff'; g.fillRect(0, 0, SW, SH);
+  stext(g, title, SM, 56, { size: 16, bold: true });
+  stext(g, meta.name, SM, 74, { size: 10, ink: SOFT });
+  stext(g, meta.date, SW - SM, 56, { size: 8.5, ink: SOFT, align: 'right' });
+  g.strokeStyle = INK; g.lineWidth = 0.8; g.beginPath(); g.moveTo(SM, 84); g.lineTo(SW - SM, 84); g.stroke();
+  stext(g, 'Designed in JEKfilm (jeksys.net). Theoretical performance from the thin-film model and the indices listed.', SM, SH - 30, { size: 7, ink: SOFT });
+  stext(g, 'Page ' + n + ' of 2', SW - SM, SH - 30, { size: 7, ink: SOFT, align: 'right' });
+  return { g, y: 108 };
+}
+const shead = (pg, t) => { pg.y += 8; stext(pg.g, t, SM, pg.y, { size: 11, bold: true }); pg.y += 16; };
+const spara = (pg, t) => { for (const ln of swrap(t, 104)) { stext(pg.g, ln, SM, pg.y, { size: 8.5 }); pg.y += 12; } };
+/* a table: cols [{ label, w, align, mono }], rows of strings */
+function stable(pg, cols, rows) {
+  const g = pg.g; let x = SM; const xs = cols.map(c => { const a = x; x += c.w; return a; });
+  const cell = (c, i, t, head) => stext(g, t, c.align === 'right' ? xs[i] + c.w - 4 : xs[i], pg.y, { size: head ? 7.5 : 8.5, ink: head ? SOFT : INK, bold: head, mono: !head && c.mono, align: c.align === 'right' ? 'right' : 'left' });
+  cols.forEach((c, i) => cell(c, i, c.label, true));
+  pg.y += 4; g.strokeStyle = INK; g.lineWidth = 0.6; g.beginPath(); g.moveTo(SM, pg.y); g.lineTo(x, pg.y); g.stroke(); pg.y += 11;
+  for (const r of rows) { r.forEach((t, i) => cell(cols[i], i, t, false)); pg.y += 4; g.strokeStyle = RULE; g.lineWidth = 0.35; g.beginPath(); g.moveTo(SM, pg.y); g.lineTo(x, pg.y); g.stroke(); pg.y += 11; }
+  pg.y += 4;
+}
+/* a plot: series [{ xs, ys, ink, dash }], axes ranges, titles */
+function splot(pg, x0, w, h, o) {
+  const g = pg.g, y0 = pg.y + 8, L = 34, B = 26, X = v => x0 + L + (w - L - 8) * (v - o.xr[0]) / ((o.xr[1] - o.xr[0]) || 1), Y = v => y0 + h - B - (h - B - 6) * (v - o.yr[0]) / ((o.yr[1] - o.yr[0]) || 1);
+  stext(g, o.title, x0, y0 - 14, { size: 8.5, bold: true });
+  const ticks = (a, b, n) => { const raw = (b - a) / n, mag = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / mag, st = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag, out = []; for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9 * st; v += st) out.push(+v.toPrecision(10)); return out; };
+  g.lineWidth = 0.3; g.strokeStyle = RULE;
+  for (const t of ticks(o.xr[0], o.xr[1], 5)) { g.beginPath(); g.moveTo(X(t), y0 + 6); g.lineTo(X(t), y0 + h - B); g.stroke(); stext(g, String(t), X(t), y0 + h - B + 10, { size: 7, ink: SOFT, align: 'center' }); }
+  for (const t of ticks(o.yr[0], o.yr[1], 4)) { g.beginPath(); g.moveTo(x0 + L, Y(t)); g.lineTo(x0 + w - 8, Y(t)); g.stroke(); stext(g, String(t), x0 + L - 4, Y(t) + 2.5, { size: 7, ink: SOFT, align: 'right' }); }
+  stext(g, o.xTitle, x0 + L + (w - L - 8) / 2, y0 + h - 4, { size: 7.5, ink: SOFT, align: 'center' });
+  stext(g, o.yTitle, x0, y0 - 1, { size: 7.5, ink: SOFT });
+  for (const s of o.series) {
+    g.strokeStyle = s.ink; g.lineWidth = s.dash ? 0.7 : 1.2; g.setLineDash(s.dash ? [3, 2] : []); g.beginPath();
+    s.xs.forEach((xv, i) => { const yv = Math.max(o.yr[0], Math.min(o.yr[1], s.ys[i])); if (i) g.lineTo(X(xv), Y(yv)); else g.moveTo(X(xv), Y(yv)); });
+    g.stroke(); g.setLineDash([]);
+  }
+  let kx = x0 + L;
+  for (const s of o.series.filter(q => q.label)) { g.strokeStyle = s.ink; g.lineWidth = 1.2; g.setLineDash(s.dash ? [3, 2] : []); g.beginPath(); g.moveTo(kx, y0 + h + 8); g.lineTo(kx + 12, y0 + h + 8); g.stroke(); g.setLineDash([]); stext(g, s.label, kx + 16, y0 + h + 10.5, { size: 7.5, ink: SOFT }); kx += 22 + s.label.length * 4.2; }
+}
+/* a layer's material as the maker reads it: MgF2, Ta2O5…, a metal by name, or an index of one's own */
+const smat = L => (L.metal ? METAL_NAMES[L.metal] + ' (' + L.metal + ')' : ((COAT_MATERIALS.find(m => Math.abs(+m[0] - L.n) < 1e-9) || [0, 'n = ' + L.n])[1]).replace(/ \([\d.]+\)$/, ''));
+const spct = v => (v >= 10 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toExponential(2));
+/* the specification's pages, as VecCtx records (the tests read them) */
+function filmSpecRecs(f, o) {
+  o = o || {};
+  const s = filmSpec(f), M = f.make, date = o.date || new Date().toISOString().slice(0, 10), meta = { name: f.name, date };
+  const angles = s.theta > s.theta0 ? s.theta0 + '–' + s.theta + '°' : s.theta0 + '°', pol = { avg: 'mean of s and p', s: 's', p: 'p' }[s.pol];
+  // page 1: the order
+  const p1 = spage(meta, 'Coating specification', 1);
+  shead(p1, 'Part and substrate');
+  stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [
+    ['Part', M.part || f.name], ['Quantity', String(M.qty)],
+    ['Substrate', subLabelOf(f.spec.sub) + (s.ns ? ', n = ' + s.ns.toFixed(4) + ' at ' + s.design + ' nm' : '')],
+    ['Size', M.size + ' mm diameter'], ['Clear aperture', M.ca + '% of the diameter (' + (M.size * M.ca / 100).toFixed(1) + ' mm)'],
+    ['Surfaces coated', MAKE_SURFACES[M.surfaces]], ['Coating', FILM_TARGETS[s.target] + ' (design attached, page 2)']]);
+  shead(p1, 'Performance');
+  spara(p1, 'Reflectance of one coated surface, incident medium n = ' + s.n0 + ', at ' + angles + ' angle of incidence, ' + pol + ' polarisation. The coating is accepted when each limit below is met over its band.');
+  p1.y += 4;
+  const rows = makeLimits(f, s, M);
+  stable(p1, [{ label: 'Quantity', w: 150 }, { label: 'Band', w: 120 }, { label: 'Limit', w: 90, align: 'right', mono: true }, { label: 'Design gives', w: 90, align: 'right', mono: true }, { label: '', w: 49 }],
+    rows.map(r => [r.label + ' (%)', r.where, (r.op === 'le' ? '<= ' : '>= ') + r.value, spct(r.design), r.ok ? 'met' : 'NOT MET']));
+  shead(p1, 'Durability and quality');
+  stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [['Durability', MAKE_DURABILITY[M.durability]], ['Surface quality', M.quality]]);
+  shead(p1, 'Verification');
+  spara(p1, M.witness ? 'Measure the reflectance of a witness sample from the same run over ' + s.lo + '–' + s.hi + ' nm at ' + (s.theta > s.theta0 ? s.theta0 + '° and ' + s.theta + '°' : s.theta0 + '°') + ', and send the measured curve with the parts. The design curves to compare it with are on page 2.' : 'The maker’s standard checks of the run.');
+  // page 2: the design
+  const p2 = spage(meta, 'Coating design', 2);
+  shead(p2, 'Layers, from the incident medium to the substrate');
+  const total = f.layers.reduce((a, L) => a + L.d, 0);
+  stable(p2, [{ label: 'Layer', w: 40, align: 'right' }, { label: 'Material', w: 130 }, { label: 'n at ' + s.design + ' nm', w: 90, align: 'right', mono: true }, { label: 'k', w: 60, align: 'right', mono: true }, { label: 'Thickness (nm)', w: 90, align: 'right', mono: true }, { label: 'QWOT', w: 80, align: 'right', mono: true }],
+    f.layers.map((L, i) => { const nk = L.metal ? metalNK(L.metal, s.design) : [L.n, 0]; return [String(i + 1), smat(L), nk[0].toFixed(3), nk[1].toFixed(3), L.d.toFixed(2), L.metal ? '-' : (L.d / qwot(L.n, s.design)).toFixed(3)]; }).concat([['', 'Total', '', '', total.toFixed(2), '']]));
+  const C = filmCurves(f);
+  p2.y += 12;
+  const series = [{ label: 'R at ' + s.theta0 + '°', ink: '#0077a8', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  if (C.Rt) series.push({ label: 'R at ' + s.theta + '°', ink: '#d9531e', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
+  for (const r of rows) series.push({ label: r === rows[0] ? 'limits' : '', ink: '#888', dash: true, xs: [s.lo, s.hi], ys: [r.value, r.value] });
+  const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(q => q.ys))));
+  splot(p2, SM, 240, 190, { title: 'Reflectance against wavelength', xTitle: 'wavelength (nm)', yTitle: 'R (%)', xr: [s.lo, s.hi], yr: [s.target === 'hr' ? Math.max(0, Math.floor(Math.min(...C.R0) * 100 - 1)) : 0, top], series });
+  splot(p2, SM + 259, 240, 190, { title: 'Reflectance against angle at ' + s.design + ' nm', xTitle: 'angle of incidence (deg)', yTitle: 'R (%)', xr: [0, 89], yr: [0, 100],
+    series: [{ label: 'Rs', ink: '#0077a8', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', ink: '#d9531e', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
+  p2.y += 222;
+  const T = o.tol === undefined ? filmTolResult() : o.tol;
+  if (T) {
+    shead(p2, 'Tolerance');
+    spara(p2, 'Each layer’s thickness off by a normal error of σ = ' + T.tol.sigma + (T.tol.kind === 'rel' ? '% of the layer' : ' nm') + ', over ' + T.tol.runs + ' runs, at ' + s.theta0 + '°:');
+    p2.y += 4;
+    stable(p2, [{ label: '', w: 120 }, { label: 'Nominal', w: 110, align: 'right', mono: true }, { label: 'Median', w: 110, align: 'right', mono: true }, { label: '90th percentile', w: 110, align: 'right', mono: true }],
+      [['R mean (%)', T.mean], ['R max (%)', T.worst]].map(([k, v]) => [k, spct(100 * v.nominal), spct(100 * v.median), spct(100 * v.p90)]));
+  }
+  return [p1.g, p2.g];
+}
+const filmSpecPdf = (f, o) => pdfDoc(filmSpecRecs(f, o), f.name + ' coating specification', o);
+/* Make it › Coating specification (PDF): JEKrayPro's */
+async function saveFilmSpec() {
+  if (!designPro('make a coating specification')) return false;
+  try {
+    const name = filmFileName(film.name + ' coating specification', 'pdf');
+    downloadBlob(name, await filmSpecPdf(film));
+    toast('Saved ' + name); track('report', 'film-spec');
+    return true;
+  } catch (err) { toast('Could not write the PDF: ' + err.message, true); return false; }
+}
+/* ==========================================================================
+   Make it: what an optics maker needs to coat the part, kept with the coating (make), and the files that carry it.
+   The part and the substrate, the surfaces and the clear aperture; the performance it is accepted against, each limit
+   beside what the design gives (a limit the design misses shows); durability, surface quality and how it is checked;
+   then the coating specification (PDF, JEKrayPro's) and the design data.
+   ========================================================================== */
+const mkSec = (title, ...kids) => h('section', { class: 'film-sec rt-lcard', 'aria-label': title }, h('h2', null, title), ...kids);
+const mkRow = (label, value, unit) => h('tr', null, h('th', { scope: 'row' }, label), h('td', null, value), h('td', { class: 'unit' }, unit || ''));
+function mkText(value, set, label, o) {
+  const i = h('input', { type: 'text', value: value === undefined ? '' : String(value), class: 'film-mkin' + (o && o.num ? ' num' : ''), 'aria-label': label, spellcheck: 'false', placeholder: (o && o.placeholder) || '' });
+  i.addEventListener('change', () => { const v = o && o.num ? +i.value : i.value.trim(); if (o && o.num && !isFinite(v)) { i.value = String(value); return; } edit(f => set(f.make, v)); });
+  return i;
+}
+function mkSelect(options, value, set, label) {
+  const s = h('select', { 'aria-label': label }, ...Object.entries(options).map(([v, t]) => h('option', { value: v, selected: v === value ? '' : null }, t)));
+  s.addEventListener('change', () => edit(f => set(f.make, s.value)));
+  return s;
+}
+const mpct = v => (v >= 10 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toExponential(2));
+function makeCards(spec) {
+  const M = film.make;
+  const part = h('table', { class: 'film-props film-mk' }, h('tbody', null,
+    mkRow('Part', mkText(M.part, (m, v) => { m.part = v; }, 'Part name or number', { placeholder: film.name })),
+    mkRow('Quantity', mkText(M.qty, (m, v) => { m.qty = v; }, 'Quantity', { num: true })),
+    mkRow('Substrate', h('span', null, subLabelOf(film.spec.sub) + ' (from the design)')),
+    mkRow('Diameter', mkText(M.size, (m, v) => { m.size = v; }, 'Diameter (mm)', { num: true }), 'mm'),
+    mkRow('Clear aperture', mkText(M.ca, (m, v) => { m.ca = v; }, 'Clear aperture (% of the diameter)', { num: true }), '%'),
+    mkRow('Surfaces coated', mkSelect(MAKE_SURFACES, M.surfaces, (m, v) => { m.surfaces = v; }, 'Surfaces coated'))));
+  const rows = makeLimits(film, spec, M);
+  const lim = h('table', { class: 'film-results film-limits', id: 'filmLimits' },
+    h('thead', null, h('tr', null, ...['Quantity', 'Band', 'Limit (%)', 'Design gives (%)', ''].map((t, k) => h('th', { scope: 'col', class: k >= 2 ? 'n' : null }, t)))),
+    h('tbody', null, ...rows.map(r => h('tr', { class: r.ok ? null : 'film-miss' }, h('th', { scope: 'row', class: 'lbl' }, r.label), h('td', { class: 'film-band' }, r.where),
+      h('td', { class: 'n' }, h('span', { class: 'film-op' }, r.op === 'le' ? '≤' : '≥'), mkText(r.value, (m, v) => { m.limits[r.key] = Math.min(100, Math.max(0, v)); }, r.label + ' limit (%)', { num: true })),
+      h('td', { class: 'n mono' }, mpct(r.design)), h('td', { class: 'film-met' }, r.ok ? 'met' : 'not met')))));
+  const angles = spec.theta > spec.theta0 ? spec.theta0 + '–' + spec.theta + '°' : spec.theta0 + '°';
+  const perf = mkSec('Performance', h('p', { class: 'rt-lsub' }, FILM_TARGETS[spec.target] + ': the reflectance of one coated surface at ' + angles + ', ' + ({ avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol]) + ', as the Design tab judges it. Each limit is the design’s value with a margin until you set it.'), h('div', { class: 'film-twrap' }, lim),
+    spec.target === 'split' ? h('p', { class: 'rt-lsub' }, 'Splitter tolerance ± ', mkText(M.splitTol, (m, v) => { m.splitTol = v; delete m.limits.min; delete m.limits.max; }, 'Splitter tolerance (%)', { num: true }), ' %') : null,
+    h('button', { class: 'film-tbtn', type: 'button', onclick: () => edit(f => { f.make.limits = {}; }) }, 'Limits from the design again'));
+  const dur = h('table', { class: 'film-props film-mk' }, h('tbody', null,
+    mkRow('Durability', mkSelect(MAKE_DURABILITY, M.durability, (m, v) => { m.durability = v; }, 'Durability')),
+    mkRow('Surface quality', mkText(M.quality, (m, v) => { m.quality = v; }, 'Surface quality')),
+    mkRow('Witness sample', h('label', { class: 'film-chk' }, h('input', { type: 'checkbox', checked: M.witness ? '' : null, onchange: e => edit(f => { f.make.witness = e.target.checked; }) }), ' measure it and send the curve'))));
+  const pdf = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmSpecPdf', title: 'The order and the design behind it, as a two-page PDF to send to the maker' }, 'Coating specification (PDF)'), 'make a coating specification');
+  pdf.addEventListener('click', () => saveFilmSpec());
+  const misses = rows.filter(r => !r.ok).length;
+  const out = mkSec('Files for the maker',
+    h('p', { class: 'rt-lsub' }, 'The specification is the order: the part, the performance it is accepted against, durability and how it is checked, with the design (layers, curves, tolerance) on its second page. The data gives the design curves to compare their measurements with.'),
+    misses ? h('p', { class: 'film-warn' }, misses === 1 ? 'The design misses one of the limits: change the design, or the limit, before sending it.' : 'The design misses ' + misses + ' of the limits: change the design, or the limits, before sending it.') : null,
+    h('div', { class: 'film-tools' }, pdf, h('button', { class: 'rt-btn', type: 'button', onclick: () => document.getElementById('btnExportData').click() }, 'Design data…')));
+  return [mkSec('Part and substrate', part), perf, mkSec('Durability and checks', dur), out];
+}
+function wireMake() { hooks.filmMakeCards = makeCards; }
+/* ==========================================================================
    JEKfilm put together: the theme, the hooks the shared modules reach the page through, each module's wiring, the
    coating restored from this browser (or a new one), a cloud coating from the address (#cloud=<id>, #new), and
    window.JEKfilm for the tests and the console.
@@ -5586,11 +6105,12 @@ if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekfilm';
 installHooks({
   toast, needsShown,
   filmChanged: () => { filmAutosave(); filmCloudChanged(); },
-  filmLinked: () => false, filmUnlink() {}, filmCloudShown() {},
+  filmLinked: () => false, filmUnlink() {}, filmCloudShown() {}, filmMakeCards: () => [],
 });
 const kept = filmRestore();
 setFilm(kept || newFilm(), true);
-wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireShare(); wireFilmData(); wireUsage();
+wireBar(); wireFiles(); wireCloud(); wireFilmAccount(); wireShare(); wireFilmData(); wireMake();
+for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.addEventListener('click', () => setFilmTab(b.dataset.tab)); wireUsage();
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnRedo').addEventListener('click', redo);
 {
@@ -5631,7 +6151,7 @@ if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', fi
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, tab: setFilmTab, specPdf: o => filmSpecPdf(film, o), shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
 };
 })();
 </script>

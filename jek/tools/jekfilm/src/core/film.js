@@ -2,6 +2,7 @@ import { coatPreset, qwot } from '../../../jekray/src/core/coatings.js';
 import { coatSpec, coatToStack } from '../../../jekray/src/core/coatdesign.js';
 import { METAL_NK } from '../../../jekray/src/core/metals.js';
 import { normTol } from './film-tol.js';
+import { normMake } from './film-make.js';
 
 /* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
@@ -69,7 +70,7 @@ export function normFilm(d) {
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
     .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
-  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normTol(d.tol) };
+  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normTol(d.tol), make: normMake(d.make) };
 }
 /* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
 export function newFilm(name) {

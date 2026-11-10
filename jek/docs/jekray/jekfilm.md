@@ -11,6 +11,8 @@ Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [J
 
 **File › Open an example…** opens one of six coatings to start from: a V-coat for 1064 nm, a broadband AR over 420–680 nm, a 1064 nm HR mirror, a long-pass edge at 600 nm, a 45° plate beam splitter and protected silver. A link to `jekfilm.html?demo=hr-1064` (or any of `vcoat-1064`, `bbar-visible`, `longpass-600`, `splitter-45`, `protected-silver`) opens one directly.
 
+JEKfilm has three tabs: **Design** (the coating, its curves and its layers), **Tolerance** (how it fares as made) and **Make it** (what a maker needs to coat the part). The design table stays on the left in all three.
+
 ## The design
 
 The **Design** table on the left says what the stack is for and the light it is judged in:
@@ -41,6 +43,16 @@ The table lists the stack from the incident medium down to the substrate: each l
 ## Tolerance
 
 How the coating fares as made. Give each layer's thickness error σ, as a share of the layer or in nanometres, and the number of runs, then **Run**: each run puts a normal error of that σ on every layer, the same runs each time (a fixed seed). The table gives the merit and the band's mean and largest reflectance as designed (nominal), in the middle run (median) and in the run nine in ten do better than (90th percentile); the plot draws the reflectance as designed, the median, and the 5th and 95th percentiles at each wavelength. The settings are kept with the coating. Tolerancing is JEKrayPro's.
+
+## Make it
+
+Everything an optics maker needs to quote and coat the part, kept with the coating:
+
+- **Part and substrate**: the part's name or number, the quantity, the substrate (from the design), its diameter, the clear aperture (as a share of the diameter) and the surfaces to coat.
+- **Performance**: the limits the coating is accepted against, each with the value the design gives over the band, the angles and the polarisation judged, and whether the design meets it. An anti-reflection coating gets R mean and R max; a high reflector R min and R mean; a beam splitter R min and R max either side of its reflectance (± a tolerance you set); a dichroic edge R min on its reflected side and R max on its passed side, the edge's own ± 2% left out. Until you set a limit it is the design's value with a margin; **Limits from the design again** puts them all back.
+- **Durability and checks**: the durability standard (MIL-C-48497A, MIL-C-675C, ISO 9211-4, or the maker's own), the surface quality (60-40 scratch-dig to MIL-PRF-13830B unless you change it), and whether a witness sample from the run is measured and its curve sent.
+
+**Coating specification (PDF)** writes it as two A4 pages: the order (the part, the performance with the design's value beside each limit, durability, surface quality and how it is checked), then the design behind it (the layers by material with n and k at λ₀, physical thickness and QWOT; the reflectance against wavelength with the limits drawn, and against the angle; and the tolerance run, if there is one for this design). It is JEKrayPro's. **Design data…** opens **File › Export data…**, for the curves to compare the maker's measurements with.
 
 ## Files and the cloud
 

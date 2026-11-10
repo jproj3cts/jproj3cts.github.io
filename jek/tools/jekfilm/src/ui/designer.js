@@ -9,6 +9,7 @@ import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, 
 import { linePlotSvg } from './plot.js';
 import { filmMaterials, filmNeedle } from '../core/film-opt.js';
 import { filmTolerance } from '../core/film-tol.js';
+import { filmYield } from '../core/film-make.js';
 import { toast } from './bar.js';
 import { stackField } from '../core/film-field.js';
 
@@ -72,7 +73,7 @@ export function render() {
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
   // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
-  const main = filmTab === 'tolerance' ? [tolCard(), fieldCard(spec)] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
+  const main = filmTab === 'tolerance' ? [tolCard(), yieldCard(spec), fieldCard(spec)] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
   body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
   for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;
@@ -271,6 +272,30 @@ function tolCard() {
     yr: [0, Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...res.p95)))],
     series: [{ label: 'nominal', cls: 's0', xs: res.nms, ys: res.nominal.map(v => 100 * v) }, { label: 'median', cls: 's1', xs: res.nms, ys: res.p50.map(v => 100 * v) },
       { label: '5th and 95th percentiles', cls: 'tgt', dash: true, xs: res.nms, ys: res.p95.map(v => 100 * v) }, { label: '', cls: 'tgt', dash: true, xs: res.nms, ys: res.p5.map(v => 100 * v) }] });
+  return out;
+}
+/* the yield of the tolerance run: the runs that meet every limit of Make it (worked out again when the limits change) */
+let filmYieldMemo = null;
+export function filmYieldResult() {
+  const res = filmTolResult();
+  if (!res) return null;
+  const key = JSON.stringify(film.make);
+  if (!filmYieldMemo || filmYieldMemo.res !== res || filmYieldMemo.key !== key) filmYieldMemo = { res, key, y: filmYield(res.stacks, film, filmSpec(film), film.make) };
+  return filmYieldMemo.y;
+}
+function yieldCard() {
+  const Y = filmYieldResult();
+  const out = section('Yield');
+  out.id = 'filmYield';
+  if (!Y) { out.append(h('p', { class: 'rt-lsub' }, 'Run the tolerance above to see how many coatings as made meet the limits set in Make it.')); return out; }
+  const share = (k, n) => (n ? dsFix(100 * k / n, 1) : '—');
+  const ops = { le: '≤ ', ge: '≥ ' };
+  out.append(h('p', { class: 'film-yield', id: 'filmYieldLine' }, h('strong', { class: 'mono' }, share(Y.pass, Y.runs) + ' %'), ' of ' + Y.runs + ' runs meet every limit (' + Y.pass + ' of ' + Y.runs + ').'),
+    h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmYieldTable', 'aria-label': 'Yield' },
+      h('thead', null, h('tr', null, ...['Limit (%)', 'Band', 'Required', 'Nominal', '9 runs in 10', 'Runs meeting it (%)'].map((t, k) => h('th', { scope: 'col', class: k > 1 ? 'n' : null }, t)))),
+      h('tbody', null, ...Y.rows.map(r => h('tr', null, h('th', { scope: 'row', class: 'lbl' }, r.label), h('td', null, r.where),
+        ...[ops[r.op] + r.value, dsFix(r.nominal, 3), dsFix(r.p10, 3), share(r.pass, Y.runs)].map(v => h('td', { class: 'n mono' }, v))))),
+      h('tfoot', null, h('tr', null, h('td', { colspan: '6' }, 'Judged over the band and all the angles, as Make it judges them (the table above is at ' + dsFmt(filmSpec(film).theta0 || 0, 3) + '° only). 9 runs in 10: the value nine runs in ten do as well as or better than.'))))));
   return out;
 }
 /* the run, JEKrayPro's as tolerancing is in JEKray */

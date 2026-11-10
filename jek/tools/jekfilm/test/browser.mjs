@@ -39,6 +39,8 @@ export async function check(pw, base, shots) {
       await p.click('#filmTolRun'); await p.waitForTimeout(200);
       const tl = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmTolTable tbody tr')].map(r => r.firstChild.textContent), plot: !!document.querySelector('svg.film-plot[aria-label^="Reflectance at 0° over 200 runs"]') }));
       ok('The Tolerance tab: its own page (no layers table); Run gives merit, R mean and R max as nominal, median and 90th percentile, and the spread drawn', !tabbed.layers && tabbed.tol && tabbed.sel === 'true' && tl.rows.join() === 'Merit,R mean (%),R max (%)' && tl.plot, JSON.stringify([tabbed, tl]));
+      const yl = await p.evaluate(() => ({ order: [...document.querySelectorAll('.rt-lmain > section')].map(x => x.getAttribute('aria-label')), line: (document.getElementById('filmYieldLine') || {}).textContent || '', rows: document.querySelectorAll('#filmYieldTable tbody tr').length, y: window.JEKfilm.yield() }));
+      ok('Yield, second on the Tolerance tab: the share of the runs meeting every Make it limit, and each limit alone', yl.order.slice(0, 3).join() === 'Tolerance,Yield,Field in the stack' && /^[\d.]+ % of 200 runs meet every limit/.test(yl.line) && yl.rows >= 2 && yl.y.runs === 200 && yl.rows === yl.y.rows.length, JSON.stringify(yl));
       // the field in the stack: shut until asked for, then |E|² against depth with a table of where it peaks
       const shut = await p.evaluate(() => ({ card: !!document.getElementById('filmField'), plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]') }));
       await p.click('#filmFieldShow'); await p.waitForTimeout(100);

@@ -11,7 +11,7 @@ Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [J
 
 **File › Open an example…** opens one of six coatings to start from: a V-coat for 1064 nm, a broadband AR over 420–680 nm, a 1064 nm HR mirror, a long-pass edge at 600 nm, a 45° plate beam splitter and protected silver. A link to `jekfilm.html?demo=hr-1064` (or any of `vcoat-1064`, `bbar-visible`, `longpass-600`, `splitter-45`, `protected-silver`) opens one directly.
 
-JEKfilm has three tabs: **Design** (the coating, its curves and its layers), **Tolerance** (how it fares as made, and the field in the stack) and **Make it** (what a maker needs to coat the part). The design table stays on the left in all three.
+JEKfilm has three tabs: **Design** (the coating, its curves and its layers), **Tolerance** (how it fares as made, its yield against the limits, and the field in the stack) and **Make it** (what a maker needs to coat the part). The design table stays on the left in all three.
 
 ## The design
 
@@ -43,6 +43,8 @@ The table lists the stack from the incident medium down to the substrate: each l
 ## Tolerance
 
 How the coating fares as made. Give each layer's thickness error σ, as a share of the layer or in nanometres, and the number of runs, then **Run**: each run puts a normal error of that σ on every layer, the same runs each time (a fixed seed). The table gives the merit and the band's mean and largest reflectance as designed (nominal), in the middle run (median) and in the run nine in ten do better than (90th percentile); the plot draws the reflectance as designed, the median, and the 5th and 95th percentiles at each wavelength. The settings are kept with the coating. Tolerancing is JEKrayPro's.
+
+**Yield**, under it, counts the same runs against the limits set in **Make it**: the share that meet every limit, and for each limit what it requires, what the design gives, the value nine runs in ten do as well as or better than, and the share of runs that meet it. It is judged over the band and all the angles, as Make it judges them, so its figures can differ from the tolerance table's, which are at the smallest angle only. Change a limit in Make it and the yield is worked out again from the same runs. The coating specification gives the yield with the tolerance run.
 
 **Field in the stack** (under the tolerance run, shut until you press **Show**) draws |E|², the electric field's strength squared, against depth from the outer surface into the substrate, 1 being the incident wave's, with the interfaces dashed. It is worked out at λ₀ and the smallest angle judged unless you give another wavelength, angle or polarisation; these are kept in this browser, not in the coating. The table beside it gives the field at the outer surface, the highest peak and the layer it is in, the highest at an interface, and what reaches the substrate. Laser damage tends to start where the field peaks, at an interface or in a material with a low damage threshold, so this shows which layers to move.
 

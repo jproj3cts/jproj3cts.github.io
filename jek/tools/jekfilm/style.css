@@ -160,3 +160,6 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-ws .film-mk th { width: 11rem; }
 .film-ws .film-mk td.unit { width: auto; }
 .film-note { margin: 0.5rem 0; padding: 0.6rem 0.75rem; font: 0.8rem/1.55 var(--jek-mono); white-space: pre-wrap; color: var(--jek-ink); background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 2px; }
+
+.film-yield { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.film-yield strong { font-size: 1.15rem; }

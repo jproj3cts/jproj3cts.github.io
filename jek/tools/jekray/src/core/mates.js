@@ -32,7 +32,7 @@ const vAdd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], vSub = (a, b) =>
 const vLen = a => Math.hypot(a[0], a[1], a[2]);
 // a's part square to the unit d
 const vPerp = (a, d) => vSub(a, vMul(d, dot3(a, d)));
-const mMul = (A, B) => A.map(r => [0, 1, 2].map(j => r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j]));
+const mtMul = (A, B) => A.map(r => [0, 1, 2].map(j => r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j]));
 const mVec = (A, v) => A.map(r => r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
 const mT = A => [0, 1, 2].map(i => [A[0][i], A[1][i], A[2][i]]);
 const M_I = () => [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
@@ -53,7 +53,7 @@ export function rotBetween(u, v) {
 export const rotAngle = R => Math.acos(clamp((R[0][0] + R[1][1] + R[2][2] - 1) / 2, -1, 1));
 
 /* ---------- a part's pose ---------- */
-export const posOf = el => [el.x, el.y, NET_3D.has(el.type) ? 0 : zOf(el)];
+export const posePos = el => [el.x, el.y, NET_3D.has(el.type) ? 0 : zOf(el)];
 export function poseRot(el) {
   const a = (el.angle || 0) * deg, t = (el.tip || 0) * deg, r = (el.roll || 0) * deg;
   const ca = Math.cos(a), sa = Math.sin(a), ct = Math.cos(t), st = Math.sin(t), cr = Math.cos(r), sr = Math.sin(r);
@@ -72,7 +72,7 @@ export function setPoseRot(el, M) {
   el.angle = angNorm(a); setTip(el, t); setRoll(el, r);
 }
 /* what a part is now, to come back to, or to move from */
-export const poseSnap = el => ({ p: posOf(el), M: poseRot(el), raw: { x: el.x, y: el.y, z: el.z, angle: el.angle, tip: el.tip, roll: el.roll } });
+export const poseSnap = el => ({ p: posePos(el), M: poseRot(el), raw: { x: el.x, y: el.y, z: el.z, angle: el.angle, tip: el.tip, roll: el.roll } });
 export function poseRestore(el, s) {
   for (const k of ['x', 'y', 'z', 'angle', 'tip', 'roll']) { if (s.raw[k] === undefined) delete el[k]; else el[k] = s.raw[k]; }
 }
@@ -82,7 +82,7 @@ export function poseMove(els, starts, R, pivot, t) {
     const s = starts[i], p = vAdd(vAdd(pivot, mVec(R, vSub(s.p, pivot))), t || [0, 0, 0]);
     el.x = +p[0].toFixed(6); el.y = +p[1].toFixed(6);
     if (!NET_3D.has(el.type)) setZ(el, p[2]);
-    setPoseRot(el, mMul(R, s.M));
+    setPoseRot(el, mtMul(R, s.M));
   });
 }
 /* why a turn cannot be given to these parts ('' when it can): a network's parts and some others turn only on the table */
@@ -95,15 +95,15 @@ export function turnWhy(els, R) {
 /* the others moved with a part that was moved and turned (from lead0: its poseSnap): as one body with it */
 export function poseCarry(lead, lead0, others, starts) {
   if (!others.length) return;
-  const R = mMul(poseRot(lead), mT(lead0.M));
-  poseMove(others, starts, R, lead0.p, vSub(posOf(lead), lead0.p));
+  const R = mtMul(poseRot(lead), mT(lead0.M));
+  poseMove(others, starts, R, lead0.p, vSub(posePos(lead), lead0.p));
 }
 /* parts turned together by deg about an axis through pivot */
 export function poseTurn(els, starts, axis, degs, pivot) { poseMove(els, starts, axisRot(unit3(axis), degs * deg), pivot, [0, 0, 0]); }
 /* the middle of where the parts stand (of their box) */
 export function poseMiddle(els) {
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-  for (const e of els) { const p = posOf(e); for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k]); } }
+  for (const e of els) { const p = posePos(e); for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k]); } }
   return lo.map((v, k) => (v + hi[k]) / 2);
 }
 
@@ -167,7 +167,7 @@ function axisPoint(G, tris, a) {
   return vAdd(vMul(e1, qx), vMul(e2, qy));
 }
 // the axis square to the triangles' normals (the least of their spread), from a first guess
-function axisOf(G, tris, a0) {
+function mateAxisOf(G, tris, a0) {
   const S = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
   for (const t of tris) { const nt = triN(G, t), w = G.A[t]; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) S[i][j] += w * nt[i] * nt[j]; }
   const tr = S[0][0] + S[1][1] + S[2][2], M = S.map((r, i) => r.map((v, j) => (i === j ? tr : 0) - v));
@@ -192,7 +192,7 @@ function roundRegion(G, t0, F) {
   };
   let tris = [...new Set([...F.tris, t1])];
   for (let pass = 0; pass < 3; pass++) {
-    if (pass) a = axisOf(G, tris, a);
+    if (pass) a = mateAxisOf(G, tris, a);
     const o = axisPoint(G, tris, a); if (!o) return null;
     // the radius at the triangles' corners (their centres sit inside a faceted circle)
     let rs = 0, rn = 0;
@@ -272,11 +272,11 @@ export function partTris(el) {
 const r6 = v => v.map(x => +x.toFixed(6));
 export const featKeep = F => Object.assign({ k: F.k, p: r6(F.p), d: r6(unit3(F.d)) }, F.r > 0 ? { r: +F.r.toFixed(6) } : {});
 /* a face of a part, where it is now on the bench */
-export function featWorld(el, f) { const M = poseRot(el); return { k: f.k, p: vAdd(posOf(el), mVec(M, f.p)), d: unit3(mVec(M, f.d)), r: f.r }; }
+export function featWorld(el, f) { const M = poseRot(el); return { k: f.k, p: vAdd(posePos(el), mVec(M, f.p)), d: unit3(mVec(M, f.d)), r: f.r }; }
 
 /* ---------- solving a mate ----------
    The second part (B) is turned about its face's point by R and then moved by t: { R, pivot, t } or { error }. */
-const line = f => f.k !== 'plane';
+const isLine = f => f.k !== 'plane';
 export function mateWhy(type, ka, kb) {
   const la = ka !== 'plane', lb = kb !== 'plane';
   if (type === 'concentric' && !(la && lb)) return 'Concentric needs two round faces (or edges): pick a hole, a shaft or a rim on each';
@@ -295,16 +295,16 @@ export function mateSolve(m, A, B) {
     return { R, pivot: pv, t };
   }
   const off = m.type === 'distance' ? num(m.offset, 0) : 0, along = m.type !== 'parallel';
-  if (!line(A) && !line(B)) {
+  if (!isLine(A) && !isLine(B)) {
     R = rotBetween(nB, m.type === 'parallel' ? vMul(nA, sameWay(nA, nB)) : vMul(nA, -fl));
     if (along) t = vMul(nA, dot3(gap, nA) + off);
-  } else if (line(A) && line(B)) {
+  } else if (isLine(A) && isLine(B)) {
     R = rotBetween(nB, vMul(nA, sameWay(nA, nB)));
     if (along) {
       t = vPerp(gap, nA);
       if (off) { let w = vPerp(vMul(gap, -1), nA); w = vLen(w) > 1e-9 ? unit3(w) : anyPerp(nA); t = vAdd(t, vMul(w, off)); }
     }
-  } else if (!line(A)) {
+  } else if (!isLine(A)) {
     // B's axis or edge onto (or along) A's face
     R = rotBetween(nB, intoPlane(nB, nA));
     if (along) t = vMul(nA, dot3(gap, nA) + off);
@@ -324,10 +324,10 @@ export function mateResidual(m) {
 }
 
 /* ---------- mates kept with the bench ---------- */
-const v3 = v => (Array.isArray(v) && v.length === 3 && v.every(x => typeof x === 'number' && isFinite(x)) ? v.map(Number) : null);
+const mateV3 = v => (Array.isArray(v) && v.length === 3 && v.every(x => typeof x === 'number' && isFinite(x)) ? v.map(Number) : null);
 export function normMateFeat(f) {
   if (!f || typeof f !== 'object' || !MATE_KINDS[f.k]) return null;
-  const p = v3(f.p), d = v3(f.d); if (!p || !d || !(vLen(d) > 1e-9)) return null;
+  const p = mateV3(f.p), d = mateV3(f.d); if (!p || !d || !(vLen(d) > 1e-9)) return null;
   return Object.assign({ k: f.k, p, d: unit3(d) }, f.k === 'axis' && f.r > 0 ? { r: +f.r } : {});
 }
 export function normMates(list, els) {
@@ -407,3 +407,11 @@ export function mateDelete(id) { if (project.mates) project.mates = project.mate
 export function matesCopied(list, map) {
   return (list || []).filter(m => map.has(m.a.el) && map.has(m.b.el)).map(m => Object.assign(JSON.parse(JSON.stringify(m)), { id: 'm' + uid().slice(1), a: { el: map.get(m.a.el), f: m.a.f }, b: { el: map.get(m.b.el), f: m.b.f } }));
 }
+/* a part about to be moved or turned by itself (a number typed in its panel): what is mated to it, and where it all is
+   now, so that it can follow (null when nothing is mated to it) */
+export function mateHold(el) {
+  if (!matesOf(el).length) return null;
+  const others = mateCluster([el]).filter(e => e !== el && !e.locked);
+  return others.length ? { el, lead0: poseSnap(el), others, starts: others.map(poseSnap) } : null;
+}
+export function mateFollow(H) { if (H) poseCarry(H.el, H.lead0, H.others, H.starts); }

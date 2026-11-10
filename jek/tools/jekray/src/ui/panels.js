@@ -21,6 +21,7 @@ import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { getCss, inkA, removeFibre } from './render.js';
 import { getPath, setParam } from '../state/params.js';
 import { groupEls, ungroupEls } from './drawings.js';
+import { groupMovePanel } from './mate3d.js';
 import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
@@ -988,6 +989,8 @@ export function groupPanel(list) {
     B('Align on a vertical line', () => alignEls(list, 'x')), B('Align on a horizontal line', () => alignEls(list, 'y')),
     B('Space evenly across', () => alignEls(list, 'dx')), B('Space evenly up', () => alignEls(list, 'dy')),
     B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
+  // moved and turned together by numbers, as one body (about their middle), with whatever is mated to them
+  panel.append(h('h3', null, 'Move and turn them together'), groupMovePanel(list));
   const shared = sharedFields(list);
   if (shared) panel.append(h('h3', null, 'Set them all'), shared);
   // a group can turn about one of its parts (a lighthouse's ring, a polygon scanner): its Spin turns the rest about it,
@@ -1017,7 +1020,7 @@ export function groupPanel(list) {
   if (mk) { panel.append(h('h3', null, 'Optical designer')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
-  panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
+  panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench (or empty space in 3D) to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
 }
 /* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
 export function makeLinkPartner(el, benchId) {

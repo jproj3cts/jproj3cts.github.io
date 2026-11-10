@@ -202,6 +202,16 @@ export function checkpoint(opening) {
   if (!opening) { benchEdited(); hooks.exerciseStep(); }
 }
 
+/* a change already made, from the bench as it was before it (a snapshot), kept as one step that Undo takes back */
+export function checkpointWith(before) {
+  history.push(before);
+  if (history.length > 150) history.shift();
+  setFuture([]);
+  updateUndoButtons();
+  markUnsaved(true);
+  benchEdited(); hooks.exerciseStep();
+}
+
 export function undo() {
   if (!history.length) return;
   pauseAll();

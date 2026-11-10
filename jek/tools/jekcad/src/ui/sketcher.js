@@ -23,7 +23,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
    edge comes into the sketch as a fixed construction shape, as Use would bring it). While a shape is drawn its
    size shows by the pointer; a number typed straight after a line, circle or arc dimensions it.
    ========================================================================== */
-export const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null, model: null, last: [] };
+export const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null, model: null, last: [], lineK: false, variant: {} };
 const SNAP_PX = 10, ON_PX = 8;
 /* ---------- the sketch being edited ---------- */
 const S = () => app.sketch;
@@ -35,7 +35,7 @@ const uvAt = (sx, sy) => rayPlane(rayAt(sx, sy), S().F);
 export async function startSketch(f, at, isNew) {
   app.sel = []; app.hover = null; emit('sel');
   app.sketch = { f: JSON.parse(JSON.stringify(f)), at, isNew, F: null, orig: JSON.stringify(f) };
-  Object.assign(SK, { tool: 'line', draft: null, sel: [], hover: null, undo: [], redoStack: [], constr: false, drag: null, box: null, model: null, last: [], dimPick: null });
+  Object.assign(SK, { tool: 'line', draft: null, sel: [], hover: null, undo: [], redoStack: [], constr: false, drag: null, box: null, model: null, last: [], dimPick: null, lineK: false });
   // the plane's frame: a standard plane's at once; a face's or a datum plane's from the kernel
   let F = f.plane && f.plane.std ? STD_PLANES[f.plane.std] : null;
   const out = await regenNow();
@@ -179,6 +179,10 @@ function snap(sx, sy, from, skipIds) {
   let mp = null;
   for (const q of M.pts) { const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mp = q; } }
   if (mp) return { p: mp.slice(), ref: null, mref: { t: 'point', c: mp.slice(), from: mp.from }, glyph: '●', kind: 'coincident', hv: hvOf(mp) };
+  // the middle of a straight edge of the model, or the centre of a round one
+  let mm = null;
+  for (const g of M.edges) { const q = g.t === 'line' ? [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2] : g.t === 'circle' || g.t === 'arc' ? g.c : null; if (!q) continue; const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mm = { g, q }; } }
+  if (mm) return Object.assign({ p: mm.q.slice(), ref: null, hv: hvOf(mm.q) }, mm.g.t === 'line' ? { mmid: mm.g, glyph: 'M', kind: 'midpoint' } : { mcen: mm.g, glyph: '◎', kind: 'coincident' });
   let onEnt = null, od = ON_PX;
   for (const e of ents()) { if (skip.has(e.id) || e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < od) { od = d; onEnt = e; } }
   const out = { p: uv, ref: null };
@@ -214,12 +218,16 @@ function snapCons(sn, e, k) {
   if (sn.ref) return [sn.kind === 'midpoint' ? mkCon('midpoint', { e, k }, { e: sn.ref.e }) : mkCon('coincident', { e, k }, sn.ref)];
   if (sn.on) return [mkCon('oncurve', { e, k }, { e: sn.on })];
   if (sn.mref) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mref), k: 'c' })];
+  if (sn.mmid) return [mkCon('midpoint', { e, k }, { e: refEnt(sn.mmid) })];
+  if (sn.mcen) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mcen), k: 'c' })];
   if (sn.mon && sn.mon.t !== 'poly') return [mkCon('oncurve', { e, k }, { e: refEnt(sn.mon) })];
   if (sn.axis) return [mkCon(sn.axis, { e, k }, { e: 'origin' })];
   return [];
 }
 /* ---------- drawing tools ---------- */
-const TOOL_STEPS = { line: 2, rect: 2, crect: 2, circle: 2, arc3: 3, tarc: 2, slot: 3, polygon: 2, point: 1 };
+const TOOL_STEPS = { line: 2, mline: 2, rect: 2, crect: 2, circle: 2, circle3: 3, arc3: 3, tarc: 2, slot: 3, polygon: 2, point: 1 };
+/* the tools whose second point is inferred level with, or straight above, their first */
+const FROM_TOOLS = { line: 1, mline: 1, rect: 1, polygon: 1 };
 export function setTool(t) {
   cancelDraft();
   if (t === 'construct') { toggleConstruction(); return; }
@@ -234,7 +242,11 @@ export function setTool(t) {
     if (!picked.length) { toast('Select the shapes to mirror, then Mirror, then the line to mirror them in'); SK.tool = 'select'; sketchBar(); return; }
     SK.mirrorOf = picked;
   }
+  // a centre line is the line tool drawing construction lines
+  SK.lineK = t === 'cline';
+  if (t === 'cline') t = 'line';
   SK.tool = t; SK.draft = null;
+  for (const g of SK_GROUPS) if (g.includes(SK.lineK ? 'cline' : t)) SK.variant[g[0]] = SK.lineK ? 'cline' : t;
   sketchBar(); drawOverlay();
 }
 function cancelDraft() { SK.draft = null; SK.snap = null; dimInputClose(); }
@@ -244,7 +256,7 @@ function addEnts(es, cs) {
 }
 function toolClick(sx, sy) {
   const t = SK.tool, d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null;
-  const sn = snap(sx, sy, t === 'line' || t === 'rect' || t === 'polygon' ? from : null);
+  const sn = snap(sx, sy, FROM_TOOLS[t] ? from : null);
   if (!sn) return;
   const pts = d ? d.pts.concat([sn.p]) : [sn.p], snaps = d ? d.snaps.concat([sn]) : [sn];
   if (pts.length < TOOL_STEPS[t]) { SK.draft = { pts, snaps }; drawOverlay(); return; }
@@ -254,7 +266,7 @@ function toolClick(sx, sy) {
   SK.last = [];
   if (t === 'point') { const e = { id: sketchId('p'), t: 'point', c: p0 }; addEnts([e], snapCons(snaps[0], e.id, 'c')); }
   else if (t === 'line') {
-    const e = { id: sketchId('l'), t: 'line', a: p0, b: p1 }, cs = [...(d && d.chainFrom ? [mkCon('coincident', { e: e.id, k: 'a' }, d.chainFrom)] : snapCons(snaps[0], e.id, 'a')), ...snapCons(snaps[1], e.id, 'b')];
+    const e = Object.assign({ id: sketchId('l'), t: 'line', a: p0, b: p1 }, SK.lineK ? { k: true } : {}), cs = [...(d && d.chainFrom ? [mkCon('coincident', { e: e.id, k: 'a' }, d.chainFrom)] : snapCons(snaps[0], e.id, 'a')), ...snapCons(snaps[1], e.id, 'b')];
     if (snaps[1].hv) cs.push(mkCon(snaps[1].hv, { e: e.id }));
     // square to the line it follows on from, if it nearly is
     if (d && d.prev) { const P = entById(d.prev); if (P) { const u = lineDir(P), w = lineDir(e), c = (u[0] * w[0] + u[1] * w[1]) / (Math.hypot(...u) * Math.hypot(...w) || 1); if (Math.abs(c) < 0.035 && !snaps[1].hv && !(P && cs.some(x => x.t === 'horizontal' || x.t === 'vertical'))) cs.push(mkCon('perpendicular', { e: P.id }, { e: e.id })); } }
@@ -264,6 +276,22 @@ function toolClick(sx, sy) {
     const first = d && d.first ? d.first : p0, closed = Math.hypot(p1[0] - first[0], p1[1] - first[1]) < 1e-9;
     SK.draft = closed ? null : { pts: [p1], snaps: [{ p: p1 }], chainFrom: { e: e.id, k: 'b' }, prev: e.id, first };
     resolve(); return;
+  }
+  else if (t === 'mline') {
+    // a line from its middle: the first click is the middle (held there), the second an end
+    if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < pxToMm(2)) { SK.undo.pop(); return; }
+    const e = { id: sketchId('l'), t: 'line', a: [2 * p0[0] - p1[0], 2 * p0[1] - p1[1]], b: p1 }, s0 = snaps[0], cs = snapCons(snaps[1], e.id, 'b');
+    if (s0.ref && s0.kind !== 'midpoint') cs.push(mkCon('midpoint', s0.ref, { e: e.id }));
+    else if (s0.mref) cs.push(mkCon('midpoint', { e: refEnt(s0.mref), k: 'c' }, { e: e.id }));
+    else if (s0.mcen) cs.push(mkCon('midpoint', { e: refEnt(s0.mcen), k: 'c' }, { e: e.id }));
+    if (snaps[1].hv) cs.push(mkCon(snaps[1].hv, { e: e.id }));
+    addEnts([e], cs); SK.last = [e.id];
+  }
+  else if (t === 'circle3') {
+    const a = arc3(p0, p1, p2); if (!a) { toast('The three points are in a line: no circle', true); SK.draft = null; SK.undo.pop(); return; }
+    const e = { id: sketchId('c'), t: 'circle', c: a.c, r: a.r };
+    // a point already in the sketch that it was drawn through stays on it
+    addEnts([e], snaps.filter(x => x.ref && x.kind === 'coincident' && x.ref.e !== 'origin').map(x => mkCon('oncurve', x.ref, { e: e.id }))); SK.last = [e.id];
   }
   else if (t === 'rect' || t === 'crect') { const r = rectEnts(p0, p1, t === 'crect'); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], t === 'crect' ? r.ents[5].id : r.ents[0].id, t === 'crect' ? 'c' : 'a'), snapCons(snaps[1], r.ents[2].id, 'a'))); SK.last = [r.ents[0].id, r.ents[1].id]; }
   else if (t === 'circle') { const e = { id: sketchId('c'), t: 'circle', c: p0, r: Math.max(pxToMm(2), Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) }; addEnts([e], snapCons(snaps[0], e.id, 'c')); SK.last = [e.id]; }
@@ -291,7 +319,9 @@ function draftShapes() {
   const d = SK.draft, sn = SK.snap;
   if (!d || !sn) return [];
   const pts = d.pts.concat([sn.p]), [p0, p1, p2] = pts, t = SK.tool;
-  if (t === 'line') return [{ t: 'line', a: p0, b: p1 }];
+  if (t === 'line') return [{ t: 'line', a: p0, b: p1, k: SK.lineK }];
+  if (t === 'mline') return [{ t: 'line', a: [2 * p0[0] - p1[0], 2 * p0[1] - p1[1]], b: p1 }];
+  if (t === 'circle3') { if (!p2) return [{ t: 'line', a: p0, b: p1, k: true }]; const a = arc3(p0, p1, p2); return a ? [{ t: 'circle', c: a.c, r: a.r }] : []; }
   if (t === 'rect' || t === 'crect') return rectEnts(p0, p1, t === 'crect').ents;
   if (t === 'circle') return [{ t: 'circle', c: p0, r: Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) }];
   if (t === 'arc3') { if (!p2) return [{ t: 'line', a: p0, b: p1, k: true }]; const a = arc3(p0, p1, p2); return a ? [{ t: 'arc', ...a }] : []; }
@@ -400,7 +430,7 @@ export function sketchMove(e, sx, sy) {
   if (SK.box) { Object.assign(SK.box, { x1: sx, y1: sy }); drawOverlay(); return; }
   if (SK.tool === 'select' || SK.tool === 'dim' || SK.tool === 'trim' || SK.tool === 'mirror') SK.hover = sketchPick(sx, sy);
   else if (SK.tool === 'use') { app.hover = pickAt(sx, sy, 'edge'); emit('hover'); }
-  else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, SK.tool === 'line' || SK.tool === 'rect' || SK.tool === 'polygon' ? from : null); }
+  else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, FROM_TOOLS[SK.tool] ? from : null); }
   drawOverlay();
 }
 /* a double-click: a dimension's value to type again; a line, circle or arc dimensioned; a chain of lines ended */
@@ -873,7 +903,7 @@ function drawSketch(c, C) {
   // its size as it is drawn, by the pointer
   if (dr.length && sn && SK.draft) {
     const p0 = SK.draft.pts[0], p1 = SK.draft.pts[1] || sn.p, t = SK.tool, mm = v => fmtNum(v, 2), far = Math.hypot(sn.p[0] - p0[0], sn.p[1] - p0[1]);
-    const txt = t === 'line' ? mm(far) + ' mm' : t === 'rect' ? mm(Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'crect' ? mm(2 * Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(2 * Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'circle' ? 'Ø' + mm(2 * far) + ' mm' : t === 'polygon' ? 'R' + mm(far) + ' mm'
+    const txt = t === 'line' ? mm(far) + ' mm' : t === 'mline' ? mm(2 * far) + ' mm' : t === 'circle3' && dr[0].t === 'circle' ? 'Ø' + mm(2 * dr[0].r) + ' mm' : t === 'rect' ? mm(Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'crect' ? mm(2 * Math.abs(sn.p[0] - p0[0])) + ' × ' + mm(2 * Math.abs(sn.p[1] - p0[1])) + ' mm' : t === 'circle' ? 'Ø' + mm(2 * far) + ' mm' : t === 'polygon' ? 'R' + mm(far) + ' mm'
       : (t === 'arc3' || t === 'tarc') && dr[0].t === 'arc' ? 'R' + mm(dr[0].r) + ' mm' : t === 'slot' && SK.draft.pts.length > 1 ? mm(Math.hypot(p1[0] - p0[0], p1[1] - p0[1])) + ' × ' + mm(2 * distToEnt({ t: 'line', a: p0, b: p1 }, sn.p)) + ' mm' : mm(far) + ' mm';
     const q = P(sn.p); c.font = '11px system-ui, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
     const w = c.measureText(txt).width + 8;
@@ -936,8 +966,10 @@ function dimPlace0(d, E, P) {
   return null;
 }
 /* ---------- the sketch's bar of tools ---------- */
-const SK_TOOLS = [['select', 'Select (S)', 'select'], ['line', 'Line (L)', 'line'], ['rect', 'Corner rectangle (R)', 'rect'], ['crect', 'Centre rectangle', 'crect'], ['circle', 'Centre circle (C)', 'circle'], ['arc3', '3-point arc (A)', 'arc3'], ['tarc', 'Tangent arc (T)', 'tarc'], ['slot', 'Slot', 'slot'], ['polygon', 'Polygon (G)', 'polygon'], ['point', 'Point (P)', 'point'],
+const SK_TOOLS = [['select', 'Select (S)', 'select'], ['line', 'Line (L)', 'line'], ['cline', 'Centre line: a construction line', 'construct'], ['mline', 'Midpoint line: its middle, then an end', 'mline'], ['rect', 'Corner rectangle (R)', 'rect'], ['crect', 'Centre rectangle', 'crect'], ['circle', 'Centre circle (C)', 'circle'], ['circle3', '3-point circle', 'circle3'], ['arc3', '3-point arc (A)', 'arc3'], ['tarc', 'Tangent arc (T)', 'tarc'], ['slot', 'Slot', 'slot'], ['polygon', 'Polygon (G)', 'polygon'], ['point', 'Point (P)', 'point'],
   'sep', ['construct', 'Construction (Q)', 'construct'], ['use', 'Use model edges (U)', 'use'], ['trim', 'Trim (M)', 'trim'], ['fillet', 'Sketch fillet', 'fillet'], ['offset', 'Offset (O)', 'offset'], ['mirror', 'Mirror', 'mirror'], 'sep', ['dim', 'Dimension (D)', 'dim']];
+/* the tools that share a button: it shows the one last used, and the arrow beside it lists them all */
+const SK_GROUPS = [['line', 'cline', 'mline'], ['rect', 'crect'], ['circle', 'circle3'], ['arc3', 'tarc']];
 const SK_CONS = [['coincident', 'Coincident', '●'], ['horizontal', 'Horizontal', 'H'], ['vertical', 'Vertical', 'V'], ['parallel', 'Parallel', '∥'], ['perpendicular', 'Perpendicular', '⊥'], ['tangent', 'Tangent', 'T'], ['equal', 'Equal', '='], ['midpoint', 'Midpoint', 'M'], ['concentric', 'Concentric', '◎'], ['symmetric', 'Symmetric', '⇋'], ['fix', 'Fix', '⚓']];
 export function sketchBar() {
   const bar = document.getElementById('sketchBar');
@@ -948,7 +980,18 @@ export function sketchBar() {
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });
   const num = (label, key, title) => h('label', { class: 'cad-skin', title }, label, h('input', { type: 'text', value: String(SK[key]), size: '4', 'data-skopt': key, onchange: e => { SK[key] = key === 'polySides' ? Math.max(3, Math.min(64, parseInt(e.target.value, 10) || 6)) : e.target.value; } }));
   bar.replaceChildren(...[h('span', { class: 'cad-skname' }, app.sketch.f.name),
-    ...SK_TOOLS.map(t => (t === 'sep' ? h('span', { class: 'rt-qsep' }) : btn(t[0], t[1], t[2], SK.tool === t[0] || (t[0] === 'construct' && SK.constr)))),
+    ...SK_TOOLS.map(t => {
+      if (t === 'sep') return h('span', { class: 'rt-qsep' });
+      const g = SK_GROUPS.find(x => x.includes(t[0])), now = SK.lineK ? 'cline' : SK.tool;
+      if (!g) return btn(t[0], t[1], t[2], SK.tool === t[0] || (t[0] === 'construct' && SK.constr));
+      if (t[0] !== g[0]) return null;
+      // the group's button is the tool last used of it; the arrow opens the rest
+      const cur = SK_TOOLS.find(x => x[0] === (g.includes(now) ? now : SK.variant[g[0]] || g[0])), menu = h('div', { class: 'rt-menu rt-imenu cad-toolmenu', role: 'menu', hidden: '', id: 'skMenu-' + g[0] },
+        ...g.map(id => { const x = SK_TOOLS.find(y => y[0] === id); return h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': String(now === id), 'data-skpick': id, 'data-icon': x[2], onclick: () => setTool(id) }, x[1]); }));
+      const caret = h('button', { type: 'button', class: 'rt-btn quiet cad-caret', 'data-skgroup': g[0], title: 'More ' + ({ line: 'lines', rect: 'rectangles', circle: 'circles', arc3: 'arcs' })[g[0]], 'aria-label': 'More ' + ({ line: 'lines', rect: 'rectangles', circle: 'circles', arc3: 'arcs' })[g[0]], 'aria-haspopup': 'true', 'aria-expanded': 'false',
+        onclick: e => { e.stopPropagation(); const open = menu.hidden; for (const m of bar.querySelectorAll('.cad-toolmenu')) m.hidden = true; menu.hidden = !open; caret.setAttribute('aria-expanded', String(open)); } }, '▾');
+      return h('span', { class: 'rt-more cad-toolgroup' }, btn(cur[0], cur[1], cur[2], g.includes(now)), caret, menu);
+    }),
     h('span', { class: 'rt-qsep' }),
     ...SK_CONS.map(([t, title, g]) => h('button', { type: 'button', class: 'rt-btn quiet cad-con', 'data-con': t, title: title + ' (on what is selected)', 'aria-label': title, onclick: () => addConstraint(t) }, g)),
     h('span', { class: 'rt-qsep' }),

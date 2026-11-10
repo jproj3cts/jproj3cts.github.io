@@ -181,7 +181,11 @@ export async function check(pw, base, shots) {
     await p.click('[data-feature="sketch"]'); await p.click('.cad-frow-p[data-plane="top"]');
     await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
     await p.waitForTimeout(150);
-    await p.click('[data-sktool="crect"]');
+    await p.click('[data-skgroup="rect"]');
+    const rmenu = await p.evaluate(() => ({ shown: !document.getElementById('skMenu-rect').hidden, items: [...document.querySelectorAll('#skMenu-rect [data-skpick]')].map(b => b.dataset.skpick).join() }));
+    await p.click('[data-skpick="crect"]');
+    const rbtn = await p.evaluate(() => ({ tool: window.JEKcad.sk.tool, on: !!document.querySelector('.cad-toolgroup [data-sktool="crect"].on'), hidden: document.getElementById('skMenu-rect').hidden }));
+    ok('The rectangle button’s arrow lists the corner and the centre rectangle; the one chosen becomes the button', rmenu.shown && rmenu.items === 'rect,crect' && rbtn.tool === 'crect' && rbtn.on && rbtn.hidden, JSON.stringify([rmenu, rbtn]));
     const clickUV = async (uv, o) => { const q = await uvXY(uv); await p.mouse.move(q[0], q[1], { steps: 3 }); await p.mouse.click(q[0], q[1], o); };
     await clickUV([0, 0]); await clickUV([27, 17]);
     await p.keyboard.type('60'); await p.keyboard.press('Enter'); await p.keyboard.type('40'); await p.keyboard.press('Enter');
@@ -212,6 +216,21 @@ export async function check(pw, base, shots) {
     if (dimIn) { await p.fill('#dimInput', '25'); await p.keyboard.press('Enter'); }
     sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f; return { tool: window.JEKcad.sk.tool, dims: f.dims.map(d => d.t + '=' + d.x), y: +f.ents.filter(e => !e.ref)[0].b[1].toFixed(4) }; });
     ok('The dimension tool measures from an edge of the model: the point 25 from the front edge', sk.dims.join() === 'pl=25' && sk.y === 5, JSON.stringify(sk));
+    // the middle of an edge of the model: a line ended there is held to the edge's middle
+    await p.keyboard.press('l');
+    await clickUV([10, 10]); await clickUV([0.3, 19.7]);
+    await p.mouse.click(rq[0], rq[1], { button: 'right' });
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, l = f.ents.filter(e => !e.ref).pop(); return { end: l.b.map(v => +v.toFixed(4)), mid: f.cons.filter(c => c.t === 'midpoint').length }; });
+    ok('A line ended near the middle of an edge of the model is held to its middle', sk.end.join() === '0,20' && sk.mid === 1, JSON.stringify(sk));
+    // the other lines and circles: a line from its middle, a centre line, a circle through three points
+    await p.click('[data-skgroup="line"]'); await p.click('[data-skpick="mline"]');
+    await clickUV([10, -10]); await clickUV([16, -6]);
+    await p.click('[data-skgroup="line"]'); await p.click('[data-skpick="cline"]');
+    await clickUV([-20, 14]); await clickUV([-8, 14]); await p.mouse.click(rq[0], rq[1], { button: 'right' });
+    await p.click('[data-skgroup="circle"]'); await p.click('[data-skpick="circle3"]');
+    await clickUV([14, 5]); await clickUV([18, 9]); await clickUV([22, 5]);
+    sk = await p.evaluate(() => { const es = window.JEKcad.app.sketch.f.ents.filter(e => !e.ref).slice(-3); return es.map(e => (e.t === 'line' ? [e.k ? 'k' : '', ...e.a, ...e.b] : [e.t, ...e.c, e.r]).map(v => (typeof v === 'number' ? +v.toFixed(3) : v)).join()); });
+    ok('Midpoint line (its middle, then an end), centre line (construction) and 3-point circle, from the arrows by Line and Circle', sk[0] === ',4,-14,16,-6' && sk[1] === 'k,-20,14,-8,14' && sk[2] === 'circle,18,5,4', JSON.stringify(sk));
     await p.click('#sketchCancel'); await regen();
     // a feature picked in the list shows its sketch's dimensions on the model; one double-clicked is typed again
     await p.click('.cad-frow-f[data-i="1"] .nm'); await p.waitForTimeout(200);

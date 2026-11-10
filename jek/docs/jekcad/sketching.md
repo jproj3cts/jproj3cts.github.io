@@ -16,12 +16,17 @@ To sketch at a distance from a plane, first make a **Plane** feature offset from
 
 ## Drawing
 
+Line, rectangle, circle and arc each have several kinds. The button shows the kind last used, and the arrow beside it lists the others.
+
 | Key | Tool | How |
 |---|---|---|
 | L | Line | Click each point. Lines chain end to end. Right-click, Esc or a double-click ends the chain, and clicking the chain's first point closes it. |
+| | Centre line | A line drawn as construction: an axis to revolve about or to mirror in. |
+| | Midpoint line | Its middle, then one end. The middle is held where you clicked. |
 | R | Corner rectangle | Two opposite corners. |
 | | Centre rectangle | The centre, then a corner. |
 | C | Circle | The centre, then a point on it. |
+| | 3-point circle | Three points on it. |
 | A | 3-point arc | Its two ends, then a point on it. |
 | T | Tangent arc | Start at the end of a line or arc, then click where it ends. |
 | | Slot | The two centres, then its width. |
@@ -31,7 +36,7 @@ To sketch at a distance from a plane, first make a **Plane** feature offset from
 
 As you draw, JEKcad infers constraints and shows each one as a glyph by the pointer. **●** means coincident with a point, **M** the middle of a line, **⌒** on a curve, **H** horizontal and **V** vertical. A line drawn nearly square to the one before it is made perpendicular, and a tangent arc is held tangent where it starts.
 
-The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. A corner comes in as a fixed point. When the model changes and that edge or corner moves, the sketch moves with it.
+The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. It also snaps to the middle of a straight edge (**M**) and the centre of a round one (**◎**). Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. A corner comes in as a fixed point. When the model changes and that edge or corner moves, the sketch moves with it.
 
 A first point placed level with the origin, or straight above or below it, is held level or in line with it (**H** or **V** by the pointer). A polygon whose first corner is level with its centre is held that way up.
 

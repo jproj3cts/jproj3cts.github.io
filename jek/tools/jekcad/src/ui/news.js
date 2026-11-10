@@ -3,8 +3,12 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.3.0';
 export const NEWS = [
+  { v: '0.3.0', date: '10 Nov 2026', items: [
+    'The line, rectangle, circle and arc tools each have an arrow beside them listing their kinds. New among them: a <b>centre line</b> (a construction line), a <b>midpoint line</b> (its middle, then an end) and a <b>3-point circle</b>.',
+    'A sketch point locks onto the <b>middle of a straight edge</b> of the model and the <b>centre of a round one</b>, as it does onto the model’s corners and edges.',
+  ] },
   { v: '0.2.0', date: '10 Nov 2026', items: [
     '<b>Sketches lock onto the model</b>: a point drawn near a corner or an edge of a part snaps to it and is held there, and the dimension tool measures from the model’s edges and corners and from the origin. A shape held to an edge follows that edge when the model changes.',
     '<b>Sizes as you draw</b>: the length, width and height or diameter shows by the pointer; type a number straight after a line, circle, arc or rectangle to dimension it. Double-click a line, circle or arc to dimension it; right-click ends a chain of lines.',

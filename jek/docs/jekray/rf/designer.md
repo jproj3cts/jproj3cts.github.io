@@ -206,4 +206,4 @@ Two examples in the gallery's **RF and millimetre waves** group are designed in 
 
 - [RF and millimetre waves](/jek/docs/jekray/rf/): the parts the designer works with, and the models behind them.
 - [Optical designer](/jek/docs/jekray/lens-design/): the same workspace for a lens system, surface by surface.
-- [Coating design](/jek/docs/jekray/coating-design/), where a matching layer is designed as a thin-film stack.
+- [Matching layers](/jek/docs/jekray/coating-design/), where a matching layer is designed and optimised.

@@ -7,10 +7,14 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* the apps, as the hub lists and opens them: their page, their tab's name, what they are */
 export const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', about: '/jek/products/design-software/jekray/',
-    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens, RF and coating design.' },
+    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens and RF design.' },
   { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
+  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
+    line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
 ];
+/* what an app's files are called: a JEKfilm coating, a JEKray or JEKion bench */
+export const thingOf = id => appOf(id).thing || 'bench';
 export const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
 export function openApp(id, hash) {

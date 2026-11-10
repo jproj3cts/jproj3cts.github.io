@@ -922,7 +922,8 @@
   .rt-hcard .rt-hinfo small.rt-hfork { display: flex; align-items: center; gap: 0.25rem; }
   /* the other tool's bench: a chip before its name (both tools' benches share the workspaces) */
   .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--jek-cyan); color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
-  .rt-hcard .rt-hinfo .rt-htool.ion { background: var(--jek-orange); }
+  .rt-hcard .rt-hinfo .rt-htool.ion, .rt-hcard .rt-hinfo .rt-htool.jekion { background: var(--jek-orange); }
+  .rt-hcard .rt-hinfo .rt-htool.jekfilm { background: var(--jek-amber); color: #1a1a1a; }
   .rt-hcard .rt-hinfo small.rt-hfork .ic { width: 12px; height: 12px; }
   .rt-hcard .rt-hmore { position: absolute; right: 0.35rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; padding: 0; border: 1px solid transparent; border-radius: 2px; background: none; color: var(--jek-ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
   .rt-hcard .rt-hmore:hover, .rt-hcard .rt-hmore[aria-expanded="true"] { background: var(--jek-well); border-color: var(--jek-line); color: var(--jek-ink); }
@@ -2099,7 +2100,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnNewRf" data-ws="rf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
             <button type="button" role="menuitem" id="btnRfOfSel" data-ws="rf" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed on its own: an anti-reflection stack, a reflector, a splitter, an edge or an RF matching layer, kept by name for every face’s Coating list">Coating design</button>
+            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed in JEKfilm (in its own tab): an anti-reflection stack, a reflector, a splitter or an edge, kept in the cloud for every face’s Coating list">Coating design in JEKfilm…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
             <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
@@ -2604,6 +2605,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
+  cloudLinked() {},
   // mods run in their sandbox on the page
   modAsk: () => Promise.reject(new Error('no modules here')),
 };
@@ -10414,6 +10417,8 @@ function normCoat(c) {
     // up to a metre: an RF lens's matching layer is designed at millimetres (panels.js matchLayer)
     out.design = clamp(num(c.design, 550), 100, 1e9);
     if (c.label) out.label = String(c.label).slice(0, 40);
+    // a JEKfilm coating in the cloud this stack came from, and its version (io/film-coats.js): the stack is a copy, kept here
+    if (c.src && typeof c.src === 'object' && /^[A-Za-z0-9_-]{1,40}$/.test(String(c.src.id))) out.src = { id: String(c.src.id), v: Math.max(1, Math.round(num(c.src.v, 1))) };
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, 40).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),
@@ -10576,14 +10581,15 @@ function coatR(coat, n1, n2, nm) {
    ========================================================================== */
 const COAT_TARGETS = { ar: 'Anti-reflection', hr: 'High reflector', split: 'Beam splitter', edge: 'Dichroic edge', rf: 'Matching layer (RF)' };
 const clampN = (v, lo, hi, d) => (isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
-/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles 0 to
-   theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
+/* the specification, normalised: the medium's index n0, the substrate's ns, the band lo to hi (nm), the angles theta0
+   (0 unless given: JEKfilm's band of angles) to theta (degrees), the polarisation judged ('avg' of s and p, 's' or 'p'), the design wavelength (nm; the band's middle
    when left out), and for a splitter its reflectance (%), for an edge the wavelength it turns at and which side passes */
 function coatSpec(o) {
   o = o || {};
   const target = COAT_TARGETS[o.target] ? o.target : 'ar';
   const lo = clampN(o.lo, 100, 1e9, target === 'rf' ? 11.5e6 : 450), hi = Math.max(lo, clampN(o.hi, 100, 1e9, target === 'rf' ? 13.5e6 : 650));
-  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta: clampN(o.theta, 0, 89, 0), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
+  const theta = clampN(o.theta, 0, 89, 0);
+  return { target, n0: clampN(o.n0, 1, 20, 1), ns: clampN(o.ns, 1, 20, 1.5168), lo, hi, theta, theta0: Math.min(theta, clampN(o.theta0, 0, 89, 0)), pol: ['s', 'p'].includes(o.pol) ? o.pol : 'avg',
     design: clampN(o.design, 100, 1e9, (lo + hi) / 2), R: clampN(o.R, 0, 100, 50), edge: clampN(o.edge, 100, 1e9, (lo + hi) / 2), passBelow: o.passBelow !== false };
 }
 /* the stack's power reflectance from n0 into ns at cosine ci and wavelength nm, for the polarisation asked */
@@ -10600,17 +10606,18 @@ function coatWant(spec, nm) {
     default: return 0;
   }
 }
-/* the sample points the stack is judged at: wavelengths across the band and angles from 0 to theta */
+/* the sample points the stack is judged at: wavelengths across the band and angles from theta0 to theta */
 function samples(spec, nW, nA) {
   const nms = [], cis = [];
   for (let i = 0; i < nW; i++) nms.push(spec.lo + (spec.hi - spec.lo) * (nW > 1 ? i / (nW - 1) : 0.5));
-  for (let j = 0; j < nA; j++) cis.push(Math.cos((spec.theta * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
+  const a0 = spec.theta0 || 0;
+  for (let j = 0; j < nA; j++) cis.push(Math.cos((a0 + (spec.theta - a0) * (nA > 1 ? j / (nA - 1) : 0)) * Math.PI / 180));
   return { nms, cis };
 }
 /* the merit: the mean square of R − target over the band and the angles (an edge's own wavelength ± 2% left out, as no
    stack turns in no width) */
 function coatMerit(layers, spec, nW = 41, nA = 5) {
-  const { nms, cis } = samples(spec, nW, spec.theta > 0 ? nA : 1);
+  const { nms, cis } = samples(spec, nW, spec.theta > (spec.theta0 || 0) ? nA : 1);
   let sum = 0, cnt = 0;
   for (const nm of nms) {
     if (spec.target === 'edge' && Math.abs(nm - spec.edge) < 0.02 * spec.edge) continue;
@@ -10631,12 +10638,12 @@ function coatAngles(layers, spec, N = 91) {
   for (let i = 0; i < N; i++) { const d = 89 * i / (N - 1), ci = Math.cos(d * Math.PI / 180); degs.push(d); s.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 's')); p.push(stackR(layers, spec.n0, spec.ns, ci, spec.design, 'p')); }
   return { degs, s, p };
 }
-/* the figures a designer reads: the mean and worst reflectance over the band square on and at the largest angle, the
-   reflectance at the design wavelength, and the merit */
+/* the figures a designer reads: the mean and worst reflectance over the band at the smallest angle (square on unless
+   theta0 is given) and at the largest, the reflectance at the design wavelength at the smallest angle, and the merit */
 function coatSummary(layers, spec) {
   const at = deg => { const c = coatCurve(layers, spec, deg, 61); let m = 0, w = 0; for (const r of c.R) { m += r; w = Math.max(w, r); } return { mean: m / c.R.length, worst: w }; };
-  const c0 = at(0), ct = spec.theta > 0 ? at(spec.theta) : c0;
-  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, 1, spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
+  const a0 = spec.theta0 || 0, c0 = at(a0), ct = spec.theta > a0 ? at(spec.theta) : c0;
+  return { mean: c0.mean, worst: c0.worst, meanAt: ct.mean, worstAt: ct.worst, design: stackR(layers, spec.n0, spec.ns, Math.cos(a0 * Math.PI / 180), spec.design, spec.pol), merit: coatMerit(layers, spec), bare: ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2 };
 }
 /* ---------- Optimising the thicknesses ----------
    Nelder–Mead on the layers' thicknesses (each held between a hundredth of a quarter wave and four waves of optical
@@ -10682,6 +10689,15 @@ function coatOptimise(layers, spec, opts) {
   const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
   const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
   return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
+}
+/* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
+   given ({ id, v }: the cloud coating and its version), links the face to it. The substrate and the angles judged are
+   the design's; the face keeps its own glass. */
+function coatFromFilm(d, src) {
+  d = d && typeof d === 'object' ? d : {};
+  const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 40).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 40), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
@@ -30776,32 +30792,45 @@ function screenPlots(el) {
 
 /* a surface's coating, the list alone (the lens's face table) */
 function coatingSelect(el, holder, label) {
-  return selectBox(coatingOptions(el, true), () => coatingValue(el, holder), v => setCoating(el, holder, v), { aria: label || 'Coating' });
+  return selectBox(coatingOptions(el, true, holder), () => coatingValue(el, holder), v => setCoating(el, holder, v), { aria: label || 'Coating' });
 }
-function coatingOptions(el, short) {
+function coatingOptions(el, short, holder) {
   return [['bare', short ? 'Uncoated' : el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
     ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', short ? 'Dielectric HR' : 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', short ? 'Matching layer' : 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
-    ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])];
+    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating in JEKfilm\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
+    // JEKfilm's coatings: those in the bench's cloud folder, the one this face is linked to, and a .jekfilm file
+    ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file\u2026']] : [])];
 }
-const coatingValue = (el, holder) => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
+/* the ◆ entries: each JEKfilm coating in the cloud bench's folder, and the face's own linked one if it is elsewhere */
+function filmOptions(holder) {
+  const list = hooks.filmFolder ? hooks.filmFolder() : [], src = holder && holder.coat && holder.coat.src;
+  const out = list.map(f => ['film:' + f.id, '\u25c6 ' + f.name + ' (JEKfilm)']);
+  if (src && !list.some(f => f.id === src.id)) out.push(['film:' + src.id, '\u25c6 ' + (holder.coat.label || 'JEKfilm coating') + ' (JEKfilm)']);
+  return out;
+}
+const coatingValue = (el, holder) => (holder.coat.src ? 'film:' + holder.coat.src.id : holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
 function setCoating(el, holder, v) {
   const keep = holder.coat;
   // the coating design workspace, on this face; a coating kept by name there, written here
-  if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
+  // RF's matching layer in JEKray's own coating workspace; an optical face's coating in JEKfilm, which sends it back to this face
+  if (v === 'design') { const from = { el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }; if (el.mmw) { if (hooks.openCoatDesign) hooks.openCoatDesign(from); } else if (hooks.designInFilm) hooks.designInFilm(from); return;
   } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
+  // a JEKfilm coating: from the cloud folder (fetched, then put on), or from a file; the face linked to one already keeps it
+  if (v.startsWith('film:')) { if (!(keep.src && 'film:' + keep.src.id === v) && hooks.useFilmOn) hooks.useFilmOn(holder, v.slice(5)); return; }
+  if (v === 'filmfile') { if (hooks.filmFileOn) hooks.filmFileOn(holder); return; }
   if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
   // a mirror coating (ideal, or a metal's reflectance), or a dielectric high reflector over a band (bare glass outside it)
   if (v === 'mirror') { holder.coat = normCoat({ mode: 'mirror', metal: keep.metal || 'ideal' }); return; }
   if (v === 'hr') { const nm = benchNms()[0]; holder.coat = normCoat({ mode: 'band', R: 99.9, lo: Math.round(nm * 0.85), hi: Math.round(nm * 1.15), label: 'Dielectric HR' }); return; }
   holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
-    lo: keep.lo, hi: keep.hi, label: keep.label });
+    lo: keep.lo, hi: keep.hi, label: keep.label });     // no src: a stack chosen plainly is this face's own, to edit
   if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
 }
 /* a surface's coating: its list (unless opts.noSelect: the list is elsewhere) and what the coating chosen takes */
 function coatingRows(el, holder, label, opts = {}) {
   const box = h('div', null);
   const rows = h('div', { class: 'rt-rows', style: opts.noSelect ? '' : 'margin-top:0.6rem' });
-  if (!opts.noSelect) rows.append(selectField(label || 'Coating', coatingOptions(el), () => coatingValue(el, holder), v => setCoating(el, holder, v), { wide: holder.coat.mode === 'bare' }));
+  if (!opts.noSelect) rows.append(selectField(label || 'Coating', coatingOptions(el, false, holder), () => coatingValue(el, holder), v => setCoating(el, holder, v), { wide: holder.coat.mode === 'bare' || !!holder.coat.src }));
   if (holder.coat.mode === 'ar' || holder.coat.mode === 'custom') rows.append(param('Reflectance (%)', el, coatPath(el, holder) + '.R'));
   if (holder.coat.mode === 'mirror') {
     rows.append(selectField('Metal', Object.entries(MIRROR_METALS), () => holder.coat.metal, v => { holder.coat = normCoat(Object.assign({}, holder.coat, { metal: v })); }));
@@ -30818,10 +30847,22 @@ function coatingRows(el, holder, label, opts = {}) {
       (holder.coat.label ? holder.coat.label + '. ' : '') +
       'Inside the band the surface reflects this much; outside it the coating is ignored and the bare glass is traced.'));
   }
-  if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
+  if (holder.coat.src) box.append(filmNote(holder));
+  else if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
   return box;
 }
 
+/* a face linked to a JEKfilm coating: where it came from, its version, and the ways on (its layers are edited in
+   JEKfilm; Thin-film stack in the list makes them this face's own to edit here) */
+function filmNote(holder) {
+  const c = holder.coat, f = (hooks.filmFolder ? hooks.filmFolder() : []).find(x => x.id === c.src.id);
+  const newer = f && f.version > c.src.v;
+  return h('div', { class: 'note rt-filmnote', style: 'margin-top:0.4rem' },
+    c.layers.length + (c.layers.length === 1 ? ' layer' : ' layers') + ' at ' + c.design + ' nm, from the JEKfilm coating “' + (c.label || 'coating') + '”, version ' + c.src.v + (newer ? ' (version ' + f.version + ' is saved)' : '') + '. ',
+    newer ? h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.updateFilms) hooks.updateFilms([{ id: f.id, name: f.name, from: c.src.v, to: f.version, holders: [holder] }]); } }, 'Update this face') : null,
+    newer ? ' ' : null,
+    h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.openFilm) hooks.openFilm(c.src.id); } }, 'Open in JEKfilm'));
+}
 function stackRows(el, holder) {
   const base = coatPath(el, holder);
   const coat = holder.coat;
@@ -31985,7 +32026,7 @@ function thermView(body, A, asm, P, key, st, redraw) {
 /* ---------- Polarisation ---------- */
 const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
 // the coatings that can be chosen here for a lens face; any other the face has is kept as it is
-const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating…']];
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating in JEKfilm…']];
 const coatChoice = c => {
   if (!c || c.mode === 'bare') return 'bare';
   if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';
@@ -31998,7 +32039,7 @@ function setCoat(P, i, kind, nm, redraw) {
   const s = P.surfaces[i], e = s.from && getEl(s.from.id);
   if (!e || !e.surfaces || !e.surfaces[s.from.i]) return;
   // the coating design workspace on this face, over the designer; its Use this coating writes the stack and redraws here
-  if (kind === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el: e, holder: e.surfaces[s.from.i], label: e.name + ', surface ' + (s.from.i + 1), onUse: c => { e.surfaces[s.from.i].coat = c; changed(false); redraw(); } }); return; }
+  if (kind === 'design') { const from = { el: e, holder: e.surfaces[s.from.i], label: e.name + ', surface ' + (s.from.i + 1), onUse: c => { e.surfaces[s.from.i].coat = c; changed(false); redraw(); } }; if (e.mmw) { if (hooks.openCoatDesign) hooks.openCoatDesign(from); } else if (hooks.designInFilm) hooks.designInFilm(from); return; }
   checkpoint();
   const design = Math.round(nm);
   e.surfaces[s.from.i].coat = kind === 'bare' ? normCoat({ mode: 'bare' }) : kind === 'ar' ? normCoat({ mode: 'ar', R: 0.5 }) : normCoat({ mode: 'stack', design, layers: coatPreset(kind, design) });
@@ -32270,23 +32311,19 @@ function ghostView(body, A, P, G, st, redraw) {
   body.append(helpLine('Scaled to the ghost; one that focuses near a surface is marked.', ['The box is scaled to the ghost, about the image\u2019s centroid. A ghost that focuses within a millimetre of a surface is marked: its light is concentrated there, on a coating or a cement, and in a laser system can damage it.'], 'rt-lsub'));
 }
 /* ==========================================================================
-   The coating design workspace
-   A thin-film stack designed against what it is for (core/coatdesign.js), on its own page over the bench as the lens
-   and RF designers are. Opened from a face's Coating setting (Design a coating…), from the lens designer's face table,
-   from the RF designer's matching layers, or from Tools › Coating design with no face at all. Use this coating writes
-   the stack to the face it came from; Keep as a coating keeps it by name in this browser, for any face's Coating list.
+   The matching-layer workspace
+   An RF lens's matching layer designed against its band (core/coatdesign.js), on its own page over the bench as the
+   lens and RF designers are: opened from the RF designer's matching layers and from an RF face's Coating setting
+   (Design a matching layer…). Use this coating writes the layer to the face it came from. Optical coatings are
+   JEKfilm's (jek/tools/jekfilm): an optical face sent here goes there instead (io/film-coats.js designInFilm). The
+   coatings kept by name in this browser before JEKfilm (keptCoatings) are still offered in every face's Coating list,
+   and JEKfilm offers to open them.
    ========================================================================== */
 let CW = null;                       // { spec, layers, from: { el, holder, label, onUse } | null, names }
 const coatDesignOpen = () => !!CW;
 const CW_KEPT = 'JEK_COATINGS';
-/* the coatings kept by name in this browser: [{ id, name, coat, spec }] */
+/* the coatings kept by name in this browser before JEKfilm: [{ id, name, coat, spec }] (no more are added) */
 function keptCoatings() { try { const v = JSON.parse(localStorage.getItem(CW_KEPT) || '[]'); return Array.isArray(v) ? v : []; } catch (err) { return []; } }
-function cwKeep(name, coat, spec) {
-  const list = keptCoatings().filter(k => k.name !== name);
-  list.push({ id: 'c' + Date.now().toString(36), name, coat, spec });
-  try { localStorage.setItem(CW_KEPT, JSON.stringify(list.slice(-60))); } catch (err) { toast('Could not keep it in this browser', true); }
-}
-function forgetCoating(id) { try { localStorage.setItem(CW_KEPT, JSON.stringify(keptCoatings().filter(k => k.id !== id))); } catch (err) { /* none */ } }
 
 /* the common substrates offered, and an RF material's index */
 const CW_GLASSES = ['N-BK7', 'Fused silica', 'N-SF11', 'N-LAK22', 'CaF2', 'Sapphire', 'N-SK16', 'F2'].filter(g => GLASS[g] || glassKey(g));
@@ -32307,7 +32344,9 @@ const cwPrintedN = (M, fill) => Math.sqrt(mixEps(M, fill / 100).eps);
 
 /* open the workspace: from a face ({ el, holder (the surface or part whose .coat it is), label, onUse(coat) }) or alone */
 function openCoatDesign(from) {
-  from = from || null; track('designer', 'coating');
+  from = from || null;
+  if (!(from && from.el && from.el.mmw)) { if (hooks.designInFilm) hooks.designInFilm(from); return false; }
+  track('designer', 'coating');
   const el = from && from.el, holder = from && from.holder, coat = holder && holder.coat;
   const rf = !!(el && el.mmw), nm0 = benchNms()[0] || 550;
   // the substrate: the face's own glass (a lens face's, on the glass side; a window's or cube's material), the RF plastic, or BK7
@@ -32372,14 +32411,8 @@ function cwRender() {
   const where = from ? (from.label || (from.el ? from.el.name : 'a face')) : 'A coating on its own';
   sec.append(h('header', { class: 'rt-lhead' },
     h('span', { class: 'rt-hmark' }, 'JEKray'),
-    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, 'Bench'), h('span', { 'aria-hidden': 'true' }, '›'), h('span', null, where), h('span', { class: 'rt-lpill' }, 'Coating design')),
+    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, 'Bench'), h('span', { 'aria-hidden': 'true' }, '›'), h('span', null, where), h('span', { class: 'rt-lpill' }, 'Matching layer')),
     h('span', { class: 'rt-lgap' }),
-    h('button', { class: 'rt-btn quiet', type: 'button', title: 'Keep this stack by name in this browser: every face’s Coating list offers it', onclick: () => {
-      const name = (prompt('Name the coating, to find it in every face’s Coating list', COAT_TARGETS[S.target] + ', ' + layers.length + ' layer' + (layers.length === 1 ? '' : 's')) || '').trim();
-      if (!name) return;
-      cwKeep(name, coatToStack(layers, spec, name), spec);
-      toast('Kept “' + name + '”: choose it from any face’s Coating list');
-    } }, 'Keep as a coating…'),
     from ? h('button', { class: 'rt-btn primary', type: 'button', id: 'coatUse', title: 'Write this stack to the face it came from, and go back', onclick: () => {
       const c = normCoat(coatToStack(layers, spec));
       checkpoint();
@@ -32397,7 +32430,7 @@ function cwSettings(S, spec) {
   const rf = S.target === 'rf';
   const card = h('section', { class: 'rt-lcard rt-lcond rt-rfcond', 'aria-label': 'The coating' }, h('h2', null, 'The coating'));
   card.append(h('p', { class: 'rt-lsub' }, 'What the stack is for, what it sits on and the light it is judged in. The thicknesses are then found from where they stand.'));
-  const rows = [cwRow('For', cwSelect(Object.entries(COAT_TARGETS), S.target, v => cwEdit(() => {
+  const rows = [cwRow('For', cwSelect(rf ? [['rf', COAT_TARGETS.rf]] : Object.entries(COAT_TARGETS), S.target, v => cwEdit(() => {
     S.target = v;
     if (v === 'rf' && S.subKind !== 'rf') { S.subKind = 'rf'; }
     if (v !== 'rf' && S.subKind === 'rf') { S.subKind = 'glass'; }
@@ -55206,6 +55239,7 @@ function cloudLink(link) {
   cloudKeep(); cloudSay(link ? 'Saved to the cloud' : '');
   cloudGates();
   leaseStart();
+  hooks.cloudLinked(link);
 }
 /* ---------- the editing lease ----------
    Whoever has a cloud bench open to edit holds its lease, renewed every minute while this page
@@ -55421,7 +55455,7 @@ function newCloudBench(ws, folder, saveThis, then) {
       cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
       toast('“' + b.name + '” is made ' + (w.kind === 'personal' ? 'in My benches' : 'in ' + w.name) + ', and open on the bench: it saves there as you work');
       // straight into a workspace: a starting design on the new bench, or the coating workspace on its own
-      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') openCoatDesign(null);
+      if (then === 'lens') newLensDesign(); else if (then === 'rf') newRfDesign(); else if (then === 'coat') hooks.designInFilm(null);
     } catch (err) {
       go.disabled = false;
       toast(err.status === 402 ? (places.find(x => x.id === wsId).kind === 'personal' ? 'Benches in the cloud need JEKrayPro.' : 'That team has no active plan.') : 'Could not make the bench: ' + err.message, true);
@@ -55478,6 +55512,7 @@ async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
   if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
+  if (meta.tool === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }
@@ -55546,6 +55581,8 @@ const whenAgo = t => {
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
 const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
+const JEKFILM_URL = '/jek/tools/jekfilm.html';
+const openInJekfilm = (b, version) => { const w = window.open(JEKFILM_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekfilm'); if (w) w.focus(); };    // the one JEKfilm tab
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
@@ -55694,6 +55731,176 @@ function wireCloud() {
     accountShown();
   }
 
+}
+/* ==========================================================================
+   JEKfilm's coatings on a bench's faces
+   A coating designed in JEKfilm is a .jekfilm, kept in the cloud as a bench of its own (tool 'jekfilm'). A cloud
+   bench's faces offer the coatings in its folder (filmFolder: listed when the bench is linked to the cloud), and any
+   face can take a .jekfilm file from this computer. Either way the face keeps a copy of the stack (core/coatdesign.js
+   coatFromFilm), so the bench traces, shares and opens offline as before; a coating from the cloud also keeps where it
+   came from and its version (coat.src: { id, v }). When the folder's coating has moved on (on opening, or when
+   JEKfilm saves it in another tab), the bench offers to update its faces: never without asking, so a saved bench does
+   not change its numbers by itself.
+   ========================================================================== */
+const filmFolder = { benchId: null, ws: null, folder: null, list: [] };      // the bench's folder (workspace, folder id) and its coatings: [{ id, name, version }]
+const JEKFILM_TAB = '/jek/tools/jekfilm.html';
+let filmUpdateAsked = new Set();                             // 'id@version' already offered this visit
+const filmFaces = new Map();                                 // a face sent to JEKfilm to design for: token → { elId, i, label }
+/* every coating on the bench's parts, with what holds it: [{ holder, coat }] (a lens's faces, a window's, a cube's…) */
+function benchCoats() {
+  const out = [], seen = new Set();
+  const walk = (o, depth) => {
+    if (!o || typeof o !== 'object' || depth > 4 || seen.has(o)) return;
+    seen.add(o);
+    if (o.coat && typeof o.coat === 'object' && o.coat.mode) out.push({ holder: o, coat: o.coat });
+    for (const [k, v] of Object.entries(o)) if (k !== 'coat' && v && typeof v === 'object') walk(v, depth + 1);
+  };
+  for (const el of project.elements) walk(el, 0);
+  return out;
+}
+/* the coatings in the linked cloud bench's folder, listed (none for a bench not in the cloud) */
+async function loadFilmFolder(link) {
+  link = link === undefined ? cloud : link;
+  Object.assign(filmFolder, { benchId: link ? link.id : null, ws: null, folder: null, list: [] });
+  if (!link || !accountsOn() || !account) { hooks.renderPanel(); return filmFolder.list; }
+  try {
+    const meta = await api('/v1/benches/' + link.id);
+    const out = await api('/v1/workspaces/' + meta.workspace_id + '/benches?tool=jekfilm&folder=' + encodeURIComponent(meta.folder_id || ''));
+    if (filmFolder.benchId !== link.id) return filmFolder.list;
+    Object.assign(filmFolder, { ws: meta.workspace_id, folder: meta.folder_id || null });
+    filmFolder.list = (out.benches || []).filter(b => b.tool === 'jekfilm').map(b => ({ id: b.id, name: b.name, version: b.version || b.head_version || 1 }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (err) { /* offline, or no longer ours: the faces keep their copies */ }
+  hooks.renderPanel();
+  filmUpdates();
+  return filmFolder.list;
+}
+/* a cloud coating as a face's coating: its stack fetched, linked to it */
+async function filmCoat(id) {
+  const b = await api('/v1/benches/' + id);
+  if (b.tool !== 'jekfilm') throw new Error('“' + b.name + '” is not a JEKfilm coating');
+  const d = JSON.parse(b.content);
+  return normCoat(coatFromFilm(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version }));
+}
+/* a face takes a coating from the cloud (the list's ◆ entries): fetched, then put on, as one step of Undo */
+async function useFilmOn(holder, id) {
+  try {
+    const coat = await filmCoat(id);
+    checkpoint(); holder.coat = coat; changed(true);
+    track('designer', 'film.use');
+    toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
+  } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
+}
+/* a .jekfilm file from this computer onto a face: a copy, with no link */
+function filmFileOn(holder) {
+  const input = h('input', { type: 'file', accept: '.jekfilm,application/json', hidden: '' });
+  document.body.append(input);
+  input.addEventListener('change', () => {
+    const f = input.files[0]; input.remove();
+    if (!f) { hooks.renderPanel(); return; }
+    const rd = new FileReader();
+    rd.onload = () => {
+      let d = null;
+      try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
+      if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
+      checkpoint(); holder.coat = normCoat(coatFromFilm(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d))); changed(true);
+      track('import', 'jekfilm');
+      toast('“' + holder.coat.label + '” is on this face, from the file');
+    };
+    rd.readAsText(f);
+  });
+  input.addEventListener('cancel', () => { input.remove(); hooks.renderPanel(); });
+  input.click();
+}
+/* a linked coating opened in JEKfilm, in its tab */
+function openFilm(id) {
+  const w = window.open(JEKFILM_TAB + '#cloud=' + id, 'jekfilm'); if (w) w.focus();
+}
+/* the faces whose coating's cloud version has moved on: [{ id, name, from, to, holders }] */
+function filmStale() {
+  const byId = new Map(filmFolder.list.map(f => [f.id, f])), out = new Map();
+  for (const { holder, coat } of benchCoats()) {
+    const f = coat.src && byId.get(coat.src.id);
+    if (!f || !(f.version > coat.src.v)) continue;
+    const e = out.get(f.id) || { id: f.id, name: f.name, from: coat.src.v, to: f.version, holders: [] };
+    e.from = Math.min(e.from, coat.src.v); e.holders.push(holder); out.set(f.id, e);
+  }
+  return [...out.values()];
+}
+/* bring the faces up to the cloud's version of their coatings (one step of Undo) */
+async function updateFilms(stale) {
+  let n = 0;
+  const coats = await Promise.all(stale.map(s => filmCoat(s.id).catch(() => null)));
+  checkpoint();
+  stale.forEach((s, i) => { if (coats[i]) for (const holder of s.holders) { holder.coat = normCoat(coats[i]); n++; } });
+  changed(true);
+  toast(n ? 'Updated ' + n + (n === 1 ? ' face' : ' faces') + ' to the newest coating' + (stale.length === 1 ? '' : 's') : 'Could not fetch the newer coatings', !n);
+  return n;
+}
+/* offered once a visit for each coating's version: update the faces, or keep the copies they have */
+function filmUpdates() {
+  const stale = filmStale().filter(s => !filmUpdateAsked.has(s.id + '@' + s.to));
+  if (!stale.length || TEST_MODE) return stale;
+  for (const s of stale) filmUpdateAsked.add(s.id + '@' + s.to);
+  let dlg = document.getElementById('filmUpdate');
+  if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmUpdate', 'aria-labelledby': 'filmUpdateTitle' }); document.body.append(dlg); }
+  const close = () => dlg.close(), faces = n => n + (n === 1 ? ' face' : ' faces');
+  dlg.replaceChildren(h('h2', { id: 'filmUpdateTitle' }, stale.length === 1 ? 'A newer coating' : 'Newer coatings'),
+    h('p', null, 'These coatings were saved again in JEKfilm since they were put on this bench. The faces keep their copies until you update them.'),
+    h('ul', null, ...stale.map(s => h('li', null, h('b', null, s.name), ': version ' + s.to + ' (this bench has version ' + s.from + ', on ' + faces(s.holders.length) + ')'))),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film.keep'); } }, 'Keep these copies'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film.update'); updateFilms(stale); } }, 'Update the faces')));
+  dlg.showModal();
+  return stale;
+}
+/* JEKfilm opened to design a coating, in its tab: on its own (from = null), or for a face ({ el, holder, label }),
+   starting from the face's glass, the bench's wavelength and the face's stack, and offering the bench's folder to save
+   it in. Saved to the cloud there, the coating comes back onto the face (wireFilmCoats hears it, by the face's token). */
+function designInFilm(from) {
+  track('designer', 'coating');
+  const el = from && from.el, holder = from && from.holder;
+  const nm = benchNms().find(v => v >= 200 && v <= 20000) || 550, coat = holder && holder.coat;
+  let hash = 'new';
+  if (el && holder) {
+    // the substrate: the face's glass on the glass side (a lens), or the part's own material
+    const i = el.surfaces ? el.surfaces.indexOf(holder) : -1;
+    const m = i >= 0 ? ((el.materials[i] && el.materials[i].glass !== 'AIR' ? el.materials[i] : el.materials[i - 1]) || { glass: 'N-BK7' }) : (el.material || { glass: 'N-BK7' });
+    const key = glassKey(m.glass), design = coat && coat.mode === 'stack' && coat.design ? coat.design : Math.round(nm);
+    const token = 'f' + Math.random().toString(36).slice(2, 10);
+    filmFaces.set(token, { elId: el.id, i, label: from.label || el.name });
+    const seed = { format: 'jekfilm', version: 1, name: (from.label || el.name) + ' coating',
+      spec: { target: 'ar', sub: { glass: key || m.glass, n: +refIndex(m, design).toFixed(5) }, design, lo: Math.max(100, Math.round(design * 0.85)), hi: Math.round(design * 1.15) },
+      layers: coat && coat.mode === 'stack' ? coat.layers : [{ n: 1.38, d: design / (4 * 1.38) }] };
+    const pass = { seed, face: token, label: from.label || el.name, ws: filmFolder.ws, folder: filmFolder.folder };
+    hash = 'design=' + btoa(unescape(encodeURIComponent(JSON.stringify(pass)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  const w = window.open(JEKFILM_TAB + '#' + hash, 'jekfilm'); if (w) w.focus();
+  return hash;
+}
+/* a face sent to JEKfilm, found again (the part may have been replaced by an undo since: found by its id) */
+function faceOf(f) {
+  const el = getEl(f.elId);
+  return !el ? null : f.i >= 0 ? (el.surfaces && el.surfaces[f.i]) || null : el;
+}
+/* the page's wiring: the folder listed with each cloud link, and JEKfilm's saves in another tab heard */
+function wireFilmCoats() {
+  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, openFilm, updateFilms, designInFilm });
+  // a cloud bench restored with the page: its folder listed once the account is known
+  Promise.resolve().then(() => { if (accountLoaded) accountLoaded.then(() => { if (cloud && filmFolder.benchId !== cloud.id) loadFilmFolder(); }); });
+  if (EMBED || typeof BroadcastChannel !== 'function') return;
+  // JEKfilm says when it saves a coating: a coating of this folder moves on, and the faces linked to it are offered it
+  const ch = new BroadcastChannel('jek-film');
+  ch.addEventListener('message', e => {
+    const m = e.data || {};
+    if (!m.id || !(m.version > 0)) return;
+    // the coating designed for a face here: on that face now
+    const f = m.face && filmFaces.get(m.face), holder = f && faceOf(f);
+    if (holder) { filmFaces.delete(m.face); useFilmOn(holder, m.id); if (cloud && m.ws === filmFolder.ws && (m.folder || null) === filmFolder.folder) loadFilmFolder(); return; }
+    const known = filmFolder.list.find(x => x.id === m.id);
+    if (known) { Object.assign(known, { version: m.version, name: m.name || known.name }); filmUpdates(); }
+    else if (cloud && m.ws && m.ws === filmFolder.ws && (m.folder || null) === filmFolder.folder) loadFilmFolder();
+  });
 }
 /* ==========================================================================
    JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKsuite,
@@ -55942,6 +56149,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Coatings are designed in JEKfilm</b>, the new coating designer, in its own tab. A face\u2019s <b>Design a coating in JEKfilm\u2026</b> (and Tools \u203a Coating design in JEKfilm\u2026) opens it on that face\u2019s glass and stack; saved to the cloud in the bench\u2019s folder, the coating comes back onto the face. An RF lens\u2019s matching layer is still designed here. Coatings you kept by name are still in every face\u2019s Coating list, and JEKfilm can open them.',
+    '<b>JEKfilm coatings on a face.</b> A face\u2019s Coating list offers the JEKfilm coatings (\u25c6) kept in the cloud bench\u2019s folder, and a .jekfilm file from your computer. The face keeps a copy of the stack, linked to the coating: when the coating is saved again in JEKfilm, the bench offers to update its faces.',
     'Fixed: a sweep that renders the diffracted field keeps every frame it rendered through what does not change the light: pausing and playing again, moving a part the light never reaches (or a drawing), changing <b>Field intensity</b> (linear or logarithmic is how the field is drawn, so it is drawn again at once) and the Light ticks. An edit that does change the light renders the field again for the bench as it now is and plays on. In 3D every step of the sweep is kept (a sweep of 120 steps lost its first ones each cycle), and its steps share one brightness scale, so light before an absorber whose density is swept stays as bright while the light after it dims.',
     'Fixed: turning the 3D view while a sweep plays stayed choppy with an oscilloscope showing in Roll (each step solved its circuit again, tracing the bench for every photodiode, at ten frames a second): a beam that lands well inside a round part is no longer summed point by point, an amplifier\u2019s clipping check is worked out once and from a table, and while sweeps play the scope solves afresh only as often as it can without taking the view\u2019s frames.',
     'Fixed: in 3D, turning the view while a sweep plays is smooth: the view is drawn once a frame however fast the pointer moves, and a sweep\u2019s step that leaves the light and the cables where they were keeps their models and shadows rather than making them again.',
@@ -57643,7 +57852,7 @@ function wireTours() {
   };
   document.getElementById('btnLensOfSel').addEventListener('click', () => ofSelection(false));
   document.getElementById('btnRfOfSel').addEventListener('click', () => ofSelection(true));
-  document.getElementById('btnCoatDesign').addEventListener('click', () => openCoatDesign(null));
+  document.getElementById('btnCoatDesign').addEventListener('click', () => designInFilm(null));
 
   document.getElementById('btnExportZmx').addEventListener('click', exportZmx);
 
@@ -59154,7 +59363,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -59486,6 +59695,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the coating design workspace: on a part's face (its surface index for a lens) or on its own
     openCoatDesign(name, i) { const el = name ? this.byName(name) : null; return openCoatDesign(el ? { el, holder: el.type === 'lens' ? el.surfaces[i || 0] : el, label: el.name } : null); },
     coatDesignOpen() { return coatDesignOpen(); },
+    // JEKfilm's coatings on the faces (io/film-coats.js): the cloud folder's list, the faces whose coating moved on, updating them
+    films: { folder: () => filmFolder, stale: () => filmStale(), update: s => updateFilms(s), coats: () => benchCoats().map(x => x.coat) },
     selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
@@ -59662,7 +59873,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (location.hash !== '#examples' && !pro && !benches && !cl && !nw && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
-    const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') openCoatDesign(null); };
+    const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') designInFilm(null); };
     setTimeout(async () => {
       if (tr) startTour(tr[1]); else if (pro) proLink();
       else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); into(cl[3]); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }

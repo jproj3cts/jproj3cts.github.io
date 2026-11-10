@@ -197,10 +197,12 @@
   group: Designers
 - title: RF designer
   url: /jek/docs/jekray/rf/designer/
-- title: Coating design
+- title: Matching layers
   url: /jek/docs/jekray/coating-design/
 - title: JEKsuite
   url: /jek/docs/jekray/jekspace/
+- title: JEKfilm
+  url: /jek/docs/jekray/jekfilm/
 - title: Part packs
   url: /jek/docs/jekray/part-packs/
   group: Extending and scripting

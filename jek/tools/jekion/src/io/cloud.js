@@ -259,7 +259,10 @@ async function cloudThumb(link, force) {
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
-  if (meta.tool === 'jekray') { const w = window.open(JEKRAY_URL + '#cloud=' + id + (version ? '@' + version : ''), 'jekray'); if (w) w.focus(); toast('“' + meta.name + '” is a JEKray bench: opened in JEKray'); return; }
+  if (meta.tool !== 'jekion') {
+    const app = meta.tool === 'jekfilm' ? { url: '/jek/tools/jekfilm.html', tab: 'jekfilm', what: 'a JEKfilm coating', name: 'JEKfilm' } : { url: JEKRAY_URL, tab: 'jekray', what: 'a JEKray bench', name: 'JEKray' };
+    const w = window.open(app.url + '#cloud=' + id + (version ? '@' + version : ''), app.tab); if (w) w.focus(); toast('“' + meta.name + '” is ' + app.what + ': opened in ' + app.name); return;
+  }
   setCloudOpening(true);
   try { if (!openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud')) return; }
   finally { setCloudOpening(false); }

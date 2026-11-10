@@ -86,6 +86,7 @@
           <a href="/jek/calculators/">Calculators</a>
           <a href="/jek/tools/jekray.html">JEKray</a>
           <a href="/jek/tools/jekion.html">JEKion</a>
+          <a href="/jek/tools/jekfilm.html">JEKfilm</a>
         </span>
       </span> |
       <a href="/jek/bio.html">Bio</a> |
@@ -8112,7 +8113,7 @@ const TESTS = [
   },
   {
     name: 'Search commands (Ctrl+K) finds the menus’ items by their words and runs the one chosen',
-    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating design first, and Enter opens the coating workspace; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
+    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating design in JEKfilm first, and Enter opens JEKfilm in its tab; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc(), wait = async (f, n = 80) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
@@ -8121,13 +8122,16 @@ const TESTS = [
       const opened = !!dlg && dlg.open;
       const find = q => { input.value = q; input.dispatchEvent(new W.Event('input')); return [...dlg.querySelectorAll('li[role="option"]')].map(li => li.querySelector('.rt-cmdpath').textContent + ' | ' + li.querySelector('.rt-cmdname').textContent); };
       const coat = find('coating');
-      const coatFirst = coat[0] === 'Tools | Coating design';
+      const coatFirst = coat[0] === 'Tools | Coating design in JEKfilm…';
       const png = find('png');
       const pngs = png.length === 2 && png.every(x => /^File › Export layout/.test(x));
       const noCloud = !find('my benches').length && !!dlg.querySelector('.rt-cmdnone');
       find('coating');
+      const wasOpen = W.open, opens = [];
+      W.open = (url, name) => { opens.push([url, name]); return { focus() {} }; };
       input.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      const ran = !dlg.open && await wait(() => J.coatDesignOpen());
+      const ran = !dlg.open && await wait(() => opens.length > 0) && opens[0][0] === '/jek/tools/jekfilm.html#new';
+      W.open = wasOpen;
       J.closeLensDesign();
       if (!(opened && coatFirst && pngs && noCloud && ran)) console.log('commands', { opened, coat, png, noCloud, ran });
       return opened && coatFirst && pngs && noCloud && ran ? 1 : 0;
@@ -10733,6 +10737,46 @@ const TESTS = [
       } finally { J.closeLensDesign(); try { rigWin().localStorage.removeItem('JEK_STOCK_LENSES'); } catch (e) { /* none */ } }
     },
   },
+  { group: 'JEKfilm coatings on the faces' },
+  {
+    name: 'A JEKfilm coating from the bench’s cloud folder: offered in a face’s Coating list, put on as a linked copy, offered again when it is saved anew, and unlinked as a plain stack',
+    why: 'with a V-coat in the bench’s folder (version 3), a lens face’s Coating list offers it as ◆; choosing it fetches it and puts its two layers at 1064 nm on the face, linked as { id, v: 3 }, with a note saying so in place of the layer editor; the folder’s coating saved as version 5 makes the face stale, and updating brings it to version 5 (one step of Undo takes it back); Thin-film stack in the list keeps the layers but drops the link (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), was = W.fetch;
+      const film = v => ({ id: 'c1', name: 'V-coat 1064', tool: 'jekfilm', version: v, workspace_id: 'w', folder_id: 'f',
+        content: JSON.stringify({ format: 'jekfilm', version: 1, name: 'V-coat 1064', spec: { target: 'ar', design: 1064, sub: { glass: 'Fused silica' } }, layers: [{ n: 1.38, d: 192.75 }, { n: 1.7, d: v === 5 ? 150 : 156.47 }] }) });
+      let served = 3;
+      W.fetch = async url => (/\/v1\/benches\/c1$/.test(String(url)) ? new W.Response(JSON.stringify(film(served)), { status: 200, headers: { 'Content-Type': 'application/json' } }) : was(url));
+      const F = J.films.folder();
+      try {
+        J.load(bench('films', [coatedPlate({ mode: 'bare' })]));
+        F.list = [{ id: 'c1', name: 'V-coat 1064', version: 3 }];
+        J.select('Plate');
+        const sel = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
+        const offered = !!sel && /◆ V-coat 1064 \(JEKfilm\)/.test([...sel.options].find(o => o.value === 'film:c1').textContent);
+        sel.value = 'film:c1'; sel.dispatchEvent(new W.Event('change'));
+        await new Promise(r => setTimeout(r, 300));
+        const c = () => J.serialize().elements[0].surfaces[0].coat;
+        const put = c().mode === 'stack' && c().design === 1064 && c().layers.length === 2 && c().label === 'V-coat 1064' && c().src && c().src.id === 'c1' && c().src.v === 3;
+        J.select('Plate');
+        const noted = /from the JEKfilm coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
+        F.list[0].version = 5; served = 5;
+        const stale = J.films.stale(), staleOk = stale.length === 1 && stale[0].from === 3 && stale[0].to === 5;
+        await J.films.update(stale);
+        const updated = c().src.v === 5 && Math.abs(c().layers[1].d - 150) < 1e-9 && J.films.stale().length === 0;
+        J.undo();
+        const undone = c().src.v === 3;
+        J.select('Plate');
+        const sel2 = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
+        sel2.value = 'stack'; sel2.dispatchEvent(new W.Event('change'));
+        const plain = c().mode === 'stack' && !c().src && c().layers.length === 2;
+        const all = offered && put && noted && staleOk && updated && undone && plain;
+        if (!all) console.log('films', { offered, put, noted, staleOk, updated, undone, plain, coat: c() });
+        return all ? 1 : 0;
+      } finally { W.fetch = was; F.list = []; }
+    },
+  },
   { group: 'The RF designer' },
   {
     name: 'RF designer: a new design collimates its feed, a two-face lens designed to couple into a receiver, placed on the bench with its horns',
@@ -11160,23 +11204,25 @@ const TESTS = [
     },
   },
   {
-    name: 'Tools: the designers, with lens design of the selection, RF design of the selection and coating design',
-    why: 'the Tools menu holds the five designer items (lens design new and of the selection, RF design new and of the selection, coating design); with a lens selected, Lens design of the selection makes it an assembly and opens the lens workspace; RF design of the selection refuses an optical lens and opens the RF designer on an RF lens; Coating design opens the coating workspace on its own (1 when all hold)',
+    name: 'Tools: the designers, with lens design of the selection, RF design of the selection and coating design in JEKfilm',
+    why: 'the Tools menu holds the five designer items (lens design new and of the selection, RF design new and of the selection, coating design in JEKfilm); with a lens selected, Lens design of the selection makes it an assembly and opens the lens workspace; RF design of the selection refuses an optical lens and opens the RF designer on an RF lens; Coating design in JEKfilm opens JEKfilm, new, in its tab (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const D = rigDoc(), ws = id => { const el = D.getElementById(id); return !!el && !el.hidden; };
       const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
       try {
         const items = [...D.querySelectorAll('#toolsMenu [data-ws]')].map(b => b.textContent);
-        const five = items.length === 5 && items[0] === 'Optical designer, new…' && items[4] === 'Coating design' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
+        const five = items.length === 5 && items[0] === 'Optical designer, new…' && items[4] === 'Coating design in JEKfilm…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
         lens(); J.select('Lens');
         D.getElementById('btnLensOfSel').click();
         const lensOpen = ws('lensWs') && (J.serialize().assemblies || []).length === 1;
         J.closeLensDesign();
         D.getElementById('btnRfOfSel').click();
         const refused = !ws('rfWs');
-        D.getElementById('btnCoatDesign').click();
-        const coat = J.coatDesignOpen() && /A coating on its own/.test(D.querySelector('#coatWs .rt-lcrumb').textContent);
+        const W = rigWin(), wasOpen = W.open, opened = [];
+        W.open = (url, name) => { opened.push([url, name]); return { focus() {} }; };
+        try { D.getElementById('btnCoatDesign').click(); } finally { W.open = wasOpen; }
+        const coat = !J.coatDesignOpen() && opened.length === 1 && opened[0][0] === '/jek/tools/jekfilm.html#new' && opened[0][1] === 'jekfilm';
         J.closeLensDesign();
         J.load({ format: 'jekray', version: 1, elements: [] });
         J.newRfDesign(); J.closeLensDesign();
@@ -11190,31 +11236,35 @@ const TESTS = [
     },
   },
   {
-    name: 'Coating design: opened from a lens face, the broadband preset optimised under 0.5% mean over 450–650 nm to 20°, and used on the face',
-    why: 'the coating workspace on a BK7 lens’s first face: its substrate is the lens’s glass, the band and the largest angle set, the three-layer preset chosen and optimised brings the mean reflectance square on under 0.5% (the preset’s own is over 1%), Use this coating writes a three-layer stack at 550 nm to that face and closes the workspace, and Esc leaves it closed (1 when all hold)',
+    name: 'Coating design: an optical face is designed in JEKfilm, and its coating comes back onto the face; an RF face keeps JEKray’s matching-layer workspace',
+    why: 'a BK7 lens’s first face, sent to design a coating: JEKray’s workspace stays closed and JEKfilm opens in its tab (#design=…) starting on N-BK7 at the bench’s wavelength with the face’s stack, for that face; JEKfilm saving the coating to the cloud (its message on the jek-film channel, with the face’s token) puts it on that face, linked; an RF lens’s face opens the matching-layer workspace, whose For list has only the matching layer (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
-      const W = rigWin();
-      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
-      const ws = () => rigDoc().querySelector('#coatWs');
-      const set = (label, v) => { const i = ws().querySelector('[aria-label="' + label + '"]'); i.value = v; i.dispatchEvent(new (W.Event)('change')); };
-      const mean = () => { const m = /Reflects, over the band([\d.]+) % mean/.exec(ws().querySelector('.rt-lfig').textContent.replace(/\u00a0/g, ' ')); return m ? +m[1] : NaN; };
+      const W = rigWin(), D = rigDoc(), wasOpen = W.open, wasFetch = W.fetch, opened = [];
+      W.open = (url, name) => { opened.push([url, name]); return { focus() {} }; };
+      W.fetch = async url => (/\/v1\/benches\/cF$/.test(String(url)) ? new W.Response(JSON.stringify({ id: 'cF', name: 'Lens AR', tool: 'jekfilm', version: 1,
+        content: JSON.stringify({ format: 'jekfilm', version: 1, name: 'Lens AR', spec: { design: 633 }, layers: [{ n: 1.38, d: 114.67 }, { n: 1.7, d: 93.09 }] }) }), { status: 200, headers: { 'Content-Type': 'application/json' } }) : wasFetch(url));
       try {
-        J.openCoatDesign('Lens', 0);
-        const opened = J.coatDesignOpen() && !ws().hidden && /Lens/.test(ws().querySelector('.rt-lcrumb').textContent);
-        const sub = ws().querySelector('[aria-label="The substrate"]'), onGlass = !!sub && /N-BK7/.test(sub.options[sub.selectedIndex].textContent);
-        set('Band from (nm)', '450'); set('Band to (nm)', '650'); set('Largest angle of incidence (degrees)', '20');
-        set('A preset stack', 'bb3');
-        const three = ws().querySelectorAll('.rt-coatlayers tbody tr').length === 3, before = mean();
-        ws().querySelector('#coatOpt').click();
-        const after = mean(), better = before > 1 && after < 0.5 && after < before;
-        ws().querySelector('#coatUse').click();
-        const c = J.serialize().elements[0].surfaces[0].coat;
-        const used = !!c && c.mode === 'stack' && c.layers.length === 3 && c.design === 550 && !J.coatDesignOpen();
-        const all = opened && onGlass && three && better && used;
-        if (!all) console.log('coat design', { opened, onGlass, three, before, after, better, used, c });
+        J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 633 }, { type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80, coat: { mode: 'stack', design: 633, layers: [{ n: 1.38, d: 114.67 }] } }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
+        const r = J.openCoatDesign('Lens', 0);
+        const o = opened.slice(-1)[0] || [], m = /^\/jek\/tools\/jekfilm\.html#design=(.+)$/.exec(o[0] || '');
+        const pass = m ? JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/'))))) : {};
+        const sent = r === false && !J.coatDesignOpen() && o[1] === 'jekfilm' && pass.seed && pass.seed.spec.sub.glass === 'N-BK7' && pass.seed.spec.design === 633 && pass.seed.layers.length === 1 && /^f\w+$/.test(pass.face || '') && /Lens/.test(pass.label);
+        const ch = new W.BroadcastChannel('jek-film');
+        ch.postMessage({ id: 'cF', version: 1, name: 'Lens AR', face: pass.face }); ch.close();
+        await new Promise(res => setTimeout(res, 500));
+        const c = J.serialize().elements[1].surfaces[0].coat;
+        const back = c.mode === 'stack' && c.label === 'Lens AR' && c.layers.length === 2 && c.src && c.src.id === 'cF';
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        J.newRfDesign(); J.closeLensDesign();
+        const rfLens = J.serialize().elements.find(e => e.type === 'lens' && e.mmw);
+        J.openCoatDesign(rfLens.name, 0);
+        const fors = [...D.querySelectorAll('#coatWs [aria-label="What the coating is for"] option')].map(x => x.value);
+        const rf = J.coatDesignOpen() && fors.join() === 'rf';
+        const all = sent && back && rf;
+        if (!all) console.log('coat design', { sent, back, rf, o, pass, c, fors });
         return all ? 1 : 0;
-      } finally { J.closeLensDesign(); }
+      } finally { W.open = wasOpen; W.fetch = wasFetch; J.closeLensDesign(); }
     },
   },
   { group: 'The RF designer' },

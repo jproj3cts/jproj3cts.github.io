@@ -1,6 +1,6 @@
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from '../../../jekray/src/io/merge.js';
 import { track } from '../../../jekray/src/io/usage.js';
-import { APPS, appOf, closeMenu, helpLine, iconNode, menuIcons, menuOpenFor, openApp, openMenu, setSpaceTheme, spaceTheme, toast } from './dom.js';
+import { APPS, appOf, thingOf, closeMenu, helpLine, iconNode, menuIcons, menuOpenFor, openApp, openMenu, setSpaceTheme, spaceTheme, toast } from './dom.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { API_BASE, account, accountMenuRows, api, avatarNode, fillAccount, setAccount, showSubscribe } from '../../../jekray/src/io/account.js';
 
@@ -35,7 +35,7 @@ let homeSeq = 0, homeRO = null;
    The rail's apps open the app's page here (#app=<id>), not the app: what it does, its benches alone (the same folders,
    search and sorting as My benches), and the one picked shown large beside them, to open in the app. Anything else in
    the rail leaves it. */
-const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekion)$/); return m ? m[1] : null; };
+const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekion|jekfilm)$/); return m ? m[1] : null; };
 export function showApp(id) {
   closeMenu();
   if (id) { Object.assign(cloudPlace, { app: id, view: 'folder', folder: null, q: '', history: null, sel: null }); const s = document.getElementById('homeSearch'); if (s) s.value = ''; if (appHash() !== id) location.hash = 'app=' + id; fillHome(); return; }
@@ -492,7 +492,7 @@ export async function fillHome() {
       h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '” in ' + appOf(b.tool).name, onclick: bin ? () => more.click() : () => homeOpenBench(b.id, null, b) },
         b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
       h('div', { class: 'rt-hinfo' },
-        h('b', { title: b.name }, h('span', { class: 'rt-htool' + (b.tool === 'jekion' ? ' ion' : ''), title: 'A ' + appOf(b.tool).name + ' bench: it opens in ' + appOf(b.tool).name }, b.tool === 'jekion' ? 'JEKion' : 'JEKray'), b.name),
+        h('b', { title: b.name }, h('span', { class: 'rt-htool ' + appOf(b.tool).id, title: 'A ' + appOf(b.tool).name + ' ' + thingOf(b.tool) + ': it opens in ' + appOf(b.tool).name }, appOf(b.tool).name), b.name),
         h('small', null, [bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
         b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
         b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),
@@ -504,7 +504,7 @@ export async function fillHome() {
   if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
   if (!out.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
     : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
-    : appPage ? 'No ' + appPage.name + ' benches here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app\u2019s File menu.'));
+    : appPage ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app\u2019s File menu.'));
   if (!appPage) { box.replaceChildren(...out.filter(Boolean)); return; }
   // the launch page: the app, then its benches beside the one picked (the last changed until one is clicked)
   if (!benches.some(b => b.id === P.sel)) P.sel = benches.length ? benches.reduce((x, y) => (y.updated_at > x.updated_at ? y : x)).id : null;
@@ -513,9 +513,9 @@ export async function fillHome() {
     for (const c of box.querySelectorAll('.rt-hcard[data-bench]')) { const on = c.dataset.bench === P.sel; c.classList.toggle('sel', on); const o = c.querySelector('.rt-hopen'); if (o) o.setAttribute('aria-pressed', String(on)); }
     const b = benches.find(x => x.id === P.sel);
     if (!b) {
-      prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + appPage.name + ' benches' + (P.folder || P.q ? ' here' : ' yet')),
+      prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's' + (P.folder || P.q ? ' here' : ' yet')),
         h('p', null, P.folder || P.q ? 'Pick another folder, or start one.' : 'Start one, or save one from ' + appPage.name + ' with File › Save to cloud.'),
-        h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startNew(appPage.id) }, 'New bench')));
+        h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startNew(appPage.id) }, 'New ' + thingOf(appPage.id))));
       return;
     }
     const pmore = h('button', { type: 'button', class: 'rt-btn rt-hprevmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
@@ -523,8 +523,8 @@ export async function fillHome() {
     const folderName = b.folder_id && byId.get(b.folder_id) ? pathOf(b.folder_id).map(f => f.name).join(' › ') : null;
     const ver = b.version || b.head_version;
     prev.replaceChildren(
-      b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: 'The bench “' + b.name + '”' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet: it is drawn the next time the bench is saved in ' + appPage.name),
-      h('h3', null, h('span', { class: 'rt-htool' + (b.tool === 'jekion' ? ' ion' : '') }, appPage.name), b.name),
+      b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: 'The bench “' + b.name + '”' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet: it is drawn the next time the ' + thingOf(appPage.id) + ' is saved in ' + appPage.name),
+      h('h3', null, h('span', { class: 'rt-htool ' + appPage.id }, appPage.name), b.name),
       h('dl', null,
         h('dt', null, 'In'), h('dd', null, folderName ? top + ' › ' + folderName : top),
         h('dt', null, 'Changed'), h('dd', null, whenAgo(b.updated_at) + (b.updated_by && b.updated_by.name ? ' by ' + b.updated_by.name : '')),
@@ -542,7 +542,7 @@ export async function fillHome() {
     if (seq !== homeSeq) return;
     const n = new Map();
     for (const b of all.benches || []) if ((b.tool || 'jekray') === appPage.id && b.folder_id) n.set(b.folder_id, (n.get(b.folder_id) || 0) + 1);
-    for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) { const k = n.get(c.dataset.folder) || 0, s = c.querySelector('.rt-hopen'); if (s) s.append(h('small', { class: 'rt-hcount' }, k + (k === 1 ? ' bench' : ' benches'))); }
+    for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) { const k = n.get(c.dataset.folder) || 0, s = c.querySelector('.rt-hopen'); if (s) s.append(h('small', { class: 'rt-hcount' }, k + ' ' + thingOf(appPage.id) + (k === 1 ? '' : thingOf(appPage.id) === 'bench' ? 'es' : 's'))); }
   }, () => {});
 }
 /* an app's head on its launch page: what it does, and the ways to start in it */
@@ -553,9 +553,9 @@ function appHead(a) {
     h('p', null, a.line),
     h('div', { class: 'rt-actions' },
       h('button', { type: 'button', class: 'rt-btn primary', id: 'appOpen', onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name),
-      h('button', { type: 'button', class: 'rt-btn', id: 'appNew', onclick: () => startNew(a.id) }, 'New bench'),
+      h('button', { type: 'button', class: 'rt-btn', id: 'appNew', onclick: () => startNew(a.id) }, 'New ' + thingOf(a.id)),
       ...starts,
-      h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
+      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name) : null));
 }
 
 /* ---------- the apps ----------
@@ -563,7 +563,7 @@ function appHead(a) {
 export function appLinks() {
   return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps need no account to use:'),
     ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
-    ...APPS.map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
+    ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
 /* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 export function newMenuItems() {
@@ -573,10 +573,16 @@ export function newMenuItems() {
 export const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
+  { app: 'jekfilm', into: null, label: 'JEKfilm coating', icon: 'coat' },
   { app: 'jekray', into: 'lens', label: 'Optical design (JEKray)', icon: 'lens' },
   { app: 'jekray', into: 'rf', label: 'RF design (JEKray)', icon: 'rf' },
-  { app: 'jekray', into: 'coat', label: 'Coating design (JEKray)', icon: 'coat' },
 ];
+/* what a new bench of each app holds: an empty one (JEKfilm's a single MgF2 layer on N-BK7, as the app starts one) */
+export function newContent(app, name) {
+  if (app === 'jekion') return { format: 'jekion', version: 1, name, electrodes: [], ions: [], detectors: [] };
+  if (app === 'jekfilm') return { format: 'jekfilm', version: 1, name, spec: { target: 'ar', sub: { glass: 'N-BK7' }, lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.38, d: 99.638 }] };
+  return { format: 'jekray', version: 1, name, elements: [], fibres: [] };
+}
 /* A new bench: in the cloud, named and placed (the workspace shown, or another the person can save to), then opened
    in its app (#cloud=<id>, and :lens, :rf or :coat into a designer). Signed out, or with nowhere to save, it starts in
    the app itself, in that browser (#new, #new=lens…). */
@@ -587,7 +593,7 @@ export function startNew(app, into) {
   let dlg = document.getElementById('spaceNewDialog');
   if (dlg) dlg.remove();
   const kind = NEW_KINDS.find(k => k.app === app && k.into === (into || null)) || NEW_KINDS[0];
-  const name = h('input', { type: 'text', id: 'spaceNewName', value: 'Untitled bench', spellcheck: 'false', maxlength: '120' });
+  const name = h('input', { type: 'text', id: 'spaceNewName', value: 'Untitled ' + thingOf(app), spellcheck: 'false', maxlength: '120' });
   const ws = cloudPlace.ws, folder = cloudPlace.view === 'folder' ? cloudPlace.folder : null;
   const where = h('select', { id: 'spaceNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
   where.value = places.some(w => w.id === ws) ? ws : places[0].id;
@@ -601,10 +607,10 @@ export function startNew(app, into) {
     note, h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), go));
   document.body.append(dlg);
   go.addEventListener('click', async () => {
-    const wsId = where.value, nm = name.value.trim() || 'Untitled bench', fid = wsId === ws ? folder || null : null;
+    const wsId = where.value, nm = name.value.trim() || 'Untitled ' + thingOf(app), fid = wsId === ws ? folder || null : null;
     go.disabled = true;
     try {
-      const content = app === 'jekion' ? JSON.stringify({ format: 'jekion', version: 1, name: nm, electrodes: [], ions: [], detectors: [] }) : JSON.stringify({ format: 'jekray', version: 1, name: nm, elements: [], fibres: [] });
+      const content = JSON.stringify(newContent(app, nm));
       const b = await api('/v1/workspaces/' + wsId + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: nm, folder_id: fid, content })));
       dlg.close();
       openApp(app, 'cloud=' + b.id + (into ? ':' + into : ''));

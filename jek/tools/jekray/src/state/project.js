@@ -75,6 +75,8 @@ export function normCoat(c) {
     // up to a metre: an RF lens's matching layer is designed at millimetres (panels.js matchLayer)
     out.design = clamp(num(c.design, 550), 100, 1e9);
     if (c.label) out.label = String(c.label).slice(0, 40);
+    // a JEKfilm coating in the cloud this stack came from, and its version (io/film-coats.js): the stack is a copy, kept here
+    if (c.src && typeof c.src === 'object' && /^[A-Za-z0-9_-]{1,40}$/.test(String(c.src.id))) out.src = { id: String(c.src.id), v: Math.max(1, Math.round(num(c.src.v, 1))) };
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, 40).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),

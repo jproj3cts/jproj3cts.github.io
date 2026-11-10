@@ -53,19 +53,31 @@ export async function loadFilmFolder(link) {
   filmUpdates();
   return filmFolder.list;
 }
+/* the substrate a JEKfilm coating was designed on, by name and index at its design wavelength ({ glass } or { n }) */
+export function filmSubOf(d, design) {
+  const sub = d && d.spec && d.spec.sub;
+  if (!sub || typeof sub !== 'object') return null;
+  if (sub.glass) { const n = refIndex({ glass: String(sub.glass) }, design); return glassKey(String(sub.glass)) && isFinite(n) ? { name: String(sub.glass), n } : null; }
+  return isFinite(+sub.n) && +sub.n >= 1 ? { name: '', n: +sub.n } : null;
+}
+/* a .jekfilm's content as a face's coating, its design substrate kept */
+function filmFaceCoat(d, src) {
+  const c = coatFromFilm(d, src), sub = filmSubOf(d, c.design);
+  return normCoat(sub ? { ...c, sub } : c);
+}
 /* a cloud coating as a face's coating: its stack fetched, linked to it */
 export async function filmCoat(id) {
   const b = await api('/v1/benches/' + id);
   if (b.tool !== 'jekfilm') throw new Error('“' + b.name + '” is not a JEKfilm coating');
   const d = JSON.parse(b.content);
-  return normCoat(coatFromFilm(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version }));
+  return filmFaceCoat(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version });
 }
 /* a face takes a coating from the cloud (the list's ◆ entries): fetched, then put on, as one step of Undo */
 export async function useFilmOn(holder, id) {
   try {
     const coat = await filmCoat(id);
     checkpoint(); holder.coat = coat; changed(true);
-    track('designer', 'film.use');
+    track('designer', 'film-use');
     toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
   } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
 }
@@ -81,8 +93,8 @@ export function filmFileOn(holder) {
       let d = null;
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
       if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
-      checkpoint(); holder.coat = normCoat(coatFromFilm(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d))); changed(true);
-      track('import', 'jekfilm');
+      checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d)); changed(true);
+      track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
     };
     rd.readAsText(f);
@@ -127,8 +139,8 @@ export function filmUpdates() {
     h('p', null, 'These coatings were saved again in JEKfilm since they were put on this bench. The faces keep their copies until you update them.'),
     h('ul', null, ...stale.map(s => h('li', null, h('b', null, s.name), ': version ' + s.to + ' (this bench has version ' + s.from + ', on ' + faces(s.holders.length) + ')'))),
     h('div', { class: 'rt-actions' },
-      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film.keep'); } }, 'Keep these copies'),
-      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film.update'); updateFilms(stale); } }, 'Update the faces')));
+      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film-keep'); } }, 'Keep these copies'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film-update'); updateFilms(stale); } }, 'Update the faces')));
   dlg.showModal();
   return stale;
 }
@@ -136,7 +148,7 @@ export function filmUpdates() {
    starting from the face's glass, the bench's wavelength and the face's stack, and offering the bench's folder to save
    it in. Saved to the cloud there, the coating comes back onto the face (wireFilmCoats hears it, by the face's token). */
 export function designInFilm(from) {
-  track('designer', 'coating');
+  track('designer', 'film-from-jekray');
   const el = from && from.el, holder = from && from.holder;
   const nm = benchNms().find(v => v >= 200 && v <= 20000) || 550, coat = holder && holder.coat;
   let hash = 'new';

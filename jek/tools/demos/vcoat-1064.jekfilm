@@ -1,0 +1,38 @@
+{
+  "format": "jekfilm",
+  "version": 1,
+  "name": "V-coat, 1064 nm",
+  "spec": {
+    "target": "ar",
+    "sub": {
+      "glass": "Fused silica"
+    },
+    "n0": 1,
+    "lo": 1054,
+    "hi": 1074,
+    "design": 1064,
+    "angles": "upto",
+    "theta0": 0,
+    "theta": 0,
+    "pol": "avg",
+    "R": 50,
+    "edge": 1064,
+    "passBelow": true
+  },
+  "layers": [
+    {
+      "n": 1.38,
+      "d": 166.38
+    },
+    {
+      "n": 1.7,
+      "d": 207.39
+    }
+  ],
+  "tol": {
+    "kind": "rel",
+    "sigma": 1,
+    "runs": 200,
+    "seed": 1
+  }
+}

@@ -62,3 +62,16 @@ test('a face keeps a JEKfilm coating whole: up to 200 layers, as JEKfilm allows,
   assert.equal(c.label, name, 'the whole name');
   assert.equal(normCoat({ mode: 'stack', layers: Array.from({ length: 260 }, () => ({ n: 1.5, d: 10 })) }).layers.length, 200, 'no more than 200');
 });
+test('a JEKfilm coating on another glass than it was designed on: the face keeps its design substrate, and the cost is R as designed against R on this glass', async () => {
+  const { normCoat } = await import('../../src/state/project.js');
+  const L = [{ n: 1.38, d: qwot(1.38, 1064) }, { n: 2.1, d: qwot(2.1, 1064) / 2 }];
+  const c = normCoat({ mode: 'stack', design: 1064, layers: L, sub: { name: 'Fused silica', n: 1.44963 } });
+  assert.deepEqual(c.sub, { name: 'Fused silica', n: 1.44963 }, 'kept');
+  assert.equal(normCoat({ mode: 'stack', layers: L, sub: { name: 'x', n: 'no' } }).sub, undefined, 'an index that is not one is dropped');
+  assert.equal(CD.filmSubCost(c, 1.4530), null, 'within 0.005: no note');
+  const cost = CD.filmSubCost(c, 1.75449);
+  assert.ok(Math.abs(cost.design - CD.stackR(L, 1, 1.44963, 1, 1064, 's')) < 1e-12, 'as designed: the stack on its own glass');
+  assert.ok(Math.abs(cost.here - CD.stackR(L, 1, 1.75449, 1, 1064, 's')) < 1e-12, 'here: the same stack on sapphire');
+  assert.ok(cost.here !== cost.design);
+  assert.equal(CD.filmSubCost({ mode: 'stack', design: 1064, layers: L }, 1.75), null, 'no design substrate known: nothing said');
+});

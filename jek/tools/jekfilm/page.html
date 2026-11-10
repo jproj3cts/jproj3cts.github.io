@@ -28,7 +28,7 @@
         <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
           <button type="button" role="menuitem" id="btnNew" data-icon="new">New coating</button>
           <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
-          <button type="button" role="menuitem" id="btnKept" data-icon="star" hidden title="The coatings JEKray’s coating designer kept by name in this browser"><span class="lbl">Coatings kept in JEKray…</span></button>
+          <button type="button" role="menuitem" id="btnExamples" data-icon="book">Open an example…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
@@ -36,6 +36,7 @@
           <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnExportCsv" data-icon="export" data-need="account" data-what="export the curves" title="The reflectance across the band and against the angle, as a CSV file">Export the curves (CSV)</button>
+          <button type="button" role="menuitem" id="btnExportData" data-icon="export" title="The curves and the layers as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
         </div>
       </div>
       <button class="rt-btn quiet" id="btnUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" data-icon="undo"></button>
@@ -53,6 +54,11 @@
       </div>
     </header>
     <p class="film-for" id="filmFor" hidden></p>
+    <nav class="film-tabs" role="tablist" aria-label="JEKfilm">
+      <button type="button" role="tab" id="tabDesign" data-tab="design" aria-selected="true">Design</button>
+      <button type="button" role="tab" id="tabTolerance" data-tab="tolerance" aria-selected="false">Tolerance</button>
+      <button type="button" role="tab" id="tabMake" data-tab="make" aria-selected="false">Make it</button>
+    </nav>
     <div class="rt-lbody" id="filmBody"></div>
     <div class="rt-toast" id="filmToast" role="status"></div>
   </section>

@@ -26,21 +26,59 @@ export async function check(pw, base, shots) {
       await p.click('#filmOptimise'); await p.waitForTimeout(200);
       const opt = await p.evaluate(() => ({ toast: document.getElementById('filmToast').textContent, d: window.JEKfilm.film().layers.map(L => L.d) }));
       await p.click('#btnUndo'); await p.waitForTimeout(100);
+      await p.click('#filmNeedle'); await p.waitForFunction(() => !document.getElementById('filmNeedle').disabled, null, { timeout: 15000 }).catch(() => {});
+      const nd = await p.evaluate(() => ({ n: window.JEKfilm.film().layers.length, toast: document.getElementById('filmToast').textContent }));
+      ok('Add layers (needle): layers put in where they help, or said that none does', nd.n >= 3 && /^Merit .* layers$|^No layer added helps/.test(nd.toast), JSON.stringify(nd));
+      if (nd.n > 3) { await p.click('#btnUndo'); await p.waitForTimeout(100); }
       const undone = await p.evaluate(() => window.JEKfilm.film().layers.map(L => L.d));
       ok('A preset, then Optimise thicknesses: the merit falls; Undo puts the thicknesses back', before === 3 && /^Merit .* to .* in \d+ tries$/.test(opt.toast) && JSON.stringify(opt.d) !== JSON.stringify(undone) && undone.length === 3, JSON.stringify([opt, undone]));
       await p.selectOption('select[aria-label="What the coating is for"]', 'edge');
       const edge = await p.evaluate(() => ({ turns: !!document.querySelector('input[aria-label="Edge wavelength (nm)"]'), passes: !!document.querySelector('select[aria-label="Which side passes"]') }));
+      await p.click('#tabTolerance'); await p.waitForTimeout(100);
+      const tabbed = await p.evaluate(() => ({ layers: !!document.getElementById('filmLayers'), tol: !!document.getElementById('filmTolRun'), sel: document.getElementById('tabTolerance').getAttribute('aria-selected') }));
+      await p.click('#filmTolRun'); await p.waitForTimeout(200);
+      const tl = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmTolTable tbody tr')].map(r => r.firstChild.textContent), plot: !!document.querySelector('svg.film-plot[aria-label^="Reflectance at 0° over 200 runs"]') }));
+      ok('The Tolerance tab: its own page (no layers table); Run gives merit, R mean and R max as nominal, median and 90th percentile, and the spread drawn', !tabbed.layers && tabbed.tol && tabbed.sel === 'true' && tl.rows.join() === 'Merit,R mean (%),R max (%)' && tl.plot, JSON.stringify([tabbed, tl]));
+      await p.click('#tabMake'); await p.waitForTimeout(100);
+      const mk = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmLimits tbody tr')].map(r => r.querySelector('th').textContent + '|' + r.querySelector('.film-met').textContent), pdf: !!document.getElementById('filmSpecPdf'),
+        note: (document.getElementById('filmDrawingNote') || {}).textContent || '' }));
+      ok('The Make it tab: R and T limits with what the design gives, the drawing note, and the specification button', mk.rows.length >= 2 && mk.rows.some(r => /^T /.test(r)) && mk.pdf && /ISO 9211/.test(mk.note) && /τ\(λ\)/.test(mk.note) && /Durability: /.test(mk.note), JSON.stringify(mk));
+      const pdf = await p.evaluate(async () => await (await window.JEKfilm.specPdf({ raw: true })).text());
+      ok('The coating specification: a two-page PDF with the order and the design', /^%PDF-1\.4/.test(pdf) && (pdf.match(/\/Type\s*\/Page\b/g) || []).length === 2 && pdf.includes('(Coating specification)') && pdf.includes('(Performance)') && pdf.includes('(Layers, from the incident medium to the substrate)') && pdf.includes('(Coating and substrate)') && pdf.includes('(Durability)') && pdf.includes('(Drawing note)'), pdf.slice(0, 80));
+      await p.click('#tabDesign'); await p.waitForTimeout(100);
+      // the field in the stack: shut until asked for, then |E|² against depth with a table of where it peaks
+      const shut = await p.evaluate(() => ({ card: !!document.getElementById('filmField'), plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]') }));
+      await p.click('#filmFieldShow'); await p.waitForTimeout(100);
+      const fv = await p.evaluate(() => ({ plot: !!document.querySelector('svg.film-plot[aria-label^="|E|²"]'), marks: document.querySelectorAll('svg.film-plot[aria-label^="|E|²"] line.mark').length,
+        rows: [...document.querySelectorAll('#filmFieldTable tbody tr th')].map(t => t.textContent), front: window.JEKfilm.field().surface }));
+      await p.click('#filmFieldShow'); await p.waitForTimeout(100);
+      ok('The field in the stack: shut by default; shown, |E|² against depth with the interfaces marked and where it peaks', shut.card && !shut.plot && fv.plot && fv.marks >= 2 && fv.rows[0] === 'Outer surface' && fv.rows.length === 4 && fv.front > 0, JSON.stringify([shut, fv]));
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
       const band = await p.evaluate(() => ({ from: (document.querySelector('input[aria-label="Smallest angle of incidence (degrees)"]') || {}).value, to: (document.querySelector('input[aria-label="Largest angle of incidence (degrees)"]') || {}).value,
         rows: [...document.querySelectorAll('#filmFigures tbody th')].map(t => t.textContent), angs: [...document.querySelectorAll('#filmAngleFigures tbody th')].map(t => t.textContent), spec: window.JEKfilm.spec() }));
       ok('Angles as a band: from and to (40° to 50° to start), judged and shown there', band.from === '40' && band.to === '50' && band.spec.theta0 === 40 && band.spec.theta === 50 && band.rows.join() === '40°,50°' && band.angs.join() === '0°,40°,50°', JSON.stringify(band));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'upto');
+      await p.selectOption('select[aria-label="A preset stack"]', 'agp'); await p.waitForTimeout(100);
+      const ag = await p.evaluate(() => ({ cells: [...document.querySelectorAll('#filmLayers tbody tr.film-metal td')].map(t => t.textContent), sel: [...document.querySelectorAll('#filmLayers tbody tr.film-metal select')].map(s => s.value), R: document.getElementById('filmFigures').innerText }));
+      ok('Protected silver: the silver layer marked a metal, its n − ik at λ₀ shown, no quarter waves for it', ag.sel.join() === 'metal:Ag' && /^0\.\d{3} − \d\.\d{3}i$/.test(ag.cells[2]) && ag.cells[4] === '—', JSON.stringify(ag));
       await p.selectOption('select[aria-label="The substrate"]', 'g:Germanium');
       ok('Germanium in the visible: said to be opaque there', /Germanium is not transparent at 550 nm/.test(await p.evaluate(() => document.querySelector('.film-warn') ? document.querySelector('.film-warn').textContent : '')), 'no warning');
       await p.evaluate(c => window.JEKfilm.load(c), COATING);
       const l = await p.evaluate(() => ({ name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, fig: document.getElementById('filmAngleFigures').innerText, heads: [...document.querySelectorAll('#filmFigures thead th')].map(t => t.textContent), csv: window.JEKfilm.csv().split('\r\n').slice(0, 2) }));
       ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /At λ₀ = 1064 nm/.test(l.fig) && l.heads.join('|') === 'Angle|R mean (%)|R max (%)|R min (%)' && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
+      await p.click('#btnFile'); await p.click('#btnExamples'); await p.waitForTimeout(100);
+      const exs = await p.evaluate(() => [...document.querySelectorAll('#filmExamples .film-ex')].map(b => b.dataset.ex));
+      await p.click('#filmExamples [data-ex="hr-1064"]'); await p.waitForFunction(() => window.JEKfilm.film().name === 'HR mirror, 1064 nm', null, { timeout: 5000 }).catch(() => {});
+      const hr = await p.evaluate(() => window.JEKfilm.film().layers.length);
+      ok('File › Open an example…: six examples; one opens as a coating', exs.length === 6 && hr === 21, JSON.stringify([exs, hr]));
+      // File › Export data…: the formats, each written (no accounts here, so no gate)
+      const dl = [];
+      p.on('download', d => dl.push(d.suggestedFilename()));
+      for (const fm of ['csv', 'xlsx', 'npz', 'mat']) await p.evaluate(x => window.JEKfilm.exportData(x), fm);
+      await p.waitForTimeout(300);
+      const ds = await p.evaluate(() => window.JEKfilm.dataSet().items.map(i => i.name + ':' + i.cols.length));
+      ok('Export data: the band, angle and layer tables, as CSV (zip), Excel, NumPy and MATLAB files', dl.join('|') === 'HR mirror, 1064 nm data.zip|HR mirror, 1064 nm data.xlsx|HR mirror, 1064 nm data.npz|HR mirror, 1064 nm data.mat' && ds.join() === 'band:3,angle:3,layers:6', JSON.stringify([dl, ds]));
       // renamed in the bar
       await p.fill('#filmName', 'V-coat, fused silica'); await p.press('#filmName', 'Enter'); await p.waitForTimeout(100);
       ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | JEKfilm'), 'not renamed');
@@ -180,19 +218,6 @@ export async function check(pw, base, shots) {
       const o = await p.evaluate(() => ({ name: window.JEKfilm.film().name, layers: window.JEKfilm.film().layers.length, link: window.JEKfilm.link(), hash: location.hash }));
       ok('#s=<id>, signed out: the shared coating opens here, linked to nothing', o.name === 'V-coat 1064' && o.layers === 2 && !o.link && !o.hash, JSON.stringify(o));
       ok('A shared link: no page errors', !errs.length, errs.join(' | '));
-      await p.close();
-    }
-    // the coatings JEKray's coating designer kept in this browser: offered in File, each opened as a coating
-    {
-      const p = await b.newPage({ viewport: { width: 1300, height: 900 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
-      await p.addInitScript(() => { try { localStorage.setItem('JEK_COATINGS', JSON.stringify([{ id: 'c1', name: 'BBAR 450–650', coat: { mode: 'stack', design: 550, layers: [{ n: 1.38, d: 99.6 }, { n: 2.1, d: 32.7 }, { n: 1.63, d: 84.4 }] }, spec: { target: 'ar', n0: 1, ns: 1.5168, lo: 450, hi: 650, theta: 20, pol: 'avg' } }])); } catch (e) { /* fine */ } });
-      await p.goto(base + '/jek/tools/jekfilm.html?test'); await p.waitForSelector('#filmLayers', { timeout: 10000 }).catch(() => {});
-      const shown = await p.evaluate(() => { const k = document.getElementById('btnKept'); return k && !k.hidden ? k.textContent : null; });
-      await p.click('#btnFile'); await p.click('#btnKept'); await p.waitForTimeout(150);
-      await p.evaluate(() => [...document.querySelectorAll('#filmKept button')].find(x => x.textContent === 'Open').click()); await p.waitForTimeout(150);
-      const f = await p.evaluate(() => window.JEKfilm.film());
-      ok('Coatings kept in JEKray (1)…: one opens as a coating, its layers, band, angles and substrate index kept', /Coatings kept in JEKray \(1\)/.test(shown || '') && f.name === 'BBAR 450–650' && f.layers.length === 3 && f.spec.lo === 450 && f.spec.theta === 20 && f.spec.sub.n === 1.5168, JSON.stringify([shown, f]));
-      ok('Kept coatings: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
   } finally { await b.close(); }

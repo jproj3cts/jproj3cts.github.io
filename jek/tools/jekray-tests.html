@@ -10671,7 +10671,7 @@ const TESTS = [
   { group: 'JEKfilm coatings on the faces' },
   {
     name: 'A JEKfilm coating from the bench’s cloud folder: offered in a face’s Coating list, put on as a linked copy, offered again when it is saved anew, and unlinked as a plain stack',
-    why: 'with a V-coat in the bench’s folder (version 3), a lens face’s Coating list offers it as ◆; choosing it fetches it and puts its two layers at 1064 nm on the face, linked as { id, v: 3 }, with a note saying so in place of the layer editor; the folder’s coating saved as version 5 makes the face stale, and updating brings it to version 5 (one step of Undo takes it back); Thin-film stack in the list keeps the layers but drops the link (1 when all hold)',
+    why: 'with a V-coat in the bench’s folder (version 3), a lens face’s Coating list offers it as ◆; choosing it fetches it and puts its two layers at 1064 nm on the face, linked as { id, v: 3 }, with a note saying so in place of the layer editor, and a second saying it was designed on fused silica, not this N-BK7, and its reflectance both ways; the folder’s coating saved as version 5 makes the face stale, and updating brings it to version 5 (one step of Undo takes it back); Thin-film stack in the list keeps the layers but drops the link (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc(), was = W.fetch;
@@ -10692,6 +10692,10 @@ const TESTS = [
         const put = c().mode === 'stack' && c().design === 1064 && c().layers.length === 2 && c().label === 'V-coat 1064' && c().src && c().src.id === 'c1' && c().src.v === 3;
         J.select('Plate');
         const noted = /from the JEKfilm coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
+        // designed on fused silica, put on N-BK7: the design substrate kept, and the note gives both indices and R both ways
+        const subText = (D.querySelector('.rt-filmsub') || {}).textContent || '';
+        const sub = c().sub && c().sub.name === 'Fused silica' && Math.abs(c().sub.n - 1.44963) < 1e-4 && /Designed on Fused silica \(n 1\.4496\); this face is N-BK7 \(n 1\.5066\)\. R at 1064 nm, square on: .+ as designed, .+ on this glass\./.test(subText);
+        if (!sub) console.log('films sub', c().sub, subText);
         F.list[0].version = 5; served = 5;
         const stale = J.films.stale(), staleOk = stale.length === 1 && stale[0].from === 3 && stale[0].to === 5;
         await J.films.update(stale);
@@ -10702,7 +10706,7 @@ const TESTS = [
         const sel2 = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
         sel2.value = 'stack'; sel2.dispatchEvent(new W.Event('change'));
         const plain = c().mode === 'stack' && !c().src && c().layers.length === 2;
-        const all = offered && put && noted && staleOk && updated && undone && plain;
+        const all = offered && put && noted && sub && staleOk && updated && undone && plain;
         if (!all) console.log('films', { offered, put, noted, staleOk, updated, undone, plain, coat: c() });
         return all ? 1 : 0;
       } finally { W.fetch = was; F.list = []; }

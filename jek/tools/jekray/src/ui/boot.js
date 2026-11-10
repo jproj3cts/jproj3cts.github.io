@@ -22,7 +22,7 @@ import { compileMaskExpr, maskFns } from '../core/mask.js';
 import { lastTrace, lastTraceKey, lastTraceMs, setLastTraceKey, traceCount, traceKeyNow, traceScene, traceStore, traceStoreHits } from '../engines/trace.js';
 import {
   beamPowerShare, benchStyleShown, bez, byPowerOn, fibreSegs, powerFade, powerTop, rayPowerShare, rayTops, handlePos, hornShape, requestRender, resize, segPlanes, selection,
-  setSelection, sx, sy, toScr, wireRender
+  setSelection, sx, sy, toScr, wireRender, lightLayer
 } from './render.js';
 import { wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
@@ -139,7 +139,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

@@ -90,3 +90,123 @@ test('figures: to their decimals, and a very small one as three significant figu
   assert.equal(F.dsFix(NaN, 3), '—');
   assert.equal(F.dsSci(12300), '1.23×10⁴');
 });
+test('a metal layer: kept by the file and by a JEKray face; the protected-silver preset reflects as silver does at 633 nm', async () => {
+  const { coatFromFilm } = await import('../../../jekray/src/core/coatdesign.js');
+  const f = F.normFilm({ name: 'Protected silver', spec: { target: 'hr', design: 633, lo: 600, hi: 660 }, layers: F.filmPreset('agp', 633) });
+  assert.equal(f.layers[1].metal, 'Ag'); assert.equal(f.layers[1].d, 150);
+  assert.equal(F.normFilm({ layers: [{ n: 1, d: 50, metal: 'Unobtainium' }] }).layers[0].metal, undefined, 'only a metal of the tables');
+  const face = normCoat(coatFromFilm(f));
+  assert.equal(face.layers[1].metal, 'Ag');
+  const R = stackR(f.layers, 1, F.filmSpec(f).ns, 1, 633, 'avg');
+  assert.ok(R > 0.95 && R < 0.99, 'protected silver at 633 nm: ' + R.toFixed(4));
+});
+
+test('needle optimisation adds layers where they help, and material choice finds better materials', async () => {
+  const O = await import('../../src/core/film-opt.js');
+  const f = F.normFilm({ spec: { target: 'ar', lo: 400, hi: 800, design: 550 }, layers: F.filmPreset('vcoat', 550) });
+  const a = await O.filmNeedle(f.layers, F.filmSpec(f));
+  assert.ok(a.after < a.before / 3 && a.layers.length > 2, 'a V-coat over 400–800 nm: ' + a.before + ' to ' + a.after + ', ' + a.layers.length + ' layers');
+  assert.ok(a.layers.every(L => L.d >= 1), 'no layer thinner than 1 nm');
+  assert.ok(a.layers.every((L, i) => i === 0 || L.n !== a.layers[i - 1].n), 'no two neighbours of one material');
+  assert.deepEqual(O.needleMaterials([{ n: 1.38, d: 1 }]), [1.38, 1.46, 2.1]);
+  const g = F.normFilm({ spec: { target: 'ar', lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.46, d: 94 }, { n: 1.46, d: 65 }, { n: 1.46, d: 84 }] });
+  const b = await O.filmMaterials(g.layers, F.filmSpec(g));
+  assert.ok(b.after < b.before / 10 && b.changed >= 1, 'three SiO2 layers: ' + b.before + ' to ' + b.after);
+  const m = await O.filmNeedle([{ n: 1.46, d: 200 }, { n: 1, d: 150, metal: 'Ag' }], F.filmSpec(F.normFilm({ spec: { target: 'hr', lo: 600, hi: 700, design: 650 } })));
+  assert.ok(m.layers.some(L => L.metal === 'Ag'), 'a metal layer stays');
+});
+test('tolerancing: no error gives the nominal coating; an error spreads it, the same seed the same runs', async () => {
+  const T = await import('../../src/core/film-tol.js');
+  const f = F.normFilm({ spec: { target: 'ar', lo: 450, hi: 650, design: 550 }, layers: F.filmPreset('bb3', 550) }), s = F.filmSpec(f);
+  const z = T.filmTolerance(f.layers, s, { sigma: 0, runs: 20 });
+  assert.ok(z.p5.every((v, i) => Math.abs(v - z.nominal[i]) < 1e-15 && Math.abs(z.p95[i] - v) < 1e-15), 'σ 0: every run the nominal');
+  const a = T.filmTolerance(f.layers, s, { sigma: 3, runs: 300, seed: 7 }), b = T.filmTolerance(f.layers, s, { sigma: 3, runs: 300, seed: 7 });
+  assert.deepEqual(a.merit, b.merit, 'the same seed, the same runs');
+  assert.ok(a.p95.every((v, i) => v >= a.p5[i]), 'the 95th percentile above the 5th everywhere');
+  assert.ok(a.merit.p90 > a.merit.nominal && a.mean.p90 > a.mean.nominal, 'errors make it worse');
+  const n = T.filmTolerance(f.layers, s, { kind: 'abs', sigma: 2, runs: 50 });
+  assert.equal(n.tol.kind, 'abs');
+  assert.deepEqual(T.normTol({ sigma: -3, runs: 5, kind: 'x' }), { kind: 'rel', sigma: 0, runs: 10, seed: 1 });
+  assert.deepEqual(F.normFilm({}).tol, T.TOL_DEFAULT);
+});
+test('the examples are what their descriptions say', async () => {
+  const fs = await import('node:fs');
+  const { FILM_EXAMPLES } = await import('../../src/io/files.js');
+  const CD = await import('../../../jekray/src/core/coatdesign.js');
+  const load = slug => F.normFilm(JSON.parse(fs.readFileSync(new URL('../../../demos/' + slug + '.jekfilm', import.meta.url), 'utf8')));
+  const S = f => CD.coatSummary(f.layers, F.filmSpec(f)), pc = v => 100 * v;
+  assert.deepEqual(FILM_EXAMPLES.map(e => e[0]), ['vcoat-1064', 'bbar-visible', 'hr-1064', 'longpass-600', 'splitter-45', 'protected-silver']);
+  for (const [slug, name] of FILM_EXAMPLES) assert.equal(load(slug).name.replace(', s', ''), name.replace(', s', ''), slug);
+  let s = S(load('vcoat-1064')); assert.ok(pc(s.worst) < 0.01 && load('vcoat-1064').layers.length === 2, 'V-coat');
+  s = S(load('bbar-visible')); assert.ok(Math.abs(pc(s.mean) - 0.13) < 0.01 && Math.abs(pc(s.meanAt) - 0.20) < 0.01 && load('bbar-visible').layers.length === 5, 'BBAR ' + pc(s.mean) + ' ' + pc(s.meanAt));
+  s = S(load('hr-1064')); assert.ok(Math.round(pc(s.mean) * 10) / 10 >= 99.9 && load('hr-1064').layers.length === 21, 'HR');
+  const lp = load('longpass-600'), sp = F.filmSpec(lp), R = nm => pc(stackR(lp.layers, 1, sp.ns, 1, nm, 'avg'));
+  for (const nm of [460, 500, 540]) assert.ok(R(nm) > 90, 'long-pass reflects ' + nm + ' nm: ' + R(nm));
+  for (const nm of [650, 700, 740]) assert.ok(R(nm) < 10, 'long-pass passes ' + nm + ' nm: ' + R(nm));
+  assert.equal(lp.layers.length, 17);
+  const sp45 = load('splitter-45'), c = CD.coatCurve(sp45.layers, F.filmSpec(sp45), 40), d = CD.coatCurve(sp45.layers, F.filmSpec(sp45), 50);
+  assert.ok([...c.R, ...d.R].every(v => v >= 0.45 && v <= 0.55), 'splitter: 45–55% at 40° and 50°');
+  s = S(load('protected-silver')); assert.ok(Math.abs(pc(s.mean) - 98.9) < 0.05, 'protected silver ' + pc(s.mean));
+});
+
+test('the data export: the band, the angle and the layers as tables with units, written in every format', async () => {
+  globalThis.document = undefined;
+  const { dfWrite } = await import('../../../jekray/src/core/datafiles.js');
+  // filmDataSet reads the designer's coating: built here from the same parts, without the page
+  const src = (await import('node:fs')).readFileSync(new URL('../../src/io/film-data.js', import.meta.url), 'utf8');
+  assert.match(src, /name: 'band'/); assert.match(src, /name: 'angle'/); assert.match(src, /name: 'layers'/);
+  const f = F.normFilm({ name: 'Protected silver', spec: { target: 'hr', design: 633, lo: 600, hi: 660 }, layers: F.filmPreset('agp', 633) });
+  const CD = await import('../../../jekray/src/core/coatdesign.js'), s = F.filmSpec(f), c = CD.coatCurve(f.layers, s, 0, 21);
+  const set = { meta: { title: f.name, tool: 'JEKfilm' }, items: [{ kind: 'table', name: 'band', cols: [{ name: 'wavelength', unit: 'nm', values: c.nms }, { name: 'R', unit: '%', values: c.R.map(v => 100 * v) }] },
+    { kind: 'table', name: 'layers', cols: [{ name: 'material', unit: '', values: ['n 1.46', 'Ag'], type: 'str' }, { name: 'QWOT', unit: '', values: [2, NaN] }] }] };
+  for (const fmt of ['csv', 'json', 'xlsx', 'npz', 'mat']) { const W = await dfWrite(set, fmt); assert.ok(W.bytes.length > 100, fmt); }
+});
+test('what a coater is sent: the coating and its substrate only; R and T limits with what the design gives; the drawing note', async () => {
+  const fs = await import('node:fs');
+  const M = await import('../../src/core/film-make.js');
+  const load = slug => F.normFilm(JSON.parse(fs.readFileSync(new URL('../../../demos/' + slug + '.jekfilm', import.meta.url), 'utf8')));
+  assert.deepEqual(Object.keys(M.normMake({ part: 'x', qty: 9, size: 25, surfaces: 2, durability: 'mil-675' })).sort(), ['durability', 'limits', 'splitTol', 'witness'], 'nothing of the part beyond its substrate');
+  // an AR: R mean, R max and T mean; a dielectric stack passes all it does not reflect
+  const ar = load('bbar-visible'), as = F.filmSpec(ar), rows = M.makeLimits(ar, as, ar.make);
+  assert.deepEqual(rows.map(r => r.key), ['mean', 'max', 'tmean']);
+  const Rm = rows[0].design, Tm = rows[2].design;
+  assert.ok(Math.abs(Rm + Tm - 100) < 1e-6, 'R + T = 100 % with no absorption: ' + Rm + ' + ' + Tm);
+  assert.ok(rows.every(r => r.ok && r.auto), 'the defaults are met by the design');
+  assert.equal(rows[2].op, 'ge'); assert.ok(rows[2].value <= Tm);
+  // a limit set by hand is kept, and one the design misses says so
+  const hand = M.makeLimits(ar, as, M.normMake({ limits: { mean: 0.01 } }));
+  assert.ok(hand[0].value === 0.01 && !hand[0].auto && !hand[0].ok);
+  // a metal absorbs: R + T is under 100 %
+  const ag = load('protected-silver'), gs = F.filmSpec(ag);
+  assert.ok(M.surfaceT(ag.layers, gs, 1, gs.design) + stackR(ag.layers, gs.n0, gs.ns, 1, gs.design, gs.pol) < 0.999, 'silver absorbs');
+  // an edge: R on the reflected side, R and T on the passed one
+  const lp = load('longpass-600');
+  assert.deepEqual(M.makeLimits(lp, F.filmSpec(lp), lp.make).map(r => r.key), ['refl', 'pass', 'tpass']);
+  // the drawing note: a line a requirement, ρ(λ) or τ(λ), the band, the angles and the polarisation; then the durability
+  const note = M.drawingNote(ar, as, ar.make);
+  assert.equal(note.length, 1 + rows.length + 1);
+  assert.match(note[0], /ISO 9211/);
+  assert.match(note[1], new RegExp('^mean ρ\\(λ\\) ≤ ' + rows[0].value + ' %, ' + as.lo + ' nm ≤ λ ≤ ' + as.hi + ' nm, AOI '));
+  assert.match(note[3], /^mean τ\(λ\) ≥ /);
+  assert.match(note[note.length - 1], /^Durability: MIL-C-48497A$/);
+});
+test('the field in the stack: |E|² at the outer surface is |1 + r|², in the substrate |t|² times its admittance ratio, the interfaces where the layers meet', async () => {
+  const { stackField } = await import('../../src/core/film-field.js');
+  const { stackAmp } = await import('../../../jekray/src/core/coatings.js');
+  const L = [{ n: 2.1, d: 120 }, { n: 1.46, d: 180 }, { n: 2.1, d: 60 }], ns = 1.52;
+  for (const [ci, pol] of [[1, 's'], [Math.cos(0.6), 's'], [Math.cos(0.6), 'p']]) {
+    const F = stackField(L, 1, ns, ci, 633, pol), r = stackAmp(L, 1, ns, ci, 633, pol);
+    const front = (1 + r[0]) ** 2 + r[1] ** 2;
+    assert.ok(Math.abs(F.E2[0] - front) < 1e-9, pol + ' front ' + F.E2[0] + ' vs ' + front);
+    assert.deepEqual(F.bounds, [0, 120, 300, 360]);
+    assert.ok(F.z.every((z, i) => !i || z >= F.z[i - 1]), 'depth runs inwards');
+  }
+  // square on, no absorption: the power into the substrate, ns |E|², is what is not reflected
+  const F0 = stackField(L, 1, ns, 1, 633, 's'), r0 = stackAmp(L, 1, ns, 1, 633, 's');
+  assert.ok(Math.abs(ns * F0.E2[F0.E2.length - 1] - (1 - (r0[0] ** 2 + r0[1] ** 2))) < 1e-9);
+  // a quarter-wave HR: the field falls off into the stack, its peak at the outer surface's side
+  const hr = [];
+  for (let k = 0; k < 8; k++) hr.push({ n: 2.1, d: qwot(2.1, 1064) }, { n: 1.46, d: qwot(1.46, 1064) });
+  const H = stackField(hr, 1, 1.45, 1, 1064, 's');
+  assert.ok(H.E2[H.E2.length - 1] < 0.01, 'next to nothing reaches the substrate');
+});

@@ -5,7 +5,7 @@ import { benchName } from '../state/tabs.js';
 import { cfgSolved, designFigures, designOf, designPrescription, mcOf, mcValue, posOf, primaryNm, surfaceParts } from '../engines/lens-design.js';
 import { anaSystems, fieldCurves, mtfAnalysis, spotDiagram } from '../engines/lens-analysis.js';
 import { compsFor } from '../engines/lens-tol.js';
-import { VecCtx, pdfDoc } from '../io/layout.js';
+import { VecCtx, pdfDoc } from '../io/pdf.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
 import { WAVE_COLOURS } from './lens-analyses.js';
 import { drawSheet, lensDrawings } from './lens-drawing.js';

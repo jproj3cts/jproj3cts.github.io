@@ -2561,6 +2561,8 @@ const hooks = {
   openAccountMenu() {},                 // open that menu (to sign in from the plans)
   sayUnreachable: () => true,           // say so when the API cannot be reached
   accountDeleted() {},                  // the account deleted: what the app keeps of it goes
+  // vector pages (io/pdf.js): whether the field's glow layer is drawn light, without the screen blend (ui/render.js lightLayer)
+  vecLightLayer: () => false,
   // the bench linked to a cloud bench, or unlinked (io/cloud.js cloudLink): what goes with it (io/film-coats.js)
   cloudLinked() {},
   // mods run in their sandbox on the page
@@ -10379,10 +10381,15 @@ function normCoat(c) {
     if (c.label) out.label = String(c.label).slice(0, 120);       // a JEKfilm coating's whole name (JEKfilm allows 120)
     // a JEKfilm coating in the cloud this stack came from, and its version (io/film-coats.js): the stack is a copy, kept here
     if (c.src && typeof c.src === 'object' && /^[A-Za-z0-9_-]{1,40}$/.test(String(c.src.id))) out.src = { id: String(c.src.id), v: Math.max(1, Math.round(num(c.src.v, 1))) };
+    // the substrate the JEKfilm coating was designed on (its name and index at the design wavelength): the face's note
+    // says so when this face's glass differs (ui/panels.js filmNote)
+    if (c.sub && typeof c.sub === 'object' && isFinite(+c.sub.n) && +c.sub.n >= 1) out.sub = { name: String(c.sub.name || '').slice(0, 40), n: clamp(+c.sub.n, 1, 10) };
     // up to 200 layers, as JEKfilm allows (an edge filter or a broadband HR can need over a hundred)
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),
+      // a metal layer (core/metals.js): absorbing, its index from the metal's table at each wavelength
+      ...(L && METAL_NK[L.metal] ? { metal: L.metal } : {}),
     }));
   }
   return out;
@@ -10427,6 +10434,38 @@ const V = () => project.view;
    ========================================================================== */
 
 const PACKS = { list: [], ready: false, icons: new Map() };
+/* ==========================================================================
+   Metals for thin-film stacks: their complex index n − ik by wavelength
+   Measured tables from the refractiveindex.info database (public domain, CC0), each from its paper, kept from 200 nm
+   to 20 µm: silver and gold from Johnson and Christy's films (to 1937 nm), aluminium from Rakić's. Linear in
+   wavelength between the points; beyond the table, its end value (metalCovers says whether nm is inside).
+   A layer of a stack names its metal (layer.metal) and core/coatings.js takes its index here at each wavelength.
+   ========================================================================== */
+const METAL_NK = {
+  Ag: { ref: 'P. B. Johnson and R. W. Christy, Phys. Rev. B 6, 4370 (1972)', nm: [203.3, 207.3, 211.9, 216.4, 221.4, 226.2, 231.3, 237.1, 242.6, 249, 255.1, 261.6, 268.9, 276.1, 284.4, 292.4, 300.9, 310.7, 320.4, 331.5, 342.5, 354.2, 367.9, 381.5, 397.4, 413.3, 430.5, 450.9, 471.4, 495.9, 520.9, 548.6, 582.1, 616.8, 659.5, 704.5, 756, 821.1, 892, 984, 1088, 1216, 1393, 1610, 1937],
+    n: [1.15, 1.18, 1.2, 1.22, 1.25, 1.26, 1.28, 1.28, 1.3, 1.31, 1.33, 1.35, 1.38, 1.41, 1.41, 1.39, 1.34, 1.13, 0.81, 0.17, 0.14, 0.1, 0.07, 0.05, 0.05, 0.05, 0.04, 0.04, 0.05, 0.05, 0.05, 0.06, 0.05, 0.06, 0.05, 0.04, 0.03, 0.04, 0.04, 0.04, 0.04, 0.09, 0.13, 0.15, 0.24],
+    k: [1.296, 1.312, 1.325, 1.336, 1.342, 1.344, 1.357, 1.367, 1.378, 1.389, 1.393, 1.387, 1.372, 1.331, 1.264, 1.161, 0.964, 0.616, 0.392, 0.829, 1.142, 1.419, 1.657, 1.864, 2.07, 2.275, 2.462, 2.657, 2.869, 3.093, 3.324, 3.586, 3.858, 4.152, 4.483, 4.838, 5.242, 5.727, 6.312, 6.992, 7.795, 8.828, 10.1, 11.85, 14.08] },
+  Au: { ref: 'P. B. Johnson and R. W. Christy, Phys. Rev. B 6, 4370 (1972)', nm: [203.3, 207.3, 211.9, 216.4, 221.4, 226.2, 231.3, 237.1, 242.6, 249, 255.1, 261.6, 268.9, 276.1, 284.4, 292.4, 300.9, 310.7, 320.4, 331.5, 342.5, 354.2, 367.9, 381.5, 397.4, 413.3, 430.5, 450.9, 471.4, 495.9, 520.9, 548.6, 582.1, 616.8, 659.5, 704.5, 756, 821.1, 892, 984, 1088, 1216, 1393, 1610, 1937],
+    n: [1.33, 1.3, 1.3, 1.3, 1.3, 1.31, 1.3, 1.32, 1.32, 1.33, 1.33, 1.35, 1.38, 1.43, 1.47, 1.49, 1.53, 1.53, 1.54, 1.48, 1.48, 1.5, 1.48, 1.46, 1.47, 1.46, 1.45, 1.38, 1.31, 1.04, 0.62, 0.43, 0.29, 0.21, 0.14, 0.13, 0.14, 0.16, 0.17, 0.22, 0.27, 0.35, 0.43, 0.56, 0.92],
+    k: [1.277, 1.304, 1.35, 1.387, 1.427, 1.46, 1.497, 1.536, 1.577, 1.631, 1.688, 1.749, 1.803, 1.847, 1.869, 1.878, 1.889, 1.893, 1.898, 1.883, 1.871, 1.866, 1.895, 1.933, 1.952, 1.958, 1.948, 1.914, 1.849, 1.833, 2.081, 2.455, 2.863, 3.272, 3.697, 4.103, 4.542, 5.083, 5.663, 6.35, 7.15, 8.145, 9.519, 11.21, 13.78] },
+  Al: { ref: 'A. D. Rakić, Appl. Opt. 34, 4755 (1995)', nm: [206.64, 247.97, 309.96, 326.28, 364.66, 413.28, 442.8, 476.87, 516.6, 563.57, 619.93, 652.25, 688.81, 729.32, 774.91, 794.78, 815.69, 837.74, 885.61, 911.66, 939.28, 968.63, 999.88, 1033.2, 1127.1, 1239.9, 1377.6, 1549.8, 1771.2, 2066.4, 2479.7, 2755.2, 3099.6, 3262.8, 3444, 3646.6, 3874.5, 4132.8, 4428, 4768.7, 5166, 5635.7, 6199.3, 6888.1, 7749.1, 8856.1, 10332, 12399, 13776, 15498, 17712, 19075],
+    n: [0.12677, 0.18137, 0.28003, 0.31474, 0.39877, 0.52135, 0.6079, 0.7278, 0.8734, 1.0728, 1.366, 1.5724, 1.8301, 2.1606, 2.6154, 2.7675, 2.7668, 2.6945, 2.2802, 1.9739, 1.6784, 1.4867, 1.4359, 1.3998, 1.3281, 1.3157, 1.3899, 1.5782, 1.9205, 2.4738, 3.3372, 3.938, 4.7097, 5.0735, 5.4903, 5.9564, 6.4808, 7.0796, 7.7757, 8.5881, 9.558, 10.742, 12.195, 14.088, 16.755, 20.837, 26.216, 33.519, 38.461, 43.775, 50.951, 54.413],
+    k: [2.3563, 2.9029, 3.7081, 3.9165, 4.3957, 5.0008, 5.3676, 5.7781, 6.2418, 6.7839, 7.4052, 7.7354, 8.0601, 8.3565, 8.4914, 8.3866, 8.2573, 8.1878, 8.1134, 8.3058, 8.597, 9.0655, 9.4939, 9.8914, 10.969, 12.245, 13.784, 15.656, 17.991, 20.982, 25.004, 27.58, 30.737, 32.183, 33.814, 35.608, 37.595, 39.826, 42.367, 45.257, 48.593, 52.518, 57.156, 62.841, 69.857, 78.274, 88.197, 101.28, 108.96, 118.39, 129.49, 136.09] },
+};
+const METAL_NAMES = { Ag: 'Silver', Al: 'Aluminium', Au: 'Gold' };
+/* the metal's [n, k] at nm (its index n − ik in the stack's convention) */
+function metalNK(metal, nm) {
+  const T = METAL_NK[metal];
+  if (!T) return [1, 0];
+  const w = T.nm, last = w.length - 1;
+  if (nm <= w[0]) return [T.n[0], T.k[0]];
+  if (nm >= w[last]) return [T.n[last], T.k[last]];
+  let i = 1; while (w[i] < nm) i++;
+  const t = (nm - w[i - 1]) / (w[i] - w[i - 1]);
+  return [T.n[i - 1] + t * (T.n[i] - T.n[i - 1]), T.k[i - 1] + t * (T.k[i] - T.k[i - 1])];
+}
+/* whether the table reaches nm (outside it, metalNK gives the nearest end) */
+const metalCovers = (metal, nm) => !!METAL_NK[metal] && nm >= METAL_NK[metal].nm[0] && nm <= METAL_NK[metal].nm[METAL_NK[metal].nm.length - 1];
 /* ---------- Thin-film stacks ----------
    Characteristic matrix method: each layer contributes a 2x2 matrix in its tilted
    admittance, and the stack gives the complex amplitude reflection for s and p. */
@@ -10470,11 +10509,37 @@ function filmAdmit(n, sin0, pol) {
   const b = Math.sqrt(-q);
   return pol === 's' ? [0, -n * b, 0, -b] : [0, n / b, 0, -b];
 }
-/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances */
+/* An absorbing layer's matrix (a metal: index N = n − ik, the matrix's e^{-ikz} convention), complex throughout:
+   cos θ = √(1 − (sin0/N)²) on the branch whose wave decays into the layer, η = N cos θ (s) or N / cos θ (p), δ = 2π N d
+   cos θ / λ, and the matrix [[cos δ, i sin δ / η], [i η sin δ, cos δ]]: four [re, im] */
+const fcx = { mul: (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]], div: (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; },
+  sqrt: a => { const r = Math.hypot(a[0], a[1]), re = Math.sqrt(Math.max(0, (r + a[0]) / 2)), im = Math.sqrt(Math.max(0, (r - a[0]) / 2)); return [re, a[1] < 0 ? -im : im]; },
+  cos: a => [Math.cos(a[0]) * Math.cosh(a[1]), -Math.sin(a[0]) * Math.sinh(a[1])], sin: a => [Math.sin(a[0]) * Math.cosh(a[1]), Math.cos(a[0]) * Math.sinh(a[1])] };
+function filmLayerC(N, d, sin0, nm, pol) {
+  const s = fcx.div([sin0, 0], N), s2 = fcx.mul(s, s);
+  let c = fcx.sqrt([1 - s2[0], -s2[1]]);
+  if (c[1] > 0) c = [-c[0], -c[1]];                                   // the decaying branch: Im(N cos θ) ≤ 0
+  const eta = pol === 's' ? fcx.mul(N, c) : fcx.div(N, c);
+  const k2 = 2 * Math.PI * d / nm, dl = fcx.mul(fcx.mul(N, c), [k2, 0]);
+  const C = fcx.cos(dl), S = fcx.sin(dl), iS = [-S[1], S[0]];
+  return [C, fcx.div(iS, eta), fcx.mul(iS, eta), C];
+}
+/* the stack's matrix times [1, eta_s]: [B, C], each [re, im], and the two media's admittances. A layer of a metal
+   (L.metal, its index from core/metals.js at this wavelength) absorbs; any other is lossless, index L.n */
 function filmBC(layers, n0, ns, ci, nmWave, pol) {
   const sin0 = Math.sqrt(Math.max(0, 1 - ci * ci)) * n0;   // n0 sin(theta0), invariant
   let m11r = 1, m11i = 0, m12r = 0, m12i = 0, m21r = 0, m21i = 0, m22r = 1, m22i = 0;
   for (const L of layers) {
+    if (L.metal) {
+      // times the absorbing layer's complex matrix
+      const nk = metalNK(L.metal, nmWave), [a, b, c2, e] = filmLayerC([nk[0], -nk[1]], L.d, sin0, nmWave, pol);
+      const M11 = [m11r, m11i], M12 = [m12r, m12i], M21 = [m21r, m21i], M22 = [m22r, m22i];
+      const n11 = fcx.mul(M11, a), n11b = fcx.mul(M12, c2), n12 = fcx.mul(M11, b), n12b = fcx.mul(M12, e);
+      const n21 = fcx.mul(M21, a), n21b = fcx.mul(M22, c2), n22 = fcx.mul(M21, b), n22b = fcx.mul(M22, e);
+      m11r = n11[0] + n11b[0]; m11i = n11[1] + n11b[1]; m12r = n12[0] + n12b[0]; m12i = n12[1] + n12b[1];
+      m21r = n21[0] + n21b[0]; m21i = n21[1] + n21b[1]; m22r = n22[0] + n22b[0]; m22i = n22[1] + n22b[1];
+      continue;
+    }
     // times the layer's [[c, i x], [i y, c]]
     const [c, x, y] = filmLayer(L.n, L.d, sin0, nmWave, pol);
     const n11r = m11r * c - m12i * y, n11i = m11i * c + m12r * y;
@@ -10614,17 +10679,20 @@ function coatOptimise(layers, spec, opts) {
   opts = opts || {};
   const n = layers.length;
   if (!n) return { layers: [], before: coatMerit(layers, spec), after: coatMerit(layers, spec), evals: 0 };
-  const lo = layers.map(L => 0.01 * qwot(L.n, spec.design)), hi = layers.map(L => 16 * qwot(L.n, spec.design));
+  // each thickness's scale: a quarter wave at the design wavelength, or for a metal 20 nm (its quarter wave would be
+  // microns of an opaque film): held between a hundredth and sixteen times it
+  const scale = L => (L.metal ? 20 : qwot(L.n, spec.design));
+  const lo = layers.map(L => 0.01 * scale(L)), hi = layers.map(L => 16 * scale(L));
   const clampD = x => x.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
   let evals = 0;
-  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i] })), spec, opts.nW || 25, opts.nA || 3); };
+  const f = x => { evals++; return coatMerit(layers.map((L, i) => ({ n: L.n, d: x[i], ...(L.metal ? { metal: L.metal } : {}) })), spec, opts.nW || 25, opts.nA || 3); };
   // a thickness not given (blank, or not a number) starts at a quarter wave
-  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : qwot(L.n, spec.design)))), fBest = f(best);
+  let best = clampD(layers.map(L => (isFinite(L.d) ? L.d : scale(L)))), fBest = f(best);
   const rounds = opts.rounds || 3, maxIt = opts.maxIt || 150 * n;
   for (let round = 0; round < rounds; round++) {
     // the simplex: the best so far and one point per thickness, stepped by a tenth of a quarter wave (more each restart)
     const step = (0.3 + 0.3 * round);
-    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * qwot(layers[i].n, spec.design)); return clampD(x); }));
+    let S = [best].concat(best.map((_, i) => { const x = best.slice(); x[i] = Math.min(hi[i], x[i] + step * scale(layers[i])); return clampD(x); }));
     let F = S.map(f);
     for (let it = 0; it < maxIt; it++) {
       const ord = F.map((v, i) => i).sort((a, b) => F[a] - F[b]);
@@ -10647,8 +10715,8 @@ function coatOptimise(layers, spec, opts) {
     if (F[i0] < fBest) { fBest = F[i0]; best = S[i0]; }
   }
   // before and after on the one sampling the designer reports (the search's is coarser); never a stack worse than the start
-  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +qwot(L.n, spec.design).toFixed(3) })), before = coatMerit(start, spec);
-  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3) })), after = coatMerit(out, spec);
+  const start = layers.map((L, i) => ({ n: L.n, d: isFinite(L.d) ? L.d : +scale(L).toFixed(3), ...(L.metal ? { metal: L.metal } : {}) })), before = coatMerit(start, spec);
+  const out = layers.map((L, i) => ({ n: L.n, d: +best[i].toFixed(3), ...(L.metal ? { metal: L.metal } : {}) })), after = coatMerit(out, spec);
   return after <= before ? { layers: out, before, after, evals } : { layers: start, before, after: before, evals };
 }
 /* a JEKfilm coating (a .jekfilm's data) as a face's coating: its stack at its design wavelength, named; src, when
@@ -10657,14 +10725,21 @@ function coatOptimise(layers, spec, opts) {
 function coatFromFilm(d, src) {
   d = d && typeof d === 'object' ? d : {};
   const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
-  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d) }));
+  const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
   return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
+}
+/* a JEKfilm coating designed on another glass than this face's: both indices at its design wavelength and what that
+   costs, R square on from air as designed and on this glass (shown when they differ by more than 0.005) */
+function filmSubCost(coat, nFace) {
+  if (!coat || !coat.sub || !isFinite(nFace) || Math.abs(nFace - coat.sub.n) <= 0.005) return null;
+  const R = ns => cabs2(stackAmp(coat.layers, 1, ns, 1, coat.design, 's'));
+  return { design: R(coat.sub.n), here: R(nFace) };
 }
 /* the stack as a part's coating (state/project.js normCoat takes it): a single RF matching layer keeps the label the
    quote and the manufacturable check look for */
 function coatToStack(layers, spec, label) {
   const one = layers.length === 1 && spec.target === 'rf';
-  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
+  return { mode: 'stack', design: Math.round(spec.design), layers: layers.map(L => ({ n: +L.n, d: +L.d, ...(L.metal ? { metal: L.metal } : {}) })), ...(one ? { label: 'Matching layer' } : label ? { label: String(label).slice(0, 120) } : {}) };
 }
 /* ==========================================================================
    One face: what it does to light's two polarisations
@@ -14804,6 +14879,246 @@ function phosphorRead(el) {
   const n = PHOS_N, cell = el.length / n;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const b = s.B[j * n + i]; if (b > pk) pk = b; if (b > 0.05) { lit++; su += b * (-el.length / 2 + (i + 0.5) * cell); sw += b; } }
   return { peak: pk, lit: lit / (n * n), centre: sw ? su / sw : null };
+}
+/* ==========================================================================
+   Vector pages, and PDF written here with no library
+   VecCtx is a 2D canvas context that keeps what it is told (paths, text, and a raster layer for the diffracted field's
+   glow) rather than pixels; pdfDoc writes pages of them as one PDF, in the standard fonts (nothing to embed). Shared
+   by JEKray's layout, figures, reports and drawings, and by JEKfilm's coating specification; whether the glow layer
+   is drawn light (no screen blend) comes through hooks.vecLightLayer.
+   ========================================================================== */
+const cssColour = (() => {
+  const g = document.createElement('canvas').getContext('2d'), memo = new Map();
+  return s => {
+    if (typeof s !== 'string') return { r: 0, g: 0, b: 0, a: 1 };
+    if (memo.has(s)) return memo.get(s);
+    g.fillStyle = '#000'; g.fillStyle = s;
+    const v = g.fillStyle; let out;
+    if (v[0] === '#') out = { r: parseInt(v.slice(1, 3), 16), g: parseInt(v.slice(3, 5), 16), b: parseInt(v.slice(5, 7), 16), a: 1 };
+    else { const m = v.match(/[\d.]+/g) || [0, 0, 0, 1]; out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] }; }
+    memo.set(s, out); return out;
+  };
+})();
+class VecCtx {
+  constructor(w, h, opts) {
+    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.res = opts && opts.res || 2; this.ops = []; this.path = []; this.stack = [];
+    this.M = [1, 0, 0, 1, 0, 0];
+    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
+    this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
+    this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.dash = [];
+    this.shadowColor = 'transparent'; this.shadowBlur = 0; this.imageSmoothingEnabled = true; this.miterLimit = 10;
+    this.meas = document.createElement('canvas').getContext('2d');
+    this.layer = null;                     // what drawImage paints, at res times the size (twice unless asked)
+  }
+  static KEYS = ['M', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha', 'globalCompositeOperation',
+    'font', 'textAlign', 'textBaseline', 'dash', 'shadowColor', 'shadowBlur', 'imageSmoothingEnabled', 'miterLimit'];
+  save() { const s = {}; for (const k of VecCtx.KEYS) s[k] = this[k]; this.stack.push(s); }
+  restore() { const s = this.stack.pop(); if (s) Object.assign(this, s); }
+  setTransform(a, b, c, d, e, f) { this.M = [a, b, c, d, e, f]; }
+  resetTransform() { this.M = [1, 0, 0, 1, 0, 0]; }
+  setLineDash(d) { this.dash = (d || []).slice(); }
+  getLineDash() { return this.dash.slice(); }
+  pt(x, y) { const M = this.M; return [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]]; }
+  // how much the current transform scales lengths (for line widths and text)
+  unit() { const M = this.M; return Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])); }
+  // the canvas's own transforms, which the fibre, electronics and chip parts' symbols use
+  transform(a, b, c, d, e, f) {
+    const M = this.M;
+    this.M = [M[0] * a + M[2] * b, M[1] * a + M[3] * b, M[0] * c + M[2] * d, M[1] * c + M[3] * d, M[0] * e + M[2] * f + M[4], M[1] * e + M[3] * f + M[5]];
+  }
+  translate(x, y) { this.transform(1, 0, 0, 1, x, y); }
+  rotate(t) { const c = Math.cos(t), s = Math.sin(t); this.transform(c, s, -s, c, 0, 0); }
+  scale(x, y) { this.transform(x, 0, 0, y === undefined ? x : y, 0, 0); }
+  getTransform() { const M = this.M; return { a: M[0], b: M[1], c: M[2], d: M[3], e: M[4], f: M[5] }; }
+  beginPath() { this.path = []; }
+  moveTo(x, y) { this.path.push(['M', ...this.pt(x, y)]); this.start = this.path[this.path.length - 1].slice(1); }
+  lineTo(x, y) { if (!this.path.length) return this.moveTo(x, y); this.path.push(['L', ...this.pt(x, y)]); }
+  bezierCurveTo(a, b, c, d, x, y) { if (!this.path.length) this.moveTo(a, b); this.path.push(['C', ...this.pt(a, b), ...this.pt(c, d), ...this.pt(x, y)]); }
+  quadraticCurveTo(a, b, x, y) {
+    const last = this.path.length ? this.path[this.path.length - 1] : null;
+    if (!last) return this.moveTo(x, y);
+    // back to the user's space for the one control point: exact for an affine map
+    const p0 = last.slice(-2), q = this.pt(a, b), p1 = this.pt(x, y);
+    this.path.push(['C', p0[0] + 2 / 3 * (q[0] - p0[0]), p0[1] + 2 / 3 * (q[1] - p0[1]), p1[0] + 2 / 3 * (q[0] - p1[0]), p1[1] + 2 / 3 * (q[1] - p1[1]), p1[0], p1[1]]);
+  }
+  closePath() { if (this.path.length) { this.path.push(['Z']); if (this.start) this.path.push(['M', ...this.start]); } }
+  rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
+  arc(cx, cy, r, a0, a1, ccw) {
+    let da = a1 - a0;
+    if (!ccw) { if (da >= 2 * Math.PI) da = 2 * Math.PI; else { da %= 2 * Math.PI; if (da < 0) da += 2 * Math.PI; } }
+    else { if (-da >= 2 * Math.PI) da = -2 * Math.PI; else { da %= 2 * Math.PI; if (da > 0) da -= 2 * Math.PI; } }
+    const P = a => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    const p0 = P(a0);
+    if (this.path.length) this.lineTo(...p0); else this.moveTo(...p0);
+    const n = Math.max(1, Math.ceil(Math.abs(da) / (Math.PI / 2) - 1e-9)), s = da / n, k = 4 / 3 * Math.tan(s / 4);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * s, b = a + s, [x0, y0] = P(a), [x1, y1] = P(b);
+      this.bezierCurveTo(x0 - k * r * Math.sin(a), y0 + k * r * Math.cos(a), x1 + k * r * Math.sin(b), y1 - k * r * Math.cos(b), x1, y1);
+    }
+  }
+  ellipse(cx, cy, rx, ry, rot, a0, a1, ccw) {
+    const M0 = this.M.slice(), c = Math.cos(rot), s = Math.sin(rot), M = M0;
+    this.M = [M[0] * c * rx + M[2] * s * rx, M[1] * c * rx + M[3] * s * rx, -M[0] * s * ry + M[2] * c * ry, -M[1] * s * ry + M[3] * c * ry, M[0] * cx + M[2] * cy + M[4], M[1] * cx + M[3] * cy + M[5]];
+    this.arc(0, 0, 1, a0, a1, ccw); this.M = M0;
+  }
+  clip() { /* nothing on the bench clips */ }
+  style() {
+    const op = this.globalCompositeOperation;
+    return { alpha: this.globalAlpha, blend: op === 'lighter' || op === 'screen' ? 'screen' : op === 'multiply' ? 'multiply' : null };
+  }
+  fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
+  stroke() {
+    if (!this.path.length) return;
+    const s = this.unit();
+    this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), stroke: cssColour(this.strokeStyle), lw: this.lineWidth * s,
+      dash: this.dash.map(v => v * s), cap: this.lineCap, join: this.lineJoin }, this.style()));
+  }
+  fillRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.fill(); this.path = P; }
+  strokeRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.stroke(); this.path = P; }
+  clearRect() { }
+  measureText(t) { this.meas.font = this.font; return this.meas.measureText(t); }
+  fillText(t, x, y) {
+    t = String(t); if (!t) return;
+    this.meas.font = this.font;
+    const f = this.meas.font, size = +(f.match(/([\d.]+)px/) || [0, 10])[1], w = this.meas.measureText(t).width;
+    const al = this.textAlign, dx = al === 'center' ? -w / 2 : al === 'right' || al === 'end' ? -w : 0;
+    const bl = this.textBaseline, dy = bl === 'middle' ? 0.35 * size : bl === 'top' || bl === 'hanging' ? 0.8 * size : bl === 'bottom' || bl === 'ideographic' ? -0.22 * size : 0;
+    const [ox, oy] = this.pt(x + dx, y + dy), M = this.M, sc = this.unit();
+    this.ops.push(Object.assign({ k: 'text', t, x: ox, y: oy, w: w * sc, size: size * sc, rot: Math.atan2(M[1], M[0]),
+      mono: /mono|courier|consol/i.test(f), bold: /\b(bold|[6-9]00)\b/.test(f), italic: /\bitalic\b/.test(f), family: (f.match(/[\d.]+px\s+(.*)$/) || [0, 'sans-serif'])[1],
+      fill: cssColour(this.fillStyle) }, this.style()));
+  }
+  strokeText() { }
+  drawImage(img, ...a) {
+    if (!this.layer) {
+      const c = document.createElement('canvas'); c.width = Math.round(this.w * this.res); c.height = Math.round(this.h * this.res);
+      this.layer = c; this.ops.push({ k: 'layer', blend: hooks.vecLightLayer() || this.plain ? null : 'screen', alpha: 1 });
+    }
+    const g = this.layer.getContext('2d'), M = this.M, r = this.res;
+    g.setTransform(r * M[0], r * M[1], r * M[2], r * M[3], r * M[4], r * M[5]);
+    g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : this.globalCompositeOperation === 'multiply' ? 'multiply' : 'lighter';
+    g.imageSmoothingEnabled = this.imageSmoothingEnabled;
+    g.drawImage(img, ...a);
+  }
+  createImageData(w, h) { return new ImageData(w, h); }
+}
+
+
+/* A PDF of one page, written here: the standard fonts (so nothing to embed), the field's
+   glow as one image with its transparency, deflated where the browser can */
+async function deflateBytes(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  } catch (e) { return null; }
+}
+const WINANSI = { 0x20ac: 128, 0x201a: 130, 0x192: 131, 0x201e: 132, 0x2026: 133, 0x2020: 134, 0x2021: 135, 0x2c6: 136, 0x2030: 137, 0x160: 138, 0x2039: 139,
+  0x152: 140, 0x17d: 142, 0x2018: 145, 0x2019: 146, 0x201c: 147, 0x201d: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x2dc: 152, 0x2122: 153,
+  0x161: 154, 0x203a: 155, 0x153: 156, 0x17e: 158, 0x178: 159 };
+const PDF_SUBS = { '−': '-', '→': '->', '←': '<-', '⇄': '<->', '↔': '<->', '≈': '~', '≤': '<=', '≥': '>=', '∞': 'inf',
+  'λ': 'lambda', 'Δ': 'Delta', 'δ': 'delta', 'ω': 'omega', 'π': 'pi', 'θ': 'theta', 'φ': 'phi', 'α': 'alpha',
+  'β': 'beta', 'γ': 'gamma', 'ρ': 'rho', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
+function pdfText(t) {
+  let s = '';
+  for (const ch of String(t)) {
+    const c = ch.codePointAt(0);
+    let b = c < 128 || (c >= 160 && c < 256) ? c : WINANSI[c];
+    if (b === undefined) { const r = PDF_SUBS[ch]; if (r !== undefined) { s += pdfText(r); continue; } b = 63; }
+    s += b === 40 || b === 41 || b === 92 ? '\\' + String.fromCharCode(b) : b < 32 || b > 126 ? '\\' + b.toString(8).padStart(3, '0') : String.fromCharCode(b);
+  }
+  return s;
+}
+/* pages, each a VecCtx's record, as one PDF (the title in its information); opts.raw: its page contents
+   left uncompressed, so their text can be read */
+async function pdfDoc(recs, title, opts) {
+  const n = v => +v.toFixed(3);
+  const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
+  const gsList = [], gsKey = new Map();
+  const gs = (ca, CA, bm) => {
+    const k = n(ca) + ',' + n(CA) + ',' + (bm || '');
+    if (!gsKey.has(k)) { gsKey.set(k, 'G' + gsList.length); gsList.push({ ca: n(ca), CA: n(CA), bm }); }
+    return gsKey.get(k);
+  };
+  const fonts = { F1: 'Helvetica', F2: 'Helvetica-Bold', F3: 'Courier', F4: 'Courier-Bold' };
+  const streams = recs.map(rec => {
+    const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
+    for (const o of rec.ops) {
+      if (o.k === 'path') {
+        const P = [];
+        for (const s of o.segs) {
+          if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
+          else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
+          else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
+          else P.push('h');
+        }
+        if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
+        else {
+          C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
+            ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
+            o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
+        }
+      } else if (o.k === 'text') {
+        const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
+        // the standard font's own width differs from the browser's: squeeze it to fit
+        // (a page drawn for print, in the standard fonts themselves, keeps their own widths)
+        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = rec.plain ? 100 : clamp(100 * o.w / (est || 1), 70, 130);
+        C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
+          [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
+      } else if (o.k === 'layer') {
+        C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
+      }
+    }
+    return Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
+  });
+  // the pieces, each an object; byte offsets for the cross-reference table
+  const parts = [], offs = [];
+  let len = 0;
+  const put = x => { const b = typeof x === 'string' ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 255) : x; parts.push(b); len += b.length; };
+  const obj = (i, body, stream) => {
+    offs[i] = len;
+    if (stream) { put(i + ' 0 obj\n' + body.replace(/>>$/, '/Length ' + stream.length + '>>') + '\nstream\n'); put(stream); put('\nendstream\nendobj\n'); }
+    else put(i + ' 0 obj\n' + body + '\nendobj\n');
+  };
+  put('%PDF-1.4\n%âãÏÓ\n');
+  // 1 catalog, 2 pages, 3 information; then fonts and states, then each page: page, contents, resources, image, mask
+  let next = 4;
+  const fontIds = {}; for (const k in fonts) fontIds[k] = next++;
+  const gsIds = gsList.map(() => next++);
+  const pages = [];
+  for (let i = 0; i < recs.length; i++) {
+    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: opts && opts.raw ? null : await deflateBytes(streams[i]) };
+    if (rec.layer) {
+      const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
+      const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
+      for (let q = 0; q < N; q++) { rgb[3 * q] = d[4 * q]; rgb[3 * q + 1] = d[4 * q + 1]; rgb[3 * q + 2] = d[4 * q + 2]; al[q] = d[4 * q + 3]; }
+      pg.img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
+      pg.imId = next++; pg.smId = next++;
+    }
+    pages.push(pg);
+  }
+  obj(1, '<</Type/Catalog/Pages 2 0 R>>');
+  obj(2, '<</Type/Pages/Kids[' + pages.map(p => p.id + ' 0 R').join(' ') + ']/Count ' + pages.length + '>>');
+  obj(3, '<</Title(' + pdfText(title || 'Untitled') + ')/Producer(' + pdfText(hooks.appName || 'JEKray') + ')>>');
+  for (const k in fonts) obj(fontIds[k], '<</Type/Font/Subtype/Type1/BaseFont/' + fonts[k] + '/Encoding/WinAnsiEncoding>>');
+  gsList.forEach((g, i) => obj(gsIds[i], '<</Type/ExtGState/ca ' + g.ca + '/CA ' + g.CA + (g.bm ? (g.bm === 'multiply' ? '/BM/Multiply' : '/BM/Screen') : '') + '>>'));
+  pages.forEach((pg, i) => {
+    const rec = recs[i];
+    obj(pg.id, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents ' + pg.cid + ' 0 R/Resources ' + pg.rid + ' 0 R>>');
+    obj(pg.cid, '<<' + (pg.zc ? '/Filter/FlateDecode' : '') + '>>', pg.zc || streams[i]);
+    obj(pg.rid, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
+      (gsList.length ? '/ExtGState<<' + gsList.map((g, q) => '/G' + q + ' ' + gsIds[q] + ' 0 R').join('') + '>>' : '') +
+      (pg.img ? '/XObject<</Im1 ' + pg.imId + ' 0 R>>' : '') + '>>');
+    if (pg.img) {
+      const F = pg.img.z ? '/Filter/FlateDecode' : '';
+      obj(pg.imId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + pg.smId + ' 0 R' + F + '>>', pg.img.rgb);
+      obj(pg.smId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', pg.img.al);
+    }
+  });
+  const xref = len, count = offs.length;
+  put('xref\n0 ' + count + '\n0000000000 65535 f \n' + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
+  put('trailer\n<</Size ' + count + '/Root 1 0 R/Info 3 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
+  return new Blob(parts, { type: 'application/pdf' });
 }
 /* ==========================================================================
    Rendering
@@ -29141,7 +29456,26 @@ function coatingRows(el, holder, label, opts = {}) {
   }
   if (holder.coat.src) box.append(filmNote(holder));
   else if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
+  const sn = holder.coat.mode === 'stack' ? filmSubNote(el, holder) : null; if (sn) box.append(sn);
   return box;
+}
+
+/* the glass behind a face: a lens's first or last surface its outer glass, any other part its material; a cemented
+   surface inside a lens has glass on both sides, so none */
+function faceGlass(el, holder) {
+  if (el.type !== 'lens') return el.material || null;
+  const i = el.surfaces.indexOf(holder), m = el.materials || [];
+  return i === 0 ? m[0] || null : i === el.surfaces.length - 1 ? m[m.length - 1] || null : null;
+}
+function filmSubNote(el, holder) {
+  const c = holder.coat, g = faceGlass(el, holder);
+  if (!c.sub || !g) return null;
+  const nFace = refIndex(g, c.design), cost = filmSubCost(c, nFace);
+  if (!cost) return null;
+  const pc = v => (100 * v < 0.01 ? (100 * v).toExponential(1) : (+(100 * v).toPrecision(3)).toString()) + ' %';
+  return h('p', { class: 'note rt-filmsub', style: 'margin-top:0.4rem' },
+    'Designed on ' + (c.sub.name || 'a substrate') + ' (n ' + c.sub.n.toFixed(4) + '); this face is ' + matLabel(g) + ' (n ' + nFace.toFixed(4) + '). ' +
+    'R at ' + c.design + ' nm, square on: ' + pc(cost.design) + ' as designed, ' + pc(cost.here) + ' on this glass.');
 }
 
 /* a face linked to a JEKfilm coating: where it came from, its version, and the ways on (its layers are edited in
@@ -29176,16 +29510,23 @@ function stackRows(el, holder) {
   coat.layers.forEach((L, k) => {
     const sel = h('select', { id: 'rtf' + (setFid(fid + 1)) });
     for (const [v, t] of COAT_MATERIALS) sel.append(h('option', { value: String(+v) }, t));
-    if (!COAT_MATERIALS.some(m => Math.abs(+m[0] - L.n) < 1e-9)) {
+    if (!L.metal && !COAT_MATERIALS.some(m => Math.abs(+m[0] - L.n) < 1e-9)) {
       sel.append(h('option', { value: String(+L.n) }, 'n = ' + (+L.n.toPrecision(4))));
     }
-    sel.value = String(+L.n);
-    sel.addEventListener('change', () => { checkpoint(); L.n = +sel.value; changed(false); });
+    // a metal (core/metals.js: absorbing, its measured index at each wavelength)
+    for (const [m, name] of Object.entries(METAL_NAMES)) sel.append(h('option', { value: 'metal:' + m }, name + ' (metal)'));
+    sel.value = L.metal ? 'metal:' + L.metal : String(+L.n);
+    sel.addEventListener('change', () => {
+      checkpoint();
+      if (sel.value.startsWith('metal:')) { if (!L.metal) L.d = 100; L.metal = sel.value.slice(6); }
+      else { if (L.metal) L.d = qwot(+sel.value, coat.design); L.n = +sel.value; delete L.metal; }
+      changed(true);
+    });
     const row = h('div', { class: 'rt-rows rt-layer' },
       h('div', { class: 'rt-f' }, h('label', { for: sel.id }, 'Layer ' + (k + 1) + ' material'), sel),
       param('Thickness (nm)', el, base + '.layers.' + k + '.d'),
       h('div', { class: 'rt-inline wide' },
-        h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); L.d = qwot(L.n, coat.design); changed(true); } }, 'Quarter wave'),
+        L.metal ? null : h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); L.d = qwot(L.n, coat.design); changed(true); } }, 'Quarter wave'),
         h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); coat.layers.splice(k, 1); changed(true); } }, 'Remove')));
     box.append(row);
   });
@@ -48096,122 +48437,6 @@ function redo() {
    The bench is drawn again into a context that keeps what it is told (paths, text, and the
    field's glow as one picture) rather than pixels, and that is written out as SVG or PDF.
    Paths stay paths at any zoom; the diffracted field, a raster in the tool, stays a raster. */
-const cssColour = (() => {
-  const g = document.createElement('canvas').getContext('2d'), memo = new Map();
-  return s => {
-    if (typeof s !== 'string') return { r: 0, g: 0, b: 0, a: 1 };
-    if (memo.has(s)) return memo.get(s);
-    g.fillStyle = '#000'; g.fillStyle = s;
-    const v = g.fillStyle; let out;
-    if (v[0] === '#') out = { r: parseInt(v.slice(1, 3), 16), g: parseInt(v.slice(3, 5), 16), b: parseInt(v.slice(5, 7), 16), a: 1 };
-    else { const m = v.match(/[\d.]+/g) || [0, 0, 0, 1]; out = { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] }; }
-    memo.set(s, out); return out;
-  };
-})();
-class VecCtx {
-  constructor(w, h, opts) {
-    this.w = w; this.h = h; this.plain = !!(opts && opts.plain); this.res = opts && opts.res || 2; this.ops = []; this.path = []; this.stack = [];
-    this.M = [1, 0, 0, 1, 0, 0];
-    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineCap = 'butt'; this.lineJoin = 'miter';
-    this.globalAlpha = 1; this.globalCompositeOperation = 'source-over'; this.font = '10px sans-serif';
-    this.textAlign = 'start'; this.textBaseline = 'alphabetic'; this.dash = [];
-    this.shadowColor = 'transparent'; this.shadowBlur = 0; this.imageSmoothingEnabled = true; this.miterLimit = 10;
-    this.meas = document.createElement('canvas').getContext('2d');
-    this.layer = null;                     // what drawImage paints, at res times the size (twice unless asked)
-  }
-  static KEYS = ['M', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin', 'globalAlpha', 'globalCompositeOperation',
-    'font', 'textAlign', 'textBaseline', 'dash', 'shadowColor', 'shadowBlur', 'imageSmoothingEnabled', 'miterLimit'];
-  save() { const s = {}; for (const k of VecCtx.KEYS) s[k] = this[k]; this.stack.push(s); }
-  restore() { const s = this.stack.pop(); if (s) Object.assign(this, s); }
-  setTransform(a, b, c, d, e, f) { this.M = [a, b, c, d, e, f]; }
-  resetTransform() { this.M = [1, 0, 0, 1, 0, 0]; }
-  setLineDash(d) { this.dash = (d || []).slice(); }
-  getLineDash() { return this.dash.slice(); }
-  pt(x, y) { const M = this.M; return [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]]; }
-  // how much the current transform scales lengths (for line widths and text)
-  unit() { const M = this.M; return Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])); }
-  // the canvas's own transforms, which the fibre, electronics and chip parts' symbols use
-  transform(a, b, c, d, e, f) {
-    const M = this.M;
-    this.M = [M[0] * a + M[2] * b, M[1] * a + M[3] * b, M[0] * c + M[2] * d, M[1] * c + M[3] * d, M[0] * e + M[2] * f + M[4], M[1] * e + M[3] * f + M[5]];
-  }
-  translate(x, y) { this.transform(1, 0, 0, 1, x, y); }
-  rotate(t) { const c = Math.cos(t), s = Math.sin(t); this.transform(c, s, -s, c, 0, 0); }
-  scale(x, y) { this.transform(x, 0, 0, y === undefined ? x : y, 0, 0); }
-  getTransform() { const M = this.M; return { a: M[0], b: M[1], c: M[2], d: M[3], e: M[4], f: M[5] }; }
-  beginPath() { this.path = []; }
-  moveTo(x, y) { this.path.push(['M', ...this.pt(x, y)]); this.start = this.path[this.path.length - 1].slice(1); }
-  lineTo(x, y) { if (!this.path.length) return this.moveTo(x, y); this.path.push(['L', ...this.pt(x, y)]); }
-  bezierCurveTo(a, b, c, d, x, y) { if (!this.path.length) this.moveTo(a, b); this.path.push(['C', ...this.pt(a, b), ...this.pt(c, d), ...this.pt(x, y)]); }
-  quadraticCurveTo(a, b, x, y) {
-    const last = this.path.length ? this.path[this.path.length - 1] : null;
-    if (!last) return this.moveTo(x, y);
-    // back to the user's space for the one control point: exact for an affine map
-    const p0 = last.slice(-2), q = this.pt(a, b), p1 = this.pt(x, y);
-    this.path.push(['C', p0[0] + 2 / 3 * (q[0] - p0[0]), p0[1] + 2 / 3 * (q[1] - p0[1]), p1[0] + 2 / 3 * (q[0] - p1[0]), p1[1] + 2 / 3 * (q[1] - p1[1]), p1[0], p1[1]]);
-  }
-  closePath() { if (this.path.length) { this.path.push(['Z']); if (this.start) this.path.push(['M', ...this.start]); } }
-  rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
-  arc(cx, cy, r, a0, a1, ccw) {
-    let da = a1 - a0;
-    if (!ccw) { if (da >= 2 * Math.PI) da = 2 * Math.PI; else { da %= 2 * Math.PI; if (da < 0) da += 2 * Math.PI; } }
-    else { if (-da >= 2 * Math.PI) da = -2 * Math.PI; else { da %= 2 * Math.PI; if (da > 0) da -= 2 * Math.PI; } }
-    const P = a => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-    const p0 = P(a0);
-    if (this.path.length) this.lineTo(...p0); else this.moveTo(...p0);
-    const n = Math.max(1, Math.ceil(Math.abs(da) / (Math.PI / 2) - 1e-9)), s = da / n, k = 4 / 3 * Math.tan(s / 4);
-    for (let i = 0; i < n; i++) {
-      const a = a0 + i * s, b = a + s, [x0, y0] = P(a), [x1, y1] = P(b);
-      this.bezierCurveTo(x0 - k * r * Math.sin(a), y0 + k * r * Math.cos(a), x1 + k * r * Math.sin(b), y1 - k * r * Math.cos(b), x1, y1);
-    }
-  }
-  ellipse(cx, cy, rx, ry, rot, a0, a1, ccw) {
-    const M0 = this.M.slice(), c = Math.cos(rot), s = Math.sin(rot), M = M0;
-    this.M = [M[0] * c * rx + M[2] * s * rx, M[1] * c * rx + M[3] * s * rx, -M[0] * s * ry + M[2] * c * ry, -M[1] * s * ry + M[3] * c * ry, M[0] * cx + M[2] * cy + M[4], M[1] * cx + M[3] * cy + M[5]];
-    this.arc(0, 0, 1, a0, a1, ccw); this.M = M0;
-  }
-  clip() { /* nothing on the bench clips */ }
-  style() {
-    const op = this.globalCompositeOperation;
-    return { alpha: this.globalAlpha, blend: op === 'lighter' || op === 'screen' ? 'screen' : op === 'multiply' ? 'multiply' : null };
-  }
-  fill() { if (this.path.length) this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), fill: cssColour(this.fillStyle) }, this.style())); }
-  stroke() {
-    if (!this.path.length) return;
-    const s = this.unit();
-    this.ops.push(Object.assign({ k: 'path', segs: this.path.slice(), stroke: cssColour(this.strokeStyle), lw: this.lineWidth * s,
-      dash: this.dash.map(v => v * s), cap: this.lineCap, join: this.lineJoin }, this.style()));
-  }
-  fillRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.fill(); this.path = P; }
-  strokeRect(x, y, w, h) { const P = this.path; this.path = []; this.rect(x, y, w, h); this.stroke(); this.path = P; }
-  clearRect() { }
-  measureText(t) { this.meas.font = this.font; return this.meas.measureText(t); }
-  fillText(t, x, y) {
-    t = String(t); if (!t) return;
-    this.meas.font = this.font;
-    const f = this.meas.font, size = +(f.match(/([\d.]+)px/) || [0, 10])[1], w = this.meas.measureText(t).width;
-    const al = this.textAlign, dx = al === 'center' ? -w / 2 : al === 'right' || al === 'end' ? -w : 0;
-    const bl = this.textBaseline, dy = bl === 'middle' ? 0.35 * size : bl === 'top' || bl === 'hanging' ? 0.8 * size : bl === 'bottom' || bl === 'ideographic' ? -0.22 * size : 0;
-    const [ox, oy] = this.pt(x + dx, y + dy), M = this.M, sc = this.unit();
-    this.ops.push(Object.assign({ k: 'text', t, x: ox, y: oy, w: w * sc, size: size * sc, rot: Math.atan2(M[1], M[0]),
-      mono: /mono|courier|consol/i.test(f), bold: /\b(bold|[6-9]00)\b/.test(f), italic: /\bitalic\b/.test(f), family: (f.match(/[\d.]+px\s+(.*)$/) || [0, 'sans-serif'])[1],
-      fill: cssColour(this.fillStyle) }, this.style()));
-  }
-  strokeText() { }
-  drawImage(img, ...a) {
-    if (!this.layer) {
-      const c = document.createElement('canvas'); c.width = Math.round(this.w * this.res); c.height = Math.round(this.h * this.res);
-      this.layer = c; this.ops.push({ k: 'layer', blend: lightLayer || this.plain ? null : 'screen', alpha: 1 });
-    }
-    const g = this.layer.getContext('2d'), M = this.M, r = this.res;
-    g.setTransform(r * M[0], r * M[1], r * M[2], r * M[3], r * M[4], r * M[5]);
-    g.globalAlpha = this.globalAlpha; g.globalCompositeOperation = this.globalCompositeOperation === 'source-over' ? 'source-over' : this.globalCompositeOperation === 'multiply' ? 'multiply' : 'lighter';
-    g.imageSmoothingEnabled = this.imageSmoothingEnabled;
-    g.drawImage(img, ...a);
-  }
-  createImageData(w, h) { return new ImageData(w, h); }
-}
-
 /* the bench drawn once into a VecCtx, just as it stands, less the handles */
 function recordLayout() {
   const rec = new VecCtx(W, H), keep = ctx, dpr = DPR;
@@ -48255,123 +48480,7 @@ function layoutSvg(rec, title, unit = '') {     // unit: 'pt' for a figure of a 
   return out.join('\n');
 }
 
-/* A PDF of one page, written here: the standard fonts (so nothing to embed), the field's
-   glow as one image with its transparency, deflated where the browser can */
-async function deflateBytes(u8) {
-  if (typeof CompressionStream === 'undefined') return null;
-  try {
-    const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
-    return new Uint8Array(await new Response(s).arrayBuffer());
-  } catch (e) { return null; }
-}
-const WINANSI = { 0x20ac: 128, 0x201a: 130, 0x192: 131, 0x201e: 132, 0x2026: 133, 0x2020: 134, 0x2021: 135, 0x2c6: 136, 0x2030: 137, 0x160: 138, 0x2039: 139,
-  0x152: 140, 0x17d: 142, 0x2018: 145, 0x2019: 146, 0x201c: 147, 0x201d: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x2dc: 152, 0x2122: 153,
-  0x161: 154, 0x203a: 155, 0x153: 156, 0x17e: 158, 0x178: 159 };
-const PDF_SUBS = { '−': '-', '→': '->', '←': '<-', '⇄': '<->', '↔': '<->', '≈': '~', '≤': '<=', '≥': '>=', '∞': 'inf',
-  'λ': 'lambda', 'Δ': 'Delta', 'δ': 'delta', 'ω': 'omega', 'π': 'pi', 'θ': 'theta', 'φ': 'phi', 'α': 'alpha',
-  'β': 'beta', 'γ': 'gamma', 'σ': 'sigma', 'ν': 'nu', 'τ': 'tau', ' ': ' ', ' ': ' ', '′': "'", '″': '"', '⁄': '/' };
-function pdfText(t) {
-  let s = '';
-  for (const ch of String(t)) {
-    const c = ch.codePointAt(0);
-    let b = c < 128 || (c >= 160 && c < 256) ? c : WINANSI[c];
-    if (b === undefined) { const r = PDF_SUBS[ch]; if (r !== undefined) { s += pdfText(r); continue; } b = 63; }
-    s += b === 40 || b === 41 || b === 92 ? '\\' + String.fromCharCode(b) : b < 32 || b > 126 ? '\\' + b.toString(8).padStart(3, '0') : String.fromCharCode(b);
-  }
-  return s;
-}
-/* pages, each a VecCtx's record, as one PDF (the title in its information); opts.raw: its page contents
-   left uncompressed, so their text can be read */
-async function pdfDoc(recs, title, opts) {
-  const n = v => +v.toFixed(3);
-  const col = c => [c.r, c.g, c.b].map(v => n(v / 255)).join(' ');
-  const gsList = [], gsKey = new Map();
-  const gs = (ca, CA, bm) => {
-    const k = n(ca) + ',' + n(CA) + ',' + (bm || '');
-    if (!gsKey.has(k)) { gsKey.set(k, 'G' + gsList.length); gsList.push({ ca: n(ca), CA: n(CA), bm }); }
-    return gsKey.get(k);
-  };
-  const fonts = { F1: 'Helvetica', F2: 'Helvetica-Bold', F3: 'Courier', F4: 'Courier-Bold' };
-  const streams = recs.map(rec => {
-    const C = ['1 0 0 -1 0 ' + n(rec.h) + ' cm'];      // y down, as on the canvas
-    for (const o of rec.ops) {
-      if (o.k === 'path') {
-        const P = [];
-        for (const s of o.segs) {
-          if (s[0] === 'M') P.push(n(s[1]) + ' ' + n(s[2]) + ' m');
-          else if (s[0] === 'L') P.push(n(s[1]) + ' ' + n(s[2]) + ' l');
-          else if (s[0] === 'C') P.push(s.slice(1).map(n).join(' ') + ' c');
-          else P.push('h');
-        }
-        if (o.fill) C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg ' + P.join(' ') + ' f Q');
-        else {
-          C.push('q /' + gs(1, o.stroke.a * o.alpha, o.blend) + ' gs ' + col(o.stroke) + ' RG ' + n(o.lw) + ' w ' +
-            ({ butt: 0, round: 1, square: 2 }[o.cap] || 0) + ' J ' + ({ miter: 0, round: 1, bevel: 2 }[o.join] || 0) + ' j [' +
-            o.dash.map(n).join(' ') + '] 0 d ' + P.join(' ') + ' S Q');
-        }
-      } else if (o.k === 'text') {
-        const f = (o.mono ? (o.bold ? 'F4' : 'F3') : (o.bold ? 'F2' : 'F1')), c = Math.cos(o.rot), s = Math.sin(o.rot);
-        // the standard font's own width differs from the browser's: squeeze it to fit
-        // (a page drawn for print, in the standard fonts themselves, keeps their own widths)
-        const est = o.t.length * (o.mono ? 0.6 : 0.52) * o.size, tz = rec.plain ? 100 : clamp(100 * o.w / (est || 1), 70, 130);
-        C.push('q /' + gs(o.fill.a * o.alpha, 1, o.blend) + ' gs ' + col(o.fill) + ' rg BT /' + f + ' ' + n(o.size) + ' Tf ' + n(tz) + ' Tz ' +
-          [n(c), n(s), n(s), n(-c), n(o.x), n(o.y)].join(' ') + ' Tm (' + pdfText(o.t) + ') Tj ET Q');
-      } else if (o.k === 'layer') {
-        C.push('q /' + gs(1, 1, o.blend) + ' gs ' + n(rec.w) + ' 0 0 ' + n(-rec.h) + ' 0 ' + n(rec.h) + ' cm /Im1 Do Q');
-      }
-    }
-    return Uint8Array.from(C.join('\n'), ch => ch.charCodeAt(0) & 255);
-  });
-  // the pieces, each an object; byte offsets for the cross-reference table
-  const parts = [], offs = [];
-  let len = 0;
-  const put = x => { const b = typeof x === 'string' ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 255) : x; parts.push(b); len += b.length; };
-  const obj = (i, body, stream) => {
-    offs[i] = len;
-    if (stream) { put(i + ' 0 obj\n' + body.replace(/>>$/, '/Length ' + stream.length + '>>') + '\nstream\n'); put(stream); put('\nendstream\nendobj\n'); }
-    else put(i + ' 0 obj\n' + body + '\nendobj\n');
-  };
-  put('%PDF-1.4\n%âãÏÓ\n');
-  // 1 catalog, 2 pages, 3 information; then fonts and states, then each page: page, contents, resources, image, mask
-  let next = 4;
-  const fontIds = {}; for (const k in fonts) fontIds[k] = next++;
-  const gsIds = gsList.map(() => next++);
-  const pages = [];
-  for (let i = 0; i < recs.length; i++) {
-    const rec = recs[i], pg = { id: next++, cid: next++, rid: next++, zc: opts && opts.raw ? null : await deflateBytes(streams[i]) };
-    if (rec.layer) {
-      const L = rec.layer, d = L.getContext('2d').getImageData(0, 0, L.width, L.height).data, N = L.width * L.height;
-      const rgb = new Uint8Array(N * 3), al = new Uint8Array(N);
-      for (let q = 0; q < N; q++) { rgb[3 * q] = d[4 * q]; rgb[3 * q + 1] = d[4 * q + 1]; rgb[3 * q + 2] = d[4 * q + 2]; al[q] = d[4 * q + 3]; }
-      pg.img = { w: L.width, h: L.height, rgb: (await deflateBytes(rgb)) || rgb, al: (await deflateBytes(al)) || al, z: !!(await deflateBytes(new Uint8Array(1))) };
-      pg.imId = next++; pg.smId = next++;
-    }
-    pages.push(pg);
-  }
-  obj(1, '<</Type/Catalog/Pages 2 0 R>>');
-  obj(2, '<</Type/Pages/Kids[' + pages.map(p => p.id + ' 0 R').join(' ') + ']/Count ' + pages.length + '>>');
-  obj(3, '<</Title(' + pdfText(title || project.name) + ')/Producer(JEKray)>>');
-  for (const k in fonts) obj(fontIds[k], '<</Type/Font/Subtype/Type1/BaseFont/' + fonts[k] + '/Encoding/WinAnsiEncoding>>');
-  gsList.forEach((g, i) => obj(gsIds[i], '<</Type/ExtGState/ca ' + g.ca + '/CA ' + g.CA + (g.bm ? (g.bm === 'multiply' ? '/BM/Multiply' : '/BM/Screen') : '') + '>>'));
-  pages.forEach((pg, i) => {
-    const rec = recs[i];
-    obj(pg.id, '<</Type/Page/Parent 2 0 R/MediaBox[0 0 ' + n(rec.w) + ' ' + n(rec.h) + ']/Contents ' + pg.cid + ' 0 R/Resources ' + pg.rid + ' 0 R>>');
-    obj(pg.cid, '<<' + (pg.zc ? '/Filter/FlateDecode' : '') + '>>', pg.zc || streams[i]);
-    obj(pg.rid, '<</Font<<' + Object.keys(fonts).map(k => '/' + k + ' ' + fontIds[k] + ' 0 R').join('') + '>>' +
-      (gsList.length ? '/ExtGState<<' + gsList.map((g, q) => '/G' + q + ' ' + gsIds[q] + ' 0 R').join('') + '>>' : '') +
-      (pg.img ? '/XObject<</Im1 ' + pg.imId + ' 0 R>>' : '') + '>>');
-    if (pg.img) {
-      const F = pg.img.z ? '/Filter/FlateDecode' : '';
-      obj(pg.imId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceRGB/BitsPerComponent 8/SMask ' + pg.smId + ' 0 R' + F + '>>', pg.img.rgb);
-      obj(pg.smId, '<</Type/XObject/Subtype/Image/Width ' + pg.img.w + '/Height ' + pg.img.h + '/ColorSpace/DeviceGray/BitsPerComponent 8' + F + '>>', pg.img.al);
-    }
-  });
-  const xref = len, count = offs.length;
-  put('xref\n0 ' + count + '\n0000000000 65535 f \n' + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
-  put('trailer\n<</Size ' + count + '/Root 1 0 R/Info 3 0 R>>\nstartxref\n' + xref + '\n%%EOF\n');
-  return new Blob(parts, { type: 'application/pdf' });
-}
-const layoutPdf = rec => pdfDoc([rec]);
+const layoutPdf = rec => pdfDoc([rec], project.name);
 /* the layout as a picture: the whole tab, framed as Fit frames it, or (view) just what is on screen now */
 async function exportLayout(kind, view) {
   if (!accountGate('export the layout')) return;
@@ -54117,19 +54226,31 @@ async function loadFilmFolder(link) {
   filmUpdates();
   return filmFolder.list;
 }
+/* the substrate a JEKfilm coating was designed on, by name and index at its design wavelength ({ glass } or { n }) */
+function filmSubOf(d, design) {
+  const sub = d && d.spec && d.spec.sub;
+  if (!sub || typeof sub !== 'object') return null;
+  if (sub.glass) { const n = refIndex({ glass: String(sub.glass) }, design); return glassKey(String(sub.glass)) && isFinite(n) ? { name: String(sub.glass), n } : null; }
+  return isFinite(+sub.n) && +sub.n >= 1 ? { name: '', n: +sub.n } : null;
+}
+/* a .jekfilm's content as a face's coating, its design substrate kept */
+function filmFaceCoat(d, src) {
+  const c = coatFromFilm(d, src), sub = filmSubOf(d, c.design);
+  return normCoat(sub ? { ...c, sub } : c);
+}
 /* a cloud coating as a face's coating: its stack fetched, linked to it */
 async function filmCoat(id) {
   const b = await api('/v1/benches/' + id);
   if (b.tool !== 'jekfilm') throw new Error('“' + b.name + '” is not a JEKfilm coating');
   const d = JSON.parse(b.content);
-  return normCoat(coatFromFilm(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version }));
+  return filmFaceCoat(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version });
 }
 /* a face takes a coating from the cloud (the list's ◆ entries): fetched, then put on, as one step of Undo */
 async function useFilmOn(holder, id) {
   try {
     const coat = await filmCoat(id);
     checkpoint(); holder.coat = coat; changed(true);
-    track('designer', 'film.use');
+    track('designer', 'film-use');
     toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
   } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
 }
@@ -54145,8 +54266,8 @@ function filmFileOn(holder) {
       let d = null;
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
       if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
-      checkpoint(); holder.coat = normCoat(coatFromFilm(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d))); changed(true);
-      track('import', 'jekfilm');
+      checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d)); changed(true);
+      track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
     };
     rd.readAsText(f);
@@ -54191,8 +54312,8 @@ function filmUpdates() {
     h('p', null, 'These coatings were saved again in JEKfilm since they were put on this bench. The faces keep their copies until you update them.'),
     h('ul', null, ...stale.map(s => h('li', null, h('b', null, s.name), ': version ' + s.to + ' (this bench has version ' + s.from + ', on ' + faces(s.holders.length) + ')'))),
     h('div', { class: 'rt-actions' },
-      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film.keep'); } }, 'Keep these copies'),
-      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film.update'); updateFilms(stale); } }, 'Update the faces')));
+      h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film-keep'); } }, 'Keep these copies'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'filmUpdateGo', onclick: () => { close(); track('designer', 'film-update'); updateFilms(stale); } }, 'Update the faces')));
   dlg.showModal();
   return stale;
 }
@@ -54200,7 +54321,7 @@ function filmUpdates() {
    starting from the face's glass, the bench's wavelength and the face's stack, and offering the bench's folder to save
    it in. Saved to the cloud there, the coating comes back onto the face (wireFilmCoats hears it, by the face's token). */
 function designInFilm(from) {
-  track('designer', 'coating');
+  track('designer', 'film-from-jekray');
   const el = from && from.el, holder = from && from.holder;
   const nm = benchNms().find(v => v >= 200 && v <= 20000) || 550, coat = holder && holder.coat;
   let hash = 'new';
@@ -57706,7 +57827,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

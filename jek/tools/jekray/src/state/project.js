@@ -8,6 +8,7 @@ import { FC } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
 import { ELEC } from '../engines/elec.js';
 import { modName } from '../engines/mods.js';
+import { METAL_NK } from '../core/metals.js';
 
 /* ==========================================================================
    Project state
@@ -79,10 +80,15 @@ export function normCoat(c) {
     if (c.label) out.label = String(c.label).slice(0, 120);       // a JEKfilm coating's whole name (JEKfilm allows 120)
     // a JEKfilm coating in the cloud this stack came from, and its version (io/film-coats.js): the stack is a copy, kept here
     if (c.src && typeof c.src === 'object' && /^[A-Za-z0-9_-]{1,40}$/.test(String(c.src.id))) out.src = { id: String(c.src.id), v: Math.max(1, Math.round(num(c.src.v, 1))) };
+    // the substrate the JEKfilm coating was designed on (its name and index at the design wavelength): the face's note
+    // says so when this face's glass differs (ui/panels.js filmNote)
+    if (c.sub && typeof c.sub === 'object' && isFinite(+c.sub.n) && +c.sub.n >= 1) out.sub = { name: String(c.sub.name || '').slice(0, 40), n: clamp(+c.sub.n, 1, 10) };
     // up to 200 layers, as JEKfilm allows (an edge filter or a broadband HR can need over a hundred)
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
       d: Math.max(0, num(L && L.d, 100)),
+      // a metal layer (core/metals.js): absorbing, its index from the metal's table at each wavelength
+      ...(L && METAL_NK[L.metal] ? { metal: L.metal } : {}),
     }));
   }
   return out;

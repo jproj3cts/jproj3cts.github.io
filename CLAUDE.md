@@ -187,7 +187,8 @@ through `core/hooks.js`.
   to both tools, so rebuild and test both (`cd jek/tools/jekion && node build.mjs && node test/run.mjs`). A shared module
   reaches the page only through `core/hooks.js` (JEKion installs its own entries: `ionChanged`, `apiBase`, `usageTier`…).
   Top-level names must be unique across both tools' modules in JEKion's build. Accounts, usage counts and the data
-  writers are JEKray's; JEKion's usage tokens are prefixed `ion-`.
+  writers are JEKray's; JEKion's usage tokens are prefixed `ion-`, JEKfilm's (and JEKray's about JEKfilm) `film-`: the usage
+  report's "Visits by app" (`byApp` in `jek-api/scripts/usage.mjs`) tells the apps apart by that prefix.
 - My benches is JEKsuite (`jek/tools/jeksuite.html`): every app's My benches opens it in the tab named `jeksuite`
   (JEKray `openSpace` in `io/cloud.js`, JEKion `openCloudList`), and it opens a bench in its app's named tab at
   `#cloud=<id>[@v][:lens|rf|coat]`, or `#new[=lens|rf|coat]` (JEKray `startNewBench` in `ui/tours.js`, JEKion

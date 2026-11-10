@@ -24,6 +24,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-plot .grid line { stroke: var(--jek-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .film-plot .axes text { font: 10px var(--jek-mono); fill: var(--jek-ink-soft); }
 .film-plot .axes text.title { font-family: var(--jek-sans); font-size: 11px; }
+.film-plot .grid line.mark { stroke: var(--jek-line-2); stroke-dasharray: 3 3; }
 .film-plot .frame { fill: none; stroke: var(--jek-line-2); vector-effect: non-scaling-stroke; }
 .film-plot .line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .film-plot .line.s0, .film-key .s0 i { stroke: var(--jek-cyan); background: var(--jek-cyan); }
@@ -129,3 +130,33 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-title a { color: inherit; text-decoration: none; }
 .film-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
 .film-shareurl { width: 100%; box-sizing: border-box; font: 0.85rem var(--jek-mono); padding: 0.45rem; margin: 0.3rem 0 0.4rem; }
+.film-exgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.6rem 0; }
+.film-ex { display: flex; flex-direction: column; gap: 0.2rem; text-align: left; padding: 0.6rem 0.75rem; font: inherit; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: 2px; cursor: pointer; }
+.film-ex:hover, .film-ex:focus-visible { border-color: var(--jek-orange); outline: none; }
+.film-ex small { font-size: 0.78rem; color: var(--jek-ink-soft); line-height: 1.4; }
+@media (max-width: 560px) { .film-exgrid { grid-template-columns: 1fr; } }
+.film-fmts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0; }
+.film-fmts .rt-btn[aria-checked="true"] { border-color: var(--jek-ink); box-shadow: inset 0 0 0 1px var(--jek-ink); }
+
+/* the tabs */
+.film-tabs { display: flex; gap: 0.2rem; padding: 0 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
+.film-tabs [role=tab] { font: inherit; font-size: 0.88rem; font-weight: 600; padding: 0.55rem 0.9rem 0.5rem; color: var(--jek-ink-soft); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.film-tabs [role=tab]:hover { color: var(--jek-ink); }
+.film-tabs [role=tab][aria-selected="true"] { color: var(--jek-ink); border-bottom-color: var(--jek-orange); }
+/* the tolerance card's line, tight; its row labels in the plain face */
+.film-tolline { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
+.film-ws .film-tolline .rt-lnum { width: 3.6rem; text-align: center; border-color: var(--jek-line-2); }
+.film-ws .film-results tbody th.lbl { font-family: var(--jek-sans); font-weight: 600; }
+/* Make it */
+.film-mk td { text-align: left; }
+.film-mkin { font: inherit; font-size: 0.84rem; padding: 0.22rem 0.35rem; width: 100%; max-width: 13rem; box-sizing: border-box; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
+.film-mkin.num { width: 5.5rem; font-family: var(--jek-mono); text-align: right; }
+.film-limits td .film-mkin.num { width: 4.8rem; }
+.film-op { margin-right: 0.35rem; color: var(--jek-ink-soft); }
+.film-band { font-size: 0.8rem; color: var(--jek-ink-soft); text-align: left !important; }
+.film-met { font-size: 0.78rem; color: var(--rt-good-ink); text-align: left !important; }
+.film-miss .film-met { color: var(--jek-red); font-weight: 600; }
+.film-chk { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
+.film-ws .film-mk th { width: 11rem; }
+.film-ws .film-mk td.unit { width: auto; }
+.film-note { margin: 0.5rem 0; padding: 0.6rem 0.75rem; font: 0.8rem/1.55 var(--jek-mono); white-space: pre-wrap; color: var(--jek-ink); background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 2px; }

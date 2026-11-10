@@ -33,6 +33,7 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 - **Double-click** a feature to edit it. Its dialog opens and the model is shown as it was before the feature, with the feature's result drawn over it.
 - **Right-click** a feature, or use its **⋯**, to rename, suppress, roll to, move up or down, hide (a sketch or plane), or delete it.
 - **Click** a sketch, or a feature made from one, and the sketch's dimensions show on the model. Double-click a dimension there, type a new value and press Enter: the part follows, and the sketch stays closed. **View › Sketch dimensions on the model** shows them for every visible sketch.
+- **Click** any feature and the faces it made are tinted orange in the view. Click it again, click on nothing or press Esc to clear it.
 - **The eye** on a row shows or hides what the row is: the origin, a plane or a sketch. On a feature that made parts it shows or hides those parts. On a feature that changes a part, such as a fillet or a cut, it suppresses the feature, so you see the part without it.
 - **Drag** a feature to reorder it. A feature cannot move above anything it uses, such as its sketch or the part it changes.
 - **Drag the rollback bar** to see the part as it was at that point. New features go in at the bar.

@@ -426,3 +426,30 @@ test('Delete part: a feature that takes whole parts away; suppressed, they are b
   delete del.suppressed; del.targets = ['nothing'];
   assert.match(K.regen(doc).features[4].error, /not there/);
 });
+
+test('extrude from a face of the model: the top of the block pushed out, a side pushed out, the top cut in; a round face refused', async () => {
+  const K = await kernel(), doc = block();
+  let out = await K.regen(doc);
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0], side = K.refs([faceNear(out, [40, 10, 5], K)])[0];
+  // the top, 5 further up: 40 × 20 × 15, still one part
+  doc.features.push(newFeature(doc, 'extrude', { faces: [top], depth: '5' }));
+  out = await K.regen(doc); okAll(out);
+  assert.equal(out.parts.length, 1); near(vol(out), 12000, 1e-6, 'top out');
+  // a side, 4 out along its own way: x from 0 to 44
+  doc.features.push(newFeature(doc, 'extrude', { faces: [side], depth: '4' }));
+  out = await K.regen(doc); okAll(out);
+  near(vol(out), 12000 + 4 * 20 * 15, 1e-6, 'side out (the side is 15 high by now)'); near(out.parts[0].bbox[1][0], 44, 1e-6, 'x');
+  // Remove goes into the part: the new top, 3 down, over all of it
+  const top2 = K.refs([faceNear(out, [10, 10, 15], K)])[0];
+  doc.features.push(newFeature(doc, 'extrude', { faces: [top2], op: 'remove', depth: '3' }));
+  out = await K.regen(doc); okAll(out);
+  near(out.parts[0].bbox[1][2], 12, 1e-6, 'cut top');
+  // a cylinder's round face cannot be pushed
+  const d2 = newDoc(), c = circleSketch(d2, [0, 0], 10);
+  d2.features.push(c, newFeature(d2, 'extrude', { sketch: c.id, regions: [[0, 0]], depth: '10' }));
+  let o2 = await K.regen(d2);
+  const round = K.refs([faceNear(o2, [10, 0, 5], K)])[0];
+  d2.features.push(newFeature(d2, 'extrude', { faces: [round], depth: '5' }));
+  o2 = await K.regen(d2);
+  assert.match(errorsOf(o2).join(' '), /flat face/);
+});

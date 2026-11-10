@@ -3582,7 +3582,7 @@ const PART_COLOURS = ['#9aa7b4', '#e0892e', '#5b8fd1', '#6aa56a', '#c75a5a', '#b
 const FEATURE_KINDS = {
   sketch: { label: 'Sketch', defaults: { plane: { std: 'top' }, ents: [], cons: [], dims: [] } },
   plane: { label: 'Plane', defaults: { ref: { std: 'top' }, offset: '10 mm', flip: false } },
-  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
+  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
   revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
   sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], path: null, op: 'new', targets: [] } },
   loft: { label: 'Loft', defaults: { sections: [], op: 'new', ruled: false, targets: [] } },
@@ -4270,15 +4270,19 @@ function makeKernel(oc) {
       return { frame: S.frames[f.id] };
     },
     extrude(S, f, V) {
-      const sk = sketchOf(S, f.sketch);
+      // flat faces of the model pushed as they are, each along its own way out; or a sketch's regions
+      const onFaces = !!(f.faces && f.faces.length), frames = new Map();
+      const bases = onFaces ? f.faces.map(ref => { const hit = findFace(S, ref); if (!hit) throw new Error('a face to extrude is not there any more'); const face = hit.b.faces[hit.i]; let F; try { F = faceFrame(face); } catch (err) { throw new Error('only a flat face can be extruded: sketch on a plane for a curved one'); } frames.set(face, F); return face; }) : null;
+      const sk = onFaces ? { frame: frames.get(bases[0]), ents: [] } : sketchOf(S, f.sketch);
       // a depth below 0 goes the other way (as Opposite direction does for the ends that have no depth)
       const L = bigLength(S, sk.frame), dv = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len'), d1 = Math.abs(dv);
-      const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
+      const way = (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1), n0 = v3.mul(sk.frame.n, way);
       if (!(d1 > 1e-9)) throw new Error('the depth cannot be 0');
       const range1 = f.end === 'symmetric' ? [-d1 / 2, d1 / 2] : [0, d1];
       const piecesOf = faces => {
         const pieces = [];
         for (const face of faces) {
+          const n = frames.has(face) ? v3.mul(frames.get(face).n, way) : n0;
           let b = prism(sk, face, n, range1[0], range1[1], f.id, 'start', 'end');
           if (f.end === 'upto') b = uptoTrim(S, b, f.upto, n, f.id);
           pieces.push(b);
@@ -4293,10 +4297,10 @@ function makeKernel(oc) {
         return pieces;
       };
       // (a cut takes in the holes of the model that lie in what it takes, where they are empty already)
-      const faces = pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
+      const faces = onFaces ? bases : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
       let tool = fuseAll(piecesOf(faces), f.id, f.id);
       const draft = fieldValue(f, 'draft', V, 'ang');
-      if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n, draft, f.id);
+      if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n0, draft, f.id);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
       const r = applyTool(S, f.id, tool, f.op, f.targets);
       S.parts = r.parts;
@@ -5431,6 +5435,7 @@ async function initView() {
   new ResizeObserver(resize).observe(cv.parentElement);
   on('model', out => { setParts(out); });
   on('sel', () => { highlight(); });
+  on('picked', () => { highlight(); });
   on('theme', () => { V.dirty = true; highlight(); });
   loop();
 }
@@ -5548,6 +5553,8 @@ function setSection(s) {
   V.dirty = true;
 }
 /* the colours of faces and edges: the part's own, the selection and the hover over it */
+/* the feature that made a face, from the face's name (a pattern's or a mirror's copy of it: the pattern or the mirror) */
+const featureOfFace = nm => String(nm || '').split('~').pop().split('.')[0].replace(/'+$/, '');
 const faceRange = (p, i) => [p.faceGroups[2 * i], p.faceGroups[2 * i + 1]];
 function highlight() {
   if (!V.ready) return;
@@ -5559,6 +5566,8 @@ function highlight() {
     const b = whole ? new T.Color(C.sel) : hovWhole ? base.clone().lerp(new T.Color(C.hov), 0.5) : base;
     for (let v = 0; v < arr.length; v += 3) { arr[v] = b.r; arr[v + 1] = b.g; arr[v + 2] = b.b; }
     const sc = new T.Color(C.sel), hc = base.clone().lerp(new T.Color(C.hov), 0.55);
+    // the feature picked in the list: the faces it made (their names begin with its id), tinted
+    if (app.picked && p.faceNames) { const pc = base.clone().lerp(new T.Color(C.sel), 0.6); p.faceNames.forEach((nm, i) => { if (featureOfFace(nm) === app.picked) paint(pc, ...faceRange(p, i)); }); }
     if (app.hover && app.hover.part === id && app.hover.kind === 'face') paint(hc, ...faceRange(p, app.hover.index));
     for (const s of app.sel) if (s.part === id && s.kind === 'face') paint(sc, ...faceRange(p, s.index));
     col.needsUpdate = true;
@@ -7215,6 +7224,8 @@ function openFeature(type, opts) {
   if (app.editing) closeDialog(false);
   const at = appliedCount(app.doc), f = newFeature(app.doc, type);
   const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');     // before prefill empties the selection
+  // (faces chosen before Extrude is pressed, with no sketch region among them: those faces are what it pushes)
+  const faceSel = type === 'extrude' && !app.sel.some(s => s.kind === 'region') ? app.sel.filter(s => s.kind === 'face') : [];
   prefill(f, at);
   if (type === 'sketch') {
     if (planeSel) { refFor(planeSel).then(r => { if (!r) { toast('Choose a plane or a flat face to sketch on', true); return; } f.plane = r; startSketch(f, at, true); }); return; }
@@ -7227,6 +7238,11 @@ function openFeature(type, opts) {
   const auto = !!f.autoRegions; delete f.autoRegions;
   app.editing = { f, at, isNew: true, field: null, auto };
   showDialog();
+  if (faceSel.length) Promise.all(faceSel.map(refFor)).then(rs => {
+    rs = rs.filter(r => r && (!r.type || r.type === 'plane'));
+    if (!rs.length || !app.editing || app.editing.f !== f) return;
+    f.sketch = null; f.regions = []; f.faces = rs; app.editing.auto = false; showDialog(); regenSoon(60);
+  });
   const first = (FEATURE_FORMS[type] || []).find(fd => fd[2] === 'sel' && (!fd[3].show || fd[3].show(f)));
   // (an extrude's or a revolve's regions stay ready to be clicked in the view, though they start chosen: one click takes
   // a region out or puts one in)
@@ -7305,8 +7321,19 @@ async function fieldPick(p) {
   if (!E || !E.field || !p) return false;
   const f = E.f, k = E.field.key, kind = E.field.kind;
   if (kind === 'regions') {
+    if (p.kind === 'face' && f.type === 'extrude') {
+      // a face of the model, pushed as it is: flat ones only; it takes the place of a sketch's regions
+      const r = await refFor(p);
+      if (!r) return true;
+      if (r.type && r.type !== 'plane') { toast('Only a flat face can be extruded', true); return true; }
+      E.auto = false; f.sketch = null; f.regions = [];
+      const i = f.faces.findIndex(x => Math.hypot(...x.pt.map((v, j) => v - r.pt[j])) < 1e-6);
+      if (i >= 0) f.faces.splice(i, 1); else f.faces.push(r);
+      showDialog(); regenSoon(120);
+      return true;
+    }
     if (p.kind !== 'region') return false;
-    E.auto = false;
+    E.auto = false; if (f.faces) f.faces = [];
     if (f.sketch !== p.sketch) { f.sketch = p.sketch; f.regions = [p.pt]; }
     else { const R = regionsCached(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
     if (f.axis && typeof f.axis === 'object' && f.axis.sketch && f.axis.sketch !== f.sketch) f.axis = null;
@@ -7377,7 +7404,8 @@ function exprField(f, key, label, unit) {
 function selField(E, fd) {
   const [key, label] = fd, f = E.f, kind = pickOf(fd, f), v = f[key], words = SEL_WORDS[kind] || ['item', 'items'];
   let n = Array.isArray(v) ? v.length : v ? 1 : 0, what;
-  if (kind === 'regions') { n = f.regions.length; what = n ? n + ' ' + (n === 1 ? 'region' : 'regions') + ' of ' + sketchName(f.sketch) : ''; }
+  if (kind === 'regions' && f.faces && f.faces.length) { n = f.faces.length; what = n + ' ' + (n === 1 ? 'face' : 'faces') + ' of the model'; }
+  else if (kind === 'regions') { n = f.regions.length; what = n ? n + ' ' + (n === 1 ? 'region' : 'regions') + ' of ' + sketchName(f.sketch) : ''; }
   else if (kind === 'sketch') what = v ? sketchName(v) : '';
   else if (kind === 'plane') what = v ? (v.std ? STD_PLANES[v.std].name + ' plane' : v.feature ? sketchName(v.feature) : 'a face') : '';
   else if (kind === 'sketchLine') what = v ? 'a line of ' + sketchName(f.sketch) : '';
@@ -7388,8 +7416,8 @@ function selField(E, fd) {
   const on = E.field && E.field.key === key;
   const box = h('div', { class: 'cad-selbox' + (on ? ' on' : '') + (n ? '' : ' empty'), role: 'button', tabindex: '0', 'data-key': key, id: 'fs-' + key, 'aria-pressed': String(on),
     title: on ? 'Click ' + words[1] + ' in the view' + (kind === 'features' ? ' or the feature list' : '') : 'Click here, then ' + words[1] + ' in the view',
-    onclick: () => activate(key) }, (what && on && kind === 'regions' ? what + ' · click a region in the view to add it or take it out' : what) || (on ? 'Click ' + words[1] + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
-  const clear = n ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: e => { e.stopPropagation(); f[key] = Array.isArray(v) ? [] : null; if (key === 'regions') f.sketch = null; showDialog(); regenSoon(0); } }, '×') : null;
+    onclick: () => activate(key) }, (what && on && kind === 'regions' ? what + (f.type === 'extrude' ? ' · click a region or a flat face in the view to add it or take it out' : ' · click a region in the view to add it or take it out') : what) || (on ? 'Click ' + (kind === 'regions' && f.type === 'extrude' ? 'regions of a sketch or flat faces of the model' : words[1]) + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
+  const clear = n ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: e => { e.stopPropagation(); f[key] = Array.isArray(v) ? [] : null; if (key === 'regions') { f.sketch = null; if (f.faces) f.faces = []; } showDialog(); regenSoon(0); } }, '×') : null;
   return h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' }, box, clear));
 }
 const sketchName = id => { const f = app.doc.features.find(x => x.id === id) || (app.editing && app.editing.f.id === id ? app.editing.f : null); return f ? f.name : '—'; };
@@ -7692,6 +7720,8 @@ const MODEL_KINDS = { edges: 'any', faces: 'face', face: 'face', edge: 'edge', p
 /* what is under the pointer, for what is wanted now */
 function pickHere(sx, sy) {
   const want = fieldWants();
+  // (an extrude takes a sketch's region or, where there is none under the pointer, a face of the model)
+  if (want === 'regions' && app.editing && app.editing.f.type === 'extrude') return overlayPick(sx, sy, 'regions') || pickAt(sx, sy, 'face');
   if (want === 'regions' || want === 'sections') return overlayPick(sx, sy, 'regions');
   if (want === 'sketchLine') return overlayPick(sx, sy, 'sketchLine');
   if (want === 'sketch') return overlayPick(sx, sy, 'sketch') || overlayPick(sx, sy, 'regions');
@@ -7767,6 +7797,8 @@ function wirePointer() {
     // a plane lies behind most of the view: with other things chosen, a click that lands only on a plane is a click on
     // nothing, and empties the selection (a plane joins a selection from its row in the list)
     if (p && p.kind === 'plane' && app.sel.some(x => x.kind !== 'plane')) p = null;
+    // (a click on nothing also lets go of the feature picked in the list, unless it is on one of its dimensions)
+    if (!p && !d.add && app.picked && !modelDimAt(sx, sy)) { app.picked = null; emit('picked'); }
     selectPick(p, d.add);
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
@@ -7835,6 +7867,8 @@ const NEWS = [
     '<b>Bring shapes in</b>: where a part cuts the sketch’s plane (Intersection), and a DXF drawing’s lines, circles, arcs and polylines.',
     'A new constraint, <b>Normal</b>: a line square to a circle or an arc.',
     'The view cube has two curved arrows above it that roll the view 15° either way.',
+    'Extrude takes flat faces of the model directly. Click a face with the dialog open, or select faces and then click Extrude.',
+    'Clicking a feature in the list tints the faces it made in the view.',
     'Fixed: a feature’s dialog brought every hidden sketch back into the view. Only the sketch the feature uses shows now.',
     'A new Extrude no longer starts with the sketch and regions of the extrude before it: it takes a sketch nothing has used yet, or waits for you to pick.',
   ] },

@@ -11,6 +11,8 @@ export const NEWS = [
     '<b>Bring shapes in</b>: where a part cuts the sketch’s plane (Intersection), and a DXF drawing’s lines, circles, arcs and polylines.',
     'A new constraint, <b>Normal</b>: a line square to a circle or an arc.',
     'The view cube has two curved arrows above it that roll the view 15° either way.',
+    'Extrude takes flat faces of the model directly. Click a face with the dialog open, or select faces and then click Extrude.',
+    'Clicking a feature in the list tints the faces it made in the view.',
     'Fixed: a feature’s dialog brought every hidden sketch back into the view. Only the sketch the feature uses shows now.',
     'A new Extrude no longer starts with the sketch and regions of the extrude before it: it takes a sketch nothing has used yet, or waits for you to pick.',
   ] },

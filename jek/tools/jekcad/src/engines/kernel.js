@@ -550,15 +550,19 @@ export function makeKernel(oc) {
       return { frame: S.frames[f.id] };
     },
     extrude(S, f, V) {
-      const sk = sketchOf(S, f.sketch);
+      // flat faces of the model pushed as they are, each along its own way out; or a sketch's regions
+      const onFaces = !!(f.faces && f.faces.length), frames = new Map();
+      const bases = onFaces ? f.faces.map(ref => { const hit = findFace(S, ref); if (!hit) throw new Error('a face to extrude is not there any more'); const face = hit.b.faces[hit.i]; let F; try { F = faceFrame(face); } catch (err) { throw new Error('only a flat face can be extruded: sketch on a plane for a curved one'); } frames.set(face, F); return face; }) : null;
+      const sk = onFaces ? { frame: frames.get(bases[0]), ents: [] } : sketchOf(S, f.sketch);
       // a depth below 0 goes the other way (as Opposite direction does for the ends that have no depth)
       const L = bigLength(S, sk.frame), dv = f.end === 'through' || f.end === 'upto' ? L : fieldValue(f, 'depth', V, 'len'), d1 = Math.abs(dv);
-      const n = v3.mul(sk.frame.n, (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1));
+      const way = (f.flip ? -1 : 1) * (dv < 0 && f.end !== 'symmetric' ? -1 : 1) * (f.op === 'remove' ? -1 : 1), n0 = v3.mul(sk.frame.n, way);
       if (!(d1 > 1e-9)) throw new Error('the depth cannot be 0');
       const range1 = f.end === 'symmetric' ? [-d1 / 2, d1 / 2] : [0, d1];
       const piecesOf = faces => {
         const pieces = [];
         for (const face of faces) {
+          const n = frames.has(face) ? v3.mul(frames.get(face).n, way) : n0;
           let b = prism(sk, face, n, range1[0], range1[1], f.id, 'start', 'end');
           if (f.end === 'upto') b = uptoTrim(S, b, f.upto, n, f.id);
           pieces.push(b);
@@ -573,10 +577,10 @@ export function makeKernel(oc) {
         return pieces;
       };
       // (a cut takes in the holes of the model that lie in what it takes, where they are empty already)
-      const faces = pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
+      const faces = onFaces ? bases : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
       let tool = fuseAll(piecesOf(faces), f.id, f.id);
       const draft = fieldValue(f, 'draft', V, 'ang');
-      if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n, draft, f.id);
+      if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n0, draft, f.id);
       S.tools[f.id] = { tool, op: f.op, targets: f.targets };
       const r = applyTool(S, f.id, tool, f.op, f.targets);
       S.parts = r.parts;

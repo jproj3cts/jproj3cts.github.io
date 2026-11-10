@@ -88,6 +88,7 @@ export async function initView() {
   new ResizeObserver(resize).observe(cv.parentElement);
   on('model', out => { setParts(out); });
   on('sel', () => { highlight(); });
+  on('picked', () => { highlight(); });
   on('theme', () => { V.dirty = true; highlight(); });
   loop();
 }
@@ -205,6 +206,8 @@ export function setSection(s) {
   V.dirty = true;
 }
 /* the colours of faces and edges: the part's own, the selection and the hover over it */
+/* the feature that made a face, from the face's name (a pattern's or a mirror's copy of it: the pattern or the mirror) */
+export const featureOfFace = nm => String(nm || '').split('~').pop().split('.')[0].replace(/'+$/, '');
 const faceRange = (p, i) => [p.faceGroups[2 * i], p.faceGroups[2 * i + 1]];
 export function highlight() {
   if (!V.ready) return;
@@ -216,6 +219,8 @@ export function highlight() {
     const b = whole ? new T.Color(C.sel) : hovWhole ? base.clone().lerp(new T.Color(C.hov), 0.5) : base;
     for (let v = 0; v < arr.length; v += 3) { arr[v] = b.r; arr[v + 1] = b.g; arr[v + 2] = b.b; }
     const sc = new T.Color(C.sel), hc = base.clone().lerp(new T.Color(C.hov), 0.55);
+    // the feature picked in the list: the faces it made (their names begin with its id), tinted
+    if (app.picked && p.faceNames) { const pc = base.clone().lerp(new T.Color(C.sel), 0.6); p.faceNames.forEach((nm, i) => { if (featureOfFace(nm) === app.picked) paint(pc, ...faceRange(p, i)); }); }
     if (app.hover && app.hover.part === id && app.hover.kind === 'face') paint(hc, ...faceRange(p, app.hover.index));
     for (const s of app.sel) if (s.part === id && s.kind === 'face') paint(sc, ...faceRange(p, s.index));
     col.needsUpdate = true;

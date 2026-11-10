@@ -3,6 +3,8 @@
    sketch edited and the model following; the rollback bar; saving and opening the .jekcad; STEP and STL out; the
    view cube, the display modes and the section view. check(pw, base, shots) returns [{ name, ok, why }]. */
 import { readFileSync } from 'node:fs';
+import { newDoc, newFeature } from '../src/core/doc.js';
+import { rectSketch } from './node/helpers.mjs';
 
 const near = (a, b, t) => Math.abs(a - b) <= t;
 export async function check(pw, base, shots) {
@@ -516,6 +518,43 @@ export async function check(pw, base, shots) {
       await q.close();
       return res;
     };
+    // Extrude straight from a face of the model: a face clicked with the dialog open, and a face chosen beforehand
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const d = newDoc(), sk = rectSketch(d, 40, 20);
+      d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d));
+      const done = () => q.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
+      const volq = () => q.evaluate(() => window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0));
+      const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      await done(); await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth');
+      const empty = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return !f.sketch && !f.faces.length; });
+      const t1 = await at([20, 10, 10]); await q.mouse.move(t1[0], t1[1], { steps: 3 }); await q.mouse.click(t1[0], t1[1]); await q.waitForTimeout(300);
+      const picked = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { n: f.faces.length, sketch: f.sketch, text: document.querySelector('.cad-dialog, #featureDialog, body').textContent.includes('1 face of the model') }; });
+      await q.fill('#fd-depth', '5'); await q.waitForTimeout(300); await q.click('#featureOk'); await done();
+      await q.waitForFunction(() => Math.abs(window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0) - 12000) < 1e-3, null, { timeout: 8000 }).catch(() => {});
+      const v1 = await volq(), n1 = await q.evaluate(() => window.JEKcad.app.result.parts.length);
+      // the side at x = 40 chosen first, then Extrude: it starts with that face
+      const t2 = await at([40, 10, 7]); await q.mouse.move(t2[0], t2[1], { steps: 3 }); await q.mouse.click(t2[0], t2[1]); await q.waitForTimeout(200);
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth');
+      await q.waitForFunction(() => window.JEKcad.app.editing && window.JEKcad.app.editing.f.faces.length === 1, null, { timeout: 5000 }).catch(() => {});
+      await q.fill('#fd-depth', '4'); await q.waitForTimeout(300); await q.click('#featureOk'); await done();
+      await q.waitForFunction(() => Math.abs(window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0) - 13200) < 1e-3, null, { timeout: 8000 }).catch(() => {});
+      const v2 = await volq();
+      // a feature clicked in the list tints the faces it made (the second extrude: the end at x = 44 and its four sides)
+      const tinted = () => q.evaluate(() => { const o = [...window.JEKcad.view.parts.values()][0], c = o.userData.mesh.geometry.getAttribute('color').array, p0 = o.userData.p, b0 = o.userData.base; let n = 0; for (let i = 0; i < p0.faceGroups.length / 2; i++) { const v = p0.idx[p0.faceGroups[2 * i]] * 3; if (Math.abs(c[v] - b0.r) + Math.abs(c[v + 1] - b0.g) + Math.abs(c[v + 2] - b0.b) > 0.02) n++; } return n; });
+      const t0 = await tinted();
+      await q.locator('.cad-frow-f').nth(2).click(); await q.waitForTimeout(200);
+      const tA = await tinted();
+      await q.keyboard.press('Escape'); await q.waitForTimeout(150);
+      const tB = await tinted();
+      await q.close();
+      ok('Extrude from a face of the model: the top clicked in the dialog goes up 5; a side chosen first goes out 4', empty && picked.n === 1 && !picked.sketch && picked.text && near(v1, 12000, 1e-3) && n1 === 1 && near(v2, 13200, 1e-3), JSON.stringify([empty, picked, v1, n1, v2]));
+      ok('A feature clicked in the list tints the faces it made in the view; Esc clears it', t0 === 0 && tA >= 1 && tA <= 5 && tB === 0, JSON.stringify([t0, tA, tB]));
+    }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
     {
       const q = await b.newPage({ viewport: { width: 1200, height: 800 } });

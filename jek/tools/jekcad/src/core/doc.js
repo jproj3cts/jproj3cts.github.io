@@ -29,7 +29,7 @@ export const PART_COLOURS = ['#9aa7b4', '#e0892e', '#5b8fd1', '#6aa56a', '#c75a5
 export const FEATURE_KINDS = {
   sketch: { label: 'Sketch', defaults: { plane: { std: 'top' }, ents: [], cons: [], dims: [] } },
   plane: { label: 'Plane', defaults: { ref: { std: 'top' }, offset: '10 mm', flip: false } },
-  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
+  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
   revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
   sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], path: null, op: 'new', targets: [] } },
   loft: { label: 'Loft', defaults: { sections: [], op: 'new', ruled: false, targets: [] } },

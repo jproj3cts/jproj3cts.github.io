@@ -9,6 +9,7 @@ import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, 
 import { linePlotSvg } from './plot.js';
 import { filmMaterials, filmNeedle } from '../core/film-opt.js';
 import { filmTolerance } from '../core/film-tol.js';
+import { filmYield, surfaceT } from '../core/film-make.js';
 import { toast } from './bar.js';
 import { stackField } from '../core/film-field.js';
 
@@ -72,7 +73,7 @@ export function render() {
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
   // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
-  const main = filmTab === 'tolerance' ? [tolCard()] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec), fieldCard(spec)];
+  const main = filmTab === 'tolerance' ? [tolCard(), fieldCard(spec)] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
   body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
   for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;
@@ -125,27 +126,63 @@ export function filmCurves(f) {
   const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
   return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
 }
+/* what the plots show: reflectance R, transmittance T into the substrate, or the share absorbed A = 1 − R − T (kept in
+   this browser, per viewer, not in the coating) */
+const FILM_Q_KEY = 'jek-film-q', FILM_QS = { R: 'Reflectance', T: 'Transmittance', A: 'Absorbed' };
+export let filmQ = (() => { try { const q = localStorage.getItem(FILM_Q_KEY); return FILM_QS[q] ? q : 'R'; } catch (err) { return 'R'; } })();
+export function setFilmQ(q) {
+  filmQ = FILM_QS[q] ? q : 'R';
+  try { localStorage.setItem(FILM_Q_KEY, filmQ); } catch (err) { /* this visit only */ }
+  render();
+}
+/* the curves as the quantity shown: R as drawn, T worked out at the same points, A what is left */
+export function filmCurvesQ(f, q) {
+  const C = filmCurves(f), spec = C.spec;
+  if (q === 'R' || !q) return { ...C, q: 'R' };
+  const deg = d => Math.cos(d * Math.PI / 180), a0 = spec.theta0 || 0;
+  const tBand = d => C.nms.map(nm => surfaceT(f.layers, spec, deg(d), nm));
+  const T0 = tBand(a0), Tt = C.Rt ? tBand(spec.theta) : null;
+  const Ts = C.A.degs.map(d => surfaceT(f.layers, spec, deg(d), spec.design, 's')), Tp = C.A.degs.map(d => surfaceT(f.layers, spec, deg(d), spec.design, 'p'));
+  if (q === 'T') return { ...C, q, R0: T0, Rt: Tt, want: C.want.map(v => 1 - v), A: { degs: C.A.degs, s: Ts, p: Tp } };
+  // A is what is left: rounding leaves ~1e-16 for a lossless stack, which is nothing
+  const left = (R, T) => R.map((r, i) => { const a = 1 - r - T[i]; return a < 1e-9 ? 0 : a; });
+  return { ...C, q, R0: left(C.R0, T0), Rt: Tt ? left(C.Rt, Tt) : null, want: null, A: { degs: C.A.degs, s: left(C.A.s, Ts), p: left(C.A.p, Tp) } };
+}
 function plotsCard() {
-  const C = filmCurves(film), spec = C.spec, a0 = spec.theta0 || 0, deg = d => dsFmt(d, 3) + '°';
-  const series = [{ label: 'R, ' + deg(a0), cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
-  if (C.Rt) series.push({ label: 'R, ' + deg(spec.theta), cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
-  series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
-  const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(s => s.ys))));
+  const q = filmQ, C = filmCurvesQ(film, q), spec = C.spec, a0 = spec.theta0 || 0, deg = d => dsFmt(d, 3) + '°', Q = FILM_QS[q];
+  const series = [{ label: q + ', ' + deg(a0), cls: 's0', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  if (C.Rt) series.push({ label: q + ', ' + deg(spec.theta), cls: 's1', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
+  if (C.want) series.push({ label: 'target', cls: 'tgt', dash: true, xs: C.nms, ys: C.want.map(v => 100 * v) });
+  const all = series.flatMap(s => s.ys), lo = Math.min(...all);
+  // R and A from nothing up; T down from 100 %, to a little below its lowest
+  const yr = q === 'T' ? [Math.max(0, Math.floor(lo - Math.max(0.5, 0.15 * (100 - lo)))), 100] : [0, Math.min(100, Math.max(0.5, 1.15 * Math.max(...all)))];
   const wrap = h('div', { class: 'rt-lpair' }), a = h('div'), b = h('div'); wrap.append(a, b);
-  linePlotSvg(a, { id: 'band', label: 'Reflectance against wavelength', xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%', yr: [0, top], series });
-  linePlotSvg(b, { id: 'angle', label: 'Reflectance against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: 'R (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, 100],
-    series: [{ label: 'Rs', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
-  // under the wavelength plot: the band's mean, largest and smallest reflectance at each angle drawn
+  linePlotSvg(a, { id: 'band', label: Q + ' against wavelength', xTitle: 'Wavelength (nm)', yTitle: q + ' (%)', xName: 'nm', yUnit: '%', yr, series });
+  const angTop = q === 'A' ? Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...C.A.s, ...C.A.p))) : 100;
+  linePlotSvg(b, { id: 'angle', label: Q + ' against angle at ' + dsFmt(spec.design, 5) + ' nm', xTitle: 'Angle of incidence (°)', yTitle: q + ' (%)', xName: '°', yUnit: '%', xr: [0, 89], yr: [0, angTop],
+    series: [{ label: q + 's', cls: 's0', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: q + 'p', cls: 's1', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
+  // under the wavelength plot: the band's mean, largest and smallest at each angle drawn
   const stat = R => [R.reduce((x, y) => x + y, 0) / R.length, Math.max(...R), Math.min(...R)];
   const bandRows = [[deg(a0), ...stat(C.R0).map(dsR)], ...(C.Rt ? [[deg(spec.theta), ...stat(C.Rt).map(dsR)]] : [])];
   const bare = ((spec.n0 - spec.ns) / (spec.n0 + spec.ns)) ** 2;
-  a.append(miniTable('filmFigures', 'Reflectance over the band', ['Angle', 'R mean (%)', 'R max (%)', 'R min (%)'], bandRows,
-    'Merit ' + dsFix(coatMerit(film.layers, spec), 3) + ' · bare substrate ' + dsR(bare) + ' %'));
+  a.append(miniTable('filmFigures', Q + ' over the band', ['Angle', q + ' mean (%)', q + ' max (%)', q + ' min (%)'], bandRows,
+    'Merit ' + dsFix(coatMerit(film.layers, spec), 3) + (q === 'A' ? '' : ' · bare substrate ' + dsR(q === 'T' ? 1 - bare : bare) + ' %')));
   // under the angle plot: s, p and their mean at λ₀, square on and at the angles judged
-  const angs = [...new Set([0, a0, spec.theta])], at = (d, pol) => stackR(film.layers, spec.n0, spec.ns, Math.cos(d * Math.PI / 180), spec.design, pol);
-  b.append(miniTable('filmAngleFigures', 'Reflectance at the design wavelength', ['Angle', 'Rs (%)', 'Rp (%)', 'R mean (%)'],
+  const angs = [...new Set([0, a0, spec.theta])], ci = d => Math.cos(d * Math.PI / 180);
+  const at = (d, pol) => {
+    const R = stackR(film.layers, spec.n0, spec.ns, ci(d), spec.design, pol);
+    if (q === 'R') return R;
+    const T = surfaceT(film.layers, spec, ci(d), spec.design, pol);
+    return q === 'T' ? T : 1 - R - T < 1e-9 ? 0 : 1 - R - T;
+  };
+  b.append(miniTable('filmAngleFigures', Q + ' at the design wavelength', ['Angle', q + 's (%)', q + 'p (%)', q + ' mean (%)'],
     angs.map(d => [deg(d), dsR(at(d, 's')), dsR(at(d, 'p')), dsR(at(d, 'avg'))]), 'At λ₀ = ' + dsFmt(spec.design, 5) + ' nm'));
-  return section('Reflectance', wrap);
+  // the switch: which quantity both plots and their tables show
+  const sw = h('div', { class: 'film-qsw', role: 'radiogroup', 'aria-label': 'What the plots show' },
+    ...Object.entries(FILM_QS).map(([k, t]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(k === q), class: k === q ? 'on' : null, 'data-q': k, onclick: () => setFilmQ(k) }, t)));
+  const out = section(Q, sw, wrap);
+  if (q === 'A' && !film.layers.some(L => L.metal)) out.insertBefore(h('p', { class: 'rt-lsub' }, 'No metal in this stack: the dielectric layers are taken as lossless, so nothing is absorbed.'), wrap);
+  return out;
 }
 function layersCard(spec) {
   const layers = film.layers, S = film.spec;
@@ -187,8 +224,9 @@ function layersCard(spec) {
   mats.addEventListener('click', () => { searchNow('materials'); });
   return section('Layers',
     h('div', { class: 'film-twrap' }, tbl),
-    h('div', { class: 'film-tools' }, opt, needle, mats,
+    h('div', { class: 'film-tools' }, opt,
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
+      needle, mats,
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
 }
@@ -259,7 +297,7 @@ function tolCard() {
       h('span', { class: 'film-tolline' }, 'Each layer off by σ', dsNum(T.sigma, v => { film.tol.sigma = v; }, 'Thickness error σ', 4),
         dsSelect([['rel', '% of its thickness'], ['abs', 'nm']], T.kind, v => edit(f => { f.tol.kind = v; }), 'σ as a share or in nm'),
         'over', dsNum(T.runs, v => { film.tol.runs = Math.round(v); }, 'Runs', 4), 'runs'), run));
-  if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs.')); return out; }
+  if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs, and how many runs meet the limits set in Make it.')); return out; }
   const r3 = (label, o, f) => [label, f(o.nominal), f(o.median), f(o.p90)];
   const tbl = (h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmTolTable', 'aria-label': 'Tolerance' },
     h('thead', null, h('tr', null, ...['', 'Nominal', 'Median', '90th percentile'].map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
@@ -271,6 +309,31 @@ function tolCard() {
     yr: [0, Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...res.p95)))],
     series: [{ label: 'nominal', cls: 's0', xs: res.nms, ys: res.nominal.map(v => 100 * v) }, { label: 'median', cls: 's1', xs: res.nms, ys: res.p50.map(v => 100 * v) },
       { label: '5th and 95th percentiles', cls: 'tgt', dash: true, xs: res.nms, ys: res.p95.map(v => 100 * v) }, { label: '', cls: 'tgt', dash: true, xs: res.nms, ys: res.p5.map(v => 100 * v) }] });
+  const y = yieldPart(); if (y) out.append(y);
+  return out;
+}
+/* the yield of the tolerance run: the runs that meet every limit of Make it (worked out again when the limits change) */
+let filmYieldMemo = null;
+export function filmYieldResult() {
+  const res = filmTolResult();
+  if (!res) return null;
+  const key = JSON.stringify(film.make);
+  if (!filmYieldMemo || filmYieldMemo.res !== res || filmYieldMemo.key !== key) filmYieldMemo = { res, key, y: filmYield(res.stacks, film, filmSpec(film), film.make) };
+  return filmYieldMemo.y;
+}
+/* the yield, the lower part of the Tolerance box (shown once there is a run) */
+function yieldPart() {
+  const Y = filmYieldResult();
+  if (!Y) return null;
+  const out = h('div', { class: 'film-part', role: 'group', 'aria-label': 'Yield', id: 'filmYield' }, h('h3', null, 'Yield'));
+  const share = (k, n) => (n ? dsFix(100 * k / n, 1) : '—');
+  const ops = { le: '≤ ', ge: '≥ ' };
+  out.append(h('p', { class: 'film-yield', id: 'filmYieldLine' }, h('strong', { class: 'mono' }, share(Y.pass, Y.runs) + ' %'), ' of ' + Y.runs + ' runs meet every limit (' + Y.pass + ' of ' + Y.runs + ').'),
+    h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmYieldTable', 'aria-label': 'Yield' },
+      h('thead', null, h('tr', null, ...['Limit (%)', 'Band', 'Required', 'Nominal', '9 runs in 10', 'Runs meeting it (%)'].map((t, k) => h('th', { scope: 'col', class: k > 1 ? 'n' : null }, t)))),
+      h('tbody', null, ...Y.rows.map(r => h('tr', null, h('th', { scope: 'row', class: 'lbl' }, r.label), h('td', null, r.where),
+        ...[ops[r.op] + r.value, dsFix(r.nominal, 3), dsFix(r.p10, 3), share(r.pass, Y.runs)].map(v => h('td', { class: 'n mono' }, v))))),
+      h('tfoot', null, h('tr', null, h('td', { colspan: '6' }, 'Judged over the band and all the angles, as Make it judges them (the table above is at ' + dsFmt(filmSpec(film).theta0 || 0, 3) + '° only). 9 runs in 10: the value nine runs in ten do as well as or better than.'))))));
   return out;
 }
 /* the run, JEKrayPro's as tolerancing is in JEKray */

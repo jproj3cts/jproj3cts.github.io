@@ -210,3 +210,28 @@ test('the field in the stack: |E|² at the outer surface is |1 + r|², in the su
   const H = stackField(hr, 1, 1.45, 1, 1064, 's');
   assert.ok(H.E2[H.E2.length - 1] < 0.01, 'next to nothing reaches the substrate');
 });
+test('the yield: the tolerance runs counted against the Make it limits, each alone and all at once', async () => {
+  const fs = await import('node:fs');
+  const M = await import('../../src/core/film-make.js'), T = await import('../../src/core/film-tol.js');
+  const f = F.normFilm(JSON.parse(fs.readFileSync(new URL('../../../demos/bbar-visible.jekfilm', import.meta.url), 'utf8'))), s = F.filmSpec(f);
+  const res = T.filmTolerance(f.layers, s, { kind: 'rel', sigma: 2, runs: 60, seed: 3 });
+  assert.equal(res.stacks.length, 60);
+  const Y = M.filmYield(res.stacks, f, s, f.make), lims = M.makeLimits(f, s, f.make);
+  assert.equal(Y.runs, 60);
+  assert.deepEqual(Y.rows.map(r => [r.key, r.value]), lims.map(r => [r.key, r.value]), 'the limits judged are the coating’s own');
+  // counted by hand: each run against each limit, held at its value
+  let all = 0; const each = lims.map(() => 0);
+  for (const L of res.stacks) {
+    const got = M.makeLimits({ ...f, layers: L }, s, { limits: Object.fromEntries(lims.map(r => [r.key, r.value])) });
+    got.forEach((g, i) => { if (g.ok) each[i]++; });
+    if (got.every(g => g.ok)) all++;
+  }
+  assert.equal(Y.pass, all); assert.deepEqual(Y.rows.map(r => r.pass), each);
+  assert.ok(Y.pass <= Math.min(...each), 'all at once is no more than the hardest alone');
+  // no error: every run is the design, which meets its own default limits
+  const none = M.filmYield(T.filmTolerance(f.layers, s, { sigma: 0, runs: 10 }).stacks, f, s, f.make);
+  assert.equal(none.pass, 10);
+  // a limit tighter than the design: no run meets it
+  const tight = M.filmYield(res.stacks, f, s, M.normMake({ limits: { mean: 0.001 } }));
+  assert.equal(tight.pass, 0);
+});

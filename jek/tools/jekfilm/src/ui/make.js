@@ -13,6 +13,8 @@ import { saveFilmSpec } from '../io/film-spec.js';
    the part's drawing; then the coating specification (PDF, JEKrayPro's) and the design data.
    ========================================================================== */
 const mkSec = (title, ...kids) => h('section', { class: 'film-sec rt-lcard', 'aria-label': title }, h('h2', null, title), ...kids);
+/* a part of the one Make it box, under its own small heading */
+const mkPart = (title, ...kids) => h('div', { class: 'film-part', role: 'group', 'aria-label': title }, h('h3', null, title), ...kids);
 const mkRow = (label, value, unit) => h('tr', null, h('th', { scope: 'row' }, label), h('td', null, value), h('td', { class: 'unit' }, unit || ''));
 function mkText(value, set, label, o) {
   const i = h('input', { type: 'text', value: value === undefined ? '' : String(value), class: 'film-mkin' + (o && o.num ? ' num' : ''), 'aria-label': label, spellcheck: 'false', placeholder: (o && o.placeholder) || '' });
@@ -37,7 +39,7 @@ export function makeCards(spec) {
       h('td', { class: 'n' }, h('span', { class: 'film-op' }, r.op === 'le' ? '≤' : '≥'), mkText(r.value, (m, v) => { m.limits[r.key] = Math.min(100, Math.max(0, v)); }, r.label + ' limit (%)', { num: true })),
       h('td', { class: 'n mono' }, mpct(r.design)), h('td', { class: 'film-met' }, r.ok ? 'met' : 'not met')))));
   const angles = spec.theta > spec.theta0 ? spec.theta0 + '–' + spec.theta + '°' : spec.theta0 + '°';
-  const perf = mkSec('Performance', h('p', { class: 'rt-lsub' }, 'One coated surface at ' + angles + ', ' + ({ avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol]) + ': its reflectance R, and its transmittance T into the substrate. Each limit is the design’s value with a margin until you set it.'), h('div', { class: 'film-twrap' }, lim),
+  const perf = mkPart('Performance', h('p', { class: 'rt-lsub' }, 'One coated surface at ' + angles + ', ' + ({ avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol]) + ': its reflectance R, and its transmittance T into the substrate. Each limit is the design’s value with a margin until you set it.'), h('div', { class: 'film-twrap' }, lim),
     spec.target === 'split' ? h('p', { class: 'rt-lsub' }, 'Splitter tolerance ± ', mkText(M.splitTol, (m, v) => { m.splitTol = v; delete m.limits.min; delete m.limits.max; }, 'Splitter tolerance (%)', { num: true }), ' %') : null,
     h('button', { class: 'film-tbtn', type: 'button', onclick: () => edit(f => { f.make.limits = {}; }) }, 'Limits from the design again'));
   const dur = h('table', { class: 'film-props film-mk' }, h('tbody', null,
@@ -46,14 +48,14 @@ export function makeCards(spec) {
   const pdf = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmSpecPdf', title: 'The order and the design behind it, as a two-page PDF to send to the maker' }, 'Coating specification (PDF)'), 'make a coating specification');
   pdf.addEventListener('click', () => saveFilmSpec());
   const misses = rows.filter(r => !r.ok).length;
-  const out = mkSec('Files for the maker',
+  const out = mkPart('Files for the maker',
     h('p', { class: 'rt-lsub' }, 'The specification is the coating and its substrate, the performance it is accepted against, durability and how it is checked, with the design (layers, curves, tolerance) on its second page. The data gives the design curves to compare the coater’s measurements with.'),
     misses ? h('p', { class: 'film-warn' }, misses === 1 ? 'The design misses one of the limits: change the design, or the limit, before sending it.' : 'The design misses ' + misses + ' of the limits: change the design, or the limits, before sending it.') : null,
     h('div', { class: 'film-tools' }, pdf, h('button', { class: 'rt-btn', type: 'button', onclick: () => document.getElementById('btnExportData').click() }, 'Design data…')));
   // the note for the part's optical drawing (ISO 10110-9's way of marking a coating), to copy
   const note = drawingNote(film, spec, M), pre = h('pre', { class: 'film-note', id: 'filmDrawingNote' }, note.join('\n'));
   const copy = h('button', { class: 'film-tbtn', type: 'button', onclick: () => { navigator.clipboard.writeText(note.join('\n')).then(() => { copy.textContent = 'Copied'; }, () => {}); } }, 'Copy');
-  const draw = mkSec('Drawing note', h('p', { class: 'rt-lsub' }, 'The coating as the part’s optical drawing carries it, in the manner of ISO 10110-9: marked on its surface by λ in a circle, its requirements as ρ(λ) for reflectance and τ(λ) for transmittance. Check the layout against the standard itself before relying on it.'), pre, copy);
-  return [mkSec('Coating and substrate', sub), perf, mkSec('Durability and checks', dur), draw, out];
+  const draw = mkPart('Drawing note', h('p', { class: 'rt-lsub' }, 'The coating as the part’s optical drawing carries it, in the manner of ISO 10110-9: marked on its surface by λ in a circle, its requirements as ρ(λ) for reflectance and τ(λ) for transmittance. Check the layout against the standard itself before relying on it.'), pre, copy);
+  return [mkSec('Make it', mkPart('Coating and substrate', sub), perf, mkPart('Durability and checks', dur), draw, out)];
 }
 export function wireMake() { hooks.filmMakeCards = makeCards; }

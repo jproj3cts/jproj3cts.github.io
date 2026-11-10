@@ -4,7 +4,7 @@ import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
 import { accountLoaded } from '../../../jekray/src/io/account.js';
 import { FILM_VERSION, filmSpec, filmToCoat, newFilm, normFilm } from '../core/film.js';
-import { film, filmField, optimiseNow, redo, render, setFilm, setFilmTab, undo } from './designer.js';
+import { film, filmField, filmYieldResult, optimiseNow, tolNow, redo, render, setFilm, setFilmTab, undo } from './designer.js';
 import { filmThemeApply, toast, wireBar } from './bar.js';
 import { filmAutosave, filmCsv, filmRestore, newFilmHere, openFilmData, openFilmExample, saveFilmFile, wireFiles } from '../io/files.js';
 import { wireFilmAccount } from '../io/film-account.js';
@@ -73,5 +73,5 @@ if (!TEST_MODE && !EMBED) { filmHash(); window.addEventListener('hashchange', fi
 window.JEKfilm = {
   version: FILM_VERSION,
   film: () => film, spec: () => filmSpec(film), load(d) { openFilmData(d, d && d.name); return film; }, normFilm,
-  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, tab: setFilmTab, field: o => filmField(film, o), specPdf: o => filmSpecPdf(film, o), shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
+  optimise: optimiseNow, undo, redo, csv: () => filmCsv(film), coat: () => filmToCoat(film), saveToCloud, link: () => filmLink, forFace: () => filmFor, share: shareFilm, example: openFilmExample, dataSet: () => filmDataSet(film), exportData: filmExportData, tab: setFilmTab, field: o => filmField(film, o), tolerance: () => tolNow(), yield: () => filmYieldResult(), specPdf: o => filmSpecPdf(film, o), shareHash: () => filmShareHash(), readHash: readFilmHash, openHash: openFilmHash,
 };

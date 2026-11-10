@@ -72,7 +72,7 @@ const homeSay = (fn, ok) => async () => {
 async function homeOpenBench(id, version, b) {
   let tool = b && b.tool;
   if (!tool) { try { const full = await api('/v1/benches/' + id); tool = full.tool; try { tool = TOOL_OF_FORMAT[JSON.parse(full.content).format] || tool; } catch (err) { /* as marked */ } } catch (err) { tool = 'jekray'; } }
-  else if (tool === 'jekray' && toolMap()[id] && toolMap()[id] !== 'jekray') tool = toolMap()[id];
+  else if (tool === 'jekray' && TOOL_OF_FORMAT[toolMap()[id]]) tool = toolMap()[id];
   track('cloud', 'open.' + (tool || 'jekray'));
   openApp(tool || 'jekray', 'cloud=' + id + (version ? '@' + version : ''));
 }
@@ -82,14 +82,23 @@ export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(
    benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
    kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
 const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion' };
-let toolSeen = null;
-const toolMap = () => toolSeen || (toolSeen = (() => { try { return JSON.parse(localStorage.getItem(TOOL_KEY)) || {}; } catch (err) { return {}; } })());
+/* (what was found is kept by the bench's id: 'jekcad' and the like for good, since a bench never changes its app;
+   'jekray' with the version it was seen at, as v<n>, so a bench the look failed on, or one saved over since, is
+   looked at again. The store is read each time: JEKcad writes to it too, for each part studio it saves or opens.) */
+const toolMap = () => { try { return JSON.parse(localStorage.getItem(TOOL_KEY)) || {}; } catch (err) { return {}; } };
+let toolBusy = false;
 function trueTools(list, again) {
   const M = toolMap(), ask = [];
-  for (const b of list || []) { if (!b || (b.tool || 'jekray') !== 'jekray') continue; const k = M[b.id]; if (!k) ask.push(b); else if (k !== 'jekray') b.tool = k; }
-  if (!ask.length) return;
-  Promise.all(ask.slice(0, 40).map(b => api('/v1/benches/' + b.id).then(full => { let fmt = null; try { fmt = JSON.parse(full.content).format; } catch (err) { /* not JSON: JEKray's */ } M[b.id] = TOOL_OF_FORMAT[fmt] || 'jekray'; return M[b.id] !== 'jekray'; }, () => false)))
-    .then(found => { try { localStorage.setItem(TOOL_KEY, JSON.stringify(M)); } catch (err) { /* this visit */ } if (found.some(Boolean) && again) again(); });
+  for (const b of list || []) { if (!b || (b.tool || 'jekray') !== 'jekray') continue; const k = M[b.id]; if (k && k !== 'jekray' && !/^v\d+$/.test(k)) b.tool = k; else if (k !== 'v' + b.version) ask.push(b); }
+  if (!ask.length || toolBusy) return;
+  toolBusy = true;
+  (async () => {
+    let found = false;
+    // a few at a time, every one of them (a long list is not left half looked at)
+    for (let i = 0; i < ask.length; i += 6) await Promise.all(ask.slice(i, i + 6).map(b => api('/v1/benches/' + b.id).then(full => { let fmt = null; try { fmt = JSON.parse(full.content).format; } catch (err) { /* not JSON: JEKray's */ } const t = TOOL_OF_FORMAT[fmt]; const now = toolMap(); now[b.id] = t || 'v' + (full.version || b.version); try { localStorage.setItem(TOOL_KEY, JSON.stringify(now)); } catch (err) { /* this visit */ } if (t) found = true; }, () => {})));
+    toolBusy = false;
+    if (found && again) again();
+  })();
 }
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
 // a copy of a bench, as it is now, into another workspace: a fork there, so it remembers where it came from

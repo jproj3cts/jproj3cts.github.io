@@ -1268,12 +1268,11 @@
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
-  @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
-    #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
+    #btnExamples, #btnShare { display: none; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }

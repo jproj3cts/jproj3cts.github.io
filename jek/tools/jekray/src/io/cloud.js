@@ -318,6 +318,8 @@ async function cloudOpen(id, version) {
   // a coating, by its mark or by its content (one saved by an API from before JEKfilm is marked JEKray's)
   const fmt = (() => { try { return JSON.parse(b.content).format; } catch (err) { return null; } })();
   if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
+  // a part studio, by its mark or its content (one saved by an API from before JEKcad is marked JEKray's)
+  if (meta.tool === 'jekcad' || fmt === 'jekcad') { openInJekcad(meta, version); toast('“' + meta.name + '” is a JEKcad part studio: opened in JEKcad'); return; }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }
@@ -386,6 +388,8 @@ const whenAgo = t => {
 /* a JEKion bench (the same workspaces hold both tools' benches) opens in JEKion, in a tab of its own */
 const JEKION_URL = '/jek/tools/jekion.html';
 const openInJekion = (b, version) => { const w = window.open(JEKION_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekion'); if (w) w.focus(); };    // the one JEKion tab, named
+const JEKCAD_URL = '/jek/tools/jekcad.html';
+const openInJekcad = (b, version) => { const w = window.open(JEKCAD_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekcad'); if (w) w.focus(); };    // the one JEKcad tab
 const JEKFILM_URL = '/jek/tools/jekfilm.html';
 const openInJekfilm = (b, version) => { const w = window.open(JEKFILM_URL + '#cloud=' + b.id + (version ? '@' + version : ''), 'jekfilm'); if (w) w.focus(); };    // the one JEKfilm tab
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them

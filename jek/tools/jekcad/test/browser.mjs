@@ -172,6 +172,33 @@ export async function check(pw, base, shots) {
     await p.evaluate(() => { document.querySelector('[data-theme="dark"]').click(); });
     ok('No page errors', !errs.length, errs.slice(0, 5).join(' | '));
     await p.close();
+    // a part studio from the cloud that the API marked JEKray's (as one from before JEKcad was), opened by its link in
+    // each app: JEKcad keeps it by its content; JEKray, JEKion and JEKfilm hand it to JEKcad's tab
+    const studio = { id: 'bcad', name: 'Routed studio', tool: 'jekray', workspace_id: 'w_me', version: 1, updated_at: Date.now(),
+      content: JSON.stringify({ format: 'jekcad', version: 1, name: 'Routed studio', units: 'mm', variables: [], features: [], rollback: null, parts: {} }) };
+    const me = { user: { id: 'u1', name: 'Jo', email: 'jo@example.ac.uk', created_at: 0 }, identities: [], workspaces: [{ id: 'w_me', kind: 'personal', name: 'Jo', role: 'owner', active: true,
+      plan: { plan: 'individual', billing: true, status: 'active', interval: 'month', period_end: Date.now() + 9e9 } }] };
+    const routed = async app => {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      await q.addInitScript(() => { window.__opened = []; window.open = (u, n) => { window.__opened.push([u, n]); return { focus() {} }; }; });
+      await q.route('http://localhost:8787/**', r => {
+        const req = r.request(), path = new URL(req.url()).pathname, cors = { 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' };
+        if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+        const body = path === '/v1/me' ? me : path === '/v1/benches/bcad' ? studio : /lease$/.test(path) ? { ok: true, held: true } : {};
+        return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+      });
+      await q.goto(base + '/jek/tools/' + app + '.html#cloud=bcad');
+      await q.waitForFunction(a => a === 'jekcad' ? window.JEKcad && window.JEKcad.app.doc && window.JEKcad.app.doc.name === 'Routed studio' : window.__opened.length > 0, app, { timeout: 30000 }).catch(() => {});
+      const res = await q.evaluate(a => ({ opened: window.__opened, name: a === 'jekcad' && window.JEKcad ? window.JEKcad.app.doc.name : null }), app);
+      await q.close();
+      return res;
+    };
+    const here = await routed('jekcad');
+    ok('A part studio the API marked JEKray’s opens in JEKcad, by its content, and goes nowhere else', here.name === 'Routed studio' && !here.opened.length, JSON.stringify(here));
+    for (const app of ['jekray', 'jekion', 'jekfilm']) {
+      const r = await routed(app), last = r.opened.slice(-1)[0];
+      ok('Opened by its link in ' + app + ': handed to JEKcad’s tab', last && last[0] === '/jek/tools/jekcad.html#cloud=bcad' && last[1] === 'jekcad', JSON.stringify(r.opened));
+    }
   } catch (err) { ok('The suite ran to its end', false, err.message.split('\n').slice(0, 3).join(' ')); } finally { await b.close(); }
   return out;
 }

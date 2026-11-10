@@ -4479,7 +4479,7 @@ async function filmThumb(link, force) {
   catch (err) { link.thumbAt = 0; }
 }
 /* ---------- opening ---------- */
-const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'jekray', 'a JEKray bench', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'jekion', 'a JEKion bench', 'JEKion'] };
+const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'jekray', 'a JEKray bench', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'jekion', 'a JEKion bench', 'JEKion'], jekcad: ['/jek/tools/jekcad.html', 'jekcad', 'a JEKcad part studio', 'JEKcad'] };
 async function filmCloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
@@ -4487,7 +4487,7 @@ async function filmCloudOpen(id, version) {
   let fmt = null;
   try { fmt = JSON.parse(b.content).format; } catch (err) { /* not JSON: another app's */ }
   if (meta.tool !== 'jekfilm' && fmt !== 'jekfilm') {
-    const a = OTHER_APPS[meta.tool] || OTHER_APPS.jekray, w = window.open(a[0] + '#cloud=' + id + (version ? '@' + version : ''), a[1]);
+    const a = OTHER_APPS[fmt === 'jekcad' ? 'jekcad' : meta.tool] || OTHER_APPS.jekray, w = window.open(a[0] + '#cloud=' + id + (version ? '@' + version : ''), a[1]);
     if (w) w.focus(); toast('“' + meta.name + '” is ' + a[2] + ': opened in ' + a[3]); return;
   }
   let d = null;

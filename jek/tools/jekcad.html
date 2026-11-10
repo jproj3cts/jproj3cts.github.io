@@ -7463,7 +7463,14 @@ async function cloudThumb(link, force) {
 async function cloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
-  if (meta.tool && meta.tool !== 'jekcad' && OTHER_APPS[meta.tool]) { const [url, nm] = OTHER_APPS[meta.tool], w = window.open(url + '#cloud=' + id + (version ? '@' + version : ''), meta.tool); if (w) w.focus(); toast('“' + meta.name + '” is a ' + nm + ' bench: opened in ' + nm); return; }
+  // its content decides: a part studio saved by an API from before JEKcad is marked JEKray's, and opens here all the same;
+  // anything else goes to its app (a coating by its content too)
+  let fmt = null;
+  try { fmt = JSON.parse(b.content).format; } catch (err) { /* not JSON: another app's */ }
+  if (fmt !== 'jekcad') {
+    const tool = fmt === 'jekfilm' || fmt === 'jekion' ? fmt : OTHER_APPS[meta.tool] ? meta.tool : 'jekray', [url, nm] = OTHER_APPS[tool], w = window.open(url + '#cloud=' + id + (version ? '@' + version : ''), tool);
+    if (w) w.focus(); toast('“' + meta.name + '” is a ' + nm + ' ' + (tool === 'jekfilm' ? 'coating' : 'bench') + ': opened in ' + nm); return;
+  }
   setCloudOpening(true);
   try { if (!openDocData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud')) return; }
   finally { setCloudOpening(false); }

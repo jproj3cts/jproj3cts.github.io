@@ -34,6 +34,9 @@ export async function check(pw, base, shots) {
       ok('A preset, then Optimise thicknesses: the merit falls; Undo puts the thicknesses back', before === 3 && /^Merit .* to .* in \d+ tries$/.test(opt.toast) && JSON.stringify(opt.d) !== JSON.stringify(undone) && undone.length === 3, JSON.stringify([opt, undone]));
       await p.selectOption('select[aria-label="What the coating is for"]', 'edge');
       const edge = await p.evaluate(() => ({ turns: !!document.querySelector('input[aria-label="Edge wavelength (nm)"]'), passes: !!document.querySelector('select[aria-label="Which side passes"]') }));
+      await p.click('#filmTolRun'); await p.waitForTimeout(200);
+      const tl = await p.evaluate(() => ({ rows: [...document.querySelectorAll('#filmTolTable tbody tr')].map(r => r.firstChild.textContent), plot: !!document.querySelector('svg.film-plot[aria-label^="Reflectance at 0° over 200 runs"]') }));
+      ok('Tolerance › Run: merit, R mean and R max as nominal, median and 90th percentile, and the spread drawn', tl.rows.join() === 'Merit,R mean (%),R max (%)' && tl.plot, JSON.stringify(tl));
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
       const band = await p.evaluate(() => ({ from: (document.querySelector('input[aria-label="Smallest angle of incidence (degrees)"]') || {}).value, to: (document.querySelector('input[aria-label="Largest angle of incidence (degrees)"]') || {}).value,

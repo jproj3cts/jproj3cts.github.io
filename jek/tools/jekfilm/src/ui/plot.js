@@ -38,7 +38,7 @@ export function linePlotSvg(parent, o) {
   const cursor = sv('line', { class: 'cursor', y1: T, y2: H - B, visibility: 'hidden' });
   svg.append(lines, cursor);
   const read = h('div', { class: 'film-read mono', 'aria-live': 'off' }, ' ');
-  const key = h('div', { class: 'film-key' }, ...o.series.map(s => h('span', { class: s.cls || '' }, h('i', { class: s.dash ? 'dash' : null }), s.label)));
+  const key = h('div', { class: 'film-key' }, ...o.series.filter(s => s.label).map(s => h('span', { class: s.cls || '' }, h('i', { class: s.dash ? 'dash' : null }), s.label)));
   svg.addEventListener('pointermove', e => {
     const r = svg.getBoundingClientRect(), x = xr[0] + ((e.clientX - r.left) * W / r.width - L) / (W - L - R) * (xr[1] - xr[0]);
     if (x < xr[0] || x > xr[1]) { cursor.setAttribute('visibility', 'hidden'); return; }

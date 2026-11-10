@@ -36,6 +36,10 @@ The table lists the stack from the incident medium down to the substrate: each l
 
 **Choose materials** tries each layer as each material of the list, keeping its optical thickness so a quarter wave stays one, and keeps the change that helps most, layer by layer, for up to three passes; then the thicknesses are settled. Both leave a metal layer as it is, and both are one step of Undo.
 
+## Tolerance
+
+How the coating fares as made. Give each layer's thickness error σ, as a share of the layer or in nanometres, and the number of runs, then **Run**: each run puts a normal error of that σ on every layer, the same runs each time (a fixed seed). The table gives the merit and the band's mean and largest reflectance as designed (nominal), in the middle run (median) and in the run nine in ten do better than (90th percentile); the plot draws the reflectance as designed, the median, and the 5th and 95th percentiles at each wavelength. The settings are kept with the coating. Tolerancing is JEKrayPro's.
+
 ## Files and the cloud
 
 The coating you are working on is kept in this browser as you go. With [JEKrayPro](/jek/products/design-software/jekray/), **File › Save as .jekfilm** (Ctrl+S) saves it as a file and **File › Save to the cloud…** keeps it in the cloud with your benches. Choose the workspace and the folder: put it in the folder of the benches it is for. Once in the cloud it saves itself as you work, Ctrl+S keeps a version, and JEKsuite shows it with its history, forks and the Bin, like any bench. Opening a .jekfilm file and exporting the curves (**File › Export the curves (CSV)**, with a free account) need no plan; optimising does.

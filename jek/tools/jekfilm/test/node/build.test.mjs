@@ -29,6 +29,7 @@ test('saving a file, saving to the cloud and optimising are JEKrayPro’s, each 
   // the optimisers run from the page only behind the gate: the thicknesses (optimiseNow) and the searches (searchNow)
   assert.equal((src('ui/designer.js').match(/coatOptimise\(/g) || []).length, 1);
   assert.match(src('ui/designer.js'), /if \(!designPro\('optimise a coating'\)\) return null;\n {2}filmSearching = true;/);
+  assert.match(src('ui/designer.js'), /if \(!designPro\('tolerance a coating'\)\) return null;\n {2}const result = filmTolerance/);
   for (const f of order().filter(f => !f.startsWith('../') && f !== 'core/film-opt.js' && f !== 'ui/designer.js')) assert.doesNotMatch(src(f), /filmNeedle\(|filmMaterials\(|coatOptimise\(/, f);
 });
 test('a coating from the cloud that is another app’s opens in that app, in its named tab', () => {

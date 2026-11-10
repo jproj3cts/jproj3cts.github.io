@@ -2090,6 +2090,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-title a { color: inherit; text-decoration: none; }
 .film-title a:hover .jek-wm b { background: var(--jek-cyan-dark); }
 .film-shareurl { width: 100%; box-sizing: border-box; font: 0.85rem var(--jek-mono); padding: 0.45rem; margin: 0.3rem 0 0.4rem; }
+.film-tolset label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; }
+.film-tolset .rt-lnum { width: 4.5rem; }
 </style>
 </head>
 <body class="film-app">
@@ -2672,6 +2674,38 @@ function backMarks(now, first) {
   return { marks, keep: Object.assign({}, first, { b: [...b, ...marks] }) };
 }
 /* ==========================================================================
+   Tolerancing: how a coating fares as made. Each run gives every layer a thickness error drawn from a normal
+   distribution, σ as a share of the layer (kind 'rel', σ in %) or in nanometres (kind 'abs'), the same seed giving the
+   same runs; the curve square on (at the smallest angle judged) and the merit of each run are kept. Returned: the
+   nominal curve, the 5th, 50th and 95th percentiles at each wavelength, and the merit and the band's mean and largest
+   reflectance as nominal, median and 90th percentile.
+   ========================================================================== */
+const TOL_DEFAULT = { kind: 'rel', sigma: 1, runs: 200, seed: 1 };
+function normTol(t) {
+  t = t && typeof t === 'object' ? t : {};
+  const num = (v, lo, hi, d) => (isFinite(+v) && v !== null && v !== '' ? Math.min(hi, Math.max(lo, +v)) : d);
+  return { kind: t.kind === 'abs' ? 'abs' : 'rel', sigma: num(t.sigma, 0, 50, 1), runs: Math.round(num(t.runs, 10, 2000, 200)), seed: Math.round(num(t.seed, 1, 1e9, 1)) };
+}
+const pct = (sorted, p) => { if (!sorted.length) return NaN; const x = (sorted.length - 1) * p, i = Math.floor(x), f = x - i; return sorted[i] + (sorted[Math.min(sorted.length - 1, i + 1)] - sorted[i]) * f; };
+function filmTolerance(layers, spec, tol) {
+  const T = normTol(tol), rnd = seededRng(T.seed), N = 81, a0 = spec.theta0 || 0;
+  const stat = R => { let m = 0, w = 0; for (const r of R) { m += r; w = Math.max(w, r); } return [m / R.length, w]; };
+  const nom = coatCurve(layers, spec, a0, N), nomMerit = coatMerit(layers, spec), [nomMean, nomWorst] = stat(nom.R);
+  const cols = nom.nms.map(() => []), merits = [], means = [], worsts = [];
+  for (let r = 0; r < T.runs; r++) {
+    const L = layers.map(x => ({ ...x, d: Math.max(0, T.kind === 'rel' ? x.d * (1 + T.sigma / 100 * randn(rnd)) : x.d + T.sigma * randn(rnd)) }));
+    const c = coatCurve(L, spec, a0, N);
+    c.R.forEach((v, i) => cols[i].push(v));
+    const [m, w] = stat(c.R);
+    means.push(m); worsts.push(w); merits.push(coatMerit(L, spec, 21, spec.theta > a0 ? 3 : 1));
+  }
+  for (const c of cols) c.sort((a, b) => a - b);
+  for (const a of [merits, means, worsts]) a.sort((x, y) => x - y);
+  const three = (nominal, s) => ({ nominal, median: pct(s, 0.5), p90: pct(s, 0.9) });
+  return { tol: T, nms: nom.nms, nominal: nom.R, p5: cols.map(c => pct(c, 0.05)), p50: cols.map(c => pct(c, 0.5)), p95: cols.map(c => pct(c, 0.95)),
+    merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts) };
+}
+/* ==========================================================================
    A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
      { format: 'jekfilm', version: 1, name,
        spec: { target, sub: { glass } | { n }, n0, lo, hi, design, angles: 'upto' | 'band', theta0, theta, pol, R, edge, passBelow },
@@ -2737,7 +2771,7 @@ function normFilm(d) {
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
     .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
-  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers };
+  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normTol(d.tol) };
 }
 /* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
 function newFilm(name) {
@@ -4074,7 +4108,7 @@ function linePlotSvg(parent, o) {
   const cursor = sv('line', { class: 'cursor', y1: T, y2: H - B, visibility: 'hidden' });
   svg.append(lines, cursor);
   const read = h('div', { class: 'film-read mono', 'aria-live': 'off' }, ' ');
-  const key = h('div', { class: 'film-key' }, ...o.series.map(s => h('span', { class: s.cls || '' }, h('i', { class: s.dash ? 'dash' : null }), s.label)));
+  const key = h('div', { class: 'film-key' }, ...o.series.filter(s => s.label).map(s => h('span', { class: s.cls || '' }, h('i', { class: s.dash ? 'dash' : null }), s.label)));
   svg.addEventListener('pointermove', e => {
     const r = svg.getBoundingClientRect(), x = xr[0] + ((e.clientX - r.left) * W / r.width - L) / (W - L - R) * (xr[1] - xr[0]);
     if (x < xr[0] || x > xr[1]) { cursor.setAttribute('visibility', 'hidden'); return; }
@@ -4145,7 +4179,7 @@ function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(), layersCard(spec)));
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(), layersCard(spec), tolCard()));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -4262,6 +4296,42 @@ function layersCard(spec) {
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
+}
+/* ---------- tolerancing: the coating as made, with each layer's thickness off by a normal error ---------- */
+let filmTol = null;                                   // { key: the coating it was run on, result }
+const tolKey = () => JSON.stringify([film.spec, film.layers, film.tol]);
+function tolCard() {
+  const T = film.tol, res = filmTol && filmTol.key === tolKey() ? filmTol.result : null;
+  const run = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmTolRun', title: 'Monte Carlo: every layer’s thickness off by a normal error of this σ, run after run' }, 'Run'), 'tolerance a coating');
+  run.addEventListener('click', () => tolNow());
+  const out = section('Tolerance',
+    h('div', { class: 'film-tools film-tolset' },
+      h('label', null, 'Each layer off by σ ', dsNum(T.sigma, v => { film.tol.sigma = v; }, 'Thickness error σ', 4)),
+      dsSelect([['rel', '% of its thickness'], ['abs', 'nm']], T.kind, v => edit(f => { f.tol.kind = v; }), 'σ as a share or in nm'),
+      h('label', null, ' over ', dsNum(T.runs, v => { film.tol.runs = Math.round(v); }, 'Runs', 4), ' runs'), run));
+  if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs.')); return out; }
+  const r3 = (label, o, f) => [label, f(o.nominal), f(o.median), f(o.p90)];
+  const tbl = (h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmTolTable', 'aria-label': 'Tolerance' },
+    h('thead', null, h('tr', null, ...['', 'Nominal', 'Median', '90th percentile'].map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
+    h('tbody', null, ...[r3('Merit', res.merit, v => dsFix(v, 3)), r3('R mean (%)', res.mean, dsR), r3('R max (%)', res.worst, dsR)].map(r => h('tr', null, h('th', { scope: 'row' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))))));
+  const pl = h('div');
+  out.append(h('div', { class: 'rt-lpair' }, tbl, pl));
+  const a0 = filmSpec(film).theta0 || 0;
+  linePlotSvg(pl, { id: 'tol', label: 'Reflectance at ' + dsFmt(a0, 3) + '° over ' + res.tol.runs + ' runs, σ ' + res.tol.sigma + (res.tol.kind === 'rel' ? ' %' : ' nm'), xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%',
+    yr: [0, Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...res.p95)))],
+    series: [{ label: 'nominal', cls: 's0', xs: res.nms, ys: res.nominal.map(v => 100 * v) }, { label: 'median', cls: 's1', xs: res.nms, ys: res.p50.map(v => 100 * v) },
+      { label: '5th and 95th percentiles', cls: 'tgt', dash: true, xs: res.nms, ys: res.p95.map(v => 100 * v) }, { label: '', cls: 'tgt', dash: true, xs: res.nms, ys: res.p5.map(v => 100 * v) }] });
+  return out;
+}
+/* the run, JEKrayPro's as tolerancing is in JEKray */
+function tolNow() {
+  if (!film.layers.length) { toast('Add a layer first: there is nothing to tolerance', true); return null; }
+  if (!designPro('tolerance a coating')) return null;
+  const result = filmTolerance(film.layers, filmSpec(film), film.tol);
+  filmTol = { key: tolKey(), result };
+  track('tolerance', 'film');
+  render();
+  return result;
 }
 /* the searches beyond the thicknesses, JEKrayPro's as the optimiser is: adding layers (needle) or choosing materials;
    while one runs the buttons wait, and its result is one step of Undo */

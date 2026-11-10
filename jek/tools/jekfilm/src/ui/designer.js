@@ -8,6 +8,7 @@ import { coatAngles, coatCurve, coatMerit, coatOptimise, coatWant, stackR } from
 import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
 import { linePlotSvg } from './plot.js';
 import { filmMaterials, filmNeedle } from '../core/film-opt.js';
+import { filmTolerance } from '../core/film-tol.js';
 import { toast } from './bar.js';
 
 /* ==========================================================================
@@ -69,7 +70,7 @@ export function render() {
   const body = document.getElementById('filmBody');
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
-  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(), layersCard(spec)));
+  body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, plotsCard(), layersCard(spec), tolCard()));
   body.scrollTop = scroll;
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
@@ -186,6 +187,42 @@ function layersCard(spec) {
       h('button', { class: 'rt-btn', type: 'button', id: 'filmAddLayer', onclick: () => edit(f => { f.layers.push({ n: 1.38, d: qwot(1.38, f.spec.design) }); }) }, 'Add layer'),
       h('button', { class: 'rt-btn', type: 'button', onclick: () => edit(f => { for (const L of f.layers) if (!L.metal) L.d = qwot(L.n, f.spec.design); }) }, 'All quarter waves'),
       pre));
+}
+/* ---------- tolerancing: the coating as made, with each layer's thickness off by a normal error ---------- */
+let filmTol = null;                                   // { key: the coating it was run on, result }
+const tolKey = () => JSON.stringify([film.spec, film.layers, film.tol]);
+function tolCard() {
+  const T = film.tol, res = filmTol && filmTol.key === tolKey() ? filmTol.result : null;
+  const run = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'filmTolRun', title: 'Monte Carlo: every layer’s thickness off by a normal error of this σ, run after run' }, 'Run'), 'tolerance a coating');
+  run.addEventListener('click', () => tolNow());
+  const out = section('Tolerance',
+    h('div', { class: 'film-tools film-tolset' },
+      h('label', null, 'Each layer off by σ ', dsNum(T.sigma, v => { film.tol.sigma = v; }, 'Thickness error σ', 4)),
+      dsSelect([['rel', '% of its thickness'], ['abs', 'nm']], T.kind, v => edit(f => { f.tol.kind = v; }), 'σ as a share or in nm'),
+      h('label', null, ' over ', dsNum(T.runs, v => { film.tol.runs = Math.round(v); }, 'Runs', 4), ' runs'), run));
+  if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs.')); return out; }
+  const r3 = (label, o, f) => [label, f(o.nominal), f(o.median), f(o.p90)];
+  const tbl = (h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmTolTable', 'aria-label': 'Tolerance' },
+    h('thead', null, h('tr', null, ...['', 'Nominal', 'Median', '90th percentile'].map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
+    h('tbody', null, ...[r3('Merit', res.merit, v => dsFix(v, 3)), r3('R mean (%)', res.mean, dsR), r3('R max (%)', res.worst, dsR)].map(r => h('tr', null, h('th', { scope: 'row' }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))))));
+  const pl = h('div');
+  out.append(h('div', { class: 'rt-lpair' }, tbl, pl));
+  const a0 = filmSpec(film).theta0 || 0;
+  linePlotSvg(pl, { id: 'tol', label: 'Reflectance at ' + dsFmt(a0, 3) + '° over ' + res.tol.runs + ' runs, σ ' + res.tol.sigma + (res.tol.kind === 'rel' ? ' %' : ' nm'), xTitle: 'Wavelength (nm)', yTitle: 'R (%)', xName: 'nm', yUnit: '%',
+    yr: [0, Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...res.p95)))],
+    series: [{ label: 'nominal', cls: 's0', xs: res.nms, ys: res.nominal.map(v => 100 * v) }, { label: 'median', cls: 's1', xs: res.nms, ys: res.p50.map(v => 100 * v) },
+      { label: '5th and 95th percentiles', cls: 'tgt', dash: true, xs: res.nms, ys: res.p95.map(v => 100 * v) }, { label: '', cls: 'tgt', dash: true, xs: res.nms, ys: res.p5.map(v => 100 * v) }] });
+  return out;
+}
+/* the run, JEKrayPro's as tolerancing is in JEKray */
+export function tolNow() {
+  if (!film.layers.length) { toast('Add a layer first: there is nothing to tolerance', true); return null; }
+  if (!designPro('tolerance a coating')) return null;
+  const result = filmTolerance(film.layers, filmSpec(film), film.tol);
+  filmTol = { key: tolKey(), result };
+  track('tolerance', 'film');
+  render();
+  return result;
 }
 /* the searches beyond the thicknesses, JEKrayPro's as the optimiser is: adding layers (needle) or choosing materials;
    while one runs the buttons wait, and its result is one step of Undo */

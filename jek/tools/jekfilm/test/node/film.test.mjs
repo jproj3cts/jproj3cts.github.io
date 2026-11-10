@@ -115,3 +115,17 @@ test('needle optimisation adds layers where they help, and material choice finds
   const m = await O.filmNeedle([{ n: 1.46, d: 200 }, { n: 1, d: 150, metal: 'Ag' }], F.filmSpec(F.normFilm({ spec: { target: 'hr', lo: 600, hi: 700, design: 650 } })));
   assert.ok(m.layers.some(L => L.metal === 'Ag'), 'a metal layer stays');
 });
+test('tolerancing: no error gives the nominal coating; an error spreads it, the same seed the same runs', async () => {
+  const T = await import('../../src/core/film-tol.js');
+  const f = F.normFilm({ spec: { target: 'ar', lo: 450, hi: 650, design: 550 }, layers: F.filmPreset('bb3', 550) }), s = F.filmSpec(f);
+  const z = T.filmTolerance(f.layers, s, { sigma: 0, runs: 20 });
+  assert.ok(z.p5.every((v, i) => Math.abs(v - z.nominal[i]) < 1e-15 && Math.abs(z.p95[i] - v) < 1e-15), 'σ 0: every run the nominal');
+  const a = T.filmTolerance(f.layers, s, { sigma: 3, runs: 300, seed: 7 }), b = T.filmTolerance(f.layers, s, { sigma: 3, runs: 300, seed: 7 });
+  assert.deepEqual(a.merit, b.merit, 'the same seed, the same runs');
+  assert.ok(a.p95.every((v, i) => v >= a.p5[i]), 'the 95th percentile above the 5th everywhere');
+  assert.ok(a.merit.p90 > a.merit.nominal && a.mean.p90 > a.mean.nominal, 'errors make it worse');
+  const n = T.filmTolerance(f.layers, s, { kind: 'abs', sigma: 2, runs: 50 });
+  assert.equal(n.tol.kind, 'abs');
+  assert.deepEqual(T.normTol({ sigma: -3, runs: 5, kind: 'x' }), { kind: 'rel', sigma: 0, runs: 10, seed: 1 });
+  assert.deepEqual(F.normFilm({}).tol, T.TOL_DEFAULT);
+});

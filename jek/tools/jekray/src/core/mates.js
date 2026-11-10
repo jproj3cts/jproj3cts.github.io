@@ -142,7 +142,7 @@ function meshTopo(T) {
   return G;
 }
 const triN = (G, t) => [G.N[3 * t], G.N[3 * t + 1], G.N[3 * t + 2]], triC = (G, t) => [G.C[3 * t], G.C[3 * t + 1], G.C[3 * t + 2]];
-const COS_FLAT = Math.cos(2 * deg), COS_SMOOTH = Math.cos(35 * deg);
+const COS_FLAT = Math.cos(2 * Math.PI / 180), COS_SMOOTH = Math.cos(35 * Math.PI / 180);      // (deg is not yet there as the modules load)
 function flatRegion(G, t0) {
   const n0 = triN(G, t0), c0 = triC(G, t0), tol = G.L * 2e-4 + 1e-4, seen = new Set([t0]), stack = [t0];
   let area = 0; const nsum = [0, 0, 0], csum = [0, 0, 0];

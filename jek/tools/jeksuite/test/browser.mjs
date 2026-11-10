@@ -186,7 +186,7 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html#app=jekcad');
       await p.waitForSelector('.rt-happhead.jekcad', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
       const d = await p.evaluate(() => ({ counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), where: document.getElementById('homeWhere').textContent }));
-      ok('#app=jekcad: JEKcad’s launch page, its part studios counted in their folders, New part studio', d.where === 'JEKcad' && d.counts.join() === '0 part studios,1 part studio' && d.starts.join('|') === 'Open JEKcad|New part studio', JSON.stringify(d));
+      ok('#app=jekcad: JEKcad’s launch page, its part studios counted in their folders (one the API marked JEKray’s among them, known by its content), New part studio', d.where === 'JEKcad' && d.counts.join() === '1 part studio,1 part studio' && d.starts.join('|') === 'Open JEKcad|New part studio', JSON.stringify(d));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Levisense/.test(x.textContent)).click());
       await p.waitForSelector('.rt-hcard[data-bench=b6]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
       const tag = await p.evaluate(() => { const t = document.querySelector('.rt-hcard[data-bench=b6] .rt-htool'); return t ? [t.textContent, t.className] : null; });

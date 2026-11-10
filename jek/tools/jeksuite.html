@@ -3550,12 +3550,26 @@ const homeSay = (fn, ok) => async () => {
 /* a cloud bench opened in its app, in that app's tab: a version as a copy (#cloud=<id>@<version>) */
 async function homeOpenBench(id, version, b) {
   let tool = b && b.tool;
-  if (!tool) { try { tool = (await api('/v1/benches/' + id)).tool; } catch (err) { tool = 'jekray'; } }
+  if (!tool) { try { const full = await api('/v1/benches/' + id); tool = full.tool; try { tool = TOOL_OF_FORMAT[JSON.parse(full.content).format] || tool; } catch (err) { /* as marked */ } } catch (err) { tool = 'jekray'; } }
+  else if (tool === 'jekray' && toolMap()[id] && toolMap()[id] !== 'jekray') tool = toolMap()[id];
   track('cloud', 'open.' + (tool || 'jekray'));
   openApp(tool || 'jekray', 'cloud=' + id + (version ? '@' + version : ''));
 }
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
+/* A bench's app, where the API's mark is behind what it holds: an API from before an app was made marks that app's
+   benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
+   kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
+const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion' };
+let toolSeen = null;
+const toolMap = () => toolSeen || (toolSeen = (() => { try { return JSON.parse(localStorage.getItem(TOOL_KEY)) || {}; } catch (err) { return {}; } })());
+function trueTools(list, again) {
+  const M = toolMap(), ask = [];
+  for (const b of list || []) { if (!b || (b.tool || 'jekray') !== 'jekray') continue; const k = M[b.id]; if (!k) ask.push(b); else if (k !== 'jekray') b.tool = k; }
+  if (!ask.length) return;
+  Promise.all(ask.slice(0, 40).map(b => api('/v1/benches/' + b.id).then(full => { let fmt = null; try { fmt = JSON.parse(full.content).format; } catch (err) { /* not JSON: JEKray's */ } M[b.id] = TOOL_OF_FORMAT[fmt] || 'jekray'; return M[b.id] !== 'jekray'; }, () => false)))
+    .then(found => { try { localStorage.setItem(TOOL_KEY, JSON.stringify(M)); } catch (err) { /* this visit */ } if (found.some(Boolean) && again) again(); });
+}
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
 // a copy of a bench, as it is now, into another workspace: a fork there, so it remembers where it came from
 function homeCopy(b, btn) {
@@ -3694,6 +3708,7 @@ async function fillHome() {
     return;
   }
   if (seq !== homeSeq) return;
+  if (data && Array.isArray(data.benches)) trueTools(data.benches, () => { if (seq === homeSeq) fillHome(); });
   box.removeAttribute('aria-busy');
   const byId = new Map(folders.map(f => [f.id, f]));
   const appPage = P.app && P.view === 'folder' ? appOf(P.app) : null;
@@ -4037,6 +4052,7 @@ async function fillHome() {
   api('/v1/workspaces/' + ws + '/benches').then(all => {
     if (seq !== homeSeq) return;
     const n = new Map();
+    trueTools(all.benches, () => { if (seq === homeSeq) fillHome(); });
     for (const b of all.benches || []) if ((b.tool || 'jekray') === appPage.id && b.folder_id) n.set(b.folder_id, (n.get(b.folder_id) || 0) + 1);
     for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) { const k = n.get(c.dataset.folder) || 0, s = c.querySelector('.rt-hopen'); if (s) s.append(h('small', { class: 'rt-hcount' }, k + ' ' + thingOf(appPage.id) + (k === 1 ? '' : thingOf(appPage.id) === 'bench' ? 'es' : 's'))); }
   }, () => {});

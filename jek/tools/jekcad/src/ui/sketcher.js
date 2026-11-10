@@ -818,11 +818,18 @@ function pickedSketches() {
   if (!f) return [];
   return f.type === 'sketch' ? [f.id] : [f.sketch, f.path, ...(f.sections || []).map(x => x.sketch)].filter(x => typeof x === 'string');
 }
-function dimText(d) { return (d.t === 'dia' ? 'Ø' : d.t === 'rad' ? 'R' : '') + fmtNum(d.v, 3) + (d.t === 'ang' ? '°' : '') + (d.x && /[#a-z(]/i.test(d.x.replace(/\b(mm|cm|in|m|deg|rad)\b/g, '')) ? ' (' + d.x + ')' : ''); }
+function dimText(d) { return (d.t === 'dia' ? 'Ø ' : d.t === 'rad' ? 'R ' : '') + fmtNum(d.v, 3) + (d.t === 'ang' ? '°' : '') + (d.x && /[#a-z(]/i.test(d.x.replace(/\b(mm|cm|in|m|deg|rad)\b/g, '')) ? ' (' + d.x + ')' : ''); }
 function drawDim(c, C, d, at, sel, hov) {
   c.strokeStyle = C.dim; c.lineWidth = 1; c.font = '11px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   for (const ln of at.lines) { c.beginPath(); c.moveTo(ln[0][0], ln[0][1]); c.lineTo(ln[1][0], ln[1][1]); c.stroke(); }
-  const txt = dimText(d), w = c.measureText(txt).width + 8;
+  // arrowheads: each a tip and the point it points away from (a length's line has one at each end by default)
+  c.fillStyle = C.dim;
+  for (const [tip, from] of at.arrows || (at.lines.length >= 3 ? [[at.lines[2][0], at.lines[2][1]], [at.lines[2][1], at.lines[2][0]]] : [])) {
+    const dx = tip[0] - from[0], dy = tip[1] - from[1], L = Math.hypot(dx, dy); if (L < 14) continue;
+    const ux = dx / L, uy = dy / L; c.beginPath(); c.moveTo(tip[0], tip[1]); c.lineTo(tip[0] - ux * 8 - uy * 3, tip[1] - uy * 8 + ux * 3); c.lineTo(tip[0] - ux * 8 + uy * 3, tip[1] - uy * 8 - ux * 3); c.closePath(); c.fill();
+  }
+  c.font = '600 12px system-ui, sans-serif';
+  const txt = dimText(d), w = c.measureText(txt).width + 10;
   c.fillStyle = sel ? C.sel : hov ? C.hov : isDark() ? 'rgba(28,31,36,0.85)' : 'rgba(255,255,255,0.88)';
   c.fillRect(at.p[0] - w / 2, at.p[1] - 8, w, 16);
   c.fillStyle = d.err ? '#d04040' : sel ? '#fff' : hov ? '#1f232a' : C.dim; c.fillText(txt, at.p[0], at.p[1] + 0.5);
@@ -1009,10 +1016,15 @@ function dimPlace(d, E, P) {
   if (at.lines.length === 3) {
     const [A, B] = [at.lines[0][0], at.lines[1][0]], dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, n = [-dy / L, dx / L], hgt = (Ls[0] - A[0]) * n[0] + (Ls[1] - A[1]) * n[1];
     const A2 = [A[0] + n[0] * hgt, A[1] + n[1] * hgt], B2 = [B[0] + n[0] * hgt, B[1] + n[1] * hgt];
-    return { p: [Ls[0], Ls[1]], lines: [[A, A2], [B, B2], [A2, B2], [[(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], [Ls[0], Ls[1]]]] };
+    return { p: [Ls[0], Ls[1]], lines: [[A, A2], [B, B2], [A2, B2], [[(A2[0] + B2[0]) / 2, (A2[1] + B2[1]) / 2], [Ls[0], Ls[1]]]], arrows: [[A2, B2], [B2, A2]] };
   }
-  if (d.t === 'rad' || d.t === 'dia') { const cs = P(base), e0 = E.get(d.r[0].e), dx = Ls[0] - cs[0], dy = Ls[1] - cs[1], L = Math.hypot(dx, dy) || 1, rs = Math.hypot(...[0, 1].map(i => P([e0.c[0] + e0.r, e0.c[1]])[i] - cs[i])); return { p: [Ls[0], Ls[1]], lines: [[d.t === 'dia' ? [cs[0] - dx / L * rs, cs[1] - dy / L * rs] : cs, [Ls[0], Ls[1]]]] }; }
+  if (d.t === 'rad' || d.t === 'dia') { const L = Math.hypot(d.off[0], d.off[1]); return roundDim(d, E.get(d.r[0].e), L > 1e-9 ? [d.off[0] / L, d.off[1] / L] : [1, 0], Ls, P); }
   return { p: [Ls[0], Ls[1]], lines: at.lines };
+}
+function roundDim(d, e0, u, Ls, P) {
+  const cs = P(e0.c), B = P([e0.c[0] + e0.r * u[0], e0.c[1] + e0.r * u[1]]), A = d.t === 'dia' ? P([e0.c[0] - e0.r * u[0], e0.c[1] - e0.r * u[1]]) : cs;
+  const dx = B[0] - cs[0], dy = B[1] - cs[1], L = Math.hypot(dx, dy) || 1, out = Ls || [B[0] + dx / L * 30, B[1] + dy / L * 30];
+  return { p: [out[0], out[1]], lines: [[A, B], [B, [out[0], out[1]]]], arrows: d.t === 'dia' ? [[A, B], [B, A]] : [[B, A]] };
 }
 function dimPlace0(d, E, P) {
   const e0 = E.get(d.r[0].e);
@@ -1021,7 +1033,9 @@ function dimPlace0(d, E, P) {
   if (!mid) { let n = 0; const m = [0, 0]; for (const e of E.values()) for (const q of e.t === 'line' ? [e.a, e.b] : [e.c]) { m[0] += q[0]; m[1] += q[1]; n++; } mid = E.mid = n ? [m[0] / n, m[1] / n] : [0, 0]; }
   const out = (a, b, n) => { const c = P(mid), s = (((a[0] + b[0]) / 2 - c[0]) * n[0] + ((a[1] + b[1]) / 2 - c[1]) * n[1]) < -1e-6 ? -1 : 1; return [n[0] * s, n[1] * s]; };
   if (d.t === 'len' && e0) { const a = P(e0.a), b = P(e0.b), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, n = out(a, b, [-dy / L * 24, dx / L * 24]); const A = [a[0] + n[0], a[1] + n[1]], B = [b[0] + n[0], b[1] + n[1]]; return { p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lines: [[a, A], [b, B], [A, B]] }; }
-  if ((d.t === 'rad' || d.t === 'dia') && e0 && e0.c) { const ang = e0.t === 'arc' ? (e0.a0 + arcSweep(e0) / 2) * Math.PI / 180 : Math.PI / 4, q = [e0.c[0] + e0.r * Math.cos(ang), e0.c[1] + e0.r * Math.sin(ang)], cs = P(e0.c), qs = P(q), dx = qs[0] - cs[0], dy = qs[1] - cs[1], L = Math.hypot(dx, dy) || 1, out = [qs[0] + dx / L * 24, qs[1] + dy / L * 24]; return { p: out, lines: [[d.t === 'dia' ? [cs[0] - dx, cs[1] - dy] : cs, out]] }; }
+  // a diameter: a line right across the circle through its centre, an arrow at each side, the value beyond one; a
+  // radius: from the centre to the curve, one arrow (circles about one centre each at their own angle, clear of each other)
+  if ((d.t === 'rad' || d.t === 'dia') && e0 && e0.c) { let turn = 0; if (e0.t === 'circle') for (const o of E.values()) { if (o === e0) break; if (o.t === 'circle' && Math.hypot(o.c[0] - e0.c[0], o.c[1] - e0.c[1]) < 1e-6) turn++; } const ang = e0.t === 'arc' ? (e0.a0 + arcSweep(e0) / 2) * Math.PI / 180 : Math.PI / 4 - turn * Math.PI / 6; return roundDim(d, e0, [Math.cos(ang), Math.sin(ang)], null, P); }
   if (d.t === 'dist' || d.t === 'pl') {
     const a = hpt(E, d.r[0]);
     let b;
